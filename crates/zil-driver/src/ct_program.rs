@@ -1591,14 +1591,14 @@ mod tests {
     use zil_ct::SourceCompiler;
 
     #[test]
-    fn g334_actual_source_helper_context_cannot_be_selected_by_pure_ct() {
+    fn shared_helper_life_actual_source_helper_context_cannot_be_selected_by_pure_ct() {
         use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
         let input = SourceUnit::new(
             FileId(0),
             ModuleId(0),
             "helper-ct.zil",
             include_str!(
-                "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/fn-shared-input.zil"
+                "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-helper-bridge/fn-shared-input.zil"
             ),
         );
         let syntax = zil_syntax::parse(&input).into_result().unwrap();
@@ -1722,11 +1722,11 @@ mod tests {
     }
 
     #[test]
-    fn ct122_original_teardown_is_bounded_before_query_copy() {
+    fn compile_time_resource_original_teardown_is_bounded_before_query_copy() {
         let source = SourceUnit::new(
             FileId(0),
             ModuleId(0),
-            "ct122-budget.zil",
+            "ct_program_ct_budget.zil",
             "resource Token{code:i32}impl Drop for Token{fn drop(self:Self){}}fn pure()->i64{return 42}",
         );
         let ast = zil_syntax::parse(&source).into_result().unwrap();
@@ -1926,11 +1926,12 @@ mod tests {
     }
 
     #[test]
-    fn ct202_collector_rejects_bare_template_and_indirect_wrapper_before_execution() {
+    fn store_element_compile_time_collector_rejects_bare_template_and_indirect_wrapper_before_execution()
+     {
         let source = SourceUnit::new(
             FileId(0),
             ModuleId(0),
-            "template202-ct.zil",
+            "ct_program_template_ct.zil",
             "fn pure()->i64{return 42}fn wrapper()->i64{return pure()}",
         );
         let ast = zil_syntax::parse(&source).into_result().unwrap();
@@ -2015,11 +2016,12 @@ mod tests {
     }
 
     #[test]
-    fn ct202_collector_bounds_unused_template_names_before_whole_program_copy() {
+    fn store_element_compile_time_collector_bounds_unused_template_names_before_whole_program_copy()
+    {
         let source = SourceUnit::new(
             FileId(0),
             ModuleId(0),
-            "template202-shape.zil",
+            "ct_program_template_shape.zil",
             "fn f()->i32{return 42}",
         );
         let ast = zil_syntax::parse(&source).into_result().unwrap();
@@ -2047,7 +2049,8 @@ mod tests {
     }
 
     #[test]
-    fn product237_pure_queries_ignore_unused_runtime_recipes_but_cannot_execute_applications() {
+    fn product_compile_time_pure_queries_ignore_unused_runtime_recipes_but_cannot_execute_applications()
+     {
         let model = "resource R{n:i32} package Item{manages r:R} package Bag<T:StoreElement>{manages items:Store<T>} package Root<T:StoreElement>{child:Bag<T>}";
         for (body, forbidden) in [
             (
@@ -2062,7 +2065,7 @@ mod tests {
             let source = SourceUnit::new(
                 FileId(0),
                 ModuleId(0),
-                "product237-ct.zil",
+                "ct_program_product_ct.zil",
                 format!("{model}{body}"),
             );
             let syntax = zil_syntax::parse(&source).into_result().unwrap();

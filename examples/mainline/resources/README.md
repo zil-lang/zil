@@ -30,7 +30,7 @@ printf '!' | ./out/resources
 ```sh
 ./target/debug/zil build examples/mainline/resources/fd.zil -o out/resource-fd
 ./out/resource-fd < /dev/null
-cargo test --offline --locked -p zil-driver --test impl049
+cargo test --offline --locked -p zil-driver --test cross_module_resource_lifetimes
 ```
 
 该例的测试 profile 是 Linux x86_64、stdin 已打开、无并发重用被关闭编号。只有非负 dup 结果进入资源。C ABI 和外部操作合同仍由显式 unsafe 封装承担；这个成功路径不是完整 POSIX 错误/重入协议，也没有证明任意裸整数都是合法句柄。

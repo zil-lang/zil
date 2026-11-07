@@ -418,7 +418,7 @@ pub(crate) fn prepay_owned_frame(function: &m::Function, left: &mut usize) -> Co
 mod tests {
     use super::*;
     #[test]
-    fn task841_named_frame_layout_resolves_actual_definitions_and_charges_identity() {
+    fn named_frame_layout_resolves_actual_definitions_and_charges_identity() {
         let top = m::Ty::Named("environment".into());
         let first = vec![m::Ty::Int(32), m::Ty::Int(1)];
         let second = vec![m::Ty::Int(1), m::Ty::Int(32)];

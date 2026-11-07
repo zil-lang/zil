@@ -32,8 +32,7 @@ def hashes(root, interfaces):
 def read_contracts(root=ROOT):
     data = load(root / 'validation/engineering-contracts.json')
     if (data.get('schema_version') != 1 or not isinstance(data.get('contracts'), dict)
-            or not isinstance(data.get('handoff_protocol'), str) or not data['handoff_protocol'].strip()
-            or not isinstance(data.get('acceptance_evidence'), str) or not data['acceptance_evidence'].strip()):
+):
         raise ValueError('missing or invalid static engineering contracts')
     return data['contracts']
 

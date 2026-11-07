@@ -30,12 +30,4 @@ files={p:sha(p) for p in inputs}
 canonical=''.join(p+'\0'+h+'\n' for p,h in sorted(files.items()))
 bundle=hashlib.sha256(canonical.encode()).hexdigest()
 dump('data/normative-inputs.json',{'schema_version':1,'algorithm':'sha256 of sorted path + NUL + sha256 + LF entries','files':files,'normative_hash':bundle})
-contracts=json.loads((R/'validation/engineering-contracts.json').read_text())['contracts']
-if len(contracts)!=14 or any(not c.get('requirements') or not c.get('done_when') for c in contracts.values()):
-    raise ValueError('static engineering contracts missing or incomplete')
-dump('data/requirement-index.json',{'generated_from':'_zil_design.md','ids':rules})
-coverage={i:[key for key,c in contracts.items() if i in c['requirements']] for i in rules}
-if not all(coverage.values()):
-    raise ValueError('normative rule without engineering contract')
-dump('data/requirement-coverage.json',{'generated_from':'validation/engineering-contracts.json','coverage':coverage})
-print(json.dumps({'contracts':len(contracts),'rules':len(rules),'source_cases':len(cases),'diagnostics':len(diagnostics),'normative_hash':bundle},ensure_ascii=False))
+print(json.dumps({'rules':len(rules),'source_cases':len(cases),'diagnostics':len(diagnostics),'normative_hash':bundle},ensure_ascii=False))

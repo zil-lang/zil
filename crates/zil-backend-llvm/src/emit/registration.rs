@@ -828,7 +828,7 @@ pub(super) fn reserve_function(
 mod tests {
     use super::*;
     #[test]
-    fn registration343_actual_helper_reservation_has_exact_cumulative_limit() {
+    fn actual_helper_reservation_has_exact_cumulative_limit() {
         // Internal planning fixture only; source/runtime/Verify evidence lives
         // in the driver tests. This does not grant authority to the raw model.
         let f = TypedFunction {

@@ -367,7 +367,7 @@ mod tests {
     };
 
     #[test]
-    fn g443_actual_source_deletions_bind_original_events_and_host() {
+    fn static_member_factory_actual_source_deletions_bind_original_events_and_host() {
         let gone = |name| format!("fn {name}<T:Copy,#N:i32,life a>(marker:Type)->i32{{return N}}");
         let keep = |name| format!("fn {name}()->i32{{return 42}}");
         for (methods, expected) in [

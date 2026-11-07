@@ -37,7 +37,7 @@ pub(super) struct Capture {
 }
 
 #[cfg(test)]
-mod reviewer332_thread_lease {
+mod thread_lease_regressions {
     use super::*;
 
     // Internal accounting fixtures only: they carry no source or CFG proof.
@@ -5439,7 +5439,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
 }
 
 #[cfg(test)]
-mod terminal340_prepared_owner_budget {
+mod prepared_owner_budget {
     use super::*;
     use zil_base::ResultCategory;
     #[test]

@@ -397,12 +397,12 @@ fn real_resources_generics_ct_and_products_reuse_evicted_frontends() {
     for (name, input) in [
         ("byte_io/main.zil", b"hello, Zil!\n\0\x80".as_slice()),
         ("resource_closures/main.zil", b"D"),
-        ("generic_store178/main.zil", b"2"),
-        ("mixed_capture182/main.zil", b"2"),
-        ("ct_selection219/main.zil", b"2"),
-        ("ct_types228/arrays_defaults.zil", b""),
-        ("where_copy229/main.zil", b""),
-        ("shared_product224/main.zil", b""),
+        ("generic-store/main.zil", b"2"),
+        ("mixed-capture/main.zil", b"2"),
+        ("ct-selection/main.zil", b"2"),
+        ("ct-types/arrays_defaults.zil", b""),
+        ("where-copy/main.zil", b""),
+        ("shared-product/main.zil", b""),
     ] {
         for optimization in [Optimization::O0, Optimization::O2] {
             let mut case = Case::new(2);
@@ -429,7 +429,7 @@ fn real_resources_generics_ct_and_products_reuse_evicted_frontends() {
             let expected = execute(&case.dir.join("oracle"), input);
             assert_eq!(
                 expected.0,
-                Some(if name.starts_with("ct_selection") {
+                Some(if name.starts_with("ct-selection") {
                     2
                 } else {
                     0

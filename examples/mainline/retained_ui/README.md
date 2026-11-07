@@ -4,7 +4,7 @@
 
 运行 `zil build examples/mainline/retained_ui/main.zil -o /tmp/retained-ui` 后，可以输入 `l++-q`。预期输出为 `F0\n1\n2\n1\nA`：F 表示工厂已退出，A 直到调用者退出才释放。输入 `p` 则在较晚实参失败时输出 `BCDZ` 并退出 1，已准备资源与拥有环境仍按责任次序清理。
 
-`crates/zil-driver/tests/impl070_retained.rs` 编译真实 ZIL/LLVM O0、同一 LLVM O2，以及独立编写的 Rust O0/O2，对 20 个输入逐一核对输出、退出码和空 stderr，共 80 次机器执行。源码 test 同时检查五个公开工厂合同均经过 Verify 发布；两字段清理、空清理和外部依赖为空均有检查。私有 `retain(give guard)` 还核对拥有输入转入返回环境的机器责任。没有生成 Rust 来实现 ZIL。
+`crates/zil-driver/tests/returned_owned_environments_retained.rs` 编译真实 ZIL/LLVM O0、同一 LLVM O2，以及独立编写的 Rust O0/O2，对 20 个输入逐一核对输出、退出码和空 stderr，共 80 次机器执行。源码 test 同时检查五个公开工厂合同均经过 Verify 发布；两字段清理、空清理和外部依赖为空均有检查。私有 `retain(give guard)` 还核对拥有输入转入返回环境的机器责任。没有生成 Rust 来实现 ZIL。
 
 | 输入 | 含义 | 输出 | 退出码 |
 |---|---|---|---:|

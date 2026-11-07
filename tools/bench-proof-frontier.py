@@ -32,7 +32,7 @@ def main():
             parser.error("CPU is outside current allowed affinity")
         os.sched_setaffinity(0, {args.cpu})
     root = Path(__file__).resolve().parents[1]
-    suite = root / "tests/perf/impl046"
+    suite = root / "tests/perf/return-origin-frontier"
     contract = json.loads((suite / "contract.json").read_text())
     selected = set(args.case or (case["file"] for case in contract["cases"]))
     if not selected.issubset({case["file"] for case in contract["cases"]}):

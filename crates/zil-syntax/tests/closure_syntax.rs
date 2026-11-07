@@ -19,7 +19,7 @@ fn function(module: &Module) -> &Function {
 }
 
 #[test]
-fn plan_t01_003_move_arrow_and_block_closures_have_distinct_shapes() {
+fn move_arrow_and_block_closures_have_distinct_shapes() {
     let module = parsed(
         "fn f() { let a = move (x: i32) => x + 1; let b = () => { return 2 }; let c = (x) => x |> consume }",
     );
@@ -68,7 +68,7 @@ fn plan_t01_003_move_arrow_and_block_closures_have_distinct_shapes() {
 }
 
 #[test]
-fn plan_t01_003_function_pointer_arrow_takes_complete_return_type() {
+fn function_pointer_arrow_takes_complete_return_type() {
     let module = parsed(
         "type First = fn() -> i32?\ntype Second = (fn() -> i32)?\ntype Third = fn(i32) -> E!i32",
     );
@@ -101,7 +101,7 @@ fn plan_t01_003_function_pointer_arrow_takes_complete_return_type() {
 }
 
 #[test]
-fn plan_t01_003_impl_trait_is_only_a_function_return_production() {
+fn impl_trait_is_only_a_function_return_production() {
     let module = parsed("fn make(n: i64) -> impl Fn() -> i64 => move () => n");
     let TypeKind::Impl(bounds) = &function(&module).return_type.as_ref().unwrap().kind else {
         panic!();

@@ -215,7 +215,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn g4454_inactive_and_nested_payloads_never_hide_address_roots() {
+    fn inactive_and_nested_payloads_never_hide_address_roots() {
         let limits = Limits::default();
         let address = Type::Address {
             mutable: false,

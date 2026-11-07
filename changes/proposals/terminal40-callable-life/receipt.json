@@ -1,8 +1,0 @@
-{
-  "status": "Proposed data model and concrete migration; not production, codec or safety acceptance",
-  "files": {
-    "frozen-context.md": "b8461c792529028e370e7a3c18d564b70a40e3a548c144790ca02fa4ecd1330e",
-    "contract.md": "866543ae4c35ac2cf2318039b098008e9bed27e31e41ee077df4f7872d188e5a",
-    "model.rs": "4ad8933dbbc9921a2358b53132cbecc04e9429e9d44aa2214fad9ed9f10f3dae"
-  }
-}

@@ -498,7 +498,7 @@ fn limit() -> Vec<Diagnostic> {
 }
 
 #[cfg(test)]
-mod impl243_tests {
+mod owned_sum_tests {
     fn pure_leaf() -> Type {
         Type::BorrowedStorage {
             storage: Box::new(Type::Record {
@@ -524,7 +524,7 @@ mod impl243_tests {
     }
 
     #[test]
-    fn g4463_lower_qualified_array_preserves_metadata_and_shared_budget() {
+    fn lower_qualified_array_preserves_metadata_and_shared_budget() {
         // Isolated Lower representation probe: this raw type is not source or
         // nominal authority. Actual Source tests traverse Verify beforehand.
         let ty = Type::Array {
@@ -577,11 +577,11 @@ mod impl243_tests {
         };
         assert_eq!(life.nominal_arguments[0].argument, 0);
         assert_eq!(life.nominal_arguments[0].binder, 0);
-        eprintln!("g4463 Lower pure qualified Array workN={needed} nodesN={nodes}");
+        eprintln!("enum_member_controls Lower pure qualified Array workN={needed} nodesN={nodes}");
     }
 
     #[test]
-    fn g4463_lower_index_root_address_keeps_one_budget_and_rejects_embedded_targets() {
+    fn lower_index_root_address_keeps_one_budget_and_rejects_embedded_targets() {
         // Private physical admission probe; actual root/access permission must
         // already have been proved by Verify for a real lowering request.
         let defaults = zil_base::Limits::default();
@@ -639,7 +639,7 @@ mod impl243_tests {
                 unreachable!()
             };
             assert_eq!(*actual, mutable);
-            eprintln!("g4463 Lower index root mutable={mutable} workN={needed}");
+            eprintln!("enum_member_controls Lower index root mutable={mutable} workN={needed}");
         }
         let embedded = Type::Address {
             inner: Box::new(Type::Array {
@@ -671,7 +671,7 @@ mod impl243_tests {
     }
 
     #[test]
-    fn g4463_lower_new_pure_path_rejects_inactive_targets_and_slots() {
+    fn lower_new_pure_path_rejects_inactive_targets_and_slots() {
         let limits = zil_base::Limits::default();
         let mut choice = Type::Enum {
             name: "Choice".into(),
@@ -711,7 +711,7 @@ mod impl243_tests {
     }
 
     #[test]
-    fn callable40_lower_complete_relation_uses_existing_remaining_ledger() {
+    fn callable_relation_lowering_uses_existing_remaining_ledger() {
         use zil_ir::{
             LifeTypeProjection, SignatureLifeClass, SignatureLifeClassBinding, StorageBase,
             StorageBinder, StorageLifeContract,
@@ -760,7 +760,7 @@ mod impl243_tests {
 
     use super::*;
     #[test]
-    fn impl243_lower_uses_one_actual_request_budget_and_fresh_boundary() {
+    fn lower_uses_one_actual_request_budget_and_fresh_boundary() {
         let ty = Type::Enum {
             name: "Choice".into(),
             variants: vec![
@@ -801,7 +801,7 @@ mod impl243_tests {
     }
 
     #[test]
-    fn impl249_lower_callback_argument_and_result_share_one_budget() {
+    fn lower_callback_argument_and_result_share_one_budget() {
         let event = Type::Package {
             name: "Event".into(),
             fields: vec![
@@ -828,7 +828,7 @@ mod impl243_tests {
             assert!(budget.admits(&event, &resources, 0).unwrap());
             budget.work
         };
-        eprintln!("impl249 lower signature budget: owning N={needed}");
+        eprintln!("lower signature budget: owning N={needed}");
         limits.max_analysis_steps = needed;
         let mut exact = Budget::new(&limits);
         assert!(exact.admits(&reply, &resources, 0).unwrap());

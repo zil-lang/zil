@@ -120,10 +120,14 @@ mod tests {
     }
 
     #[test]
-    fn editor202_full_store_types_match_driver_and_invalidate_changed_bounds() {
+    fn store_element_editor_full_store_types_match_driver_and_invalidate_changed_bounds() {
         let cases = [
-            include_str!("../../zil-driver/tests/impl202_fixtures/01_original_push.zil"),
-            include_str!("../../zil-driver/tests/impl202_fixtures/02_original_factory.zil"),
+            include_str!(
+                "../../zil-driver/tests/complete_store_element_binding_fixtures/01_original_push.zil"
+            ),
+            include_str!(
+                "../../zil-driver/tests/complete_store_element_binding_fixtures/02_original_factory.zil"
+            ),
         ];
         let mut editor = EditorSession::new();
         let options = CompileOptions {
@@ -133,7 +137,8 @@ mod tests {
         for original in cases {
             // Reuse the same file/module/path across edits: stale template or
             // concrete-type bindings must not survive the source fingerprint.
-            let source = SourceUnit::new(FileId(0), ModuleId(0), "store-template202.zil", original);
+            let source =
+                SourceUnit::new(FileId(0), ModuleId(0), "lib_store_template.zil", original);
             let cli = zil_driver::compile_source(&source, &options);
             assert_eq!(cli.status, ResultCategory::Success, "{}", cli.to_json());
             assert_eq!(cli.verification_runs, 1);
@@ -151,7 +156,7 @@ mod tests {
             );
             let changed = original.replacen("fn push<T: StoreElement>", "fn push<T: Copy>", 1);
             assert_ne!(original, changed);
-            let edited = SourceUnit::new(FileId(0), ModuleId(0), "store-template202.zil", changed);
+            let edited = SourceUnit::new(FileId(0), ModuleId(0), "lib_store_template.zil", changed);
             let cli = zil_driver::compile_source(&edited, &options);
             let ide = editor.analyze(&edited, &options);
             assert_ne!(cli.status, ResultCategory::Success);
@@ -172,12 +177,15 @@ mod tests {
     }
 
     #[test]
-    fn editor203_state_declaration_edits_invalidate_even_when_actual_closure_types_stay_equal() {
+    fn state_mode_editor_state_declaration_edits_invalidate_even_when_actual_closure_types_stay_equal()
+     {
         let cases = [
             include_str!(
-                "../../zil-driver/tests/impl203_fixtures/01_same_factory_distinct_modes.zil"
+                "../../zil-driver/tests/declared_state_modes_fixtures/01_same_factory_distinct_modes.zil"
             ),
-            include_str!("../../zil-driver/tests/impl203_fixtures/04_mode_cleanup_markers.zil"),
+            include_str!(
+                "../../zil-driver/tests/declared_state_modes_fixtures/04_mode_cleanup_markers.zil"
+            ),
         ];
         let options = CompileOptions {
             stop_after: Stage::Verify,
@@ -185,7 +193,7 @@ mod tests {
         };
         let mut editor = EditorSession::new();
         for original in cases {
-            let source = SourceUnit::new(FileId(0), ModuleId(0), "state203-edit.zil", original);
+            let source = SourceUnit::new(FileId(0), ModuleId(0), "lib_state_edit.zil", original);
             let cli = zil_driver::compile_source(&source, &options);
             assert_eq!(cli.status, ResultCategory::Success, "{}", cli.to_json());
             let cold = editor.analyze(&source, &options);
@@ -208,7 +216,7 @@ mod tests {
             let head = "fn run<T: Copy, F: Fn() -> i32";
             assert_eq!(original.matches(head).count(), 1);
             let changed = original.replacen(head, "fn run<T: Copy, F: FnOnce() -> i32", 1);
-            let changed = SourceUnit::new(FileId(0), ModuleId(0), "state203-edit.zil", changed);
+            let changed = SourceUnit::new(FileId(0), ModuleId(0), "lib_state_edit.zil", changed);
             let cli = zil_driver::compile_source(&changed, &options);
             assert_eq!(cli.status, ResultCategory::SafeReject, "{}", cli.to_json());
             let ide = editor.analyze(&changed, &options);

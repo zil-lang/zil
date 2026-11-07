@@ -7,12 +7,10 @@ function exits with status 93 if entered. Both C drivers finish or clear every
 entry before returning, satisfying the external no-future promise for these
 small same-thread controls.
 
-The compiler tested was `1252dbb23164291cf3481c2adebd7716e3c1811f`.
-From that checkout, with the managed LLVM environment available:
+A frozen native observation used compiler `1252dbb23164291cf3481c2adebd7716e3c1811f`. Rebuild that exact revision to reproduce its result; for a current checkout, use its own compiler binary and record a new result:
 
 ```sh
-source /workspace/.zil-env/env.sh
-export CARGO_TARGET_DIR=/workspace/.zil-env/target-269
+export CARGO_TARGET_DIR=/tmp/zil-scoped-direct-target
 cargo build -p zil-cli --offline --locked -j 2
 case_dir="$PWD/tests/foreign-scoped-callback/direct"
 zil="$CARGO_TARGET_DIR/debug/zil"

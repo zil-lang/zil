@@ -3477,7 +3477,7 @@ mod tests {
     mod fixture {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../tests/language-readiness/terminal/342/stored_flow_fixture.rs"
+            "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
         ));
     }
     #[test]
@@ -3586,7 +3586,7 @@ mod tests {
             );
             assert_eq!(super::super::analyze(&m, &limits(low)).unwrap(), expected);
         }
-        println!("G3.3.3 owned Fixed Analyze N={low}; N-1/fresh/warm identical");
+        println!("owned Fixed Analyze N={low}; N-1/fresh/warm identical");
     }
     #[test]
     fn owned_fixed_heads_require_actual_resource_definitions() {
@@ -3993,7 +3993,7 @@ mod tests {
                 "{error:?}"
             );
             println!(
-                "G3.3.2 missing/mismatched helper context {missing}: {}",
+                "missing/mismatched helper context {missing}: {}",
                 error[0].message
             );
         }
@@ -4075,7 +4075,7 @@ mod tests {
                 );
             }
             println!(
-                "G3.3.2 malformed/consume neighbor {mutation}: {}",
+                "malformed/consume neighbor {mutation}: {}",
                 error[0].message
             );
         }
@@ -4138,7 +4138,7 @@ mod tests {
             assert_eq!(super::super::analyze(&m, &limit(low)).unwrap(), expected);
             assert_eq!(super::super::analyze(&m, &limit(low)).unwrap(), expected);
             println!(
-                "G3.3.2 {mode:?} full Typed helper Analyze N={low}; N-1 ResourceLimit/fresh N identical"
+                "{mode:?} full Typed helper Analyze N={low}; N-1 ResourceLimit/fresh N identical"
             );
         }
     }

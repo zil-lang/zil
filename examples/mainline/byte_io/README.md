@@ -5,7 +5,7 @@
 ```sh
 cargo run --offline --locked -p zil-cli -- build examples/mainline/byte_io/main.zil -o out/byte-stream
 printf 'hello, Zil!\n' | out/byte-stream
-cargo test --offline --locked -p zil-driver --test impl083_bytes_native
+cargo test --offline --locked -p zil-driver --test bounded_byte_native_bytes_native
 ```
 
 ## 程序与真实观测

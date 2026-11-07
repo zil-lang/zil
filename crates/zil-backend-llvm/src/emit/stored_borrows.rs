@@ -699,7 +699,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn g3_4_1_borrowed_enum_representation_is_a_thin_pointer_slice_only() {
+    fn borrowed_enum_representation_is_a_thin_pointer_slice_only() {
         // Synthetic machine-layout probe only. Source/native acceptance still
         // requires a genuine immutable Verify capability and full LIR binding.
         let qualify = |payload| Type::BorrowedStorage {
@@ -739,7 +739,7 @@ mod tests {
     }
 
     #[test]
-    fn g4463_pure_representation_checks_every_variant_and_array_element() {
+    fn pure_representation_checks_every_variant_and_array_element() {
         let qualify = |storage| Type::BorrowedStorage {
             storage: Box::new(storage),
             life: StorageLifeShape {
@@ -794,7 +794,7 @@ mod tests {
         assert!(!representation_type(&slotted));
     }
     #[test]
-    fn g4463_index_root_address_is_pointer_not_snapshot_or_embedded_value() {
+    fn index_root_address_is_pointer_not_snapshot_or_embedded_value() {
         // Synthetic representation probe only; not source/loan authority.
         let qualify = |storage| Type::BorrowedStorage {
             storage: Box::new(storage),
@@ -846,7 +846,7 @@ mod tests {
     }
 
     #[test]
-    fn callable40_rich_relation_rows_paths_and_pointer_layout_are_metered() {
+    fn callable_relation_rows_paths_and_pointer_layout_are_metered() {
         use zil_ir::{
             LifeTypeProjection, SignatureLifeClass, SignatureLifeClassBinding, StorageBase,
             StorageBinder,
@@ -913,11 +913,11 @@ mod tests {
     mod fixture {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../tests/language-readiness/terminal/342/stored_flow_fixture.rs"
+            "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
         ));
     }
     #[test]
-    fn g4463_snapshot_enum_canonical_store_is_reserved_once() {
+    fn snapshot_enum_canonical_store_is_reserved_once() {
         // Synthetic physical budgeting probe, not a verified source program.
         let mut module = fixture::module();
         module.functions.truncate(1);

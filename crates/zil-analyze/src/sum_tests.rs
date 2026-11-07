@@ -364,7 +364,7 @@ fn sum_budget_boundary_fresh_and_incremental_are_exact() {
             lo = n
         }
     }
-    eprintln!("impl241 Analyze exact boundary N={hi}");
+    eprintln!("Analyze exact boundary N={hi}");
     let mut l = Limits {
         max_analysis_steps: hi,
         ..Limits::default()

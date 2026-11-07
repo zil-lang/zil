@@ -4,7 +4,7 @@ use super::*;
 use std::collections::BTreeMap;
 use zil_ir::{PlaceProjection, ReservationId};
 #[cfg(test)]
-#[path = "../../../tests/language-readiness/terminal/340/reservation_protocol.rs"]
+#[path = "../../../tests/language-readiness/terminal/ownership-and-replacement/reservation_protocol.rs"]
 pub(crate) mod fixture;
 pub(crate) mod origins;
 

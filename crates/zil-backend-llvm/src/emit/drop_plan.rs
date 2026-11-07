@@ -898,7 +898,7 @@ pub(super) fn task_helpers(
 }
 
 #[cfg(test)]
-mod impl243_plan_tests {
+mod owned_sum_drop_plan_tests {
     use super::*;
     fn packet() -> Type {
         let leaf = Type::Package {
@@ -953,7 +953,7 @@ mod impl243_plan_tests {
         }
     }
     #[test]
-    fn impl243_drop_plan_keeps_variant_choice_above_owned_fields() {
+    fn drop_plan_keeps_variant_choice_above_owned_fields() {
         let limits = zil_base::Limits::default();
         let p = plan(&packet(), &resources(), &mut Budget::new(&limits), 0).unwrap();
         let DropPlan::Enum(_, variants) = p else {
@@ -1038,7 +1038,7 @@ mod impl243_plan_tests {
         assert!(text.contains(&format!("define internal void @{}", symbol(actual_root))));
     }
     #[test]
-    fn impl243_drop_plan_honors_current_shared_limit_and_fresh_boundary() {
+    fn drop_plan_honors_current_shared_limit_and_fresh_boundary() {
         let lir = recipe_input();
         let mut limits = zil_base::Limits {
             max_analysis_steps: 0,
@@ -1077,7 +1077,7 @@ mod impl243_plan_tests {
     }
 
     #[test]
-    fn impl249_callback_signature_prepays_the_shared_machine_budget() {
+    fn callback_signature_prepays_the_shared_machine_budget() {
         fn threshold(lir: &LirModule) -> usize {
             let mut limits = zil_base::Limits::default();
             let (mut low, mut high) = (0, limits.max_analysis_steps);
@@ -1111,7 +1111,7 @@ mod impl243_plan_tests {
         owning.closures[0].parameters = vec![packet()];
         owning.closures[0].result = packet();
         let new_n = threshold(&owning);
-        eprintln!("impl249 machine budget: old Copy N={old_n}, owning N={new_n}");
+        eprintln!("machine budget: old Copy N={old_n}, owning N={new_n}");
         assert!(new_n > old_n);
         let mut limits = zil_base::Limits {
             max_analysis_steps: new_n,

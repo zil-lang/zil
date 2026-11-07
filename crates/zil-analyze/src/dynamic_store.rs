@@ -680,7 +680,7 @@ pub(super) fn access(kind: &InstructionKind) -> Option<(ValueId, bool)> {
 }
 
 #[cfg(test)]
-mod tests203 {
+mod qualification_tests {
     use super::*;
     use zil_base::{Fingerprint, Limits, ModuleId, ResultCategory, SCHEMA_VERSION, TargetProfile};
     use zil_ir::{CallableKind, ClosureDefinition, ClosureId, FunctionId};
@@ -753,7 +753,7 @@ mod tests203 {
     }
 
     #[test]
-    fn impl203_producer_qualifies_each_actual_root_and_each_result() {
+    fn producer_qualifies_each_actual_root_and_each_result() {
         let (m, element) = fixture();
         let limits = Limits::default();
         check(&m, &element, &limits).unwrap();
@@ -785,7 +785,7 @@ mod tests203 {
     }
 
     #[test]
-    fn impl203_producer_two_root_work_has_exact_and_fresh_boundaries() {
+    fn producer_two_root_work_has_exact_and_fresh_boundaries() {
         let (m, element) = fixture();
         let mut low = 0;
         let mut high = Limits::default().max_analysis_steps;
@@ -819,6 +819,6 @@ mod tests203 {
         )
         .unwrap_err();
         assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
-        println!("impl203 producer two-root qualification work={low}");
+        println!("producer two-root qualification work={low}");
     }
 }

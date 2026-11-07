@@ -233,7 +233,7 @@ mod tests {
     mod fixture {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../tests/language-readiness/terminal/342/stored_flow_fixture.rs"
+            "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
         ));
     }
     // Neutral raw identity fixture; it is not a Source or resource-proof oracle.
@@ -416,11 +416,11 @@ mod tests {
     mod tail_fixture {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../tests/language-readiness/terminal/342/fnonce-helper-next/tail_neighbors.rs"
+            "/../../tests/language-readiness/terminal/higher-rank-borrows/fnonce-helper-next/tail_neighbors.rs"
         ));
     }
     #[test]
-    fn g337_analyze_tail_origin_checks_whole_graph_and_unique_consumption() {
+    fn analyze_tail_origin_checks_whole_graph_and_unique_consumption() {
         let limits = Limits::default();
         let (m, mut f, kind) = model(true);
         tail_fixture::fork(&mut f);
@@ -447,11 +447,11 @@ mod tests {
     mod cfg_fixture {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../tests/language-readiness/terminal/342/fnonce-helper-cfg/cfg_neighbors.rs"
+            "/../../tests/language-readiness/terminal/higher-rank-borrows/fnonce-helper-cfg/cfg_neighbors.rs"
         ));
     }
     #[test]
-    fn g338_analyze_actual_origin_dag_joins_and_path_retirement() {
+    fn analyze_actual_origin_dag_joins_and_path_retirement() {
         let limits = Limits::default();
         for drop_branch in [false, true] {
             let (m, mut f, _) = model(true);

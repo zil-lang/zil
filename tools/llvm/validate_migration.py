@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Real LLVM17/23 cache isolation and version-rejection controls (not a benchmark).
 
-The source is the three-module native exit-42 case in object_cache212.rs. Source
+The source is the three-module native exit-42 case in native_object_cache.rs. Source
 commit arguments are declarations bound to Git trees, not proof of binary origin;
 retain the corresponding build receipts separately. Every output directory must
 be new. Failures, command logs and the successful prefix remain available.
@@ -177,7 +177,7 @@ def execute(args, out, result):
         frozen[label] = {"cli": cli, "clang": clang, "llvm": llvm,
                          "declared_source": source, "crates_tree": tree.decode().strip()}
     require(frozen["baseline"]["cli"]["sha256"] != frozen["candidate"]["cli"]["sha256"], "compiler arms are identical")
-    result["source_origin"] = "crates/zil-driver/tests/object_cache212.rs: three-module exit-42 control"
+    result["source_origin"] = "crates/zil-driver/tests/native_object_cache.rs: three-module exit-42 control"
     source = out / "source"
     source.mkdir()
     for name, text in SOURCE.items():

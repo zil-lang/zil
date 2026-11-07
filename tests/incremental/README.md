@@ -1,4 +1,4 @@
-# T04 query, cancellation, cache, and editor work
+# Query, cancellation, cache, and editor tests
 
 ## Implemented paths
 
@@ -22,10 +22,7 @@ build-input edges, validates the complete dependency closure, rejects active
 query/cached cycles, and automatically invalidates affected consumers on
 publication. Five independent mutation scenarios demonstrate the different
 actual reverse dependency closures. The current whole-module compiler queries
-conservatively depend on complete implementation identity. **Cross-module
-private-body editing, interface-only recompilation, and aggregate layout
-incrementality remain pending.** PLAN-T04-001 is therefore not supplied as a
-complete source-level fixture.
+conservatively depend on complete implementation identity. **Cross-module private-body editing, interface-only recompilation, and aggregate layout incrementality are outside these fixtures.**
 
 ## Cancellation and artifact publication
 
@@ -64,9 +61,7 @@ full diagnostics and success/failure process status.
 
 `tests/script/native-protocol.py` separately exercises real native `build` and
 `run`, a full 64-bit named return value, explicit managed rejection, cancellation
-and missing clang. It is scalar sub-evidence only: imports, resource/error
-cleanup and their native-run equivalence remain pending, so PLAN-T04-003 is not
-supplied as a complete fixture.
+and missing clang. It is scalar sub-evidence only: imports, resource/error cleanup and their native-run equivalence remain outside its scalar scope.
 
 ## Limited validation commands
 
@@ -78,8 +73,4 @@ python3 tests/script/native-protocol.py
 cargo clippy --locked --offline --no-deps -p zil-db -p zil-driver -p zil-cli -p zil-ide --all-targets -- -D warnings
 ```
 
-This work adds complete fixtures for PLAN-T04-002 and PLAN-T04-004 only. The
-canonical T04 plan still selects all four cases: missing 001/003 must remain
-non-Pass. SC01/SC03/SC04 are separately runnable source conformance cases.
-Worker runs do not determine task completion; the integration owner records
-final evidence against the merged commit.
+These fixtures cover session reuse/cancellation and editor diagnostics. The static plan in `validation/task-test-plans.json` may select additional cases; uncovered cases remain non-Pass. SC01/SC03/SC04 are separately runnable source conformance cases. A new result must bind the actual compiler commit and complete selection.

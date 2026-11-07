@@ -28,7 +28,7 @@ pub fn sample_twice<F: Fn() -> i32>(f: &F) -> i32 {
 | `E` | 0 | `12:3:33A` | 回调两次成功，返回后第三次仍能使用原环境 |
 | `d` / `D` | 1 / 0 | `1A` / `12:3A` | 共享 Fn 修改外部 Desc 的错误 / 正常路径 |
 
-`crates/zil-driver/tests/impl064.rs` 对 UI 的 10 个输入和上述 15 个生命周期输入分别运行 ZIL/Rust O0/O2，共 100 次行为对照；保留阶段 IR、已核公开接口、真实构建命令、每次输入/输出/退出码。最终受测身份以 `evidence/impl/064/acceptance.json` 为准，不累计重复调试运行。
+`crates/zil-driver/tests/public_helper_field_views.rs` 对 UI 的 10 个输入和上述 15 个生命周期输入分别运行 ZIL/Rust O0/O2，共 100 次行为对照；保留阶段 IR、已核公开接口、真实构建命令、每次输入/输出/退出码。最终受测身份以 `evidence/impl/064/acceptance.json` 为准，不累计重复调试运行。
 
 本片只支持一个具体环境参数、每路径最多两次 callback、有限 Copy callback 实参/结果及同步 Copy 错误。FnMut helper 通过 `&mut F` 接收；普通参数仍不可写。额外 helper 参数可为有限 Copy、Managed give 或完整 Package。循环/递归/转发 helper、保存或返回环境、拥有错误、平台窗口/GPU 仍需后续实现。Contract Return 不按错误标签分割关系；writes 是能力上界，可能保守拒绝安全程序。
 
@@ -37,7 +37,7 @@ pub fn sample_twice<F: Fn() -> i32>(f: &F) -> i32 {
 ```sh
 cargo run -p zil-cli --offline --locked -- build examples/mainline/helper_ui/main.zil -o out/helper-ui --emit-dir out/helper-ui-ir --json
 printf '++q' | out/helper-ui
-cargo test -p zil-driver --test impl064 --offline --locked
+cargo test -p zil-driver --test public_helper_field_views --offline --locked
 ```
 
 工具链按 `tools/toolchain-profile.json` 配置。ABI 保留具体环境，借用拥有环境通过真实指针调用；未引入隐式堆分配、RC、锁或 `noalias`。
