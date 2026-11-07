@@ -14,10 +14,11 @@ type State = BTreeMap<LocalId, Roots>;
 
 fn tracked_desc(ty: &Type, descriptor_origins: bool) -> bool {
     matches!(ty, Type::Desc(inner)
-        if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. }))
+        if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. } | Type::Mutex { .. }))
 }
 fn retained_task_value(ty: &Type) -> bool {
     match ty {
+        Type::MutexGuard { .. } => true,
         Type::Task { retained_life, .. } => !retained_life.ports.is_empty(),
         Type::Managed(inner) | Type::Desc(inner) => {
             matches!(inner.as_ref(), Type::Task { retained_life, .. } if !retained_life.ports.is_empty())
@@ -752,6 +753,9 @@ fn reconstruct(
                                     roots_join(&mut row, &values[source.0 as usize], budget)?;
                                 }
                             }
+                            InstructionKind::MutexLock { mutex } => {
+                                roots_join(&mut row, &values[mutex.0 as usize], budget)?;
+                            }
                             InstructionKind::TakeErrorUnion {
                                 value,
                                 is_error: false,
@@ -1158,7 +1162,18 @@ fn reconstruct_module(
                                         InstructionKind::MakeErrorUnion { is_error: true, .. }
                                     )
                                 });
+                        if matches!(function.return_type, Type::MutexGuard { .. })
+                            && (roots.is_empty() || roots.iter().any(|root| {
+                                let HoldRoot::Parameter(index) = root.coarse() else { return true };
+                                let Some(local) = function.parameters.get(index as usize) else { return true };
+                                !matches!(&function.locals[local.0 as usize].ty,
+                                    Type::Desc(inner) if matches!(inner.as_ref(), Type::Mutex { .. }))
+                            }))
+                        {
+                            return Err(reject("E-VERIFY-MUTEX", Some(function.span), "guard return has no actual mutex head input"));
+                        }
                         if retained_task_value(&function.return_type)
+                            && !matches!(function.return_type, Type::MutexGuard { .. })
                             && !explicit_error
                             && (roots.is_empty()
                                 || roots

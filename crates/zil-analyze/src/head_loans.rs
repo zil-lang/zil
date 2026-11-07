@@ -767,6 +767,10 @@ fn check_function(
                             fresh = true;
                             parents = direct(&values[buffer.0 as usize], b)?;
                         }
+                        InstructionKind::MutexLock { mutex } => {
+                            fresh = true;
+                            parents = direct(&values[mutex.0 as usize], b)?;
+                        }
                         InstructionKind::MutexValue { guard } => {
                             fresh = true;
                             parents = direct(&values[guard.0 as usize], b)?;

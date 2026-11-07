@@ -1574,6 +1574,9 @@ impl Resolver<'_> {
                     Type::Task { .. } if matches!(inner.as_ref(), Type::Task { .. }) => {
                         Box::new(resolved)
                     }
+                    Type::Mutex { .. } if matches!(inner.as_ref(), Type::Mutex { .. }) => {
+                        Box::new(resolved)
+                    }
                     Type::TaskI32 if matches!(inner.as_ref(), Type::TaskI32) => {
                         Box::new(Type::TaskI32)
                     }

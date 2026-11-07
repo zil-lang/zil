@@ -2412,6 +2412,35 @@ impl Transfer<'_> {
                     function,
                     arguments,
                 } => {
+                    if instruction.result.is_some_and(|id| {
+                        matches!(f.values[id.0 as usize], Type::MutexGuard { .. })
+                    }) {
+                        let dst = instruction
+                            .result
+                            .and_then(|id| slots.desc_value[id.0 as usize])
+                            .ok_or_else(|| {
+                                bad(span, "guard helper result lacks retained head slot")
+                            })?;
+                        let mut roots = BTreeSet::new();
+                        for &value in arguments {
+                            if matches!(&f.values[value.0 as usize], Type::Desc(inner) if matches!(inner.as_ref(), Type::Mutex { .. }))
+                                || matches!(&f.values[value.0 as usize], Type::MutexGuard { .. })
+                            {
+                                let src = slots.desc_value[value.0 as usize].ok_or_else(|| {
+                                    bad(span, "guard helper input lacks actual head slot")
+                                })?;
+                                budget.spend(state.desc[src].len())?;
+                                roots.extend(state.desc[src].iter().cloned());
+                            }
+                        }
+                        if roots.is_empty() {
+                            return Err(bad(
+                                span,
+                                "guard helper result has no actual mutex head input",
+                            ));
+                        }
+                        state.desc[dst] = roots;
+                    }
                     let callable = self.module.functions[function.0 as usize]
                         .callable_contract
                         .as_ref();

@@ -343,6 +343,7 @@ fn signature_errors(
         || errors::supported(&f.return_type)
         || owned_shapes::sum(&f.return_type)
         || packages::owned_array_supported(&f.return_type)
+        || matches!(&f.return_type, Type::MutexGuard { .. })
         || matches!(&f.return_type, Type::Managed(_) if resources::supported(&f.return_type)))
     {
         errors.push(unsupported(
