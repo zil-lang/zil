@@ -613,8 +613,212 @@ fn task_borrowed_result_mixed_profile_preserves_exclusive_port_access() {
 }
 
 #[test]
+fn task_borrowed_result_named_shared_input_retains_its_actual_parent() {
+    for (name, source) in [
+        (
+            "named-shared-input.zil",
+            include_str!("../../../tests/fixtures/task-borrow-results/named-shared-input.zil"),
+        ),
+        (
+            "local-parent-join.zil",
+            include_str!("../../../tests/fixtures/task-borrow-results/local-parent-join.zil"),
+        ),
+        (
+            "local-parent-overwrite.zil",
+            include_str!("../../../tests/fixtures/task-borrow-results/local-parent-overwrite.zil"),
+        ),
+        (
+            "local-parent-move.zil",
+            include_str!("../../../tests/fixtures/task-borrow-results/local-parent-move.zil"),
+        ),
+    ] {
+        let module = typed_stored(source);
+        let plan = zil_analyze::analyze(&module, &Limits::default())
+            .unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        zil_verify::verify_module(
+            module.clone(),
+            plan.clone(),
+            &module.target,
+            &Limits::default(),
+        )
+        .unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        let bytes =
+            zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+        zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default())
+            .unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        native_borrowed_enum(&zil_driver::ProjectSources {
+            root: ModuleId(0),
+            modules: vec![SourceUnit::new(FileId(0), ModuleId(0), name, source)],
+            paths: Default::default(),
+        });
+    }
+}
+
+#[test]
+fn task_borrowed_result_local_parent_overwrites_and_joins_cannot_delegate_to_siblings() {
+    for (name, source, old, new) in [
+        (
+            "overwrite",
+            include_str!("../../../tests/fixtures/task-borrow-results/local-parent-overwrite.zil"),
+            "*first=before+1",
+            "*second=before+1",
+        ),
+        (
+            "join-first",
+            include_str!("../../../tests/fixtures/task-borrow-results/local-parent-join.zil"),
+            "*spare=*spare+1",
+            "*first=*first+1",
+        ),
+        (
+            "join-second",
+            include_str!("../../../tests/fixtures/task-borrow-results/local-parent-join.zil"),
+            "*spare=*spare+1",
+            "*second=*second+1",
+        ),
+    ] {
+        let valid = typed_stored(source);
+        let plan = zil_analyze::analyze(&valid, &Limits::default())
+            .unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        let invalid = typed_stored(&source.replace(old, new));
+        let errors = zil_analyze::analyze(&invalid, &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.phase == Phase::Analyze && d.category == ResultCategory::SafeReject),
+            "{name}: {errors:?}"
+        );
+        reject(name, invalid, plan, "E-VERIFY-STORED");
+    }
+}
+#[test]
+fn task_borrowed_result_moved_local_does_not_retain_a_stale_alias_definition() {
+    let source = include_str!("../../../tests/fixtures/task-borrow-results/local-parent-move.zil");
+    let module = typed_stored(source);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    assert!(
+        module
+            .functions
+            .iter()
+            .flat_map(|f| &f.blocks)
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(i.kind, InstructionKind::TakeLocal { .. }))
+    );
+    let invalid = typed_stored(&source.replace("let input=&*moved", "let input=&*base"));
+    let errors = zil_analyze::analyze(&invalid, &Limits::default()).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d.code == "E-UNINITIALIZED"),
+        "{errors:?}"
+    );
+    reject(
+        "moved-alias-definition",
+        invalid,
+        plan,
+        "E-VERIFY-INITIALIZATION",
+    );
+}
+
+#[test]
+fn task_borrowed_result_actual_exclusive_alias_moves_cannot_be_duplicated() {
+    let source = include_str!("../../../tests/fixtures/task-borrow-results/local-parent-move.zil");
+    let module = typed_stored(source);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let function = module
+        .functions
+        .iter()
+        .find(|f| f.name == "attempt")
+        .unwrap();
+    let local = zil_ir::LocalId(
+        function
+            .locals
+            .iter()
+            .position(|l| l.name == "base")
+            .unwrap() as u32,
+    );
+    let (block, position, moved) = function
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(b, block)| {
+            block.instructions.iter().enumerate().find_map(|(p, i)| {
+                matches!(i.kind, InstructionKind::TakeLocal { local:l } if l==local)
+                    .then(|| (b, p, i.result.unwrap()))
+            })
+        })
+        .unwrap();
+    for duplicate_store in [false, true] {
+        let mut invalid = module.clone();
+        let mut candidate = plan.clone();
+        let f = &mut invalid.functions[function.id.0 as usize];
+        let instruction = if duplicate_store {
+            let original = f.blocks[block]
+                .instructions
+                .iter()
+                .find(|i| matches!(i.kind, InstructionKind::Store { value, .. } if value==moved))
+                .unwrap()
+                .clone();
+            let index = f.blocks[block]
+                .instructions
+                .iter()
+                .position(|i| i == &original)
+                .unwrap();
+            f.blocks[block]
+                .instructions
+                .insert(index + 1, original.clone());
+            original
+        } else {
+            let mut duplicate = f.blocks[block].instructions[position].clone();
+            let value = ValueId(f.values.len() as u32);
+            f.values.push(f.values[moved.0 as usize].clone());
+            duplicate.result = Some(value);
+            candidate.functions[function.id.0 as usize]
+                .holds
+                .push(zil_ir::ValueHold {
+                    value,
+                    roots: plan.functions[function.id.0 as usize].holds[moved.0 as usize]
+                        .roots
+                        .clone(),
+                });
+            f.blocks[block]
+                .instructions
+                .insert(position + 1, duplicate.clone());
+            duplicate
+        };
+        let errors = zil_analyze::analyze(&invalid, &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.category == ResultCategory::SafeReject),
+            "{instruction:?}: {errors:?}"
+        );
+        reject(
+            "exclusive-alias-double-move",
+            invalid,
+            candidate,
+            if duplicate_store {
+                "E-VERIFY-MOVE"
+            } else {
+                "E-VERIFY-INITIALIZATION"
+            },
+        );
+    }
+}
+
+#[test]
 #[cfg(target_os = "linux")]
 fn task_borrowed_result_native_allocation_failure_preserves_the_input() {
+    native_task_result_allocation_failure(include_str!(
+        "../../../tests/fixtures/task-borrow-results/allocation-error.zil"
+    ));
+}
+#[test]
+#[cfg(target_os = "linux")]
+fn task_borrowed_result_named_shared_input_survives_native_allocation_failure() {
+    native_task_result_allocation_failure(include_str!(
+        "../../../tests/fixtures/task-borrow-results/named-shared-input.zil"
+    ));
+}
+#[cfg(target_os = "linux")]
+fn native_task_result_allocation_failure(text: &str) {
     use std::{os::unix::fs::PermissionsExt, path::Path, process::Command};
     fn quote(path: &Path) -> String {
         format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"))
@@ -645,7 +849,6 @@ fn task_borrowed_result_native_allocation_failure_preserves_the_input() {
         quote(&clang), quote(&observer), quote(&clang)
     )).unwrap();
     fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
-    let text = include_str!("../../../tests/fixtures/task-borrow-results/allocation-error.zil");
     let source = SourceUnit::new(FileId(0), ModuleId(0), "allocation-error.zil", text);
     for backend in [
         zil_driver::NativeBackend::Clang,
