@@ -1629,7 +1629,7 @@ fn scalar934_raw_wire_exact_fresh_request_budget() {
 }
 
 #[test]
-fn scalar934_unused_owning_aggregate_cannot_inherit_new_store_permission() {
+fn store935_unused_ordinary_owners_qualify_but_record_and_array_do_not() {
     let limits = Limits::default();
     let (module, _) = pod_fixture(Type::I32);
     let store = module.functions[0].locals[0].ty.clone();
@@ -1638,14 +1638,6 @@ fn scalar934_unused_owning_aggregate_cannot_inherit_new_store_permission() {
             name: "ScalarBag934".into(),
             fields: vec![("items".into(), store.clone())],
         },
-        Type::Record {
-            name: "ScalarRecord934".into(),
-            fields: vec![("items".into(), store.clone())],
-        },
-        Type::Array {
-            element: Box::new(store.clone()),
-            length: 1,
-        },
         Type::Tuple(vec![store.clone()]),
         Type::Enum {
             name: "ScalarEnum934".into(),
@@ -1653,7 +1645,30 @@ fn scalar934_unused_owning_aggregate_cannot_inherit_new_store_permission() {
         },
         Type::ErrorUnion {
             error: Box::new(Type::Unit),
-            result: Box::new(store),
+            result: Box::new(store.clone()),
+        },
+    ] {
+        let (mut malformed, plan) = pod_fixture(Type::I32);
+        let span = malformed.functions[0].span;
+        malformed.functions[0].locals.push(LocalDecl {
+            id: LocalId(1),
+            name: "unused_owner".into(),
+            ty: owner,
+            mutable: false,
+            span,
+        });
+        for result in pod_both(&malformed, &plan, &limits) {
+            result.unwrap();
+        }
+    }
+    for owner in [
+        Type::Record {
+            name: "ScalarRecord934".into(),
+            fields: vec![("items".into(), store.clone())],
+        },
+        Type::Array {
+            element: Box::new(store),
+            length: 1,
         },
     ] {
         let (mut malformed, plan) = pod_fixture(Type::I32);
@@ -1672,16 +1687,11 @@ fn scalar934_unused_owning_aggregate_cannot_inherit_new_store_permission() {
 }
 
 #[test]
-fn scalar934_unused_owned_closure_capture_cannot_gain_store_permission() {
+fn store935_capture_requires_the_actual_entry_even_after_carrier_admission() {
     let limits = Limits::default();
     let (mut module, plan) = pod_fixture(Type::I32);
     let store = module.functions[0].locals[0].ty.clone();
-    let error =
-        check_owned_capture(&module, &store, Some(&limits), &mut Budget::new(&limits)).unwrap_err();
-    assert!(
-        error.message.contains("finite leaf Package element"),
-        "{error:?}"
-    );
+    check_owned_capture(&module, &store, Some(&limits), &mut Budget::new(&limits)).unwrap();
     module.closures.push(ClosureDefinition {
         storage_life: None,
         id: ClosureId(0),
@@ -1694,10 +1704,89 @@ fn scalar934_unused_owned_closure_capture_cannot_gain_store_permission() {
     });
     for result in pod_both(&module, &plan, &limits) {
         let errors = result.unwrap_err();
-        assert!(
-            errors[0].message.contains("finite leaf Package element"),
-            "{errors:?}"
+        assert_eq!(errors[0].code, "E-VERIFY-CLOSURE-ENTRY", "{errors:?}");
+    }
+}
+
+#[test]
+fn store935_nested_product_capture_checks_every_actual_store_definition() {
+    let limits = Limits::default();
+    let (mut module, _) = pod_fixture(Type::I32);
+    let store = module.functions[0].locals[0].ty.clone();
+    let outer = Type::Package {
+        name: "Outer935".into(),
+        fields: vec![(
+            "inner".into(),
+            Type::Package {
+                name: "Inner935".into(),
+                fields: vec![("items".into(), store)],
+            },
+        )],
+    };
+    assert!(nested_capture_store(&outer, &mut Budget::new(&limits)).unwrap());
+    check_owned_capture(&module, &outer, Some(&limits), &mut Budget::new(&limits)).unwrap();
+    module.resources[0].payload = Type::OwnedStore {
+        element: Box::new(Type::F32),
+    };
+    assert!(
+        check_owned_capture(&module, &outer, Some(&limits), &mut Budget::new(&limits)).is_err()
+    );
+}
+
+#[test]
+fn store935_raw_wire_unused_owner_has_exact_fresh_budget_and_same_size_forgery_rejects() {
+    let (mut module, plan) = pod_fixture(Type::I32);
+    let store = module.functions[0].locals[0].ty.clone();
+    let span = module.functions[0].span;
+    module.functions[0].locals.push(LocalDecl {
+        id: LocalId(1),
+        name: "unused_parent".into(),
+        ty: Type::Package {
+            name: "Model935".into(),
+            fields: vec![("values".into(), store)],
+        },
+        mutable: false,
+        span,
+    });
+    let limits = Limits::default();
+    for wire in [false, true] {
+        let check = |steps| {
+            let mut selected = limits.clone();
+            selected.max_analysis_steps = steps;
+            if wire {
+                let mut candidate = plan.clone();
+                candidate.module_fingerprint = module.fingerprint();
+                let bytes =
+                    zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+                verify_module_bytes(&bytes, &module.target, &selected)
+            } else {
+                let mut candidate = plan.clone();
+                candidate.module_fingerprint = module.fingerprint();
+                verify_module(module.clone(), candidate, &module.target, &selected)
+            }
+        };
+        let (mut lo, mut hi) = (0, limits.max_analysis_steps);
+        check(hi).unwrap();
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            if check(mid).is_ok() {
+                hi = mid;
+            } else {
+                lo = mid + 1;
+            }
+        }
+        check(lo).unwrap();
+        assert_eq!(
+            check(lo - 1).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
         );
+        check(lo).unwrap();
+    }
+    module.resources[0].payload = Type::OwnedStore {
+        element: Box::new(Type::F32),
+    };
+    for result in pod_both(&module, &plan, &limits) {
+        assert!(result.is_err());
     }
 }
 

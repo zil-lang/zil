@@ -138,7 +138,7 @@ pub(super) fn check_capture_type(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
-    check_product_type(module, ty, span, budget, false)
+    check_product_type(module, ty, span, budget, true)
 }
 
 /// Qualification of an actual complete ordinary Product head. This does not

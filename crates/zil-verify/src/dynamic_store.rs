@@ -210,10 +210,30 @@ pub(super) fn is_carrier(ty: &Type) -> bool {
     element(ty).is_some()
 }
 
+/// Find an actual owning Store field in a bounded ordinary Product capture.
+/// The raw type preflight precedes this walk; pay for each queue entry before
+/// growing it, and leave old modules without the POD family on their old fee.
+pub(super) fn nested_capture_store(ty: &Type, budget: &mut Budget) -> Check<bool> {
+    budget.spend(1)?;
+    let mut pending = vec![ty];
+    while let Some(ty) = pending.pop() {
+        budget.spend(1)?;
+        if matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
+        {
+            return Ok(true);
+        }
+        if let Type::Package { fields, .. } = ty {
+            budget.spend(fields.len())?;
+            pending.extend(fields.iter().map(|(_, field)| field));
+        }
+    }
+    Ok(false)
+}
+
 pub(super) fn check_owner_field(ty: &Type, span: Option<Span>) -> Check<()> {
-    if element(ty).is_some_and(plain_element) {
+    if matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. })) {
         return Err(unsupported(
-            "POD Store ownership is not admitted in owning aggregate fields",
+            "owning aggregate fields require an actual Store owner, not a description",
             span,
         ));
     }
@@ -292,6 +312,12 @@ fn check_captured_store(
     // Copy predicates or canonical identity allocation below.
     budget.spend(1)?;
     resources::charge_payload(element, budget)?;
+    if plain_element(element) {
+        // The raw type preflight has bounded the entire capture tree. The
+        // independent carrier check requalifies its exact element and sealed
+        // resource definition before this environment acquires any debt.
+        return check_carrier(module, ty, None, budget);
+    }
     check_capture_leaf_tree(element, budget)?;
     let Type::Package { name, fields } = element.as_ref() else {
         return Err(unsupported(
@@ -364,7 +390,7 @@ pub(super) fn check_owned_capture(
     if is_carrier(ty) {
         return check_captured_store(module, ty, limits, budget);
     }
-    let Type::Package { fields, .. } = ty else {
+    let Type::Package { .. } = ty else {
         return Err(unsupported(
             "expected a complete Store-owning Package capture",
             None,
@@ -372,20 +398,26 @@ pub(super) fn check_owned_capture(
     };
     budget.spend(1)?;
     resources::charge_payload(ty, budget)?;
-    for (_, field) in fields {
-        if is_carrier(field) {
-            check_captured_store(module, field, limits, budget)?;
-        } else if !(field.is_copy_value()
-            || matches!(field, Type::Managed(inner) if **inner == Type::ByteBuffer
-                || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value())))
-        {
-            return Err(unsupported(
-                "Store-owning Package capture requires direct qualified Store, Managed and finite Copy fields",
-                None,
-            ));
+    let mut pending = vec![ty];
+    while let Some(Type::Package { fields, .. }) = pending.pop() {
+        budget.spend(fields.len())?;
+        for (_, field) in fields {
+            if is_carrier(field) {
+                check_captured_store(module, field, limits, budget)?;
+            } else if matches!(field, Type::Package { .. }) {
+                pending.push(field);
+            } else if !(field.is_copy_value()
+                || matches!(field, Type::Managed(inner) if **inner == Type::ByteBuffer
+                    || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value())))
+            {
+                return Err(unsupported(
+                    "Store-owning Package capture requires qualified Store, Product, Managed and finite Copy fields",
+                    None,
+                ));
+            }
         }
     }
-    packages::check_type_for(module, ty, None, budget)
+    packages::check_ordinary_type(module, ty, None, budget)
 }
 
 pub(super) fn check_capture_result(
