@@ -113,7 +113,9 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                 // Direct Managed success keeps its existing Copy-error rule.
                 // Other owning slots are complete Products/Enums; an owning
                 // ErrorUnion is not itself a permitted ErrorUnion slot.
-                if matches!(result.as_ref(), Type::Managed(_)) {
+                if matches!(result.as_ref(), Type::Managed(_))
+                    && !crate::ownership_store::pod_owned(e)
+                {
                     budget.type_work(e, true, "Managed success Copy-error qualification")?;
                     if !e.is_copy_value() {
                         return Err(error("Managed success requires a Copy error payload"));
@@ -121,8 +123,7 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                 } else {
                     for slot in [e.as_ref(), result.as_ref()] {
                         if !matches!(slot, Type::Package { .. } | Type::Enum { .. })
-                            && !(std::ptr::eq(slot, e.as_ref())
-                                && crate::ownership_store::pod_owned(slot))
+                            && !crate::ownership_store::pod_owned(slot)
                         {
                             budget.type_work(
                                 slot,
@@ -374,6 +375,40 @@ impl Tree {
         }
         Ok(true)
     }
+    fn no_live_owner(&self, budget: &mut Budget) -> CompileResult<bool> {
+        budget.spend(1, "Sum discharged owner tree")?;
+        if self.missing {
+            return Ok(true);
+        }
+        match &self.node {
+            Node::Copy => Ok(true),
+            Node::Leaf(_) => Ok(false),
+            Node::Product(fields) => {
+                budget.spend(fields.len(), "Sum discharged Product children")?;
+                for field in fields {
+                    if !field.no_live_owner(budget)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Node::Sum(variants) => {
+                if variants.is_empty() {
+                    return Ok(false);
+                }
+                budget.spend(variants.len(), "Sum discharged active alternatives")?;
+                for fields in variants.values() {
+                    budget.spend(fields.len(), "Sum discharged active fields")?;
+                    for field in fields {
+                        if !field.no_live_owner(budget)? {
+                            return Ok(false);
+                        }
+                    }
+                }
+                Ok(true)
+            }
+        }
+    }
     fn merge_body(&mut self, other: &Self, budget: &mut Budget) -> CompileResult<bool> {
         budget.spend(1, "Sum fact join")?;
         let mut changed = !self.missing && other.missing;
@@ -489,6 +524,13 @@ pub(super) struct Facts {
     partial: Option<partial_places::State>,
 }
 impl Facts {
+    pub(super) fn no_live_owner(&self, local: LocalId, budget: &mut Budget) -> CompileResult<bool> {
+        budget.lookup(self.locals.len(), "Sum discharged local lookup")?;
+        self.locals
+            .get(&local)
+            .ok_or_else(|| error("Sum discharged local absent"))?
+            .no_live_owner(budget)
+    }
     pub(super) fn cost(&self, budget: &mut Budget) -> CompileResult<()> {
         if self.locals.is_empty() {
             return Ok(());
