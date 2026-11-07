@@ -9,16 +9,7 @@ fn layout(payload: &Type) -> CompileResult<m::Ty> {
     ]))
 }
 fn supported_payload(payload: &Type, resources: &[ResourceDefinition]) -> bool {
-    if payload.is_copy_value() {
-        return true;
-    }
-    match payload {
-        Type::Managed(_) => resources::supported_type(payload, resources),
-        Type::Package { fields, .. } => fields
-            .iter()
-            .all(|(_, field)| supported_payload(field, resources)),
-        _ => false,
-    }
+    drop_plan::value_type(payload, resources)
 }
 fn event(name: Option<String>, op: m::Op) -> m::Event {
     m::Event::Instruction(m::Inst::new(name.map(m::name), op))

@@ -450,6 +450,20 @@ fn generic_mutex_package_payload_native_candidate() {
     check_mutex_native(&src, "package");
 }
 #[test]
+fn generic_mutex_owned_tuple_payload_native_candidate() {
+    let src = source(
+        "package Payload{manages bytes:ByteBuffer;pub count:i32}fn run()->MutexCreateError!i32{let bytes=bytes_new();let cell=mutex_create((Payload{bytes:give bytes,count:7},8))?;let guard=mutex_lock(cell);mutex_unlock(guard);return 0}fn main()->i32{match run(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
+    );
+    check_mutex_native(&src, "owned-tuple-payload");
+}
+#[test]
+fn generic_mutex_owned_enum_payload_native_candidate() {
+    let src = source(
+        "package Payload{manages bytes:ByteBuffer;pub count:i32}enum Choice{Data(Payload),Empty}fn run()->MutexCreateError!i32{let bytes=bytes_new();let cell=mutex_create(Choice.Data(Payload{bytes:give bytes,count:7}))?;let guard=mutex_lock(cell);mutex_unlock(guard);return 0}fn main()->i32{match run(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
+    );
+    check_mutex_native(&src, "owned-enum-payload");
+}
+#[test]
 fn generic_mutex_guard_return_native_candidate() {
     let src = source(
         "fn lock(cell:Mutex<i32>)->MutexGuard<i32>{return mutex_lock(cell)}fn run()->MutexCreateError!i32{let cell=mutex_create(7)?;var guard=lock(cell);let value=mutex_value(&mut guard);*value=9;let answer=*value;mutex_unlock(guard);return answer-9}fn main()->i32{match run(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
