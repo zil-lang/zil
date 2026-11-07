@@ -74,12 +74,12 @@ fn original_self_feeding_generic_defer_sources_execute_alqz_without_editing_the_
     // whole-Product replacement lowering as well as generic defer admission.
     native(
         "original-implicit",
-        include_str!("review237_fixtures/original238_defer_implicit.zil"),
+        include_str!("generic_defer_obligation_fixtures/original238_defer_implicit.zil"),
         b"ALQZ",
     );
     native(
         "original-explicit",
-        include_str!("review237_fixtures/original238_defer_explicit.zil"),
+        include_str!("generic_defer_obligation_fixtures/original238_defer_explicit.zil"),
         b"ALQZ",
     );
 }

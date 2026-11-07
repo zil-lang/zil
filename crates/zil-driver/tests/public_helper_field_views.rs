@@ -179,7 +179,7 @@ fn binaries(temp: &Path, stem: &str, source_files: usize) -> Vec<PathBuf> {
 }
 
 #[test]
-fn helper064_public_field_view_survives_two_calls_and_whole_package_move() {
+fn public_helper_public_field_view_survives_two_calls_and_whole_package_move() {
     let temp = Temp::new();
     let mut cases: Vec<(Vec<u8>, i32, String)> = [
         ("", 0, "0\n#1\nMSU"),
@@ -210,7 +210,7 @@ fn helper064_public_field_view_survives_two_calls_and_whole_package_move() {
 }
 
 #[test]
-fn helper064_native_owned_borrowed_adapted_and_error_paths_match_rust() {
+fn public_helper_native_owned_borrowed_adapted_and_error_paths_match_rust() {
     let temp = Temp::new();
     for binary in binaries(&temp.0, "lifecycle", 4) {
         for (input, code, output) in [

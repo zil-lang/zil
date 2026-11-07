@@ -11,25 +11,25 @@ use zil_driver::{CompileOptions, Stage, compile_source};
 use zil_ir::{HoldRoot, InstructionKind, LocalId, TypedModule};
 
 #[path = "../../../tests/language-readiness/review331/cache.rs"]
-mod independent331_cache;
+mod independent_cache;
 
 #[path = "../../../tests/language-readiness/mutable337/regressions.rs"]
-mod mutable337;
+mod mutable;
 
 #[path = "../../../tests/language-readiness/terminal/342/mutable_life.rs"]
-mod terminal342_mutable;
+mod owned_error_mutable;
 
 #[path = "../../../tests/language-readiness/terminal/342/borrowed_fp.rs"]
-mod terminal342_borrowed_fp;
+mod owned_error_borrowed_fp;
 
 #[path = "../../../tests/language-readiness/terminal/342/resource_head.rs"]
-mod terminal342_resource_head;
+mod owned_error_resource_head;
 
 #[path = "../../../tests/language-readiness/terminal/342/higher_rank.rs"]
-mod terminal342_higher_rank;
+mod owned_error_higher_rank;
 
 #[path = "../../../tests/language-readiness/terminal/342/stored_physical.rs"]
-mod terminal342_stored_physical;
+mod owned_error_stored_physical;
 
 #[path = "../../../tests/language-readiness/G9.3.1/runtime.rs"]
 mod utf8_literals;
@@ -136,18 +136,18 @@ fn typed(text: &str) -> TypedModule {
     zil_types::check(&core, &TargetProfile::default(), &Limits::default()).unwrap()
 }
 
-const LIFE_IDENTITY322: &str =
+const BORROWED_LIFE_IDENTITY: &str =
     include_str!("../../../tests/language-readiness/recovery/pending/life-parameter-return.zil");
 
-const TYPE_LIFE331: &str = "fn first<T:Copy,life a>(p:&'a T)->&'a T{return p}fn result()->i64{let value:i64=42;let flag=true;if *first::<bool>(&flag){return *first(&value)}return 0}";
+const GENERIC_TYPE_LIFE_IDENTITY: &str = "fn first<T:Copy,life a>(p:&'a T)->&'a T{return p}fn result()->i64{let value:i64=42;let flag=true;if *first::<bool>(&flag){return *first(&value)}return 0}";
 
 #[test]
 fn type_life_instances_keep_binders_dense_maps_and_native_copy_types() {
-    native(TYPE_LIFE331, 42);
-    let syntax = zil_syntax::parse(&source(TYPE_LIFE331))
+    native(GENERIC_TYPE_LIFE_IDENTITY, 42);
+    let syntax = zil_syntax::parse(&source(GENERIC_TYPE_LIFE_IDENTITY))
         .into_result()
         .unwrap();
-    let core = zil_expand::expand(&source(TYPE_LIFE331), &syntax).unwrap();
+    let core = zil_expand::expand(&source(GENERIC_TYPE_LIFE_IDENTITY), &syntax).unwrap();
     let instances: Vec<_> = core.functions.iter().filter(|f| f.life.is_some()).collect();
     assert_eq!(instances.len(), 2, "{core:?}");
     for function in instances {
@@ -460,7 +460,7 @@ fn type_life_symbolic_alias_and_module_work_share_exact_fresh_expand_budget() {
         ..Limits::default()
     };
     for (label, text) in [
-        ("original", TYPE_LIFE331),
+        ("original", GENERIC_TYPE_LIFE_IDENTITY),
         (
             "symbolic-callee-positions",
             "fn right<life b,T:Copy,life a>(p:&'b T,q:&'a T)->&'a T{return q}fn first<T:Copy,life x,life y>(p:&'x T,q:&'y T)->&'x T{let r=right(q,p);return r}fn result()->i64{let p:i64=42;let q:i64=1;return *first(&p,&q)}",
@@ -515,9 +515,9 @@ fn type_life_symbolic_alias_and_module_work_share_exact_fresh_expand_budget() {
 
 #[test]
 fn explicit_life_identity_keeps_core_ct_and_actual_native_origins() {
-    let r = compile_source(&source(LIFE_IDENTITY322), &CompileOptions::default());
+    let r = compile_source(&source(BORROWED_LIFE_IDENTITY), &CompileOptions::default());
     assert_eq!(r.status, ResultCategory::Success, "{}", r.to_json());
-    let module = typed(LIFE_IDENTITY322);
+    let module = typed(BORROWED_LIFE_IDENTITY);
     assert_eq!(
         module
             .functions
@@ -527,7 +527,10 @@ fn explicit_life_identity_keeps_core_ct_and_actual_native_origins() {
             .reference_return_bound,
         Some(vec![0])
     );
-    native(&LIFE_IDENTITY322.replace("fn main()", "fn result()"), 0);
+    native(
+        &BORROWED_LIFE_IDENTITY.replace("fn main()", "fn result()"),
+        0,
+    );
     native(
         "fn select<life a,life b>(left:&'a i64,right:&'b i64)->&'a i64{return left}fn result()->i64{var left:i64=40;var right:i64=2;let p=select(&left,&right);right=99;return *p+right}",
         139,
@@ -726,7 +729,7 @@ fn explicit_life_core_metadata_is_not_a_type_proof() {
 }
 
 #[test]
-fn reviewer322_scalar_reuse_must_recheck_current_raw_life_declarations() {
+fn record_sum_scalar_reuse_must_recheck_current_raw_life_declarations() {
     let unit = source(
         "fn scalar<life a,life b>(p:i32)->i32{let n0=p+1;let n1=n0+1;let n2=n1+1;return n2}",
     );
@@ -805,7 +808,7 @@ fn reviewer322_scalar_reuse_must_recheck_current_raw_life_declarations() {
 }
 
 #[test]
-fn reviewer322_equal_length_source_life_error_still_precedes_reuse() {
+fn record_sum_equal_length_source_life_error_still_precedes_reuse() {
     let original =
         "fn scalar<life a,life b>(p:i32)->i32{let n0=p+1;let n1=n0+1;let n2=n1+1;return n2}";
     let changed = original.replace("life a,life b", "life a,life a");
@@ -836,7 +839,7 @@ fn reviewer322_equal_length_source_life_error_still_precedes_reuse() {
 }
 
 #[test]
-fn reviewer322_scalar_work_products_reject_a_typed_return_life_bound() {
+fn record_sum_scalar_work_products_reject_a_typed_return_life_bound() {
     let unit = source("fn scalar(p:i32)->i32{let n0=p+1;let n1=n0+1;let n2=n1+1;return n2}");
     let ast = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &ast).unwrap();
@@ -1089,7 +1092,7 @@ fn explicit_life_each_changed_semantic_phase_has_exact_fresh_budget() {
         assert_eq!(run(high).unwrap(), expected);
         high
     }
-    let unit = source(LIFE_IDENTITY322);
+    let unit = source(BORROWED_LIFE_IDENTITY);
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let limit = |n| Limits {
         max_analysis_steps: n,

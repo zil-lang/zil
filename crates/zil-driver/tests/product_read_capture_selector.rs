@@ -160,7 +160,7 @@ fn observe(label: &str, body: &str, require_one_hit: bool) -> usize {
 }
 
 #[test]
-fn original077_source_and_selector_have_explicit_mutation_evidence() {
+fn original_source_and_selector_have_explicit_mutation_evidence() {
     let hits = observe("original077-selector", READER, false);
     if let Ok(expected) = std::env::var("ZIL_REVIEW077_EXPECT_ORIGINAL_HITS") {
         assert_eq!(hits, expected.parse::<usize>().unwrap());

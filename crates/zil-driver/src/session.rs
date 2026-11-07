@@ -1187,7 +1187,7 @@ pub(super) fn check_entry_contract(core: &CoreModule) -> CompileResult<()> {
 }
 
 #[cfg(test)]
-mod construction_identity150_tests {
+mod source_identity_tests {
     use super::*;
     use zil_base::{FileId, ModuleId};
 

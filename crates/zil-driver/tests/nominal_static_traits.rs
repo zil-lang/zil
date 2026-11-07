@@ -207,7 +207,7 @@ fn empty_impl_cannot_manufacture_builtin_capabilities() {
 }
 
 #[test]
-fn headless_layout_traits_write_512_rectangles_through_owned_buffer() {
+fn headless_layout_traits_write_rectangles_through_owned_buffer() {
     native(include_str!(
         "../../../examples/mainline/static_traits/main.zil"
     ));

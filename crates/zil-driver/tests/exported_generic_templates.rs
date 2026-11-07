@@ -118,7 +118,7 @@ pub fn secret(value:i64)->Secret{return Secret{value:value,visible:2}}
 pub fn read(value:Secret)->i64{return value.value}
 ";
 #[test]
-fn module043_01_public_templates_aliases_and_two_consumers_native() {
+fn exported_template_public_templates_aliases_and_two_consumers_native() {
     let (core, typed, llvm) = native(
         &[
             (
@@ -141,7 +141,7 @@ fn module043_01_public_templates_aliases_and_two_consumers_native() {
     assert!(llvm.contains("call"));
 }
 #[test]
-fn module043_02_opaque_record_moves_and_public_field_native() {
+fn exported_template_opaque_record_moves_and_public_field_native() {
     native(
         &[
             (
@@ -154,7 +154,7 @@ fn module043_02_opaque_record_moves_and_public_field_native() {
     );
 }
 #[test]
-fn module043_03_private_declarations_reject() {
+fn exported_template_private_declarations_reject() {
     for (root, library) in [
         (
             "import model\nfn result()->i32=>model.id(1)",
@@ -177,7 +177,7 @@ fn module043_03_private_declarations_reject() {
     }
 }
 #[test]
-fn module043_04_private_field_reads_writes_construction_and_closures_reject() {
+fn exported_template_private_field_reads_writes_construction_and_closures_reject() {
     for body in [
         "let x=model.secret(40);return x.value",
         "var x=model.secret(40);x.value=42;return 0",
@@ -196,7 +196,7 @@ fn module043_04_private_field_reads_writes_construction_and_closures_reject() {
     }
 }
 #[test]
-fn module043_05_uninstantiated_templates_and_aliases_still_checked() {
+fn exported_template_uninstantiated_templates_and_aliases_still_checked() {
     for library in [
         "pub fn bad<T>(x:T)->T=>missing",
         "pub enum Bad<T>{One(Missing)}",
@@ -212,7 +212,7 @@ fn module043_05_uninstantiated_templates_and_aliases_still_checked() {
     }
 }
 #[test]
-fn module043_06_project_expansion_budget_stops_without_executable() {
+fn exported_template_project_expansion_budget_stops_without_executable() {
     let p = project(&[
         ("main", "import model\nfn result()->i32=>model.id(42)"),
         ("model", "pub fn id<T>(x:T)->T=>x"),
@@ -231,7 +231,7 @@ fn module043_06_project_expansion_budget_stops_without_executable() {
     assert!(!r.artifacts.contains_key("executable"));
 }
 #[test]
-fn module043_07_reexports_aliases_explicit_calls_and_shared_module_identity() {
+fn exported_template_reexports_aliases_explicit_calls_and_shared_module_identity() {
     let mut p = project(&[
         (
             "main",
@@ -263,7 +263,7 @@ fn module043_07_reexports_aliases_explicit_calls_and_shared_module_identity() {
     assert_eq!(out.stdout, b"42\n");
 }
 #[test]
-fn module043_08_same_spelling_in_different_modules_is_not_the_same_type() {
+fn exported_template_same_spelling_in_different_modules_is_not_the_same_type() {
     reject(
         &[
             (
@@ -294,7 +294,7 @@ fn module043_08_same_spelling_in_different_modules_is_not_the_same_type() {
     );
 }
 #[test]
-fn module043_09_template_body_uses_definition_scope_and_checks_foreign_private_field() {
+fn exported_template_template_body_uses_definition_scope_and_checks_foreign_private_field() {
     native(
         &[
             (
@@ -327,7 +327,7 @@ fn module043_09_template_body_uses_definition_scope_and_checks_foreign_private_f
     );
 }
 #[test]
-fn module043_10_ct_opaque_results_are_copies_and_private_queries_reject() {
+fn exported_template_ct_opaque_results_are_copies_and_private_queries_reject() {
     native(
         &[
             (
@@ -360,7 +360,7 @@ fn module043_10_ct_opaque_results_are_copies_and_private_queries_reject() {
     );
 }
 #[test]
-fn module043_11_lexical_bindings_can_shadow_imports_and_type_names() {
+fn exported_template_lexical_bindings_can_shadow_imports_and_type_names() {
     native(
         &[
             (

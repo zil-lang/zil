@@ -68,39 +68,39 @@ fn reject(s: &str, code: &str) {
     assert!(!r.artifacts.contains_key("executable"));
 }
 #[test]
-fn pattern037_example_break_continue_and_unit_variant() {
+fn conditional_pattern_example_break_continue_and_unit_variant() {
     native(include_str!("../../../examples/impl037/main.zil"), 1607);
 }
 #[test]
-fn pattern037_nested_patterns_else_if_and_outer_shadow() {
+fn conditional_pattern_nested_patterns_else_if_and_outer_shadow() {
     native(
         "enum Inner {None,Some(i64)} enum Outer {Empty,Pair((bool,Inner))} fn score(v:Outer)->i64 {let n:i64=100;if let Outer.Pair((true,Inner.Some(n)))=v {return n} else if let Outer.Pair((_,Inner.None()))=v {return 20} else {return n}} fn result()->i64 {return score(Outer.Empty)+score(Outer.Pair((false,Inner.None)))+score(Outer.Pair((true,Inner.Some(42))))}",
         162,
     );
 }
 #[test]
-fn pattern037_fnmut_condition_once_and_failed_match_rechecks() {
+fn conditional_pattern_fnmut_condition_once_and_failed_match_rechecks() {
     native(
         "enum E {End,N(i64)} fn step(i:i64)->E {if i<4 {return E.N(i)} return E.End} fn result()->i64 {var calls:i64=0;var produce=move () => {calls+=1;(step(calls),calls)};var total:i64=0;while let (E.N(n),count)=produce() {if count==2 {continue} total+=n} let last=produce();return total*10+last.1+calls}",
         45,
     );
 }
 #[test]
-fn pattern037_closure_body_inferred_tuple_and_enum_conditions() {
+fn conditional_pattern_closure_body_inferred_tuple_and_enum_conditions() {
     native(
         "enum E {End,N(i64)} fn step(i:i64)->E {if i>0 {return E.N(i)} return E.End} fn result()->i64 {let score=(value:E) => {if let E.N(n)=value {n+1} else {0}};let pair=p => {if let (true,n)=p {n} else {0}};let p:(bool,i64)=(true,5000000000);return score(step(41))+pair(p)}",
         5000000042,
     );
 }
 #[test]
-fn pattern037_closure_loop_conditions_and_local_lifetimes() {
+fn conditional_pattern_closure_loop_conditions_and_local_lifetimes() {
     native(
         "fn result()->i64 {var state:i64=0;var work=move (end:i64) => {var total:i64=0;while let true=state<end {state+=1;let n=state;if let (true,value)=(n%2==0,n) {let p=&value;total+=*p}} total};let a=work(6);let b=work(8);return a*100+b}",
         1208,
     );
 }
 #[test]
-fn pattern037_match_inside_closure_and_closure_inside_match() {
+fn conditional_pattern_match_inside_closure_and_closure_inside_match() {
     native(
         "enum Packet {Empty,Data((bool,i64))} fn packet(value:i64)->Packet {return Packet.Data((true,value))} fn score(value:Packet)->i64 {let bonus:i64=2;match value {Packet.Empty()=>{return 0},Packet.Data((true,n))=>{let inc=move x=>x+n+bonus;return inc(1)},Packet.Data((false,_))=>{return 0}}} fn result()->i64 {let pick=(value:Packet)=>{match value {Packet.Empty()=>{return 0},Packet.Data((true,n))=>{return n},Packet.Data((false,n))=>{return -n}}};return score(packet(39))+pick(packet(10))}",
         52,
@@ -119,21 +119,21 @@ fn pattern037_match_inside_closure_and_closure_inside_match() {
     );
 }
 #[test]
-fn pattern037_irrefutable_conditions_and_return_paths() {
+fn conditional_pattern_irrefutable_conditions_and_return_paths() {
     native(
         "enum Only {Value(i64)} fn take(v:Only)->i64 {if let Only.Value(n)=v {return n}} fn looped()->i64 {var n:i64=0;while let (a,())=(n,()) {n+=1;if a==3 {break}} return n} fn result()->i64 {if let (a,b)=(take(Only.Value(38)),looped()) {return a+b}}",
         42,
     );
 }
 #[test]
-fn pattern037_array_record_and_callback_payloads() {
+fn conditional_pattern_array_record_and_callback_payloads() {
     native(
         "struct R {values:[i64;2];} enum Packet {Empty,Data(R,fn(i64)->i64)} fn add(x:i64)->i64=>x+2;fn result()->i64 {let packet=Packet.Data(R{values:[10,30]},add);if let Packet.Data(record,callback)=packet {return callback(record.values[0]+record.values[1])} return 0}",
         42,
     );
 }
 #[test]
-fn pattern037_scalar_ct_loops_and_closed_queries() {
+fn conditional_pattern_scalar_ct_loops_and_closed_queries() {
     native(
         "fn sum(end:i64)->i64 {var i:i64=0;var total:i64=0;while let true=i<end {i+=1;if let 0=i%2 {continue} total+=i} return total} fn result()->i64 {if let 42=#(6*7) {return #(sum(7))} return 0}",
         16,
@@ -157,7 +157,7 @@ fn pattern037_scalar_ct_loops_and_closed_queries() {
     assert_eq!(report.diagnostics[0].phase, Phase::Ct);
 }
 #[test]
-fn pattern037_bindings_are_immutable_and_confined_to_success() {
+fn conditional_pattern_bindings_are_immutable_and_confined_to_success() {
     for text in [
         "fn result()->i32 {if let n=1 {} return n}",
         "fn result()->i32 {if let (true,n)=(false,1) {return n} else {return n}}",
@@ -175,7 +175,7 @@ fn pattern037_bindings_are_immutable_and_confined_to_success() {
     );
 }
 #[test]
-fn pattern037_invalid_shapes_names_and_nominality_reject() {
+fn conditional_pattern_invalid_shapes_names_and_nominality_reject() {
     for (text, code) in [
         (
             "fn result()->i32 {if let (x,x)=(1,2) {return x} return 0}",
@@ -206,7 +206,7 @@ fn pattern037_invalid_shapes_names_and_nominality_reject() {
     }
 }
 #[test]
-fn pattern037_bound_storage_cannot_escape_and_ct_shadow_stays_runtime() {
+fn conditional_pattern_bound_storage_cannot_escape_and_ct_shadow_stays_runtime() {
     reject(
         "fn escape()->&i32 {if let n=1 {return &n}} fn result()->i32 {return *escape()}",
         "E-BORROW-ESCAPE",
@@ -225,7 +225,7 @@ fn pattern037_bound_storage_cannot_escape_and_ct_shadow_stays_runtime() {
     );
 }
 #[test]
-fn pattern037_raw_core_pattern_depth_is_bounded_before_cloning() {
+fn conditional_pattern_raw_core_pattern_depth_is_bounded_before_cloning() {
     let src = source("fn result()->i32 {if let n=1 {return n} return 0}");
     let ast = zil_syntax::parse(&src).into_result().unwrap();
     let mut core = zil_expand::expand(&src, &ast).unwrap();

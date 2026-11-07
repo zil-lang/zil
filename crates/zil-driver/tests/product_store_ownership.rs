@@ -102,7 +102,7 @@ fn native(label: &str, source: &str, stdout: &[u8], exit: i32) {
 }
 
 #[test]
-fn original_217_and_unused_206_sources_are_promoted_without_rewriting() {
+fn original_and_unused_sources_are_promoted_without_rewriting() {
     pass(
         "original217",
         include_str!("../../../tools/language/217/probes/product-store-element/main.zil"),
@@ -552,7 +552,7 @@ fn unused_user_resource_head_cannot_hide_the_new_product_store() {
 }
 
 #[test]
-fn incoming_mutable_product_copy_helper_is_promoted_by_315() {
+fn incoming_mutable_product_copy_helper_is_promoted() {
     // Regression for the non-author 223 review. Every type occurrence agrees;
     // field index/type, WriteAddress and the incoming Hold are still valid.
     let source = format!("{MODEL} fn write(p:&mut Leaf){{p.mark=7}}fn main(){{}}");

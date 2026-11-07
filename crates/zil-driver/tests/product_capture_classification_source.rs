@@ -68,7 +68,7 @@ fn explicit_owned_read_is_repeatable_fn() {
 }
 
 #[test]
-fn original206_child_take_is_once_and_keeps_its_source_bytes() {
+fn original_child_take_is_once_and_keeps_its_source_bytes() {
     kind(
         include_str!("inline_product_children_independent_fixtures/29_product_capture.zil"),
         CallableKind::FnOnce,
@@ -282,7 +282,7 @@ fn source_declared_fn_cannot_hide_child_consumption() {
 }
 
 #[test]
-fn complete_product_store_elements_are_admitted_since_223() {
+fn complete_product_store_elements_are_admitted_since() {
     let source = format!("{TYPES}fn main(){{let items:Store<Root>=store_new()}}");
     let unit = SourceUnit::new(FileId(0), ModuleId(0), "closed214.zil", source);
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
@@ -297,7 +297,7 @@ fn complete_product_store_elements_are_admitted_since_223() {
 }
 
 #[test]
-fn unchanged_flat_types_budget_still_accepts_exact_418() {
+fn unchanged_flat_types_budget_still_accepts_exact() {
     let source = "resource R{n:i32}package P{pad:i32;manages old:R;wide:[i32;2];manages fresh:R}fn origin(give old:R)->R contract{result(create)}{let p=P{pad:7,old:give old,wide:[11,13],fresh:R{n:29}};let q=p;return give q.fresh}fn main(){}";
     let core = core(source);
     let run = |max_analysis_steps| {

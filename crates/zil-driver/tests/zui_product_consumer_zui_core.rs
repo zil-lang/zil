@@ -233,4 +233,4 @@ fn nearest_missing_refill_and_live_window_counterexamples() {
 }
 
 #[path = "../../../tests/language-readiness/terminal/345/library.rs"]
-mod terminal345;
+mod zui_library_consumer;

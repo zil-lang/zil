@@ -22,35 +22,35 @@ fn checked(text: &str) {
 }
 
 #[test]
-fn helper065_shared_and_copy_arguments() {
+fn callable_helper_shared_and_copy_arguments() {
     checked(
         "fn twice<F:Fn(i32)->i32>(f:&F,n:i32)->i32{return f(n)+f(n)} fn main()->i32{let x=20;let f=(n:i32)=>x+n;return twice(&f,1)-42}",
     );
 }
 
 #[test]
-fn helper065_owned_environment_shared_borrow_and_reuse() {
+fn callable_helper_owned_environment_shared_borrow_and_reuse() {
     checked(
         "resource R{n:i32} fn twice<F:Fn()->i32>(f:&F)->i32{return f()+f()} fn main()->i32{let r=R{n:7};let f=move ()=>r.n;let n=twice(&f);return n+f()-21}",
     );
 }
 
 #[test]
-fn helper065_mutable_borrow_updates_actual_environment() {
+fn callable_helper_mutable_borrow_updates_actual_environment() {
     checked(
         "fn twice<F:FnMut()->i32>(f:&mut F)->i32{return f()+f()} fn main()->i32{var n=0;var f=()=>{n+=1;return n};let first=twice(&mut f);return first+f()-6}",
     );
 }
 
 #[test]
-fn helper065_value_condition_and_consume_adaptation() {
+fn callable_helper_value_condition_and_consume_adaptation() {
     checked(
         "resource R{n:i32} fn run<F:FnOnce()->i32>(f:F,yes:bool)->i32{if yes{return f()}return 0} fn main()->i32{let r=R{n:7};let f=move ()=>r.n;return run(f,true)-7}",
     );
 }
 
 #[test]
-fn helper065_error_callback_stops_trace_and_late_argument_is_guarded() {
+fn callable_helper_error_callback_stops_trace_and_late_argument_is_guarded() {
     checked(
         "resource R{n:i32} fn twice<F:Fn()->bool!i32>(f:&F)->bool!i32{let a=f()?;return a+f()?} fn run<F:FnOnce()->i32>(f:F,give r:R,n:i32)->i32{return f()+n} fn fail()->bool!i32{return true} fn main()->bool!i32{let r=R{n:7};let f=move ()=>r.n;return run(f,R{n:8},fail()?)}",
     );
@@ -81,7 +81,7 @@ fn project(main: &str, helpers: &str) -> CompileReport {
 }
 
 #[test]
-fn helper065_cross_module_interfaces_include_actual_environment_layout() {
+fn callable_helper_cross_module_interfaces_include_actual_environment_layout() {
     let helpers = "pub fn twice<F:Fn()->i32>(f:&F)->i32{return f()+f()} pub fn run<F:FnOnce()->i32>(f:F)->i32{return f()}";
     let first = project(
         "import helpers;fn main()->i32{let x=1;let f=()=>x;let n=helpers.twice(&f);return n+helpers.run(f)}",
@@ -114,7 +114,7 @@ fn helper065_cross_module_interfaces_include_actual_environment_layout() {
 }
 
 #[test]
-fn helper065_same_name_in_distinct_modules_keeps_definition_identity() {
+fn callable_helper_same_name_in_distinct_modules_keeps_definition_identity() {
     let mut project = ProjectSources {
         root: ModuleId(10),
         modules: vec![
@@ -178,14 +178,14 @@ fn helper065_same_name_in_distinct_modules_keeps_definition_identity() {
 }
 
 #[test]
-fn helper065_generic_body_reads_known_resource_field() {
+fn callable_helper_generic_body_reads_known_resource_field() {
     checked(
         "resource R{n:i32} fn accept<F:FnOnce()->i32>(f:F,give item:R,code:i32)->i32{return f()+item.n+code} fn main()->i32{let owner=R{n:7};let f=move ()=>owner.n;let item=R{n:3};return accept(f,give item,2)-12}",
     );
 }
 
 #[test]
-fn helper065_mutable_target_loan_ends_after_owned_zero_or_one_call() {
+fn callable_helper_mutable_target_loan_ends_after_owned_zero_or_one_call() {
     for enabled in ["true", "false"] {
         checked(&format!(
             "fn run<F:FnOnce()->i32>(f:F,yes:bool)->i32{{if yes{{return f()}}return 0}} fn main()->i32{{var n=0;var f=()=>{{n+=1;return n}};let result=run(f,{enabled});n+=10;return n+result}}"
@@ -197,14 +197,14 @@ fn helper065_mutable_target_loan_ends_after_owned_zero_or_one_call() {
 }
 
 #[test]
-fn helper065_owned_fn_can_adapt_to_borrowed_fnmut_then_be_reused() {
+fn callable_helper_owned_fn_can_adapt_to_borrowed_fnmut_then_be_reused() {
     checked(
         "resource R{n:i32} fn twice<F:FnMut()->i32>(f:&mut F)->i32{return f()+f()} fn main()->i32{let owner=R{n:7};var f=move ()=>owner.n;let first=twice(&mut f);return first+f()-21}",
     );
 }
 
 #[test]
-fn helper065_copy_error_callbacks_are_instantiated_and_verified() {
+fn callable_helper_copy_error_callbacks_are_instantiated_and_verified() {
     checked(
         "fn twice<F:Fn()->bool!i32>(f:&F)->bool!i32{let first=f()?;return first+f()?} fn main()->bool!i32{let yes=true;let f=()->bool!i32=>{if yes{return true}return 1};return twice(&f)}",
     );
@@ -233,7 +233,7 @@ fn rejected(text: &str, category: ResultCategory, phase: Phase, message: &str) {
 }
 
 #[test]
-fn helper065_nearest_callable_admission_rejections() {
+fn callable_helper_nearest_callable_admission_rejections() {
     rejected(
         "fn run<F>(f:F)->i32{return f()} fn main()->i32{return 0}",
         ResultCategory::Unsupported,
@@ -267,7 +267,7 @@ fn helper065_nearest_callable_admission_rejections() {
 }
 
 #[test]
-fn helper065_helper_does_not_extend_resource_or_address_lifetimes() {
+fn callable_helper_helper_does_not_extend_resource_or_address_lifetimes() {
     rejected(
         "resource R{n:i32} fn run<F:FnOnce()->i32>(f:F)->i32{return f()} fn main()->i32{let owner=R{n:7};let f=move ()=>owner.n;let first=run(f);return first+f()}",
         ResultCategory::SafeReject,
@@ -289,7 +289,7 @@ fn helper065_helper_does_not_extend_resource_or_address_lifetimes() {
 }
 
 #[test]
-fn helper065_scope_is_explicit_for_extra_borrows_and_unbounded_traces() {
+fn callable_helper_scope_is_explicit_for_extra_borrows_and_unbounded_traces() {
     checked(
         "fn run<F:Fn()->i32>(f:&F,other:&i32)->i32{return f()} fn main()->i32{let n=7;let f=()=>n;return run(&f,&n)}",
     );
@@ -311,7 +311,7 @@ fn core(text: &str) -> zil_ir::CoreModule {
 }
 
 #[test]
-fn helper065_instances_are_cached_and_new_identities_are_bounded() {
+fn callable_helper_instances_are_cached_and_new_identities_are_bounded() {
     let input = core(
         "fn run<F:Fn()->i32>(f:&F)->i32{return f()} fn main()->i32{let x=7;let f=()=>x;return run(&f)+run(&f)+run(&f)}",
     );
@@ -351,7 +351,7 @@ fn helper065_instances_are_cached_and_new_identities_are_bounded() {
 }
 
 #[test]
-fn helper065_raw_callable_metadata_is_bounded_before_instantiation() {
+fn callable_helper_raw_callable_metadata_is_bounded_before_instantiation() {
     let mut input = core("fn run<F:Fn()->i32>(f:&F)->i32{return f()} fn main()->i32{return 0}");
     let mut nested = zil_ir::Type::I32;
     for _ in 0..32 {
@@ -378,7 +378,7 @@ fn helper065_raw_callable_metadata_is_bounded_before_instantiation() {
 }
 
 #[test]
-fn helper065_analyze_reconstructs_hold_and_call_paths() {
+fn callable_helper_analyze_reconstructs_hold_and_call_paths() {
     let input = core(
         "fn run<F:FnMut()->i32>(f:&mut F)->i32{return f()+f()} fn main()->i32{var n=0;var f=()=>{n+=1;return n};return run(&mut f)}",
     );

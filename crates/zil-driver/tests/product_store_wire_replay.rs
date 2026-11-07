@@ -4,12 +4,18 @@ mod schema40_fixture;
 use std::{fs, path::PathBuf};
 use zil_base::{Fingerprint, Limits, Phase, ResultCategory, TargetProfile};
 
-const ORIGINAL: &[u8] = include_bytes!("review223_fixtures/mutable-product-original.wire");
-const SCHEMA29: &[u8] = include_bytes!("review223_fixtures/mutable-product-schema29.wire");
-const SCHEMA30: &[u8] = include_bytes!("review223_fixtures/schema30-mutable-product.wire");
-const SCHEMA32: &[u8] = include_bytes!("review223_fixtures/schema32-mutable-product.wire");
-const OLD_SCHEMA37: &[u8] = include_bytes!("review223_fixtures/v37/mutable-product.wire");
-const SCHEMA40: &[u8] = include_bytes!("review223_fixtures/v40/mutable-product.wire");
+const ORIGINAL: &[u8] =
+    include_bytes!("product_store_wire_replay_fixtures/mutable-product-original.wire");
+const SCHEMA29: &[u8] =
+    include_bytes!("product_store_wire_replay_fixtures/mutable-product-schema29.wire");
+const SCHEMA30: &[u8] =
+    include_bytes!("product_store_wire_replay_fixtures/schema30-mutable-product.wire");
+const SCHEMA32: &[u8] =
+    include_bytes!("product_store_wire_replay_fixtures/schema32-mutable-product.wire");
+const OLD_SCHEMA37: &[u8] =
+    include_bytes!("product_store_wire_replay_fixtures/v37/mutable-product.wire");
+const SCHEMA40: &[u8] =
+    include_bytes!("product_store_wire_replay_fixtures/v40/mutable-product.wire");
 
 #[test]
 fn frozen_schema27_29_30_32_and37_wire_are_rejected_as_old_transports() {
@@ -77,7 +83,7 @@ fn current_original_envelope(limits: &Limits) -> Vec<u8> {
 }
 
 #[test]
-fn frozen_mutable_product_raw_and_wire_is_promoted_by_315() {
+fn frozen_mutable_product_raw_and_wire_is_promoted() {
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
     assert_eq!(
@@ -198,7 +204,7 @@ fn frozen_mutable_product_raw_and_wire_is_promoted_by_315() {
             .unwrap();
         }
     }
-    let text = include_str!("review223_fixtures/mutable_control.zil").replace("write(p:&mut Leaf)","write(p:&mut Root)").replace("fn main(){}","fn main(){var root=Root{child:Leaf{owner:R{n:1},tag:2},tag:3};let child=root.child;write(&mut root)}");
+    let text = include_str!("product_store_wire_replay_fixtures/mutable_control.zil").replace("write(p:&mut Leaf)","write(p:&mut Root)").replace("fn main(){}","fn main(){var root=Root{child:Leaf{owner:R{n:1},tag:2},tag:3};let child=root.child;write(&mut root)}");
     fs::write(root.join("incomplete-call.zil"), &text).unwrap();
     let r = zil_driver::compile_source(
         &zil_base::SourceUnit::new(

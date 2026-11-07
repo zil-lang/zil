@@ -156,7 +156,7 @@ fn pop<T: StoreElement>(items: Store<T>) -> void!T { return store_pop(items) }
 "#;
 
 #[test]
-fn ordinary_store_helper_push_retains_202_complete_type() {
+fn ordinary_store_helper_push_retains_complete_type() {
     let source = format!(
         "{STORE_HELPERS}\n{}",
         PAIR_MUT.replace("store_push(items,", "push(items,")
@@ -177,7 +177,7 @@ fn ordinary_store_helper_push_retains_202_complete_type() {
 }
 
 #[test]
-fn ordinary_store_helper_factory_retains_202_complete_type() {
+fn ordinary_store_helper_factory_retains_complete_type() {
     let source = format!(
         "{STORE_HELPERS}\n{}",
         PAIR_MUT

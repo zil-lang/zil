@@ -225,7 +225,7 @@ fn sharing_does_not_add_owned_reads_retention_or_escape() {
 
 // Original 224 input retained; 315 now admits this synchronous signature.
 #[test]
-fn original_mutable_product_signature_promoted_by_315() {
+fn original_mutable_product_signature_promoted() {
     let report = compile(
         "mutable-product",
         &source("fn bad(p:&mut Root){}fn main(){}"),
@@ -242,7 +242,7 @@ fn original_mutable_product_signature_promoted_by_315() {
 // Original 224 source bytes are retained. Stage 226 admits this local shared
 // address capture; mutable access, escaping returns and owning copies above stay closed.
 #[test]
-fn original_shared_capture_promoted_by_226() {
+fn original_shared_capture_promoted() {
     let body =
         format!("fn main()->i32{{let root={ROOT};let p=&root;let f=()=>value(p);return f()}}");
     let report = compile("capture", &source(&body), Limits::default());

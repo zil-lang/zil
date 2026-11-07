@@ -1599,7 +1599,7 @@ fn charge_ct_usage(
 }
 
 #[cfg(test)]
-mod discovery158_tests {
+mod filesystem_discovery_tests {
     use super::*;
     use std::{
         fs,

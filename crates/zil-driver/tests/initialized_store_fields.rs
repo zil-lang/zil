@@ -381,7 +381,7 @@ fn source_rejects_borrowed_store_fields_and_unsupported_nested_storage() {
 }
 
 #[test]
-fn original_complete_store_state_capture_is_supported_since_204() {
+fn original_complete_store_state_capture_is_supported_since() {
     let source = format!(
         "{MODEL} fn main()->i32{{let s=state(90,65,66);let f=move ()=>i32(store_len(s.items));return f()}}"
     );

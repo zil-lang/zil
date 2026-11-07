@@ -94,7 +94,7 @@ fn new_capture_types_work_has_an_exact_fresh_boundary() {
 }
 
 #[test]
-fn legacy_byte_capture_keeps_its_pre204_exact_types_budget() {
+fn legacy_byte_capture_keeps_its_pre_exact_types_budget() {
     // Independently measured on the old production domain by review/204-by197
     // at a94bd81d, before any 204 production merge. Do not derive this constant
     // from the new implementation or treat the new sources as legacy controls.

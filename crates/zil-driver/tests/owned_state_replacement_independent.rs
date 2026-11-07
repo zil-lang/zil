@@ -194,7 +194,7 @@ fn make(code:i32)->impl Fn()->i32{let ticket=Ticket{code:code};return move()=>ti
 "#;
 
 #[test]
-fn original_138_bytes_become_a_checked_unused_definition() {
+fn original_bytes_become_a_checked_unused_definition() {
     assert_eq!(ORIGINAL.len(), 138);
     accepted("original-138-byte-definition", ORIGINAL);
 }

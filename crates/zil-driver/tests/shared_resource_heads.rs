@@ -114,7 +114,7 @@ fn write(r:R,n:i32){r.n=n}
 "#;
 
 #[test]
-fn original_159_resource_address_receiver_probe_is_unchanged_and_now_supported() {
+fn original_resource_address_receiver_probe_is_unchanged_and_now_supported() {
     let report = check(&[(
         "main",
         "trait Read{fn read(self:&Self)->i32;}resource C{x:i32}impl Read for C{fn read()->i32=>.x}fn main(){}",

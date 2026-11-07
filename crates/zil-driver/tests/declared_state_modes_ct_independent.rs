@@ -112,7 +112,7 @@ fn query(program: &CoreProgram, name: &str) -> CoreExpr {
 }
 
 #[test]
-fn independent203_imported_wrapper_cannot_hide_new_state_execution() {
+fn state_mode_imported_wrapper_cannot_hide_new_state_execution() {
     let root = module(
         0,
         "fn wrapper()->i32{return child.pure()}fn main()->i32{return wrapper()}",
@@ -190,7 +190,7 @@ impl SourceCompiler for Observer {
 }
 
 #[test]
-fn independent203_second_binding_is_bounded_before_any_query_preparation() {
+fn state_mode_second_binding_is_bounded_before_any_query_preparation() {
     let mut original = module(
         0,
         "fn symbolic()->i32{return 0}fn pure()->i64{return 4294967296}fn main()->i64{return #(pure())}",
@@ -260,7 +260,7 @@ fn independent203_second_binding_is_bounded_before_any_query_preparation() {
 }
 
 #[test]
-fn independent203_runtime_folding_preserves_both_selectors_and_modes_exactly() {
+fn state_mode_runtime_folding_preserves_both_selectors_and_modes_exactly() {
     let mut core = module(
         0,
         "fn symbolic()->i32{return #(6*7)}fn main()->i32{return 0}",
@@ -296,7 +296,7 @@ fn independent203_runtime_folding_preserves_both_selectors_and_modes_exactly() {
 }
 
 #[test]
-fn independent203_imported_value_template_hints_do_not_execute_or_ignore_shadowing() {
+fn state_mode_imported_value_template_hints_do_not_execute_or_ignore_shadowing() {
     let root = module(
         0,
         "fn entry(value:i32)->i64{return child.accept(value,7)}fn main()->i32{return 0}",

@@ -123,7 +123,7 @@ fn make()->impl FnMut(i32)->i32{let r=Ticket{code:65};var value=0;return move(de
 "#;
 
 #[test]
-fn original_197_source_and_explicit_sibling_borrow_control_execute() {
+fn original_source_and_explicit_sibling_borrow_control_execute() {
     native("original197", ORIGINAL, "", 0);
     native(
         "explicit197",

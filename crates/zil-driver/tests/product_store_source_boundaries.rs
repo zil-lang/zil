@@ -65,8 +65,8 @@ fn verify_expected(
 }
 
 #[test]
-fn original_unused_mutable_product_copy_helper_is_promoted_by_315() {
-    let source = include_str!("review223_fixtures/mutable_control.zil");
+fn original_unused_mutable_product_copy_helper_is_promoted() {
+    let source = include_str!("product_store_wire_replay_fixtures/mutable_control.zil");
     let mut module = typed(source);
     let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
     zil_verify::verify_module(
@@ -184,7 +184,7 @@ fn original_unused_mutable_product_copy_helper_is_promoted_by_315() {
 
 #[test]
 fn ordinary_product_sums_are_admitted_but_direct_nested_union_stays_closed() {
-    let source = include_str!("review223_fixtures/unit_protocols.zil");
+    let source = include_str!("product_store_wire_replay_fixtures/unit_protocols.zil");
     let original = typed(source);
     let plan = zil_analyze::analyze(&original, &Limits::default()).unwrap();
     zil_verify::verify_module(

@@ -200,7 +200,7 @@ fn binaries(temp: &Path, stem: &str, short_write: bool) -> Vec<PathBuf> {
 }
 
 #[test]
-fn bytes083_streaming_normalization_preserves_nul_high_bits_and_chunk_edges() {
+fn byte_buffer_streaming_normalization_preserves_nul_high_bits_and_chunk_edges() {
     let temp = Temp::new();
     let mut cases = vec![
         vec![],
@@ -220,7 +220,7 @@ fn bytes083_streaming_normalization_preserves_nul_high_bits_and_chunk_edges() {
 }
 
 #[test]
-fn bytes083_real_pipe_eof_and_resource_close_match_rust() {
+fn byte_buffer_real_pipe_eof_and_resource_close_match_rust() {
     let temp = Temp::new();
     for binary in binaries(&temp.0, "pipe", false) {
         succeeds(&binary, b"", &[0, 127, 128, 255, 228, 184, 173, 10], None);
@@ -231,7 +231,7 @@ fn bytes083_real_pipe_eof_and_resource_close_match_rust() {
 }
 
 #[test]
-fn bytes083_unsigned_operations_cover_all_65536_pairs_at_o0_and_o2() {
+fn byte_buffer_unsigned_operations_cover_all_65536_pairs_at_o0_and_o2() {
     let temp = Temp::new();
     // Independent wider-integer model, without calling the ZIL implementation.
     let mut checksum = 0i64;
@@ -270,7 +270,7 @@ fn bytes083_unsigned_operations_cover_all_65536_pairs_at_o0_and_o2() {
 }
 
 #[test]
-fn bytes083_controlled_short_writes_and_no_progress_errors_preserve_prefix() {
+fn byte_buffer_controlled_short_writes_and_no_progress_errors_preserve_prefix() {
     let temp = Temp::new();
     for binary in binaries(&temp.0, "partial", true) {
         for (mode, expected) in [
@@ -311,7 +311,7 @@ fn check_source(temp: &Path, index: usize, text: &str, expected: Option<(Phase, 
 }
 
 #[test]
-fn bytes083_ct_conversion_and_unsigned_operator_boundaries_fail_before_publication() {
+fn byte_buffer_ct_conversion_and_unsigned_operator_boundaries_fail_before_publication() {
     let temp = Temp::new();
     let good = [
         "fn main()->i32{let b=#(1+2u8);return i32(b)}",
@@ -350,7 +350,7 @@ fn bytes083_ct_conversion_and_unsigned_operator_boundaries_fail_before_publicati
 }
 
 #[test]
-fn bytes083_runtime_traps_and_byte_entry_are_observed_in_real_native_code() {
+fn byte_buffer_runtime_traps_and_byte_entry_are_observed_in_real_native_code() {
     let temp = Temp::new();
     let text = r#"extern "C" fn getchar()->i32;
 fn main()->i32{
@@ -449,7 +449,7 @@ return 0}"#;
 }
 
 #[test]
-fn bytes083_copy_capture_address_mutations_survive_every_exit_and_loop_order() {
+fn byte_buffer_copy_capture_address_mutations_survive_every_exit_and_loop_order() {
     let temp = Temp::new();
     let prelude = "extern \"C\" fn putchar(n:i32)->i32;fn bump(p:&mut u8){*p=*p+1u8}";
     let cases: [(&str, &[u8]); 8] = [

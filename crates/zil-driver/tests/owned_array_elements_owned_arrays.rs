@@ -590,7 +590,7 @@ fn wrap(n:i32)->impl FnMut()->i32{var child=forward(n);return move()=>child()}
 "#;
 
 #[test]
-fn original159_same_factory_handler_array_constructs_and_cleans() {
+fn original_same_factory_handler_array_constructs_and_cleans() {
     native(
         &[(
             "main",

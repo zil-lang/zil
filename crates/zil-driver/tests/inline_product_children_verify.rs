@@ -271,8 +271,8 @@ fn real_product_verify_work_has_exact_n_minus_one_and_fresh_boundaries() {
 }
 
 #[test]
-fn original_flat186_verify_boundary_stays_10398_without_product_leaf_table() {
-    // Exact source built by review186_field_origins::baseline, unchanged in
+fn original_flat_verify_boundary_stays_10398_without_product_leaf_table() {
+    // Exact source built by generic_owned_success_field_origins::baseline, unchanged in
     // accepted205@2db3. Its original workspace02 boundaries.txt records
     // Analyze8673 / Verify10398; this is a fixed historical control.
     let source = "resource R{n:i32}package P{pad:i32;manages old:R;wide:[i32;2];manages fresh:R}fn origin(give old:R)->R contract{result(create)}{let p=P{pad:7,old:give old,wide:[11,13],fresh:R{n:29}};let q=p;return give q.fresh}fn main(){}";

@@ -37,7 +37,7 @@ fn typed(text: &str) -> TypedModule {
 
 // Independent reviewer probes for the exact c88cbe1f7 production tree.
 #[test]
-fn review318_nested_missing_child_and_same_root_raw_attacks() {
+fn tuple_ownership_nested_missing_child_and_same_root_raw_attacks() {
     let source = "resource Mark{n:i32}package Child{manages mark:Mark;count:i32}package Root{child:Child;count:i32}fn bump(p:&mut Root){p.count+=1}fn main()->i32{var root=Root{child:Child{mark:Mark{n:3},count:0},count:0};bump(&mut root);let removed=root.child;return 0}";
     let mut nested = typed(source);
     let plan = zil_analyze::analyze(&nested, &Limits::default()).unwrap();
@@ -81,14 +81,14 @@ fn review318_nested_missing_child_and_same_root_raw_attacks() {
         e.iter()
             .all(|e| e.category != ResultCategory::ResourceLimit)
     );
-    raw_reject315(
+    raw_reject(
         "review318-nested-missing-child",
         nested,
         plan,
         "E-VERIFY-RESOURCE",
     );
 
-    let source = product315(
+    let source = product(
         "var other=Panel{mark:Mark{n:9},count:0};both(&mut panel,&mut other);return panel.count+other.count-3",
         "fn both(a:&mut Panel,b:&mut Panel){a.count+=1;b.count+=2}",
     );
@@ -154,8 +154,8 @@ fn review318_nested_missing_child_and_same_root_raw_attacks() {
     }
 }
 #[test]
-fn review318_frozen223_product_parameter_has_real_exclusive_authority() {
-    let bytes = include_bytes!("review223_fixtures/v40/mutable-product.wire");
+fn tuple_ownership_frozen_product_parameter_has_real_exclusive_authority() {
+    let bytes = include_bytes!("product_store_wire_replay_fixtures/v40/mutable-product.wire");
     let limits = Limits::default();
     let migrated = schema40_fixture::migrate(bytes, &limits);
     let (module, plan) = zil_ir::wire::decode_module_candidate(&migrated, &limits).unwrap();
@@ -208,7 +208,7 @@ fn review318_frozen223_product_parameter_has_real_exclusive_authority() {
     } else {
         panic!("address parameter");
     }
-    raw_reject315(
+    raw_reject(
         "review318-frozen223-shared-upgrade",
         shared.clone(),
         plan.clone(),
@@ -224,7 +224,7 @@ fn review318_frozen223_product_parameter_has_real_exclusive_authority() {
             *mutable = false;
         }
     }
-    raw_reject315(
+    raw_reject(
         "review318-frozen223-coherent-shared-write",
         shared,
         plan,
@@ -284,17 +284,17 @@ fn ordinary_local_product_mutable_helper_original() {
     zil_verify::verify_module(module.clone(), plan, &module.target, &Limits::default()).unwrap();
     zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).unwrap();
 }
-fn product315(body: &str, helpers: &str) -> String {
+fn product(body: &str, helpers: &str) -> String {
     format!(
         "resource Mark{{n:i32}}package Panel{{manages mark:Mark;count:i32}}fn bump(panel:&mut Panel){{panel.count+=1}}{helpers}fn main()->i32{{var panel=Panel{{mark:Mark{{n:3}},count:0}};{body}}}"
     )
 }
 
 #[test]
-fn original_owned_write315_has_real_ticket_cleanup_and_failure_controls() {
+fn original_owned_write_has_real_ticket_cleanup_and_failure_controls() {
     // These are the unchanged original owned-write315 bytes. owned replacement now carries
     // an actual ticket through this finite Managed<CopyRecord> address lane.
-    let original = product315(
+    let original = product(
         "replace(&mut panel);return 0",
         "fn replace(panel:&mut Panel){panel.mark=Mark{n:9}}",
     );
@@ -329,7 +329,7 @@ fn original_owned_write315_has_real_ticket_cleanup_and_failure_controls() {
         ),
         (
             "owned-write315-live-parent-loan",
-            product315(
+            product(
                 "let held=&panel;replace(&mut panel);return held.count",
                 "fn replace(panel:&mut Panel){panel.mark=Mark{n:9}}",
             ),
@@ -398,7 +398,7 @@ fn replacement_ticket_routes(text: &str, abort: bool) {
 fn ordinary_local_product_mutable_helper_reborrows_and_cleanup() {
     native(
         "mutable-product-refill315",
-        &product315(
+        &product(
             "let removed=give panel.mark;panel.mark=give removed;bump(&mut panel);return panel.count-1",
             "",
         ),
@@ -407,7 +407,7 @@ fn ordinary_local_product_mutable_helper_reborrows_and_cleanup() {
     );
     native(
         "mutable-product-nested315",
-        &product315(
+        &product(
             "var frame=Frame{child:panel,tag:0};bump_frame(&mut frame);return frame.tag-1",
             "package Frame{child:Panel;tag:i32}fn bump_frame(frame:&mut Frame){frame.tag+=1}",
         ),
@@ -416,7 +416,7 @@ fn ordinary_local_product_mutable_helper_reborrows_and_cleanup() {
     );
     native(
         "mutable-product-reborrow315",
-        &product315(
+        &product(
             "let parent=&mut panel;twice(parent);bump(parent);let read=&*parent;let n=read.count;bump(&mut panel);return n-3+panel.count-4",
             "fn twice(panel:&mut Panel){bump(panel);bump(panel)}",
         ),
@@ -425,7 +425,7 @@ fn ordinary_local_product_mutable_helper_reborrows_and_cleanup() {
     );
     native(
         "mutable-product-apart315",
-        &product315(
+        &product(
             "var other=Panel{mark:Mark{n:9},count:0};both(&mut panel,&mut other);return panel.count+other.count-3",
             "fn both(left:&mut Panel,right:&mut Panel){left.count+=1;right.count+=2}",
         ),
@@ -448,7 +448,7 @@ fn ordinary_local_product_mutable_helper_reborrows_and_cleanup() {
 fn ordinary_local_product_mutable_helper_nearest_rejections() {
     // nonlocal owned replacement admits this actual nonescaping Product capture; all surrounding
     // live-loan, missing-owner and escape neighbors remain independent rejects.
-    let captured = product315("let held=&mut panel;let f=()=>held.count;return f()", "");
+    let captured = product("let held=&mut panel;let f=()=>held.count;return f()", "");
     let module = typed(&captured);
     let limits = Limits::default();
     let plan = zil_analyze::analyze(&module, &limits).unwrap();
@@ -524,7 +524,7 @@ fn ordinary_local_product_mutable_helper_nearest_rejections() {
             ResultCategory::Unsupported,
         ),
     ] {
-        reject(label, &product315(body, helpers), category);
+        reject(label, &product(body, helpers), category);
     }
     reject(
         "immutable315",
@@ -541,7 +541,7 @@ fn ordinary_local_product_mutable_helper_nearest_rejections() {
     native("store-head315", store_head, "", 0);
     reject(
         "mutable-child-projection315",
-        &product315(
+        &product(
             "var frame=Frame{child:panel,tag:0};deep(&mut frame);return 0",
             "package Frame{child:Panel;tag:i32}fn deep(frame:&mut Frame){frame.child.count+=1}",
         ),
@@ -549,7 +549,7 @@ fn ordinary_local_product_mutable_helper_nearest_rejections() {
     );
 }
 
-fn raw_reject315(label: &str, module: TypedModule, mut plan: CandidatePlan, code: &str) {
+fn raw_reject(label: &str, module: TypedModule, mut plan: CandidatePlan, code: &str) {
     plan.module_fingerprint = module.fingerprint();
     let limits = Limits::default();
     let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
@@ -606,7 +606,7 @@ fn ordinary_local_product_mutable_helper_independent_roots_and_permission() {
                 }];
             }
         }
-        raw_reject315(name, module.clone(), forged, "E-VERIFY-HOLD");
+        raw_reject(name, module.clone(), forged, "E-VERIFY-HOLD");
     }
     let mut immutable = module.clone();
     let f = immutable
@@ -619,7 +619,7 @@ fn ordinary_local_product_mutable_helper_independent_roots_and_permission() {
         .find(|l| l.name == "panel")
         .unwrap()
         .mutable = false;
-    raw_reject315(
+    raw_reject(
         "immutable-raw315",
         immutable,
         plan.clone(),
@@ -642,7 +642,7 @@ fn ordinary_local_product_mutable_helper_independent_roots_and_permission() {
         unreachable!()
     };
     *mutable = false;
-    raw_reject315("forged-permission315", shared, plan, "E-VERIFY-TYPE");
+    raw_reject("forged-permission315", shared, plan, "E-VERIFY-TYPE");
 }
 
 #[test]
@@ -653,7 +653,7 @@ fn ordinary_local_product_mutable_helper_independent_completeness_and_liveness()
         ("drop-raw315", ""),
         ("dead-raw315", ""),
     ] {
-        let mut module = typed(&product315(
+        let mut module = typed(&product(
             &format!("bump(&mut panel);{transfer}return 0"),
             "",
         ));
@@ -698,7 +698,7 @@ fn ordinary_local_product_mutable_helper_independent_completeness_and_liveness()
                 .all(|d| d.category != ResultCategory::ResourceLimit),
             "{label}: {errors:?}"
         );
-        raw_reject315(
+        raw_reject(
             label,
             module,
             plan,
@@ -722,7 +722,7 @@ fn ordinary_local_product_mutable_helper_independent_live_windows() {
             }
             _ => "let first=&mut panel;bump(first);return 0",
         };
-        let mut module = typed(&product315(body, ""));
+        let mut module = typed(&product(body, ""));
         let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
         let f = module
             .functions
@@ -757,7 +757,7 @@ fn ordinary_local_product_mutable_helper_independent_live_windows() {
         block.instructions.insert(before, instruction);
         // Analyze may publish an untrusted candidate; ordinary strong-loan
         // conflicts are decided by the independent Verify loan checker.
-        raw_reject315(attack, module, plan, "E-BORROW-CONFLICT");
+        raw_reject(attack, module, plan, "E-BORROW-CONFLICT");
     }
 }
 

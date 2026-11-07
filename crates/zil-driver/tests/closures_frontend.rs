@@ -42,7 +42,7 @@ fn accepted(text: &str) {
 }
 
 #[test]
-fn c014_01_first_call_resolves_identity_and_repeated_calls_keep_one_environment() {
+fn closure_first_call_resolves_identity_and_repeated_calls_keep_one_environment() {
     let module = typed("fn main() -> i32 { let f = (x) => x; return f(20) + f(22); }");
     assert_eq!(module.closures.len(), 1);
     let closure = &module.closures[0];
@@ -75,7 +75,7 @@ fn c014_01_first_call_resolves_identity_and_repeated_calls_keep_one_environment(
 }
 
 #[test]
-fn c014_02_known_i64_capture_constrains_unannotated_parameter_and_literals() {
+fn closure_known_i64_capture_constrains_unannotated_parameter_and_literals() {
     let module = typed(
         "fn result() -> i64 { let base: i64 = 2147483648; let f = move (x) => x + base; return f(2); }",
     );
@@ -92,7 +92,7 @@ fn c014_02_known_i64_capture_constrains_unannotated_parameter_and_literals() {
 }
 
 #[test]
-fn c014_03_parameter_and_inner_binding_shadow_outer_capture_candidates() {
+fn closure_parameter_and_inner_binding_shadow_outer_capture_candidates() {
     let module = typed(
         "fn main() -> i32 { let x: i64 = 2147483648; let f = (x) => x; let g = () => { let x = 42; return x; }; return f(g()); }",
     );
@@ -101,7 +101,7 @@ fn c014_03_parameter_and_inner_binding_shadow_outer_capture_candidates() {
 }
 
 #[test]
-fn c014_04_capture_identity_and_source_order_survive_later_shadowing() {
+fn closure_capture_identity_and_source_order_survive_later_shadowing() {
     let module = typed(
         "fn result() -> i64 { let a: i64 = 1; let b: i64 = 2; let f = move () => b - a; if true { let a: i64 = 100; return f() + a; } else { return 0; } }",
     );
@@ -131,7 +131,7 @@ fn c014_04_capture_identity_and_source_order_survive_later_shadowing() {
 }
 
 #[test]
-fn c014_05_local_copy_assignment_and_pending_capture_are_concrete_values() {
+fn closure_local_copy_assignment_and_pending_capture_are_concrete_values() {
     let module = typed(
         "fn main() -> i32 { var flag = true; let f = move (x) => { if flag { return x; } else { return x + 1; } }; flag = false; var g = f; g = f; return g(41); }",
     );
@@ -159,7 +159,7 @@ fn c014_05_local_copy_assignment_and_pending_capture_are_concrete_values() {
 }
 
 #[test]
-fn c014_06_rejects_ambiguous_conflicting_and_mutating_closures() {
+fn closure_rejects_ambiguous_conflicting_and_mutating_closures() {
     let cases = [
         (
             "fn main() -> i32 { let f = (x) => x; return 0; }",
@@ -215,7 +215,7 @@ fn c014_06_rejects_ambiguous_conflicting_and_mutating_closures() {
 }
 
 #[test]
-fn c014_07_body_call_signature_and_boolean_constraints_infer_without_call_defaults() {
+fn closure_body_call_signature_and_boolean_constraints_infer_without_call_defaults() {
     let module = typed(
         "fn wide(x: i64) -> i64 => x; fn main() -> i32 { let f = (x) => wide(x); let g = (flag) => !flag; f(2147483648); g(true); return 0; }",
     );
@@ -226,7 +226,7 @@ fn c014_07_body_call_signature_and_boolean_constraints_infer_without_call_defaul
 }
 
 #[test]
-fn c014_08_synthetic_functions_share_graph_budgets() {
+fn closure_synthetic_functions_share_graph_budgets() {
     let text = "fn main() -> i32 { let base = 40; let f = move (x) => base + x; return f(2); }";
     let module = typed(text);
     let blocks: usize = module.functions.iter().map(|f| f.blocks.len()).sum();
@@ -271,7 +271,7 @@ fn c014_08_synthetic_functions_share_graph_budgets() {
 }
 
 #[test]
-fn c014_09_closure_body_resolves_imports_without_exporting_environment_functions() {
+fn closure_closure_body_resolves_imports_without_exporting_environment_functions() {
     let project = ProjectSources {
         root: ModuleId(0),
         modules: vec![
@@ -309,7 +309,7 @@ fn c014_09_closure_body_resolves_imports_without_exporting_environment_functions
 }
 
 #[test]
-fn c014_10_ct_parameter_shadowing_does_not_use_outer_i64_hint() {
+fn closure_ct_parameter_shadowing_does_not_use_outer_i64_hint() {
     let report = report(
         "fn main() -> i32 { let x: i64 = 2147483648; let f = (x) => #(2147483647 + 1) + x; return f(0); }",
         Limits::default(),
@@ -324,7 +324,7 @@ fn c014_10_ct_parameter_shadowing_does_not_use_outer_i64_hint() {
 }
 
 #[test]
-fn c014_11_captureless_unit_closure_and_scalar_control_flow_are_supported() {
+fn closure_captureless_unit_closure_and_scalar_control_flow_are_supported() {
     accepted(
         "fn main() -> i32 { let run = () => { var n = 0; while n < 2 { n = n + 1; } }; run(); return 42; }",
     );
@@ -334,7 +334,7 @@ fn c014_11_captureless_unit_closure_and_scalar_control_flow_are_supported() {
 }
 
 #[test]
-fn c014_12_callee_is_evaluated_once_before_arguments() {
+fn closure_callee_is_evaluated_once_before_arguments() {
     let module = typed(
         "fn argument() -> i32 => 42; fn main() -> i32 { let f = (x) => x; return f(argument()); }",
     );
@@ -392,7 +392,7 @@ impl Drop for NativeDirectory {
 }
 
 #[test]
-fn c014_13_real_native_pending_capture_copy_and_i64_inference() {
+fn closure_real_native_pending_capture_copy_and_i64_inference() {
     for (text, entry, answer) in [
         (
             "fn main() -> i32 { var flag = true; let f = move (x) => { if flag { return x; } else { return x + 1; } }; flag = false; var g = f; g = f; return g(42); }",
@@ -433,7 +433,7 @@ fn c014_13_real_native_pending_capture_copy_and_i64_inference() {
 }
 
 #[test]
-fn c014_14_known_later_argument_constrains_earlier_unsuffixed_literal() {
+fn closure_known_later_argument_constrains_earlier_unsuffixed_literal() {
     let module = typed(
         "fn main() -> i32 { let wide: i64 = 2147483648; let add = (a, b) => a + b; add(1, wide); return 0; }",
     );
@@ -467,7 +467,7 @@ fn native_answer(text: &str, entry: &str, answer: &str) {
 }
 
 #[test]
-fn c014_15_whole_function_constraints_are_preserved_and_call_order_independent() {
+fn closure_whole_function_constraints_are_preserved_and_call_order_independent() {
     let bodies = [
         "let add = (x: i64) => { let one = 1; return x + one; }; return add(41);",
         "let id = x => x; id(1); let value: i64 = 42; return id(value);",
@@ -483,7 +483,7 @@ fn c014_15_whole_function_constraints_are_preserved_and_call_order_independent()
 }
 
 #[test]
-fn c014_16_ct_uses_solved_context_before_verified_evaluation() {
+fn closure_ct_uses_solved_context_before_verified_evaluation() {
     for body in [
         "let f = (x: i64) => #(1) + x; return f(41);",
         "let f = (x: i64) => x + #(1); return f(41);",
@@ -511,7 +511,7 @@ fn c014_16_ct_uses_solved_context_before_verified_evaluation() {
 }
 
 #[test]
-fn c014_17_explicit_types_still_conflict_and_return_annotations_constrain() {
+fn closure_explicit_types_still_conflict_and_return_annotations_constrain() {
     let module = typed("fn probe() -> i64 { let f = (x) -> i64 => x; return f(42); }");
     assert_eq!(module.closures[0].parameters, [Type::I64]);
     assert_eq!(module.closures[0].result, Type::I64);
@@ -537,7 +537,7 @@ fn c014_17_explicit_types_still_conflict_and_return_annotations_constrain() {
 }
 
 #[test]
-fn c014_18_lexical_capture_identity_does_not_follow_later_bindings() {
+fn closure_lexical_capture_identity_does_not_follow_later_bindings() {
     for text in [
         "fn plus(x: i32) -> i32 => x + 1\nfn main() -> i32 { let f = x => plus(x); let plus = 100; return f(41); }",
         "fn main() -> i32 { let x = 40; let f = move () => { let x = x + 1; return x + 1; }; return f(); }",
@@ -548,7 +548,7 @@ fn c014_18_lexical_capture_identity_does_not_follow_later_bindings() {
 }
 
 #[test]
-fn c014_19_ct_unit_equality_remains_available_without_runtime_admission() {
+fn closure_ct_unit_equality_remains_available_without_runtime_admission() {
     for (operator, answer) in [("==", "42\n"), ("!=", "0\n")] {
         let text = format!(
             "fn main() -> i32 {{ let f = () => #(() {operator} ()); if f() {{ return 42; }} else {{ return 0; }} }}"
@@ -602,7 +602,7 @@ fn resource_limited<T: std::fmt::Debug>(result: zil_base::CompileResult<T>) {
 }
 
 #[test]
-fn c014_20_raw_type_and_metadata_budgets_precede_recursive_cloning() {
+fn closure_raw_type_and_metadata_budgets_precede_recursive_cloning() {
     let limits = Limits {
         max_call_depth: 4,
         max_nodes: 8,
@@ -639,7 +639,7 @@ fn c014_20_raw_type_and_metadata_budgets_precede_recursive_cloning() {
 }
 
 #[test]
-fn c014_21_budget_preflight_visits_tail_after_first_closure_and_charges_names() {
+fn closure_budget_preflight_visits_tail_after_first_closure_and_charges_names() {
     let mut core = raw_core("fn main() -> i32 { let f = () => 1; let tail = 0; return f(); }");
     let zil_ir::CoreStatementKind::Binding { ty, .. } =
         &mut core.functions[0].body.statements[1].kind
@@ -666,7 +666,7 @@ fn c014_21_budget_preflight_visits_tail_after_first_closure_and_charges_names() 
 }
 
 #[test]
-fn c014_22_synthetic_function_budget_is_global_and_checked_before_ct() {
+fn closure_synthetic_function_budget_is_global_and_checked_before_ct() {
     let text = "fn other() -> i32 { let f = () => #(1 / 0); return f(); }\nfn main() -> i32 { let f = () => 42; return f(); }";
     let result = report(
         text,

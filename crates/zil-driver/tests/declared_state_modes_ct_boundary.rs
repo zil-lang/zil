@@ -78,7 +78,8 @@ fn limited(errors: Vec<zil_base::Diagnostic>) {
 }
 
 #[test]
-fn ct203_preserves_two_declared_modes_and_reversed_selectors_during_runtime_folding() {
+fn state_mode_compile_time_preserves_two_declared_modes_and_reversed_selectors_during_runtime_folding()
+ {
     let p = raw_state();
     let input = &p.modules[0].core;
     let target = TargetProfile::default();
@@ -123,7 +124,7 @@ fn ct203_preserves_two_declared_modes_and_reversed_selectors_during_runtime_fold
 }
 
 #[test]
-fn ct203_bounds_unused_second_binding_before_all_public_copy_paths() {
+fn state_mode_compile_time_bounds_unused_second_binding_before_all_public_copy_paths() {
     let target = TargetProfile::default();
     for deep in [false, true] {
         let mut p = raw_state();
@@ -181,7 +182,7 @@ fn ct203_bounds_unused_second_binding_before_all_public_copy_paths() {
 }
 
 #[test]
-fn ct203_direct_and_wrapper_queries_cannot_execute_a_state_template() {
+fn state_mode_compile_time_direct_and_wrapper_queries_cannot_execute_a_state_template() {
     let mut p = program("fn pure()->i32{return 42}fn wrapper()->i32{return pure()}");
     let target = TargetProfile::default();
     let query = |name: &str| CoreExpr {

@@ -1722,7 +1722,7 @@ mod tests {
     }
 
     #[test]
-    fn ct122_original_teardown_is_bounded_before_query_copy() {
+    fn compile_time_resource_original_teardown_is_bounded_before_query_copy() {
         let source = SourceUnit::new(
             FileId(0),
             ModuleId(0),
@@ -1926,7 +1926,8 @@ mod tests {
     }
 
     #[test]
-    fn ct202_collector_rejects_bare_template_and_indirect_wrapper_before_execution() {
+    fn store_element_compile_time_collector_rejects_bare_template_and_indirect_wrapper_before_execution()
+     {
         let source = SourceUnit::new(
             FileId(0),
             ModuleId(0),
@@ -2015,7 +2016,8 @@ mod tests {
     }
 
     #[test]
-    fn ct202_collector_bounds_unused_template_names_before_whole_program_copy() {
+    fn store_element_compile_time_collector_bounds_unused_template_names_before_whole_program_copy()
+    {
         let source = SourceUnit::new(
             FileId(0),
             ModuleId(0),
@@ -2047,7 +2049,8 @@ mod tests {
     }
 
     #[test]
-    fn product237_pure_queries_ignore_unused_runtime_recipes_but_cannot_execute_applications() {
+    fn product_compile_time_pure_queries_ignore_unused_runtime_recipes_but_cannot_execute_applications()
+     {
         let model = "resource R{n:i32} package Item{manages r:R} package Bag<T:StoreElement>{manages items:Store<T>} package Root<T:StoreElement>{child:Bag<T>}";
         for (body, forbidden) in [
             (

@@ -120,7 +120,7 @@ mod tests {
     }
 
     #[test]
-    fn editor202_full_store_types_match_driver_and_invalidate_changed_bounds() {
+    fn store_element_editor_full_store_types_match_driver_and_invalidate_changed_bounds() {
         let cases = [
             include_str!(
                 "../../zil-driver/tests/complete_store_element_binding_fixtures/01_original_push.zil"
@@ -176,7 +176,8 @@ mod tests {
     }
 
     #[test]
-    fn editor203_state_declaration_edits_invalidate_even_when_actual_closure_types_stay_equal() {
+    fn state_mode_editor_state_declaration_edits_invalidate_even_when_actual_closure_types_stay_equal()
+     {
         let cases = [
             include_str!(
                 "../../zil-driver/tests/declared_state_modes_fixtures/01_same_factory_distinct_modes.zil"

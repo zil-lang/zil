@@ -33,7 +33,7 @@ fn check(label: &str, text: &str) -> CompileReport {
 const TRIGGER: &str = "fn trigger<T>(x:T)->T where T:Copy=>x;";
 
 #[test]
-fn original_separate_marker_clause_is_accepted_by_231() {
+fn original_separate_marker_clause_is_accepted_by() {
     let report = check(
         "separate-marker-promoted-231",
         "trait Marker{}fn bad<T>(x:T)->T where T:Copy,T:Marker=>x;fn main()->i32=>0",

@@ -87,6 +87,6 @@ fn generic_product_types_analyze_verify_boundaries() {
     measure("nested", NEW);
 }
 #[test]
-fn empty_table_flat_186_boundaries_are_unchanged() {
+fn empty_table_flat_boundaries_are_unchanged() {
     assert_eq!(measure("legacy", OLD), [418, 8673, 10398]);
 }
