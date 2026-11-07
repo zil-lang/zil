@@ -894,7 +894,7 @@ fn ordinary_i64_map_growth_failure_preserves_entries() {
 
 #[cfg(unix)]
 #[test]
-fn ordinary_string_map_growth_failure_returns_owned_key() {
+fn ordinary_string_map_failures_preserve_entries_and_return_owned_key() {
     use std::{os::unix::fs::PermissionsExt, path::Path};
     fn quote(path: &Path) -> String {
         format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"))
@@ -955,6 +955,45 @@ fn ordinary_string_map_growth_failure_returns_owned_key() {
             assert!(
                 audit.contains("\"failures\":1") && audit.contains("\"live\":0"),
                 "{audit}"
+            );
+
+            let removal = directory(&format!(
+                "string-map-remove-failure-{backend:?}-{optimization:?}"
+            ));
+            fs::write(
+                removal.join("main.zil"),
+                include_str!("string_map_remove_failure.zil"),
+            )
+            .unwrap();
+            let remove_report = CompilationSession::default().compile_path(
+                &removal.join("main.zil"),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    clang: Some(wrapper.clone()),
+                    output: Some(removal.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                remove_report.status,
+                ResultCategory::Success,
+                "{}",
+                remove_report.to_json()
+            );
+            let removed = Command::new(&remove_report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(
+                removed.status.code(),
+                Some(0),
+                "{backend:?}/{optimization:?}: {removed:?}"
+            );
+            let remove_audit = String::from_utf8(removed.stderr).unwrap();
+            assert!(
+                remove_audit.contains("\"failures\":1") && remove_audit.contains("\"live\":0"),
+                "{remove_audit}"
             );
         }
     }
