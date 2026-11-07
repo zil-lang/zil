@@ -413,7 +413,8 @@ impl FunctionEmitter<'_> {
             .iter()
             .enumerate()
             .filter_map(|(field, (_, ty))| {
-                matches!(ty, Type::Managed(_) | Type::Package { .. }).then_some(field)
+                (matches!(ty, Type::Managed(_) | Type::Package { .. }) || drop_plan::owned_sum(ty))
+                    .then_some(field)
             })
             .collect::<Vec<_>>();
         let env = environment_type(environment);
