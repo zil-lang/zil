@@ -38,11 +38,8 @@ pub(super) fn method_owners(
     let mut hosts = BTreeMap::new();
     for item in &specialized.items {
         budget.node(item.span, 0)?;
-        if !item.public {
-            continue;
-        }
         match &item.kind {
-            s::ItemKind::Trait(t) => {
+            s::ItemKind::Trait(t) if item.public => {
                 budget.text(&t.name, item.span)?;
                 traits.insert(t.name.as_str(), item.span.file);
             }
@@ -53,6 +50,10 @@ pub(super) fn method_owners(
                         s::AggregateKind::Struct | s::AggregateKind::Resource
                     ) =>
             {
+                // A library's generic bound may be instantiated with its
+                // consumer's private nominal type. This internal owner edge
+                // permits the proven trait method, not source-level access to
+                // that type, its fields, or its unrelated private methods.
                 budget.text(&a.name, item.span)?;
                 hosts.insert(a.name.as_str(), item.span.file);
             }

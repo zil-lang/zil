@@ -21,6 +21,45 @@ use zil_driver::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+fn ordinary_library_bounds_call_the_consumers_exact_trait_provider() {
+    let files = [
+        (
+            "main",
+            "import maplib\nstruct Key{n:i32}\nimpl maplib.KeyOps for Key{fn hash()->i64{return i64(.n)}fn equals(other:Key)->bool{return .n==other.n}}\nfn main()->i32{if !maplib.same(Key{n:7},Key{n:7},i64(9)){return 1}if maplib.same(Key{n:7},Key{n:8},i64(9)){return 2}return 0}",
+        ),
+        (
+            "maplib",
+            "pub trait KeyOps{fn hash(self:&Self)->i64;fn equals(self:&Self,other:Self)->bool;}\npub fn same<K:Copy+StoreElement+KeyOps,V:Copy+StoreElement>(left:K,right:K,value:V)->bool{value;if left.hash()!=7{return false}return left.equals(right)}",
+        ),
+    ];
+    let report = compile_project(&project(&files), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    native_both(&files);
+
+    // A same-spelled provider from a different trait cannot satisfy the
+    // library's bound, even though its receiver and method signatures match.
+    let wrong = [
+        (
+            "main",
+            "import maplib\ntrait KeyOps{fn hash(self:&Self)->i64;fn equals(self:&Self,other:Self)->bool;}struct Key{n:i32}impl KeyOps for Key{fn hash()->i64{return 7}fn equals(other:Key)->bool{return true}}fn main()->i32{if maplib.same(Key{n:7},Key{n:7},i64(9)){return 0}return 1}",
+        ),
+        files[1],
+    ];
+    let report = compile_project(&project(&wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
 #[cfg(target_os = "linux")]
 fn mutable_holder_trait_task_and_queued_registration_share_one_native_program() {
     use std::{os::unix::fs::PermissionsExt, path::Path, process::Command};

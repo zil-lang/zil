@@ -488,9 +488,6 @@ fn source_exports(
                 let Some(owner) = type_path(&i.target) else {
                     continue;
                 };
-                if !public_nominals.contains(owner.as_str()) {
-                    continue;
-                }
                 let public_trait = i
                     .trait_type
                     .as_ref()
@@ -499,6 +496,13 @@ fn source_exports(
                         public_traits.contains(name.as_str())
                             || imported_public_traits.contains(&name)
                     });
+                // A consumer's private Self can implement a public trait used
+                // by a library template. Its proven trait methods need an
+                // internal callable export after specialization. The nominal
+                // and all unrelated inherent members remain source-private.
+                if !public_nominals.contains(owner.as_str()) && !public_trait {
+                    continue;
+                }
                 for (member_ordinal, member) in i.members.iter().enumerate() {
                     if (if i.trait_type.is_some() {
                         public_trait
