@@ -314,6 +314,10 @@ fn constructor_retains_a_child_across_saved_address_reload() {
     assert_eq!(constructors.len(), 2);
     let (position, address) = constructors[0];
     let second = constructors[1].1;
+    let saved_child = zil_ir::ValueId(function.values.len() as u32);
+    function
+        .values
+        .push(function.values[address.0 as usize].clone());
     let saved = zil_ir::LocalId(function.locals.len() as u32);
     let span = block.instructions[position].span;
     function.locals.push(zil_ir::LocalDecl {
@@ -333,14 +337,24 @@ fn constructor_retains_a_child_across_saved_address_reload() {
     );
     block.instructions.splice(
         position + 1..position + 1,
-        [zil_ir::Instruction {
-            result: None,
-            kind: zil_ir::InstructionKind::Store {
-                local: saved,
-                value: address,
+        [
+            zil_ir::Instruction {
+                result: Some(saved_child),
+                kind: zil_ir::InstructionKind::ReborrowAddress {
+                    address,
+                    mutable: true,
+                },
+                span,
             },
-            span,
-        }],
+            zil_ir::Instruction {
+                result: None,
+                kind: zil_ir::InstructionKind::Store {
+                    local: saved,
+                    value: saved_child,
+                },
+                span,
+            },
+        ],
     );
     let exit = block
         .instructions
@@ -393,6 +407,159 @@ fn constructor_retains_a_child_across_saved_address_reload() {
 }
 
 #[test]
+fn loop_slot_refill_cannot_keep_the_transferred_ssa_in_an_address_local() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    // A separate external address makes the unmodified saved-local access legal.
+    let program = EXCLUSIVE_HOLDER_LOOP_REFILL
+        .replace(
+            "pointer: &'a mut i32)",
+            "pointer: &'a mut i32, other: &'a mut i32)",
+        )
+        .replace("var number = 0", "var number = 0\n    var other = 0")
+        .replace("refill(&mut number)", "refill(&mut number, &mut other)");
+    let mut raw = typed_source("loop-slot-local-transfer.zil", &program, &target, &limits);
+    let function = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "refill")
+        .unwrap();
+    let other = function.parameters[1];
+    let (bi, position, transferred) = function
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(bi, b)| {
+            b.instructions
+                .iter()
+                .enumerate()
+                .find_map(|(ii, i)| match i.kind {
+                    zil_ir::InstructionKind::StoreStoredBorrow { value, .. } => {
+                        Some((bi, ii, value))
+                    }
+                    _ => None,
+                })
+        })
+        .unwrap();
+    let span = function.blocks[bi].instructions[position].span;
+    let address_type = function.values[transferred.0 as usize].clone();
+    let saved = zil_ir::LocalId(function.locals.len() as u32);
+    function.locals.push(zil_ir::LocalDecl {
+        id: saved,
+        name: "saved_address".into(),
+        ty: address_type.clone(),
+        mutable: true,
+        span,
+    });
+    let safe = zil_ir::ValueId(function.values.len() as u32);
+    let reloaded = zil_ir::ValueId(safe.0 + 1);
+    let read = zil_ir::ValueId(safe.0 + 2);
+    function
+        .values
+        .extend([address_type.clone(), address_type, Type::I32]);
+    let block = &mut function.blocks[bi];
+    block.instructions.splice(
+        position..position,
+        [
+            zil_ir::Instruction {
+                result: Some(safe),
+                kind: zil_ir::InstructionKind::Load(other),
+                span,
+            },
+            zil_ir::Instruction {
+                result: None,
+                kind: zil_ir::InstructionKind::Store {
+                    local: saved,
+                    value: safe,
+                },
+                span,
+            },
+        ],
+    );
+    block.instructions.splice(
+        position + 3..position + 3,
+        [
+            zil_ir::Instruction {
+                result: Some(reloaded),
+                kind: zil_ir::InstructionKind::Load(saved),
+                span,
+            },
+            zil_ir::Instruction {
+                result: Some(read),
+                kind: zil_ir::InstructionKind::ReadAddress { address: reloaded },
+                span,
+            },
+        ],
+    );
+    function.blocks[function.entry.0 as usize]
+        .instructions
+        .insert(
+            1,
+            zil_ir::Instruction {
+                result: None,
+                kind: zil_ir::InstructionKind::StorageLive(saved),
+                span,
+            },
+        );
+    let exit = function
+        .blocks
+        .iter_mut()
+        .find(|b| matches!(b.terminator, zil_ir::Terminator::Return(_)))
+        .unwrap();
+    let position = exit
+        .instructions
+        .iter()
+        .rposition(|i| matches!(i.kind, zil_ir::InstructionKind::ScopeExit { .. }))
+        .unwrap();
+    exit.instructions.insert(
+        position,
+        zil_ir::Instruction {
+            result: None,
+            kind: zil_ir::InstructionKind::StorageDead(saved),
+            span,
+        },
+    );
+    let mut claim = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    let function = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "refill")
+        .unwrap();
+    let store = function.blocks[bi]
+        .instructions
+        .iter_mut()
+        .find(|i| matches!(i.kind, zil_ir::InstructionKind::Store { local, .. } if local == saved))
+        .unwrap();
+    let zil_ir::InstructionKind::Store { value, .. } = &mut store.kind else {
+        unreachable!()
+    };
+    *value = transferred;
+    // The same loop-site slot keeper is refilled, then the saved local is read.
+    // Initialization claims remain identical; only the stored SSA operand changes.
+    claim.module_fingerprint = raw.fingerprint();
+    let analyze = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(
+        format!("{analyze:?}").contains("transferred twice"),
+        "{analyze:?}"
+    );
+    let verify =
+        zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap_err();
+    assert!(
+        format!("{verify:?}").contains("transferred twice"),
+        "{verify:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+    let verify = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert!(
+        format!("{verify:?}").contains("transferred twice"),
+        "{verify:?}"
+    );
+}
+
+#[test]
 fn constructors_reject_overlapping_parent_and_child_addresses() {
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
@@ -431,25 +598,51 @@ fn constructors_reject_overlapping_parent_and_child_addresses() {
                 mutable: true,
             };
         } else {
-            let parameter = function.parameters[0];
-            let parent = function
-                .blocks
-                .iter()
-                .flat_map(|b| &b.instructions)
-                .find_map(|i| {
-                    matches!(i.kind, zil_ir::InstructionKind::Load(local) | zil_ir::InstructionKind::TakeLocal { local } if local == parameter).then(|| i.result.unwrap())
-                })
-                .unwrap();
-            let first = function
+            let parent = inputs[0];
+            let child = zil_ir::ValueId(function.values.len() as u32);
+            function
+                .values
+                .push(function.values[parent.0 as usize].clone());
+            let block = function
                 .blocks
                 .iter_mut()
-                .flat_map(|b| &mut b.instructions)
-                .find(|i| i.result == Some(inputs[0]))
+                .find(|b| {
+                    b.instructions
+                        .iter()
+                        .any(|i| matches!(i.kind, zil_ir::InstructionKind::MakeAggregate { .. }))
+                })
                 .unwrap();
-            first.kind = zil_ir::InstructionKind::ReborrowAddress {
-                address: parent,
-                mutable: true,
+            let position = block
+                .instructions
+                .iter()
+                .position(|i| matches!(i.kind, zil_ir::InstructionKind::MakeAggregate { .. }))
+                .unwrap();
+            let span = block.instructions[position].span;
+            let zil_ir::InstructionKind::MakeAggregate { fields } =
+                &mut block.instructions[position].kind
+            else {
+                unreachable!()
             };
+            fields[0] = child;
+            block.instructions.insert(
+                position,
+                zil_ir::Instruction {
+                    result: Some(child),
+                    kind: zil_ir::InstructionKind::ReborrowAddress {
+                        address: parent,
+                        mutable: true,
+                    },
+                    span,
+                },
+            );
+            // The safe carrier stores the child; its parent remains an unconsumed SSA.
+            claim = zil_analyze::analyze(&raw, &limits).unwrap();
+            zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap();
+            let function = raw
+                .functions
+                .iter_mut()
+                .find(|f| f.name == function_name)
+                .unwrap();
             // This parent has not itself been consumed by either constructor.
             let second = function
                 .blocks
