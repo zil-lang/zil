@@ -1249,6 +1249,57 @@ fn noncopy_associated_package_moves_through_ordinary_generic_result() {
 }
 
 #[test]
+fn borrowed_generic_package_store_fields_keep_actual_read_write_permissions() {
+    let program = include_str!(
+        "../../../tests/language-readiness/terminal/generics-and-constants/associated-container/borrowed-map.zil"
+    );
+    let report = check(program);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    native_both(&[("main", program)]);
+
+    for bad_body in [
+        "let slot=store_at_mut(map.keys,0);*slot=value",
+        "store_push(map.keys,value)",
+        "store_reserve(map.keys,1)",
+    ] {
+        let invalid = format!(
+            "package Map<K:Copy+StoreElement,V:Copy+StoreElement>{{manages keys:Store<K>;manages values:Store<V>}}\
+             fn invalid<K:Copy+StoreElement,V:Copy+StoreElement>(map:&Map<K,V>,value:K){{{bad_body}}}\
+             fn main(){{}}"
+        );
+        let rejected = check(&invalid);
+        assert_eq!(
+            rejected.status,
+            ResultCategory::SafeReject,
+            "{}",
+            rejected.to_json()
+        );
+        assert_eq!(rejected.phase, Phase::Expand, "{}", rejected.to_json());
+        assert!(
+            rejected.diagnostics.iter().any(|d| d
+                .message
+                .contains("shared Package reference cannot write its Store field")),
+            "{}",
+            rejected.to_json()
+        );
+    }
+    let stolen = check(
+        "package Map<K:Copy+StoreElement>{manages keys:Store<K>}fn bad<K:Copy+StoreElement>(map:&Map<K>)->Store<K> contract{result(give);}{return map.keys}fn main(){}",
+    );
+    assert_ne!(
+        stolen.status,
+        ResultCategory::Success,
+        "{}",
+        stolen.to_json()
+    );
+}
+
+#[test]
 fn enum_payloads_use_only_declared_copy_associated_projections() {
     for source in [
         include_str!(
