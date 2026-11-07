@@ -539,4 +539,100 @@ mod tests {
         assert!(encoded(&deep, &[], 1_000_000, 256).is_err());
         assert!(encoded(&deep, &[], 1_000_000, 258).is_ok());
     }
+
+    #[test]
+    fn dyn_export_uses_stable_declaration_and_complete_admitted_slot() {
+        let fixture = |module: u32, path: &str| {
+            let declaration = LifeDeclarationId {
+                module: zil_base::ModuleId(module),
+                declaration: zil_base::NodeId(7),
+                compiler: false,
+            };
+            let identity = LifeDeclarationIdentity {
+                package: "pkg".into(),
+                module_path: vec![path.into()],
+                declaration_path: vec!["Read".into()],
+                generation_path: Vec::new(),
+            };
+            let original = DynDeclaration {
+                id: declaration,
+                identity,
+                kind: DynDeclarationKind::Trait,
+                parameters: Vec::new(),
+                members: vec![DynMemberDeclaration {
+                    name: "read".into(),
+                    kind: DynMemberKind::Method(Vec::new()),
+                }],
+            };
+            let application = DynTraitApplication {
+                declaration,
+                actuals: Vec::new(),
+            };
+            let interface = DynInterface {
+                id: DynInterfaceId {
+                    module: zil_base::ModuleId(module),
+                    index: 3,
+                },
+                application: application.clone(),
+                inherited: Vec::new(),
+                associated_types: Vec::new(),
+                associated_constants: Vec::new(),
+                retained_life: RetainedLifeShape {
+                    binder_count: 0,
+                    ports: Vec::new(),
+                    retained: Vec::new(),
+                    nominal_arguments: Vec::new(),
+                },
+                slots: vec![DynSlot {
+                    member: DynMember {
+                        application,
+                        ordinal: 0,
+                    },
+                    actuals: Vec::new(),
+                    receiver: DynReceiver {
+                        mutable: false,
+                        mode: PassingMode::Borrow,
+                    },
+                    parameters: vec![Type::I32],
+                    parameter_modes: vec![PassingMode::Infer],
+                    result: Type::I32,
+                    result_mode: PassingMode::Infer,
+                    call_kind: CallKind::Direct,
+                    storage_life: Some(dyn_dispatch::shared_slot_life()),
+                    contract: dyn_dispatch::scalar_contract(),
+                }],
+            };
+            (original, interface)
+        };
+        let encode_fixture = |declaration: &DynDeclaration, interface: &DynInterface| {
+            let mut bytes = Vec::new();
+            encode(
+                &Type::Dyn {
+                    interface: interface.id,
+                },
+                &[],
+                std::slice::from_ref(declaration),
+                std::slice::from_ref(interface),
+                &mut bytes,
+                &Limits::default(),
+                &mut 100_000,
+            )
+            .map(|()| bytes)
+        };
+        let (one_declaration, one_interface) = fixture(1, "one");
+        let original = encode_fixture(&one_declaration, &one_interface).unwrap();
+        let (relocated_declaration, relocated_interface) = fixture(9, "one");
+        assert_eq!(
+            original,
+            encode_fixture(&relocated_declaration, &relocated_interface).unwrap()
+        );
+        let (other_declaration, other_interface) = fixture(1, "other");
+        assert_ne!(
+            original,
+            encode_fixture(&other_declaration, &other_interface).unwrap()
+        );
+        let mut unknown = one_interface;
+        unknown.slots[0].contract.effects = None;
+        assert!(encode_fixture(&one_declaration, &unknown).is_err());
+    }
 }

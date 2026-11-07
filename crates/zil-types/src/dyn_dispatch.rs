@@ -273,11 +273,22 @@ pub(super) fn inventory(
                 function: typed_id,
             });
         }
+        let self_type =
+            canonical_self.ok_or_else(|| unsupported(Span::default(), "dyn table is empty"))?;
+        spend(&mut left, output.len())?;
+        if output.iter().any(|prior: &DynVtable| {
+            prior.interface == table.interface && prior.self_type == self_type
+        }) {
+            return Err(error(
+                "E-DYN-PROVIDER",
+                Span::default(),
+                "dyn interface has duplicate concrete Self tables",
+            ));
+        }
         output.push(DynVtable {
             id: table.id,
             interface: table.interface,
-            self_type: canonical_self
-                .ok_or_else(|| unsupported(Span::default(), "dyn table is empty"))?,
+            self_type,
             implementation: table.implementation,
             actuals: table.actuals.clone(),
             ports: Vec::new(),
@@ -448,11 +459,26 @@ pub(super) fn inventory_program(
         let mut local = inference::snapshot_context_module(&module.core, limits, &mut left)?;
         local.dyn_declarations = declarations.clone();
         local.dyn_interfaces = interfaces.clone();
-        tables.extend(inventory(
-            &local,
-            &signatures[&module.core.module_id],
-            limits,
-        )?);
+        for table in inventory(&local, &signatures[&module.core.module_id], limits)? {
+            left = left.checked_sub(tables.len()).ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Types,
+                    "dyn project table match budget exceeded",
+                    None,
+                )
+            })?;
+            if tables.iter().any(|prior: &DynVtable| {
+                prior.id == table.id
+                    || prior.interface == table.interface && prior.self_type == table.self_type
+            }) {
+                return Err(error(
+                    "E-DYN-PROVIDER",
+                    Span::default(),
+                    "dyn project has duplicate table identity or Self",
+                ));
+            }
+            tables.push(table);
+        }
     }
     if interfaces
         .iter()
