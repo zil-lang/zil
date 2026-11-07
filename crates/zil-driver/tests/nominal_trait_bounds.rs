@@ -1300,6 +1300,31 @@ fn borrowed_generic_package_store_fields_keep_actual_read_write_permissions() {
 }
 
 #[test]
+fn independent_key_value_and_two_callable_binders_reach_native() {
+    let program = include_str!(
+        "../../../tests/language-readiness/terminal/generics-and-constants/associated-container/dual-callback.zil"
+    );
+    let report = check(program);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    native_both(&[("main", program)]);
+
+    let invalid = program.replace("K:Copy+StoreElement", "K:StoreElement");
+    let rejected = check(&invalid);
+    assert_eq!(
+        rejected.status,
+        ResultCategory::Unsupported,
+        "{}",
+        rejected.to_json()
+    );
+    assert_eq!(rejected.phase, Phase::Expand, "{}", rejected.to_json());
+}
+
+#[test]
 fn enum_payloads_use_only_declared_copy_associated_projections() {
     for source in [
         include_str!(
