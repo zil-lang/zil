@@ -933,10 +933,10 @@ fn template_with_state(
             ));
         }
     }
-    if ordinary.len() > 1 && (owned_state || dual) {
+    if ordinary.len() > 1 && owned_state {
         return Err(unsupported(
             function.span,
-            "owning or dual callable helpers retain one ordinary Copy parameter",
+            "owning callable helpers retain one ordinary Copy parameter",
         ));
     }
     if roles.len() > 2 {
