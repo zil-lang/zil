@@ -3580,6 +3580,21 @@ fn inline_store_sum_capture(
         )]
     })?;
 
+    fn copy_companion(ty: &Type) -> bool {
+        match ty {
+            Type::Tuple(fields) => fields.iter().all(copy_companion),
+            Type::Record { fields, .. } => fields.iter().all(|(_, field)| copy_companion(field)),
+            Type::Array { element, .. } => copy_companion(element),
+            Type::Enum { variants, .. } => variants
+                .iter()
+                .all(|(_, fields)| fields.iter().all(copy_companion)),
+            Type::ErrorUnion { error, result } => copy_companion(error) && copy_companion(result),
+            // A retained callable relation is not a plain Copy companion.
+            Type::BorrowedFunctionPointer { .. } => false,
+            _ => ty.is_copy_value(),
+        }
+    }
+
     fn complete(ty: &Type, resources: &[ResourceDefinition]) -> (bool, bool) {
         match ty {
             Type::Managed(payload) => {
@@ -3638,19 +3653,10 @@ fn inline_store_sum_capture(
                 let right = complete(result, resources);
                 (left.0 && right.0, left.1 || right.1)
             }
-            // A borrowed description, Array, Record, dyn, callback container,
-            // or other opaque owner never acquires the direct Sum ABI.
-            Type::Unit
-            | Type::Bool
-            | Type::U8
-            | Type::U16
-            | Type::I32
-            | Type::I64
-            | Type::U64
-            | Type::Usize
-            | Type::F32
-            | Type::F64 => (true, false),
-            _ => (false, false),
+            // Existing finite Copy fields (including Record, Array and plain
+            // function pointers) are companions, never new owning children.
+            // Address, Desc, dyn and callback containers have no such route.
+            _ => (copy_companion(ty), false),
         }
     }
     let (valid, owns_store) = complete(ty, resources);
