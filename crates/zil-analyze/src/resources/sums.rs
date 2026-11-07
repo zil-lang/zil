@@ -518,6 +518,7 @@ impl Tree {
 pub(super) struct Facts {
     locals: BTreeMap<LocalId, Arc<Tree>>,
     values: BTreeMap<ValueId, Arc<Tree>>,
+    captures: BTreeMap<u32, Arc<Tree>>,
     // Only observations of this current activation survive. A write kills all
     // its tokens, including old SSA snapshots reused at the same loop site.
     valid: BTreeSet<ValueId>,
@@ -532,11 +533,11 @@ impl Facts {
             .no_live_owner(budget)
     }
     pub(super) fn cost(&self, budget: &mut Budget) -> CompileResult<()> {
-        if self.locals.is_empty() {
+        if self.locals.is_empty() && self.captures.is_empty() {
             return Ok(());
         }
         budget.spend(
-            self.locals.len() + self.values.len() + self.valid.len(),
+            self.locals.len() + self.values.len() + self.captures.len() + self.valid.len(),
             "Sum state tables",
         )?;
         if let Some(p) = &self.partial {
@@ -546,7 +547,7 @@ impl Facts {
         Ok(())
     }
     pub(super) fn join(&mut self, other: &Self, budget: &mut Budget) -> CompileResult<bool> {
-        if self.locals.is_empty() {
+        if self.locals.is_empty() && self.captures.is_empty() {
             return Ok(false);
         }
         let mut change = false;
@@ -567,6 +568,14 @@ impl Facts {
                 .values
                 .get_mut(k)
                 .ok_or_else(|| error("Sum value missing"))?
+                .merge(t, budget)?;
+        }
+        for (k, t) in &other.captures {
+            budget.lookup(self.captures.len(), "Sum capture join")?;
+            change |= self
+                .captures
+                .get_mut(k)
+                .ok_or_else(|| error("Sum capture missing"))?
                 .merge(t, budget)?;
         }
         budget.spend(
@@ -590,6 +599,13 @@ impl Facts {
         self.locals
             .get(&l)
             .ok_or_else(|| error("Sum local absent"))?
+            .copied(budget)
+    }
+    fn capture(&self, index: u32, budget: &mut Budget) -> CompileResult<Arc<Tree>> {
+        budget.lookup(self.captures.len(), "Sum capture source")?;
+        self.captures
+            .get(&index)
+            .ok_or_else(|| error("Sum capture absent"))?
             .copied(budget)
     }
     fn invalidate(&mut self, l: LocalId, plan: &Plan, budget: &mut Budget) -> CompileResult<()> {
@@ -974,7 +990,12 @@ impl Plan {
             tests,
         }))
     }
-    pub(super) fn initial(&self, f: &TypedFunction, budget: &mut Budget) -> CompileResult<Facts> {
+    pub(super) fn initial(
+        &self,
+        module: &TypedModule,
+        f: &TypedFunction,
+        budget: &mut Budget,
+    ) -> CompileResult<Facts> {
         let mut facts = Facts::default();
         if self.partial.is_some() {
             facts.partial = Some(partial_places::State::default());
@@ -996,6 +1017,19 @@ impl Plan {
             let mut t = Tree::unknown(ty, budget)?;
             edit(&mut t, budget)?.missing = true;
             facts.values.insert(ValueId(v as u32), t);
+        }
+        if let Some(id) = f.environment {
+            let closure = module
+                .closures
+                .get(id.0 as usize)
+                .ok_or_else(|| error("Sum entry environment absent"))?;
+            budget.spend(closure.captures.len(), "Sum capture root inventory")?;
+            for (index, ty) in closure.captures.iter().enumerate() {
+                budget.lookup(facts.captures.len(), "Sum capture fact allocation")?;
+                facts
+                    .captures
+                    .insert(index as u32, Tree::unknown(ty, budget)?);
+            }
         }
         Ok(facts)
     }
@@ -1141,6 +1175,47 @@ impl Plan {
             }
         }
         match &i.kind {
+            InstructionKind::BindPackageCapture { local, index } => {
+                let capture_type = f
+                    .environment
+                    .and_then(|id| module.closures.get(id.0 as usize))
+                    .and_then(|closure| closure.captures.get(*index as usize));
+                if capture_type != Some(&f.locals[local.0 as usize].ty) {
+                    return Err(error("Package Sum capture binding type differs"));
+                }
+                let capture = facts.capture(*index, budget)?;
+                if check && !capture.complete(budget)? {
+                    return Err(error("Package Sum capture binding is incomplete"));
+                }
+                budget.lookup(facts.locals.len(), "Package Sum capture local transfer")?;
+                facts.locals.insert(*local, capture);
+                edit(
+                    facts
+                        .captures
+                        .get_mut(index)
+                        .ok_or_else(|| error("Package Sum capture absent"))?,
+                    budget,
+                )?
+                .missing = true;
+                facts.invalidate(*local, self, budget)?;
+            }
+            InstructionKind::EndPackageCapture { local, index } => {
+                let local_tree = facts.local(*local, budget)?;
+                if check && !facts.capture(*index, budget)?.missing {
+                    return Err(error("Package Sum capture binding is still occupied"));
+                }
+                budget.lookup(facts.captures.len(), "Package Sum capture restoration")?;
+                facts.captures.insert(*index, local_tree);
+                edit(
+                    facts
+                        .locals
+                        .get_mut(local)
+                        .ok_or_else(|| error("Package Sum local absent"))?,
+                    budget,
+                )?
+                .missing = true;
+                facts.invalidate(*local, self, budget)?;
+            }
             InstructionKind::BorrowLocalMut { local }
                 if matches!(f.locals[local.0 as usize].ty, Type::Enum { .. }) =>
             {

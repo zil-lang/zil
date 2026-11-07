@@ -3245,7 +3245,7 @@ fn analyze_function_program(
         whole_commits: whole_helper.then(BTreeMap::new),
         sums: sums
             .as_ref()
-            .map(|p| p.initial(f, budget))
+            .map(|p| p.initial(module, f, budget))
             .transpose()?
             .unwrap_or_default(),
         ..State::default()
@@ -3764,7 +3764,7 @@ fn analyze_function_eager_reference(
         product_births,
         sums: sums
             .as_ref()
-            .map(|p| p.initial(f, budget))
+            .map(|p| p.initial(module, f, budget))
             .transpose()?
             .unwrap_or_default(),
         ..State::default()
