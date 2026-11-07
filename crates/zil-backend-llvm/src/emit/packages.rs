@@ -26,7 +26,9 @@ pub(super) fn supported_value_type(ty: &Type, resources: &[ResourceDefinition]) 
 pub(super) fn supported_capture_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
     supported_type(ty, resources)
         || product_type(ty, resources)
-        || (has_inline_store_owner(ty) && owned_product_type(ty, resources))
+        || (matches!(ty, Type::Package { .. })
+            && has_inline_store_owner(ty)
+            && drop_plan::value_type(ty, resources))
 }
 
 fn has_inline_store_owner(ty: &Type) -> bool {
@@ -36,6 +38,13 @@ fn has_inline_store_owner(ty: &Type) -> bool {
         Type::Package { fields, .. } => fields
             .iter()
             .any(|(_, field)| has_inline_store_owner(field)),
+        Type::Tuple(fields) => fields.iter().any(has_inline_store_owner),
+        Type::Enum { variants, .. } => variants
+            .iter()
+            .any(|(_, fields)| fields.iter().any(has_inline_store_owner)),
+        Type::ErrorUnion { error, result } => {
+            has_inline_store_owner(error) || has_inline_store_owner(result)
+        }
         _ => false,
     }
 }
