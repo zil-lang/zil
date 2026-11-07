@@ -1731,14 +1731,86 @@ fn store935_nested_product_capture_checks_every_actual_store_definition() {
             },
         )],
     };
-    assert!(nested_capture_store(&outer, &mut Budget::new(&limits)).unwrap());
-    check_owned_capture(&module, &outer, Some(&limits), &mut Budget::new(&limits)).unwrap();
+    assert!(package_inline_store(&outer, &mut Budget::new(&limits)).unwrap());
+    let mut budget = Budget::new(&limits);
+    check_type_shape(&outer, &module.target, &limits, &mut budget).unwrap();
+    check_owned_capture(&module, &outer, Some(&limits), &mut budget).unwrap();
     module.resources[0].payload = Type::OwnedStore {
         element: Box::new(Type::F32),
     };
-    assert!(
-        check_owned_capture(&module, &outer, Some(&limits), &mut Budget::new(&limits)).is_err()
-    );
+    assert!(check_owned_capture(&module, &outer, Some(&limits), &mut budget).is_err());
+}
+
+#[test]
+fn store935_product_capture_rechecks_store_behind_each_owned_sum_constructor() {
+    let limits = Limits::default();
+    let (module, _) = pod_fixture(Type::I32);
+    let store = module.functions[0].locals[0].ty.clone();
+    for child in [
+        Type::Tuple(vec![store.clone()]),
+        Type::Enum {
+            name: "Choice935".into(),
+            variants: vec![("Own".into(), vec![store.clone()])],
+        },
+        Type::ErrorUnion {
+            error: Box::new(store.clone()),
+            result: Box::new(Type::Unit),
+        },
+    ] {
+        let parent = Type::Package {
+            name: "Capture935".into(),
+            fields: vec![("child".into(), child)],
+        };
+        let mut budget = Budget::new(&limits);
+        check_type_shape(&parent, &module.target, &limits, &mut budget).unwrap();
+        assert!(owned_capture_store(&parent, &mut budget).unwrap());
+        check_owned_capture(&module, &parent, Some(&limits), &mut budget).unwrap();
+    }
+}
+
+#[test]
+fn store935_mutable_product_parent_address_qualifies_without_shared_address_permission() {
+    let limits = Limits::default();
+    let (module, _) = pod_fixture(Type::I32);
+    let store = module.functions[0].locals[0].ty.clone();
+    for parent in [
+        Type::Package {
+            name: "Direct935".into(),
+            fields: vec![("items".into(), store.clone())],
+        },
+        Type::Package {
+            name: "Nested935".into(),
+            fields: vec![(
+                "part".into(),
+                Type::Package {
+                    name: "Part935".into(),
+                    fields: vec![("items".into(), store.clone())],
+                },
+            )],
+        },
+    ] {
+        for mutable in [true, false] {
+            let (mut candidate, plan) = pod_fixture(Type::I32);
+            let span = candidate.functions[0].span;
+            candidate.functions[0].locals.push(LocalDecl {
+                id: LocalId(1),
+                name: "unused_address".into(),
+                ty: Type::Address {
+                    mutable,
+                    inner: Box::new(parent.clone()),
+                },
+                mutable: false,
+                span,
+            });
+            for result in pod_both(&candidate, &plan, &limits) {
+                if mutable {
+                    result.unwrap();
+                } else {
+                    assert_eq!(result.unwrap_err()[0].code, "E-UNSUPPORTED");
+                }
+            }
+        }
+    }
 }
 
 #[test]

@@ -226,7 +226,7 @@ pub(super) fn check_definitions(
                 || packages::has_store_fields(ty)
                 || (budget.pod_stores
                     && matches!(ty, Type::Package { .. })
-                    && dynamic_store::nested_capture_store(ty, budget)?)
+                    && dynamic_store::owned_capture_store(ty, budget)?)
             {
                 dynamic_store::check_owned_capture(module, ty, Some(limits), budget)?;
             }
