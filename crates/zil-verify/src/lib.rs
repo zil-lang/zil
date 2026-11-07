@@ -55,8 +55,8 @@ mod ct_program;
 #[cfg(test)]
 mod defer_tests;
 mod defers;
-mod dynamic_store;
 mod dynamic_dispatch;
+mod dynamic_store;
 #[cfg(test)]
 mod error_scope_tests;
 mod errors;
