@@ -499,9 +499,8 @@ impl<'n> Shape<'_, '_, 'n, '_> {
                     && available
                         .get(name)
                         .is_some_and(|bounds| bounds.iter().any(|bound| bound == BOUND))
-            }) {
-                storage = true;
-            } else if explicit_managed_value(&field_type, self.nominals, self.budget)? {
+            }) || explicit_managed_value(&field_type, self.nominals, self.budget)?
+            {
                 storage = true;
             } else if self.package_name(&field_type) {
                 storage |= self.product(&field_type, available, variables, depth + 1)?;

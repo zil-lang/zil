@@ -690,12 +690,12 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
             ));
         }
         b.stored_exclusive_shapes |= *mode == StoredBorrowMode::ExclusiveAddress;
-        if let Some((boundary, class)) = child_class {
-            if !shape.retained.iter().any(|entry| {
+        if let Some((boundary, class)) = child_class
+            && !shape.retained.iter().any(|entry| {
                 &entry.path == boundary && entry.class == *class && entry.binder == row.binder
-            }) {
-                return Err(err("nested slot binder differs from retained child class"));
-            }
+            })
+        {
+            return Err(err("nested slot binder differs from retained child class"));
         }
         if *mode == StoredBorrowMode::ExclusiveAddress
             && (!matches!(storage, Type::Record { .. } | Type::Package { .. })

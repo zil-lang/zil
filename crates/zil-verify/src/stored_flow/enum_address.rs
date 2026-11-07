@@ -866,7 +866,8 @@ pub(super) fn projections(
         }
         None
     };
-    let mut entries: Vec<Option<Vec<(ValueId, Vec<u32>)>>> = vec![None; f.blocks.len()];
+    type TagRefinements = Vec<(ValueId, Vec<u32>)>;
+    let mut entries: Vec<Option<TagRefinements>> = vec![None; f.blocks.len()];
     entries[f.entry.0 as usize] = Some(start);
     let mut pending = vec![f.entry.0 as usize];
     while let Some(bi) = pending.pop() {
