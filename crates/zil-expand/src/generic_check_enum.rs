@@ -1587,7 +1587,7 @@ fn error_members_may_equal(
 }
 
 #[cfg(test)]
-mod terminal340_error_member_budget {
+mod error_member_budget {
     use super::*;
     #[test]
     fn wide_const_arguments_long_binder_prefix_and_groups_are_prepaid() {
@@ -1643,7 +1643,7 @@ mod terminal340_error_member_budget {
 }
 
 #[cfg(test)]
-mod terminal340_pattern_origin_tests {
+mod pattern_origin_tests {
     use zil_base::{FileId, ModuleId, SourceUnit};
     fn check(text: &str) -> zil_base::CompileResult<zil_ir::CoreModule> {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "pattern-origin.zil", text);

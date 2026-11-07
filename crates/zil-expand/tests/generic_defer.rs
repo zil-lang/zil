@@ -1,6 +1,6 @@
 use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit};
 fn expand(text: &str, limits: &Limits) -> Result<zil_ir::CoreModule, Vec<zil_base::Diagnostic>> {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "generic-defer227.zil", text);
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "generic-defer.zil", text);
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     zil_expand::expand_with_map_limits(&source, &syntax, limits).map(|v| v.core)
 }
@@ -86,5 +86,5 @@ fn symbolic_cleanup_growth_is_prepaid_and_has_a_fresh_exact_work_boundary() {
             .all(|d| d.category == ResultCategory::ResourceLimit)
     );
     assert_eq!(probe(high).unwrap(), full);
-    eprintln!("generic_defer227_work_n={high}");
+    eprintln!("generic_defer_work_n={high}");
 }

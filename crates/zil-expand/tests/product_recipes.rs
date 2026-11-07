@@ -1,7 +1,7 @@
 use zil_base::{FileId, Limits, ModuleId, SourceUnit};
 use zil_ir::*;
 fn expand(text: &str) -> CoreModule {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "product237.zil", text);
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "product-recipes.zil", text);
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     zil_expand::expand_with_map_limits(&source, &syntax, &Limits::default())
         .unwrap()
@@ -73,7 +73,7 @@ fn concrete_existing_generic_fields_are_materialized_in_the_original_recipe() {
 
 #[test]
 fn new_recipe_tables_have_exact_fresh_work_node_and_depth_boundaries() {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "product237-budget.zil", SOURCE);
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "product-recipes-budget.zil", SOURCE);
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     let default = Limits::default();
     let full = zil_expand::expand_with_map_limits(&source, &syntax, &default).unwrap();
@@ -115,6 +115,6 @@ fn new_recipe_tables_have_exact_fresh_work_node_and_depth_boundaries() {
                 .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
         );
         assert_eq!(probe(high).unwrap().core, full.core);
-        eprintln!("product237_expand_{dimension}_n={high}");
+        eprintln!("product_recipe_expand_{dimension}_n={high}");
     }
 }

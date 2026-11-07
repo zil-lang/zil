@@ -385,7 +385,7 @@ fn task_aliases(module: &Module, span: Span, budget: &mut Budget<'_>) -> R<Vec<I
 }
 
 #[cfg(test)]
-mod terminal343_namespace_budget {
+mod namespace_budget {
     use super::*;
     #[test]
     fn common_prefix_standard_namespace_inventory_is_prepaid_at_exact_boundary() {

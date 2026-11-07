@@ -1466,7 +1466,7 @@ mod source_tests {
     use zil_base::{FileId, ModuleId};
 
     #[test]
-    fn g3_4_1_original_slice_iterator_reaches_complete_core() {
+    fn slice_iterator_reaches_complete_core() {
         let core = expand_text(include_str!(
             "../../../tests/language-readiness/terminal/342/slice_iter.zil"
         ))
@@ -1484,13 +1484,13 @@ mod source_tests {
     }
 
     #[test]
-    fn g3_4_1_option_result_flows_through_a_real_parameter() {
+    fn option_result_flows_through_a_real_parameter() {
         expand_text("fn next<life s>(slice:&'s [i64])->Option<&'s i64>{return Option::<&'s i64>.None();}fn id<life s>(value:Option<&'s i64>)->Option<&'s i64>{return value;}fn forward<life s>(slice:&'s [i64])->Option<&'s i64>{let value=next(slice);return id(value);}fn main(){}")
             .unwrap();
     }
 
     #[test]
-    fn g3_4_1_grouped_reference_option_keeps_catalog_but_not_callee_label_in_hint() {
+    fn grouped_reference_option_keeps_catalog_but_not_callee_label_in_hint() {
         let core = expand_text("fn next<life s>(slice:&'s [i64])->Option<(&'s i64)>{return Option::<(&'s i64)>.Some(&slice[0]);}fn result()->i64{let values:[i64;1]=[42];let value=next(&values[..]);match value{Option.Some(n)=>{return *n},Option.None()=>{return 0}}}").unwrap();
         let instance = core
             .life_instances
