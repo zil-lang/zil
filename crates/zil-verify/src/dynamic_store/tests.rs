@@ -1805,7 +1805,7 @@ fn store935_product_capture_rechecks_store_behind_each_owned_sum_constructor() {
 }
 
 #[test]
-fn store935_mutable_product_parent_address_qualifies_without_shared_address_permission() {
+fn store935_ordinary_product_parent_addresses_qualify_but_record_parent_does_not() {
     let limits = Limits::default();
     let (module, _) = pod_fixture(Type::I32);
     let store = module.functions[0].locals[0].ty.clone();
@@ -1839,13 +1839,29 @@ fn store935_mutable_product_parent_address_qualifies_without_shared_address_perm
                 span,
             });
             for result in pod_both(&candidate, &plan, &limits) {
-                if mutable {
-                    result.unwrap();
-                } else {
-                    assert_eq!(result.unwrap_err()[0].code, "E-UNSUPPORTED");
-                }
+                result.unwrap();
             }
         }
+    }
+    // Shared parent metadata is a valid read-only ordinary value. A plain
+    // Record at the same address cannot acquire the Package owning profile.
+    let (mut rejected, plan) = scoped_pod_fixture(Type::I32);
+    let span = rejected.functions[0].span;
+    rejected.functions[0].locals.push(LocalDecl {
+        id: LocalId(1),
+        name: "forged_record_address".into(),
+        ty: Type::Address {
+            mutable: false,
+            inner: Box::new(Type::Record {
+                name: "Forged935".into(),
+                fields: vec![("items".into(), store)],
+            }),
+        },
+        mutable: false,
+        span,
+    });
+    for result in pod_both(&rejected, &plan, &limits) {
+        assert_eq!(result.unwrap_err()[0].code, "E-UNSUPPORTED");
     }
 }
 

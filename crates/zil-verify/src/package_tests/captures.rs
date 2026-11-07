@@ -206,7 +206,7 @@ fn direct_store_sum_capture_refill_distinguishes_empty_arm_from_empty_slot() {
         .retain(|i| !matches!(i.kind, InstructionKind::WriteCapture { .. }));
     rejected(
         missing,
-        "repeatable closure entry does not preserve every owned field",
+        "Fn/FnMut return leaves an unfilled direct Sum capture",
     );
 }
 
@@ -224,7 +224,7 @@ fn direct_store_sum_capture_rejects_copy_take_twice_and_live_refill() {
         2,
         ins(Some(second), InstructionKind::TakeCapture { index: 0 }),
     );
-    rejected(twice, "captured responsibility was already transferred");
+    rejected(twice, "direct Sum capture was already transferred");
 
     let mut live_write = direct_store_sum_capture();
     let entry = &mut live_write.functions[1];
