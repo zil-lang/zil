@@ -28,7 +28,7 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
         match ty {
             Type::Managed(_) => {
                 if dynamic_store::is_owned_carrier(ty) {
-                    dynamic_store::ordinary_owned(module, ty, budget)?;
+                    crate::ownership_store::ordinary_owned(module, ty, budget)?;
                     Ok((true, true))
                 } else {
                     crate::budget::legacy_value(

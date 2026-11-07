@@ -27,6 +27,7 @@ mod incremental;
 mod lifetimes;
 mod mixed_address_sums;
 mod owned_callbacks;
+mod ownership_store;
 mod place_replacements;
 mod pod_store;
 mod registration;

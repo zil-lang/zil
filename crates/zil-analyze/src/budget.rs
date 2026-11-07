@@ -60,6 +60,7 @@ pub(super) struct Budget {
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_helper_bodies: std::collections::BTreeMap<zil_ir::FunctionId, BTreeSet<u32>>,
     sum_roots: BTreeSet<usize>,
+    ordinary_pod_store_roots: BTreeSet<usize>,
 }
 
 impl Budget {
@@ -106,6 +107,7 @@ impl Budget {
             scoped_functions: BTreeSet::new(),
             scoped_helper_bodies: std::collections::BTreeMap::new(),
             sum_roots: BTreeSet::new(),
+            ordinary_pod_store_roots: BTreeSet::new(),
         }
     }
 
@@ -115,6 +117,18 @@ impl Budget {
         }
         self.lookup(self.sum_roots.len(), "ordinary Sum type inventory")?;
         Ok(self.sum_roots.contains(&(ty as *const Type as usize)))
+    }
+    pub(super) fn ordinary_pod_store_type(&mut self, ty: &Type) -> CompileResult<bool> {
+        if self.ordinary_pod_store_roots.is_empty() {
+            return Ok(false);
+        }
+        self.lookup(
+            self.ordinary_pod_store_roots.len(),
+            "ordinary POD Store root lookup",
+        )?;
+        Ok(self
+            .ordinary_pod_store_roots
+            .contains(&(ty as *const Type as usize)))
     }
     pub(super) fn remaining(&self) -> usize {
         self.remaining
@@ -320,6 +334,10 @@ struct SumContext {
     product_sum: bool,
     // Presence only, carried through wrappers during the paid type walk.
     pod_aggregate: bool,
+    // Set only at the actual Managed<OwnedStore<POD>> edge of an ordinary
+    // owning aggregate. Array, element and resource-head paths cannot set it.
+    ordinary_pod_store: bool,
+    forbidden_store: bool,
 }
 
 fn package_fields_supported(ty: &Type, arrays: bool) -> bool {
@@ -441,7 +459,9 @@ fn local_value(
     {
         return super::resources::product::admit(inner, budget).map(|_| false);
     }
-    if super::resources::product::nested(ty) {
+    if super::resources::product::nested(ty)
+        || (matches!(ty, Type::Package { .. }) && budget.ordinary_pod_store_type(ty)?)
+    {
         super::resources::product::admit_owned(module, ty, budget)
     } else if let Some(payload) = super::dynamic_store::product_protocol_payload(ty) {
         super::dynamic_store::product_element(payload, budget).map(|_| false)
@@ -670,6 +690,7 @@ pub(super) fn preflight(
             if **error == Type::Unit || **result == Type::Unit);
         let mut anonymous = Vec::new();
         let mut new_sum = false;
+        let mut new_ordinary_pod_store = false;
         let mut first = Some((
             ty,
             0usize,
@@ -719,7 +740,17 @@ pub(super) fn preflight(
                     child.pod_aggregate = true;
                     child.product_sum |= context.in_product;
                 }
-                Type::Managed(_) => {
+                Type::Record { .. } => {
+                    child.forbidden_store = true;
+                }
+                Type::Managed(payload) => {
+                    let ordinary_pod_store = context.pod_aggregate
+                        && !context.blocked
+                        && !context.forbidden_store
+                        && store_element.is_none()
+                        && !resource_head
+                        && matches!(payload.as_ref(), Type::OwnedStore { element }
+                            if !matches!(element.as_ref(), Type::Package { .. }));
                     let extension = context.in_enum
                         || context.in_tuple
                         || context.product_sum
@@ -727,6 +758,7 @@ pub(super) fn preflight(
                             && (!legacy_product_union
                                 || super::dynamic_store::is_owned_carrier(ty)));
                     if extension
+                        && !ordinary_pod_store
                         && (context.blocked
                             || store_element.is_some()
                             || capture_owner.is_some()
@@ -742,6 +774,8 @@ pub(super) fn preflight(
                     child = SumContext {
                         blocked: true,
                         pod_aggregate: context.pod_aggregate,
+                        ordinary_pod_store,
+                        forbidden_store: context.forbidden_store,
                         ..SumContext::default()
                     };
                 }
@@ -762,6 +796,8 @@ pub(super) fn preflight(
                     child = SumContext {
                         blocked: true,
                         pod_aggregate: context.pod_aggregate,
+                        forbidden_store: context.forbidden_store
+                            || matches!(ty, Type::Array { .. }),
                         ..SumContext::default()
                     }
                 }
@@ -823,13 +859,21 @@ pub(super) fn preflight(
                 }
                 Type::OwnedStore { element } => {
                     if !matches!(element.as_ref(), Type::Package { .. }) {
-                        if context.pod_aggregate {
+                        if context.forbidden_store {
+                            return Err(vec![Diagnostic::unsupported(
+                                Phase::Analyze,
+                                "ordinary POD Store ownership does not qualify Record or Array children",
+                                None,
+                            )]);
+                        }
+                        if context.pod_aggregate && !context.ordinary_pod_store {
                             return Err(vec![Diagnostic::unsupported(
                                 Phase::Analyze,
                                 "POD Store admission does not grant owning aggregate field or payload qualification",
                                 None,
                             )]);
                         }
+                        new_ordinary_pod_store |= context.ordinary_pod_store;
                         if resource_head && depth != 0 {
                             return Err(vec![Diagnostic::unsupported(
                                 Phase::Analyze,
@@ -999,6 +1043,14 @@ pub(super) fn preflight(
             budget.spend(1, "ordinary Sum root allocation")?;
             budget.sum_roots.insert(root);
         }
+        if new_ordinary_pod_store && matches!(ty, Type::Package { .. }) {
+            budget.lookup(
+                budget.ordinary_pod_store_roots.len(),
+                "ordinary POD Store root insertion",
+            )?;
+            budget.spend(1, "ordinary POD Store root allocation")?;
+            budget.ordinary_pod_store_roots.insert(root);
+        }
     }
     // Complete shape and depth preflight precedes recursive Product admission.
     // A Store element is a value, not an owning user-resource header.
@@ -1134,7 +1186,11 @@ pub(super) fn preflight(
                     None,
                 )]);
             }
-            if super::resources::product::nested(ty) {
+            if super::ownership_store::pod_owned(ty)
+                || (matches!(ty, Type::Package { .. }) && budget.ordinary_pod_store_type(ty)?)
+            {
+                super::ownership_store::capture(module, ty, budget)?;
+            } else if super::resources::product::nested(ty) {
                 // Capture admission is independent from ordinary value admission.
                 // It rechecks the complete finite Product before granting an environment slot.
                 super::resources::product::admit(ty, budget)?;
