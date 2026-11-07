@@ -425,6 +425,25 @@ fn entry_body(
                         receiver_values.insert(result);
                     }
                 }
+                InstructionKind::ReborrowAddress {
+                    address,
+                    mutable: false,
+                } => {
+                    if !receiver_values.contains(address)
+                        || !instruction.result.is_some_and(|result| {
+                            function
+                                .values
+                                .get(result.0 as usize)
+                                .is_some_and(receiver_matches)
+                        })
+                    {
+                        return Err(bad(
+                            "dyn default reborrow loses its exact receiver",
+                            Some(instruction.span),
+                        ));
+                    }
+                    receiver_values.insert(instruction.result.unwrap());
+                }
                 InstructionKind::AddressField { address, index } => {
                     if !receiver_values.contains(address)
                         || !fields
