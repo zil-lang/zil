@@ -68,9 +68,12 @@ fn local_transfer(
         | InstructionKind::TakeVariantField { local, .. }
         | InstructionKind::StorageLive(local)
         | InstructionKind::StorageDead(local)
-        | InstructionKind::DropManaged { local }
-        | InstructionKind::DropErrorUnion { local }
         | InstructionKind::DropClosure { local } => {
+            state.remove(&local);
+        }
+        InstructionKind::DropManaged { local } | InstructionKind::DropErrorUnion { local }
+            if budget.borrowed_task_ports =>
+        {
             state.remove(&local);
         }
         _ => {}
@@ -491,10 +494,12 @@ fn active(
     }
     // A retained frame owns its borrow until the actual owner is consumed or
     // destroyed. Its SSA address operand may have died at TaskCreate.
-    for (local, loans) in locals {
-        budget.spend(1)?;
-        if super::retained_task_value(&function.locals[local.0 as usize].ty) {
-            join(&mut active, loans, budget)?;
+    if budget.borrowed_task_ports {
+        for (local, loans) in locals {
+            budget.spend(1)?;
+            if super::retained_task_value(&function.locals[local.0 as usize].ty) {
+                join(&mut active, loans, budget)?;
+            }
         }
     }
     budget.spend(active.len())?;

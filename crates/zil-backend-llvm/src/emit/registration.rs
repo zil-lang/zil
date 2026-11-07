@@ -1,6 +1,133 @@
 //! Stable owning registration storage. Busy protects F; only the strong backend
 //! close contract ends all raw entries (including pre-atomic/rejected entries).
 use super::*;
+
+/// Prove a Direct cleanup has no possible owner, including across CFG edges.
+/// Definite-initialization absence alone cannot prove vacancy at a join.
+pub(super) fn vacated_direct_drops(
+    function: &TypedFunction,
+    meter: &tasks::Meter,
+) -> CompileResult<BTreeSet<(zil_ir::BlockId, usize)>> {
+    meter.spend(function.locals.len())?;
+    let pollable = |local: &zil_ir::LocalDecl| {
+        matches!(&local.ty,
+        Type::Managed(payload) if matches!(payload.as_ref(), Type::AsyncRegistration { .. }))
+    };
+    if !function.locals.iter().any(pollable) {
+        return Ok(BTreeSet::new());
+    }
+    let cells = function
+        .blocks
+        .len()
+        .checked_mul(function.locals.len())
+        .and_then(|n| n.checked_mul(2))
+        .ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Codegen,
+                "registration vacancy matrices exceed request budget",
+                None,
+            )]
+        })?;
+    meter.spend(cells.saturating_add(function.blocks.len()))?;
+    let mut inputs = vec![vec![false; function.locals.len()]; function.blocks.len()];
+    let mut reachable = vec![false; function.blocks.len()];
+    reachable[function.entry.0 as usize] = true;
+    meter.spend(function.parameters.len())?;
+    for parameter in &function.parameters {
+        inputs[function.entry.0 as usize][parameter.0 as usize] = true;
+    }
+    let transfer = |state: &mut [bool], kind: &InstructionKind| match kind {
+        InstructionKind::Store { local, .. } => state[local.0 as usize] = true,
+        InstructionKind::UnpackTuple { fields, .. }
+        | InstructionKind::UnpackVariant { fields, .. } => {
+            for local in fields {
+                state[local.0 as usize] = true;
+            }
+        }
+        InstructionKind::TakeLocal { local }
+        | InstructionKind::DropManaged { local }
+        | InstructionKind::StorageLive(local)
+        | InstructionKind::StorageDead(local) => state[local.0 as usize] = false,
+        _ => {}
+    };
+    loop {
+        let mut changed = false;
+        meter.spend(function.blocks.len())?;
+        for block in &function.blocks {
+            let index = block.id.0 as usize;
+            if !reachable[index] {
+                continue;
+            }
+            meter.spend(
+                function
+                    .locals
+                    .len()
+                    .saturating_add(block.instructions.len()),
+            )?;
+            let mut state = inputs[index].clone();
+            for instruction in &block.instructions {
+                if let InstructionKind::UnpackTuple { fields, .. }
+                | InstructionKind::UnpackVariant { fields, .. } = &instruction.kind
+                {
+                    meter.spend(fields.len())?;
+                }
+                transfer(&mut state, &instruction.kind);
+            }
+            let successors = match block.terminator {
+                Terminator::Jump(next) => [Some(next), None],
+                Terminator::Branch {
+                    then_block,
+                    else_block,
+                    ..
+                } => [Some(then_block), Some(else_block)],
+                _ => [None, None],
+            };
+            for successor in successors.into_iter().flatten() {
+                meter.spend(state.len().saturating_add(1))?;
+                let next = successor.0 as usize;
+                changed |= !reachable[next];
+                reachable[next] = true;
+                for (target, source) in inputs[next].iter_mut().zip(&state) {
+                    changed |= !*target && *source;
+                    *target |= *source;
+                }
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    let mut vacant = BTreeSet::new();
+    for block in &function.blocks {
+        meter.spend(
+            function
+                .locals
+                .len()
+                .saturating_add(block.instructions.len()),
+        )?;
+        let mut state = inputs[block.id.0 as usize].clone();
+        for (index, instruction) in block.instructions.iter().enumerate() {
+            if let InstructionKind::DropManaged { local } = instruction.kind
+                && pollable(&function.locals[local.0 as usize])
+                && !state[local.0 as usize]
+            {
+                meter.spend(vacant.len().saturating_add(1))?;
+                vacant.insert((block.id, index));
+            }
+            if let InstructionKind::UnpackTuple { fields, .. }
+            | InstructionKind::UnpackVariant { fields, .. } = &instruction.kind
+            {
+                meter.spend(fields.len())?;
+            }
+            transfer(&mut state, &instruction.kind);
+        }
+    }
+    let lookup = vacant.len().checked_ilog2().map_or(1, |n| n as usize + 2);
+    for block in &function.blocks {
+        meter.spend(block.instructions.len().saturating_mul(lookup))?;
+    }
+    Ok(vacant)
+}
 mod async_owned;
 
 fn site(function: FunctionId, value: ValueId, role: &str) -> String {
@@ -830,6 +957,113 @@ pub(super) fn reserve_function(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn direct_cleanup_vacancy_requires_all_cfg_paths_and_fresh_budget() {
+        use zil_ir::{BasicBlock, BlockId, CallKind, LocalDecl, PassingMode};
+        let owner = Type::Managed(Box::new(Type::AsyncRegistration {
+            environment: Box::new(Type::Closure(ClosureId(0))),
+        }));
+        let instruction = |kind| Instruction {
+            result: None,
+            kind,
+            span: Span::default(),
+        };
+        let mut function = TypedFunction {
+            storage_life: None,
+            call_kind: CallKind::Direct,
+            reference_return_bound: None,
+            callable_return_contract: None,
+            callable_contract: None,
+            protocol_contract: None,
+            id: FunctionId(0),
+            name: "closed_owner_branch".into(),
+            foreign: None,
+            environment: None,
+            parameters: vec![LocalId(0)],
+            return_type: Type::Unit,
+            result_mode: PassingMode::Infer,
+            locals: vec![LocalDecl {
+                id: LocalId(0),
+                name: "owner".into(),
+                ty: owner.clone(),
+                mutable: true,
+                span: Span::default(),
+            }],
+            values: vec![owner, Type::Bool],
+            entry: BlockId(0),
+            span: Span::default(),
+            blocks: vec![
+                BasicBlock {
+                    id: BlockId(0),
+                    instructions: vec![instruction(InstructionKind::TakeLocal {
+                        local: LocalId(0),
+                    })],
+                    terminator: Terminator::Branch {
+                        condition: ValueId(1),
+                        then_block: BlockId(1),
+                        else_block: BlockId(2),
+                    },
+                },
+                BasicBlock {
+                    id: BlockId(1),
+                    instructions: vec![],
+                    terminator: Terminator::Jump(BlockId(3)),
+                },
+                BasicBlock {
+                    id: BlockId(2),
+                    instructions: vec![],
+                    terminator: Terminator::Jump(BlockId(3)),
+                },
+                BasicBlock {
+                    id: BlockId(3),
+                    instructions: vec![instruction(InstructionKind::DropManaged {
+                        local: LocalId(0),
+                    })],
+                    terminator: Terminator::Return(None),
+                },
+            ],
+        };
+        // This is an internal planner fixture. The linked Source/native test
+        // proves the actual checked finish and its branch cleanup end to end.
+        let meter = tasks::Meter::new(usize::MAX);
+        let expected = vacated_direct_drops(&function, &meter).unwrap();
+        assert!(expected.contains(&(BlockId(3), 0)));
+        let cost = usize::MAX - meter.remaining();
+        for budget in [cost, cost - 1, cost] {
+            let result = vacated_direct_drops(&function, &tasks::Meter::new(budget));
+            if budget == cost {
+                assert_eq!(result.unwrap(), expected);
+            } else {
+                assert_eq!(
+                    result.unwrap_err()[0].category,
+                    zil_base::ResultCategory::ResourceLimit
+                );
+            }
+        }
+        // One possible reinitialization must keep the cleanup live, even if
+        // the other predecessor remains vacant. A backedge is no exemption.
+        function.blocks[1]
+            .instructions
+            .push(instruction(InstructionKind::Store {
+                local: LocalId(0),
+                value: ValueId(0),
+            }));
+        assert!(
+            !vacated_direct_drops(&function, &tasks::Meter::new(usize::MAX))
+                .unwrap()
+                .contains(&(BlockId(3), 0))
+        );
+        function.blocks[3].terminator = Terminator::Branch {
+            condition: ValueId(1),
+            then_block: BlockId(1),
+            else_block: BlockId(2),
+        };
+        assert!(
+            !vacated_direct_drops(&function, &tasks::Meter::new(usize::MAX))
+                .unwrap()
+                .contains(&(BlockId(3), 0))
+        );
+    }
     #[test]
     fn actual_helper_reservation_has_exact_cumulative_limit() {
         // Internal planning fixture only; source/runtime/Verify evidence lives

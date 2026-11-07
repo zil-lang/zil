@@ -2680,6 +2680,9 @@ fn derive_cfg(
     loop {
         let mut changed = false;
         for (index, f) in module.functions.iter().enumerate() {
+            if !b.composition_stored.is_empty() && !b.composition_stored[index] {
+                continue;
+            }
             let (preds, reachable) = &graphs[index];
             fee(
                 b,
@@ -2887,6 +2890,13 @@ fn derive_cfg(
     }
     // Freeze only the original, fully converged graph facts. A second solve
     // receives no authority to trim another edge from its narrowed summaries.
+    if !b.composition_stored.is_empty() && observed_none {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "mixed stored/ordinary Option-address refinement is outside the scalar seam",
+            None,
+        )]);
+    }
     if inactive.is_none()
         && observed_none
         && let Some(proof) = option_address::refine(module, graphs, &summaries, b)?
@@ -2894,6 +2904,9 @@ fn derive_cfg(
         return derive_cfg(module, &proof.graphs, Some(&proof.inactive), b);
     }
     for (index, (f, facts)) in module.functions.iter().zip(&summaries).enumerate() {
+        if !b.composition_stored.is_empty() && !b.composition_stored[index] {
+            continue;
+        }
         if !facts.complete {
             return Err(failure(
                 "stored/address producer has incomplete actual target facts",
@@ -2926,10 +2939,17 @@ pub(super) fn infer(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     b: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
-    b.stored_owned_fixed = owned::profile(module, b)?;
+    b.stored_owned_fixed = if b.composition_stored.is_empty() {
+        owned::profile(module, b)?
+    } else {
+        false
+    };
     super::stored_callables::definitions(module, b)?;
     let mut foreign_symbols = BTreeSet::new();
     for f in &module.functions {
+        if !b.composition_stored.is_empty() && !b.composition_stored[f.id.0 as usize] {
+            continue;
+        }
         if (f.foreign.is_some() && !super::stored_callables::scalar_foreign(f, b)?)
             || f.callable_return_contract.is_some()
             || f.call_kind != CallKind::Direct
@@ -3005,10 +3025,11 @@ pub(super) fn infer(
     // still has one actual consumption obligation. The stored dispatcher must
     // not bypass the independent SSA/local responsibility ledger.
     fee(b, module.closures.len())?;
-    if module
-        .closures
-        .iter()
-        .any(|d| d.kind == CallableKind::FnOnce)
+    if b.composition_stored.is_empty()
+        && module
+            .closures
+            .iter()
+            .any(|d| d.kind == CallableKind::FnOnce)
         || b.stored_owned_fixed
     {
         super::resources::check_module(module, graphs, b)?;

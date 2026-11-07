@@ -3391,8 +3391,10 @@ fn infer_module_inner(
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
     capture_inventory(module, budget)?;
-    if !module.functions.iter().any(|f| {
-        matches!(f.return_type, Type::Address { .. }) || retained_task_value(&f.return_type)
+    if !module.functions.iter().enumerate().any(|(index, f)| {
+        (budget.composition_stored.is_empty() || !budget.composition_stored[index])
+            && (matches!(f.return_type, Type::Address { .. })
+                || retained_task_value(&f.return_type))
     }) {
         return module
             .functions
@@ -3400,6 +3402,9 @@ fn infer_module_inner(
             .zip(graphs)
             .enumerate()
             .map(|(index, (f, (preds, reachable)))| {
+                if !budget.composition_stored.is_empty() && budget.composition_stored[index] {
+                    return Ok(Vec::new());
+                }
                 infer(
                     module,
                     &[],
@@ -3420,6 +3425,9 @@ fn infer_module_inner(
     budget.product(count, 5, 1, "return frontier tables")?;
     let mut callers = vec![Vec::<usize>::new(); count];
     for (caller, (function, (_, reachable))) in module.functions.iter().zip(graphs).enumerate() {
+        if !budget.composition_stored.is_empty() && budget.composition_stored[caller] {
+            continue;
+        }
         for (block, live) in function.blocks.iter().zip(reachable) {
             budget.spend(1, "return frontier block")?;
             if !live {
@@ -3467,8 +3475,12 @@ fn infer_module_inner(
     }
     let mut summaries = vec![Roots::new(); count];
     let mut results: Vec<Option<Vec<ValueHold>>> = (0..count).map(|_| None).collect();
-    let mut pending: VecDeque<usize> = (0..count).collect();
-    let mut queued = vec![true; count];
+    let mut pending: VecDeque<usize> = (0..count)
+        .filter(|index| budget.composition_stored.is_empty() || !budget.composition_stored[*index])
+        .collect();
+    let mut queued = (0..count)
+        .map(|index| budget.composition_stored.is_empty() || !budget.composition_stored[index])
+        .collect::<Vec<_>>();
     while let Some(index) = pending.pop_front() {
         budget.spend(1, "return frontier pop")?;
         queued[index] = false;
@@ -3569,7 +3581,14 @@ fn infer_module_inner(
     }
     results
         .into_iter()
-        .map(|result| result.ok_or_else(|| bad("return frontier omitted a function")))
+        .enumerate()
+        .map(|(index, result)| {
+            if !budget.composition_stored.is_empty() && budget.composition_stored[index] {
+                Ok(Vec::new())
+            } else {
+                result.ok_or_else(|| bad("return frontier omitted a function"))
+            }
+        })
         .collect()
 }
 

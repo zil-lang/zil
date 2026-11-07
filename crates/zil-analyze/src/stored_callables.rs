@@ -128,6 +128,15 @@ pub(super) fn owned_capture(t: &Type, b: &mut Budget) -> CompileResult<bool> {
 pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
     b.spend(module.closures.len(), "qualified callback inventory")?;
     for d in &module.closures {
+        if !b.composition_stored.is_empty()
+            && !b
+                .composition_stored
+                .get(d.function.0 as usize)
+                .copied()
+                .unwrap_or(false)
+        {
+            continue;
+        }
         b.spend(d.captures.len(), "qualified scalar capture inventory")?;
         let mut admitted = finite(module, d.id);
         for t in &d.captures {
@@ -515,6 +524,9 @@ pub(super) fn roles(
         "qualified callback role entry inventory",
     )?;
     for f in &module.functions {
+        if !b.composition_stored.is_empty() && !b.composition_stored[f.id.0 as usize] {
+            continue;
+        }
         if let Some(contract) = &f.callable_contract {
             b.spend(contract.roles.len(), "distinct qualified callback roles")?;
             for role in &contract.roles {

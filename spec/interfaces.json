@@ -651,6 +651,12 @@
       "responsibility": "Whole-Store actual parent windows, initialized-prefix bounds and structural conflicts; capacity failure preserves modified contents, single allocation release",
       "accounting": "Prepay all new paths, preserve unaffected owning/Record requests and limits"
     },
+    "stored_ordinary_composition": {
+      "scope": "One real linked module; stored-holder functions coexist with ordinary owning callbacks, borrowed Tasks and registration helpers.",
+      "bridge": "Only actual direct fn(I32)->I32 calls; exact actual argument/result types and a target without environment, foreign declaration, storage relation, reference-return bound, callable or protocol contract.",
+      "proof": "Analyze and Verify independently reconstruct membership from actual types/instructions/definition edges, keep the original module and IDs, and prove complete functions in their applicable solver. Each function owns one set of independently inferred Hold rows; candidate rows never establish membership or loan facts.",
+      "boundary": "No cross-component address, carrier, owner, environment, worker or indirect function edge; mixed stored and ordinary asynchronous/owning operations inside a single function remain outside this finite profile."
+    },
     "borrowed_i32_task": {
       "schema_version": 44,
       "wire_version": 44,

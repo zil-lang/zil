@@ -114,18 +114,34 @@ pub(super) fn instantiate(
     unknown_pairs(module, function, left, right, apart, budget)
 }
 
+pub(super) struct ApartContext<'a> {
+    pub(super) module: &'a TypedModule,
+    pub(super) graphs: &'a [FunctionGraph],
+    pub(super) facts: &'a [Facts],
+    pub(super) capture_facts: &'a [captures::CaptureFacts],
+    pub(super) effects: &'a [captures::Effects],
+    pub(super) mask: Option<&'a [bool]>,
+}
+
 pub(super) fn close_apart(
-    module: &TypedModule,
-    graphs: &[FunctionGraph],
-    facts: &[Facts],
-    capture_facts: &[captures::CaptureFacts],
-    effects: &[captures::Effects],
+    context: ApartContext<'_>,
     mut apart: Vec<Apart>,
     budget: &mut Budget,
 ) -> Check<()> {
+    let ApartContext {
+        module,
+        graphs,
+        facts,
+        capture_facts,
+        effects,
+        mask,
+    } = context;
     loop {
         let mut changed = false;
         for (index, function) in module.functions.iter().enumerate() {
+            if mask.is_some_and(|mask| mask[index]) {
+                continue;
+            }
             budget.spend(1)?;
             let context = captures::Context {
                 module,
