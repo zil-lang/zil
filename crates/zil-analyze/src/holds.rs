@@ -1934,6 +1934,12 @@ fn infer_with_private(
                                 .ok_or_else(|| bad("projection address outside table"))?;
                             extend(&mut found, source, budget)?;
                         }
+                        InstructionKind::MakeDynBorrow { source, .. } => {
+                            let source = values
+                                .get(source.0 as usize)
+                                .ok_or_else(|| bad("dyn borrow source outside value table"))?;
+                            extend(&mut found, source, budget)?;
+                        }
                         InstructionKind::BorrowCapture { index, .. }
                         | InstructionKind::ReadCapture { index } => {
                             let ty = instruction

@@ -19,6 +19,7 @@ pub(super) struct Budget {
     // Derived from raw instructions; only avoids work in unaffected modules.
     pub(super) static_utf8: bool,
     pub(super) pod_stores: bool,
+    pub(super) dyn_interfaces: BTreeSet<zil_ir::DynInterfaceId>,
     pub(super) partial_depth: usize,
     pub(super) helper_nodes: usize,
     pub(super) helper_calls: usize,
@@ -69,6 +70,7 @@ impl Budget {
             remaining: limits.max_analysis_steps,
             static_utf8: false,
             pod_stores: false,
+            dyn_interfaces: BTreeSet::new(),
             partial_depth: limits.max_call_depth,
             helper_nodes: limits.max_nodes,
             helper_calls: limits.max_instructions,
@@ -184,12 +186,11 @@ impl Budget {
         self.spend(2 + usize::from(copy_check), context)?;
         super::tasks::require_closed_context(ty)?;
         match ty {
-            Type::Dyn { .. } => {
-                return Err(vec![Diagnostic::unsupported(
-                    Phase::Analyze,
-                    "dyn type consumer is not yet implemented",
-                    None,
-                )]);
+            Type::Dyn { interface } => {
+                self.lookup(self.dyn_interfaces.len(), "dyn type interface lookup")?;
+                if !self.dyn_interfaces.contains(interface) {
+                    return Err(bad("dyn type lacks a checked interface"));
+                }
             }
             Type::BorrowedStorage { storage, life } => {
                 self.spend(
@@ -434,6 +435,14 @@ fn local_value(
     module: &TypedModule,
     budget: &mut Budget,
 ) -> CompileResult<bool> {
+    if let Type::Address {
+        mutable: false,
+        inner,
+    } = ty
+        && matches!(inner.as_ref(), Type::Dyn { .. })
+    {
+        return Ok(false);
+    }
     if matches!(ty, Type::BorrowedStorage { .. }) {
         // The paid structural preflight above already visits every actual
         // return, local, and SSA type and qualifies each stored boundary.
@@ -577,16 +586,7 @@ pub(super) fn preflight(
     if module.schema_version != SCHEMA_VERSION {
         return Err(bad("unknown typed module schema version"));
     }
-    if !module.dyn_declarations.is_empty()
-        || !module.dyn_interfaces.is_empty()
-        || !module.dyn_vtables.is_empty()
-    {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Analyze,
-            "dyn table consumer is not yet implemented",
-            None,
-        )]);
-    }
+    super::dyn_dispatch::inventory(module, budget)?;
     if !module.life_declarations.is_empty() || !module.life_instances.is_empty() {
         super::stored_flow::inventory(module, limits, budget)?;
         // The second walk pays identity encoding from this same ledger.
@@ -816,12 +816,11 @@ pub(super) fn preflight(
                         child,
                     ));
                 }
-                Type::Dyn { .. } => {
-                    return Err(vec![Diagnostic::unsupported(
-                        Phase::Analyze,
-                        "dyn type consumer is not yet implemented",
-                        None,
-                    )]);
+                Type::Dyn { interface } => {
+                    budget.lookup(budget.dyn_interfaces.len(), "dyn type interface")?;
+                    if !budget.dyn_interfaces.contains(interface) {
+                        return Err(bad("dyn type has no admitted interface"));
+                    }
                 }
                 Type::Array { element, length } => {
                     budget.input(*length as usize, "array type size")?;
@@ -1480,11 +1479,6 @@ pub(super) fn preflight(
                         budget.scoped_functions.insert(function.id);
                     }
                     InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. } => {
-                        return Err(vec![Diagnostic::unsupported(
-                            Phase::Analyze,
-                            "dyn instruction consumer is not yet implemented",
-                            Some(instruction.span),
-                        )]);
                     }
                     InstructionKind::LoadStoredBorrow { .. }
                     | InstructionKind::StoreStoredBorrow { .. } => {
