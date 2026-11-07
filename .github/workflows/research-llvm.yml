@@ -7,14 +7,12 @@ on:
       - 'AGENTS.md'
       - 'docs/README.md'
       - 'docs/guide/**'
-      - 'docs/guide/**'
   pull_request:
     branches: [main]
     paths-ignore:
       - 'README.md'
       - 'AGENTS.md'
       - 'docs/README.md'
-      - 'docs/guide/**'
       - 'docs/guide/**'
   workflow_dispatch:
 permissions:
@@ -98,7 +96,7 @@ jobs:
           {
             date -u '+%Y-%m-%dT%H:%M:%SZ'
             df -Pk -- "$RUNNER_TEMP"
-            for path in "$RUNNER_TEMP/target" "$RUNNER_TEMP/target-reference" "$RUNNER_TEMP/native-evidence" "$RUNNER_TEMP/consumer209"; do
+            for path in "$RUNNER_TEMP/target" "$RUNNER_TEMP/target-reference" "$RUNNER_TEMP/native-evidence" "$RUNNER_TEMP/native-consumer"; do
               if [ -e "$path" ]; then du -sk -- "$path"; fi
             done
           } > "$RUNNER_TEMP/receipts/workspace-resources-before.log"
@@ -118,7 +116,7 @@ jobs:
           {
             date -u '+%Y-%m-%dT%H:%M:%SZ'
             df -Pk -- "$RUNNER_TEMP"
-            for path in "$RUNNER_TEMP/target" "$RUNNER_TEMP/target-reference" "$RUNNER_TEMP/native-evidence" "$RUNNER_TEMP/consumer209"; do
+            for path in "$RUNNER_TEMP/target" "$RUNNER_TEMP/target-reference" "$RUNNER_TEMP/native-evidence" "$RUNNER_TEMP/native-consumer"; do
               if [ -e "$path" ]; then du -sk -- "$path"; fi
             done
             sha256sum -- "$RUNNER_TEMP/receipts/workspace.log"
@@ -135,7 +133,7 @@ jobs:
           {
             date -u '+%Y-%m-%dT%H:%M:%SZ'
             df -Pk -- "$RUNNER_TEMP"
-            for path in "$RUNNER_TEMP/target" "$RUNNER_TEMP/target-reference" "$RUNNER_TEMP/native-evidence" "$RUNNER_TEMP/consumer209"; do
+            for path in "$RUNNER_TEMP/target" "$RUNNER_TEMP/target-reference" "$RUNNER_TEMP/native-evidence" "$RUNNER_TEMP/native-consumer"; do
               if [ -e "$path" ]; then du -sk -- "$path"; fi
             done
           } > "$RUNNER_TEMP/receipts/reference-resources-before.log"
@@ -155,7 +153,7 @@ jobs:
           {
             date -u '+%Y-%m-%dT%H:%M:%SZ'
             df -Pk -- "$RUNNER_TEMP"
-            for path in "$RUNNER_TEMP/target" "$RUNNER_TEMP/target-reference" "$RUNNER_TEMP/native-evidence" "$RUNNER_TEMP/consumer209"; do
+            for path in "$RUNNER_TEMP/target" "$RUNNER_TEMP/target-reference" "$RUNNER_TEMP/native-evidence" "$RUNNER_TEMP/native-consumer"; do
               if [ -e "$path" ]; then du -sk -- "$path"; fi
             done
             sha256sum -- "$RUNNER_TEMP/receipts/reference.log"
@@ -173,8 +171,8 @@ jobs:
           preserve_consumer_summary() {
             gate_exit=$?
             trap - EXIT
-            if [ -f "$RUNNER_TEMP/consumer209/summary.json" ]; then
-              if ! cp "$RUNNER_TEMP/consumer209/summary.json" "$RUNNER_TEMP/receipts/consumer209.json"; then
+            if [ -f "$RUNNER_TEMP/native-consumer/summary.json" ]; then
+              if ! cp "$RUNNER_TEMP/native-consumer/summary.json" "$RUNNER_TEMP/receipts/native-consumer.json"; then
                 if [ "$gate_exit" -eq 0 ]; then gate_exit=1; fi
               fi
             elif [ "$gate_exit" -eq 0 ]; then
@@ -184,7 +182,7 @@ jobs:
           }
           trap preserve_consumer_summary EXIT
           cargo build --locked --release -p zil-cli
-          python3 tools/research/native-api-validation/validate.py --repo . --cli "$CARGO_TARGET_DIR/release/zil" --clang "$ZIL_CLANG" --out "$RUNNER_TEMP/consumer209"
+          python3 tools/research/native-api-validation/validate.py --repo . --cli "$CARGO_TARGET_DIR/release/zil" --clang "$ZIL_CLANG" --out "$RUNNER_TEMP/native-consumer"
       - name: All-target Clippy
         id: clippy
         if: ${{ !cancelled() && steps.research_toolchain_identity.outcome == 'success' }}
@@ -235,6 +233,6 @@ jobs:
             ${{ runner.temp }}/receipts/toolchain.txt
             ${{ runner.temp }}/receipts/llvm-api-toolchain.json
             ${{ runner.temp }}/receipts/llvm-research-identity.json
-            ${{ runner.temp }}/receipts/consumer209.json
+            ${{ runner.temp }}/receipts/native-consumer.json
           retention-days: 30
           if-no-files-found: warn

@@ -1,5 +1,5 @@
 //! Test-only loading of structurally transcoded historical candidate records.
-//! Input40 reproduction: tools/migrate-impl253-wire40.py. Old v32/v34/v37/v40
+//! Frozen Input40 source lineage: 28b3e37bb4d8a1fe8b146c72cf891fc99de32440:tools/migrate-impl253-wire40.py. Old v32/v34/v37/v40
 //! bytes stay immutable. The40->43 changes append opcode133, async type37,
 //! opcodes134..139, static root tag3 and foreign role tags3..5; existing record layouts are
 //! identical. This adapter decodes the restricted frozen old structure,
