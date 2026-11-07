@@ -5020,7 +5020,35 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         for (index, item) in items.iter().enumerate() {
             let term =
                 self.expr_expected(item, hints.and_then(|h| h.get(index)), depth + 1, false)?;
-            fields.push(self.scalar(&term, item.span)?);
+            let field = if let Term::ValueStore(element, true) = &term {
+                // A generic Store call retains its element as a private value
+                // term until instantiated. A complete ordinary Tuple may own
+                // that call result; the Builder still proves the real transfer.
+                let Term::Scalar(element) = element.as_ref() else {
+                    return Err(unsupported(
+                        item.span,
+                        "ordinary Tuple Store fields require a concrete inline element",
+                    ));
+                };
+                let element = self.graph.injection_type(*element, item.span)?;
+                if !dynamic_store::inline_element(&element)
+                    || !dynamic_store::supported_element(&element)
+                {
+                    return Err(unsupported(
+                        item.span,
+                        "ordinary Tuple Store fields require a finite scalar or POD Record element",
+                    ));
+                }
+                let ty = Type::Managed(Box::new(Type::OwnedStore {
+                    element: Box::new(element),
+                }));
+                let variable = self.fresh(VALUE, false, item.span)?;
+                self.bind(variable, &ty, item.span)?;
+                variable
+            } else {
+                self.scalar(&term, item.span)?
+            };
+            fields.push(field);
         }
         let result = self.fresh(VALUE, false, span)?;
         self.graph.tuple(result, fields, span)?;

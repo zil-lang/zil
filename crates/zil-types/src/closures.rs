@@ -2817,10 +2817,19 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         }
     }
     fn pattern_local(&self, variable: Variable, span: Span) -> R<LocalType> {
-        Ok(match self.graph.address_shape(variable, span)? {
-            Some((inner, Some(mutable))) => LocalType::Address(inner, mutable),
-            _ => LocalType::Scalar(variable),
-        })
+        if let Some((inner, Some(mutable))) = self.graph.address_shape(variable, span)? {
+            return Ok(LocalType::Address(inner, mutable));
+        }
+        // Pattern matching takes an owned Sum, but an ordinary use of a bound
+        // resource name describes its leaf. Keep that distinction in closure
+        // inference as the Builder does for a managed local.
+        if matches!(
+            self.graph.ty(variable)?,
+            Some(Type::Managed(_) | Type::Desc(_))
+        ) {
+            return Ok(LocalType::Resource(variable, false));
+        }
+        Ok(LocalType::Scalar(variable))
     }
     fn block(&mut self, block: &CoreBlock, depth: usize) -> R<()> {
         self.visit(depth, block.span)?;
