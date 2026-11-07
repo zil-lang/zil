@@ -189,7 +189,7 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G5.2.1 | 两个 provider 的单共享 dyn 接收者与固定标量方法槽 | 进行中 | P0 | Codex · 本会话 | 生产端/Types、CT、两核及 Lower/LLVM 已集成；单模块双后端 O0/O2 已运行，跨模块默认包装、原样输入与 raw/Wire 正在共同复测。未验收。 |
+| G5.2.1 | 两个 provider 的单共享 dyn 接收者与固定标量方法槽 | 进行中 | P0 | Codex · 本会话 | 全链已集成；真实输入、跨模块默认实现、raw/Wire、预算/缓存六组通过；Verify 模块身份修复及十项私测通过，独审 scoped Pass。待与 Store 同批共同验收及合入，尚非已合入。 |
 
 <details>
 <summary>G5.2.1 · 子任务</summary>
@@ -254,7 +254,7 @@
 | G9.3.2 | 普通 POD 动态集合与真实借入视图 | 已合入 | — | — | [PR49 验收][e-pr49]：普通 Record 的 std.store、reserve/push/pop/shared view 和大 Copy 协议；默认5124/0、参考5012/0、文本70/0及工程门通过。原262144字节源码默认栈 O0/O2通过；一般元素/可变片/拥有组合仍另缺。 |
 | G9.3.3 | 普通 POD 集合的可变元素借用：实际写入、helper 重借用与结构修改互斥 | 已合入 | — | — | [PR51 验收][e-pr51]：真实 std.store 可变元素与 helper 重借用、写后读回、失败保留、两核 raw/Wire 和双后端 O0/O2通过；保留整 Store 排他，不推断不同下标不交。 |
 | G9.3.4 | 标量动态序列：直接 Store<i32/u64/usize/bool/浮点等既有标量> 与真实 std.store | 已合入 | — | — | [PR51 验收][e-pr51]：bool/u8/u16/i32/i64/u64/usize/f32/f64 直接序列与真实 std.store、完整 u64 和双后端通过；Unit、一般拥有/捕获及 standalone Array/Tuple/Enum 仍排除。 |
-| G9.3.5 | POD/标量 Store 的普通拥有数据模型：字段、整值流、替换与自含捕获 | 进行中 | P0 | Codex · 本会话 | Types/清理、两核与完整 Source 消费者已集成；普通字段模型、捕获、替换失败及 sibling 字段窗口正在共同复测。源码持续推送 task/G9.3.5；未验收。 |
+| G9.3.5 | POD/标量 Store 的普通拥有数据模型：字段、整值流、替换与自含捕获 | 进行中 | P0 | Codex · 本会话 | 原样拥有/捕获及双 sibling 窗口五组已完成双后端 O0/O2 共20次执行；Sum 字段替换旧债释放已修并加 allocator 计数。当前阻断是替换端点 Verify、ErrorUnion 退役及 owning Sum 捕获取走/补回；三路继续施工。尚未验收，源码持续推送 task/G9.3.5。 |
 
 <details>
 <summary>G9.3.5 · 子任务</summary>
