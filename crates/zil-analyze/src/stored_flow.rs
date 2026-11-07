@@ -2,6 +2,7 @@
 //! This pass does not use a candidate, source label, or nominal name as a root.
 use super::*;
 
+pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
 mod retained;
@@ -29,6 +30,7 @@ struct Permission {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Value {
+    enum_variants: enum_address::Variants,
     option_variants: option_address::Variants,
     pointer: Permission,
     slots: BTreeMap<Path, Permission>,
@@ -59,6 +61,8 @@ pub(super) struct Facts {
     external_after: BTreeMap<(u32, Path), Vec<Target>>,
     pub apart: BTreeSet<(Target, Target)>,
     complete: bool,
+    returned_enum_variants: enum_address::Variants,
+    enum_values: BTreeMap<ValueId, enum_address::Variants>,
     returned_variants: option_address::Variants,
     none_values: BTreeSet<ValueId>,
 }
@@ -123,6 +127,7 @@ fn environment_merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileRes
 }
 fn merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileResult<bool> {
     let mut changed = union(&mut to.pointer, &from.pointer, b)?;
+    changed |= to.enum_variants.join(&from.enum_variants, b)?;
     changed |= to.option_variants.join(&from.option_variants, b)?;
     changed |= environment_merge(to, from, b)?;
     if let Some(complete) = from.creation_complete {
@@ -181,6 +186,7 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
             .saturating_add(s.captures.len()),
     )?;
     for value in s.locals.values().chain(s.captures.values()) {
+        value.enum_variants.work(b)?;
         value.option_variants.work(b)?;
         target_work(&value.held.targets, b)?;
         fee(b, value.held.loans.len())?;
@@ -213,6 +219,10 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
 }
 
 fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
+    f.returned_enum_variants.work(b)?;
+    for value in f.enum_values.values() {
+        value.work(b)?;
+    }
     f.returned_variants.work(b)?;
     if !f.none_values.is_empty() {
         fee(b, f.none_values.len())?;
@@ -641,6 +651,11 @@ pub(super) fn inventory(
                 | (LifeNominalKind::Package, Type::Package { .. })
                 | (LifeNominalKind::Enum, Type::Enum { .. })
         ) {
+            if enum_address::candidate(&instance.ty) {
+                return Err(failure(
+                    "borrowed Enum declaration kind differs from its physical instance",
+                ));
+            }
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
                 "nominal stored kind requires its actual physical consumer",
@@ -660,6 +675,7 @@ pub(super) fn inventory(
             ));
         }
         nominal::rows(module, instance, limits, b)?;
+        b.stored_enum_addresses |= !decl.id.compiler && enum_address::candidate(&instance.ty);
         for earlier in &module.life_instances[..index] {
             shape_work(&earlier.ty, limits, b)?;
             shape_work(&instance.ty, limits, b)?;
@@ -699,11 +715,31 @@ fn binding(
         StorageBase::Capture(_) => None,
     }
     .ok_or_else(|| failure("stored relation base is absent"))?;
-    let ((_, shape), pointee) = if let Some(q) = carrier(ty) {
+    let mut boundary = ty;
+    let mut leaf_path = path;
+    let mut class_path = Vec::new();
+    if b.stored_enum_addresses {
+        while let Type::ErrorUnion { error, result } = boundary {
+            fee(b, 1)?;
+            let Some(PlaceProjection::ErrorArm(arm)) = leaf_path.first() else {
+                return Err(failure(
+                    "stored sum relation omits its actual ErrorArm boundary",
+                ));
+            };
+            class_path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(*arm)));
+            boundary = if *arm {
+                error.as_ref()
+            } else {
+                result.as_ref()
+            };
+            leaf_path = &leaf_path[1..];
+        }
+    }
+    let ((_, shape), pointee) = if let Some(q) = carrier(boundary) {
         (q, false)
     } else {
         (
-            pointed_carrier(ty)
+            pointed_carrier(boundary)
                 .ok_or_else(|| failure("physical leaf has no actual qualified boundary"))?,
             true,
         )
@@ -715,20 +751,27 @@ fn binding(
             b,
             slot.path.len().saturating_add(path.len()).saturating_add(1),
         )?;
-        if slot.path == path && local.replace(slot.binder).is_some() {
+        if slot.path == leaf_path && local.replace(slot.binder).is_some() {
             return Err(failure("duplicate actual stored leaf"));
         }
     }
     let local = local.ok_or_else(|| failure("relation selected an absent physical stored leaf"))?;
+    if pointee && !class_path.is_empty() {
+        class_path.insert(0, LifeTypeProjection::Pointee);
+    }
     fee(b, c.classes.len())?;
     for row in &c.classes {
         fee(b, row.position.path.len().saturating_add(1))?;
         if row.position.base == base
             && row.position.class == local
-            && if pointee {
-                row.position.path.as_slice() == [LifeTypeProjection::Pointee]
+            && if class_path.is_empty() {
+                if pointee {
+                    row.position.path.as_slice() == [LifeTypeProjection::Pointee]
+                } else {
+                    row.position.path.is_empty()
+                }
             } else {
-                row.position.path.is_empty()
+                row.position.path == class_path
             }
         {
             return Ok(row.binder);
@@ -799,6 +842,17 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         )]);
     }
     let Some(c) = &f.storage_life else {
+        if b.stored_enum_addresses
+            && f.parameters
+                .iter()
+                .map(|l| &f.locals[l.0 as usize].ty)
+                .chain(std::iter::once(&f.return_type))
+                .any(|ty| matches!(ty, Type::ErrorUnion { .. }) && enum_address::signature(ty))
+        {
+            return Err(failure(
+                "borrowed sum wrapper signature omits its complete relation",
+            ));
+        }
         for ty in f
             .parameters
             .iter()
@@ -1031,6 +1085,9 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     };
     fee(b, life.slots.len().saturating_add(1))?;
     if option_address::shape(ty, b)? {
+        return Ok(true);
+    }
+    if enum_address::shape(ty, b)? {
         return Ok(true);
     }
     if !matches!(
@@ -1404,6 +1461,32 @@ fn seed_value(
             loans: Loans::from([id]),
         };
     }
+    if b.stored_enum_addresses
+        && matches!(ty, Type::ErrorUnion { .. })
+        && enum_address::signature(ty)
+    {
+        for (path, mode) in enum_address::slots(ty, b)? {
+            let target = Target {
+                base,
+                stored: path.clone(),
+                place: Vec::new(),
+            };
+            fee(b, path.len().saturating_mul(2).saturating_add(3))?;
+            let id = loans.len();
+            loans.push(Loan {
+                targets: BTreeSet::from([target.clone()]),
+                parents: Loans::new(),
+                mutable: mode == StoredBorrowMode::ExclusiveAddress,
+            });
+            value.slots.insert(
+                path,
+                Permission {
+                    targets: BTreeSet::from([target]),
+                    loans: Loans::from([id]),
+                },
+            );
+        }
+    }
     let qualified = carrier(ty).or_else(|| pointed_carrier(ty));
     if let Some((_, life)) = qualified {
         let mut slots = BTreeMap::new();
@@ -1459,7 +1542,10 @@ fn seed(
             loans,
             b,
         )?;
-        if option_address::candidate(&f.locals[local.0 as usize].ty) {
+        if enum_address::ordinary(module, &f.locals[local.0 as usize].ty, b)? {
+            value.enum_variants =
+                enum_address::Variants::parameter(index as u32, &f.locals[local.0 as usize].ty, b)?;
+        } else if option_address::candidate(&f.locals[local.0 as usize].ty) {
             fee(b, 96)?;
             if option_address::signature(&f.locals[local.0 as usize].ty) {
                 value.option_variants = option_address::Variants::parameter(index as u32, b)?;
@@ -1786,7 +1872,12 @@ fn transfer(
             .get(id.0 as usize)
             .ok_or_else(|| failure("operand is outside actual values"))
     };
-    let option_transfer = option_address::transfer(module, f, i, values, b)?;
+    let enum_transfer = enum_address::transfer(module, f, i, values, b)?;
+    let option_transfer = if enum_transfer.is_none() {
+        option_address::transfer(module, f, i, values, b)?
+    } else {
+        None
+    };
     match &i.kind {
         InstructionKind::StaticUtf8 { .. } => {
             fee(b, 1)?;
@@ -1814,6 +1905,8 @@ fn transfer(
             ordered(b, state.locals.len(), 0)?;
             if super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty)
                 || carrier(&f.locals[local.0 as usize].ty).is_some()
+                || (b.stored_enum_addresses
+                    && enum_address::signature(&f.locals[local.0 as usize].ty))
             {
                 out = snapshot(
                     state
@@ -2032,6 +2125,9 @@ fn transfer(
             let summary = summaries
                 .get(function.0 as usize)
                 .ok_or_else(|| failure("callee stored summary absent"))?;
+            out.enum_variants = summary
+                .returned_enum_variants
+                .substitute(arguments, values, b)?;
             out.option_variants = summary.returned_variants.substitute(arguments, values, b)?;
             for (path, sources) in &summary.returned {
                 let mut permission = Permission::default();
@@ -2058,8 +2154,10 @@ fn transfer(
                 }
                 if path.is_empty() {
                     out.pointer = permission;
-                } else if !option_address::candidate(&callee.return_type)
-                    || out.option_variants.mask() & 2 != 0
+                } else if (out.enum_variants.present() && out.enum_variants.slot_active(path))
+                    || (!out.enum_variants.present()
+                        && (!option_address::candidate(&callee.return_type)
+                            || out.option_variants.mask() & 2 != 0))
                 {
                     ordered(b, out.slots.len(), path.len())?;
                     fee(b, path.len())?;
@@ -2309,6 +2407,9 @@ fn transfer(
         | InstructionKind::DescribeCapture { .. }
         | InstructionKind::MakeManaged { .. }
         | InstructionKind::ReadDesc { .. } => {}
+        _ if enum_transfer.is_some() => {
+            out = enum_transfer.unwrap();
+        }
         _ if option_transfer.is_some() => {
             out = option_transfer.unwrap();
         }
@@ -3218,10 +3319,18 @@ fn derive_cfg(
                 external_after: BTreeMap::new(),
                 apart: BTreeSet::new(),
                 complete: false,
+                returned_enum_variants: enum_address::Variants::default(),
+                enum_values: BTreeMap::new(),
                 returned_variants: option_address::Variants::default(),
                 none_values: BTreeSet::new(),
             };
             for (id, value) in values.iter().enumerate() {
+                if value.enum_variants.present() {
+                    value.enum_variants.work(b)?;
+                    actual
+                        .enum_values
+                        .insert(ValueId(id as u32), value.enum_variants.clone());
+                }
                 if value.option_variants.none() {
                     observed_none = true;
                     fee(b, actual.none_values.len().saturating_add(1))?;
@@ -3284,6 +3393,9 @@ fn derive_cfg(
                 }
                 if *live && let Terminator::Return(Some(id)) = block.terminator {
                     let value = &values[id.0 as usize];
+                    actual
+                        .returned_enum_variants
+                        .join(&value.enum_variants, b)?;
                     actual.returned_variants.join(&value.option_variants, b)?;
                     let mut add = |path: &Path, permission: &Permission| -> CompileResult<()> {
                         ordered(b, actual.returned.len(), path.len())?;
@@ -3338,8 +3450,27 @@ fn derive_cfg(
                 if matches!(ty, Type::Address { .. }) && value.pointer.targets.is_empty() {
                     grounded = false;
                 }
+                if b.stored_enum_addresses
+                    && matches!(ty, Type::ErrorUnion { .. })
+                    && enum_address::ordinary(module, ty, b)?
+                {
+                    if !value.enum_variants.grounded(ty, b)? {
+                        grounded = false;
+                    }
+                    for (path, _) in enum_address::slots(ty, b)? {
+                        if value.enum_variants.slot_active(&path)
+                            && value.slots.get(&path).is_none_or(|p| p.targets.is_empty())
+                        {
+                            grounded = false;
+                        }
+                    }
+                }
                 if let Some((_, life)) = carrier(ty) {
-                    if option_address::candidate(ty) {
+                    if enum_address::ordinary(module, ty, b)? {
+                        if !value.enum_variants.grounded(ty, b)? {
+                            grounded = false;
+                        }
+                    } else if option_address::candidate(ty) {
                         fee(b, 96)?;
                         if !option_address::signature(ty) {
                             return Err(failure("Option activity has no exact shape"));
@@ -3354,6 +3485,11 @@ fn derive_cfg(
                     }
                     fee(b, life.slots.len())?;
                     for slot in &life.slots {
+                        if value.enum_variants.present()
+                            && !value.enum_variants.slot_active(&slot.path)
+                        {
+                            continue;
+                        }
                         ordered(b, value.slots.len(), slot.path.len())?;
                         if value
                             .slots
@@ -3439,6 +3575,11 @@ fn derive_cfg(
             break;
         }
     }
+    if inactive.is_none()
+        && let Some(proof) = enum_address::refine(module, graphs, &summaries, b)?
+    {
+        return derive_cfg(module, &proof.graphs, Some(&proof.inactive), b);
+    }
     // Freeze only the original, fully converged graph facts. A second solve
     // receives no authority to trim another edge from its narrowed summaries.
     if !b.composition_stored.is_empty() && observed_none {
@@ -3463,6 +3604,7 @@ fn derive_cfg(
                 "stored/address producer has incomplete actual target facts",
             ));
         }
+        enum_address::projections(f, &graphs[index], facts, b)?;
         returns(module, f, facts, b)?;
         for (id, (ty, roots)) in f.values.iter().zip(&facts.values).enumerate() {
             fee(b, 1)?;
@@ -3474,7 +3616,11 @@ fn derive_cfg(
             }
             let needs_target = matches!(ty, Type::Address { .. })
                 || matches!(ty,Type::BorrowedStorage{life,..}if !life.slots.is_empty());
-            if needs_target && roots.is_empty() && !facts.none_values.contains(&ValueId(id as u32))
+            let empty_enum = facts.enum_values.get(&ValueId(id as u32)).is_some_and(|tags| !matches!(ty,Type::BorrowedStorage{life,..} if life.slots.iter().any(|s| tags.slot_active(&s.path))));
+            if needs_target
+                && roots.is_empty()
+                && !empty_enum
+                && !facts.none_values.contains(&ValueId(id as u32))
             {
                 return Err(failure(
                     "stored/address producer has no independently grounded actual origin",
@@ -3562,6 +3708,9 @@ pub(super) fn infer(
                 || ty.is_copy_value()
                 || b.stored_owned_fixed && owned::data(ty, b)?
                 || mixed_resource
+                || b.stored_enum_addresses
+                    && enum_address::signature(ty)
+                    && enum_address::ordinary(module, ty, b)?
                 || pure_inline(module, ty, b)?
                 || matches!(ty, Type::Address { inner, mutable: false } if pure_inline(module, inner, b)?))
             {
@@ -3653,6 +3802,7 @@ fn actual_instructions(
     for block in &f.blocks {
         for i in &block.instructions {
             fee(b, 1)?;
+            let enum_operation = enum_address::instruction(module, f, i, b)?;
             let owned_operation = (b.stored_owned_fixed
                 || matches!(i.kind, InstructionKind::ReadDesc { .. })
                 || matches!(i.kind, InstructionKind::MakeManaged { .. })
@@ -3662,6 +3812,7 @@ fn actual_instructions(
             if !super::class_flow::pointer_instruction(f, i)
                 && !super::stored_callables::instruction(module, f, i)
                 && !owned_operation
+                && !enum_operation
                 && !pure_copy::operation(&i.kind)
                 && !matches!(
                     &i.kind,
@@ -3747,7 +3898,25 @@ fn actual_instructions(
             if super::stored_callables::instruction(module, f, i) {
                 super::stored_callables::types(module, f, i, b)?;
             }
-            if pure_copy::operation(&i.kind) && option_address::types(module, f, i, b)?.is_none() {
+            if pure_copy::operation(&i.kind)
+                && enum_address::types(module, f, i, b)?.is_none()
+                && option_address::types(module, f, i, b)?.is_none()
+            {
+                // A qualified Enum claim cannot become an unsupported Copy
+                // operation merely by deleting its nominal instance inventory.
+                let claimed = match i.kind {
+                    InstructionKind::MakeVariant { .. } => {
+                        i.result.map(|v| value_type(f, v)).transpose()?
+                    }
+                    InstructionKind::ReadVariant { value, .. }
+                    | InstructionKind::VariantTag { value } => Some(value_type(f, value)?),
+                    _ => None,
+                };
+                if claimed.is_some_and(enum_address::candidate) {
+                    return Err(failure(
+                        "borrowed Enum operation has no authenticated complete nominal instance",
+                    ));
+                }
                 pure_copy::types(f, i, b)?;
             }
             match &i.kind {

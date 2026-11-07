@@ -1043,7 +1043,11 @@ comptime 执行有逻辑配额和显式输入，不从未完成安全查询反�
 
 `T?` 是 Option；`E!T` 是错误联合；表达式后缀 `?` 只沿实际错误出口传播。数组类型 `[T; N]`、切片类型 `[T]`、数组值 `[a, b]`、索引 `a[i]`、半开范围 `a[lo..hi]` 各按上下文唯一解析。`&[T]`/`&mut [T]` 是地址窗口。`a ? b : c` 不属于语法，使用 `if` 表达式。`a[]` 非法，完整切片写 `a[..]`；区间端点采用非区间表达式，复杂比较或逻辑端点须用括号。`if/while/for/match/with` 的控制头在顶层遇到 `{` 即开始主体；头部需要结构构造字面量时写成 `(Node { ... })`，不得依赖类型查询判断大括号归属。
 
-共享借入 Option：实际 `Option<&'s T>` 保留原 Address 类型实参和普通 Enum 表示；该实参的来源类0通过 `TypeArgument(0)` 的 `StorageRetainedBinding` 映射到外层 binder0，真实载荷槽为 `Variant(1,0)` 的 SharedAddress，二者必须一致。首片仅开放编译器内建 Option 的完整身份、唯一 Type 形式参数、`None()`/`Some(actual)` 顺序、唯一共享地址实参、一个 binder、上述唯一保留关系及物理槽，并要求无额外 nominal_arguments。内建身份为 `{module:u32::MAX,declaration:0,compiler:true}` 与 `@zil.builtin/[option]/[enum,Option]/[]`；仅同名或同型字段不足以建立关系。Types、Analyze、Verify 分别检查实际形状及关系；两核从真实 Some 构造、活动臂读取和调用流重建被借目标，None 不制造目标。此关系不授予权限或延长局部存储期，可变地址及普通用户名义类型的直接地址实参仍须完整的形式参数物理出现关系消费者。
+共享借入 Option：实际 `Option<&'s T>` 保留原 Address 类型实参和普通 Enum 表示；该实参的来源类0通过 `TypeArgument(0)` 的 `StorageRetainedBinding` 映射到外层 binder0，真实载荷槽为 `Variant(1,0)` 的 SharedAddress，二者必须一致。首片仅开放编译器内建 Option 的完整身份、唯一 Type 形式参数、`None()`/`Some(actual)` 顺序、唯一共享地址实参、一个 binder、上述唯一保留关系及物理槽，并要求无额外 nominal_arguments。内建身份为 `{module:u32::MAX,declaration:0,compiler:true}` 与 `@zil.builtin/[option]/[enum,Option]/[]`；仅同名或同型字段不足以建立关系。Types、Analyze、Verify 分别检查实际形状及关系；两核从真实 Some 构造、活动臂读取和调用流重建被借目标，None 不制造目标。此关系不授予权限或延长局部存储期，可变地址仍须完整的独占失效消费者。
+
+普通名义 Enum 的共享借入载荷：Source 保留原声明身份、完整有序泛型实参、每个实际共享 Address 的 `Variant(variant,field)` 槽和固定来源类。直接 Address 类型实参的类0通过其真实 `TypeArgument(ordinal)` 保留行映射，显式 life 形式参数通过原名义参数行映射；两者不能因物理地址类型相同或 binder 数字相同互换实际来源。Types、Analyze、Verify 分别核查唯一完整实例、原声明种类和形式参数序、物理槽完整覆盖、共享模式、规范类编号及全部实参关系。公开 TypedIR 的完整实例和槽/类关系是待核声明语义，不含原 AST 字段配方；物理同型叶加 TypeArgument 行只证明该完整实例的关系自洽，不证明某物理叶来自哪一个已擦除的源形式参数。Source 生产者仍按原声明和实际替换生成忠实关系。
+
+每个实际 Enum 值单独携带可能 tag 集合和逐活动槽的真实权限。空变体不制造借用；构造从实际字段取得目标和父 loan；投影必须由可达 CFG 判别证明所选 tag 活动。分支汇合不要求所有互斥变体的槽同时初始化，未知或无构造依据的递归结果不能充当空变体。共享复制保留被借目标和真实父链；普通局部存储、移动、跨模块 helper 参数/结果、返回和 `ErrorUnion` 的 `ErrorArm` 包装/`?` 传播保留完整形状及实际来源。每个返回槽的真实参数来源必须满足自身声明的来源上界，局部地址不得逃逸，具有同一 life 的不同实际根也不因此混同。首片机器消费者支持直接共享薄地址叶及有限 Copy 伴随载荷；嵌套借入聚合载荷、独占叶和借入片载荷的机器消费仍须各自闭合。普通 Enum 不取得内建 Option 或标准 Poll 身份；Poll/Task 的结果来源转移还需实际标准声明及其独立消费者。
 
 借用模式：`ref`/`ref mut`必须取得实际活动位置的地址，不能复制载荷到临时值后声称借到原值。Enum路径保存每层活动variant和实际field投影；取地址时及独立核沿控制流验证活动tag、初始化和父loan。有效窗口阻止相交移动、替换、tag失效或不合法可变别名；同一活动payload真正不相交字段可按真实投影证明分离。嵌套/聚合可变借用在完整失效模型和机器表示完成前不得放行，模式表示存在不等于完成。
 

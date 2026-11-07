@@ -2,6 +2,7 @@
 //! reconstructed independently by Analyze and Verify, never by these checks.
 use super::*;
 
+mod enum_address;
 mod nominal;
 mod option_address;
 mod retained;
@@ -475,7 +476,7 @@ pub(super) fn shared_value(ty: &Type) -> bool {
     // Do not recursively repeat that qualification without debiting work at
     // every expression lookup. This private dispatch tag grants no raw Copy
     // capability; both kernels reconstruct the actual targets independently.
-    matches!(ty, Type::BorrowedStorage { .. })
+    matches!(ty, Type::BorrowedStorage { .. }) || enum_address::sum_value(ty)
 }
 
 /// Builder sees only Resolver output whose complete nominal inventory was
@@ -487,7 +488,10 @@ pub(super) fn option_address_value(
     limits: &Limits,
     span: Span,
 ) -> R<bool> {
-    option_address::shape(ty, left, limits.max_call_depth, span, false)
+    if option_address::shape(ty, left, limits.max_call_depth, span, false)? {
+        return Ok(true);
+    }
+    enum_address::shape(ty, left, limits.max_call_depth, span)
 }
 
 /// Narrow value-only qualification for an actual nested stored field. This
@@ -540,6 +544,16 @@ pub(super) fn pure_inline(ty: &Type, left: &mut usize, limits: &Limits, span: Sp
     }
     retained::expected(ty, limits.max_call_depth, span, left)?;
     Ok(true)
+}
+
+pub(super) fn enum_address_payload(instance: &LifeNominalInstance, ty: &Type) -> bool {
+    !instance.declaration.compiler
+        && enum_address::candidate(&instance.ty)
+        && matches!(ty, Type::Address { mutable: false, .. })
+}
+
+pub(super) fn sum_value(ty: &Type) -> bool {
+    enum_address::sum_value(ty)
 }
 
 pub(super) fn option_address_payload(instance: &LifeNominalInstance, ty: &Type) -> bool {
@@ -602,6 +616,9 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
         ));
     };
     if option_address::shape(ty, left, depth_limit, span, false)? {
+        return Ok(());
+    }
+    if enum_address::shape(ty, left, depth_limit, span)? {
         return Ok(());
     }
     if !matches!(

@@ -393,6 +393,21 @@ fn scoped_shape(
 ) -> R<()> {
     budget.node(ty.span, depth)?;
     match &ty.kind {
+        TypeKind::Reference {
+            mutable: false,
+            lifetime: Some(lifetime),
+            inner,
+        } => {
+            if !scoped_formal(formals, lifetime, budget, ty.span, depth + 1)?
+                .is_some_and(|p| matches!(p.kind, GenericParamKind::Lifetime))
+            {
+                return Err(error(
+                    ty.span,
+                    "enum payload address lifetime is not a declaration binder",
+                ));
+            }
+            scoped_shape(inner, formals, nominals, budget, depth + 1)
+        }
         TypeKind::Named { path, args } if path.len() == 1 => {
             let name = &path[0];
             if let Some(formal) = scoped_formal(formals, name, budget, ty.span, depth + 1)? {
@@ -1043,7 +1058,14 @@ impl Engine<'_> {
             }
         }
         let mut result = application(decl, &found, span, &mut self.budget)?;
-        check_injection(&result, expected.as_ref(), &mut self.budget)?;
+        let mut injection_context = expected;
+        if !self.stored_enum_layouts.is_empty()
+            && let Some(union) = injection_context.as_mut()
+            && matches!(grouped(union).kind, TypeKind::Error { .. })
+        {
+            self.ty(union, depth + 1)?;
+        }
+        check_injection(&result, injection_context.as_ref(), &mut self.budget)?;
         self.ty(&mut result, depth + 1)?;
         let TypeKind::Named { path, .. } = &result.kind else {
             unreachable!()
@@ -1117,6 +1139,56 @@ impl Engine<'_> {
                 let Some(ty) = ty else {
                     return Err(error(pattern.span, "match enum type cannot be inferred"));
                 };
+                if let TypeKind::Named {
+                    path: physical,
+                    args,
+                } = &grouped(ty).kind
+                    && args.is_empty()
+                    && physical.len() == 1
+                    && !self.stored_enum_layouts.is_empty()
+                {
+                    self.stored_lookup_fee(
+                        self.stored_enum_layouts.len(),
+                        physical[0].len(),
+                        pattern.span,
+                    )?;
+                    if let Some((template, variants)) = self.stored_enum_layouts.get(&physical[0]) {
+                        self.budget.text(template, pattern.span)?;
+                        if path.len() != 2 || (path[0] != *template && path[0] != physical[0]) {
+                            return Err(error(
+                                pattern.span,
+                                "pattern enum differs from the actual specialized declaration",
+                            ));
+                        }
+                        self.budget.identity_work(
+                            variants
+                                .len()
+                                .saturating_mul(path[1].len().saturating_add(1)),
+                            pattern.span,
+                        )?;
+                        let (_, fields) = variants
+                            .iter()
+                            .find(|(name, _)| *name == path[1])
+                            .ok_or_else(|| {
+                                error(pattern.span, "pattern tag is absent from the actual enum")
+                            })?;
+                        if fields.len() != arguments.len() {
+                            return Err(error(
+                                pattern.span,
+                                "pattern payload arity differs from its actual tag",
+                            ));
+                        }
+                        for field in fields {
+                            self.budget.ty(field)?;
+                        }
+                        let fields = fields.clone();
+                        path[0] = physical[0].clone();
+                        for (child, field) in arguments.iter_mut().zip(fields) {
+                            self.enum_pattern(child, Some(&field), env, depth + 1)?;
+                        }
+                        return Ok(());
+                    }
+                }
                 let written = self.original_type(ty)?;
                 if matches!(
                     &grouped(&written).kind,
@@ -1342,7 +1414,37 @@ impl Engine<'_> {
             return Ok(None);
         }
         let provider = self.provider(name, callee.span)?;
-        let expected = expected.map(|ty| self.original_type(ty)).transpose()?;
+        let mut expected = expected.map(|ty| self.original_type(ty)).transpose()?;
+        if !self.stored_enum_layouts.is_empty()
+            && let Some(actual) = expected.as_mut()
+        {
+            let mut pending = vec![&*actual];
+            let mut ordinary_sum = false;
+            while let Some(ty) = pending.pop() {
+                self.budget.node(ty.span, 0)?;
+                match &grouped(ty).kind {
+                    TypeKind::Named { path, .. } if path.len() == 1 => {
+                        self.stored_lookup_fee(
+                            self.stored_enum_layouts.len(),
+                            path[0].len(),
+                            ty.span,
+                        )?;
+                        ordinary_sum |= self
+                            .stored_enum_layouts
+                            .values()
+                            .any(|(template, _)| template == &path[0]);
+                    }
+                    TypeKind::Error { error, result } => {
+                        pending.push(error);
+                        pending.push(result);
+                    }
+                    _ => {}
+                }
+            }
+            if ordinary_sum {
+                self.ty(actual, 0)?;
+            }
+        }
         let Some(f) = self.signatures.get(name) else {
             return Ok(None);
         };

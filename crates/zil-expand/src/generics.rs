@@ -544,6 +544,7 @@ struct Engine<'a> {
     // Concrete source field layouts for stored physical records. Hints only;
     // storage classes and actual permissions live in the independent catalog.
     stored_record_fields: BTreeMap<String, Vec<(String, TypeRef)>>,
+    stored_enum_layouts: BTreeMap<String, (String, Vec<(String, Vec<TypeRef>)>)>,
     stored_nominals: bool,
     pattern_types: &'a BTreeMap<String, TypeRef>,
     templates: BTreeMap<String, &'a Item>,
@@ -656,6 +657,7 @@ impl<'a> Engine<'a> {
             next_nominal_capture: 0,
             nominal_source_actuals: BTreeMap::new(),
             stored_record_fields: BTreeMap::new(),
+            stored_enum_layouts: BTreeMap::new(),
             stored_nominals: budget.has_stored_lifetimes(),
             pattern_types,
             traits,

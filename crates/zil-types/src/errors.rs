@@ -20,10 +20,11 @@ pub(super) fn managed_success(ty: &Type) -> bool {
 
 pub(super) fn supported(ty: &Type) -> bool {
     matches!(ty, Type::ErrorUnion { error, result }
-        if ((error.is_copy_value() || packages::supported(error))
+        if (((error.is_copy_value() || stored::sum_value(error)) && (result.is_copy_value() || stored::sum_value(result)))
+            || ((error.is_copy_value() || packages::supported(error))
             && (result.is_copy_value() || packages::supported(result)))
             || (error.is_copy_value() && matches!(result.as_ref(), Type::Managed(_))
-                && resources::supported(result)))
+                && resources::supported(result))))
         || dynamic_store::product_protocol(ty)
         || owned_shapes::error_union(ty)
 }

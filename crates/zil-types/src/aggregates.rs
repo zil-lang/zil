@@ -1194,6 +1194,7 @@ impl Resolver<'_> {
                             // resolved_inventory checks the complete layout.
                             .is_some_and(|instance| {
                                 stored::option_address_payload(instance, field)
+                                    || stored::enum_address_payload(instance, field)
                             })
                         || (stored_instance.is_some()
                             && stored::pure_inline(

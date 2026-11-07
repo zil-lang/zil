@@ -59,6 +59,18 @@ pub(super) fn scoped_nominal_actual(ty: &TypeRef) -> bool {
 }
 
 impl Check<'_, '_, '_> {
+    fn enum_injection(&mut self, actual: &TypeRef, expected: Option<&TypeRef>) -> R<()> {
+        if self.budget.has_shared_enum_addresses()
+            && self.class_scope.active
+            && let Some(union) = expected
+            && matches!(group(union).kind, TypeKind::Error { .. })
+        {
+            role_check::same_return(actual, union, actual.span, self.class_scope, self.budget)
+        } else {
+            syntax_enum::check_injection(actual, expected, self.budget)
+        }
+    }
+
     /// Mixed nominal ordinals come from the actual constructor or its full
     /// source context. Only Type actuals enter the substitution/bound map.
     fn mixed_enum_actuals(
@@ -234,7 +246,7 @@ impl Check<'_, '_, '_> {
                     args: full,
                 },
             };
-            syntax_enum::check_injection(&actual, expected, self.budget)?;
+            self.enum_injection(&actual, expected)?;
             return Ok(Some(actual));
         }
         let vars = decl
@@ -290,7 +302,7 @@ impl Check<'_, '_, '_> {
                 None,
             )?;
         }
-        syntax_enum::check_injection(&actual, expected, self.budget)?;
+        self.enum_injection(&actual, expected)?;
         Ok(Some(actual))
     }
 
@@ -383,7 +395,7 @@ impl Check<'_, '_, '_> {
                     args: full,
                 },
             };
-            syntax_enum::check_injection(&actual, expected, self.budget)?;
+            self.enum_injection(&actual, expected)?;
             return Ok(Some(actual));
         }
         let variables = record_enums::variables(declaration, self.budget)?;
@@ -446,7 +458,7 @@ impl Check<'_, '_, '_> {
             None,
         )?;
         let actual = syntax_enum::application(declaration, &found, e.span, self.budget)?;
-        syntax_enum::check_injection(&actual, expected, self.budget)?;
+        self.enum_injection(&actual, expected)?;
         Ok(Some(actual))
     }
     fn enum_fields(

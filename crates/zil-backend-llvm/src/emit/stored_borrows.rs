@@ -249,6 +249,7 @@ pub(super) fn representation_type(t: &Type) -> bool {
     matches!(t,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Record{..}|Type::Package{..}|Type::Tuple(_)))
         || matches!(t,Type::Address{inner,..}if matches!(inner.as_ref(),Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Record{..}|Type::Package{..}|Type::Tuple(_))))
         || shared_pointer_enum(t)
+        || matches!(t,Type::ErrorUnion{error,result} if (error.is_copy_value() || representation_type(error)) && (result.is_copy_value() || representation_type(result)))
         || pure_composite(t)
 }
 
@@ -262,12 +263,21 @@ pub(super) fn shared_pointer_enum(t: &Type) -> bool {
     let Type::Enum { variants, .. } = storage.as_ref() else {
         return false;
     };
-    let [empty, present] = variants.as_slice() else {
-        return false;
-    };
-    empty.1.is_empty()
-        && matches!(present.1.as_slice(), [Type::Address { mutable: false, inner }]
-            if inner.is_copy_value())
+    !variants.is_empty()
+        && variants.iter().all(|(_, fields)| {
+            fields.iter().all(|field| {
+            field.is_copy_value()
+                || matches!(field, Type::Address { mutable: false, inner } if inner.is_copy_value())
+        })
+        })
+}
+
+pub(super) fn shared_sum(t: &Type) -> bool {
+    shared_pointer_enum(t)
+        || matches!(t, Type::ErrorUnion { error, result }
+            if (shared_sum(error) || shared_sum(result))
+                && (error.is_copy_value() || shared_sum(error))
+                && (result.is_copy_value() || shared_sum(result)))
 }
 
 /// An actual verified root pointer to pure storage. Never use this predicate
