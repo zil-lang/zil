@@ -51,11 +51,24 @@ impl Walk<'_> {
                     result,
                     ports,
                     binder_count,
+                    retained,
                 } => {
                     self.work = self
                         .work
                         .checked_sub(ports.len().saturating_add(*binder_count as usize))
                         .ok_or_else(|| quota(Some(span)))?;
+                    self.work = self
+                        .work
+                        .checked_sub(retained.len())
+                        .ok_or_else(|| quota(Some(span)))?;
+                    for row in retained {
+                        if row.path.len() > self.limits.max_call_depth {
+                            return Err(quota(Some(span)));
+                        }
+                        for _ in &row.path {
+                            self.node(depth + 1, Some(span))?;
+                        }
+                    }
                     pending.push((result, depth + 1));
                     for port in ports {
                         pending.push((&port.pointee, depth + 1));

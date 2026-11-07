@@ -17,6 +17,26 @@ fn empty_context() -> zil_ir::RetainedLifeShape {
     }
 }
 pub(super) fn require_closed_context(ty: &Type) -> CompileResult<()> {
+    if let Type::Task {
+        result,
+        retained_life,
+    } = ty
+        && (matches!(result.as_ref(), Type::Address { mutable: false, .. })
+            || !retained_life.retained.is_empty())
+    {
+        if matches!(result.as_ref(), Type::Address { mutable: false, inner } if owned::retained_pointee(inner))
+            && retained_life.binder_count == 1
+            && retained_life.nominal_arguments.is_empty()
+            && matches!(retained_life.retained.as_slice(), [row] if row.path == [zil_ir::LifeTypeProjection::Result] && row.class == 0 && row.binder == 0)
+            && matches!(retained_life.ports.as_slice(), [port] if port.mode == zil_ir::StoredBorrowMode::SharedAddress && port.binder == 0 && port.leaf == **result)
+        {
+            return Ok(());
+        }
+        return Err(fail(
+            zil_base::Span::default(),
+            "shared Task result requires its complete actual single shared input context",
+        ));
+    }
     let mut next = 0;
     if let Type::Task {
         result,
@@ -166,12 +186,38 @@ fn task_create_type(result: &Type, retained_life: zil_ir::RetainedLifeShape) -> 
     }
 }
 fn task_poll_type(result: &Type) -> Type {
-    Type::Enum {
+    let storage = Type::Enum {
         name: format!("@std.task:v1:Poll:{}", result.fingerprint()),
         variants: vec![
             ("Pending".into(), vec![]),
             ("Ready".into(), vec![result.clone()]),
         ],
+    };
+    if matches!(result, Type::Address { mutable: false, .. }) {
+        Type::BorrowedStorage {
+            storage: Box::new(storage),
+            life: zil_ir::StorageLifeShape {
+                binder_count: 1,
+                slots: vec![zil_ir::StorageLifeSlot {
+                    path: vec![zil_ir::PlaceProjection::Variant(
+                        zil_ir::VariantProjection {
+                            variant: 1,
+                            index: 0,
+                        },
+                    )],
+                    binder: 0,
+                    mode: zil_ir::StoredBorrowMode::SharedAddress,
+                }],
+                retained: vec![zil_ir::StorageRetainedBinding {
+                    path: vec![zil_ir::LifeTypeProjection::TypeArgument(0)],
+                    class: 0,
+                    binder: 0,
+                }],
+                nominal_arguments: vec![],
+            },
+        }
+    } else {
+        storage
     }
 }
 fn task_poll_result(result: &Type) -> Type {

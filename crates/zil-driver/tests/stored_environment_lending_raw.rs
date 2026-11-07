@@ -12,6 +12,63 @@ use zil_ir::{
 };
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 #[test]
+fn task_borrowed_result_source_preserves_the_result_class_and_worker_relation() {
+    let module = typed_stored(include_str!(
+        "../../../tests/fixtures/task-borrow-results/shared-input.zil"
+    ));
+    let worker = module
+        .functions
+        .iter()
+        .find(|f| f.name == "worker")
+        .unwrap();
+    assert!(worker.storage_life.is_some());
+    let mut count = 0;
+    for function in &module.functions {
+        for instruction in function.blocks.iter().flat_map(|b| &b.instructions) {
+            if let InstructionKind::TaskCreate { .. } = instruction.kind {
+                let result = &function.values[instruction.result.unwrap().0 as usize];
+                let Type::ErrorUnion { result, .. } = result else {
+                    panic!("TaskCreate error wrapper missing")
+                };
+                let Type::Managed(task) = result.as_ref() else {
+                    panic!("actual Task owner missing")
+                };
+                let Type::Task {
+                    result,
+                    retained_life,
+                } = task.as_ref()
+                else {
+                    panic!("Task missing")
+                };
+                assert!(matches!(
+                    result.as_ref(),
+                    Type::Address { mutable: false, .. }
+                ));
+                assert_eq!(retained_life.retained.len(), 1);
+                assert_eq!(
+                    retained_life.retained[0].path,
+                    [zil_ir::LifeTypeProjection::Result]
+                );
+                assert_eq!(retained_life.retained[0].class, 0);
+                assert_eq!(retained_life.retained[0].binder, 0);
+                count += 1;
+            }
+        }
+    }
+    assert_eq!(count, 1);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+}
+
+#[test]
 fn standard_poll_shared_payload_has_its_actual_sealed_declaration_and_source() {
     let module = typed_stored(include_str!(
         "../../../tests/fixtures/borrowed-enums/poll.zil"

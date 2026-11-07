@@ -347,12 +347,16 @@ impl Index {
                 result,
                 ports,
                 binder_count,
+                retained,
             } => {
                 spend(
                     left,
                     ports.len().saturating_add(*binder_count as usize),
                     span,
                 )?;
+                for row in retained {
+                    spend(left, row.path.len().saturating_add(1), span)?;
+                }
                 self.check_links(result, span, left)?;
                 for port in ports {
                     self.check_links(&port.pointee, span, left)?;
@@ -404,12 +408,27 @@ fn validate_recipe(
             result,
             ports,
             binder_count,
+            retained,
         } => {
             spend(
                 left,
                 ports.len().saturating_add(*binder_count as usize),
                 span,
             )?;
+            spend(left, retained.len(), span)?;
+            for row in retained {
+                spend(left, row.path.len(), span)?;
+                if retained.len() != 1
+                    || row.path != [LifeTypeProjection::Result]
+                    || row.class != 0
+                    || row.binder >= *binder_count
+                {
+                    return Err(bad(
+                        span,
+                        "Task recipe result class mapping is not canonical",
+                    ));
+                }
+            }
             validate_recipe(result, depth + 1, limits, left, span)?;
             for port in ports {
                 validate_recipe(&port.pointee, depth + 1, limits, left, span)?;

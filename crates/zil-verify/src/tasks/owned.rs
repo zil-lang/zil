@@ -87,7 +87,24 @@ pub(super) fn borrowed_shape(
     Ok(zil_ir::RetainedLifeShape {
         binder_count: next_binder,
         ports,
-        retained: vec![],
+        retained: if matches!(f.return_type, Type::Address { mutable: false, .. }) {
+            f.storage_life
+                .as_ref()
+                .and_then(|life| {
+                    super::super::signature_life::outer(life, zil_ir::StorageBase::Result)
+                })
+                .and_then(|source| classes.get(&source))
+                .map(|binder| {
+                    vec![zil_ir::StorageRetainedBinding {
+                        path: vec![zil_ir::LifeTypeProjection::Result],
+                        class: 0,
+                        binder: *binder,
+                    }]
+                })
+                .unwrap_or_default()
+        } else {
+            vec![]
+        },
         nominal_arguments: vec![],
     })
 }
@@ -120,6 +137,13 @@ fn record(t: &Type, budget: &mut Budget) -> Check<bool> {
 pub(super) fn result_type(t: &Type, budget: &mut Budget) -> Check<bool> {
     if *t == Type::I32 {
         return Ok(true);
+    }
+    if let Type::Address {
+        mutable: false,
+        inner,
+    } = t
+    {
+        return Ok(retained_pointee(inner));
     }
     if let Type::Managed(payload) = t {
         return record(payload, budget);

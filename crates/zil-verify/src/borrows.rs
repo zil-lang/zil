@@ -304,7 +304,9 @@ fn check(
         }
         budget.spend(claim.roots.len())?;
     }
-    if !function_has_sources(module, f, descriptor_origins, budget)? {
+    if !budget.task_borrowed_results
+        && !function_has_sources(module, f, descriptor_origins, budget)?
+    {
         if plan.holds.iter().any(|claim| !claim.roots.is_empty()) {
             return Err(reject(
                 "E-VERIFY-HOLD",
@@ -319,6 +321,21 @@ fn check(
         let mut coarse: Vec<_> = actual.iter().map(|root| root.coarse()).collect();
         budget.spend(coarse.len())?;
         coarse.dedup();
+        if budget.task_borrowed_results {
+            let checked = budget
+                .task_stored_sources
+                .as_ref()
+                .and_then(|rows| rows.get(f.id.0 as usize))
+                .and_then(|row| row.values.get(claim.value.0 as usize))
+                .ok_or_else(|| {
+                    reject(
+                        "E-VERIFY-TASK-SOURCES",
+                        Some(f.span),
+                        "canonical Hold lacks an actual stored SSA proof",
+                    )
+                })?;
+            coarse = checked.public.clone();
+        }
         if claim.roots != coarse {
             return Err(reject(
                 "E-VERIFY-HOLD",
@@ -1254,7 +1271,57 @@ fn check_module_mask(
     };
     let empty_port_facts = port_facts::FunctionFacts::default();
     let descriptor_origins = descriptor_origins(module, budget)?;
-    let facts = reconstruct_module(module, graphs, descriptor_origins, mask, budget)?;
+    let mut facts = reconstruct_module(module, graphs, descriptor_origins, mask, budget)?;
+    if budget.task_borrowed_results {
+        let checked = budget.task_stored_sources.as_ref().ok_or_else(|| {
+            reject(
+                "E-VERIFY-TASK-SOURCES",
+                None,
+                "Task result overlap lacks its complete actual stored proof",
+            )
+        })?;
+        if checked.len() != module.functions.len() {
+            return Err(reject(
+                "E-VERIFY-TASK-SOURCES",
+                None,
+                "Task stored proof omitted an actual function",
+            ));
+        }
+        let checked = checked.clone();
+        for ((function, facts), actual) in module.functions.iter().zip(&mut facts).zip(&checked) {
+            if actual.values.len() != function.values.len()
+                || facts.values.len() != function.values.len()
+            {
+                return Err(reject(
+                    "E-VERIFY-TASK-SOURCES",
+                    None,
+                    "Task source proof omitted an actual SSA value",
+                ));
+            }
+            for ((ty, row), sources) in function
+                .values
+                .iter()
+                .zip(&mut facts.values)
+                .zip(&actual.values)
+            {
+                let physical = if matches!(ty, Type::Address { .. }) {
+                    &sources.pointer
+                } else {
+                    &sources.public
+                };
+                budget.spend(physical.len())?;
+                *row = physical
+                    .iter()
+                    .map(|root| match root {
+                        HoldRoot::Static => Root::Static,
+                        HoldRoot::Local(local) => Root::Local(*local),
+                        HoldRoot::Parameter(p) => Root::Parameter(*p),
+                        HoldRoot::Capture(c) => Root::Capture(*c),
+                    })
+                    .collect();
+            }
+        }
+    }
     if budget.invocation_callbacks {
         check_callback_returns(module, graphs, &facts, budget)?;
     }

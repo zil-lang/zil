@@ -6,6 +6,7 @@ pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
 mod retained;
+mod task_address;
 use std::collections::BTreeMap;
 pub(super) mod owned;
 #[path = "stored_flow_pure_copy.rs"]
@@ -13,6 +14,7 @@ mod pure_copy;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Target {
+    retained_port: Option<u32>,
     pub base: HoldRoot,
     /// Empty is an ordinary input pointee. A nonempty path is an input's
     /// *stored target*, never a byte offset into that input's carrier.
@@ -33,6 +35,7 @@ struct Value {
     enum_variants: enum_address::Variants,
     option_variants: option_address::Variants,
     pointer: Permission,
+    task_ports: BTreeMap<Vec<zil_ir::ContractProjection>, Permission>,
     slots: BTreeMap<Path, Permission>,
     held: Permission,
     /// Capture ordinal followed by its pointee's stored-leaf path. These are
@@ -58,6 +61,7 @@ struct Loan {
 pub(super) struct Facts {
     pub values: Vec<Vec<Target>>,
     pub returned: BTreeMap<Path, Vec<Target>>,
+    returned_task_ports: BTreeMap<Vec<zil_ir::ContractProjection>, Vec<Target>>,
     external_after: BTreeMap<(u32, Path), Vec<Target>>,
     pub apart: BTreeSet<(Target, Target)>,
     complete: bool,
@@ -127,6 +131,7 @@ fn environment_merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileRes
 }
 fn merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileResult<bool> {
     let mut changed = union(&mut to.pointer, &from.pointer, b)?;
+    changed |= task_address::merge(to, from, b)?;
     changed |= to.enum_variants.join(&from.enum_variants, b)?;
     changed |= to.option_variants.join(&from.option_variants, b)?;
     changed |= environment_merge(to, from, b)?;
@@ -192,6 +197,7 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
         fee(b, value.held.loans.len())?;
         target_work(&value.pointer.targets, b)?;
         fee(b, value.pointer.loans.len())?;
+        task_address::work(value, b)?;
         fee(b, value.environment.len())?;
         for (path, permission) in value.environment.iter().chain(&value.slots) {
             fee(
@@ -245,6 +251,12 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
                     .saturating_add(root.place.len())
                     .saturating_add(1),
             )?;
+        }
+    }
+    if b.task_borrowed_results {
+        for (path, row) in &f.returned_task_ports {
+            fee(b, path.len())?;
+            target_work(&row.iter().cloned().collect(), b)?;
         }
     }
     for (path, row) in &f.returned {
@@ -1105,7 +1117,12 @@ fn returns(
             let HoldRoot::Parameter(index) = source.base else {
                 return Err(failure("result retains local/captured target"));
             };
-            if binding(f, StorageBase::Parameter(index), &source.stored, b)? != upper {
+            if (if source.retained_port.is_some() {
+                task_address::source_binding(f, source, b)?
+            } else {
+                binding(f, StorageBase::Parameter(index), &source.stored, b)?
+            }) != upper
+            {
                 return Err(failure(
                     "actual returned target exceeds its declared stored/fresh relation",
                 ));
@@ -1445,6 +1462,7 @@ fn seed_environment(
     let mut add = |path: Path, value: &mut Value, b: &mut Budget| -> CompileResult<()> {
         fee(b, path.len().saturating_mul(2).saturating_add(3))?;
         let target = Target {
+            retained_port: None,
             base,
             stored: path.clone(),
             place: Vec::new(),
@@ -1483,6 +1501,7 @@ fn seed_value(
     let mut value = Value::default();
     if let Type::Address { mutable, .. } = ty {
         let target = Target {
+            retained_port: None,
             base,
             stored: Vec::new(),
             place: Vec::new(),
@@ -1505,6 +1524,7 @@ fn seed_value(
     {
         for (path, mode) in enum_address::slots(ty, b)? {
             let target = Target {
+                retained_port: None,
                 base,
                 stored: path.clone(),
                 place: Vec::new(),
@@ -1531,6 +1551,7 @@ fn seed_value(
         for decl in &life.slots {
             fee(b, decl.path.len().saturating_mul(3).saturating_add(3))?;
             let target = Target {
+                retained_port: None,
                 base,
                 stored: decl.path.clone(),
                 place: Vec::new(),
@@ -1562,6 +1583,7 @@ fn seed_value(
         }
         value.slots = slots;
     }
+    task_address::seed(ty, base, &mut value, loans, b)?;
     Ok(value)
 }
 fn seed(
@@ -1706,6 +1728,11 @@ fn roots(value: &Value, b: &mut Budget) -> CompileResult<Targets> {
     for leaf in value.slots.values() {
         union(&mut permission, leaf, b)?;
     }
+    if b.task_borrowed_results {
+        for leaf in value.task_ports.values() {
+            union(&mut permission, leaf, b)?;
+        }
+    }
     Ok(permission.targets)
 }
 
@@ -1739,7 +1766,9 @@ fn substitute(
     let value = values
         .get(actual.0 as usize)
         .ok_or_else(|| failure("call actual is outside values"))?;
-    let mut result = if source.stored.is_empty() {
+    let mut result = if let Some(port) = source.retained_port {
+        task_address::select(value, &source.stored, port, b)?
+    } else if source.stored.is_empty() {
         let mut out = Permission::default();
         union(&mut out, &value.pointer, b)?;
         out
@@ -1911,7 +1940,8 @@ fn transfer(
             .ok_or_else(|| failure("operand is outside actual values"))
     };
     let enum_transfer = enum_address::transfer(module, f, i, values, b)?;
-    let option_transfer = if enum_transfer.is_none() {
+    let task_transfer = task_address::transfer(module, f, i, state, values, summaries, b)?;
+    let option_transfer = if enum_transfer.is_none() && task_transfer.is_none() {
         option_address::transfer(module, f, i, values, b)?
     } else {
         None
@@ -1920,6 +1950,7 @@ fn transfer(
         InstructionKind::StaticUtf8 { .. } => {
             fee(b, 1)?;
             out.pointer.targets.insert(Target {
+                retained_port: None,
                 base: HoldRoot::Static,
                 stored: Vec::new(),
                 place: Vec::new(),
@@ -1941,7 +1972,8 @@ fn transfer(
         }
         InstructionKind::TakeLocal { local } => {
             ordered(b, state.locals.len(), 0)?;
-            if super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty)
+            if task_address::shape(&f.locals[local.0 as usize].ty).is_some()
+                || super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty)
                 || carrier(&f.locals[local.0 as usize].ty).is_some()
                 || (b.stored_enum_addresses
                     && enum_address::signature(&f.locals[local.0 as usize].ty))
@@ -1996,6 +2028,7 @@ fn transfer(
         InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
             fee(b, 1)?;
             out.pointer.targets.insert(Target {
+                retained_port: None,
                 base: HoldRoot::Local(*local),
                 stored: Vec::new(),
                 place: Vec::new(),
@@ -2005,6 +2038,11 @@ fn transfer(
                 if let Some(held) = state.locals.get(local) {
                     environment_merge(&mut out, held, b)?;
                 }
+            }
+            if b.task_borrowed_results
+                && let Some(held) = state.locals.get(local)
+            {
+                task_address::merge(&mut out, held, b)?;
             }
             if carrier(&f.locals[local.0 as usize].ty).is_some() {
                 ordered(b, state.locals.len(), 0)?;
@@ -2198,6 +2236,7 @@ fn transfer(
                 .returned_enum_variants
                 .substitute(arguments, values, b)?;
             out.option_variants = summary.returned_variants.substitute(arguments, values, b)?;
+            task_address::call(summary, arguments, values, state, &mut out, b)?;
             for (path, sources) in &summary.returned {
                 let mut permission = Permission::default();
                 for source in sources {
@@ -2344,6 +2383,7 @@ fn transfer(
             }
             fee(b, 1)?;
             out.pointer.targets.insert(Target {
+                retained_port: None,
                 base: HoldRoot::Capture(*index),
                 stored: vec![],
                 place: vec![],
@@ -2363,6 +2403,7 @@ fn transfer(
                 | InstructionKind::CallClosureMut { callee, .. } => {
                     fee(b, 1)?;
                     receiver.targets.insert(Target {
+                        retained_port: None,
                         base: HoldRoot::Local(*callee),
                         stored: vec![],
                         place: vec![],
@@ -2481,6 +2522,9 @@ fn transfer(
         }
         _ if option_transfer.is_some() => {
             out = option_transfer.unwrap();
+        }
+        _ if task_transfer.is_some() => {
+            out = task_transfer.clone().unwrap();
         }
         _ if pure_copy::operation(&i.kind) => {
             pure_copy::types(f, i, b)?;
@@ -2664,7 +2708,10 @@ fn intersects(left: &Target, right: &Target, b: &mut Budget) -> CompileResult<bo
             .saturating_add(right.place.len())
             .saturating_add(1),
     )?;
-    if left.base != right.base || left.stored != right.stored {
+    if left.base != right.base
+        || left.stored != right.stored
+        || left.retained_port != right.retained_port
+    {
         return Ok(false);
     }
     Ok(left.place.starts_with(&right.place) || right.place.starts_with(&left.place))
@@ -2673,7 +2720,9 @@ fn may_alias(left: &Target, right: &Target) -> bool {
     matches!(
         (left.base, right.base),
         (HoldRoot::Parameter(_), HoldRoot::Parameter(_))
-    ) && (left.base != right.base || left.stored != right.stored)
+    ) && (left.base != right.base
+        || left.stored != right.stored
+        || left.retained_port != right.retained_port)
 }
 fn separate(
     left: &Target,
@@ -2784,6 +2833,11 @@ fn active(
         if let Some(value) = value {
             union(&mut direct, &value.pointer, b)?;
             union(&mut direct, &value.held, b)?;
+            if b.task_borrowed_results {
+                for permission in value.task_ports.values() {
+                    union(&mut direct, permission, b)?;
+                }
+            }
             for leaf in value.slots.values() {
                 union(&mut direct, leaf, b)?;
             }
@@ -2970,6 +3024,7 @@ fn windows(
                 | InstructionKind::StorePackageField { local, index, .. } => {
                     let actual = Permission {
                         targets: BTreeSet::from([Target {
+                            retained_port: None,
                             base: HoldRoot::Local(*local),
                             stored: Vec::new(),
                             place: vec![PlaceProjection::Field(*index)],
@@ -3000,6 +3055,7 @@ fn windows(
                 | InstructionKind::DropClosure { local } => {
                     let mut actual = Permission::default();
                     actual.targets.insert(Target {
+                        retained_port: None,
                         base: HoldRoot::Local(*local),
                         stored: Vec::new(),
                         place: Vec::new(),
@@ -3010,6 +3066,7 @@ fn windows(
                 InstructionKind::BorrowCapture { index, mutable } => {
                     let actual = Permission {
                         targets: BTreeSet::from([Target {
+                            retained_port: None,
                             base: HoldRoot::Capture(*index),
                             stored: vec![],
                             place: vec![],
@@ -3131,6 +3188,7 @@ fn windows(
                             all.push((
                                 Permission {
                                     targets: BTreeSet::from([Target {
+                                        retained_port: None,
                                         base: HoldRoot::Local(*callee),
                                         stored: vec![],
                                         place: vec![],
@@ -3402,6 +3460,7 @@ fn derive_cfg(
             let mut actual = Facts {
                 values: Vec::with_capacity(values.len()),
                 returned: BTreeMap::new(),
+                returned_task_ports: BTreeMap::new(),
                 external_after: BTreeMap::new(),
                 apart: BTreeSet::new(),
                 complete: false,
@@ -3519,6 +3578,7 @@ fn derive_cfg(
                     for (path, permission) in &value.slots {
                         add(path, permission)?;
                     }
+                    task_address::summarize(f, value, &mut actual, b)?;
                 }
             }
             let mut grounded = true;
@@ -3724,12 +3784,14 @@ pub(super) fn infer(
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
     // Raw paid inventories classify new owning holders and Fixed captures.
     // Preserve the established Fixed profile without rescanning either table.
-    b.stored_owned_fixed =
-        if b.composition_stored.is_empty() && (!b.stored_packages || b.stored_fixed_owner) {
-            owned::profile(module, b)?
-        } else {
-            false
-        };
+    b.stored_owned_fixed = if !b.task_borrowed_results
+        && b.composition_stored.is_empty()
+        && (!b.stored_packages || b.stored_fixed_owner)
+    {
+        owned::profile(module, b)?
+    } else {
+        false
+    };
     super::stored_callables::definitions(module, b)?;
     let mut foreign_symbols = BTreeSet::new();
     for f in &module.functions {
@@ -3739,6 +3801,7 @@ pub(super) fn infer(
         if (f.foreign.is_some() && !super::stored_callables::scalar_foreign(f, b)?)
             || f.callable_return_contract.is_some()
             || f.call_kind != CallKind::Direct
+                && !(b.task_borrowed_results && f.call_kind == CallKind::Suspend)
         {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
@@ -3788,6 +3851,7 @@ pub(super) fn infer(
                 false
             };
             if !(super::stored_callables::value(module, ty)
+                || b.task_borrowed_results && task_address::admitted_value(ty)
                 || carrier(ty).is_some()
                 || pointed_carrier(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
@@ -3899,6 +3963,7 @@ fn actual_instructions(
                 && !super::stored_callables::instruction(module, f, i)
                 && !owned_operation
                 && !enum_operation
+                && !(b.task_borrowed_results && task_address::operation(&i.kind))
                 && !pure_copy::operation(&i.kind)
                 && !matches!(
                     &i.kind,
@@ -3990,6 +4055,7 @@ fn actual_instructions(
             if pure_copy::operation(&i.kind)
                 && enum_address::types(module, f, i, b)?.is_none()
                 && option_address::types(module, f, i, b)?.is_none()
+                && !(b.task_borrowed_results && task_address::wrapper_instruction(f, i, b)?)
             {
                 // A qualified Enum claim cannot become an unsupported Copy
                 // operation merely by deleting its nominal instance inventory.
@@ -5360,6 +5426,7 @@ mod tests {
         assert_eq!(
             facts[3].values[4],
             vec![Target {
+                retained_port: None,
                 base: HoldRoot::Local(LocalId(0)),
                 stored: vec![],
                 place: vec![]

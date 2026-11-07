@@ -572,10 +572,31 @@ fn recipe(
                 });
             }
         }
+        let mut retained = Vec::new();
+        if let TypeKind::Reference {
+            lifetime: Some(life),
+            mutable: false,
+            ..
+        } = &grouped(result).kind
+        {
+            budget.text(life, result.span)?;
+            let binder = *classes.get(life).ok_or_else(|| {
+                error(
+                    result.span,
+                    "Task result lifetime has no retained input class",
+                )
+            })?;
+            retained.push(StorageRetainedBinding {
+                path: vec![LifeTypeProjection::Result],
+                class: 0,
+                binder,
+            });
+        }
         return Ok(CoreAggregateTypeRecipe::Task {
             result: Box::new(recipe(result, formal, families, budget, depth + 1)?),
             binder_count: classes.len() as u32,
             ports,
+            retained,
         });
     }
     if let TypeKind::Named { path, args } = &grouped(ty).kind

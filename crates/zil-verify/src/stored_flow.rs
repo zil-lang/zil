@@ -8,11 +8,13 @@ pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
 mod retained;
+mod task_address;
 
 type Path = Vec<PlaceProjection>;
 type WriteSites = Vec<(usize, u32, Path, usize, bool)>;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Source {
+    retained_port: Option<u32>,
     base: HoldRoot,
     leaf: Path,
     inline: Path,
@@ -27,6 +29,8 @@ struct Payload {
     enum_variants: enum_address::Variants,
     option_variants: option_address::Variants,
     address: Permission,
+    task_ports: Vec<(Vec<ContractProjection>, Permission)>,
+    creation_complete: Option<bool>,
     // For a concrete Fixed environment only, a private Field(capture) prefix
     // retains its actual outer address and pointee leaves. It grants no public
     // projection, is never a signature class selector, and is not serialized.
@@ -47,6 +51,7 @@ struct Loan {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Summary {
     result: Vec<(Path, Vec<Source>)>,
+    task_ports: Vec<(Vec<ContractProjection>, Vec<Source>)>,
     external_after: Vec<(u32, Path, Vec<Source>)>,
     apart: Vec<(Source, Source)>,
     complete: bool,
@@ -54,6 +59,22 @@ struct Summary {
     enum_values: Vec<(ValueId, enum_address::Variants)>,
     returned_variants: option_address::Variants,
     none_values: Vec<ValueId>,
+}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum TaskLoanAnchor {
+    Value(ValueId),
+    Input(zil_ir::StoragePosition),
+}
+#[derive(Clone, Debug, Default)]
+pub(super) struct TaskValueSources {
+    pub(super) pointer: Vec<HoldRoot>,
+    pub(super) public: Vec<HoldRoot>,
+    pub(super) pointer_parents: Vec<TaskLoanAnchor>,
+    pub(super) payload_parents: Vec<TaskLoanAnchor>,
+}
+#[derive(Clone, Debug, Default)]
+pub(super) struct TaskFunctionSources {
+    pub(super) values: Vec<TaskValueSources>,
 }
 struct Solution {
     values: Vec<Payload>,
@@ -95,6 +116,7 @@ fn payload_work(p: &Payload, b: &mut Budget) -> Check<()> {
     p.enum_variants.work(b)?;
     p.option_variants.work(b)?;
     permission_work(&p.address, b)?;
+    task_address::work(p, b)?;
     b.spend(p.leaves.len())?;
     for (path, p) in &p.leaves {
         b.spend(path.len())?;
@@ -206,6 +228,12 @@ fn take_package_field_leaves(holder: &mut Payload, index: u32, b: &mut Budget) -
 }
 fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool> {
     let mut changed = join_permission(&mut to.address, &from.address, b)?;
+    changed |= task_address::join(to, from, b)?;
+    if let Some(complete) = from.creation_complete {
+        let joined = Some(to.creation_complete.unwrap_or(false) || complete);
+        changed |= to.creation_complete != joined;
+        to.creation_complete = joined;
+    }
     changed |= to.enum_variants.join(&from.enum_variants, b)?;
     changed |= to.option_variants.join(&from.option_variants, b)?;
     for (path, p) in &from.leaves {
@@ -708,6 +736,7 @@ pub(super) fn qualifications(
                     && !super::stored_callables::instruction(module, f, i)
                     && !owned_operation
                     && !enum_operation
+                    && !(b.task_borrowed_results && task_address::operation(&i.kind))
                     && !pure_copy::operation(&i.kind)
                     && !matches!(
                         &i.kind,
@@ -777,6 +806,7 @@ pub(super) fn qualifications(
                 if pure_copy::operation(&i.kind)
                     && enum_address::types(module, f, i, b)?.is_none()
                     && option_address::types(module, f, i, b)?.is_none()
+                    && !(b.task_borrowed_results && task_address::wrapper_instruction(f, i, b)?)
                 {
                     // A qualified Enum claim cannot become an unsupported Copy
                     // operation merely by deleting its nominal instance inventory.
@@ -1267,6 +1297,7 @@ fn overlap(a: &Source, z: &Source, b: &mut Budget) -> Check<bool> {
     b.spend(width(a).saturating_add(width(z)))?;
     Ok(a.base == z.base
         && a.leaf == z.leaf
+        && a.retained_port == z.retained_port
         && (a.inline.starts_with(&z.inline) || z.inline.starts_with(&a.inline)))
 }
 fn apart(
@@ -1281,7 +1312,7 @@ fn apart(
     if matches!(
         (a.base, z.base),
         (HoldRoot::Parameter(_), HoldRoot::Parameter(_))
-    ) && (a.base != z.base || a.leaf != z.leaf)
+    ) && (a.base != z.base || a.leaf != z.leaf || a.retained_port != z.retained_port)
     {
         let size = width(a).saturating_add(width(z));
         b.spend(amount(requirements.len().saturating_add(1), size)?)?;
@@ -1404,6 +1435,7 @@ fn seed_payload(
     let mut p = Payload::default();
     if let Type::Address { mutable, .. } = ty {
         let source = Source {
+            retained_port: None,
             base,
             leaf: Vec::new(),
             inline: Vec::new(),
@@ -1427,6 +1459,7 @@ fn seed_payload(
         for (path, mode) in enum_address::slots(ty, b)? {
             b.spend(path.len().saturating_mul(2).saturating_add(3))?;
             let source = Source {
+                retained_port: None,
                 base,
                 leaf: path.clone(),
                 inline: Vec::new(),
@@ -1452,6 +1485,7 @@ fn seed_payload(
         for slot in &shape.slots {
             b.spend(slot.path.len().saturating_mul(3).saturating_add(4))?;
             let source = Source {
+                retained_port: None,
                 base,
                 leaf: slot.path.clone(),
                 inline: Vec::new(),
@@ -1476,12 +1510,14 @@ fn seed_payload(
         if super::stored_owned::description(ty) {
             b.spend(1)?;
             p.address.sources.push(Source {
+                retained_port: None,
                 base,
                 leaf: Vec::new(),
                 inline: Vec::new(),
             });
         }
     }
+    task_address::seed(ty, base, &mut p, loans, b)?;
     Ok(p)
 }
 fn empty_frame(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<Frame> {
@@ -1624,7 +1660,9 @@ fn instantiate(
         .get(position as usize)
         .and_then(|v| values.get(v.0 as usize))
         .ok_or_else(|| err("callee source has no actual argument"))?;
-    let mut p = if source.leaf.is_empty() {
+    let mut p = if let Some(port) = source.retained_port {
+        task_address::select(v, &source.leaf, port, b)?
+    } else if source.leaf.is_empty() {
         permission_work(&v.address, b)?;
         v.address.clone()
     } else if !v.leaves.is_empty()
@@ -1756,8 +1794,9 @@ fn step(
             .get(v.0 as usize)
             .ok_or_else(|| err("operand outside actual value table"))
     };
+    let task_transfer = task_address::transfer(module, f, i, state, values, summaries, b)?;
     let enum_transfer = enum_address::transfer(module, f, i, values, b)?;
-    let option_transfer = if enum_transfer.is_none() {
+    let option_transfer = if enum_transfer.is_none() && task_transfer.is_none() {
         option_address::transfer(module, f, i, values, b)?
     } else {
         None
@@ -1766,6 +1805,7 @@ fn step(
         InstructionKind::StaticUtf8 { .. } => {
             b.spend(1)?;
             out.address.sources.push(Source {
+                retained_port: None,
                 base: HoldRoot::Static,
                 leaf: Vec::new(),
                 inline: Vec::new(),
@@ -1827,6 +1867,7 @@ fn step(
             {
                 b.spend(1)?;
                 out.address.sources.push(Source {
+                    retained_port: None,
                     base: HoldRoot::Local(*local),
                     leaf: Vec::new(),
                     inline: Vec::new(),
@@ -1836,6 +1877,7 @@ fn step(
         InstructionKind::DescribeCapture { index } => {
             b.spend(1)?;
             out.address.sources.push(Source {
+                retained_port: None,
                 base: HoldRoot::Capture(*index),
                 leaf: Vec::new(),
                 inline: Vec::new(),
@@ -1924,6 +1966,7 @@ fn step(
             }
             b.spend(1)?;
             out.address.sources.push(Source {
+                retained_port: None,
                 base: HoldRoot::Capture(*index),
                 leaf: Vec::new(),
                 inline: Vec::new(),
@@ -1940,6 +1983,7 @@ fn step(
                     b.spend(1)?;
                     Permission {
                         sources: vec![Source {
+                            retained_port: None,
                             base: HoldRoot::Local(*callee),
                             leaf: vec![],
                             inline: vec![],
@@ -2013,10 +2057,14 @@ fn step(
         InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
             b.spend(1)?;
             out.address.sources.push(Source {
+                retained_port: None,
                 base: HoldRoot::Local(*local),
                 leaf: Vec::new(),
                 inline: Vec::new(),
             });
+            if b.task_borrowed_results {
+                task_address::join(&mut out, &state.locals[local.0 as usize], b)?;
+            }
             if qualified(&f.locals[local.0 as usize].ty).is_some()
                 || fixed_environment(module, &f.locals[local.0 as usize].ty)
             {
@@ -2153,6 +2201,14 @@ fn step(
                     "stored call requires an independently checked ordinary direct body",
                 ));
             }
+            task_address::call(
+                &summaries[function.0 as usize],
+                arguments,
+                values,
+                state,
+                &mut out,
+                b,
+            )?;
             out.enum_variants = summaries[function.0 as usize]
                 .returned_enum_variants
                 .substitute(arguments, values, b)?;
@@ -2254,6 +2310,9 @@ fn step(
         }
         _ if option_transfer.is_some() => {
             out = option_transfer.unwrap();
+        }
+        _ if task_transfer.is_some() => {
+            out = task_transfer.clone().unwrap();
         }
         _ if pure_copy::operation(&i.kind) => {
             pure_copy::types(f, i, b)?;
@@ -2601,6 +2660,11 @@ fn live_loans(
             &state.locals[id - solution.values.len()]
         };
         add_loans(&mut loans, &payload.address.loans, b)?;
+        if b.task_borrowed_results {
+            for (_, p) in &payload.task_ports {
+                add_loans(&mut loans, &p.loans, b)?;
+            }
+        }
         for (_, p) in &payload.leaves {
             add_loans(&mut loans, &p.loans, b)?;
         }
@@ -2772,6 +2836,7 @@ fn windows(
                 | InstructionKind::StorePackageField { local, index, .. } => {
                     let actual = Permission {
                         sources: vec![Source {
+                            retained_port: None,
                             base: HoldRoot::Local(*local),
                             leaf: Vec::new(),
                             inline: vec![PlaceProjection::Field(*index)],
@@ -2800,6 +2865,7 @@ fn windows(
                     b.spend(1)?;
                     let actual = Permission {
                         sources: vec![Source {
+                            retained_port: None,
                             base: HoldRoot::Capture(*index),
                             leaf: vec![],
                             inline: vec![],
@@ -2816,6 +2882,7 @@ fn windows(
                 | InstructionKind::BorrowLocalMut { local } => {
                     b.spend(1)?;
                     let source = Source {
+                        retained_port: None,
                         base: HoldRoot::Local(*local),
                         leaf: Vec::new(),
                         inline: Vec::new(),
@@ -2993,6 +3060,7 @@ fn windows(
                             all.push((
                                 Permission {
                                     sources: vec![Source {
+                                        retained_port: None,
                                         base: HoldRoot::Local(*callee),
                                         leaf: vec![],
                                         inline: vec![],
@@ -3138,6 +3206,12 @@ fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
             .saturating_add(s.external_after.len())
             .saturating_add(s.apart.len()),
     )?;
+    if b.task_borrowed_results {
+        for (path, row) in &s.task_ports {
+            b.spend(path.len())?;
+            source_work(row, b)?;
+        }
+    }
     for (path, row) in &s.result {
         b.spend(path.len())?;
         source_work(row, b)?;
@@ -3199,6 +3273,9 @@ fn summarize(
             if dead.contains(&ValueId(id as u32)) {
                 continue;
             }
+        }
+        if p.creation_complete == Some(false) {
+            summary.complete = false;
         }
         if matches!(ty, Type::Address { .. }) && p.address.sources.is_empty() {
             summary.complete = false;
@@ -3344,6 +3421,7 @@ fn summarize(
             for (path, p) in &payload.leaves {
                 result_row(&mut summary, path, &p.sources, b)?;
             }
+            task_address::summarize(f, payload, &mut summary, b)?;
         }
     }
     for loan in &solution.loans {
@@ -3387,7 +3465,7 @@ fn check_with_mask(
 ) -> Check<()> {
     let mixed_package = b.stored_package_instance;
     if mask.is_none() {
-        if !mixed_package {
+        if !mixed_package && !b.task_borrowed_results {
             super::stored_owned::module(module, b)?;
         }
         super::stored_callables::definitions(module, b)?;
@@ -3406,6 +3484,7 @@ fn check_with_mask(
         if (f.foreign.is_some() && !super::stored_callables::scalar_foreign(f, b)?)
             || f.callable_return_contract.is_some()
             || f.call_kind != CallKind::Direct
+                && !(b.task_borrowed_results && f.call_kind == CallKind::Suspend)
         {
             return Err(unsupported(
                 "stored profile requires ordinary direct function bodies",
@@ -3443,6 +3522,7 @@ fn check_with_mask(
                 false
             };
             if !(super::stored_callables::value(module, ty)
+                || b.task_borrowed_results && task_address::admitted_value(ty)
                 || qualified(ty).is_some()
                 || addressed(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
@@ -3588,6 +3668,11 @@ fn solve_check(
     {
         return solve_check(module, &proof.graphs, plan, Some(&proof.inactive), mask, b);
     }
+    let mut checked_task_sources = if b.task_borrowed_results {
+        Some(Vec::with_capacity(module.functions.len()))
+    } else {
+        None
+    };
     for (index, (f, s)) in module.functions.iter().zip(&summaries).enumerate() {
         if mask.is_some_and(|mask| !mask[index]) {
             continue;
@@ -3669,7 +3754,11 @@ fn solve_check(
                 }
                 if f.storage_life.is_some()
                     && relation(f, StorageBase::Result, path, b)?
-                        != relation(f, StorageBase::Parameter(position), &source.leaf, b)?
+                        != (if source.retained_port.is_some() {
+                            task_address::source_relation(f, source, b)?
+                        } else {
+                            relation(f, StorageBase::Parameter(position), &source.leaf, b)?
+                        })
                 {
                     return Err(err(
                         "actual returned target exceeds the complete stored relation",
@@ -3680,6 +3769,9 @@ fn solve_check(
         let solution = solved[index]
             .as_ref()
             .ok_or_else(|| err("independent solver omitted a function"))?;
+        if let Some(checked) = checked_task_sources.as_mut() {
+            checked.push(task_address::checked_sources(f, solution, b)?);
+        }
         let claimed = &plan.functions[index].holds;
         if claimed.len() != solution.values.len() {
             return Err(err("candidate must cover each actual value once"));
@@ -3691,6 +3783,7 @@ fn solve_check(
                 .sources
                 .iter()
                 .chain(p.leaves.iter().flat_map(|(_, p)| &p.sources))
+                .chain(p.task_ports.iter().flat_map(|(_, p)| &p.sources))
             {
                 b.spend(actual.len().saturating_add(1))?;
                 actual.insert(root.base);
@@ -3702,6 +3795,9 @@ fn solve_check(
                 ));
             }
         }
+    }
+    if let Some(checked) = checked_task_sources {
+        b.task_stored_sources = Some(checked);
     }
     Ok(())
 }

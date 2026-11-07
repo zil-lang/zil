@@ -132,7 +132,12 @@ fn analyze_budgeted(
         // These actual opaque carriers cannot enter the legacy stored lane.
         // A stored module with only scalar helpers retains its old path/fees.
         let ordinary_required = budget.tasks || budget.registrations;
-        if ordinary_required {
+        if budget.task_borrowed_results {
+            for function in &module.functions {
+                stored_flow::header(module, function, budget)?;
+            }
+            stored_holds = Some(stored_flow::infer(module, &hold_graphs, budget)?);
+        } else if ordinary_required {
             let members = composition::partition(module, budget)?;
             if !members.iter().any(|member| *member) || !members.iter().any(|member| !*member) {
                 return Err(vec![Diagnostic::unsupported(
@@ -224,7 +229,7 @@ fn analyze_budgeted(
     };
     if let Some(stored) = stored_holds {
         for (index, rows) in stored.into_iter().enumerate() {
-            if budget.composition_stored[index] {
+            if budget.task_borrowed_results || budget.composition_stored[index] {
                 if rows.len() != module.functions[index].values.len() {
                     return Err(bad("stored composition solver omitted an owned function"));
                 }

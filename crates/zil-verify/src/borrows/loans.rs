@@ -125,10 +125,11 @@ fn reconstruct(
         .parameters
         .iter()
         .filter(|(position, _)| {
-            position
-                .path
-                .iter()
-                .any(|part| matches!(part, ContractProjection::RetainedPort(_)))
+            budget.task_borrowed_results && !position.path.is_empty()
+                || position
+                    .path
+                    .iter()
+                    .any(|part| matches!(part, ContractProjection::RetainedPort(_)))
         })
         .collect();
     let mut parameter_loans = BTreeMap::new();
@@ -510,6 +511,60 @@ fn reconstruct(
                                     }
                                 }
                             }
+                        }
+                    }
+                    if budget.task_borrowed_results {
+                        let checked = budget
+                            .task_stored_sources
+                            .as_ref()
+                            .and_then(|fs| fs.get(f.id.0 as usize))
+                            .and_then(|f| f.values.get(id))
+                            .ok_or_else(|| {
+                                reject(
+                                    "E-VERIFY-TASK-SOURCES",
+                                    Some(instruction.span),
+                                    "Task result lacks complete actual source facts",
+                                )
+                            })?
+                            .clone();
+                        let pointer = matches!(f.values[id], Type::Address { .. });
+                        let anchors = if pointer {
+                            &checked.pointer_parents
+                        } else {
+                            &checked.payload_parents
+                        };
+                        let mut external = Loans::new();
+                        for anchor in anchors {
+                            budget.spend(1)?;
+                            match anchor {
+                                crate::stored_flow::TaskLoanAnchor::Input(position) => {
+                                    let loan = parameter_loans.get(position).ok_or_else(|| {
+                                        reject(
+                                            "E-VERIFY-TASK-PORT",
+                                            Some(instruction.span),
+                                            "exported external source lacks its exact input loan",
+                                        )
+                                    })?;
+                                    external.insert(*loan);
+                                }
+                                crate::stored_flow::TaskLoanAnchor::Value(value) => {
+                                    if value.0 as usize != id {
+                                        join(
+                                            &mut external,
+                                            &flow.values[value.0 as usize],
+                                            budget,
+                                        )?;
+                                    }
+                                }
+                            }
+                        }
+                        if pointer && !external.is_empty() {
+                            row.clear();
+                            row.insert(id);
+                            parents.clear();
+                            join(&mut parents, &external, budget)?;
+                        } else if !pointer {
+                            join(&mut row, &external, budget)?;
                         }
                     }
                     changed |= join(&mut flow.values[id], &row, budget)?;

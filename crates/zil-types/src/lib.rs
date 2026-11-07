@@ -694,10 +694,11 @@ impl<'a, 'c> Builder<'a, 'c> {
         closures.block(f.span)?;
         let worker_life = if f.storage_life.is_none()
             && f.call_kind == Some(CallKind::Suspend)
-            && f.life
-                .as_ref()
-                .is_some_and(|life| life.parameter_lives.iter().flatten().count() > 1)
-        {
+            && f.life.as_ref().is_some_and(|life| {
+                life.parameter_lives.iter().flatten().count() > 1
+                    || (life.result_life.is_some()
+                        && matches!(f.return_type, Type::Address { mutable: false, .. }))
+            }) {
             f.life
                 .as_ref()
                 .and_then(|life| StorageLifeContract::from_flat(borrowed_fp::from_life(life)))
@@ -715,7 +716,16 @@ impl<'a, 'c> Builder<'a, 'c> {
             function: TypedFunction {
                 storage_life,
                 call_kind: f.call_kind.unwrap_or(CallKind::Direct),
-                reference_return_bound: lifetimes::compile(f, closures, limits)?,
+                reference_return_bound: if f.call_kind == Some(CallKind::Suspend)
+                    && matches!(f.return_type, Type::Address { mutable: false, .. })
+                    && f.life
+                        .as_ref()
+                        .is_some_and(|life| life.result_life.is_some())
+                {
+                    None
+                } else {
+                    lifetimes::compile(f, closures, limits)?
+                },
                 callable_return_contract: None,
                 callable_contract: None,
                 protocol_contract: f.protocol_contract.clone(),
@@ -891,7 +901,12 @@ impl<'a, 'c> Builder<'a, 'c> {
                 .signatures
                 .get(&self.function.name)
                 .and_then(|s| s.life.as_ref())
-            && life.parameter_lives.iter().flatten().count() > 1
+            && (life.parameter_lives.iter().flatten().count() > 1
+                || (life.result_life.is_some()
+                    && matches!(
+                        self.function.return_type,
+                        Type::Address { mutable: false, .. }
+                    )))
             && let Some(contract) = StorageLifeContract::from_flat(life.clone())
         {
             borrowed_fp::charge_contract(
@@ -900,6 +915,13 @@ impl<'a, 'c> Builder<'a, 'c> {
                 1,
             )?;
             self.function.storage_life = Some(contract);
+            if matches!(
+                self.function.return_type,
+                Type::Address { mutable: false, .. }
+            ) && life.result_life.is_some()
+            {
+                self.function.reference_return_bound = None;
+            }
         }
         if self.current.is_some() {
             if self.function.return_type == Type::Unit {
