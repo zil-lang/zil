@@ -40,6 +40,24 @@ pub(super) fn owned_capture(ty: &Type, work: &mut usize, limits: &Limits, span: 
             Some(span),
         )
     })?;
+    // The complete snapshot above prepays this new structural walk. Existing
+    // capture families retain their prior predicate and exact fee.
+    fn inline_owner(ty: &Type) -> bool {
+        match ty {
+            Type::Managed(payload) => matches!(payload.as_ref(), Type::OwnedStore { element }
+                if inline_element(element) && supported_element(element)),
+            Type::Package { fields, .. } => fields.iter().any(|(_, field)| inline_owner(field)),
+            Type::Tuple(fields) => fields.iter().any(inline_owner),
+            Type::Enum { variants, .. } => variants
+                .iter()
+                .any(|(_, fields)| fields.iter().any(inline_owner)),
+            Type::ErrorUnion { error, result } => inline_owner(error) || inline_owner(result),
+            _ => false,
+        }
+    }
+    if inline_owner(ty) {
+        return Ok(owned_shapes::value(ty));
+    }
     fn store(ty: &Type) -> bool {
         matches!(ty, Type::Managed(payload)
             if matches!(payload.as_ref(), Type::OwnedStore { element }
@@ -825,7 +843,7 @@ mod pod_tests {
                 element: Box::new(element.clone()),
             }));
             assert!(resources::supported(&head));
-            assert!(!owned_shapes::value(&Type::Package {
+            assert!(owned_shapes::value(&Type::Package {
                 name: "Outer".into(),
                 fields: vec![("items".into(), head)],
             }));
@@ -887,7 +905,7 @@ mod pod_tests {
         }
     }
     #[test]
-    fn pod_store_does_not_inherit_package_or_sum_ownership() {
+    fn pod_store_enters_ordinary_ownership_but_not_container_qualification() {
         let head = Type::Managed(Box::new(Type::OwnedStore {
             element: Box::new(record(Type::F32)),
         }));
@@ -896,20 +914,29 @@ mod pod_tests {
             fields: vec![("items".into(), head.clone())],
         };
         assert!(!packages::supported(&bag));
-        assert!(!packages::product::owned_supported(&bag));
-        assert!(!owned_shapes::value(&bag));
-        assert!(!owned_shapes::sum(&Type::Tuple(vec![head.clone()])));
+        assert!(packages::ordinary(&bag));
+        assert!(packages::product::owned_supported(&bag));
+        assert!(owned_shapes::value(&bag));
+        assert!(owned_shapes::sum(&Type::Tuple(vec![head.clone()])));
+        assert!(!packages::owned_array_supported(&Type::Array {
+            element: Box::new(bag.clone()),
+            length: 1,
+        }));
         assert!(resources::supported(&head));
         let created = Type::ErrorUnion {
             error: Box::new(Type::Unit),
             result: Box::new(head.clone()),
         };
-        assert!(!errors::supported(&created));
+        assert!(errors::supported(&created));
+        assert!(errors::supported(&Type::ErrorUnion {
+            error: Box::new(head.clone()),
+            result: Box::new(Type::Unit),
+        }));
         let hidden_bag = Type::Package {
             name: "Hidden".into(),
             fields: vec![("items".into(), created)],
         };
-        assert!(!owned_shapes::value(&hidden_bag));
+        assert!(owned_shapes::value(&hidden_bag));
         let owned = Type::Package {
             name: "Owned".into(),
             fields: vec![("bytes".into(), Type::Managed(Box::new(Type::ByteBuffer)))],

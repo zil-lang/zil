@@ -2676,10 +2676,19 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         let (inner, address) = match ty {
             ty if ty.is_copy_value() => (ty, None),
             ty @ Type::Package { .. }
-                if packages::supported(ty) || packages::product::nested(ty) =>
+                if packages::supported(ty)
+                    || packages::product::nested(ty)
+                    || ((self.move_capture || nested_owned) && packages::ordinary(ty)) =>
             {
-                if packages::product::nested(ty) {
+                if packages::product::nested(ty) && packages::product::supported(ty) {
                     packages::product::validate(
+                        ty,
+                        self.work_left,
+                        self.limits.max_call_depth,
+                        span,
+                    )?;
+                } else if packages::product::nested(ty) {
+                    packages::product::validate_owned(
                         ty,
                         self.work_left,
                         self.limits.max_call_depth,

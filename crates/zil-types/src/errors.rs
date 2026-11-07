@@ -22,8 +22,7 @@ pub(super) fn supported(ty: &Type) -> bool {
         if ((error.is_copy_value() || packages::supported(error))
             && (result.is_copy_value() || packages::supported(result)))
             || (error.is_copy_value() && matches!(result.as_ref(), Type::Managed(_))
-                && resources::supported(result)
-                && !dynamic_store::element(result).is_some_and(dynamic_store::inline_element)))
+                && resources::supported(result)))
         || dynamic_store::product_protocol(ty)
         || owned_shapes::error_union(ty)
 }
