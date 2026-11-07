@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "kind": "native-language-composition",
+  "status": "InProgress",
+  "accepted_main_commit": null,
+  "base_main_commit": "2b603607dacf07273ccc3b741f309a29ab7e33b9",
+  "published_integration_commit": "1400aeab58530623d6540bd01cf257b1dda85945",
+  "source_branch": "task/G10.6.2",
+  "scope": [
+    "Single direct mutable borrowed Record leaf",
+    "Definition-time explicit impl associated bounds",
+    "Single shared I32 input / I32 result retained Task",
+    "Finite AsyncRegistration phase contracts"
+  ],
+  "author_deliveries": [
+    {
+      "task": "G3.4.2",
+      "commit": "845a454db84ac49a4430e2d25da95089d5c09d6e",
+      "target_passed": 111
+    },
+    {
+      "task": "G2.4.3",
+      "commit": "bac390bddb91060e2f28b42723f926e27536ad5c",
+      "target_passed": 93
+    },
+    {
+      "task": "G8.6.2",
+      "commit": "5119e32782340ef0b0612c3b825681a4dace3fb7",
+      "target_passed": 171
+    },
+    {
+      "task": "G6.1.1",
+      "commit": "443c8cdd3424c9bfed347ab3ee5d4ef3c5078828",
+      "target_passed": 166
+    }
+  ],
+  "integration": {
+    "status": "InProgress",
+    "consumer": "tests/language-readiness/native-composition/{main,model,rules}.zil",
+    "blocker": "Whole-module stored solver dispatch rejects unrelated ordinary callback and Task operations. Independent function partition kernels under implementation; only exact direct I32->I32 cross-component calls planned.",
+    "fixed": "Actual Option/Task compiler prelude provenance, structural Drop in nominal trait modules, imported stored declarations, mutable holder inference and Task annotation hidden-context preservation. Expand lib 73/0.",
+    "acceptance": "No full integrated acceptance or new main delivery claimed yet."
+  },
+  "raw_evidence": "/workspace/.zil-env/native-foundations/",
+  "archive_commit": "4e3753d5309c6d11e5e0efced1dd379cb1bcb09d",
+  "limits": "Mixed owning/borrowed Package, unified same-function permissions, general projection/lending, arbitrary protocols, cross-thread close, Rust product gates and GUI remain open."
+}
