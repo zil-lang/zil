@@ -373,6 +373,7 @@ fn dyn_type(
     )?;
     bytes.extend_from_slice(&(interface.slots.len() as u64).to_le_bytes());
     for (ordinal, slot) in interface.slots.iter().enumerate() {
+        fee(left, 256)?;
         let member = &declaration.members[ordinal];
         if slot.member.application != interface.application
             || slot.member.ordinal as usize != ordinal

@@ -127,7 +127,7 @@ pub(super) fn inventory(
             ));
         }
         for (ordinal, slot) in interface.slots.iter().enumerate() {
-            spend(&mut left, 1 + slot.parameters.len())?;
+            spend(&mut left, 256 + slot.parameters.len())?;
             if slot.contract != scalar_contract()
                 || slot.receiver.mutable
                 || slot.receiver.mode != PassingMode::Borrow
@@ -395,7 +395,7 @@ pub(super) fn inventory_program(
             for slot in &interface.slots {
                 spend(
                     &mut left,
-                    1 + slot.parameters.len()
+                    256 + slot.parameters.len()
                         + slot.parameter_modes.len()
                         + slot.actuals.len()
                         + slot.member.application.actuals.len(),
