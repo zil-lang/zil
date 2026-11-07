@@ -18,13 +18,7 @@ All thirteen captured negative cases also reach independent Verify raw/Wire;
 Analyze rejection does not substitute for that evidence. The bounded test claims
 in `raw_prefix.rs` are untrusted fixture data, never a reused safety solver.
 
-The initial baseline passed Types but blocked four legal capture sources at the
-Analyze Local-only gate with zero Verify runs. Three corresponding captured
-conflicts also stopped at that wrong early gate. Direct controls already exposed
-the proper success/conflict behavior. Later nearest cases exposed Store origins
-lost through temporary DB construction, extraction and replacement. These source
-bytes remain frozen, including the original kernel-gap input and earlier 29
-sources; no rejected legal input is counted as a passing negative.
+The frozen legal controls must reach the intended borrow check; an earlier unsupported or Local-only gate is a gap, never a passing rejection. Store origins remain attached through temporary database construction, extraction and replacement. Original and additional sources retain their distinct input identities.
 
 Assembly-before-borrow with different fields is legal. Borrow-before-give remains
 invalid even if a later operation gives the other field. Swaps completed before
@@ -33,10 +27,7 @@ window reject. The original four swap probes remain unchanged. Two additional
 7/11 identity controls must read 11 from swapped left and 7 from swapped right;
 omitting the swap cannot satisfy their zero-exit oracle.
 
-The consumer is nested in the existing `impl226_shared_product_capture` target;
-no task-specific Cargo target was added. Temporary executables, phase dumps and
-raw candidate files are removed; only useful sources, assertions and this single
-functional result remain. Current-call may effects stay conservative, including
+The consumer runs in the existing shared Product capture test suite; use the current Cargo target and preserve every Source/oracle assertion. Temporary executables, phase dumps and raw candidates are ephemeral. Current-call may effects stay conservative, including
 callee reads followed by same-Store invalidation. Direct dynamic Store capture,
 outer captures, escaping/long-lived callbacks and new borrowing modes are not
 opened by this profile.
@@ -45,5 +36,4 @@ Safety evidence is bounded to these actual roots, windows and independent kernel
 routes. The implementation keeps the existing borrowed-address representation;
 no implicit heap box/RC/lock was added. Ordinary API composition advances, while
 Rust runtime/RSS, maintenance cost and compile-speed comparisons remain unmeasured.
-The original Unsupported source reaching both native backends is a language
-increment, not completion of the product four-goal conjunction.
+A formerly Unsupported legal source reaching both native backends is limited language evidence, not completion of the product four-goal conjunction.

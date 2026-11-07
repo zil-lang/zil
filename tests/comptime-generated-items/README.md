@@ -1,7 +1,6 @@
-The original 32 suggested ZIL sources are preserved byte-for-byte under
+The 32 preserved ZIL sources are preserved byte-for-byte under
 `project/`; `preparation/SOURCE-MANIFEST.json` binds their original hashes.
-The original Type-value and scalar-emit probes retain their bytes. No original
-expectation is replaced because of an implementation failure.
+The original Type-value and scalar-emit probes retain their bytes. Expectations remain fixed across compiler failures.
 
 `ORACLE.json` is independently derived by `tools/language/native-product-equivalence/oracle.py` from
 source operations, not compiler reports or native stdout. It covers 9 positive
@@ -25,7 +24,7 @@ The nine ordinary handwritten programs preserve the materialized behavior and
 effects. Their separate execution is a runtime equivalence control, not an
 assertion that byte-for-byte phase dumps or source identities must match.
 
-The two strict lock files use the 261 public text contract. Source hashes bind
+The two strict lock files use the public text contract. Source hashes bind
 raw SourceUnit bytes. Grammar hashes are SHA256 of
 `zil/provider-grammar/v1\0` + `ZIL-LANG-1.4` + `\0` + the raw 32 source-hash
 bytes. No lock is repaired automatically. Standard CT modules are imported by
@@ -55,10 +54,7 @@ All allocation counters are future expectations until measured with the real
 realloc/free wrapper. Output paths encode actual stdin bytes as hex (empty
 input produces the empty hex component), never as raw input characters.
 
-Prepared driver tests require the 261 SyntaxLock request API and the complete
-258/259/260/261 implementation. At initial preparation, they have only been
-formatted, not Cargo-built or run. Missing capabilities are retained as Fail or
-NotRun, never converted to successful Unsupported controls. All 19 negative
+The driver tests require the SyntaxLock request API and the complete Type/Syntax provider implementation. A prepared oracle or source manifest alone is NotRun, never Pass; missing legal capabilities remain failures rather than successful Unsupported controls. All 19 negative
 sources stop at Verify and can never execute native programs; their expected
 phase/code comes from their frozen semantic risks and the agreed public
 diagnostic contract.

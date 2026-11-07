@@ -31,24 +31,8 @@ and produce identical Core on fresh parsing:
 | Original argument | 871 | 290 |
 | Independent witness constraint | 1440 | 457 |
 
-The prior return 624/242, scalar 288/144, owned 554/279, local 558/281 and enum
-336/126 controls retain their limits. Author checks passed: Expand generics
-14, generic defer 3, enum budgets 2, and driver generics with LLVM API enabled 8;
-targeted Clippy and formatting passed. Consumer machine results and independent
-review are reported separately; full integration gates belong to the root.
+The frozen earlier limits and their source identities remain in exact historical records. A concrete `U=bool` specialization may be valid while an ambiguous `U=i32` instance must reject at Expand or Types with its actual diagnostic. Potential future equality alone does not make a symbolic declaration invalid; neither may a concrete ambiguous payload bypass the eventual check. Existing StoreElement/Unit and Copy callable error-return controls preserve their behavior.
 
-The `99de375e` integration failed two unchanged legacy tests: StoreElement/Unit
-and Copy+callable error returns. The new universal distinctness requirement had
-overridden the existing specialization profiles. Repair `12b6af4f` removes that
-guard and its unused type-key observer without a profile whitelist. Original
-Store target 15/0 and Copy callable target 19/0 pass; their sources and cleanup
-oracles are unchanged. New regressions separately check unused declarations,
-valid `U=bool` instances and ambiguous `U=i32` instances. Concrete ambiguity is
-still rejected at Expand or Types, with the exact expected diagnostic in each
-case. The earlier potential-equality rejection was an overly strict requirement,
-not evidence of bad runtime code bypassing the concrete check.
-
-This slice improves natural binding/call composition without new runtime
-allocation, public IR, ABI or default limits.
+These inputs exercise natural binding and call composition without granting new runtime allocation, public IR, ABI or default limits.
 There is no new Rust runtime/RSS or compile-time comparison, and complete
 language safety and ZUI product goals remain outside this limited evidence.

@@ -1,4 +1,4 @@
-# 250 synchronous owning callback consumer
+# Synchronous owning callback consumer
 
 The three source modules separate real event/storage construction (`model`),
 public single-F by-value FnOnce APIs (`dispatch`), and callers (`main`). Input
@@ -16,7 +16,7 @@ callback boundary and caller `?`, then the native entry destroys the payload.
 Event's original ByteBuffer is independently freed. Its renderer requires V
 (86), while Event preparation always writes U (85); leftover H/h still clean.
 
-`frozen-R` preserves the original three planning probes and old failed receipts
+`frozen-R` preserves three frozen Source probes and old failed receipts
 byte for byte. Old Unsupported results are historical failures, never current
 passes. `ORACLE.json` is generated only from `tools/research/source-ownership-oracle/oracle.py`, an
 independent model of source ownership/preparation/destruction. It never reads a
@@ -28,8 +28,7 @@ parameter B, remaining environment h, then rendered result A).
 The post-entry Copy-error path predicts `SCHAhQ`; the owning-error root predicts
 `SCHhQA`, so its payload A must remain alive across caller defer Q. Failure while
 preparing that root's event predicts `SAHhQ`, including pending callee cleanup.
-The original ten-mode snapshot is immutable in commit c4b82a6ec; subsequent
-source fixes and the two new error paths are independently reviewable in Git.
+The ten-mode oracle is bound to its source commit; later error paths require separate source and oracle identities.
 
 Allocation
 failures enumerate each actual source reserve plus disabled/one-past controls;

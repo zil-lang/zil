@@ -1,13 +1,13 @@
-# 256 callable input-instance forwarding consumer
+# Callable input-instance forwarding consumer
 
 `frozen-prep` preserves every hashed source/oracle/preparation input from the
-pre-dispatch draft. Its thirteen source modes and expected outputs stay exact;
+frozen input set. Its thirteen source modes and expected outputs stay exact;
 the original f-identity source is byte-identical to its planning probe. The six
 single-source probes isolate Fn/FnMut/FnOnce with Copy or owning data signatures.
 
 The driver runner requires actual compilation through Verify and O0/O2 native
 execution. A legal positive that remains Unsupported is a failing test, never
-acceptance. The initial frozen-base failures are separately preserved. Negative
+acceptance. Frozen failures remain bound to their original compiler and are not current expectations. Negative
 source cases never enter native execution, and an earlier missing positive gate
 does not count as a correct semantic rejection.
 
