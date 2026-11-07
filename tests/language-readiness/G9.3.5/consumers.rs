@@ -24,6 +24,8 @@ fn ordinary_store_live_parent_view_and_duplicate_responsibility_reject() {
     for (label, text, expected_code) in [
         ("live-parent-view", include_str!("ordinary-live-view.zil"), "E-BORROW-CONFLICT"),
         ("duplicate-parent", include_str!("ordinary-duplicate.zil"), "E-UNINITIALIZED"),
+        ("same-store-different-index", include_str!("ordinary-parent-same-store-index.zil"), "E-ANALYZE-IR"),
+        ("live-parent-move", include_str!("ordinary-parent-live-move.zil"), "E-BORROW-CONFLICT"),
     ] {
         let report = check(label, text, Stage::Verify);
         assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
