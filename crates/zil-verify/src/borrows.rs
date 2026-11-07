@@ -200,6 +200,7 @@ fn reverse(live: &mut [bool], instruction: &Instruction, value_count: usize) {
         InstructionKind::Load(local)
         | InstructionKind::TakeLocal { local }
         | InstructionKind::BorrowLocalMut { local }
+        | InstructionKind::BorrowDynOwned { local, .. }
         | InstructionKind::BorrowLocal { local }
         | InstructionKind::CallClosureMut { callee: local, .. }
         | InstructionKind::CallClosureShared { callee: local, .. } => {
@@ -467,6 +468,7 @@ fn check(
             if let InstructionKind::Load(local)
             | InstructionKind::TakeLocal { local }
             | InstructionKind::BorrowLocalMut { local }
+            | InstructionKind::BorrowDynOwned { local, .. }
             | InstructionKind::BorrowOwnedArrayElement { local, .. }
             | InstructionKind::BorrowPackageField { local, .. }
             | InstructionKind::BorrowVariantLocal { local, .. }
@@ -512,6 +514,7 @@ fn check(
                 | InstructionKind::EndPackageCapture { local, .. }
                 | InstructionKind::DropClosure { local }
                 | InstructionKind::DropErrorUnion { local }
+                | InstructionKind::DropDynOwned { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::DropOwnedArray { local }
                 | InstructionKind::TakeOwnedArrayElement { local, .. }
@@ -529,6 +532,7 @@ fn check(
                 }
                 InstructionKind::TakeLocal { local }
                     if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
+                        || matches!(f.locals[local.0 as usize].ty, Type::OwnedDyn { .. })
                         || matches!(f.locals[local.0 as usize].ty, Type::Package { .. })
                         || errors::owned(&f.locals[local.0 as usize].ty, budget.sums)
                         || resources::arrays::is_owned_type(&f.locals[local.0 as usize].ty)
@@ -874,7 +878,8 @@ fn reconstruct(
                                 row.push(field_root(f, *local, *index, budget)?);
                             }
                             InstructionKind::BorrowLocal { local }
-                            | InstructionKind::BorrowLocalMut { local } => {
+                            | InstructionKind::BorrowLocalMut { local }
+                            | InstructionKind::BorrowDynOwned { local, .. } => {
                                 row.push(Root::Local(*local));
                                 if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
                                     && let Some(captures) = state.get(local)

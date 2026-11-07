@@ -692,8 +692,12 @@ fn check_function(
                             }
                         }
                         InstructionKind::BorrowLocal { local }
-                        | InstructionKind::BorrowLocalMut { local } => {
+                        | InstructionKind::BorrowLocalMut { local }
+                        | InstructionKind::BorrowDynOwned { local, .. } => {
                             fresh = true;
+                            if matches!(i.kind, InstructionKind::BorrowDynOwned { .. }) {
+                                nodes[id].roots = vec![shell(*local, &bound)];
+                            }
                             if matches!(f.locals[local.0 as usize].ty, Type::Closure(_)) {
                                 nodes[id].roots = vec![shell(*local, &bound)];
                                 if let Some(c) = state.get(local) {
@@ -1048,12 +1052,16 @@ fn check_function(
                 | InstructionKind::StorageLive(local)
                 | InstructionKind::StorageDead(local)
                 | InstructionKind::DropManaged { local }
+                | InstructionKind::DropDynOwned { local }
                 | InstructionKind::DropMutexGuard { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::TakeLocal { local }
                     if matches!(
                         f.locals[local.0 as usize].ty,
-                        Type::Managed(_) | Type::Package { .. } | Type::MutexGuard { .. }
+                        Type::Managed(_)
+                            | Type::Package { .. }
+                            | Type::MutexGuard { .. }
+                            | Type::OwnedDyn { .. }
                     ) =>
                 {
                     access(
@@ -1069,11 +1077,16 @@ fn check_function(
                     )?;
                 }
                 InstructionKind::BorrowLocal { local }
-                | InstructionKind::BorrowLocalMut { local } => {
+                | InstructionKind::BorrowLocalMut { local }
+                | InstructionKind::BorrowDynOwned { local, .. } => {
                     access(
                         &empty,
                         &[shell(*local, &bound)],
-                        matches!(i.kind, InstructionKind::BorrowLocalMut { .. }),
+                        matches!(
+                            i.kind,
+                            InstructionKind::BorrowLocalMut { .. }
+                                | InstructionKind::BorrowDynOwned { mutable: true, .. }
+                        ),
                         &active,
                         ignore,
                         &nodes,

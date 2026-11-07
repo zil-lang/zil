@@ -331,6 +331,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
             function: FunctionId(0),
         }],
         cleanup: None,
+        owned_storage: None,
     };
     let module = TypedModule {
         dyn_declarations: vec![dyn_declaration],

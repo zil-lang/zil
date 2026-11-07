@@ -70,7 +70,7 @@ impl Builder<'_> {
     fn ty(&mut self, ty: &Type) -> CompileResult<CtTypeNodeId> {
         use CtScalarTy as S;
         match ty {
-            Type::Dyn { .. } => Err(vec![Diagnostic::unsupported(
+            Type::Dyn { .. } | Type::OwnedDyn { .. } => Err(vec![Diagnostic::unsupported(
                 Phase::Ct,
                 "dyn Type metadata requires a complete CT4 node and context bridge",
                 None,

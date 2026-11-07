@@ -391,6 +391,7 @@ fn signature_errors(
             || packages::ordinary(&p.ty)
             || errors::supported(&p.ty)
             || owned_shapes::sum(&p.ty)
+            || matches!(p.ty, Type::OwnedDyn { .. })
             || matches!(p.ty, Type::MutexGuard { .. })
             || packages::owned_array_supported(&p.ty))
         {
@@ -1929,6 +1930,12 @@ impl<'a, 'c> Builder<'a, 'c> {
                 source,
                 mutable,
             } => self.dyn_make_borrow(*interface, *vtable, source, *mutable, e.span),
+            CoreExprKind::MakeDynOwned {
+                interface,
+                vtable,
+                source,
+                route,
+            } => self.dyn_make_owned(*interface, Some(*vtable), source, *route, e.span),
             CoreExprKind::CallDynSlot {
                 callee,
                 interface,
@@ -2103,6 +2110,33 @@ impl<'a, 'c> Builder<'a, 'c> {
                 type_arguments,
             } = &callee.kind
             {
+                if matches!(&target.kind, CoreExprKind::Name(name) if name == "owned_dyn") {
+                    let [Type::Dyn { interface }] = type_arguments.as_slice() else {
+                        return Err(error(
+                            "E-DYN-OWNER",
+                            e.span,
+                            "owned_dyn needs one actual dyn interface argument",
+                        ));
+                    };
+                    let [source] = arguments.as_slice() else {
+                        return Err(error(
+                            "E-CALL-ARITY",
+                            e.span,
+                            "owned_dyn needs one complete provider value",
+                        ));
+                    };
+                    let result = self.dyn_make_owned(
+                        *interface,
+                        None,
+                        source,
+                        DynOwnedStorage::Heap,
+                        e.span,
+                    )?;
+                    if let Some(expected) = expected {
+                        self.same(&result.1, expected, e.span)?;
+                    }
+                    return Ok(result);
+                }
                 return self.call_type_template(
                     target,
                     type_arguments,

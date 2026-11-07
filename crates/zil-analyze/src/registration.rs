@@ -138,6 +138,7 @@ fn closed(
                 }
                 Type::Task { .. }
                 | Type::Dyn { .. }
+                | Type::OwnedDyn { .. }
                 | Type::Address { .. }
                 | Type::Desc(_)
                 | Type::Slice { .. }

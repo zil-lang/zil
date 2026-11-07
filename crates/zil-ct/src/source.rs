@@ -645,7 +645,7 @@ pub(super) fn hint_type(
         }
         // A raw dyn identity may be carried as a runtime type hint. It supplies
         // no CT value shape or permission to execute dynamic operations.
-        Type::Dyn { .. } => Ok(false),
+        Type::Dyn { .. } | Type::OwnedDyn { .. } => Ok(false),
         Type::Unsupported(name) => {
             *work = work.checked_sub(name.len()).ok_or_else(limit)?;
             Ok(false)
@@ -3436,6 +3436,7 @@ mod tests {
                 function: NodeId(92),
             }],
             cleanup: None,
+            owned_storage: None,
         });
         core
     }

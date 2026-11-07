@@ -141,7 +141,8 @@ fn encode_type(b: &mut Vec<u8>, t: &Type) {
         | Type::MutexGuard { .. }
         | Type::Task { .. }
         | Type::BorrowedStorage { .. }
-        | Type::Dyn { .. } => {
+        | Type::Dyn { .. }
+        | Type::OwnedDyn { .. } => {
             panic!("new contextual carriers are outside this retained legacy oracle")
         }
         Type::Registration { environment } => {
@@ -456,6 +457,9 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
         | InstructionKind::MutexUnlock { .. }
         | InstructionKind::DropMutexGuard { .. }
         | InstructionKind::MakeDynBorrow { .. }
+        | InstructionKind::MakeDynOwned { .. }
+        | InstructionKind::BorrowDynOwned { .. }
+        | InstructionKind::DropDynOwned { .. }
         | InstructionKind::CallDynSlot { .. }
         | InstructionKind::LoadStoredBorrow { .. }
         | InstructionKind::StoreStoredBorrow { .. }

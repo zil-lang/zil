@@ -303,7 +303,9 @@ impl<'a> Expander<'a> {
             let host = locals.get(host_name).filter(|(a, _)| {
                 matches!(
                     a.kind,
-                    s::AggregateKind::Struct | s::AggregateKind::Resource
+                    s::AggregateKind::Struct
+                        | s::AggregateKind::Resource
+                        | s::AggregateKind::Package
                 ) && a.generics.is_empty()
             });
             let scalar = scalar_self(host_name);

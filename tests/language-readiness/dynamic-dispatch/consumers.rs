@@ -12,6 +12,9 @@ const WIDE_ARGUMENT: &str = include_str!("dyn-wide-argument.zil");
 const UNIT_RESULT: &str = include_str!("dyn-unit-result.zil");
 const MUTABLE_RECEIVER: &str = include_str!("dyn-mutable-receiver.zil");
 const MUTABLE_DEFAULT: &str = include_str!("dyn-mutable-default.zil");
+const OWNED_PACKAGE: &str = include_str!("dyn-owned-package.zil");
+const OWNED_MUTABLE: &str = include_str!("dyn-owned-mutable.zil");
+const OWNED_ALLOCATION: &str = include_str!("dyn-owned-allocation.zil");
 const MUTABLE_PREFIX: &str = "trait Change{fn set(self:&mut Self,value:i32)->();}struct A{n:i32}impl Change for A{fn set(self:&mut Self,value:i32)->(){self.n=value;return ()}}";
 
 fn directory(label: &str) -> PathBuf {
@@ -40,6 +43,235 @@ fn backends() -> Vec<NativeBackend> {
         result.push(NativeBackend::LlvmApi);
     }
     result
+}
+
+#[test]
+fn owned_package_selects_concrete_cleanup_and_survives_return() {
+    for backend in backends() {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory("owned-package");
+            let executable = dir.join("program");
+            let report = compile(
+                OWNED_PACKAGE,
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    entry: Some("main".into()),
+                    output: Some(executable.clone()),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+            let result = Command::new(&executable).output().unwrap();
+            assert_eq!(result.status.code(), Some(0), "{result:?}");
+            assert_eq!(result.stdout, b"30\n");
+            assert!(result.stderr.is_empty(), "{result:?}");
+            let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
+            assert_eq!(
+                llvm.matches("define internal void @zil.dyn.payload.drop.")
+                    .count(),
+                2
+            );
+            assert!(llvm.contains("call void @zil.bytes.drop"));
+            assert!(
+                llvm.split("define internal void @zil.dyn.payload.drop.")
+                    .skip(1)
+                    .any(|body| body
+                        .split("ret void")
+                        .next()
+                        .unwrap()
+                        .matches("call void @zil.bytes.drop")
+                        .count()
+                        == 3)
+            );
+            assert!(llvm.contains("call void @free(ptr %payload)"));
+        }
+    }
+}
+
+#[test]
+fn owned_package_crosses_modules_with_each_provider_cleanup() {
+    let files = [
+        ("main", include_str!("project/owned-main.zil")),
+        ("a", include_str!("project/owned-a.zil")),
+        ("b", include_str!("project/owned-b.zil")),
+    ];
+    for backend in backends() {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory("owned-package-project");
+            let executable = dir.join("program");
+            let options = CompileOptions {
+                backend,
+                optimization,
+                stop_after: Stage::Build,
+                entry: Some("main".into()),
+                output: Some(executable.clone()),
+                cache_dir: Some(dir.join("cache")),
+                codegen: if backend == NativeBackend::LlvmApi {
+                    CodegenOptions { units: 8, jobs: 4 }
+                } else {
+                    CodegenOptions::default()
+                },
+                ..CompileOptions::default()
+            };
+            for warm in [false, true] {
+                let report = compile_project(&project(&files), &options);
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                if warm {
+                    assert_eq!(report.disk_cache, DiskCacheStatus::Hit);
+                }
+                let native = report.native_codegen.as_ref().unwrap();
+                assert!(native.fallback.is_none());
+                if backend == NativeBackend::LlvmApi {
+                    assert_eq!(native.requested_units, 8);
+                }
+                let result = Command::new(&executable).output().unwrap();
+                assert_eq!(result.status.code(), Some(0), "{result:?}");
+                assert_eq!(result.stdout, b"30\n");
+            }
+        }
+    }
+}
+
+#[test]
+fn owned_dyn_exclusive_unit_method_updates_each_real_receiver() {
+    for backend in backends() {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory("owned-mutable");
+            let executable = dir.join("program");
+            let report = compile(
+                OWNED_MUTABLE,
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    entry: Some("main".into()),
+                    output: Some(executable.clone()),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let result = Command::new(&executable).output().unwrap();
+            assert_eq!(result.status.code(), Some(0), "{result:?}");
+            assert_eq!(result.stdout, b"16\n");
+        }
+    }
+    for rejected in [
+        OWNED_MUTABLE.replace("var owned=select(which)?", "let owned=select(which)?"),
+        OWNED_MUTABLE.replace(
+            "owned.set(value);",
+            "let shared:&dyn Change=&owned;shared.set(value);",
+        ),
+    ] {
+        let report = compile(&rejected, &CompileOptions::default());
+        assert!(
+            matches!(
+                report.status,
+                ResultCategory::SafeReject | ResultCategory::Unsupported
+            ),
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn owned_dyn_allocation_failure_cleans_transferred_payload_once() {
+    let source = r#"
+#include <stddef.h>
+#include <unistd.h>
+extern void *__libc_malloc(size_t);
+extern void *__libc_realloc(void *, size_t);
+extern void __libc_free(void *);
+static void *owned_buffer;
+static int failed;
+void *realloc(void *p, size_t n) {
+    void *result = __libc_realloc(p, n);
+    if (!p && n == 64) owned_buffer = result;
+    return result;
+}
+void *malloc(size_t n) {
+    if (owned_buffer && n == 32 && !failed) {
+        failed = 1;
+        write(2, "F", 1);
+        return 0;
+    }
+    return __libc_malloc(n);
+}
+void free(void *p) {
+    if (failed && p == owned_buffer) {
+        write(2, "D", 1);
+        owned_buffer = 0;
+    }
+    __libc_free(p);
+}
+"#;
+    let dir = directory("owned-allocation");
+    let source_path = dir.join("fail-allocator.c");
+    let interceptor = dir.join("fail-allocator.so");
+    fs::write(&source_path, source).unwrap();
+    let clang = std::env::var("ZIL_CLANG").unwrap_or_else(|_| "clang".into());
+    let compiled = Command::new(clang)
+        .args(["-shared", "-fPIC", "-O0"])
+        .arg(&source_path)
+        .arg("-o")
+        .arg(&interceptor)
+        .output()
+        .unwrap();
+    assert!(compiled.status.success(), "{compiled:?}");
+    for backend in backends() {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let executable = dir.join(format!("program-{}-{optimization:?}", backend.name()));
+            let report = compile(
+                OWNED_ALLOCATION,
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    entry: Some("main".into()),
+                    output: Some(executable.clone()),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            let success = Command::new(&executable).output().unwrap();
+            assert_eq!(success.status.code(), Some(0), "{success:?}");
+            assert_eq!(success.stdout, b"41\n");
+            let failed = Command::new(&executable)
+                .env("LD_PRELOAD", &interceptor)
+                .output()
+                .unwrap();
+            assert_eq!(failed.status.code(), Some(0), "{failed:?}");
+            assert_eq!(failed.stdout, b"77\n");
+            assert_eq!(failed.stderr, b"FD");
+        }
+    }
 }
 
 #[test]
@@ -447,6 +679,121 @@ fn source_candidate() -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
     source_candidate_for(INPUT)
 }
 
+#[test]
+fn owned_raw_wire_rejects_forged_route_provider_and_loan() {
+    let (module, plan) = source_candidate_for(OWNED_PACKAGE);
+    let target = module.target.clone();
+    let assert_rejected = |candidate: zil_ir::TypedModule| {
+        let mut plan = plan.clone();
+        plan.module_fingerprint = candidate.fingerprint();
+        let wire =
+            zil_ir::wire::encode_module_candidate(&candidate, &plan, &Limits::default()).unwrap();
+        assert!(
+            zil_verify::verify_module(candidate.clone(), plan, &target, &Limits::default())
+                .is_err()
+        );
+        assert!(zil_verify::verify_module_bytes(&wire, &target, &Limits::default()).is_err());
+    };
+    let mut no_route = module.clone();
+    no_route.dyn_vtables[0].owned_storage = None;
+    assert_rejected(no_route);
+    let mut wrong_body = module.clone();
+    wrong_body.dyn_vtables[0].entries[0].function = wrong_body.dyn_vtables[1].entries[0].function;
+    assert_rejected(wrong_body);
+    let mut wrong_actual = module.clone();
+    wrong_actual.dyn_vtables[0].self_type = wrong_actual.dyn_vtables[1].self_type.clone();
+    assert_rejected(wrong_actual);
+    let mut wrong_loan = module;
+    let instruction = wrong_loan
+        .functions
+        .iter_mut()
+        .flat_map(|f| &mut f.blocks)
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| matches!(i.kind, I::BorrowDynOwned { .. }))
+        .unwrap();
+    if let I::BorrowDynOwned { mutable, .. } = &mut instruction.kind {
+        *mutable = true;
+    }
+    assert_rejected(wrong_loan);
+
+    let (mut moved_while_borrowed, mut plan) = source_candidate_for(OWNED_MUTABLE);
+    let block = moved_while_borrowed
+        .functions
+        .iter_mut()
+        .flat_map(|f| &mut f.blocks)
+        .find(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i.kind, I::BorrowDynOwned { .. }))
+                && b.instructions
+                    .iter()
+                    .any(|i| matches!(i.kind, I::DropDynOwned { .. }))
+        })
+        .unwrap();
+    let borrowed = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, I::BorrowDynOwned { .. }))
+        .unwrap();
+    let drop = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, I::DropDynOwned { .. }))
+        .unwrap();
+    let cleanup = block.instructions.remove(drop);
+    block.instructions.insert(borrowed + 1, cleanup);
+    plan.module_fingerprint = moved_while_borrowed.fingerprint();
+    let target = moved_while_borrowed.target.clone();
+    let wire =
+        zil_ir::wire::encode_module_candidate(&moved_while_borrowed, &plan, &Limits::default())
+            .unwrap();
+    assert!(
+        zil_verify::verify_module(moved_while_borrowed, plan, &target, &Limits::default()).is_err()
+    );
+    assert!(zil_verify::verify_module_bytes(&wire, &target, &Limits::default()).is_err());
+}
+
+#[test]
+fn owned_raw_wire_rejects_user_drop_hidden_behind_erasure() {
+    let source = format!(
+        "{OWNED_PACKAGE}\nextern \"C\" fn putchar(x:i32)->i32;resource Token{{code:i32}}impl Drop for Token{{fn drop(self:Self){{unsafe{{putchar(.code);}}}}}}\n"
+    );
+    let (mut module, mut plan) = source_candidate_for(&source);
+    let token = module
+        .resources
+        .iter()
+        .find(|r| r.name.ends_with("Token"))
+        .unwrap();
+    assert!(token.teardown.is_some());
+    let token_type = token.payload.clone();
+    let Type::Package { fields, .. } = &mut module.dyn_vtables[0].self_type else {
+        panic!("owning table Self")
+    };
+    fields[0].1 = Type::Managed(Box::new(token_type));
+    plan.module_fingerprint = module.fingerprint();
+    let target = module.target.clone();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    for errors in [
+        zil_verify::verify_module(module, plan, &target, &Limits::default()).unwrap_err(),
+        zil_verify::verify_module_bytes(&wire, &target, &Limits::default()).unwrap_err(),
+    ] {
+        assert!(
+            errors.iter().any(|e| e.code == "E-VERIFY-DYN"),
+            "{errors:?}"
+        );
+    }
+    let source = source
+        .replace("manages data:ByteBuffer", "manages data:Token")
+        .replace("bytes_new()", "Token{code:65}");
+    let report = compile(&source, &CompileOptions::default());
+    assert_ne!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+}
+
 fn rejected(
     mut module: zil_ir::TypedModule,
     mut plan: zil_ir::CandidatePlan,
@@ -688,6 +1035,48 @@ fn mutable_provider_work_budget_has_exact_acceptance_edge() {
         assert_eq!(report.status, status, "{}", report.to_json());
         if status == ResultCategory::Success {
             assert_eq!(report.verification_runs, 1);
+        }
+    }
+}
+
+#[test]
+fn owned_dyn_work_budget_has_same_cold_and_warm_edge() {
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "owned-dispatch-budget.zil",
+        OWNED_MUTABLE,
+    );
+    let baseline = CompileOptions::default().limits.max_analysis_steps;
+    let options = |work| {
+        let mut options = CompileOptions::default();
+        options.limits.max_analysis_steps = work;
+        options
+    };
+    let (mut low, mut high) = (1, baseline);
+    while low < high {
+        let middle = low + (high - low) / 2;
+        let report = CompilationSession::default().compile_source(&unit, &options(middle));
+        match report.status {
+            ResultCategory::Success => high = middle,
+            ResultCategory::ResourceLimit => low = middle + 1,
+            _ => panic!("work={middle}: {}", report.to_json()),
+        }
+    }
+    assert!(low > 1);
+    let mut warm = CompilationSession::default();
+    for (work, expected) in [
+        (low, ResultCategory::Success),
+        (low - 1, ResultCategory::ResourceLimit),
+    ] {
+        for report in [
+            warm.compile_source(&unit, &options(work)),
+            CompilationSession::default().compile_source(&unit, &options(work)),
+        ] {
+            assert_eq!(report.status, expected, "{}", report.to_json());
+            if expected == ResultCategory::Success {
+                assert_eq!(report.verification_runs, 1);
+            }
         }
     }
 }

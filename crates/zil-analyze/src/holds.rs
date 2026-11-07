@@ -2025,6 +2025,9 @@ fn infer_with_private(
                                 .ok_or_else(|| bad("dyn borrow source outside value table"))?;
                             extend(&mut found, source, budget)?;
                         }
+                        InstructionKind::BorrowDynOwned { local, .. } => {
+                            found.insert(Root::Local(*local));
+                        }
                         InstructionKind::BorrowCapture { index, .. }
                         | InstructionKind::ReadCapture { index } => {
                             let ty = instruction

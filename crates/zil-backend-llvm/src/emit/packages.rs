@@ -195,6 +195,9 @@ pub(super) fn teardown_paths(
             {
                 pending.push((storage.as_ref(), path));
             }
+            Type::OwnedDyn { interface } => {
+                result.push((path, dyn_dispatch::owner_drop_symbol(*interface)))
+            }
             Type::Enum { .. } | Type::ErrorUnion { .. } if drop_plan::owned_sum(ty) => {
                 result.push((path, drop_plan::symbol(ty)))
             }
