@@ -137,6 +137,8 @@ fn encode_type(b: &mut Vec<u8>, t: &Type) {
         Type::SyncCell(kind) => b.extend_from_slice(&[30, *kind as u8]),
         Type::TaskI32 => b.push(33),
         Type::AsyncRegistration { .. }
+        | Type::Mutex { .. }
+        | Type::MutexGuard { .. }
         | Type::Task { .. }
         | Type::BorrowedStorage { .. }
         | Type::Dyn { .. } => {
@@ -445,7 +447,12 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
         | InstructionKind::AsyncRegistrationFinishDestroyChecked { .. } => {
             panic!("pollable registration is outside this retained legacy oracle")
         }
-        InstructionKind::MakeDynBorrow { .. }
+        InstructionKind::MutexCreate { .. }
+        | InstructionKind::MutexLock { .. }
+        | InstructionKind::MutexValue { .. }
+        | InstructionKind::MutexUnlock { .. }
+        | InstructionKind::DropMutexGuard { .. }
+        | InstructionKind::MakeDynBorrow { .. }
         | InstructionKind::CallDynSlot { .. }
         | InstructionKind::LoadStoredBorrow { .. }
         | InstructionKind::StoreStoredBorrow { .. }
