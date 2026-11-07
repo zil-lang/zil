@@ -293,6 +293,7 @@ pub(super) fn validate_declaration(
     decl: &EnumDecl,
     span: Span,
     nominals: &BTreeMap<String, &Item>,
+    traits: &trait_bounds::Index<'_>,
     budget: &mut Budget<'_>,
 ) -> R<()> {
     let mut names = BTreeSet::new();
@@ -334,6 +335,7 @@ pub(super) fn validate_declaration(
         .iter()
         .map(|p| p.name.clone())
         .collect::<BTreeSet<_>>();
+    let bounds = traits.parameter_bounds(&decl.generics, budget)?;
     let ty = TypeRef {
         span,
         kind: TypeKind::Named {
@@ -350,10 +352,18 @@ pub(super) fn validate_declaration(
             if field.manages {
                 return Err(unsupported(field.span, "owned generic enum payload"));
             }
-            shape(field, &variables, nominals, budget, 0)?;
+            shape(field, &variables, &bounds, nominals, budget, 0)?;
         }
     }
-    layout(&ty, &variables, nominals, &mut BTreeSet::new(), budget, 0)
+    layout(
+        &ty,
+        &variables,
+        &bounds,
+        nominals,
+        &mut BTreeSet::new(),
+        budget,
+        0,
+    )
 }
 
 fn scoped_formal<'a>(
@@ -494,11 +504,15 @@ fn scoped_shape(
 fn shape(
     ty: &TypeRef,
     variables: &BTreeSet<String>,
+    bounds: &trait_bounds::Bounds,
     nominals: &BTreeMap<String, &Item>,
     budget: &mut Budget<'_>,
     depth: usize,
 ) -> R<()> {
     budget.node(ty.span, depth)?;
+    if trait_bounds::associated::parts(ty).is_some() {
+        return copy::require(ty, nominals, bounds, variables, budget);
+    }
     match &ty.kind {
         TypeKind::Named { path, args } if path.len() == 1 => {
             let name = &path[0];
@@ -536,12 +550,12 @@ fn shape(
                 let GenericArg::Type(ty) = arg else {
                     return Err(unsupported(ty.span, "const generic enum argument"));
                 };
-                shape(ty, variables, nominals, budget, depth + 1)?;
+                shape(ty, variables, bounds, nominals, budget, depth + 1)?;
             }
         }
         TypeKind::Tuple(ts) | TypeKind::Union(ts) => {
             for ty in ts {
-                shape(ty, variables, nominals, budget, depth + 1)?;
+                shape(ty, variables, bounds, nominals, budget, depth + 1)?;
             }
         }
         TypeKind::Array {
@@ -549,9 +563,9 @@ fn shape(
             length: Some(length),
         } => {
             array_length(length)?;
-            shape(element, variables, nominals, budget, depth + 1)?;
+            shape(element, variables, bounds, nominals, budget, depth + 1)?;
         }
-        TypeKind::Group(t) => shape(t, variables, nominals, budget, depth + 1)?,
+        TypeKind::Group(t) => shape(t, variables, bounds, nominals, budget, depth + 1)?,
         _ => {
             return Err(unsupported(
                 ty.span,
@@ -564,12 +578,16 @@ fn shape(
 fn layout(
     ty: &TypeRef,
     variables: &BTreeSet<String>,
+    bounds: &trait_bounds::Bounds,
     nominals: &BTreeMap<String, &Item>,
     active: &mut BTreeSet<String>,
     budget: &mut Budget<'_>,
     depth: usize,
 ) -> R<()> {
     budget.node(ty.span, depth)?;
+    if trait_bounds::associated::parts(ty).is_some() {
+        return copy::require(ty, nominals, bounds, variables, budget);
+    }
     match &ty.kind {
         TypeKind::Named { path, args } if path.len() == 1 => {
             let name = &path[0];
@@ -600,7 +618,15 @@ fn layout(
                         "Managed requires one complete resource argument",
                     ));
                 };
-                return layout(payload, variables, nominals, active, budget, depth + 1);
+                return layout(
+                    payload,
+                    variables,
+                    bounds,
+                    nominals,
+                    active,
+                    budget,
+                    depth + 1,
+                );
             }
             let item = nominals
                 .get(name)
@@ -658,13 +684,29 @@ fn layout(
             }
             for field in fields {
                 let field = substituted(field, &substitution, budget)?;
-                layout(&field, variables, nominals, active, budget, depth + 1)?;
+                layout(
+                    &field,
+                    variables,
+                    bounds,
+                    nominals,
+                    active,
+                    budget,
+                    depth + 1,
+                )?;
             }
             active.remove(&key);
         }
         TypeKind::Tuple(fields) | TypeKind::Union(fields) => {
             for field in fields {
-                layout(field, variables, nominals, active, budget, depth + 1)?;
+                layout(
+                    field,
+                    variables,
+                    bounds,
+                    nominals,
+                    active,
+                    budget,
+                    depth + 1,
+                )?;
             }
         }
         TypeKind::Array {
@@ -672,11 +714,25 @@ fn layout(
             length: Some(length),
         } => {
             array_length(length)?;
-            layout(element, variables, nominals, active, budget, depth + 1)?;
+            layout(
+                element,
+                variables,
+                bounds,
+                nominals,
+                active,
+                budget,
+                depth + 1,
+            )?;
         }
-        TypeKind::Group(element) => {
-            layout(element, variables, nominals, active, budget, depth + 1)?
-        }
+        TypeKind::Group(element) => layout(
+            element,
+            variables,
+            bounds,
+            nominals,
+            active,
+            budget,
+            depth + 1,
+        )?,
         _ => {
             return Err(unsupported(
                 ty.span,
@@ -920,10 +976,29 @@ impl Engine<'_> {
                 let unresolved = vars
                     .iter()
                     .any(|v| !found.contains_key(v) && contains(&hint, v));
+                let projected_hint = if !unresolved
+                    && decl.generics.iter().any(|parameter| {
+                        matches!(&parameter.kind, GenericParamKind::Type(bounds)
+                            if bounds.iter().any(|bound| trait_instances::head(bound).is_some()))
+                    })
+                    && trait_bounds::associated::contains(field, &mut self.budget)?
+                {
+                    let bounds = self
+                        .traits
+                        .parameter_bounds(&decl.generics, &mut self.budget)?;
+                    Some(self.traits.normalize_associated(
+                        &hint,
+                        &bounds,
+                        &vars,
+                        &mut self.budget,
+                    )?)
+                } else {
+                    None
+                };
                 let actual = self.expr_expected(
                     &mut argument.value,
                     env,
-                    (!unresolved).then_some(&hint),
+                    (!unresolved).then_some(projected_hint.as_ref().unwrap_or(&hint)),
                     depth + 1,
                 )?;
                 let actual = match actual {
@@ -953,7 +1028,18 @@ impl Engine<'_> {
                     self.budget.ty(&hint)?;
                     actual = hint;
                 }
-                unify(field, &actual, &vars, &mut found, span, &mut self.budget)?;
+                if let Some(projected_hint) = projected_hint {
+                    unify(
+                        &projected_hint,
+                        &actual,
+                        &BTreeSet::new(),
+                        &mut found,
+                        span,
+                        &mut self.budget,
+                    )?;
+                } else {
+                    unify(field, &actual, &vars, &mut found, span, &mut self.budget)?;
+                }
             }
         }
         let mut result = application(decl, &found, span, &mut self.budget)?;
