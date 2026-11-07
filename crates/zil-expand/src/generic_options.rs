@@ -439,7 +439,7 @@ mod terminal343_namespace_budget {
         }
         assert!(boundaries[1] > boundaries[0] * 2, "{boundaries:?}");
         eprintln!(
-            "task343 namespace exact source boundaries short={} long={}",
+            "namespace exact source boundaries short={} long={}",
             boundaries[0], boundaries[1]
         );
     }

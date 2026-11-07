@@ -1,4 +1,3 @@
-// Untouched consumer262 source checkpoint8754ae0b8b6db182bc1cd438fc39e59b92068304.
 // Syntax parsing only; CT typing, hygiene and execution remain separate.
 use zil_base::{FileId, ModuleId, SourceUnit};
 
@@ -39,167 +38,167 @@ fn type_meta_candidates_follow_type_productions_in_every_position() {
 }
 
 #[test]
-fn frozen_consumer_surface_parses_without_rewriting_source() {
+fn generated_type_surface_parses_without_rewriting_source() {
     let files = [
         (
             "00_frozen_type_value_main.zil",
-            include_str!("fixtures/impl258-consumer262/00_frozen_type_value_main.zil"),
+            include_str!("fixtures/type_meta_surface/frozen_type_value_main.zil"),
         ),
         (
             "01_type_values_main.zil",
-            include_str!("fixtures/impl258-consumer262/01_type_values_main.zil"),
+            include_str!("fixtures/type_meta_surface/type_values_main.zil"),
         ),
         (
             "02_four_categories_main.zil",
-            include_str!("fixtures/impl258-consumer262/02_four_categories_main.zil"),
+            include_str!("fixtures/type_meta_surface/four_categories_main.zil"),
         ),
         (
             "03_providers_hygiene_main.zil",
-            include_str!("fixtures/impl258-consumer262/03_providers_hygiene_main.zil"),
+            include_str!("fixtures/type_meta_surface/providers_hygiene_main.zil"),
         ),
         (
             "04_generated_ownership_main.zil",
-            include_str!("fixtures/impl258-consumer262/04_generated_ownership_main.zil"),
+            include_str!("fixtures/type_meta_surface/generated_ownership_main.zil"),
         ),
         (
             "05_generated_allocation_main.zil",
-            include_str!("fixtures/impl258-consumer262/05_generated_allocation_main.zil"),
+            include_str!("fixtures/type_meta_surface/generated_allocation_main.zil"),
         ),
         (
             "05b_generated_early_error_main.zil",
-            include_str!("fixtures/impl258-consumer262/05b_generated_early_error_main.zil"),
+            include_str!("fixtures/type_meta_surface/generated_early_error_main.zil"),
         ),
         (
             "06_generated_impl_main.zil",
-            include_str!("fixtures/impl258-consumer262/06_generated_impl_main.zil"),
+            include_str!("fixtures/type_meta_surface/generated_impl_main.zil"),
         ),
         (
             "07_fresh_and_named_main.zil",
-            include_str!("fixtures/impl258-consumer262/07_fresh_and_named_main.zil"),
+            include_str!("fixtures/type_meta_surface/fresh_and_named_main.zil"),
         ),
         (
             "common/io.zil",
-            include_str!("fixtures/impl258-consumer262/common/io.zil"),
+            include_str!("fixtures/type_meta_surface/common/io.zil"),
         ),
         (
             "common/model.zil",
-            include_str!("fixtures/impl258-consumer262/common/model.zil"),
+            include_str!("fixtures/type_meta_surface/common/model.zil"),
         ),
         (
             "common/tracked.zil",
-            include_str!("fixtures/impl258-consumer262/common/tracked.zil"),
+            include_str!("fixtures/type_meta_surface/common/tracked.zil"),
         ),
         (
             "extra_generators.zil",
-            include_str!("fixtures/impl258-consumer262/extra_generators.zil"),
+            include_str!("fixtures/type_meta_surface/extra_generators.zil"),
         ),
         (
             "generators.zil",
-            include_str!("fixtures/impl258-consumer262/generators.zil"),
+            include_str!("fixtures/type_meta_surface/generators.zil"),
         ),
         (
             "impl_generators.zil",
-            include_str!("fixtures/impl258-consumer262/impl_generators.zil"),
+            include_str!("fixtures/type_meta_surface/impl_generators.zil"),
         ),
         (
             "neg_duplicate_export_main.zil",
-            include_str!("fixtures/impl258-consumer262/neg_duplicate_export_main.zil"),
+            include_str!("fixtures/type_meta_surface/neg_duplicate_export_main.zil"),
         ),
         (
             "neg_duplicate_owned_input_main.zil",
-            include_str!("fixtures/impl258-consumer262/neg_duplicate_owned_input_main.zil"),
+            include_str!("fixtures/type_meta_surface/neg_duplicate_owned_input_main.zil"),
         ),
         (
             "neg_emit_expr_main.zil",
-            include_str!("fixtures/impl258-consumer262/neg_emit_expr_main.zil"),
+            include_str!("fixtures/type_meta_surface/neg_emit_expr_main.zil"),
         ),
         (
             "neg_export_cannot_capture_main.zil",
-            include_str!("fixtures/impl258-consumer262/neg_export_cannot_capture_main.zil"),
+            include_str!("fixtures/type_meta_surface/neg_export_cannot_capture_main.zil"),
         ),
         (
             "neg_frozen_emit_scalar_main.zil",
-            include_str!("fixtures/impl258-consumer262/neg_frozen_emit_scalar_main.zil"),
+            include_str!("fixtures/type_meta_surface/neg_frozen_emit_scalar_main.zil"),
         ),
         (
             "neg_ident_in_runtime_main.zil",
-            include_str!("fixtures/impl258-consumer262/neg_ident_in_runtime_main.zil"),
+            include_str!("fixtures/type_meta_surface/neg_ident_in_runtime_main.zil"),
         ),
         (
             "neg_item_emit_statements_main.zil",
-            include_str!("fixtures/impl258-consumer262/neg_item_emit_statements_main.zil"),
+            include_str!("fixtures/type_meta_surface/neg_item_emit_statements_main.zil"),
         ),
         (
             "neg_late_import_main.zil",
-            include_str!("fixtures/impl258-consumer262/neg_late_import_main.zil"),
+            include_str!("fixtures/type_meta_surface/neg_late_import_main.zil"),
         ),
         (
             "neg_layout_cycle_main.zil",
-            include_str!("fixtures/impl258-consumer262/neg_layout_cycle_main.zil"),
+            include_str!("fixtures/type_meta_surface/neg_layout_cycle_main.zil"),
         ),
         (
             "neg_member_owner_main.zil",
-            include_str!("fixtures/impl258-consumer262/neg_member_owner_main.zil"),
+            include_str!("fixtures/type_meta_surface/neg_member_owner_main.zil"),
         ),
         (
             "neg_nominal_identity_main.zil",
-            include_str!("fixtures/impl258-consumer262/neg_nominal_identity_main.zil"),
+            include_str!("fixtures/type_meta_surface/neg_nominal_identity_main.zil"),
         ),
         (
             "neg_private_reflection_main.zil",
-            include_str!("fixtures/impl258-consumer262/neg_private_reflection_main.zil"),
+            include_str!("fixtures/type_meta_surface/neg_private_reflection_main.zil"),
         ),
         (
             "neg_runtime_read_in_ct_main.zil",
-            include_str!("fixtures/impl258-consumer262/neg_runtime_read_in_ct_main.zil"),
+            include_str!("fixtures/type_meta_surface/neg_runtime_read_in_ct_main.zil"),
         ),
         (
             "neg_splice_wrong_category_main.zil",
-            include_str!("fixtures/impl258-consumer262/neg_splice_wrong_category_main.zil"),
+            include_str!("fixtures/type_meta_surface/neg_splice_wrong_category_main.zil"),
         ),
         (
             "neg_syntax_is_not_automatic_main.zil",
-            include_str!("fixtures/impl258-consumer262/neg_syntax_is_not_automatic_main.zil"),
+            include_str!("fixtures/type_meta_surface/neg_syntax_is_not_automatic_main.zil"),
         ),
         (
             "neg_type_in_runtime_main.zil",
-            include_str!("fixtures/impl258-consumer262/neg_type_in_runtime_main.zil"),
+            include_str!("fixtures/type_meta_surface/neg_type_in_runtime_main.zil"),
         ),
         (
             "neg_type_requires_type_value_main.zil",
-            include_str!("fixtures/impl258-consumer262/neg_type_requires_type_value_main.zil"),
+            include_str!("fixtures/type_meta_surface/neg_type_requires_type_value_main.zil"),
         ),
         (
             "neg_type_splice_expr_main.zil",
-            include_str!("fixtures/impl258-consumer262/neg_type_splice_expr_main.zil"),
+            include_str!("fixtures/type_meta_surface/neg_type_splice_expr_main.zil"),
         ),
         (
             "neg_unknown_provider_export_main.zil",
-            include_str!("fixtures/impl258-consumer262/neg_unknown_provider_export_main.zil"),
+            include_str!("fixtures/type_meta_surface/neg_unknown_provider_export_main.zil"),
         ),
         (
             "providers/expressions.zil",
-            include_str!("fixtures/impl258-consumer262/providers/expressions.zil"),
+            include_str!("fixtures/type_meta_surface/providers/expressions.zil"),
         ),
         (
             "providers/items.zil",
-            include_str!("fixtures/impl258-consumer262/providers/items.zil"),
+            include_str!("fixtures/type_meta_surface/providers/items.zil"),
         ),
         (
             "providers/scaling.zil",
-            include_str!("fixtures/impl258-consumer262/providers/scaling.zil"),
+            include_str!("fixtures/type_meta_surface/providers/scaling.zil"),
         ),
         (
             "providers/statements.zil",
-            include_str!("fixtures/impl258-consumer262/providers/statements.zil"),
+            include_str!("fixtures/type_meta_surface/providers/statements.zil"),
         ),
         (
             "providers/support.zil",
-            include_str!("fixtures/impl258-consumer262/providers/support.zil"),
+            include_str!("fixtures/type_meta_surface/providers/support.zil"),
         ),
         (
             "providers/types.zil",
-            include_str!("fixtures/impl258-consumer262/providers/types.zil"),
+            include_str!("fixtures/type_meta_surface/providers/types.zil"),
         ),
     ];
     assert_eq!(files.len(), 40);

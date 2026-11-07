@@ -1,10 +1,10 @@
 use zil_base::{Diagnostic, FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_ir::{CallableKind, CoreModule, Type};
 
-const ORIGINAL: &str = include_str!("impl205_fixtures/00_original_state_and_replacement.zil");
-const LAST_USE: &str = include_str!("impl205_fixtures/03_mixed_unused_copy_alias_last_use.zil");
-const MIXED_ALIAS: &str = include_str!("impl205_fixtures/01_mixed_unused_copy_alias.zil");
-const SINGLE_ALIAS: &str = include_str!("impl205_fixtures/02_single_state_unused_copy_alias.zil");
+const ORIGINAL: &str = include_str!("state_replacement_fixtures/state_and_replacement.zil");
+const LAST_USE: &str = include_str!("state_replacement_fixtures/mixed_unused_copy_alias_last_use.zil");
+const MIXED_ALIAS: &str = include_str!("state_replacement_fixtures/mixed_unused_copy_alias.zil");
+const SINGLE_ALIAS: &str = include_str!("state_replacement_fixtures/single_state_unused_copy_alias.zil");
 
 fn run(text: &str) -> Result<CoreModule, Vec<Diagnostic>> {
     let source = SourceUnit::new(FileId(0), ModuleId(0), "state205.zil", text);
@@ -57,7 +57,7 @@ fn header(text: &str, owner: u32, replacement: u32, fields: &[u32], kind: Callab
 }
 
 #[test]
-fn original_138_bytes_publish_one_owner_and_one_real_replacement() {
+fn state_replacement_publishes_one_owner_and_one_replacement() {
     assert_eq!(ORIGINAL.len(), 138);
     header(ORIGINAL, 0, 1, &[1, 2], CallableKind::Fn);
 }
@@ -139,7 +139,7 @@ fn alias_reject(text: &str, message: &str) {
 }
 
 #[test]
-fn original_omitted_and_retained_definitions_reject_the_same_old_address() {
+fn omitted_and_retained_definitions_reject_the_same_old_address() {
     alias_reject(MIXED_ALIAS, "State alias outlives");
     alias_reject(SINGLE_ALIAS, "State alias outlives");
     let non_t = SINGLE_ALIAS

@@ -117,7 +117,7 @@ fn assert_header(f: &CoreFunction) {
 }
 
 #[test]
-fn original_push_source_retains_whole_element_and_one_original_template() {
+fn push_source_retains_whole_element_and_one_template() {
     // Exact helpers01 source: SHA256 101580f8d78e661011d3b73f731c4f2f2ae376a408c1cc02c8aa072d4f627bf9.
     let text = format!(
         "{HELPERS}\n{}",
@@ -145,7 +145,7 @@ fn original_push_source_retains_whole_element_and_one_original_template() {
 }
 
 #[test]
-fn original_empty_and_reserve_source_preserves_caller_nominal_family() {
+fn empty_and_reserve_preserve_caller_nominal_family() {
     // Exact helpers01 source: SHA256 d8fd10675872542e99533ee23957db2c3150760a2f71ea8ff28150ad6c3a7a55.
     let text = format!(
         "{HELPERS}\n{}",
@@ -252,11 +252,9 @@ fn legacy_single_field_state_preserves_exact_expand_budget() {
             },
         )
     };
-    // 205 closes an observed unused-definition alias hole on this real
-    // borrow/sibling input. Its pre-fix N1731 baseline is retained separately;
-    // the new actual window walk is charged, with defaults unchanged.
-    // Pre322 N1938 is retained here as history; full type-position lifetime
-    // validation and its shared remainder now require N2358 (N-1/fresh below).
+    // The unused-definition alias walk is charged for this borrow/sibling
+    // input. Full type-position lifetime validation shares the same remaining
+    // budget, and the exact boundary is checked at N and N-1 below.
     let exact = budget_boundary::minimum(true, |limits| check(limits.max_analysis_steps));
     eprintln!("legacy State Expand N={exact}");
     check(exact).unwrap();
@@ -267,8 +265,8 @@ fn legacy_single_field_state_preserves_exact_expand_budget() {
             .any(|d| d.category == ResultCategory::ResourceLimit)
     );
     check(exact).unwrap();
-    // Prior2766; G10.1.5 tail retains three actual callable source-life
-    // queries after removing irrelevant fixed-class leaf walks (921 was2774).
+    // The boundary includes three actual callable source-life queries;
+    // fixed-class leaf walks do not consume work.
     assert_eq!(exact, 2769);
 }
 
@@ -343,7 +341,7 @@ fn ordinary_store_calls_stay_eager_with_a_measured_exact_budget() {
     eprintln!("ordinary_store_expand_n={n}");
     assert_eq!(
         n, 3360,
-        "322 full type-position lifetime validation; source unchanged from pre202 N2255"
+        "full type-position lifetime validation consumes the shared budget"
     );
 }
 
@@ -636,7 +634,7 @@ fn five_module_consumer_preserves_all_six_ordinary_helpers() {
         map.validate(&sources, &Limits::default()).unwrap();
         if let Some(root) = std::env::var_os("ZIL_TEST_REPORT_DIR") {
             let path = std::path::PathBuf::from(root)
-                .join(format!("consumer202-expand-{}", std::process::id()));
+                .join(format!("store_template_consumer_expand-{}", std::process::id()));
             std::fs::create_dir_all(&path).unwrap();
             std::fs::write(
                 path.join(format!("{}.zil", entries[index].0)),

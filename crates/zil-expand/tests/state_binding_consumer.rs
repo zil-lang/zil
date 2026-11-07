@@ -68,7 +68,7 @@ fn five_modules_preserve_two_declared_roots_through_ordinary_helpers() {
         map.validate(&sources, &Limits::default()).unwrap();
         assert!(module.core.unsupported.is_empty());
         if let Some(root) = std::env::var_os("ZIL_TEST_REPORT_DIR") {
-            let directory = std::path::PathBuf::from(root).join("consumer203");
+            let directory = std::path::PathBuf::from(root).join("declared_state_binding_consumer");
             std::fs::create_dir_all(&directory).unwrap();
             std::fs::write(
                 directory.join(format!("{}.zil", entries[i].0)),

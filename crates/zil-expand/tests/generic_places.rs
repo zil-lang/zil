@@ -1,7 +1,7 @@
 use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit};
 
 fn expand(text: &str) -> zil_base::CompileResult<zil_expand::ExpandedModule> {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "impl094-generic.zil", text);
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "generic-places.zil", text);
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     zil_expand::expand_with_map_limits(&source, &syntax, &Limits::default())
 }

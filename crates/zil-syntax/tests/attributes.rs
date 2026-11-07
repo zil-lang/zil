@@ -30,7 +30,7 @@ fn rejected(text: &str, code: &str) {
 }
 
 #[test]
-fn plan_t01_005_registry_matches_frozen_normative_input() {
+fn registry_matches_frozen_normative_input() {
     let registry = include_bytes!("../../../spec/attributes.json");
     assert_eq!(
         Fingerprint::of(registry).to_hex(),
@@ -56,7 +56,7 @@ fn plan_t01_005_registry_matches_frozen_normative_input() {
 }
 
 #[test]
-fn plan_t01_005_all_builtin_attachment_targets_are_checked() {
+fn all_builtin_attachment_targets_are_checked() {
     // Independent source fixtures cover all declared attachment categories,
     // including resource versus package and fn-shaped associated/extern items.
     let templates = [
@@ -110,7 +110,7 @@ fn plan_t01_005_all_builtin_attachment_targets_are_checked() {
 }
 
 #[test]
-fn plan_t01_005_unknown_and_preregistered_custom_attributes_are_distinct() {
+fn unknown_and_preregistered_custom_attributes_are_distinct() {
     rejected("#[typo]\nfn f() {}", "E-PARSE-ATTRIBUTE-UNKNOWN");
     rejected("#[schema.Record]\nstruct S {}", "E-PARSE-ATTRIBUTE-UNKNOWN");
     let mut context = AttributeContext::default();
@@ -150,7 +150,7 @@ fn plan_t01_005_unknown_and_preregistered_custom_attributes_are_distinct() {
 }
 
 #[test]
-fn plan_t01_005_repeat_rules_and_inline_conflicts_are_separate() {
+fn repeat_rules_and_inline_conflicts_are_separate() {
     for (attributes, target) in [
         ("#[repr(C)]\n#[repr(C)]", "struct S {}"),
         ("#[align(8)]\n#[align(8)]", "struct S {}"),
@@ -186,7 +186,7 @@ fn plan_t01_005_repeat_rules_and_inline_conflicts_are_separate() {
 }
 
 #[test]
-fn plan_t01_005_derive_rejects_repeated_written_trait_paths() {
+fn derive_rejects_repeated_written_trait_paths() {
     for attrs in [
         "#[derive(Debug, Debug)]",
         "#[derive(Debug)]\n#[derive(Eq, Debug)]",
@@ -201,7 +201,7 @@ fn plan_t01_005_derive_rejects_repeated_written_trait_paths() {
 }
 
 #[test]
-fn plan_t01_005_registered_argument_structure_is_enforced() {
+fn registered_argument_structure_is_enforced() {
     for (attribute, target) in [
         ("#[cfg()]", "fn f() {}"),
         ("#[cfg(true, false)]", "fn f() {}"),
@@ -223,7 +223,7 @@ fn plan_t01_005_registered_argument_structure_is_enforced() {
 }
 
 #[test]
-fn plan_t01_005_attribute_value_types_are_not_claimed_by_the_parser() {
+fn attribute_value_types_are_not_claimed_by_the_parser() {
     // Structure parses; later registered phases still owe value types, enum
     // choices, actual trait identities, lint membership, and target layout.
     for (attribute, target) in [
@@ -242,7 +242,7 @@ fn plan_t01_005_attribute_value_types_are_not_claimed_by_the_parser() {
 }
 
 #[test]
-fn plan_t01_005_cfg_removal_precedes_other_attribute_resolution() {
+fn cfg_removal_precedes_other_attribute_resolution() {
     for attrs in [
         "#[cfg(false)]\n#[unknown]",
         "#[unknown]\n#[cfg(false)]",
@@ -269,7 +269,7 @@ fn plan_t01_005_cfg_removal_precedes_other_attribute_resolution() {
 }
 
 #[test]
-fn plan_t01_005_unresolved_configuration_defers_until_snapshot_is_supplied() {
+fn unresolved_configuration_defers_until_snapshot_is_supplied() {
     let input =
         source("#[unknown]\n#[cfg(target.os == \"linux\")]\nstruct S { #[unknown] x: i32 }");
     let parsed = zil_syntax::parse(&input);
@@ -309,7 +309,7 @@ fn plan_t01_005_unresolved_configuration_defers_until_snapshot_is_supplied() {
 }
 
 #[test]
-fn plan_t01_005_unmaterialized_compile_time_items_defer_attribute_resolution() {
+fn unmaterialized_compile_time_items_defer_attribute_resolution() {
     let parsed = accepted("#if (false) { #[unknown] fn f() {} } else { #[other] fn g() {} }");
     assert_eq!(parsed.deferred_attributes.len(), 2);
     assert!(
@@ -335,7 +335,7 @@ fn plan_t01_005_unmaterialized_compile_time_items_defer_attribute_resolution() {
 }
 
 #[test]
-fn plan_t01_005_attributes_cannot_float_or_attach_to_statements_or_values() {
+fn attributes_cannot_float_or_attach_to_statements_or_values() {
     for text in [
         "#[doc = \"floating\"]",
         "struct S { #[doc = \"floating\"] }",

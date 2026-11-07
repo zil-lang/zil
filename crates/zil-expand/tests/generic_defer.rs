@@ -6,7 +6,7 @@ fn expand(text: &str, limits: &Limits) -> Result<zil_ir::CoreModule, Vec<zil_bas
 }
 const UNUSED: &str = "extern \"C\" fn putchar(n:i32)->i32; fn unused<T:Copy>(value:T){defer{unsafe{putchar(81)}}} fn main(){}";
 #[test]
-fn original_joint_sources_reach_core_without_erasing_their_defer() {
+fn joint_sources_reach_core_without_erasing_defer() {
     for text in [
         include_str!("../../zil-driver/tests/impl237_fixtures/defer_f_implicit.zil"),
         include_str!("../../zil-driver/tests/impl237_fixtures/defer_f_explicit.zil"),

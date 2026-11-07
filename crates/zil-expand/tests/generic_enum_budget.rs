@@ -1,5 +1,4 @@
-//! Attributed 240/322 legacy budget migrations preserve exact source controls.
-//! Pre322 work336/nodes126; paid whole-AST life validation yields403/165.
+//! Exact work and node boundaries include whole-AST lifetime validation.
 #[path = "../test-support/budget_boundary.rs"]
 mod budget_boundary;
 use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit};
