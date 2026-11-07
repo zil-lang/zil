@@ -359,6 +359,7 @@ struct Budget {
     owning_address_captures: bool,
     head_descriptions: bool,
     stored_borrows: bool,
+    stored_package_instance: bool,
     // Derived only from the existing paid raw-instruction inventory.
     stored_slot_updates: bool,
     // Eligibility only; pure reads and values still prove their actual shape.
@@ -400,6 +401,7 @@ impl Budget {
             owning_address_captures: false,
             head_descriptions: false,
             stored_borrows: false,
+            stored_package_instance: false,
             stored_slot_updates: false,
             pure_nominal: false,
             stored_context: false,
