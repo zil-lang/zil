@@ -6,7 +6,7 @@ R=Path(__file__).resolve().parents[1];checks=[]
 def ck(name,ok,detail=''):checks.append(dict(name=name,pass_=bool(ok),detail=detail))
 data=json.loads((R/'conformance/index.json').read_text());cases=data['cases']
 rules=set(re.findall(r'<a id="(ZIL-[A-Z]+(?:-[A-Z]+)*)"></a>',(R/'_zil_design.md').read_text()))
-tasks={t['id'] for t in json.loads((R/'data/task-index.json').read_text())['tasks']}
+tasks={t['source_id'] for t in json.loads((R/'validation/engineering-contracts.json').read_text())['contracts'].values()}
 diags={d['code']:d for d in json.loads((R/'spec/diagnostics.json').read_text())['entries']}
 ck('source corpus nonempty',len(cases)>0)
 ck('case IDs and paths unique',len({c['id'] for c in cases})==len(cases) and len({c['path'] for c in cases})==len(cases))

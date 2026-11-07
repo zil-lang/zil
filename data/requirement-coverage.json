@@ -1,120 +1,120 @@
 {
-  "generated_from": ".task/*.md",
+  "generated_from": "validation/engineering-contracts.json",
   "coverage": {
     "ZIL-TARGET": [
-      "B0",
-      "W4"
+      "source_pipeline",
+      "product_comparison_and_release"
     ],
     "ZIL-CORE": [
-      "W1"
+      "cross_module_resource_flow"
     ],
     "ZIL-MODES": [
-      "T02",
-      "W1"
+      "types_and_callable_shapes",
+      "cross_module_resource_flow"
     ],
     "ZIL-ORIGIN": [
-      "T05",
-      "T06"
+      "independent_verification",
+      "resource_origin_and_cleanup"
     ],
     "ZIL-ACCESS": [
-      "T05",
-      "T08"
+      "independent_verification",
+      "higher_order_and_graphs"
     ],
     "ZIL-CONTRACT": [
-      "T06"
+      "resource_origin_and_cleanup"
     ],
     "ZIL-ROUTE": [
-      "T06",
-      "W1"
+      "resource_origin_and_cleanup",
+      "cross_module_resource_flow"
     ],
     "ZIL-CLEANUP": [
-      "T06",
-      "T07",
-      "T08",
-      "W1"
+      "resource_origin_and_cleanup",
+      "llvm_lowering_and_runtime",
+      "higher_order_and_graphs",
+      "cross_module_resource_flow"
     ],
     "ZIL-PACKAGE": [
-      "T06",
-      "T07",
-      "W1"
+      "resource_origin_and_cleanup",
+      "llvm_lowering_and_runtime",
+      "cross_module_resource_flow"
     ],
     "ZIL-CAPTURE": [
-      "T02",
-      "T08",
-      "W2"
+      "types_and_callable_shapes",
+      "higher_order_and_graphs",
+      "syntax_to_graph_flow"
     ],
     "ZIL-BYTE-STORAGE": [
-      "B0"
+      "source_pipeline"
     ],
     "ZIL-CFG": [
-      "T08"
+      "higher_order_and_graphs"
     ],
     "ZIL-CONCURRENCY": [
-      "T09",
-      "W3"
+      "async_and_completion_roots",
+      "system_io_and_callbacks"
     ],
     "ZIL-ASYNC": [
-      "T09",
-      "W3"
+      "async_and_completion_roots",
+      "system_io_and_callbacks"
     ],
     "ZIL-LOWERING": [
-      "T07",
-      "T09",
-      "W3"
+      "llvm_lowering_and_runtime",
+      "async_and_completion_roots",
+      "system_io_and_callbacks"
     ],
     "ZIL-MODULE": [
-      "T04",
-      "W2"
+      "module_driver_and_native_run",
+      "syntax_to_graph_flow"
     ],
     "ZIL-SYNTAX": [
-      "T01",
-      "W2"
+      "syntax_and_normalization",
+      "syntax_to_graph_flow"
     ],
     "ZIL-RECEIVER": [
-      "T01",
-      "T02",
-      "T08",
-      "W2"
+      "syntax_and_normalization",
+      "types_and_callable_shapes",
+      "higher_order_and_graphs",
+      "syntax_to_graph_flow"
     ],
     "ZIL-RECORD": [
-      "T01",
-      "T02",
-      "T08",
-      "W2"
+      "syntax_and_normalization",
+      "types_and_callable_shapes",
+      "higher_order_and_graphs",
+      "syntax_to_graph_flow"
     ],
     "ZIL-PIPE": [
-      "T01",
-      "T02",
-      "T08",
-      "W2"
+      "syntax_and_normalization",
+      "types_and_callable_shapes",
+      "higher_order_and_graphs",
+      "syntax_to_graph_flow"
     ],
     "ZIL-SCRIPT": [
-      "T01",
-      "T04",
-      "W2"
+      "syntax_and_normalization",
+      "module_driver_and_native_run",
+      "syntax_to_graph_flow"
     ],
     "ZIL-COMPTIME": [
-      "T03",
-      "T05",
-      "W2"
+      "compile_time_generation",
+      "independent_verification",
+      "syntax_to_graph_flow"
     ],
     "ZIL-ATTRIBUTE": [
-      "T01",
-      "T03"
+      "syntax_and_normalization",
+      "compile_time_generation"
     ],
     "ZIL-TRAIT": [
-      "T02",
-      "W2"
+      "types_and_callable_shapes",
+      "syntax_to_graph_flow"
     ],
     "ZIL-ARCH": [
-      "B0",
-      "T04",
-      "T05",
-      "W4"
+      "source_pipeline",
+      "module_driver_and_native_run",
+      "independent_verification",
+      "product_comparison_and_release"
     ],
     "ZIL-ACCEPT": [
-      "B0",
-      "W4"
+      "source_pipeline",
+      "product_comparison_and_release"
     ]
   }
 }

@@ -18,4 +18,4 @@ with tempfile.TemporaryDirectory(prefix='zil-failure-') as temp:
         assert any(x['phase']==phase and (code is None or x['code']==code) for x in d['diagnostics']),d;assertions+=1
         assert not output.exists(),name;assertions+=1
         observed.append({'source':name,'status':status,'phase':phase,'codes':[x['code'] for x in d['diagnostics']],'exit_code':p.returncode})
-print(json.dumps({'executed':len(checks),'assertions':assertions,'evidence_level':'NativeCliFailureClassification','observed':observed}))
+print(json.dumps({'status':'Pass','executed':len(checks),'assertions':assertions,'evidence_level':'NativeCliFailureClassification','observed':observed}))

@@ -49,6 +49,7 @@ function fixture(t) {
   git(root, 'config', 'user.name', 'Handoff fixture'); git(root, 'config', 'user.email', 'fixture@example.invalid');
   const {spec_hash: specHash, normative_hash: norm} = writeSpecification(root, '# Fixture specification\n');
   const baseline = commit(root, 'fixture baseline');
+  put(root, 'validation/engineering-contracts.json', fs.readFileSync(path.join(project, 'validation/engineering-contracts.json'), 'utf8'));
   const formal = {id: 'B0', status: 'Doing', spec_hash: specHash, normative_hash: norm, base_revision: baseline, blocked_by: [], evidence: []};
   for (const id of formalIds) put(root, `.task/${id}.md`, `# ${id} fixture\n\n\`\`\`json\n${JSON.stringify({...formal, id, status: id === 'B0' ? 'Doing' : 'Planned'})}\n\`\`\`\n`);
   const task = {id: '003', parent_task: 'B0', status: '施工', baseline, spec_hash: specHash, normative_hash: norm, authoritative_task: '/previous/computer/zil/.task/impl/003.md', write_set: ['tools/handoff.mjs'], implementation_author: 'builder', implementation_commit: null, integration_commit: null, review: null, evidence: []};
@@ -86,7 +87,7 @@ scenario('handoff-001', '分树核对主树工程记录且不从历史状态派�
   check(result.recorded_open_slices, {scope: 'Open states recorded in main-tree engineering history; not live assignments.', records: [{id: '003', status: '施工', record_path: '.task/impl/003.md'}]});
   check(result.live_plan, {branch: 'goal', path: 'goal.md', refresh_command: 'git fetch origin refs/heads/goal:refs/remotes/origin/goal', read_command: 'git show refs/remotes/origin/goal:goal.md'});
   check(result.live_plan_checked, false); check(result.development_branches_checked, false);
-  check(result.authority.task_scope, 'Main-tree engineering and delivery records only; live planning authority is goal:goal.md.');
+  check(result.authority.contract_scope, 'Static engineering obligations only; live planning authority is goal:goal.md.');
   check(result.commands.plan, result.live_plan.read_command);
   check(result.commands.engineering_contract, 'python3 tools/check-plan.py --self-test');
   const attempt = capture(process.execPath, [script], {cwd: child});
@@ -344,13 +345,14 @@ scenario('handoff-016', '冻结路径字节对象与未提交清单篡改拒绝'
   }
 });
 
-scenario('handoff-017', '归档原字节不可改删', t => {
+scenario('handoff-017', '历史源提交可恢复且现存归档原字节不可改', t => {
   for (const removed of [false, true]) {
     const f = fixture(t); migrate(f);
     if (removed) fs.unlinkSync(path.join(f.root, '.task/impl/003.md'));
     else put(f.root, '.task/impl/003.md', 'changed historical record\n');
     commit(f.root, 'retain detected historical edit');
-    check(hasError(inspectHandoff(f.root), 'Historical record was removed, changed or uncommitted'));
+    check(inspectHandoff(f.root).status, removed ? 'CurrentPass' : 'CurrentFail');
+    if (!removed) check(hasError(inspectHandoff(f.root), 'Historical record differs from its frozen source'));
   }
 });
 
@@ -402,7 +404,7 @@ scenario('handoff-021', '显式review selector精确提交与非作者核验', t
   check(hasError(inspectHandoff(f.root), 'independent passing review'));
 });
 
-scenario('handoff-022', '有限review不晋升正式Done', t => {
+scenario('handoff-022', '有限review不晋升静态合同验收', t => {
   const f = fixture(t); merged(f);
   f.task.scope_contract = 'Finite fixture only'; f.task.review.verdict = 'PassLimited';
   put(f.root, 'docs/validation/limited.json', {verdict: 'PassLimited', reviewer: 'reviewer', implementation_commit: f.task.implementation_commit});
@@ -412,7 +414,8 @@ scenario('handoff-022', '有限review不晋升正式Done', t => {
   const formal = JSON.parse(fs.readFileSync(path.join(f.root, '.task/B0.md'), 'utf8').match(/```json\n([\s\S]*?)\n```/)[1]);
   formal.status = 'Done'; formal.acceptance_record = 'docs/validation/limited.json'; formal.evidence = ['docs/validation/limited.json'];
   put(f.root, '.task/B0.md', `# B0\n\`\`\`json\n${JSON.stringify(formal)}\n\`\`\`\n`); commit(f.root, 'invalid full Done from limited review');
-  check(hasError(inspectHandoff(f.root), 'Evidence has no passing outcome'));
+  check(inspectHandoff(f.root).status, 'CurrentPass');
+  check(inspectHandoff(f.root).tasks.find(row => row.id === 'B0').recorded_acceptance, false);
 });
 
 scenario('handoff-023', 'metadata-only等价只允许明确文档差异', t => {
@@ -538,10 +541,10 @@ scenario('handoff-029', '工作树新证据不能填补历史snapshot缺失或�
 });
 
 function readFormalContracts(root) {
-  return capture('python3', ['-c', 'import json,runpy,sys; from pathlib import Path; m=runpy.run_path(sys.argv[1]); print(json.dumps([t["id"] for t in m["read_tasks"](Path(sys.argv[2]))]))', path.join(project, 'tools/check-plan.py'), root]);
+  return capture('python3', ['-c', 'import json,runpy,sys; from pathlib import Path; m=runpy.run_path(sys.argv[1]); print(json.dumps([t["source_id"] for t in m["read_contracts"](Path(sys.argv[2])).values()]))', path.join(project, 'tools/check-plan.py'), root]);
 }
 
-scenario('handoff-030', 'Goal实施说明和子号只分类；非规范ID与未知文档仍拒绝', t => {
+scenario('handoff-030', '静态合同不读取主树Goal实施说明', t => {
   const f = fixture(t);
   put(f.root, '.task/G8.3.md', fs.readFileSync(path.join(project, '.task/G8.3.md'), 'utf8'));
   put(f.root, '.task/G8.3.1.md', '# G8.3.1 implementation note\nNo formal status or acceptance record.\n');
@@ -550,40 +553,42 @@ scenario('handoff-030', 'Goal实施说明和子号只分类；非规范ID与未�
   const result = inspectHandoff(f.root);
   check(result.status, 'Pass');
   check(result.tasks.map(row => row.id), formalIds);
-  check(result.goal_implementation_notes, {scope: 'Canonical Goal ID filenames only; note contents, review and acceptance are not validated.', validated: false, paths: ['.task/G10.0.0.md', '.task/G10.0.md', '.task/G8.3.1.md', '.task/G8.3.md']});
+  check(result.goal_implementation_notes.validated, false);
+  check(result.goal_implementation_notes.paths, []);
   const python = readFormalContracts(f.root);
   check(python.status, 0); check(JSON.parse(python.stdout), formalIds);
   for (const stem of ['G08.3', 'G8.03', 'G8.00', 'G0.3', 'G8.3.01', 'G8', 'G8.3extra', 'unknown', 'G8.3\n']) {
     const name = `.task/${stem}.md`;
     put(f.root, name, '# Unknown record\n');
-    check(hasError(inspectHandoff(f.root), 'Unknown formal contract or noncanonical Goal ID'));
-    check(readFormalContracts(f.root).status, 1);
+    check(inspectHandoff(f.root).status, 'Pass');
+    check(readFormalContracts(f.root).status, 0);
     fs.unlinkSync(path.join(f.root, name));
   }
   put(f.root, '.task/impl/G8.3.1.md', '# Wrong directory; never excluded as a root Goal note.\n');
   check(hasError(inspectHandoff(f.root), 'Task has no valid JSON record'));
 });
 
-scenario('handoff-031', '全部14正式合同不可改名为Goal来逃过规范和Done门', t => {
+scenario('handoff-031', '全部14静态合同不可缺少或伪造验收', t => {
   const f = fixture(t), note = path.join(f.root, '.task/G10.1.1.md');
   for (const id of formalIds) {
     const original = path.join(f.root, `.task/${id}.md`);
     fs.renameSync(original, note);
     const result = inspectHandoff(f.root);
-    check(result.status, 'Fail');
-    check(hasError(result, 'Goal notes cannot replace formal contracts'));
+    check(result.status, 'Pass');
     const python = readFormalContracts(f.root);
-    check(python.status, 1); check(python.stderr.includes('Goal notes cannot replace formal contracts'));
+    check(python.status, 0);
     fs.renameSync(note, original);
   }
-  const formal = JSON.parse(fs.readFileSync(path.join(f.root, '.task/B0.md'), 'utf8').match(/```json\n([\s\S]*?)\n```/)[1]);
-  formal.status = 'Done'; formal.spec_hash = 'stale';
-  put(f.root, '.task/B0.md', `# B0\n\`\`\`json\n${JSON.stringify(formal)}\n\`\`\`\n`);
-  put(f.root, '.task/G10.1.1.md', '# Approved implementation note\n');
-  const result = inspectHandoff(f.root);
-  check(hasError(result, 'Task specification snapshot is stale'));
-  check(hasError(result, 'Evidence references are missing'));
-  check(hasError(result, 'Done task lacks an integrator acceptance record'));
+  const registry = JSON.parse(fs.readFileSync(path.join(f.root, 'validation/engineering-contracts.json')));
+  registry.contracts.source_pipeline.done_when.push('Uncommitted invented obligation');
+  put(f.root, 'validation/engineering-contracts.json', registry);
+  check(hasError(inspectHandoff(f.root), 'Static engineering contracts differ from committed HEAD'));
+  delete registry.contracts.source_pipeline.implementation_obligations;
+  put(f.root, 'validation/engineering-contracts.json', registry);
+  check(hasError(inspectHandoff(f.root), 'Malformed static contract'));
+  delete registry.contracts.source_pipeline;
+  put(f.root, 'validation/engineering-contracts.json', registry);
+  check(hasError(inspectHandoff(f.root), 'Expected 14 semantic static engineering contracts'));
 });
 
 scenario('handoff-032', 'Goal历史合同显式锁祖先规范且不升级记录状态', t => {
@@ -639,7 +644,7 @@ scenario('handoff-034', '历史revision须已提交Goal权威且不能覆盖合�
   const formal = JSON.parse(fs.readFileSync(path.join(g.root, name), 'utf8').match(/```json\n([\s\S]*?)\n```/)[1]);
   Object.assign(formal, {status_authority: 'goal:goal.md', specification_revision: g.baseline});
   put(g.root, name, `# B0\n\`\`\`json\n${JSON.stringify(formal)}\n\`\`\`\n`); commit(g.root, 'formal cannot use slice revision override');
-  check(inspectHandoff(g.root).errors.some(e => e.id === 'B0' && e.reason.includes('requires an unmerged historical slice')));
+  check(inspectHandoff(g.root).status, 'Pass');
 });
 
 scenario('handoff-035', '显式revision仍核原规范字节及完整注册集合', t => {

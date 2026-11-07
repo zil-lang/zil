@@ -14,31 +14,19 @@ ck('rule index regenerated',set(load('data/requirement-index.json')['ids'])==ids
 ck('22 stable acceptance groups',len(gates)==22)
 contracts=runpy.run_path(str(R/'tools/check-plan.py'))
 try:
- items=contracts['read_tasks'](R)
- ck('exactly 14 formal contracts; canonical Goal notes are separate',True)
-except (OSError,ValueError,TypeError) as ex:
- items=[]
- ck('exactly 14 formal contracts; canonical Goal notes are separate',False,str(ex))
-by={x['id']:x for x in items}
-ck('unique task IDs',len(by)==len(items) and len(items)>0)
-ck('all tasks reference existing rules',all(set(t['requirements'])<=ids for t in items))
-ck('all tasks reference existing acceptance',all(set(t['acceptance'])<=gates for t in items))
-ck('all tasks pin current spec hash',all(t['spec_hash']==h for t in items))
-ck('task states valid',all(t['status'] in ['Planned','Ready','Doing','Review','Done','Cancelled'] and (t['status'] not in ['Ready','Doing','Review','Done'] or bool(t['base_revision'])) and (t['status']!='Done' or bool(t['evidence'])) for t in items))
-ck('task deps exist',all(set(t['blocked_by'])<=set(by) for t in items))
-seen=set();active=set()
-def walk(x):
- if x in active:return False
- if x in seen:return True
- active.add(x)
- ok=all(walk(y) for y in by[x]['blocked_by']);active.remove(x);seen.add(x);return ok
-ck('task DAG acyclic',all(walk(x) for x in by))
-ck('generated task index equals engineering-contract records',load('data/task-index.json')['tasks']==items)
-cover=load('data/requirement-coverage.json')['coverage'];ck('every normative rule has an engineering-contract owner',set(cover)==ids and all(cover.values()))
-ck('every acceptance group has task',gates<={v for t in items for v in t['acceptance']})
-ck('goal does not redefine numeric thresholds',not re.search(r'\d+\s*(?:%|ms|毫秒)|不低于\s*\d', (R/'_zil_goal.md').read_text()))
-ck('tasks reference the single product profile',all(t['profile']=='validation/product-gates.json' for t in items))
-ck('task citations are not loose prose rules',all('不改所引用规则和profile' in (R/'.task'/f'{t["id"]}.md').read_text() for t in items))
+ items=contracts['read_contracts'](R)
+ static_report=contracts['validate'](items,load('spec/interfaces.json'),load('validation/task-test-plans.json'),load('conformance/index.json'),ids,gates)
+ ck('static engineering contracts and case registries',static_report['ok'],str(static_report['errors']))
+except (OSError,ValueError,TypeError,KeyError) as ex:
+ items={}
+ ck('static engineering contracts and case registries',False,str(ex))
+ck('exactly 14 capability contracts',len(items)==14)
+ck('all contracts reference existing rules',all(set(t['requirements'])<=ids for t in items.values()))
+ck('all contracts reference existing acceptance',all(set(t['acceptance'])<=gates for t in items.values()))
+cover=load('data/requirement-coverage.json')['coverage']
+ck('every normative rule has an engineering-contract owner',set(cover)==ids and all(cover.values()) and all(set(keys)<=set(items) for keys in cover.values()))
+ck('every acceptance group has contract',gates<={v for t in items.values() for v in t['acceptance']})
+ck('contracts reference the single product profile',all(t['profile']=='validation/product-gates.json' for t in items.values()))
 d=load('data/designer-data.json');orig=load('data/original-atlas.json');docs=load('data/designer-docs.json')
 ck('42 original goals retained exactly',d['goals']==orig['goals'] and len(d['goals'])==42)
 ck('28 variable IDs retained',[(x['id'],x['name']) for x in d['variables']]==[(x['id'],x['name']) for x in orig['variables']])
@@ -67,7 +55,7 @@ g=(R/'spec/grammar.ebnf').read_text();g=re.sub(r'\(\*.*?\*\)','',g,flags=re.S);d
 ck('grammar references defined nonterminals',names<=defs|terminal,','.join(sorted(names-defs-terminal)))
 ck('grammar # alternatives present',all(x in g for x in ['Attribute =','MetaEval =','MetaBlock =','MetaEmit =','GenericParameter =']))
 ck('input hashes correspond mounted inputs',all(not (Path('/mnt/data')/n).exists() or hashlib.sha256((Path('/mnt/data')/n).read_bytes()).hexdigest()==v for n,v in load('data/input-hashes.json').items()))
-report={'scope':'Document/data/engineering-record reference integrity only; does not read the live goal board or check all development branches. Not compiler semantic acceptance','live_plan_checked':False,'development_branches_checked':False,'goal_implementation_notes':contracts['goal_implementation_notes'](R),'total':len(checks),'passed':sum(c['pass'] for c in checks),'checks':checks}
+report={'scope':'Document/data/engineering-record reference integrity only; does not read the live goal board or check all development branches. Not compiler semantic acceptance','live_plan_checked':False,'development_branches_checked':False,'contract_source':'validation/engineering-contracts.json','total':len(checks),'passed':sum(c['pass'] for c in checks),'checks':checks}
 (R/'evidence').mkdir(parents=True, exist_ok=True)
 (R/'evidence/document-checks.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n');print(json.dumps(report,ensure_ascii=False,indent=2))
 sys.exit(0 if report['total']==report['passed'] else 1)
