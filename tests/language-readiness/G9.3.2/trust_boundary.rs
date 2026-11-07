@@ -43,6 +43,16 @@ fn rejected(label: &str, module: TypedModule, mut plan: CandidatePlan) {
     );
 }
 
+fn admitted_unused(label: &str, module: TypedModule) {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let mut plan = zil_analyze::analyze(&module, &limits).expect(label);
+    plan.module_fingerprint = module.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module(module, plan, &target, &limits).expect(label);
+    zil_verify::verify_module_bytes(&wire, &target, &limits).expect(label);
+}
+
 #[test]
 fn pod_source_derived_unused_definitions_and_operations_reject_forged_types() {
     let source = "struct Pod{x:i64;y:i64}fn main(){let items:Store<Pod>=store_new();store_reserve(items,1);store_push(items,Pod{x:42,y:73})}";
@@ -201,7 +211,7 @@ fn pod_llvm_requires_the_exact_verified_resource_and_protocol() {
 }
 
 #[test]
-fn pod_source_derived_unused_owning_containers_cannot_own_pod_store() {
+fn pod_source_derived_unused_ordinary_owners_keep_container_boundaries() {
     let source = "struct Pod{x:i64;y:i64}fn main(){let items:Store<Pod>=store_new();store_reserve(items,1);store_push(items,Pod{x:42,y:73})}";
     let (original, plan) = candidate(source);
     let store = original
@@ -211,7 +221,7 @@ fn pod_source_derived_unused_owning_containers_cannot_own_pod_store() {
         .unwrap()
         .payload
         .clone();
-    let head = Type::Managed(Box::new(store));
+    let head = Type::Managed(Box::new(store.clone()));
     let bag = Type::Package {
         name: "@module0:Bag".into(),
         fields: vec![("items".into(), head.clone())],
@@ -220,12 +230,21 @@ fn pod_source_derived_unused_owning_containers_cannot_own_pod_store() {
         name: "@module0:Product".into(),
         fields: vec![("child".into(), bag.clone())],
     };
-    for (label, ty) in [
-        ("pod-unused-package-owning-store", bag),
-        ("pod-unused-product-owning-store", product),
+    let mut forged = store;
+    let Type::OwnedStore { element } = &mut forged else {
+        unreachable!()
+    };
+    let Type::Record { name, .. } = element.as_mut() else {
+        unreachable!()
+    };
+    name.push_str("_forged");
+    for (label, ty, allowed) in [
+        ("pod-unused-package-owning-store", bag.clone(), true),
+        ("pod-unused-product-owning-store", product, true),
         (
             "pod-unused-tuple-owning-store",
             Type::Tuple(vec![head.clone()]),
+            true,
         ),
         (
             "pod-unused-enum-owning-store",
@@ -233,13 +252,36 @@ fn pod_source_derived_unused_owning_containers_cannot_own_pod_store() {
                 name: "@module0:Message".into(),
                 variants: vec![("Own".into(), vec![head.clone()]), ("Empty".into(), vec![])],
             },
+            true,
         ),
         (
             "pod-unused-error-owning-store",
             Type::ErrorUnion {
                 error: Box::new(Type::Unit),
-                result: Box::new(head),
+                result: Box::new(head.clone()),
             },
+            true,
+        ),
+        (
+            "pod-unused-owning-array",
+            Type::Array {
+                element: Box::new(bag),
+                length: 1,
+            },
+            false,
+        ),
+        (
+            "pod-unused-record-with-owner",
+            Type::Record {
+                name: "@module0:NotAnOwner".into(),
+                fields: vec![("items".into(), head)],
+            },
+            false,
+        ),
+        (
+            "pod-unused-forged-store-identity",
+            Type::Managed(Box::new(forged)),
+            false,
         ),
     ] {
         let mut module = original.clone();
@@ -249,8 +291,7 @@ fn pod_source_derived_unused_owning_containers_cannot_own_pod_store() {
             .find(|f| f.name == "main")
             .unwrap();
         // An unused local has neither storage events nor initialized debts.
-        // The complete type alone must be rejected by this scope admission;
-        // ordinary direct Store locals above remain a real accepted control.
+        // Check structural admission independently of runtime cleanup.
         main.locals.push(zil_ir::LocalDecl {
             id: zil_ir::LocalId(main.locals.len() as u32),
             name: "unused_owning_container".into(),
@@ -258,6 +299,10 @@ fn pod_source_derived_unused_owning_containers_cannot_own_pod_store() {
             mutable: false,
             span: main.span,
         });
-        rejected(label, module, plan.clone());
+        if allowed {
+            admitted_unused(label, module);
+        } else {
+            rejected(label, module, plan.clone());
+        }
     }
 }
