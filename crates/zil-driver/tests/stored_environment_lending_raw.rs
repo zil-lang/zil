@@ -670,6 +670,32 @@ fn move_out_producer_preserves_a_shared_slot_mode_across_refill() {
 }
 
 #[test]
+fn qualified_holder_copy_field_assignment_uses_ordinary_place() {
+    let module = typed_stored(
+        "struct SliceIter<life a>{data:&'a i32;index:i64}fn advance<life a>(holder:&mut SliceIter<'a>){holder.index=holder.index+1}fn main(){}",
+    );
+    let advance = module
+        .functions
+        .iter()
+        .find(|f| f.name == "advance")
+        .unwrap();
+    assert!(
+        advance
+            .blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(i.kind, InstructionKind::WriteAddress { .. }))
+    );
+    assert!(
+        !advance
+            .blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(i.kind, InstructionKind::StoreStoredBorrow { .. }))
+    );
+}
+
+#[test]
 fn move_out_producer_rejects_unqualified_or_unavailable_places() {
     let sources = [
         (
