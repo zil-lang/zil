@@ -42,6 +42,17 @@ pub fn append(value:&mut String, insertion:&[u8], byte_limit:i64)->Error!void {
 }
 pub fn clear(value:&mut String) { bytes_truncate(value.data,0) }
 pub fn scalar_at(value:&String, byte_offset:i64)->utf8.Scalar { return utf8.decode(bytes_view(value.data),byte_offset) }
+// Index by Unicode scalar position. A byte offset can be used with scalar_at.
+pub fn scalar_at_index(value:&String,index:i64)->Error!i32 {
+    if index<0 || index==9223372036854775807 {return Error.Range}
+    let view=bytes_view(value.data)
+    let bounds=utf8.locate(view,index,index+1)
+    if bounds.error>=0 {return Error.Internal}
+    if bounds.first<0 || bounds.last<0 {return Error.Range}
+    let decoded=utf8.decode(view,bounds.first)
+    if decoded.status!=1 {return Error.Internal}
+    return decoded.value
+}
 
 pub fn is_empty(value:&String)->bool { return byte_len(value)==0 }
 // UTF-8 preserves Unicode scalar order in lexicographic byte order.
