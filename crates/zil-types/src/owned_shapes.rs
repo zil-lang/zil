@@ -20,7 +20,7 @@ fn shape(ty: &Type) -> Option<bool> {
             Some(owns)
         }
         Type::Package { name, fields } => {
-            if name.is_empty() {
+            if name.is_empty() || fields.is_empty() {
                 return None;
             }
             let mut owns = false;
@@ -30,7 +30,7 @@ fn shape(ty: &Type) -> Option<bool> {
                 }
                 owns |= shape(field)?;
             }
-            owns.then_some(true)
+            Some(owns)
         }
         Type::Enum { name, variants } => {
             if name.is_empty() {
@@ -82,6 +82,9 @@ fn shape(ty: &Type) -> Option<bool> {
 }
 pub(super) fn value(ty: &Type) -> bool {
     shape(ty).is_some()
+}
+pub(super) fn zero_debt_package(ty: &Type) -> bool {
+    matches!(ty, Type::Package { .. }) && shape(ty) == Some(false)
 }
 pub(super) fn tuple(ty: &Type) -> bool {
     matches!(ty, Type::Tuple(_)) && shape(ty) == Some(true)

@@ -96,6 +96,39 @@ fn two_copy_actuals_have_no_cleanup_debt_but_package_stays_affine() {
 #[test]
 fn nested_copy_value_package_retains_outer_owned_cleanup() {
     native(
+        "nested-two-copy-value-entries",
+        "package Entry<K:StoreElement,V:StoreElement>{key:K;value:V}fn main()->i32{let entry=Entry::<Entry<i32,u64>,Entry<i32,u64>>{key:Entry::<i32,u64>{key:7,value:9},value:Entry::<i32,u64>{key:8,value:10}};return entry.key.key+entry.value.key-15}",
+        "",
+    );
+    native(
+        "ordinary-copy-package-remains-affine",
+        "package Pair{first:i32;second:u64}fn main()->i32{let value=Pair{first:7,second:9};return value.first-7}",
+        "",
+    );
+    native(
+        "ordinary-copy-package-store-element",
+        "package Pair{first:i32;second:u64}fn main()->i32{let values:Store<Pair>=store_new();if !store_reserve(values,1){return 1}store_push(values,Pair{first:7,second:9});return i32(store_len(values))-1}",
+        "",
+    );
+    native(
+        "deep-mixed-value-entry-cleanup",
+        r#"
+extern "C" fn putchar(n:i32)->i32;
+resource Ticket{code:i32}
+impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.code)}}}
+package Item{manages ticket:Ticket}
+package Entry<K:StoreElement,V:StoreElement>{key:K;value:V}
+fn main()->i32{
+ let entry=Entry::<Entry<i32,u64>,Entry<Item,Item>>{
+  key:Entry::<i32,u64>{key:7,value:9},
+  value:Entry::<Item,Item>{key:Item{ticket:Ticket{code:65}},value:Item{ticket:Ticket{code:66}}}
+ };
+ return 0
+}
+"#,
+        "AB",
+    );
+    native(
         "nested-copy-value-entry",
         r#"
 extern "C" fn putchar(n:i32)->i32;
@@ -128,6 +161,98 @@ fn main()->i32{
 "#,
         "A",
     );
+}
+
+#[test]
+fn zero_debt_packages_still_require_one_whole_move() {
+    for (label, text) in [
+        (
+            "ordinary-zero-debt-double-move",
+            "package Pair{first:i32;second:u64}fn main()->i32{let value=Pair{first:7,second:9};let first=value;let second=value;return first.first+second.first}",
+        ),
+        (
+            "nested-zero-debt-double-move",
+            "package Entry<K:StoreElement,V:StoreElement>{key:K;value:V}fn main()->i32{let value=Entry::<Entry<i32,u64>,Entry<i32,u64>>{key:Entry::<i32,u64>{key:7,value:9},value:Entry::<i32,u64>{key:8,value:10}};let first=value;let second=value;return first.key.key+second.key.key}",
+        ),
+    ] {
+        let result = compile_source(
+            &unit(text),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert!(
+            matches!(result.status, ResultCategory::SafeReject | ResultCategory::Unsupported),
+            "{label}: {}",
+            result.to_json()
+        );
+    }
+}
+
+#[test]
+fn zero_debt_package_shape_is_rechecked_from_raw_and_wire() {
+    let target = TargetProfile::host_llvm();
+    let limits = Limits::default();
+    for text in [
+        "package Pair{first:i32;second:u64}fn main()->i32{let value=Pair{first:7,second:9};return value.first-7}",
+        "package Entry<K:StoreElement,V:StoreElement>{key:K;value:V}fn main()->i32{let value=Entry::<Entry<i32,u64>,Entry<i32,u64>>{key:Entry::<i32,u64>{key:7,value:9},value:Entry::<i32,u64>{key:8,value:10}};return value.key.key+value.value.key-15}",
+    ] {
+        let input = core(text);
+        let module = zil_types::check(&input, &target, &limits).unwrap();
+        let plan = zil_analyze::analyze(&module, &limits).unwrap();
+        zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+        let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+        zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    }
+    let input = core(
+        "package Pair{first:i32;second:u64}fn main()->i32{let value=Pair{first:7,second:9};return value.first-7}",
+    );
+    let module = zil_types::check(&input, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+    for case in ["borrowed-description", "duplicate-field"] {
+        let mut changed = module.clone();
+        let pair = changed
+            .functions
+            .iter_mut()
+            .find(|function| function.name == "main")
+            .unwrap()
+            .locals
+            .iter_mut()
+            .find_map(|local| match &mut local.ty {
+                Type::Package { fields, .. } if fields.len() == 2 => Some(fields),
+                _ => None,
+            })
+            .unwrap();
+        match case {
+            "borrowed-description" => pair[0].1 = Type::Desc(Box::new(Type::I32)),
+            "duplicate-field" => pair[1].0 = pair[0].0.clone(),
+            _ => unreachable!(),
+        }
+        let mut candidate = plan.clone();
+        candidate.module_fingerprint = changed.fingerprint();
+        let encoded = zil_ir::wire::encode_module_candidate(&changed, &candidate, &limits).unwrap();
+        for result in [
+            zil_verify::verify_module(changed, candidate, &target, &limits),
+            zil_verify::verify_module_bytes(&encoded, &target, &limits),
+        ] {
+            let errors = result.expect_err(case);
+            assert!(
+                errors.iter().any(|error| error.phase == Phase::Verify
+                    && matches!(error.category, ResultCategory::SafeReject | ResultCategory::Unsupported)
+                    && error.message == match case {
+                        "borrowed-description" => "non-Copy type requires another checker",
+                        "duplicate-field" => "package fields must have unique nonempty names",
+                        _ => unreachable!(),
+                    }),
+                "{case}: {errors:#?}"
+            );
+        }
+    }
 }
 
 #[test]
