@@ -99,6 +99,36 @@ fn main()->i32{
  }
 }
 "#;
+const REPLACEMENT_ALLOCATION: &str = r#"
+import std.owning_map
+import std.owning_entries
+extern "C" fn putchar(n:i32)->i32;
+resource Ticket{code:i32}
+impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.code)}}}
+package Key{manages ticket:Ticket;id:i64}
+impl owning_map.KeyEq for Key{fn same(self:&Self,other:&Self)->bool{return self.id==other.id}}
+fn work()->owning_entries.Entry<Key,Managed<Ticket>>!i32{
+ var map=owning_map.new::<Key,Managed<Ticket>>()
+ owning_map.insert_or_replace::<Key,Managed<Ticket>>(&mut map,owning_entries.Entry::<Key,Managed<Ticket>>{key:Key{ticket:Ticket{code:65},id:1},value:Ticket{code:66}})?
+ owning_map.insert_or_replace::<Key,Managed<Ticket>>(&mut map,owning_entries.Entry::<Key,Managed<Ticket>>{key:Key{ticket:Ticket{code:67},id:2},value:Ticket{code:68}})?
+ let incoming=owning_entries.Entry::<Key,Managed<Ticket>>{key:Key{ticket:Ticket{code:69},id:1},value:Ticket{code:70}}
+ var replaced=false
+ let returned=owning_map.replace_existing::<Key,Managed<Ticket>>(&mut map,incoming,&mut replaced)
+ if !replaced {
+  let query=Key{ticket:Ticket{code:71},id:1}
+  if owning_map.len::<Key,Managed<Ticket>>(&map)!=2 || owning_map.find::<Key,Managed<Ticket>>(&map,&query)!=0 {return 95}
+  return returned
+ }
+ if returned.key.ticket.code!=65 || returned.value.code!=66 {return 96}
+ return 0
+}
+fn main()->i32{
+ match work(){
+  .err(returned)=>{return returned.key.ticket.code-55},
+  .ok(code)=>{return code}
+ }
+}
+"#;
 const RAW_OWNING_ENTRIES: &str = r#"
 resource Ticket{code:i32}
 package Key{manages ticket:Ticket;id:i64}
@@ -384,92 +414,94 @@ fn allocator_failures_return_actual_entry_and_preserve_old_map() {
         .join("../../tools/language/composed-store-closures/allocator_probe.c");
     let quote =
         |path: &std::path::Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
-    for backend in backends() {
-        for optimization in [Optimization::O0, Optimization::O2] {
-            let out = directory("allocator");
-            let actual_object = out.join("actual-api.o");
-            let wrapper = out.join("capture-clang.sh");
-            fs::write(&wrapper, format!("#!/bin/sh\nset -eu\nfor arg in \"$@\"; do case \"$arg\" in *.o|*.obj) cp -- \"$arg\" {} ;; esac; done\nexec {} \"$@\"\n", quote(&actual_object), quote(&clang))).unwrap();
-            fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
-            let report = compile_project(
-                &project(ALLOCATION),
-                &CompileOptions {
-                    stop_after: Stage::Build,
-                    backend,
-                    optimization,
-                    clang: Some(wrapper),
-                    output: Some(out.join("normal")),
-                    emit_dir: Some(out.join("phases")),
-                    ..CompileOptions::default()
-                },
-            );
-            assert_eq!(
-                report.status,
-                ResultCategory::Success,
-                "{}",
-                report.to_json()
-            );
-            let codegen = report.native_codegen.as_ref().unwrap();
-            assert_eq!(codegen.backend, backend);
-            assert!(codegen.fallback.is_none());
-            let input = if backend == NativeBackend::LlvmApi {
-                assert!(actual_object.is_file());
-                actual_object
-            } else {
-                out.join("phases/llvm.ll")
-            };
-            let probe = out.join("probe");
-            let opt = if optimization == Optimization::O0 {
-                "-O0"
-            } else {
-                "-O2"
-            };
-            let link = Command::new(&clang)
-                .arg(opt)
-                .arg(input)
-                .arg(&shim)
-                .args(["-Wl,--wrap=realloc", "-Wl,--wrap=free", "-o"])
-                .arg(&probe)
-                .output()
-                .unwrap();
-            assert!(
-                link.status.success(),
-                "{}",
-                String::from_utf8_lossy(&link.stderr)
-            );
-            for (fail, exit, stdout, allocations) in [
-                (0, 0, b"ABCDEF".as_slice(), 2),
-                (1, 10, b"AB".as_slice(), 0),
-                (2, 12, b"ABCD".as_slice(), 1),
-                (3, 14, b"GABCDEF".as_slice(), 1),
-            ] {
-                let run = Command::new(&probe)
-                    .env("ZIL_TEST_FAIL_AT", fail.to_string())
+    for (label, source) in [("upsert", ALLOCATION), ("replace", REPLACEMENT_ALLOCATION)] {
+        for backend in backends() {
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let out = directory(label);
+                let actual_object = out.join("actual-api.o");
+                let wrapper = out.join("capture-clang.sh");
+                fs::write(&wrapper, format!("#!/bin/sh\nset -eu\nfor arg in \"$@\"; do case \"$arg\" in *.o|*.obj) cp -- \"$arg\" {} ;; esac; done\nexec {} \"$@\"\n", quote(&actual_object), quote(&clang))).unwrap();
+                fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+                let report = compile_project(
+                    &project(source),
+                    &CompileOptions {
+                        stop_after: Stage::Build,
+                        backend,
+                        optimization,
+                        clang: Some(wrapper),
+                        output: Some(out.join("normal")),
+                        emit_dir: Some(out.join("phases")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert_eq!(codegen.backend, backend);
+                assert!(codegen.fallback.is_none());
+                let input = if backend == NativeBackend::LlvmApi {
+                    assert!(actual_object.is_file());
+                    actual_object
+                } else {
+                    out.join("phases/llvm.ll")
+                };
+                let probe = out.join("probe");
+                let opt = if optimization == Optimization::O0 {
+                    "-O0"
+                } else {
+                    "-O2"
+                };
+                let link = Command::new(&clang)
+                    .arg(opt)
+                    .arg(input)
+                    .arg(&shim)
+                    .args(["-Wl,--wrap=realloc", "-Wl,--wrap=free", "-o"])
+                    .arg(&probe)
                     .output()
                     .unwrap();
-                assert_eq!(
-                    run.status.code(),
-                    Some(exit),
-                    "{backend:?}/{optimization:?}/fail={fail}: {run:?}"
-                );
-                assert_eq!(
-                    run.stdout, stdout,
-                    "{backend:?}/{optimization:?}/fail={fail}: {run:?}"
-                );
-                let stats = String::from_utf8(run.stderr).unwrap();
-                assert!(stats.contains("\"live\":0"), "{stats}");
                 assert!(
-                    stats.contains(&format!("\"allocated\":{allocations}")),
-                    "{stats}"
+                    link.status.success(),
+                    "{}",
+                    String::from_utf8_lossy(&link.stderr)
                 );
-                assert!(
-                    stats.contains(&format!("\"frees\":{allocations}")),
-                    "{stats}"
-                );
-                assert!(
-                    stats.contains(&format!("\"failures\":{}", usize::from(fail != 0))),
-                    "{stats}"
-                );
+                for (fail, exit, stdout, allocations) in [
+                    (0, 0, b"ABCDEF".as_slice(), 2),
+                    (1, 10, b"AB".as_slice(), 0),
+                    (2, 12, b"ABCD".as_slice(), 1),
+                    (3, 14, b"GABCDEF".as_slice(), 1),
+                ] {
+                    let run = Command::new(&probe)
+                        .env("ZIL_TEST_FAIL_AT", fail.to_string())
+                        .output()
+                        .unwrap();
+                    assert_eq!(
+                        run.status.code(),
+                        Some(exit),
+                        "{label}/{backend:?}/{optimization:?}/fail={fail}: {run:?}"
+                    );
+                    assert_eq!(
+                        run.stdout, stdout,
+                        "{label}/{backend:?}/{optimization:?}/fail={fail}: {run:?}"
+                    );
+                    let stats = String::from_utf8(run.stderr).unwrap();
+                    assert!(stats.contains("\"live\":0"), "{stats}");
+                    assert!(
+                        stats.contains(&format!("\"allocated\":{allocations}")),
+                        "{stats}"
+                    );
+                    assert!(
+                        stats.contains(&format!("\"frees\":{allocations}")),
+                        "{stats}"
+                    );
+                    assert!(
+                        stats.contains(&format!("\"failures\":{}", usize::from(fail != 0))),
+                        "{stats}"
+                    );
+                }
             }
         }
     }
