@@ -1,0 +1,57 @@
+{
+  "status": "BaselineUnimplementedNotAcceptance",
+  "observed_main": "15b9e09d83aeea9be1cc9ea4b4bdd9f5a5f9fa71",
+  "compiler_source": "a8c7953e7f4f5932f838284390e55f1f8884bdbc",
+  "compiler_sha256": "bf399697466932e7d494d53595a6333a0fa3c52b5b3dc8a8a98eadca728a4c4f",
+  "command_template": [
+    "/workspace/.zil-env/target-release-G9.3.2/release/zil",
+    "check",
+    "/workspace/.zil-env/chat9-audit/<case>.zil",
+    "--json"
+  ],
+  "cases": [
+    {
+      "case": "dyn-declaration",
+      "fixture": "tests/language-readiness/G5.2.1/dyn-declaration.zil",
+      "source_sha256": "a871681990f261dd6e4b75543720ce09a98c8c2941e4f941c9e83943772a83c2",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "dynamic declaration/interface/vtable inventory consumer is not yet implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "dyn-two-provider",
+      "fixture": "tests/language-readiness/G5.2.1/dyn-two-provider.zil",
+      "source_sha256": "96582c2641346a96478b47331d78c52cdde63207b4053ceb5406eaf81e5fe631",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "this generic type argument needs additional type resolution",
+          "span": {
+            "file": 0,
+            "start": 198,
+            "end": 206
+          },
+          "notes": []
+        }
+      ]
+    }
+  ],
+  "scope": "Two actual Source CLI observations, no new Core inventory, raw/Wire, native or performance acceptance; current main production objects match accepted compiler source."
+}
