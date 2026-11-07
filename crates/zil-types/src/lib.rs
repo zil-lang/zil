@@ -11,6 +11,7 @@ mod borrowed_fp;
 mod borrowed_fp_qualified;
 mod byte_buffer;
 mod callable_fields;
+mod capture_cleanup;
 mod closures;
 mod conditions;
 mod deferred;
@@ -1140,6 +1141,9 @@ impl<'a, 'c> Builder<'a, 'c> {
     }
     fn end_scopes_kind(&mut self, depth: usize, kind: CleanupExitKind, span: Span) -> R<()> {
         self.abort_exiting_replacements(depth, kind, span)?;
+        if self.end_owned_sum_capture_scopes(depth, kind, span)? {
+            return Ok(());
+        }
         for index in (depth..self.scopes.len()).rev() {
             let mut locals = self.scopes[index].values().copied().collect::<Vec<_>>();
             locals.sort_unstable_by(|a, b| b.cmp(a));
