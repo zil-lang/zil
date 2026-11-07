@@ -359,6 +359,8 @@ struct Budget {
     owning_address_captures: bool,
     head_descriptions: bool,
     stored_borrows: bool,
+    // Derived only from the existing paid raw-instruction inventory.
+    stored_slot_updates: bool,
     // Eligibility only; pure reads and values still prove their actual shape.
     pure_nominal: bool,
     stored_context: bool,
@@ -398,6 +400,7 @@ impl Budget {
             owning_address_captures: false,
             head_descriptions: false,
             stored_borrows: false,
+            stored_slot_updates: false,
             pure_nominal: false,
             stored_context: false,
         }
@@ -792,6 +795,8 @@ fn check_module(
             budget.spend(1)?;
             for instruction in &block.instructions {
                 budget.spend(1)?;
+                budget.stored_slot_updates |=
+                    matches!(instruction.kind, InstructionKind::StoreStoredBorrow { .. });
                 match &instruction.kind {
                     InstructionKind::ReservePlaceLocal { path, .. }
                     | InstructionKind::ReservePlaceAddress { path, .. }

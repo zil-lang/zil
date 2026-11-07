@@ -1470,7 +1470,12 @@ fn write_sites(
     b: &mut Budget,
 ) -> Check<WriteSites> {
     let mut sites = Vec::new();
+    if !b.stored_slot_updates {
+        return Ok(sites);
+    }
+    b.spend(f.blocks.len())?;
     for block in &f.blocks {
+        b.spend(block.instructions.len())?;
         for i in &block.instructions {
             let site = i as *const Instruction as usize;
             let mut add = |parameter: u32, path: &Path, exclusive: bool| -> Check<()> {
@@ -2389,7 +2394,10 @@ fn check_call(
                 requirements,
                 b,
             )?;
-            if *mutable && let Some((_, shape)) = addressed(ty) {
+            if b.stored_slot_updates
+                && *mutable
+                && let Some((_, shape)) = addressed(ty)
+            {
                 for slot in &shape.slots {
                     let held = select(state, &value.address, &slot.path, b)?;
                     access(
@@ -2947,7 +2955,8 @@ fn summarize(
     }
     for (bi, (block, reachable)) in f.blocks.iter().zip(&g.reachable).enumerate() {
         b.spend(1)?;
-        if *reachable && matches!(block.terminator, Terminator::Return(_)) {
+        if b.stored_slot_updates && *reachable && matches!(block.terminator, Terminator::Return(_))
+        {
             for (position, payload) in solution.outputs[bi].external.iter().enumerate() {
                 let local = *f
                     .parameters
@@ -3171,41 +3180,43 @@ fn solve_check(
                 inactive.map(|rows| rows[index].as_slice()),
                 b,
             )?;
-            for block in &f.blocks {
-                for instruction in &block.instructions {
-                    let InstructionKind::Call { function, .. } = &instruction.kind else {
-                        continue;
-                    };
-                    let callee = module
-                        .functions
-                        .get(function.0 as usize)
-                        .ok_or_else(|| err("stored call target is absent"))?;
-                    let prior = summaries
-                        .get(function.0 as usize)
-                        .ok_or_else(|| err("stored call summary is absent"))?;
-                    if !prior.complete {
-                        summary.complete = false;
-                    }
-                    for (position, local) in callee.parameters.iter().enumerate() {
-                        if let Type::Address {
-                            mutable: true,
-                            inner,
-                        } = &callee.locals[local.0 as usize].ty
-                            && let Some((_, shape)) = qualified(inner)
-                        {
-                            for slot in &shape.slots {
-                                b.spend(
-                                    slot.path
-                                        .len()
-                                        .saturating_add(prior.external_after.len())
-                                        .saturating_add(1),
-                                )?;
-                                if !prior
-                                    .external_after
-                                    .iter()
-                                    .any(|(p, path, _)| *p == position as u32 && *path == slot.path)
-                                {
-                                    summary.complete = false;
+            if b.stored_slot_updates {
+                b.spend(f.blocks.len())?;
+                for block in &f.blocks {
+                    b.spend(block.instructions.len())?;
+                    for instruction in &block.instructions {
+                        let InstructionKind::Call { function, .. } = &instruction.kind else {
+                            continue;
+                        };
+                        let callee = module
+                            .functions
+                            .get(function.0 as usize)
+                            .ok_or_else(|| err("stored call target is absent"))?;
+                        let prior = summaries
+                            .get(function.0 as usize)
+                            .ok_or_else(|| err("stored call summary is absent"))?;
+                        if !prior.complete {
+                            summary.complete = false;
+                        }
+                        for (position, local) in callee.parameters.iter().enumerate() {
+                            if let Type::Address {
+                                mutable: true,
+                                inner,
+                            } = &callee.locals[local.0 as usize].ty
+                                && let Some((_, shape)) = qualified(inner)
+                            {
+                                for slot in &shape.slots {
+                                    b.spend(
+                                        slot.path
+                                            .len()
+                                            .saturating_add(prior.external_after.len())
+                                            .saturating_add(1),
+                                    )?;
+                                    if !prior.external_after.iter().any(|(p, path, _)| {
+                                        *p == position as u32 && *path == slot.path
+                                    }) {
+                                        summary.complete = false;
+                                    }
                                 }
                             }
                         }
