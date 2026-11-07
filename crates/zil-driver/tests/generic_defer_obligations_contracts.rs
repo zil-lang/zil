@@ -94,6 +94,43 @@ fn two_copy_actuals_have_no_cleanup_debt_but_package_stays_affine() {
 }
 
 #[test]
+fn nested_copy_value_package_retains_outer_owned_cleanup() {
+    native(
+        "nested-copy-value-entry",
+        r#"
+extern "C" fn putchar(n:i32)->i32;
+resource Ticket{code:i32}
+impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.code)}}}
+package Item{manages ticket:Ticket}
+package Entry<K:StoreElement,V:StoreElement>{key:K;value:V}
+fn main()->i32{
+ let entry=Entry::<Entry<i32,u64>,Item>{key:Entry::<i32,u64>{key:7,value:9},value:Item{ticket:Ticket{code:65}}};
+ return entry.key.key+entry.value.ticket.code-72
+}
+"#,
+        "A",
+    );
+    native(
+        "nested-copy-value-entry-store",
+        r#"
+extern "C" fn putchar(n:i32)->i32;
+resource Ticket{code:i32}
+impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.code)}}}
+package Item{manages ticket:Ticket}
+package Entry<K:StoreElement,V:StoreElement>{key:K;value:V}
+fn main()->i32{
+ let values:Store<Entry<Entry<i32,u64>,Item>>=store_new();
+ if !store_reserve(values,1){return 1}
+ let entry=Entry::<Entry<i32,u64>,Item>{key:Entry::<i32,u64>{key:7,value:9},value:Item{ticket:Ticket{code:65}}};
+ store_push(values,entry);
+ return i32(store_len(values))-1
+}
+"#,
+        "A",
+    );
+}
+
+#[test]
 fn explicit_managed_value_argument_is_owned_without_manages_formal() {
     native(
         "two-value-entry-managed-argument",

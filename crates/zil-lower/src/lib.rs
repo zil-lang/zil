@@ -482,14 +482,16 @@ fn package_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
         })
 }
 
+fn copy_only_package(ty: &Type) -> bool {
+    matches!(ty, Type::Package { name, fields }
+        if !name.is_empty() && !fields.is_empty()
+            && fields.iter().all(|(name, field)| !name.is_empty() && field.is_copy_value()))
+}
+
 // Keep the existing predicate above for error-payload and array qualification.
 // Verify has already bounded the full inline type and its cleanup paths.
 fn package_value_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
-    package_type(ty, resources)
-        || owned_product_type(ty, resources)
-        || matches!(ty, Type::Package { name, fields }
-            if !name.is_empty() && !fields.is_empty()
-                && fields.iter().all(|(name, field)| !name.is_empty() && field.is_copy_value()))
+    package_type(ty, resources) || owned_product_type(ty, resources) || copy_only_package(ty)
 }
 
 // Representation only: the caller has an immutable verified capability and
@@ -527,6 +529,7 @@ fn product_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
                 owns = true;
             }
             Type::Package { .. } if product_type(field, resources) => owns = true,
+            Type::Package { .. } if copy_only_package(field) => {}
             Type::BorrowedStorage { storage, .. }
                 if matches!(storage.as_ref(), Type::Package { .. })
                     && product_type(field, resources) =>
@@ -561,6 +564,7 @@ fn owned_product_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bo
                 owns = true;
             }
             Type::Package { .. } if owned_product_type(field, resources) => owns = true,
+            Type::Package { .. } if copy_only_package(field) => {}
             Type::BorrowedStorage { storage, .. }
                 if matches!(storage.as_ref(), Type::Package { .. })
                     && owned_product_type(field, resources) =>
