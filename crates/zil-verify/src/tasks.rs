@@ -16,16 +16,25 @@ fn empty_context() -> zil_ir::RetainedLifeShape {
     }
 }
 pub(super) fn require_closed_context(ty: &Type, span: Option<Span>) -> Check<()> {
+    let mut next = 0;
     if let Type::Task {
         result,
         retained_life,
     } = ty
         && *retained_life != empty_context()
-        && !(result.as_ref() == &Type::I32
-            && retained_life.binder_count == 1
+        && !(owned::retained_result(result)
+            && retained_life.binder_count > 0
             && retained_life.retained.is_empty()
             && retained_life.nominal_arguments.is_empty()
-            && matches!(retained_life.ports.as_slice(), [zil_ir::RetainedBorrowPort { leaf: Type::Address { mutable: false, inner }, mode: zil_ir::StoredBorrowMode::SharedAddress, binder: 0 }] if inner.as_ref() == &Type::I32))
+            && !retained_life.ports.is_empty()
+            && retained_life.ports.iter().all(|port| {
+                let dense = if port.binder == next { next += 1; true } else { port.binder < next };
+                dense
+                    && matches!(&port.leaf, Type::Address { mutable, inner }
+                        if owned::retained_pointee(inner)
+                            && port.mode == if *mutable { zil_ir::StoredBorrowMode::ExclusiveAddress } else { zil_ir::StoredBorrowMode::SharedAddress })
+            })
+            && next == retained_life.binder_count)
     {
         return Err(unsupported(
             "borrowed Task retained classes require actual implemented frame port mappings",
@@ -226,24 +235,27 @@ pub(super) fn borrowed_signature(
         return Ok(false);
     };
     budget.spend(f.parameters.len().saturating_add(1))?;
-    let [parameter] = f.parameters.as_slice() else {
-        return Err(reject(
-            "E-VERIFY-TASK",
-            Some(f.span),
-            "borrowed Task signature requires its one actual source input",
-        ));
-    };
-    let input = f.locals.get(parameter.0 as usize).ok_or_else(|| {
-        reject(
-            "E-VERIFY-TASK",
-            Some(f.span),
-            "borrowed Task signature input absent",
-        )
-    })?;
+    let mut parameters = Vec::new();
+    for parameter in &f.parameters {
+        budget.spend(1)?;
+        parameters.push(
+            f.locals
+                .get(parameter.0 as usize)
+                .ok_or_else(|| {
+                    reject(
+                        "E-VERIFY-TASK",
+                        Some(f.span),
+                        "borrowed Task signature input absent",
+                    )
+                })?
+                .ty
+                .clone(),
+        );
+    }
     super::signature_life::charge(contract, budget)?;
     super::signature_life::function_relation(
         module,
-        std::slice::from_ref(&input.ty),
+        &parameters,
         &f.return_type,
         contract,
         Some(f.span),
@@ -362,43 +374,28 @@ pub(super) fn instruction(
                     return Err(bad());
                 }
             }
-            let retained_life = if target.parameters.len() == 1
-                && matches!(local_type(target, target.parameters[0], span)?, Type::Address { mutable: false, inner } if inner.as_ref() == &Type::I32)
-            {
-                if port_bindings.len() != 1
-                    || port_bindings[0].port != 0
-                    || port_bindings[0].source.base != zil_ir::StorageBase::Parameter(0)
-                    || !port_bindings[0].source.path.is_empty()
+            let retained_life = owned::borrowed_shape(target, budget)?;
+            let mut expected = Vec::new();
+            for (parameter, local) in target.parameters.iter().enumerate() {
+                budget.spend(1)?;
+                if matches!(local_type(target, *local, span)?, Type::Address { inner, .. } if owned::retained_pointee(inner))
                 {
-                    return Err(reject(
-                        "E-VERIFY-TASK",
-                        span,
-                        "task retained port differs from actual shared input",
-                    ));
-                }
-                zil_ir::RetainedLifeShape {
-                    binder_count: 1,
-                    ports: vec![zil_ir::RetainedBorrowPort {
-                        leaf: Type::Address {
-                            mutable: false,
-                            inner: Box::new(Type::I32),
+                    expected.push(zil_ir::RetainedPortBinding {
+                        port: expected.len() as u32,
+                        source: zil_ir::StoragePosition {
+                            base: zil_ir::StorageBase::Parameter(parameter as u32),
+                            path: vec![],
                         },
-                        mode: zil_ir::StoredBorrowMode::SharedAddress,
-                        binder: 0,
-                    }],
-                    retained: vec![],
-                    nominal_arguments: vec![],
+                    });
                 }
-            } else {
-                if !port_bindings.is_empty() {
-                    return Err(reject(
-                        "E-VERIFY-TASK",
-                        span,
-                        "task retained port has no actual borrowed worker input",
-                    ));
-                }
-                empty_context()
-            };
+            }
+            if port_bindings != &expected {
+                return Err(reject(
+                    "E-VERIFY-TASK",
+                    span,
+                    "task retained ports differ from actual worker inputs",
+                ));
+            }
             for _ in 0..4 {
                 resources::charge_payload(&target.return_type, budget)?;
             }

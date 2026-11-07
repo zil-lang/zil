@@ -8,38 +8,129 @@ pub(super) fn empty_context() -> zil_ir::RetainedLifeShape {
         nominal_arguments: vec![],
     }
 }
-pub(super) fn borrowed_context(parameters: &[Type]) -> zil_ir::RetainedLifeShape {
-    let port = Type::Address {
-        mutable: false,
-        inner: Box::new(Type::I32),
-    };
-    if parameters == [port.clone()] {
-        zil_ir::RetainedLifeShape {
-            binder_count: 1,
-            ports: vec![zil_ir::RetainedBorrowPort {
-                leaf: port,
-                mode: zil_ir::StoredBorrowMode::SharedAddress,
-                binder: 0,
-            }],
-            retained: vec![],
-            nominal_arguments: vec![],
+pub(super) fn borrowed_context_with_life(
+    parameters: &[Type],
+    life: Option<&zil_ir::FunctionLifeContract>,
+) -> zil_ir::RetainedLifeShape {
+    let mut ports = Vec::new();
+    let mut classes = std::collections::BTreeMap::new();
+    let mut next_binder = 0u32;
+    for (position, parameter) in parameters.iter().enumerate() {
+        if let Type::Address { mutable, inner } = parameter
+            && retained_pointee(inner)
+        {
+            let source =
+                life.and_then(|life| life.parameter_lives.get(position).copied().flatten());
+            let binder = if let Some(source) = source {
+                if let Some(existing) = classes.get(&source) {
+                    *existing
+                } else {
+                    let binder = next_binder;
+                    classes.insert(source, binder);
+                    next_binder += 1;
+                    binder
+                }
+            } else {
+                let binder = next_binder;
+                next_binder += 1;
+                binder
+            };
+            ports.push(zil_ir::RetainedBorrowPort {
+                leaf: parameter.clone(),
+                mode: if *mutable {
+                    zil_ir::StoredBorrowMode::ExclusiveAddress
+                } else {
+                    zil_ir::StoredBorrowMode::SharedAddress
+                },
+                binder,
+            });
         }
-    } else {
-        empty_context()
+    }
+    zil_ir::RetainedLifeShape {
+        binder_count: next_binder,
+        ports,
+        retained: vec![],
+        nominal_arguments: vec![],
     }
 }
+pub(super) fn retained_pointee(ty: &Type) -> bool {
+    match ty {
+        Type::Unit
+        | Type::Bool
+        | Type::I32
+        | Type::I64
+        | Type::U64
+        | Type::Usize
+        | Type::U8
+        | Type::U16
+        | Type::F32
+        | Type::F64 => true,
+        Type::Record { fields, .. } => fields.iter().all(|(_, ty)| retained_pointee(ty)),
+        Type::Tuple(fields) => fields.iter().all(retained_pointee),
+        Type::Array { element, .. } | Type::Slice { element } => retained_pointee(element),
+        _ => false,
+    }
+}
+fn retained_result(ty: &Type) -> bool {
+    match ty {
+        Type::Unit
+        | Type::Bool
+        | Type::U8
+        | Type::U16
+        | Type::I32
+        | Type::I64
+        | Type::U64
+        | Type::Usize
+        | Type::F32
+        | Type::F64 => true,
+        Type::Managed(payload) => retained_result(payload),
+        Type::Record { fields, .. } => fields.iter().all(|(_, ty)| retained_result(ty)),
+        Type::Tuple(fields) => fields.iter().all(retained_result),
+        Type::Enum { variants, .. } => variants
+            .iter()
+            .all(|(_, fields)| fields.iter().all(retained_result)),
+        Type::ErrorUnion { error, result } => retained_result(error) && retained_result(result),
+        _ => false,
+    }
+}
+fn retained_bindings(parameters: &[Type]) -> Vec<zil_ir::RetainedPortBinding> {
+    parameters
+        .iter()
+        .enumerate()
+        .filter_map(|(parameter, ty)| {
+            let Type::Address { inner, .. } = ty else {
+                return None;
+            };
+            retained_pointee(inner).then_some(parameter as u32)
+        })
+        .enumerate()
+        .map(|(port, parameter)| zil_ir::RetainedPortBinding {
+            port: port as u32,
+            source: zil_ir::StoragePosition {
+                base: zil_ir::StorageBase::Parameter(parameter),
+                path: vec![],
+            },
+        })
+        .collect()
+}
 pub(super) fn require_closed_context(ty: &Type, span: Span) -> R<()> {
+    let mut next = 0;
     if let Type::Task {
         result,
         retained_life,
     } = ty
         && *retained_life != empty_context()
-        && (*retained_life
-            != borrowed_context(&[Type::Address {
-                mutable: false,
-                inner: Box::new(Type::I32),
-            }])
-            || result.as_ref() != &Type::I32)
+        && (retained_life.retained.len() != 0
+            || !retained_life.nominal_arguments.is_empty()
+            || retained_life.ports.iter().any(|port| {
+                let dense = if port.binder == next { next += 1; true } else { port.binder < next };
+                !dense
+                    || !matches!(&port.leaf, Type::Address { mutable, inner }
+                        if retained_pointee(inner)
+                            && port.mode == if *mutable { zil_ir::StoredBorrowMode::ExclusiveAddress } else { zil_ir::StoredBorrowMode::SharedAddress })
+            })
+            || next != retained_life.binder_count
+            || !retained_result(result))
     {
         return Err(unsupported(
             span,
@@ -301,7 +392,7 @@ impl Builder<'_, '_> {
             };
             let before = self.closures.remaining_work();
             let mut remaining = before;
-            let prepared = (|| -> R<(FunctionId, Vec<Type>, Type)> {
+            let prepared = (|| -> R<(FunctionId, Vec<Type>, Type, Option<zil_ir::FunctionLifeContract>)> {
                 let signature = self.resolve_callee(worker_expr)?;
                 if signature.foreign
                     || signature.cleanup
@@ -336,17 +427,20 @@ impl Builder<'_, '_> {
                     signature.concrete_id(worker_expr.span)?,
                     signature.parameters.clone(),
                     signature.result.clone(),
+                    signature.life.clone(),
                 ))
             })();
             self.closures.snapshot(before - remaining, span)?;
-            let (worker, parameters, worker_result) = prepared?;
+            let (worker, parameters, worker_result, worker_life) = prepared?;
             if name == "task_create"
-                && !borrowed_context(&parameters).ports.is_empty()
-                && worker_result != Type::I32
+                && !borrowed_context_with_life(&parameters, worker_life.as_ref())
+                    .ports
+                    .is_empty()
+                && !retained_result(&worker_result)
             {
                 return Err(unsupported(
                     span,
-                    "retained Task result currently requires i32",
+                    "retained Task result requires an actual supported complete result",
                 ));
             }
             if arguments.len() != parameters.len() + 1 {
@@ -374,7 +468,10 @@ impl Builder<'_, '_> {
             let ty = if name == "task_await" {
                 worker_result
             } else {
-                create_type(&worker_result, borrowed_context(&parameters))
+                create_type(
+                    &worker_result,
+                    borrowed_context_with_life(&parameters, worker_life.as_ref()),
+                )
             };
             if let Some(wanted) = expected {
                 self.same(&ty, wanted, span)?;
@@ -389,17 +486,7 @@ impl Builder<'_, '_> {
                     InstructionKind::TaskCreate {
                         worker,
                         arguments: inputs,
-                        port_bindings: if borrowed_context(&parameters).ports.is_empty() {
-                            Vec::new()
-                        } else {
-                            vec![zil_ir::RetainedPortBinding {
-                                port: 0,
-                                source: zil_ir::StoragePosition {
-                                    base: zil_ir::StorageBase::Parameter(0),
-                                    path: vec![],
-                                },
-                            }]
-                        },
+                        port_bindings: retained_bindings(&parameters),
                     }
                 },
                 ty.clone(),

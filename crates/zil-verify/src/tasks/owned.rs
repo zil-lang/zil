@@ -5,8 +5,88 @@ use super::*;
 fn scalar(t: &Type) -> bool {
     matches!(
         t,
-        Type::Unit | Type::Bool | Type::U8 | Type::U16 | Type::I32 | Type::I64
+        Type::Unit
+            | Type::Bool
+            | Type::U8
+            | Type::U16
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::F32
+            | Type::F64
     )
+}
+pub(super) fn retained_pointee(ty: &Type) -> bool {
+    match ty {
+        ty if scalar(ty) => true,
+        Type::Record { fields, .. } => fields.iter().all(|(_, field)| retained_pointee(field)),
+        Type::Tuple(fields) => fields.iter().all(retained_pointee),
+        Type::Array { element, .. } | Type::Slice { element } => retained_pointee(element),
+        _ => false,
+    }
+}
+pub(super) fn retained_result(ty: &Type) -> bool {
+    match ty {
+        ty if scalar(ty) => true,
+        Type::Managed(inner) => retained_result(inner),
+        Type::Record { fields, .. } => fields.iter().all(|(_, field)| retained_result(field)),
+        Type::Tuple(fields) => fields.iter().all(retained_result),
+        Type::Enum { variants, .. } => variants
+            .iter()
+            .all(|(_, fields)| fields.iter().all(retained_result)),
+        Type::ErrorUnion { error, result } => retained_result(error) && retained_result(result),
+        _ => false,
+    }
+}
+pub(super) fn borrowed_shape(
+    f: &TypedFunction,
+    budget: &mut Budget,
+) -> Check<zil_ir::RetainedLifeShape> {
+    let mut ports = Vec::new();
+    let mut classes = std::collections::BTreeMap::new();
+    let mut next_binder = 0u32;
+    for (position, parameter) in f.parameters.iter().enumerate() {
+        budget.spend(1)?;
+        let ty = local_type(f, *parameter, Some(f.span))?;
+        resources::charge_payload(ty, budget)?;
+        if let Type::Address { mutable, inner } = ty
+            && retained_pointee(inner)
+        {
+            let source = f.storage_life.as_ref().and_then(|life|
+                super::super::signature_life::outer(life,
+                    zil_ir::StorageBase::Parameter(position as u32)));
+            let binder = if let Some(source) = source {
+                if let Some(existing) = classes.get(&source) {
+                    *existing
+                } else {
+                    let next = next_binder;
+                    classes.insert(source, next);
+                    next_binder += 1;
+                    next
+                }
+            } else {
+                let next = next_binder;
+                next_binder += 1;
+                next
+            };
+            ports.push(zil_ir::RetainedBorrowPort {
+                leaf: ty.clone(),
+                mode: if *mutable {
+                    zil_ir::StoredBorrowMode::ExclusiveAddress
+                } else {
+                    zil_ir::StoredBorrowMode::SharedAddress
+                },
+                binder,
+            });
+        }
+    }
+    Ok(zil_ir::RetainedLifeShape {
+        binder_count: next_binder,
+        ports,
+        retained: vec![],
+        nominal_arguments: vec![],
+    })
 }
 fn record(t: &Type, budget: &mut Budget) -> Check<bool> {
     resources::charge_payload(t, budget)?;
@@ -83,6 +163,7 @@ fn storage(t: &Type, budget: &mut Budget) -> Check<bool> {
         Type::Record { .. } | Type::Enum { .. } | Type::ErrorUnion { .. } => record(t, budget),
         Type::Package { .. } => package(t, budget),
         Type::Tuple(_) => tuple(t, budget),
+        Type::Address { inner, .. } if retained_pointee(inner) => Ok(true),
         Type::Address { inner, .. } => storage(inner, budget),
         t => Ok(scalar(t)),
     }
@@ -101,6 +182,7 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
             };
             pollable_storage(module, environment, budget)
         }
+        Type::Address { inner, .. } if retained_pointee(inner) => Ok(true),
         Type::Address { inner, .. } => pollable_storage(module, inner, budget),
         Type::Closure(id) => {
             let Some(c) = module.closures.get(id.0 as usize) else {
@@ -359,7 +441,7 @@ pub(super) fn profile(
     for parameter in &f.parameters {
         if !matches!(local_type(f, *parameter, span)?, Type::Managed(_))
             && !record(local_type(f, *parameter, span)?, budget)?
-            && !matches!(local_type(f, *parameter, span)?, Type::Address { mutable: false, inner } if inner.as_ref() == &Type::I32 && f.parameters.len() == 1)
+            && !matches!(local_type(f, *parameter, span)?, Type::Address { inner, .. } if retained_pointee(inner))
         {
             return Err(reject(
                 "E-VERIFY-TASK",
@@ -508,9 +590,12 @@ pub(super) fn profile(
                 | InstructionKind::BorrowFieldLocal { .. }
                 | InstructionKind::BorrowPlaceLocal { .. }
                 | InstructionKind::ReadAddress { .. }
+                | InstructionKind::WriteAddress { .. }
                 | InstructionKind::BorrowLocal { .. }
                 | InstructionKind::BorrowLocalMut { .. }
                 | InstructionKind::AddressField { .. }
+                | InstructionKind::AddressIndex { .. }
+                | InstructionKind::AddressSlice { .. }
                 | InstructionKind::ReborrowAddress { .. }
                 | InstructionKind::MakePackage { .. }
                 | InstructionKind::DropPackage { .. }

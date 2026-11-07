@@ -17,20 +17,18 @@ pub(super) fn factory(f: &CoreFunction) -> bool {
         && f.type_parameters.is_empty()
         && f.state_parameters.is_empty()
         && result_task(&f.return_type).is_some()
-        && f.parameters.len() == 1
-        && shared_input(&f.parameters[0].ty)
+        && f.parameters.iter().any(|p| retained_input(&p.ty))
 }
 
-fn shared_input(ty: &Type) -> bool {
-    matches!(ty, Type::Address { mutable: false, inner } if **inner == Type::I32)
+fn retained_input(ty: &Type) -> bool {
+    matches!(ty, Type::Address { inner, .. } if tasks::retained_pointee(inner))
 }
 
 pub(super) fn signature_factory(signature: &Signature) -> bool {
     !signature.foreign
         && signature.template.is_none()
         && result_task(&signature.result).is_some()
-        && signature.parameters.len() == 1
-        && shared_input(&signature.parameters[0])
+        && signature.parameters.iter().any(retained_input)
 }
 
 pub(super) fn replace_task(ty: &mut Type, actual: &Type, span: Span) -> R<()> {
@@ -154,7 +152,7 @@ impl<'a> Scan<'a, '_> {
                     }
                     return Ok(Some(tasks::create_type(
                         &result,
-                        tasks::borrowed_context(&parameters),
+                        tasks::borrowed_context_with_life(&parameters, worker.life.as_ref()),
                     )));
                 }
                 let Some(signature) = self.callee(callee, locals) else {
@@ -313,13 +311,17 @@ pub(super) fn prepare(
     let cost = inference::helper_snapshot_work(function, limits)?.0;
     state.snapshot(cost, function.span)?;
     let mut resolved = function.clone();
-    // Existing closed factories retain their ordinary body profile. The new
-    // inferred borrowed boundary has exactly one possible external input.
-    let shared = Type::Address {
-        mutable: false,
-        inner: Box::new(Type::I32),
-    };
-    if function.parameters.len() != 1 || function.parameters[0].ty != shared {
+    // Closed factories retain their ordinary body profile. An external frame
+    // port must originate in an actual, qualified address parameter.
+    let context = tasks::borrowed_context_with_life(
+        &function
+            .parameters
+            .iter()
+            .map(|p| p.ty.clone())
+            .collect::<Vec<_>>(),
+        function.life.as_ref().map(borrowed_fp::from_life).as_ref(),
+    );
+    if context.ports.is_empty() {
         return Ok(resolved);
     }
     let before = state.remaining_work();
@@ -351,31 +353,30 @@ pub(super) fn prepare(
         if retained_life == tasks::empty_context() {
             return Ok(());
         }
-        let shared = Type::Address {
-            mutable: false,
-            inner: Box::new(Type::I32),
-        };
-        if function.parameters.len() != 1 || function.parameters[0].ty != shared {
+        let inputs = function
+            .parameters
+            .iter()
+            .enumerate()
+            .filter_map(|(index, parameter)| retained_input(&parameter.ty).then_some(index))
+            .collect::<Vec<_>>();
+        if retained_life != context || inputs.len() != retained_life.ports.len() {
             return Err(unsupported(
                 function.span,
-                "borrowed Task factory requires its one shared i32 source parameter",
+                "borrowed Task factory result differs from its actual input ports",
             ));
         }
-        if function.storage_life.is_some() {
-            return Err(unsupported(
-                function.span,
-                "Task factory inference cannot replace an existing rich source contract",
-            ));
-        }
-        if let Some(life) = &function.life
-            && (life.binders.len() != 1
-                || life.parameter_lives != [Some(0)]
-                || life.result_life.is_some())
-        {
-            return Err(unsupported(
-                function.span,
-                "Task factory requires one declared input lifetime class",
-            ));
+        if let Some(life) = &function.life {
+            if life.result_life.is_some()
+                || life.parameter_lives.len() != function.parameters.len()
+                || inputs.iter().enumerate().any(|(port, input)| {
+                    life.parameter_lives[*input] != Some(retained_life.ports[port].binder)
+                })
+            {
+                return Err(unsupported(
+                    function.span,
+                    "Task factory input lifetime classes differ from retained ports",
+                ));
+            }
         }
         let mut port_path = Vec::new();
         let mut class_path = Vec::new();
@@ -387,36 +388,58 @@ pub(super) fn prepare(
                 zil_ir::PlaceProjection::ErrorArm(false),
             ));
         }
-        port_path.push(zil_ir::ContractProjection::RetainedPort(0));
         class_path.push(zil_ir::LifeTypeProjection::Pointee);
-        resolved.storage_life = Some(StorageLifeContract {
-            fixed_binder_count: 0,
-            invocation_binder_count: 1,
-            bindings: vec![
-                zil_ir::StorageLifeBinding {
-                    position: zil_ir::StoragePosition {
-                        base: zil_ir::StorageBase::Parameter(0),
-                        path: vec![],
-                    },
-                    binder: zil_ir::StorageBinder::Invocation(0),
+        let mut bindings = Vec::new();
+        let mut classes = Vec::new();
+        for (port, input) in inputs.iter().enumerate() {
+            let binder = zil_ir::StorageBinder::Invocation(retained_life.ports[port].binder);
+            bindings.push(zil_ir::StorageLifeBinding {
+                position: zil_ir::StoragePosition {
+                    base: zil_ir::StorageBase::Parameter(*input as u32),
+                    path: vec![],
                 },
-                zil_ir::StorageLifeBinding {
-                    position: zil_ir::StoragePosition {
-                        base: zil_ir::StorageBase::Result,
-                        path: port_path,
-                    },
-                    binder: zil_ir::StorageBinder::Invocation(0),
+                binder,
+            });
+        }
+        for (port, _) in inputs.iter().enumerate() {
+            let binder = zil_ir::StorageBinder::Invocation(retained_life.ports[port].binder);
+            let mut path = port_path.clone();
+            path.push(zil_ir::ContractProjection::RetainedPort(port as u32));
+            bindings.push(zil_ir::StorageLifeBinding {
+                position: zil_ir::StoragePosition {
+                    base: zil_ir::StorageBase::Result,
+                    path,
                 },
-            ],
-            classes: vec![zil_ir::SignatureLifeClassBinding {
+                binder,
+            });
+        }
+        for class in 0..retained_life.binder_count {
+            classes.push(zil_ir::SignatureLifeClassBinding {
                 position: zil_ir::SignatureLifeClass {
                     base: zil_ir::StorageBase::Result,
-                    path: class_path,
-                    class: 0,
+                    path: class_path.clone(),
+                    class,
                 },
-                binder: zil_ir::StorageBinder::Invocation(0),
-            }],
-        });
+                binder: zil_ir::StorageBinder::Invocation(class),
+            });
+        }
+        let inferred = StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: retained_life.binder_count,
+            bindings,
+            classes,
+        };
+        if function
+            .storage_life
+            .as_ref()
+            .is_some_and(|actual| actual != &inferred)
+        {
+            return Err(unsupported(
+                function.span,
+                "Task factory declared relation differs from actual port sources",
+            ));
+        }
+        resolved.storage_life = Some(inferred);
         resolved.life = None;
         Ok(())
     })();

@@ -2072,8 +2072,63 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
                         nominal_arguments: vec![],
                     },
                 }))
+            } else if let [s::GenericArg::Type(result), s::GenericArg::Type(context)] =
+                args.as_slice()
+            {
+                let context = match &context.kind {
+                    s::TypeKind::Tuple(fields) => fields.as_slice(),
+                    _ => std::slice::from_ref(context),
+                };
+                let mut classes = std::collections::BTreeMap::new();
+                let mut ports = Vec::new();
+                for source in context {
+                    let s::TypeKind::Reference {
+                        lifetime: Some(life),
+                        mutable,
+                        inner,
+                    } = &source.kind
+                    else {
+                        return Type::Unsupported(
+                            "Task retained context requires named address ports".into(),
+                        );
+                    };
+                    let binder = if let Some(binder) = classes.get(life) {
+                        *binder
+                    } else {
+                        let binder = classes.len() as u32;
+                        classes.insert(life.clone(), binder);
+                        binder
+                    };
+                    let leaf = Type::Address {
+                        mutable: *mutable,
+                        inner: Box::new(type_ref(inner)),
+                    };
+                    ports.push(zil_ir::RetainedBorrowPort {
+                        leaf,
+                        mode: if *mutable {
+                            zil_ir::StoredBorrowMode::ExclusiveAddress
+                        } else {
+                            zil_ir::StoredBorrowMode::SharedAddress
+                        },
+                        binder,
+                    });
+                }
+                if ports.is_empty() {
+                    return Type::Unsupported("Task retained context needs an actual port".into());
+                }
+                Type::Desc(Box::new(Type::Task {
+                    result: Box::new(type_ref(result)),
+                    retained_life: zil_ir::RetainedLifeShape {
+                        binder_count: classes.len() as u32,
+                        ports,
+                        retained: vec![],
+                        nominal_arguments: vec![],
+                    },
+                }))
             } else {
-                Type::Unsupported("Task requires one complete result type".into())
+                Type::Unsupported(
+                    "Task requires a result and optional complete retained context".into(),
+                )
             }
         }
         s::TypeKind::Named { path, args } if matches!(path.as_slice(), [n] if n == "Registration" || n == "AsyncRegistration") => {

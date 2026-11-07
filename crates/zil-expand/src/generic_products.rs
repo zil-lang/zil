@@ -527,6 +527,15 @@ fn recipe(
     }
     if let TypeKind::Named { path, args } = &grouped(ty).kind
         && path.as_slice() == ["Task"]
+        && args.len() == 2
+    {
+        return Err(unsupported(
+            ty.span,
+            "generic Product Task retained context needs a complete Core recipe",
+        ));
+    }
+    if let TypeKind::Named { path, args } = &grouped(ty).kind
+        && path.as_slice() == ["Task"]
         && let [GenericArg::Type(result)] = args.as_slice()
     {
         return Ok(CoreAggregateTypeRecipe::Task {

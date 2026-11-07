@@ -15,6 +15,25 @@ pub(super) struct Slot {
 }
 pub(super) type Plan = BTreeMap<ValueId, Slot>;
 
+fn task_port_pointee(ty: &Type) -> bool {
+    match ty {
+        Type::Unit
+        | Type::Bool
+        | Type::U8
+        | Type::U16
+        | Type::I32
+        | Type::I64
+        | Type::U64
+        | Type::Usize
+        | Type::F32
+        | Type::F64 => true,
+        Type::Record { fields, .. } => fields.iter().all(|(_, t)| task_port_pointee(t)),
+        Type::Tuple(fields) => fields.iter().all(task_port_pointee),
+        Type::Array { element, .. } | Type::Slice { element } => task_port_pointee(element),
+        _ => false,
+    }
+}
+
 pub(super) fn plan(
     lir: &LirView<'_>,
     limits: &Limits,
@@ -218,19 +237,36 @@ pub(super) fn reserve_enum_metadata(
                 && retained_life.ports.is_empty()
                 && retained_life.retained.is_empty()
                 && retained_life.nominal_arguments.is_empty();
-            let shared_i32 = retained_life.binder_count == 1
+            let mut next = 0;
+            let mapped = retained_life.binder_count > 0
                 && retained_life.retained.is_empty()
                 && retained_life.nominal_arguments.is_empty()
-                && matches!(retained_life.ports.as_slice(), [zil_ir::RetainedBorrowPort {
-                    leaf: Type::Address { mutable: false, inner },
-                    mode: zil_ir::StoredBorrowMode::SharedAddress,
-                    binder: 0,
-                }] if inner.as_ref() == &Type::I32);
-            if !closed && !shared_i32 {
+                && !retained_life.ports.is_empty()
+                && retained_life.ports.iter().all(|row| {
+                    let dense = if row.binder == next {
+                        next += 1;
+                        true
+                    } else {
+                        row.binder < next
+                    };
+                    dense
+                        && matches!(&row.leaf, Type::Address { mutable, inner }
+                        if task_port_pointee(inner)
+                        && row.mode == if *mutable {
+                            zil_ir::StoredBorrowMode::ExclusiveAddress
+                        } else {
+                            zil_ir::StoredBorrowMode::SharedAddress
+                        })
+                })
+                && next == retained_life.binder_count;
+            if !closed && !mapped {
                 return unsupported(
                     "borrowed Task native frame mapping is not implemented",
                     None,
                 );
+            }
+            for row in &retained_life.ports {
+                reserve_enum_metadata(&row.leaf, work, depth + 1, limits)?;
             }
             reserve_enum_metadata(result, work, depth + 1, limits)?;
         }

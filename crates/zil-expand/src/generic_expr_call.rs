@@ -199,7 +199,8 @@ impl Engine<'_> {
                 }
                 if let TypeKind::Named { path, args } = &task.kind
                     && path.as_slice() == ["Task"]
-                    && let [GenericArg::Type(payload)] = args.as_slice()
+                    && let [GenericArg::Type(payload), ..] = args.as_slice()
+                    && (args.len() == 1 || args.len() == 2)
                 {
                     self.budget.ty(payload)?;
                     let mut result = match name.as_str() {
