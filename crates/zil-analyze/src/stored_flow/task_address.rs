@@ -1,0 +1,449 @@
+//! Task retained-port permissions are independent of the frame's storage.
+use super::*;
+use zil_ir::ContractProjection;
+
+pub(super) fn shape(ty: &Type) -> Option<&zil_ir::RetainedLifeShape> {
+    match ty {
+        Type::Task {
+            result,
+            retained_life,
+        } if matches!(result.as_ref(), Type::Address { mutable: false, .. }) => Some(retained_life),
+        Type::Managed(inner) | Type::Desc(inner) | Type::Address { inner, .. } => shape(inner),
+        Type::ErrorUnion { result, .. } => shape(result),
+        _ => None,
+    }
+}
+pub(super) fn admitted_value(ty: &Type) -> bool {
+    shape(ty).is_some()
+}
+pub(super) fn operation(kind: &InstructionKind) -> bool {
+    matches!(
+        kind,
+        InstructionKind::PlaceTagLocal { .. }
+            | InstructionKind::TakeVariantField { .. }
+            | InstructionKind::TakeErrorUnion { .. }
+            | InstructionKind::DropErrorUnion { .. }
+            | InstructionKind::DropEnum { .. }
+            | InstructionKind::TaskCreate { .. }
+            | InstructionKind::TaskYield
+            | InstructionKind::TaskValid { .. }
+            | InstructionKind::TaskPoll { .. }
+            | InstructionKind::TaskRequestCancel { .. }
+            | InstructionKind::TaskPollClose { .. }
+            | InstructionKind::TaskFinishDestroy { .. }
+            | InstructionKind::ErrorTag { .. }
+            | InstructionKind::ReadErrorUnion { .. }
+            | InstructionKind::MakeErrorUnion { .. }
+    )
+}
+pub(super) fn work(value: &Value, b: &mut Budget) -> CompileResult<()> {
+    if !b.task_borrowed_results {
+        return Ok(());
+    }
+    fee(b, value.task_ports.len())?;
+    for (path, permission) in &value.task_ports {
+        fee(b, path.len().saturating_add(permission.loans.len()))?;
+        target_work(&permission.targets, b)?;
+    }
+    Ok(())
+}
+pub(super) fn merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileResult<bool> {
+    if !b.task_borrowed_results {
+        return Ok(false);
+    }
+    let mut changed = false;
+    for (path, permission) in &from.task_ports {
+        ordered(b, to.task_ports.len(), path.len())?;
+        changed |= union(
+            to.task_ports.entry(path.clone()).or_default(),
+            permission,
+            b,
+        )?;
+    }
+    Ok(changed)
+}
+fn prefix(ty: &Type) -> Vec<PlaceProjection> {
+    match ty {
+        Type::ErrorUnion { result, .. } => {
+            let mut out = vec![PlaceProjection::ErrorArm(false)];
+            out.extend(prefix(result));
+            out
+        }
+        _ => vec![],
+    }
+}
+fn key(path: &[PlaceProjection], port: u32) -> Vec<ContractProjection> {
+    path.iter()
+        .copied()
+        .map(ContractProjection::Place)
+        .chain([ContractProjection::RetainedPort(port)])
+        .collect()
+}
+pub(super) fn seed(
+    ty: &Type,
+    base: HoldRoot,
+    value: &mut Value,
+    loans: &mut Vec<Loan>,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    if !b.task_borrowed_results || shape(ty).is_none() {
+        return Ok(());
+    }
+    let path = prefix(ty);
+    let target = Target {
+        base,
+        stored: path.clone(),
+        place: vec![],
+        retained_port: Some(0),
+    };
+    let id = loans.len();
+    fee(b, path.len().saturating_add(3))?;
+    loans.push(Loan {
+        targets: Targets::from([target.clone()]),
+        parents: Loans::new(),
+        mutable: false,
+    });
+    value.task_ports.insert(
+        key(&path, 0),
+        Permission {
+            targets: Targets::from([target]),
+            loans: Loans::from([id]),
+        },
+    );
+    Ok(())
+}
+pub(super) fn select(
+    value: &Value,
+    path: &[PlaceProjection],
+    port: u32,
+    b: &mut Budget,
+) -> CompileResult<Permission> {
+    let key = key(path, port);
+    ordered(b, value.task_ports.len(), key.len())?;
+    let mut out = Permission::default();
+    if let Some(p) = value.task_ports.get(&key) {
+        union(&mut out, p, b)?;
+    }
+    Ok(out)
+}
+pub(super) fn call(
+    summary: &Facts,
+    arguments: &[ValueId],
+    values: &[Value],
+    state: &State,
+    out: &mut Value,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    if !b.task_borrowed_results {
+        return Ok(());
+    }
+    for (path, sources) in &summary.returned_task_ports {
+        let mut permission = Permission::default();
+        for source in sources {
+            union(
+                &mut permission,
+                &substitute(source, arguments, values, state, b)?,
+                b,
+            )?;
+        }
+        out.task_ports.insert(path.clone(), permission);
+    }
+    Ok(())
+}
+pub(super) fn source_binding(
+    f: &TypedFunction,
+    source: &Target,
+    b: &mut Budget,
+) -> CompileResult<StorageBinder> {
+    let HoldRoot::Parameter(index) = source.base else {
+        return Err(failure("Task result source is not an external input"));
+    };
+    if let Some(port) = source.retained_port {
+        let c = f
+            .storage_life
+            .as_ref()
+            .ok_or_else(|| failure("Task input omits complete retained relation"))?;
+        let path = key(&source.stored, port);
+        fee(b, c.bindings.len().saturating_add(path.len()))?;
+        c.bindings
+            .iter()
+            .find(|row| {
+                row.position.base == StorageBase::Parameter(index) && row.position.path == path
+            })
+            .map(|row| row.binder)
+            .ok_or_else(|| failure("Task input relation omits actual retained port"))
+    } else {
+        binding(f, StorageBase::Parameter(index), &source.stored, b)
+    }
+}
+pub(super) fn summarize(
+    f: &TypedFunction,
+    value: &Value,
+    facts: &mut Facts,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    if !b.task_borrowed_results {
+        return Ok(());
+    }
+    for (path, permission) in &value.task_ports {
+        let c = f
+            .storage_life
+            .as_ref()
+            .ok_or_else(|| failure("returned Task omits complete retained relation"))?;
+        fee(b, c.bindings.len().saturating_add(path.len()))?;
+        let upper = c
+            .bindings
+            .iter()
+            .find(|row| row.position.base == StorageBase::Result && row.position.path == *path)
+            .map(|row| row.binder)
+            .ok_or_else(|| failure("returned Task relation omits actual retained port"))?;
+        for source in &permission.targets {
+            if source.base != HoldRoot::Static && source_binding(f, source, b)? != upper {
+                return Err(failure(
+                    "returned Task actual port exceeds its declared relation",
+                ));
+            }
+        }
+        let row = facts.returned_task_ports.entry(path.clone()).or_default();
+        for source in &permission.targets {
+            fee(b, row.len().saturating_add(1))?;
+            if !row.contains(source) {
+                row.push(source.clone());
+            }
+        }
+    }
+    Ok(())
+}
+pub(super) fn transfer(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    state: &mut State,
+    values: &[Value],
+    summaries: &[Facts],
+    b: &mut Budget,
+) -> CompileResult<Option<Value>> {
+    if !b.task_borrowed_results || !operation(&i.kind) {
+        return Ok(None);
+    }
+    let get = |id: ValueId| {
+        values
+            .get(id.0 as usize)
+            .ok_or_else(|| failure("Task operand is absent"))
+    };
+    let mut out = Value::default();
+    match &i.kind {
+        InstructionKind::TaskCreate {
+            worker,
+            arguments,
+            port_bindings,
+        } => {
+            let worker = module
+                .functions
+                .get(worker.0 as usize)
+                .ok_or_else(|| failure("Task worker is absent"))?;
+            if !matches!(worker.return_type, Type::Address { mutable: false, .. }) {
+                return Err(failure(
+                    "mixed Task result profiles need their complete retained consumer",
+                ));
+            }
+            let [binding] = port_bindings.as_slice() else {
+                return Err(failure(
+                    "shared Task result requires one actual port binding",
+                ));
+            };
+            let StorageBase::Parameter(index) = binding.source.base else {
+                return Err(failure("Task port is not an actual parameter"));
+            };
+            if !binding.source.path.is_empty() || binding.port != 0 {
+                return Err(failure("Task shared result port selector is not canonical"));
+            }
+            let input = *arguments
+                .get(index as usize)
+                .ok_or_else(|| failure("Task input is absent"))?;
+            let mut permission = Permission::default();
+            union(&mut permission, &get(input)?.pointer, b)?;
+            out.task_ports
+                .insert(key(&[PlaceProjection::ErrorArm(false)], 0), permission);
+            let summary = &summaries[worker.id.0 as usize];
+            let sources = summary.returned.get(&Vec::new());
+            if let Some(sources) = sources {
+                for source in sources {
+                    fee(
+                        b,
+                        source
+                            .stored
+                            .len()
+                            .saturating_add(source.place.len())
+                            .saturating_add(1),
+                    )?;
+                    if source.base != HoldRoot::Parameter(index)
+                        || source.retained_port.is_some()
+                        || !source.stored.is_empty()
+                        || !source.place.is_empty()
+                    {
+                        return Err(failure(
+                            "Task Ready result is not the actual retained input port",
+                        ));
+                    }
+                }
+            }
+            out.creation_complete =
+                Some(summary.complete && sources.is_some_and(|row| !row.is_empty()));
+        }
+        InstructionKind::PlaceTagLocal { local, path }
+            if shape(&f.locals[local.0 as usize].ty).is_some() && path.is_empty() => {}
+        InstructionKind::TakeVariantField { local, path }
+            if shape(&f.locals[local.0 as usize].ty).is_some() =>
+        {
+            let prefix = path
+                .iter()
+                .copied()
+                .map(ContractProjection::Place)
+                .collect::<Vec<_>>();
+            let holder = state
+                .locals
+                .get_mut(local)
+                .ok_or_else(|| failure("taken Task wrapper is unavailable"))?;
+            let mut keep = BTreeMap::new();
+            for (key, p) in std::mem::take(&mut holder.task_ports) {
+                if key.starts_with(&prefix) {
+                    out.task_ports.insert(key[prefix.len()..].to_vec(), p);
+                } else {
+                    keep.insert(key, p);
+                }
+            }
+            holder.task_ports = keep;
+            out.creation_complete = holder.creation_complete;
+        }
+        InstructionKind::TakeErrorUnion { value, is_error }
+            if shape(value_type(f, *value)?).is_some() =>
+        {
+            let prefix = ContractProjection::Place(PlaceProjection::ErrorArm(*is_error));
+            for (path, p) in &get(*value)?.task_ports {
+                if path.first() == Some(&prefix) {
+                    out.task_ports.insert(path[1..].to_vec(), p.clone());
+                }
+            }
+            out.creation_complete = get(*value)?.creation_complete;
+        }
+        InstructionKind::DropErrorUnion { local } | InstructionKind::DropEnum { local } => {
+            state.locals.remove(local);
+        }
+        InstructionKind::TaskPoll { task } if shape(value_type(f, *task)?).is_some() => {
+            let permission = select(get(*task)?, &[], 0, b)?;
+            let path = vec![
+                PlaceProjection::ErrorArm(false),
+                PlaceProjection::Variant(zil_ir::VariantProjection {
+                    variant: 1,
+                    index: 0,
+                }),
+            ];
+            out.slots.insert(path, permission);
+            // Both runtime alternatives are possible. Only Ready owns a leaf.
+            out.enum_variants = enum_address::Variants::runtime_poll(b)?;
+        }
+        InstructionKind::MakeErrorUnion { value, is_error }
+            if shape(value_type(
+                f,
+                i.result
+                    .ok_or_else(|| failure("Task wrapper has no result"))?,
+            )?)
+            .is_some() =>
+        {
+            for (path, p) in &get(*value)?.task_ports {
+                let mut selected = vec![ContractProjection::Place(PlaceProjection::ErrorArm(
+                    *is_error,
+                ))];
+                selected.extend(path);
+                out.task_ports.insert(selected, p.clone());
+            }
+        }
+        InstructionKind::ReadErrorUnion { value, is_error }
+            if shape(value_type(f, *value)?).is_some() =>
+        {
+            let step = ContractProjection::Place(PlaceProjection::ErrorArm(*is_error));
+            for (path, p) in &get(*value)?.task_ports {
+                if path.first() == Some(&step) {
+                    out.task_ports.insert(path[1..].to_vec(), p.clone());
+                }
+            }
+        }
+        InstructionKind::ErrorTag { value } if shape(value_type(f, *value)?).is_some() => {}
+        InstructionKind::TaskYield
+        | InstructionKind::TaskValid { .. }
+        | InstructionKind::TaskRequestCancel { .. }
+        | InstructionKind::TaskPollClose { .. }
+        | InstructionKind::TaskFinishDestroy { .. } => {}
+        _ => return Ok(None),
+    }
+    work(&out, b)?;
+    Ok(Some(out))
+}
+
+pub(super) fn wrapper_instruction(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let (source, arm, make) = match i.kind {
+        InstructionKind::PlaceTagLocal { local, ref path } => {
+            let ty = &f
+                .locals
+                .get(local.0 as usize)
+                .ok_or_else(|| failure("Task tag local is absent"))?
+                .ty;
+            if shape(ty).is_none() {
+                return Ok(false);
+            }
+            if !path.is_empty()
+                || !matches!(ty, Type::ErrorUnion { .. })
+                || i.result.and_then(|id| f.values.get(id.0 as usize)) != Some(&Type::I32)
+            {
+                return Err(failure(
+                    "Task local tag lacks exact union root and I32 result",
+                ));
+            }
+            fee(b, 1)?;
+            return Ok(true);
+        }
+        InstructionKind::ErrorTag { value } => {
+            let ty = value_type(f, value)?;
+            if shape(ty).is_none() {
+                return Ok(false);
+            }
+            if !matches!(ty, Type::ErrorUnion { .. })
+                || i.result.and_then(|id| f.values.get(id.0 as usize)) != Some(&Type::Bool)
+            {
+                return Err(failure("Task error tag lacks actual Bool union operation"));
+            }
+            return Ok(true);
+        }
+        InstructionKind::MakeErrorUnion { value, is_error } => (value, is_error, true),
+        InstructionKind::ReadErrorUnion { value, is_error }
+        | InstructionKind::TakeErrorUnion { value, is_error } => (value, is_error, false),
+        _ => return Ok(false),
+    };
+    let result = i
+        .result
+        .ok_or_else(|| failure("Task wrapper operation has no result"))?;
+    let ty = value_type(f, if make { result } else { source })?;
+    if shape(ty).is_none() {
+        return Ok(false);
+    }
+    let Type::ErrorUnion {
+        error,
+        result: success,
+    } = ty
+    else {
+        return Err(failure("Task wrapper operation has no actual ErrorUnion"));
+    };
+    let wanted = if arm { error } else { success };
+    let actual = value_type(f, if make { source } else { result })?;
+    b.type_work(wanted, false, "actual Task wrapper selected type")?;
+    b.type_work(actual, false, "actual Task wrapper operand type")?;
+    if actual != wanted.as_ref() {
+        return Err(failure("Task wrapper changes actual selected type"));
+    }
+    Ok(true)
+}

@@ -65,6 +65,8 @@ pub(super) struct Budget {
     pub(super) protocol_contracts: bool,
     pub(super) protocol_checked: bool,
     pub(super) stored_enum_addresses: bool,
+    pub(super) task_borrowed_results: bool,
+    pub(super) task_pointer_roots: Vec<Vec<Vec<zil_ir::HoldRoot>>>,
     pub(super) stored_borrows: bool,
     pub(super) stored_slot_updates: bool,
     // Empty for the established single-lane profiles. A mixed module has one
@@ -136,6 +138,8 @@ impl Budget {
             protocol_contracts: false,
             protocol_checked: false,
             stored_enum_addresses: false,
+            task_borrowed_results: false,
+            task_pointer_roots: Vec::new(),
             stored_borrows: false,
             stored_slot_updates: false,
             composition_stored: Vec::new(),
@@ -898,6 +902,7 @@ pub(super) fn preflight(
             budget.borrowed_task_ports |=
                 matches!(ty, Type::Task { retained_life, .. } if !retained_life.ports.is_empty());
             super::tasks::require_closed_context(ty)?;
+            budget.task_borrowed_results |= matches!(ty, Type::Task { result, .. } if matches!(result.as_ref(), Type::Address { mutable: false, .. }));
             if depth > limits.max_call_depth {
                 return Err(exhausted("aggregate nesting"));
             }

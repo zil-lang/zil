@@ -28,7 +28,7 @@ fn has_owned_tuple(pattern: &CorePattern, ty: &Type) -> bool {
 }
 impl Builder<'_, '_> {
     pub(super) fn partial_pattern_needed(&self, p: &CorePattern, ty: &Type) -> bool {
-        matches!(ty, Type::ErrorUnion { .. })
+        (matches!(ty, Type::ErrorUnion { .. }) && !stored::sum_value(ty))
             || owned_shapes::tuple(ty)
             || matches!(ty, Type::Package { .. })
             || owned_shapes::enumeration(ty)

@@ -26,7 +26,8 @@ impl Source {
     fn external(self) -> bool {
         matches!(
             self,
-            Self::Root(Root::Parameter(_) | Root::Capture(_)) | Self::InputCapture { .. }
+            Self::Root(Root::Parameter(_) | Root::ParameterPort(..) | Root::Capture(_))
+                | Self::InputCapture { .. }
         )
     }
 }
@@ -54,6 +55,7 @@ pub(super) struct Context<'a> {
 /// environment position and from ordinary argument positions.
 pub(super) struct Invocation<'a> {
     pub(super) function: FunctionId,
+    caller: FunctionId,
     arguments: &'a [ValueId],
     environment: Option<&'a Slots>,
     captures: &'a CaptureFacts,
@@ -96,6 +98,49 @@ impl Invocation<'_> {
                 let roots = &self.ordinary.values[value.0 as usize];
                 budget.spend(roots.len())?;
                 return Ok(roots.clone());
+            }
+            Root::ParameterPort(parameter, port) => {
+                let value = *self
+                    .arguments
+                    .get(parameter as usize)
+                    .ok_or_else(ungrounded)?;
+                let rows = budget
+                    .task_stored_sources
+                    .as_ref()
+                    .and_then(|rows| rows.get(self.caller.0 as usize))
+                    .and_then(|row| row.values.get(value.0 as usize))
+                    .ok_or_else(ungrounded)?;
+                let count = rows.retained.len();
+                budget.spend(count)?;
+                let rows = &budget.task_stored_sources.as_ref().unwrap()[self.caller.0 as usize]
+                    .values[value.0 as usize];
+                let path = [ContractProjection::RetainedPort(port)];
+                let roots = rows
+                    .retained
+                    .iter()
+                    .find(|(p, _)| p.as_slice() == path)
+                    .map(|(_, r)| r)
+                    .filter(|r| !r.is_empty())
+                    .ok_or_else(ungrounded)?;
+                let count = roots.len();
+                budget.spend(count)?;
+                let rows = &budget.task_stored_sources.as_ref().unwrap()[self.caller.0 as usize]
+                    .values[value.0 as usize];
+                return Ok(rows
+                    .retained
+                    .iter()
+                    .find(|(p, _)| p.as_slice() == path)
+                    .unwrap()
+                    .1
+                    .iter()
+                    .map(|source| match (source.base, source.port) {
+                        (HoldRoot::Parameter(p), Some(port)) => Root::ParameterPort(p, port),
+                        (HoldRoot::Static, _) => Root::Static,
+                        (HoldRoot::Local(l), _) => Root::Local(l),
+                        (HoldRoot::Parameter(p), _) => Root::Parameter(p),
+                        (HoldRoot::Capture(c), _) => Root::Capture(c),
+                    })
+                    .collect());
             }
             Root::Capture(capture) => {
                 let slots = self.environment.ok_or_else(ungrounded)?;
@@ -437,6 +482,7 @@ impl Context<'_> {
             };
         Ok(Some(Invocation {
             function,
+            caller: self.function.id,
             arguments,
             environment,
             captures: self.facts,

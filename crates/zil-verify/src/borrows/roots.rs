@@ -14,6 +14,7 @@ pub(super) enum Root {
     StoreElementWindow(HoldRoot, u32, u32, u32, u32),
     Capture(u32),
     Parameter(u32),
+    ParameterPort(u32, u32),
     ParameterCapture(u32, u32),
 }
 impl Root {
@@ -26,7 +27,9 @@ impl Root {
             Self::Window(root, ..) => root,
             Self::StoreElementWindow(root, ..) => root,
             Self::Capture(index) => HoldRoot::Capture(index),
-            Self::Parameter(index) | Self::ParameterCapture(index, _) => HoldRoot::Parameter(index),
+            Self::Parameter(index)
+            | Self::ParameterCapture(index, _)
+            | Self::ParameterPort(index, _) => HoldRoot::Parameter(index),
         }
     }
     pub(super) fn intersects(self, other: Self) -> bool {
@@ -40,6 +43,9 @@ impl Root {
         // caller must instantiate them before proving any separation.
         if matches!(left, Self::ParameterCapture(..)) || matches!(right, Self::ParameterCapture(..))
         {
+            return left == right;
+        }
+        if matches!(left, Self::ParameterPort(..)) || matches!(right, Self::ParameterPort(..)) {
             return left == right;
         }
         if left.coarse() != right.coarse() {
@@ -73,6 +79,7 @@ impl Ord for Root {
                 (5, *start, *end, *payload_start, *payload_end)
             }
             Self::ParameterCapture(_, capture) => (3, *capture, 0, 0, 0),
+            Self::ParameterPort(_, port) => (6, *port, 0, 0, 0),
             _ => (0, 0, 0, 0, 0),
         };
         (self.coarse(), projection(self)).cmp(&(other.coarse(), projection(other)))

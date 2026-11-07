@@ -1013,7 +1013,9 @@ mod tests {
             binder: 0,
             mode: zil_ir::StoredBorrowMode::SharedAddress,
         });
-        assert!(!representation_type(&slotted));
+        // The physical Enum layout is still known. This deliberately invalid
+        // slot inventory must be rejected by Verify before layout selection.
+        assert!(representation_type(&slotted));
     }
     #[test]
     fn index_root_address_is_pointer_not_snapshot_or_embedded_value() {

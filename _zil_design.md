@@ -1438,6 +1438,10 @@ opaque载体共同`RetainedLifeShape`保留binder_count、完整typed ports、�
 
 有限共享输入 Task（borrowed task port）：单个真实共享 &i32 worker 输入可进入结果为 i32 的 Task。TaskCreate 的 port_bindings 以该创建指令的真实有序实参为上下文，将 port0 映射至 Parameter(0)；完整 port 叶为 Address<i32>、SharedAddress、binder0，不由结果 i32 推断。显式 Task<i32> 工厂返回约束保留从实际创建/返回推得的隐藏 shape，跨模块转发仍核唯一输入、实际返回来源及完整 Invocation/结果 port 关系。未知递归工厂、借入 Task 函数输入、其它结果族、可变 port、捕获/聚合运输、线程转移及外部 ABI 不由本片准入。
 
+共享借入结果使用原有 TaskPollState!Poll<R> ABI，不增加结果提取原语。当前直接共享 Address 结果要求 Task 的 retained 中有唯一 `[Result],class0→binder0` 映射，并与唯一 SharedAddress 输入 port 的完整叶类型一致。该声明只限定来源上界：两核仍从实际 worker 返回、TaskCreate 有序实参和 port_bindings 独立证明结果来自该输入；binder/class 相等不能替代实际目标身份，frame-local 或其它未保留来源拒绝。Core Task recipe 无损携带 retained 映射，Types 在解析实际结果/port 类型后重新认证。
+
+TaskPoll 的成功 Ready 叶保留真实外部重借父链，Pending 和错误臂不导出 payload loan。Task 壳的物理写目标与保留输入、结果依赖分开求证；公开 Hold 仍逐值表示完整强依赖。TaskFinishDestroy 结清 frame keeper 后，调用者的 Ready 引用可继续使用；它的共享贷款仍暂停原外部独占父窗口，直到结果的最后使用。创建失败臂没有 frame，取消/关闭状态本身不释放成功 frame 的输入责任。
+
 PC0 在首次轮询前已将真实输入指针存入稳定帧。两核独立保护随拥有责任在创建、成功错误联合、局部移动、合法 helper 返回及解构间转交的帧借用，不能按最初 SSA 的末用提前结束。Allocation 实际错误边没有帧；成功帧的 Pending、Ready、请求取消和 PollClose 不归还借用。首片保守保持到真实成功的 TaskFinishDestroy 或已证明同步的默认清理结束，不宣称仅 Closed 而未销毁即可立即重借。结果本身的拥有/借用责任另行核验，不因清理帧而删除调用者仍持有的 loan。
 
 CT4以一份联合`life_context`表达名义应用完整的Type/Const/Lifetime实参及关系。`CtLifetimeArgument{owner,binder}`引用实际词法包围的binder拥有者，数值owner为语义反向引用，不是物理DAG边；分别核验物理图与词法scope、域和范围，同形兄弟owner不可替代祖先。节点复制/重编号连同owner一致变换，键以已核相对scope/域/序号表示。带context的schema Type实参必须为同一图内的`TypeInContext`并选择对应实际参数，禁止独立Type图逐参新鲜化后丢掉相等关系；无context时仅接纳实际封闭Type图。提取Type参数保留真实scope handle；当前返回形状无法表达时显式Unsupported并继续补齐，不能新建自由life名或空wrapper。Task/Dyn的完整CT节点和上下文桥仍须另外实现，不由运行时表示自动开放。

@@ -204,6 +204,9 @@ pub(super) fn shape(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
 }
 
 pub(crate) fn ordinary(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    if b.task_borrowed_results && super::task_address::shape(ty) {
+        return Ok(false);
+    }
     if !b.stored_enum_addresses {
         return Ok(false);
     }
@@ -518,6 +521,22 @@ pub(super) struct Variants {
     nested: Vec<(Path, Variants)>,
 }
 impl Variants {
+    pub(super) fn runtime_poll(b: &mut Budget) -> Check<Self> {
+        b.spend(7)?;
+        Ok(Self {
+            domain: 2,
+            constructed: vec![0, 1],
+            nested: vec![(
+                vec![PlaceProjection::ErrorArm(false)],
+                Self {
+                    domain: 2,
+                    constructed: vec![0, 1],
+                    ..Self::default()
+                },
+            )],
+            ..Self::default()
+        })
+    }
     pub(super) fn present(&self) -> bool {
         self.domain != 0
     }

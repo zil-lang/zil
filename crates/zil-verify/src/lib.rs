@@ -364,6 +364,8 @@ struct Budget {
     owning_address_captures: bool,
     head_descriptions: bool,
     stored_enum_addresses: bool,
+    task_borrowed_results: bool,
+    task_stored_sources: Option<Vec<stored_flow::TaskFunctionSources>>,
     stored_borrows: bool,
     stored_package_instance: bool,
     // Derived only from the existing paid raw-instruction inventory.
@@ -414,6 +416,8 @@ impl Budget {
             owning_address_captures: false,
             head_descriptions: false,
             stored_enum_addresses: false,
+            task_borrowed_results: false,
+            task_stored_sources: None,
             stored_borrows: false,
             stored_package_instance: false,
             stored_slot_updates: false,
@@ -994,12 +998,15 @@ fn check_module(
     }
     // Deep unsupported type trees have already been rejected without recursing.
     // A candidate's digest is an identity check, not evidence of correctness.
-    let stored_partition = if budget.stored_borrows && (budget.tasks || budget.registrations) {
+    let stored_partition = if budget.stored_borrows
+        && !budget.task_borrowed_results
+        && (budget.tasks || budget.registrations)
+    {
         stored_partition::mixed(module, &mut budget)?
     } else {
         None
     };
-    if budget.stored_borrows {
+    if budget.stored_borrows || budget.task_borrowed_results {
         stored_flow::qualifications(module, limits, stored_partition.as_deref(), &mut budget)?;
     }
     let fingerprint = module.fingerprint();
@@ -1039,7 +1046,13 @@ fn check_module(
         task_input_fingerprint = tasks::interface_fingerprint(program, fingerprint, &mut budget)?;
     }
     helpers::check_module(module, &graphs, limits, &mut budget)?;
-    let guard_sources = if budget.stored_borrows && stored_partition.is_none() {
+    let guard_sources = if budget.task_borrowed_results {
+        for f in &module.functions {
+            stored_flow::header(module, f, &mut budget)?;
+        }
+        stored_flow::check(module, &graphs, plan, &mut budget)?;
+        borrows::check_module(module, plan, &graphs, &mut budget)?
+    } else if budget.stored_borrows && stored_partition.is_none() {
         for f in &module.functions {
             stored_flow::header(module, f, &mut budget)?;
         }
@@ -1205,6 +1218,7 @@ fn check_type_shape(
         budget.borrowed_task_ports |=
             matches!(ty, Type::Task { retained_life, .. } if !retained_life.ports.is_empty());
         tasks::require_closed_context(ty, None)?;
+        budget.task_borrowed_results |= matches!(ty, Type::Task { result, .. } if matches!(result.as_ref(), Type::Address { mutable: false, .. }));
         // Detect the new ordinary profile during the already paid raw-tree
         // traversal. Old functions do not acquire an extra classifier pass.
         if (context & 64 != 0 && matches!(ty, Type::Managed(_) | Type::Package { .. }))

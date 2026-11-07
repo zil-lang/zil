@@ -11,6 +11,7 @@ pub(super) fn empty_context() -> zil_ir::RetainedLifeShape {
 pub(super) fn borrowed_context_with_life(
     parameters: &[Type],
     life: Option<&zil_ir::FunctionLifeContract>,
+    result: &Type,
 ) -> zil_ir::RetainedLifeShape {
     let mut ports = Vec::new();
     let mut classes = std::collections::BTreeMap::new();
@@ -46,10 +47,22 @@ pub(super) fn borrowed_context_with_life(
             });
         }
     }
+    let mut retained = Vec::new();
+    if matches!(result, Type::Address { mutable: false, .. })
+        && let Some(binder) = life
+            .and_then(|l| l.result_life)
+            .and_then(|source| classes.get(&source))
+    {
+        retained.push(zil_ir::StorageRetainedBinding {
+            path: vec![zil_ir::LifeTypeProjection::Result],
+            class: 0,
+            binder: *binder,
+        });
+    }
     zil_ir::RetainedLifeShape {
         binder_count: next_binder,
         ports,
-        retained: vec![],
+        retained,
         nominal_arguments: vec![],
     }
 }
@@ -97,6 +110,10 @@ fn retained_result_with_named(ty: &Type, allow_named: bool) -> bool {
         | Type::F32
         | Type::F64 => true,
         Type::Named(_) if allow_named => true,
+        Type::Address {
+            mutable: false,
+            inner,
+        } => retained_pointee_with_named(inner, allow_named),
         Type::Managed(payload) => retained_result_with_named(payload, allow_named),
         Type::Record { fields, .. } => fields
             .iter()
@@ -150,9 +167,30 @@ fn check_context(ty: &Type, span: Span, allow_named: bool) -> R<()> {
         result,
         retained_life,
     } = ty
+    {
+        let shared = matches!(result.as_ref(), Type::Address { mutable: false, .. });
+        if shared || !retained_life.retained.is_empty() {
+            let valid = shared
+                && retained_result_with_named(result, allow_named)
+                && retained_life.binder_count == 1
+                && retained_life.nominal_arguments.is_empty()
+                && matches!(retained_life.retained.as_slice(), [r] if r.path==[zil_ir::LifeTypeProjection::Result] && r.class==0 && r.binder==0)
+                && matches!(retained_life.ports.as_slice(), [port] if port.mode==zil_ir::StoredBorrowMode::SharedAddress && port.binder==0 && port.leaf==**result);
+            if !valid {
+                return Err(error(
+                    "E-TASK-RESULT-CONTEXT",
+                    span,
+                    "Task shared result requires its actual single shared input class and complete Result mapping",
+                ));
+            }
+        }
+    }
+    if let Type::Task {
+        result,
+        retained_life,
+    } = ty
         && *retained_life != empty_context()
-        && (!retained_life.retained.is_empty()
-            || !retained_life.nominal_arguments.is_empty()
+        && (!retained_life.nominal_arguments.is_empty()
             || retained_life.ports.iter().any(|port| {
                 let dense = if port.binder == next { next += 1; true } else { port.binder < next };
                 !dense
@@ -490,13 +528,17 @@ impl Builder<'_, '_> {
                     signature.concrete_id(worker_expr.span)?,
                     signature.parameters.clone(),
                     signature.result.clone(),
-                    signature.life.clone(),
+                    signature.life.clone().or_else(|| {
+                        matches!(signature.result, Type::Address {mutable:false, ..})
+                            .then(|| signature.storage_life.as_ref().and_then(|life| life.to_flat(signature.parameters.len())))
+                            .flatten()
+                    }),
                 ))
             })();
             self.closures.snapshot(before - remaining, span)?;
             let (worker, parameters, worker_result, worker_life) = prepared?;
             if name == "task_create"
-                && !borrowed_context_with_life(&parameters, worker_life.as_ref())
+                && !borrowed_context_with_life(&parameters, worker_life.as_ref(), &worker_result)
                     .ports
                     .is_empty()
                 && !retained_result(&worker_result)
@@ -533,7 +575,7 @@ impl Builder<'_, '_> {
             } else {
                 create_type(
                     &worker_result,
-                    borrowed_context_with_life(&parameters, worker_life.as_ref()),
+                    borrowed_context_with_life(&parameters, worker_life.as_ref(), &worker_result),
                 )
             };
             if let Some(wanted) = expected {

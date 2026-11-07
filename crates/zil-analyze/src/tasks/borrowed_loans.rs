@@ -94,6 +94,28 @@ fn actual(holds: &[ValueHold], value: ValueId, b: &mut Budget) -> CompileResult<
     Ok(row.roots.iter().copied().collect())
 }
 
+fn physical(
+    f: &TypedFunction,
+    holds: &[ValueHold],
+    value: ValueId,
+    b: &mut Budget,
+) -> CompileResult<Roots> {
+    if !b.task_borrowed_results || !matches!(f.values[value.0 as usize], Type::Address { .. }) {
+        return actual(holds, value, b);
+    }
+    let roots = b
+        .task_pointer_roots
+        .get(f.id.0 as usize)
+        .and_then(|rows| rows.get(value.0 as usize))
+        .ok_or_else(|| bad("Task physical access lacks an actual SSA target proof"))?;
+    let work = roots.len().saturating_add(1);
+    fee(b, work)?;
+    Ok(b.task_pointer_roots[f.id.0 as usize][value.0 as usize]
+        .iter()
+        .copied()
+        .collect())
+}
+
 fn transfer(
     module: &TypedModule,
     f: &TypedFunction,
@@ -524,7 +546,7 @@ fn access(
                             address,
                             ..
                         } if id == reservation => {
-                            exclusive(state, &actual(holds, address, b)?, i, apart, b)?;
+                            exclusive(state, &physical(f, holds, address, b)?, i, apart, b)?;
                         }
                         _ => {}
                     }
@@ -552,7 +574,7 @@ fn access(
         _ => None,
     };
     if let Some(value) = address {
-        exclusive(state, &actual(holds, value, b)?, i, apart, b)?;
+        exclusive(state, &physical(f, holds, value, b)?, i, apart, b)?;
     }
     // Existing addresses can be used after Task construction. Checking only
     // BorrowLocalMut would miss writes through an earlier reference or helper.
@@ -562,16 +584,16 @@ fn access(
             &f.values[value.0 as usize],
             Type::Address { mutable: false, .. }
         ) {
-            shared_access(f, state, &actual(holds, value, b)?, i, apart, b)?;
+            shared_access(f, state, &physical(f, holds, value, b)?, i, apart, b)?;
         }
         if matches!(
             &f.values[value.0 as usize],
             Type::Address { mutable: true, .. }
         ) {
-            exclusive(state, &actual(holds, value, b)?, i, apart, b)?;
+            exclusive(state, &physical(f, holds, value, b)?, i, apart, b)?;
         }
         if matches!(&f.values[value.0 as usize], Type::Closure(_)) {
-            exclusive(state, &actual(holds, value, b)?, i, apart, b)?;
+            exclusive(state, &physical(f, holds, value, b)?, i, apart, b)?;
         }
     }
     Ok(())
@@ -625,8 +647,8 @@ fn prove_apart(
                                 let right = *arguments
                                     .get(right as usize)
                                     .ok_or_else(|| bad("Task port separation input absent"))?;
-                                let a = actual(holds, left, b)?;
-                                let c = actual(holds, right, b)?;
+                                let a = physical(f, holds, left, b)?;
+                                let c = physical(f, holds, right, b)?;
                                 if a.is_empty() || c.is_empty() {
                                     return Err(fail(
                                         instruction.span,

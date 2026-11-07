@@ -1,0 +1,42 @@
+fn worker<life a>(pointer:&'a i32)->&'a i32{
+ let local=7
+ task_yield()
+ return pointer
+}
+fn start<life a>(pointer:&'a i32)->TaskCreateError!Task<&'a i32,&'a i32> contract{result(give)}{
+ return task_create(worker,pointer)
+}
+fn relay<life a>(give task:Task<&'a i32,&'a i32>)->Task<&'a i32,&'a i32> contract{result(give)}{
+ return give task
+}
+fn poll<life a>(task:&mut Task<&'a i32,&'a i32>)->TaskPollState!Poll<&'a i32>{
+ return task_poll(task)
+}
+fn main()->TaskCreateError!i32{
+ var number=42
+ let p=&mut number
+ let q=&mut *p
+ let unrelated=5
+ let ordinary=&unrelated
+ let check=*ordinary
+ var task=relay(start(&*q)?)
+ match poll(&mut task){
+  .ok(value)=>{match value{Poll.Pending()=>{},Poll.Ready(_)=>{return 91}}},
+  .err(_)=>{return 92}
+ }
+ match poll(&mut task){
+  .ok(value)=>{match value{
+   Poll.Pending()=>{return 93},
+   Poll.Ready(pointer)=>{
+    match task_poll_close(&mut task){Poll.Pending()=>{return 94},Poll.Ready(_)=>{}}
+    task_finish_destroy(give task)
+    let observed=*pointer
+    *q=43
+    let changed=*q
+    let restored=*p
+    return observed+changed+restored-128+check-5
+   }
+  }},
+  .err(_)=>{return 95}
+ }
+}

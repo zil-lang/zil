@@ -237,9 +237,25 @@ pub(super) fn reserve_enum_metadata(
                 && retained_life.ports.is_empty()
                 && retained_life.retained.is_empty()
                 && retained_life.nominal_arguments.is_empty();
+            let borrowed_result = if retained_life.retained.is_empty() {
+                false
+            } else {
+                *work = work
+                    .checked_sub(retained_life.retained.len())
+                    .ok_or_else(exhausted)?;
+                for row in &retained_life.retained {
+                    *work = work.checked_sub(row.path.len()).ok_or_else(exhausted)?;
+                }
+                matches!(result.as_ref(), Type::Address { mutable: false, inner } if task_port_pointee(inner))
+                    && retained_life.binder_count == 1
+                    && matches!(retained_life.retained.as_slice(), [row]
+                        if row.path == [zil_ir::LifeTypeProjection::Result] && row.class == 0 && row.binder == 0)
+                    && matches!(retained_life.ports.as_slice(), [port]
+                        if port.mode == zil_ir::StoredBorrowMode::SharedAddress && port.binder == 0 && port.leaf == **result)
+            };
             let mut next = 0;
             let mapped = retained_life.binder_count > 0
-                && retained_life.retained.is_empty()
+                && (retained_life.retained.is_empty() || borrowed_result)
                 && retained_life.nominal_arguments.is_empty()
                 && !retained_life.ports.is_empty()
                 && retained_life.ports.iter().all(|row| {

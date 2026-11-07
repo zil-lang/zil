@@ -152,7 +152,24 @@ impl<'a> Scan<'a, '_> {
                     }
                     return Ok(Some(tasks::create_type(
                         &result,
-                        tasks::borrowed_context_with_life(&parameters, worker.life.as_ref()),
+                        tasks::borrowed_context_with_life(
+                            &parameters,
+                            worker
+                                .life
+                                .clone()
+                                .or_else(|| {
+                                    matches!(result, Type::Address { mutable: false, .. })
+                                        .then(|| {
+                                            worker
+                                                .storage_life
+                                                .as_ref()
+                                                .and_then(|life| life.to_flat(parameters.len()))
+                                        })
+                                        .flatten()
+                                })
+                                .as_ref(),
+                            &result,
+                        ),
                     )));
                 }
                 let Some(signature) = self.callee(callee, locals) else {
@@ -313,14 +330,18 @@ pub(super) fn prepare(
     let mut resolved = function.clone();
     // Closed factories retain their ordinary body profile. An external frame
     // port must originate in an actual, qualified address parameter.
-    let context = tasks::borrowed_context_with_life(
+    let mut context = tasks::borrowed_context_with_life(
         &function
             .parameters
             .iter()
             .map(|p| p.ty.clone())
             .collect::<Vec<_>>(),
         function.life.as_ref().map(borrowed_fp::from_life).as_ref(),
+        &function.return_type,
     );
+    if let Some(Type::Task { retained_life, .. }) = result_task(&function.return_type) {
+        context.retained = retained_life.retained.clone();
+    }
     if context.ports.is_empty() {
         return Ok(resolved);
     }
