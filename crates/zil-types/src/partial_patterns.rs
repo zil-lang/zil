@@ -274,7 +274,7 @@ impl Builder<'_, '_> {
                         ty.clone(),
                         p.span,
                     )?;
-                    let name = format!("$patternChild340${}", self.function.locals.len());
+                    let name = format!("$patternChild${}", self.function.locals.len());
                     let child = self.local(&name, ty.clone(), true, p.span)?;
                     self.store(child, value, p.span)?;
                     return self.owner_pattern_walk(
@@ -528,9 +528,25 @@ impl Builder<'_, '_> {
             }
 
             let fail = self.block_id()?;
-            self.owner_pattern_check(&arm.pattern, &place, fail, consume)?;
-            self.push_scope(arm.span)?;
-            let values = self.owner_pattern_bind(&arm.pattern, &place, fail, consume)?;
+            // Only recursive owning Package patterns create child owners
+            // while binding. Preserve the established evaluation and cleanup
+            // corridor for every other pattern, including ordinary Sums.
+            let child_scope = matches!(place.ty, Type::Package { .. })
+                && matches!(&arm.pattern.kind, CorePatternKind::Record { fields, .. }
+                    if fields.iter().any(|(_, pattern)| matches!(&pattern.kind,
+                        CorePatternKind::Record { ty: Type::Package { .. }, .. })));
+            let values = if child_scope {
+                self.owner_pattern_check(&arm.pattern, &place, fail, consume)?;
+                self.push_scope(arm.span)?;
+                self.owner_pattern_bind(&arm.pattern, &place, fail, consume)?
+            } else {
+                let values = self.owner_pattern_values(&arm.pattern, &place, fail, consume)?;
+                self.push_scope(arm.span)?;
+                if consume {
+                    self.finish_resource_temps(arm.span)?;
+                }
+                values
+            };
             for (name, value, ty, span) in values.into_iter().rev() {
                 let local = self.local(&name, ty, false, span)?;
                 self.store(local, value, span)?;
@@ -538,7 +554,7 @@ impl Builder<'_, '_> {
             self.block(&arm.body)?;
             if self.current.is_some() {
                 self.end_scopes(self.scopes.len() - 1, arm.span)?;
-                if consume {
+                if consume && child_scope {
                     self.finish_resource_temps(arm.span)?;
                 }
             }
@@ -547,6 +563,12 @@ impl Builder<'_, '_> {
             }
             self.pop_scope();
             self.current = Some(fail);
+        }
+        if consume {
+            // Fallthrough arms settled these owners after their bindings;
+            // returning arms settled them through end_scopes. A returning
+            // final arm must not leave debt for another arm's join path.
+            self.resource_temps.truncate(self.resource_temp_floor);
         }
         self.terminate(Terminator::Trap);
         if !ends.is_empty() {
