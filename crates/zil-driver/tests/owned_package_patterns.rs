@@ -115,6 +115,30 @@ fn error_union_owned_package_payload_borrows_its_package_child() {
 #[test]
 fn named_pattern_mutably_borrows_owned_package_child_and_moves_sibling() {
     native(
+        "resource R{n:i32}package Child{manages r:R;n:i32}package Parent{child:Child;manages side:R}fn result()->i32{let p=Parent{child:Child{r:R{n:5},n:7},side:R{n:2}};let Parent{child:Child{r:moved,n:k},side:side}=p;return moved.n+side.n+k}",
+        14,
+    );
+    native(
+        "resource R{n:i32}package Child{manages r:R;n:i32}package Parent{child:Child;manages side:R}fn result()->i32{let p=Parent{child:Child{r:R{n:5},n:7},side:R{n:2}};match p{Parent{child:Child{r:moved,n:k},side:side}=>{return moved.n+side.n+k}}}",
+        14,
+    );
+    native(
+        "resource R{n:i32}package Child{manages r:R;n:i32}package Parent{child:Child;manages side:R}fn result()->i32{let p=Parent{child:Child{r:R{n:5},n:7},side:R{n:2}};if let Parent{child:Child{r:moved,n:k},side:side}=p{return moved.n+side.n+k}}",
+        14,
+    );
+    native(
+        "resource R{n:i32}package Child{manages r:R;n:i32}package Parent{child:Child;manages side:R}fn result()->i32{var p=Parent{child:Child{r:R{n:5},n:7},side:R{n:2}};let Parent{child:Child{r:moved,n:ref mut k},side:side}=p;*k=9;return moved.n+side.n+*k}",
+        16,
+    );
+    native(
+        "resource R{n:i32}package Child{manages r:R;n:i32}package Parent{child:Child;manages side:R}fn make(n:i32)->Parent{return Parent{child:Child{r:R{n:n},n:n+1},side:R{n:2}}}fn result()->i32{var i=0;var total=0;while let Parent{child:Child{r:moved,n:k},side:side}=make(i){total+=moved.n+k+side.n;i+=1;if i==3{break}}return total}",
+        15,
+    );
+    native(
+        "resource R{n:i32}package Child{manages r:R;n:i32}package Parent{child:Child;manages side:R}fn result()->i32{let p=Parent{child:Child{r:R{n:5},n:7},side:R{n:2}};match p{Parent{child:Child{r:_,n:0},side:_}=>{return 0},Parent{child:Child{r:moved,n:k},side:side}=>{return moved.n+side.n+k}}}",
+        14,
+    );
+    native(
         "resource R{n:i32}package Child{manages r:R;n:i32}package Parent{child:Child;manages side:R}fn bump(child:&mut Child)->i32{child.n+=1;return child.n}fn result()->i32{var p=Parent{child:Child{r:R{n:5},n:7},side:R{n:2}};let Parent{side:moved,child:ref mut child}=p;return bump(child)+moved.n}",
         10,
     );
@@ -142,6 +166,10 @@ fn named_owned_package_pattern_returns_field_and_cleans_error_exit() {
         "extern \"C\" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package P{manages a:R;manages b:R}fn fail()->void!i32{return ()}fn run()->void!i32{let p=P{a:R{n:65},b:R{n:66}};let P{a:moved,b:_}=p;let n=fail()?;return n}fn result()->i32{match run(){.err(_)=>{return 1},.ok(n)=>{return n}}}",
         "AB1\n",
     );
+    native_stdout(
+        "extern \"C\" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package Child{manages r:R;n:i32}package Parent{child:Child;manages side:R}fn fail()->void!i32{return ()}fn run()->void!i32{let p=Parent{child:Child{r:R{n:65},n:7},side:R{n:66}};let Parent{child:Child{r:moved,n:_},side:_}=p;let n=fail()?;return n}fn result()->i32{match run(){.err(_)=>{return 1},.ok(n)=>{return n}}}",
+        "AB1\n",
+    );
 }
 
 #[test]
@@ -163,6 +191,10 @@ fn named_owned_package_patterns_reject_invalid_owner_and_partial_parent_use() {
         &format!(
             "{HEAD}fn result()->i32{{let p=P{{r:R{{n:5}},n:7}};let P{{r:m,n:_}}=p;let whole=p;return whole.n}}"
         ),
+        "E-ANALYZE-IR",
+    );
+    reject(
+        "resource R{n:i32}package Child{manages r:R;n:i32}package Parent{child:Child;manages side:R}fn result()->i32{let p=Parent{child:Child{r:R{n:5},n:7},side:R{n:2}};let Parent{child:Child{r:m,n:_},side:_}=p;let whole=p;return whole.child.n}",
         "E-ANALYZE-IR",
     );
 }
