@@ -780,7 +780,7 @@ fn ordinary_unicode_string_map_insert_lookup_and_remove_are_native() {
 }
 
 #[test]
-fn ordinary_i64_hash_map_collisions_and_tombstones_are_native() {
+fn ordinary_i64_hash_map_and_set_collisions_are_native() {
     let input = include_str!("i64_hash_map.zil");
     let mut backends = vec![NativeBackend::Clang];
     if cfg!(feature = "llvm-api") {
@@ -816,6 +816,35 @@ fn ordinary_i64_hash_map_collisions_and_tombstones_are_native() {
                 "{backend:?}/{optimization:?}: {out:?}"
             );
             assert!(out.stdout.is_empty() && out.stderr.is_empty());
+
+            let set_dir = directory(&format!("i64-hash-set-{backend:?}-{optimization:?}"));
+            fs::write(set_dir.join("main.zil"), include_str!("i64_hash_set.zil")).unwrap();
+            let set_report = CompilationSession::default().compile_path(
+                &set_dir.join("main.zil"),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(set_dir.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                set_report.status,
+                ResultCategory::Success,
+                "{}",
+                set_report.to_json()
+            );
+            assert_eq!(set_report.verification_runs, 1);
+            let set_out = Command::new(&set_report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(
+                set_out.status.code(),
+                Some(0),
+                "{backend:?}/{optimization:?}: {set_out:?}"
+            );
+            assert!(set_out.stdout.is_empty() && set_out.stderr.is_empty());
         }
     }
 }
