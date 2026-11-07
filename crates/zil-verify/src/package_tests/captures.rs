@@ -191,6 +191,97 @@ fn direct_sum_rejected(module: TypedModule, code: &str, message: &str) {
     }
 }
 
+fn direct_store_sum_error_exit() -> TypedModule {
+    let mut module = direct_store_sum_capture();
+    let result_type = Type::ErrorUnion {
+        error: Box::new(Type::I32),
+        result: Box::new(Type::I32),
+    };
+    let main = &mut module.functions[0];
+    let call = main.blocks[0]
+        .instructions
+        .iter()
+        .find_map(|i| matches!(i.kind, InstructionKind::CallClosureMut { .. }).then_some(i.result))
+        .flatten()
+        .unwrap();
+    main.values[call.0 as usize] = result_type.clone();
+    let returned = ValueId(main.values.len() as u32);
+    main.values.push(Type::I32);
+    let at = main.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::ScopeExit { .. }))
+        .unwrap();
+    main.blocks[0].instructions.insert(
+        at,
+        ins(Some(returned), InstructionKind::Constant(Constant::I32(7))),
+    );
+    main.blocks[0].terminator = Terminator::Return(Some(returned));
+
+    let entry = &mut module.functions[1];
+    entry.return_type = result_type.clone();
+    let code = ValueId(2);
+    let error = ValueId(entry.values.len() as u32);
+    entry.values.push(result_type.clone());
+    let at = entry.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::ScopeExit { .. }))
+        .unwrap();
+    entry.blocks[0].instructions.insert(
+        at,
+        ins(
+            Some(error),
+            InstructionKind::MakeErrorUnion {
+                is_error: true,
+                value: code,
+            },
+        ),
+    );
+    let InstructionKind::ScopeExit { kind, .. } = &mut entry.blocks[0].instructions[at + 1].kind
+    else {
+        unreachable!()
+    };
+    *kind = CleanupExitKind::Error;
+    entry.blocks[0].terminator = Terminator::Return(Some(error));
+    module.closures[0].result = result_type;
+    module
+}
+
+#[test]
+fn direct_store_sum_fnmut_error_exit_requires_exact_refill() {
+    accepted(direct_store_sum_error_exit());
+    let mut missing = direct_store_sum_error_exit();
+    let entry = &mut missing.functions[1];
+    let take = entry.blocks[0]
+        .instructions
+        .iter_mut()
+        .find(|i| matches!(i.kind, InstructionKind::TakeLocal { .. }))
+        .unwrap();
+    take.result = None;
+    take.kind = InstructionKind::DropEnum { local: LocalId(0) };
+    entry.values.remove(1);
+    for instruction in &mut entry.blocks[0].instructions {
+        if instruction.result == Some(ValueId(2)) {
+            instruction.result = Some(ValueId(1));
+        } else if instruction.result == Some(ValueId(3)) {
+            instruction.result = Some(ValueId(2));
+        }
+        if let InstructionKind::MakeErrorUnion { value, .. } = &mut instruction.kind {
+            *value = ValueId(1);
+        }
+    }
+    entry.blocks[0]
+        .instructions
+        .retain(|i| !matches!(i.kind, InstructionKind::WriteCapture { .. }));
+    entry.blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
+    direct_sum_rejected(
+        missing,
+        "E-VERIFY-SUM",
+        "Fn/FnMut return leaves an unfilled direct Sum capture",
+    );
+}
+
 #[test]
 fn direct_store_sum_capture_refill_distinguishes_empty_arm_from_empty_slot() {
     accepted(direct_store_sum_capture());
