@@ -804,6 +804,21 @@ struct Resolver<'a> {
     remaining: usize,
     depth_limit: usize,
 }
+// An inline Store written as an ordinary Sum/Tuple payload is an owned value.
+// Direct standalone descriptions, Ref<Store>, Store elements and arrays retain
+// their distinct gates. Resolution has already checked the complete element.
+fn ordinary_inline_store(raw: &Type, resolved: Type) -> Type {
+    match resolved {
+        Type::Desc(payload)
+            if matches!(raw, Type::Named(_) | Type::Desc(_))
+                && matches!(payload.as_ref(), Type::OwnedStore { element }
+                    if dynamic_store::inline_element(element)) =>
+        {
+            Type::Managed(payload)
+        }
+        other => other,
+    }
+}
 impl Resolver<'_> {
     fn callback_error_payload(&mut self, ty: &Type, depth: usize, span: Span) -> R<bool> {
         let Type::Package { fields, .. } = ty else {
@@ -1014,7 +1029,8 @@ impl Resolver<'_> {
             for (variant, raw_fields) in &declaration.variants {
                 let mut fields = Vec::new();
                 for field in raw_fields {
-                    let ty = self.ty(field, depth + 1, declaration.span)?;
+                    let resolved = self.ty(field, depth + 1, declaration.span)?;
+                    let ty = ordinary_inline_store(field, resolved);
                     let copy = ty.is_copy_value()
                         || stored_instance
                             // The instance still contains its Core actual here;
@@ -1357,7 +1373,10 @@ impl Resolver<'_> {
             Type::Tuple(fields) => Type::Tuple(
                 fields
                     .iter()
-                    .map(|t| self.ty(t, depth + 1, span))
+                    .map(|t| {
+                        let resolved = self.ty(t, depth + 1, span)?;
+                        Ok(ordinary_inline_store(t, resolved))
+                    })
                     .collect::<R<_>>()?,
             ),
             Type::Managed(inner) | Type::Desc(inner) => {
@@ -1488,8 +1507,8 @@ impl Resolver<'_> {
                 error: failure,
                 result,
             } => {
-                let failure = self.ty(failure, depth + 1, span)?;
-                let result = self.ty(result, depth + 1, span)?;
+                let failure = ordinary_inline_store(failure, self.ty(failure, depth + 1, span)?);
+                let result = ordinary_inline_store(result, self.ty(result, depth + 1, span)?);
                 let union = Type::ErrorUnion {
                     error: Box::new(failure),
                     result: Box::new(result),
