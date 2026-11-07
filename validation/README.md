@@ -10,7 +10,7 @@
 | 原文档迁移/历史位置 | [documentation-provenance.json](documentation-provenance.json) |
 | 原任务资产迁移与字节绑定 | [asset-provenance.json](asset-provenance.json) |
 
-当前有限语言验收见[普通拥有与共享派发](results/ownership-and-dispatch/ordinary-ownership-and-shared-dispatch-acceptance.json)，前一轮工程迁移见[仓库组织](results/repository-workflow/repository-organization-acceptance.json)。文档或工具验证不升级语言验收。
+当前有限语言验收见[普通拥有与共享派发](results/ownership-and-dispatch/ordinary-ownership-and-shared-dispatch-acceptance.json)，前一轮工程迁移见[仓库组织](results/repository-workflow/repository-organization-acceptance.json)。本次[文档组织与工作流验收](results/documentation-layout/acceptance.json)附有[独立复核](results/documentation-layout/review.json)。文档或工具验证不升级语言验收。
 
 `results` 中的记录绑定各自受测提交，内部路径、命令和哈希按那个提交解释；搬迁不重新测量、不改写旧失败。需要找旧路径时先查来源索引，再读取固定 Git blob。历史过程/中间重试不作为当前目录中的另一份能力状态。
 

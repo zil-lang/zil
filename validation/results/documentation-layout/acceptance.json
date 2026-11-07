@@ -1,0 +1,379 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "scope": "Documentation structure, workflow, exact document provenance and affected engineering consumers only; not language or product acceptance",
+  "tested_commit": "fc94fef44f310e4a0ca2783aa33bac40461abc7d",
+  "tested_tree": "bdc1d40e46b3b8b66d771333578e11ab18fc0083",
+  "baseline_commit": "dd766f513bd8022e4d2c703f51a9343824150da8",
+  "changes": {
+    "source_documents": 762,
+    "source_docs_files": 760,
+    "remaining_docs_files": 181,
+    "historical_only": 555,
+    "frozen_original_bytes": 186,
+    "current_documents_reworked": 21,
+    "docs_root": "README.md",
+    "semantic_layout": [
+      "guide",
+      "development",
+      "decisions",
+      "research"
+    ],
+    "permanent_results": "validation/results/<capability>/",
+    "production_paths_unchanged": [
+      "crates",
+      "lib",
+      "spec",
+      "policy",
+      "Cargo.toml",
+      "Cargo.lock",
+      "rust-toolchain.toml",
+      "_zil_design.md"
+    ]
+  },
+  "gates": [
+    {
+      "gate": "current navigation and original Git blobs",
+      "status": "Pass",
+      "original_files": 762,
+      "current_documents": 23,
+      "errors": 0
+    },
+    {
+      "gate": "semantic naming negative controls",
+      "status": "Pass",
+      "passed": 6,
+      "failed": 0
+    },
+    {
+      "gate": "documentation mutation controls",
+      "status": "Pass",
+      "rejected": 4,
+      "restored_control_exit": 0
+    },
+    {
+      "gate": "handoff real Git fixtures",
+      "status": "Pass",
+      "passed": 35,
+      "failed": 0
+    },
+    {
+      "gate": "packaging and bundle recovery",
+      "status": "Pass",
+      "passed": 14,
+      "failed": 0
+    },
+    {
+      "gate": "runner failure controls",
+      "status": "Pass",
+      "passed": 17,
+      "failed": 0
+    },
+    {
+      "gate": "document and generated view checks",
+      "status": "Pass",
+      "passed": 35,
+      "failed": 0
+    },
+    {
+      "gate": "Chromium view/navigation/download",
+      "status": "Pass",
+      "passed": 63,
+      "failed": 0
+    },
+    {
+      "gate": "engineering contracts",
+      "status": "Pass",
+      "contracts": 14,
+      "negative_controls_rejected": 8
+    },
+    {
+      "gate": "conformance registry",
+      "status": "Pass",
+      "metadata_checks": 377,
+      "compiler_cases": "NotRun"
+    }
+  ],
+  "remote_recovery": {
+    "source_restored": true,
+    "steps": [
+      {
+        "name": "clone",
+        "command": [
+          "git",
+          "clone",
+          "--single-branch",
+          "--branch",
+          "task/G10.7",
+          "https://github.com/zil-lang/zil.git",
+          "/workspace/.zil-env/documentation-redesign/cold-final/source"
+        ],
+        "exit_code": 0,
+        "log": "/workspace/.zil-env/documentation-redesign/cold-final/clone.log",
+        "log_sha256": "98a2e1c4b3da350de7aba1d62befa3f7f7f7d8686af14768f865f47526992d0e",
+        "TMPDIR": "/workspace/.zil-env/doc-tmp"
+      },
+      {
+        "name": "fetch-plan-and-main",
+        "command": [
+          "git",
+          "fetch",
+          "origin",
+          "refs/heads/goal:refs/remotes/origin/goal",
+          "refs/heads/main:refs/remotes/origin/main",
+          "refs/heads/archive/source-history:refs/remotes/origin/archive/source-history"
+        ],
+        "exit_code": 0,
+        "log": "/workspace/.zil-env/documentation-redesign/cold-final/fetch-plan-and-main.log",
+        "log_sha256": "23621f732048e8e3fdf6048a19289f19bad830907dda0e23fe2502a280592b2a",
+        "TMPDIR": "/workspace/.zil-env/doc-tmp"
+      },
+      {
+        "name": "local-candidate-main",
+        "command": [
+          "git",
+          "switch",
+          "-c",
+          "main"
+        ],
+        "exit_code": 0,
+        "log": "/workspace/.zil-env/documentation-redesign/cold-final/local-candidate-main.log",
+        "log_sha256": "446ff0ffd78aeb745263492c17a55ce198f883d87fd7800720043a1b562c71f8",
+        "TMPDIR": "/workspace/.zil-env/doc-tmp"
+      },
+      {
+        "name": "semantic-names",
+        "command": [
+          "python3",
+          "tools/check-repository-layout.py",
+          "--base",
+          "dd766f513bd8022e4d2c703f51a9343824150da8",
+          "--delivery"
+        ],
+        "exit_code": 0,
+        "log": "/workspace/.zil-env/documentation-redesign/cold-final/semantic-names.log",
+        "log_sha256": "7665774aee502b91d73bbd9b2d2be3324616f57a044e0bd03df159a136587ae6",
+        "TMPDIR": "/workspace/.zil-env/doc-tmp"
+      },
+      {
+        "name": "naming-controls",
+        "command": [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tools",
+          "-p",
+          "test_check_repository_layout.py"
+        ],
+        "exit_code": 0,
+        "log": "/workspace/.zil-env/documentation-redesign/cold-final/naming-controls.log",
+        "log_sha256": "4c3262c4ece33de04113549078e304f2ff2d679a3288431f46777325fe16a0e1",
+        "TMPDIR": "/workspace/.zil-env/doc-tmp"
+      },
+      {
+        "name": "documentation-provenance",
+        "command": [
+          "python3",
+          "tools/check-documentation.py"
+        ],
+        "exit_code": 0,
+        "log": "/workspace/.zil-env/documentation-redesign/cold-final/documentation-provenance.log",
+        "log_sha256": "862bc2d91eefb1cd909605b0e3fa68eec930b147233c735dafbf7e038a6d2148",
+        "TMPDIR": "/workspace/.zil-env/doc-tmp"
+      },
+      {
+        "name": "contracts",
+        "command": [
+          "python3",
+          "tools/check-plan.py",
+          "--self-test"
+        ],
+        "exit_code": 0,
+        "log": "/workspace/.zil-env/documentation-redesign/cold-final/contracts.log",
+        "log_sha256": "d1e867749a6c57ec0ea847833bd947ece6cd25cb7a78f774c50b5da02e7bcd76",
+        "TMPDIR": "/workspace/.zil-env/doc-tmp"
+      },
+      {
+        "name": "docs",
+        "command": [
+          "python3",
+          "tools/check-docs.py"
+        ],
+        "exit_code": 0,
+        "log": "/workspace/.zil-env/documentation-redesign/cold-final/docs.log",
+        "log_sha256": "ed059f041180dc3a859d55fffca1368d1d7ac8aaf5037ee276fd4f4a1193b6c4",
+        "TMPDIR": "/workspace/.zil-env/doc-tmp"
+      },
+      {
+        "name": "conformance-metadata",
+        "command": [
+          "python3",
+          "tools/check-conformance.py"
+        ],
+        "exit_code": 0,
+        "log": "/workspace/.zil-env/documentation-redesign/cold-final/conformance-metadata.log",
+        "log_sha256": "811312af547020caf8a134823faa31ec1d41e89740af6c05400084988e7dfacf",
+        "TMPDIR": "/workspace/.zil-env/doc-tmp"
+      },
+      {
+        "name": "handoff",
+        "command": [
+          "node",
+          "tools/handoff.mjs",
+          "--check"
+        ],
+        "exit_code": 0,
+        "log": "/workspace/.zil-env/documentation-redesign/cold-final/handoff.log",
+        "log_sha256": "9b67c29e8d2cd630c528b0df9f4c67544f8475eb4a8dd179d851223741bb759b",
+        "TMPDIR": "/workspace/.zil-env/doc-tmp"
+      },
+      {
+        "name": "handoff-tests",
+        "command": [
+          "node",
+          "--test",
+          "tests/handoff.test.mjs"
+        ],
+        "exit_code": 0,
+        "log": "/workspace/.zil-env/documentation-redesign/cold-final/handoff-tests.log",
+        "log_sha256": "feca834bf41da9a2f5f1027fd041becd0282976ab76c6134492a81a4d7a1e54a",
+        "TMPDIR": "/workspace/.zil-env/doc-tmp"
+      },
+      {
+        "name": "runner-faults",
+        "command": [
+          "python3",
+          "tests/bootstrap/runner-faults.py"
+        ],
+        "exit_code": 0,
+        "log": "/workspace/.zil-env/documentation-redesign/cold-final/runner-faults.log",
+        "log_sha256": "5b2184301e14661b3576d7f541ef433ab35e0253fa1a074186f8f69e4ca21ea7",
+        "TMPDIR": "/workspace/.zil-env/doc-tmp"
+      },
+      {
+        "name": "package-tests",
+        "command": [
+          "python3",
+          "tests/package.test.py"
+        ],
+        "exit_code": 0,
+        "log": "/workspace/.zil-env/documentation-redesign/cold-final/package-tests.log",
+        "log_sha256": "4b830bddeb9ca0c2629c8ae32fff7052e71af2d17c6676e95d176a53acace950",
+        "TMPDIR": "/workspace/.zil-env/doc-tmp"
+      },
+      {
+        "name": "browser",
+        "command": [
+          "python3",
+          "tools/check-browser.py"
+        ],
+        "exit_code": 0,
+        "log": "/workspace/.zil-env/documentation-redesign/cold-final/browser.log",
+        "log_sha256": "1c8b59cd55a3ad67b084ee001abc1e1eeabc0ca2837c1eb7daaef2acdcef865e",
+        "TMPDIR": "/workspace/.zil-env/doc-tmp"
+      },
+      {
+        "name": "regenerate-view",
+        "command": [
+          "python3",
+          "tools/update_designer.py"
+        ],
+        "exit_code": 0,
+        "log": "/workspace/.zil-env/documentation-redesign/cold-final/regenerate-view.log",
+        "log_sha256": "a56f3cca5dd1b5256b0ec9c6fba5f80a0ae3969808dd2d392e54d2f1c752bc79",
+        "TMPDIR": "/workspace/.zil-env/doc-tmp"
+      },
+      {
+        "name": "regenerate-indexes",
+        "command": [
+          "python3",
+          "tools/update-indexes.py"
+        ],
+        "exit_code": 0,
+        "log": "/workspace/.zil-env/documentation-redesign/cold-final/regenerate-indexes.log",
+        "log_sha256": "688ed0f344aae69ce7a63ee16655cb3d29571939633c2c4393c22cdcb7fc2ea1",
+        "TMPDIR": "/workspace/.zil-env/doc-tmp"
+      },
+      {
+        "name": "docs-after-regeneration",
+        "command": [
+          "python3",
+          "tools/check-docs.py"
+        ],
+        "exit_code": 0,
+        "log": "/workspace/.zil-env/documentation-redesign/cold-final/docs-after-regeneration.log",
+        "log_sha256": "ed059f041180dc3a859d55fffca1368d1d7ac8aaf5037ee276fd4f4a1193b6c4",
+        "TMPDIR": "/workspace/.zil-env/doc-tmp"
+      }
+    ],
+    "historical_status": {
+      "status": "Unavailable",
+      "archived": 274,
+      "unavailable": 220,
+      "unreviewed": 54,
+      "object_availability_changes": 6,
+      "claims_revalidated": false,
+      "source_commit": "fe4cb19ae9bf82cedc1c80dd7677808aa46b4072"
+    },
+    "prepared_environment": [
+      "Python",
+      "Node",
+      "Chromium"
+    ],
+    "bare_machine_bootstrap": false
+  },
+  "fault_controls": {
+    "source": "fc94fef44f310e4a0ca2783aa33bac40461abc7d",
+    "status": "Pass",
+    "faults_rejected": 4,
+    "restored_control_exit": 0,
+    "cases": [
+      {
+        "case": "broken-current-navigation",
+        "exit_code": 1,
+        "diagnostics": [
+          "Broken current link: docs/README.md -> guide/does-not-exist.md"
+        ],
+        "log_sha256": "77e429f6f4b2bc520fe40745b97e24401648c7c41af265918623aa7e8c84bbbc"
+      },
+      {
+        "case": "mutated-frozen-receipt",
+        "exit_code": 1,
+        "diagnostics": [
+          "Frozen document changed: validation/results/pod-record-store/acceptance.json"
+        ],
+        "log_sha256": "19ff3fc69245c43345badeb3eed8ddc28ca63274807050a8466e9c3d8aa7afb2"
+      },
+      {
+        "case": "wrong-historical-digest",
+        "exit_code": 1,
+        "diagnostics": [
+          "Wrong historical document digest: docs/ARCHITECTURE-ADOPTION-20261027.md"
+        ],
+        "log_sha256": "cc4e173b30928fe80796a2ddfdd1ab059541e4ae5ee413ed30a5f9289f36cc86"
+      },
+      {
+        "case": "duplicate-document-result-section",
+        "exit_code": 1,
+        "diagnostics": [
+          "Unexpected documentation section: validation"
+        ],
+        "log_sha256": "ad19fc6aa2926313da8402ecad2c6d302f399d35e089bc8f0e6be20967eac37d"
+      }
+    ]
+  },
+  "independent_review": "validation/results/documentation-layout/review.json",
+  "source_provenance": "validation/documentation-provenance.json",
+  "retained_failure": {
+    "kind": "Browser executable unavailable at Playwright default cache path",
+    "resolution": "Use actual existing /usr/bin/chromium through ZIL_BROWSER_EXECUTABLE; 63/63 then pass",
+    "log_sha256": "28b09f0f630674d9ef36b9bd2d0930ca59d39b9fd6dfe5ffe9b2f57e7b281c83"
+  },
+  "known_incomplete": [
+    "Existing construction-numbered production source/tests/tools/changes are still audited debt; this delivery prevents new entries and reorganizes documents only.",
+    "Frozen research originals keep their recorded paths/commands; rendered original links use the exact source commit.",
+    "No current language matrix or Rust cost/product acceptance is claimed; accepted language receipt remains bound to its own source."
+  ]
+}
