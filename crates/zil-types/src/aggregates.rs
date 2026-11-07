@@ -3473,6 +3473,7 @@ impl Resolver<'_> {
                 field.is_copy_value()
                     || (matches!(field, Type::Named(_)) && args.contains(field))
             })
+            && !owned_shapes::zero_debt_package(&ty)
         {
             packages::product::validate_owned(&ty, &mut self.remaining, self.depth_limit, span)?;
         }
