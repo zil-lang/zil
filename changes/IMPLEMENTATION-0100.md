@@ -5,7 +5,7 @@
 冻结H为`e32523763ebf28c098ef8e83d09639672303e21f`。一次完整采样后，H按原合同
 为NoGo：反序128链完整进程改善约27.5%，三个API单元触及拒绝条件。生产源码与
 新增crates测试已全部恢复BASE，以下实施描述仅记录候选历史。最终交付保留研究
-工具、全部原件与[结果](../docs/research/100/RESULTS.md)，没有将候选带入生产。
+工具、全部原件与[结果](../docs/research/adaptive-scheduling/results.md)，没有将候选带入生产。
 
 ## 冻结候选的实施记录
 
@@ -27,5 +27,5 @@ Database、Analyze、Verify、schema和机器ABI均不修改。
 严格等于前缀消耗加后续队列最小配额。完整真实请求的N/N−1与取消由driver和
 固定防护矩阵核对。手工Core图与真实源证据分别计数。
 
-测量合同为`docs/research/100/CONTRACT.md`；四binary、BASE/H十单元、固定21轮
+测量合同为`docs/research/adaptive-scheduling/contract.md`；四binary、BASE/H十单元、固定21轮
 保留，在root独占窗口一次性取样，任何结论等待实际结果和非作者审核。

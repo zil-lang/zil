@@ -64,6 +64,6 @@ def main():
     lines+=['','全部和真实生产子集均有回退；8 个完整进程区间没有一个完全低于 1。',
         '按原预登记保守拒绝准入，不用事后删除单元来制造通过。',
         '这批 7 对样本不证明 H 在所有环境都更慢；它足以使当前候选不能依据本批证据进入生产。','']
-    (repo/'docs/research/093/ALL-CELLS.md').write_text('\n'.join(lines))
+    (repo/'docs/research/streaming-fingerprints/all-cells.md').write_text('\n'.join(lines))
 
 if __name__=='__main__':main()

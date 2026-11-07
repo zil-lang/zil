@@ -82,7 +82,7 @@ fn main()->i32 {
 - 新 `crates/zil-driver/src/ct_selection.rs` 及必要的 `ct_selection/{context,materialize,budget}.rs`。
 - 新 `crates/zil-expand/src/ct_selection.rs`，仅未核表达式桥接/源转换接口；不修改 receivers、generic_callable、generic_state 或 closure helper 语义。
 - 新 `crates/zil-driver/tests/impl219_selection.rs`、`impl219_budget.rs`、`impl219_ct_boundary.rs`。
-- 新 `tools/language/219/**`、`examples/mainline/ct_selection219/**`、`evidence/impl/219/**`、`docs/LANGUAGE-219.md`。
+- 新 `tools/language/219/**`、`examples/mainline/ct_selection219/**`、`evidence/impl/219/**`、`https://github.com/zil-lang/zil/blob/dd766f513bd8022e4d2c703f51a9343824150da8/docs/LANGUAGE-219.md`。
 
 root 单写的共享注册/调用接点：
 

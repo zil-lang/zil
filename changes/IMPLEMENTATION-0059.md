@@ -22,7 +22,7 @@ remains open.
 The hypothesis comes from the user's physical-flow intuition and is tested against
 Deng/Hani/Ma, arXiv:2408.07818v3. Its free/fixed interface preserves equality of the
 same variable; it is not an ownership theorem. The compiler bridge and its extra
-premises are stated in `docs/research/059/BRIDGE.md` before implementation.
+premises are stated in `docs/research/resource-event-relations/bridge.md` before implementation.
 
 Implemented an independent research executable with (1) an exact symbolic relation
 for a bounded finite responsibility abstraction, (2) monolithic and early-cut
@@ -55,7 +55,7 @@ experiment costs, not compiler gains. The correlated-guard example demonstrates
 finite-query precision relative to the production conservative rejection, without
 changing production acceptance. The current candidate is therefore NoGo.
 
-See `docs/research/059/RESULTS.md`, `CONTRACT.md`, `BRIDGE.md`, and the lightweight
+See `docs/research/resource-event-relations/results.md`, `CONTRACT.md`, `BRIDGE.md`, and the lightweight
 `evidence/impl/059/acceptance.json`. The portable raw archive retains source,
 original commands, canonical rows, executable and identity-hashed rlibs; the
 README supplies a cold replay that always restores schema-8 dependencies from

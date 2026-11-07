@@ -55,7 +55,7 @@ with sync_playwright() as pw:
   nav(p,'#docs/'+page+'?langs=zil,rust');ck('documentation '+page,phrase in p.locator('#main').inner_text())
  nav(p,'#docs/workflow?langs=zil,rust')
  with p.expect_download() as info:p.locator('[data-action=download-doc]').click()
- info.value.save_as(R/'evidence/downloaded-workflow.md');ck('workflow download exact',(R/'evidence/downloaded-workflow.md').read_bytes()==(R/'docs/WORKFLOW.md').read_bytes())
+ info.value.save_as(R/'evidence/downloaded-workflow.md');ck('workflow download exact',(R/'evidence/downloaded-workflow.md').read_bytes()==(R/'docs/development/workflow.md').read_bytes())
  # Navigation/render for every current normative chapter. These are UI checks, not ZIL execution.
  allids=p.evaluate('DesignAtlas.specChapters.map(c=>c.id)')
  for c in allids:

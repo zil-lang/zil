@@ -19,7 +19,7 @@ import tarfile
 import time
 
 BASE = "400a082444275e1d0e2ad78c4910b9b6fc526be5"
-OVERLAY = ["tools/research/067", "tests/perf/impl067", "docs/research/067", "changes/IMPLEMENTATION-0067.md"]
+OVERLAY = ["tools/research/067", "tests/perf/impl067", "docs/research/token-location-encoding", "changes/IMPLEMENTATION-0067.md"]
 ENV = dict(os.environ, CARGO_INCREMENTAL="0", CARGO_PROFILE_DEV_DEBUG="0", CARGO_PROFILE_TEST_DEBUG="0", CARGO_PROFILE_RELEASE_DEBUG="0", CARGO_BUILD_JOBS="1")
 ENV.pop("ZIL_067_DIAGNOSTICS", None)
 ENV.pop("ZIL_067_TEST_EVIDENCE", None)

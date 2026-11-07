@@ -39,7 +39,7 @@ conditional on independent archive verification, integration and the unchanged
 programs differ by about 17.9% in their observed arm medians, showing substantial
 non-algorithmic variation. Three NS/BASE median points and four p95 points are
 adverse and remain fully reported. Linux IFUNC/startup timing differences remain
-part of the admitted binding policy. See `docs/research/109/RESULTS.md` for every
+part of the admitted binding policy. See `docs/research/ascii-specialization/results.md` for every
 arm/cell, factor relation, interaction, RSS result and qualification.
 
 No performance observations are repeated or pooled with 104/108. The separate

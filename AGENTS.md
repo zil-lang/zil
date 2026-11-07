@@ -1,9 +1,9 @@
-# ZIL 实施入口
+# ZIL 代理入口
 
-1. 先读独立 `goal:goal.md`：`git fetch origin refs/heads/goal:refs/remotes/origin/goal`，再 `git show refs/remotes/origin/goal:goal.md`。离线版本须注明 SHA 与时点。`node tools/handoff.mjs --check` 只检查工程/交付记录和 Git 关系，不读取实时看板，也不证明语言正确性；缺 Git 的恢复见 `docs/DELIVERY.md`。
-2. 语言行为、安全边界、拒绝条件只以 `_zil_design.md` 及具名附件为准；阶段接口、策略和验收协议分别见 `spec/`、`policy/`、`validation/`。`validation/engineering-contracts.json` 承接原 14 份正式工程合同的静态义务。main 不保留 `.task/`；旧合同与过程按原提交和任务分支追溯。当前任务状态只读 goal，任务分支 `.task/` 保存过程合同，当前长期决定见 `docs/decisions/`。
-3. 一任务一分支一工作树，先固定规范、源码基线、依赖、写集与交付门。相交写集串行集成；公共 schema、根 Cargo/锁与正式门由集成者单写。施工方跑限定测试，正式全量和性能门由集成者协调。独立审核者不兼任作者，审核绑定精确候选提交。
-4. 提交真实源码正例、最近反例、阶段接口/产物、失败清理与实际命令。模型、手填 IR、手写 C、预期案例和聊天不能冒充生产源码及原生行为。零选择、零执行、缺字段、超时、Unsupported、基础设施错误和失败字段都不能判 Pass。失败和修复使用不同 RunId，旧失败保留。
-5. 生成器只产生未核代码；属性不制造权限；独立 Verify 不调用 Analyze/Types 求证。不可借宿主 Rust 借用检查器代替 ZIL 安全核，也不可因编译失败隐式引入 RC、锁或堆盒。依赖边见 `policy/dependencies.json`，设计理由见 `docs/decisions/compiler-boundaries.md`。
-6. 接受性、ABI、错误/清理顺序、预算变更先列差异与最近反例，同步规范、接口、案例和验收。未采纳提案仍是提案；发现冲突只暂停受影响工作。每轮交付按 `docs/RUST-GOALS.md` 简表区分实证、未测和未完成；阈值只引用 `validation/product-gates.json`。
-7. 通用派工、独审、合入与收据格式见 `docs/WORKFLOW.md`；历史恢复见 `docs/DELIVERY.md`。goal 永不合入 main，任务分支不合入 goal；禁止在编译中的工作树切换分支。推送后读回远端精确 SHA，不能把本地提交或待上传包称为已交付。
+1. 先核 checkout、分支/worktree、未提交和未跟踪源码；再 fetch/read 独立 `goal:goal.md`，记录两者 SHA。禁止 reset/clean，不在构建中的树切分支。接续命令见 [工作流](docs/development/workflow.md)。
+2. 按当前任务读取相关规范、模块和短合同。语言权威是 `_zil_design.md` 及具名附件；接口/规则/静态验收分别在 `spec/`、`policy/`、`validation/`。文档导航见 [docs](docs/README.md)，目录和命名见 [仓库组织](docs/development/repository-layout.md)。
+3. 一任务一分支一 worktree，先约定依赖、写集、成功例、最近反例和退出条件。实现/独审按用户要求使用 sol high；疑难语义才交 Astra。无冲突写集并行；公共 schema、根 Cargo/锁、正式门与本地重型构建窗口由集成者单写/协调。
+4. 永久文件、模块、测试以能力/不变量命名；任务号只留看板、分支、临时合同和来源字段。`.task/<ID>.md` 仅任务分支保留，合入前将长期内容归位并移出交付树。不得增加 CURRENT/HANDOFF/批次报告或主树实时状态副本。
+5. Verify 独立，不调用 Analyze/Types 求证。生成代码与属性不制造权限；宿主 Rust 检查不代替 ZIL 安全核；不得隐式引入 RC、锁或堆盒。接受性/ABI/清理/预算变化同步规范、接口和最近反例。
+6. 真实 Source、独立 raw/Wire、机器行为和模型分级报告；零选择、零执行、缺字段、Unsupported、超时或失败不得 Pass。失败与修复保留不同运行身份。按风险选门；独审不得兼任作者，必须绑定精确候选 SHA。完整规则见工作流与 [证据决定](docs/decisions/evidence-and-review.md)。
+7. 推送后核远端 SHA，独立更新 goal；父任务只能按完整退出条件收口。goal 永不合入 main。源码备份统一用固定 `archive/source-history`；分支确认可恢复且无唯一修改后退役。恢复与工具环境见 [交付](docs/development/delivery.md)和[工具链](docs/development/toolchain.md)。

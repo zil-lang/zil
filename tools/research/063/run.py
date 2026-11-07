@@ -21,7 +21,7 @@ import tarfile
 import time
 
 BASE = "70d3a729a6db6f8355ea99942e6f05207eb8815b"
-OVERLAY = ["tools/research/063", "tests/perf/impl063", "docs/research/063", "changes/IMPLEMENTATION-0063.md"]
+OVERLAY = ["tools/research/063", "tests/perf/impl063", "docs/research/relation-representation-cost", "changes/IMPLEMENTATION-0063.md"]
 ENV = dict(os.environ, CARGO_INCREMENTAL="0", CARGO_PROFILE_DEV_DEBUG="0", CARGO_PROFILE_TEST_DEBUG="0", CARGO_PROFILE_RELEASE_DEBUG="0", CARGO_BUILD_JOBS="1")
 ENV.pop("ZIL_063_DIAGNOSTICS", None)
 

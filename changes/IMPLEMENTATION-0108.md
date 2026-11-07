@@ -80,8 +80,8 @@ the fixed per-case 0.9. All startup and p95 regressions remain reported.
 Production and crate tests are restored to the exact baseline for the research
 delivery; candidate code remains in history. This does not establish a runtime
 breakthrough or whole-product conformance. The main-tree product gates and
-thresholds are unmodified. See `docs/research/108/RESULTS.md` for every cell.
+thresholds are unmodified. See `docs/research/external-binding-cost/results.md` for every cell.
 
-See `docs/research/108/CONTRACT.md` for exact matrices, order, limits and
-reproduction commands, and `docs/research/108/BINDING-OBLIGATIONS.md` for the
+See `docs/research/external-binding-cost/contract.md` for exact matrices, order, limits and
+reproduction commands, and `docs/research/external-binding-cost/binding-obligations.md` for the
 semantic scope and retained loader counterexample.

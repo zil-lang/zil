@@ -15,7 +15,7 @@
 
 ## 运行
 
-先按仓库 `docs/LLVM-API.md` 配置支持的 LLVM 工具链，在仓库根执行：
+先按仓库 `docs/development/toolchain.md` 配置支持的 LLVM 工具链，在仓库根执行：
 
 ```bash
 cargo test --locked --offline -p zil-driver --features llvm-api --test impl228_consumer

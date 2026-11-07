@@ -54,7 +54,7 @@ def main():
         report['required_llvm'] = version_pin
         report['required_rust'] = rust_pin
         if platform.system() != "Linux" or platform.machine() not in ("x86_64", "amd64"):
-            raise RuntimeError('LLVM API host validation is Linux x86_64 only; see docs/LLVM-API.md')
+            raise RuntimeError('LLVM API host validation is Linux x86_64 only; see docs/development/toolchain.md')
         if any(os.environ.get(key) for key in ('LD_PRELOAD', 'LD_AUDIT')):
             raise RuntimeError('toolchain validation requires no dynamic-loader interposition')
         libdir = os.environ.get("ZIL_LLVM_LIB_DIR")

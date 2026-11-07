@@ -51,5 +51,5 @@ e62240223 it reports Unsupported. It is outside the finite caller-position
 profile and is excluded from all eleven native successes above.
 
 SHA256 values and the original observed groups are committed in
-`docs/validation/review328-by324.json`. No raw logs, binaries or new Cargo target
+`https://github.com/zil-lang/zil/blob/dd766f513bd8022e4d2c703f51a9343824150da8/docs/validation/review328-by324.json`. No raw logs, binaries or new Cargo target
 are needed to recover these sources and commands.

@@ -276,7 +276,7 @@ scenario('handoff-013', '历史注册集合必须完整且合法', t => {
   }
 });
 
-const migrationFile = 'docs/validation/handoff-migration-326.json';
+const migrationFile = 'validation/results/handoff/historical-migration.json';
 function migrate(f, {names = ['.task/impl/003.md'], historical = true, adapters = []} = {}) {
   const source = git(f.root, 'rev-parse', 'HEAD');
   const availability = value => /^[0-9a-f]{40}$/.test(value ?? '') ? capture('git', ['-C', f.root, 'cat-file', '-e', `${value}^{commit}`]).status === 0 ? 'Present' : 'Missing' : 'Invalid';
@@ -380,7 +380,7 @@ scenario('handoff-019', '真实work权威与分树假权威明确区分', t => {
 
 scenario('handoff-020', 'docs精简证据仍需提交且不能符号链接逃逸', t => {
   const f = fixture(t); merged(f);
-  const name = 'docs/validation/receipt.json'; f.task.evidence = [name]; f.save();
+  const name = 'validation/results/receipt.json'; f.task.evidence = [name]; f.save();
   put(f.root, name, {status: 'Pass', executed: 1, assertions: 1});
   check(hasError(inspectHandoff(f.root), 'uncommitted'));
   commit(f.root, 'compact committed receipt'); check(inspectHandoff(f.root).status, 'Pass');
@@ -392,27 +392,29 @@ scenario('handoff-020', 'docs精简证据仍需提交且不能符号链接逃逸
 });
 
 scenario('handoff-021', '显式review selector精确提交与非作者核验', t => {
+  for (const name of ['validation/results/review.json', 'docs/validation/review.json']) {
   const f = fixture(t); merged(f);
-  const name = 'docs/validation/review.json';
   put(f.root, name, {reviewer: 'reviewer', cases: {'003': {verdict: 'Pass', implementation_commit: f.task.implementation_commit}, wrong: {verdict: 'Pass', implementation_commit: f.baseline}}});
   const revision = commit(f.root, 'exact compact review');
   f.task.review.review_commit = revision; f.task.review.evidence = [{result_path: name, selector: '/cases/003'}]; f.save(); commit(f.root, 'bind exact selector');
+  fs.rmSync(path.join(f.root, name)); commit(f.root, 'receipt moved out of current tree');
   check(inspectHandoff(f.root).status, 'Pass');
   f.task.review.evidence[0].selector = '/cases/wrong'; f.save(); commit(f.root, 'wrong case');
   check(hasError(inspectHandoff(f.root), 'No review evidence matches'));
   f.task.review.evidence[0].selector = '/cases/003'; f.task.review.reviewer = 'builder'; f.save(); commit(f.root, 'self review');
   check(hasError(inspectHandoff(f.root), 'independent passing review'));
+  }
 });
 
 scenario('handoff-022', '有限review不晋升静态合同验收', t => {
   const f = fixture(t); merged(f);
   f.task.scope_contract = 'Finite fixture only'; f.task.review.verdict = 'PassLimited';
-  put(f.root, 'docs/validation/limited.json', {verdict: 'PassLimited', reviewer: 'reviewer', implementation_commit: f.task.implementation_commit});
-  f.task.review.evidence = ['docs/validation/limited.json']; f.save(); commit(f.root, 'finite review');
+  put(f.root, 'validation/results/limited.json', {verdict: 'PassLimited', reviewer: 'reviewer', implementation_commit: f.task.implementation_commit});
+  f.task.review.evidence = ['validation/results/limited.json']; f.save(); commit(f.root, 'finite review');
   check(hasError(inspectHandoff(f.root), 'independent passing review'));
   migrate(f, {historical: false}); check(inspectHandoff(f.root).status, 'CurrentPass');
   const formal = JSON.parse(fs.readFileSync(path.join(f.root, '.task/B0.md'), 'utf8').match(/```json\n([\s\S]*?)\n```/)[1]);
-  formal.status = 'Done'; formal.acceptance_record = 'docs/validation/limited.json'; formal.evidence = ['docs/validation/limited.json'];
+  formal.status = 'Done'; formal.acceptance_record = 'validation/results/limited.json'; formal.evidence = ['validation/results/limited.json'];
   put(f.root, '.task/B0.md', `# B0\n\`\`\`json\n${JSON.stringify(formal)}\n\`\`\`\n`); commit(f.root, 'invalid full Done from limited review');
   check(inspectHandoff(f.root).status, 'CurrentPass');
   check(inspectHandoff(f.root).tasks.find(row => row.id === 'B0').recorded_acceptance, false);
@@ -421,14 +423,14 @@ scenario('handoff-022', '有限review不晋升静态合同验收', t => {
 scenario('handoff-023', 'metadata-only等价只允许明确文档差异', t => {
   for (const sourceChanged of [false, true]) {
     const f = fixture(t);
-    put(f.root, 'src/main.rs', 'fn main() {}\n'); put(f.root, 'docs/validation/build.json', {status: 'Pass', executed: 1, assertions: 1});
+    put(f.root, 'src/main.rs', 'fn main() {}\n'); put(f.root, 'validation/results/build.json', {status: 'Pass', executed: 1, assertions: 1});
     const reviewed = commit(f.root, 'reviewed source');
     put(f.root, 'changes/delivery.md', 'Delivery notes only.\n');
     if (sourceChanged) put(f.root, 'src/main.rs', 'fn main() { panic!() }\n');
     const delivery = commit(f.root, 'delivery');
-    const name = 'docs/validation/review.json'; put(f.root, name, {reviewer: 'reviewer', cases: {'003': {verdict: 'Pass', implementation_commit: reviewed}}});
+    const name = 'validation/results/review.json'; put(f.root, name, {reviewer: 'reviewer', cases: {'003': {verdict: 'Pass', implementation_commit: reviewed}}});
     const reviewCommit = commit(f.root, 'review receipt');
-    Object.assign(f.task, {status: '已合入', implementation_commit: delivery, integration_commit: delivery, evidence: ['docs/validation/build.json'], review: {reviewer: 'reviewer', verdict: 'Pass', implementation_commit: delivery, review_commit: reviewCommit, evidence: [name]}});
+    Object.assign(f.task, {status: '已合入', implementation_commit: delivery, integration_commit: delivery, evidence: ['validation/results/build.json'], review: {reviewer: 'reviewer', verdict: 'Pass', implementation_commit: delivery, review_commit: reviewCommit, evidence: [name]}});
     f.save(); commit(f.root, 'record exact delivery');
     migrate(f, {historical: false, adapters: [{task_id: '003', path: name, selector: '/cases/003', commit_field: 'implementation_commit', metadata_only: {reviewed_commit: reviewed, delivery_commit: delivery, allowed_paths: ['changes/delivery.md']}}]});
     const report = inspectHandoff(f.root);
@@ -454,7 +456,7 @@ scenario('handoff-024', '当前规范必需集合不能被较小注册表冒充'
 scenario('handoff-025', '精简本地验收仍绑定实际交付和非零门', t => {
   const f = fixture(t); merged(f);
   f.task.scope_contract = 'Finite implementation fixture'; f.task.accepted_candidate = f.task.implementation_commit;
-  const name = 'docs/validation/integration.json';
+  const name = 'validation/results/integration.json';
   const receipt = {status: 'LocalLimitedAcceptance', tested_commit: f.task.accepted_candidate, implementation_commits: {'003': f.task.implementation_commit}, gates: [{gate: 'workspace', status: 'Pass', exit_code: 0, passed: 2, failed: 0}]};
   put(f.root, name, receipt); f.task.evidence = [name]; f.save(); commit(f.root, 'bounded compact local acceptance');
   migrate(f, {historical: false}); check(inspectHandoff(f.root).status, 'CurrentPass');

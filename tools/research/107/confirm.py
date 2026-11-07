@@ -173,7 +173,7 @@ def freeze(args):
         interval="exact binomial order18/47 with95-family Bonferroni",production_admission="NotRun",reference_observations=references,
         reference_origin="BASE plain complete functional controls, matched to count full stage bytes and prefilled native expected outputs",
         functional_sha256=sha(out/"functional.json"),functional_controls_sha256=sha(out/"functional-controls.json"),
-        contract_sha256=sha(Path(__file__).resolve().parents[3]/"docs/research/107/CONFIRMATION.md"),
+        contract_sha256=sha(Path(__file__).resolve().parents[3]/"docs/research/construction-input-closure/confirmation.md"),
         primary=dict(case="modules512",mode="verify",endpoint="process"),off_timing="NotRun; function/work ablation only",
         runtime_helpers_sha256={name:sha(Path(__file__).with_name(name)) for name in prepared.SCRIPT_NAMES}))
     print("confirmation frozen: 4940 processes / 19760 requests / 95 endpoints",flush=True)
@@ -195,7 +195,7 @@ def verify(out):
         assert sha(Path(__file__).with_name(name))==digest
     assert sha(out/"functional.json")==protocol["functional_sha256"]
     assert sha(out/"functional-controls.json")==protocol["functional_controls_sha256"]
-    assert sha(Path(__file__).resolve().parents[3]/"docs/research/107/CONFIRMATION.md")==protocol["contract_sha256"]
+    assert sha(Path(__file__).resolve().parents[3]/"docs/research/construction-input-closure/confirmation.md")==protocol["contract_sha256"]
     assert protocol["primary"]==dict(case="modules512",mode="verify",endpoint="process")
     return identity,protocol
 

@@ -95,7 +95,7 @@
       "kind": "historical-receipt",
       "current_sha256": "ee599efbfc8e0ba639c0a7f71d8d2ebb03f0d9c352db65d35d713a0d00e5ff08",
       "historical_path": ".task/G10.1.10-inputs/early-preflight-original.json",
-      "current_path": "docs/validation/preflight/early-preflight-original.json",
+      "current_path": "validation/results/resource-preflight/early-preflight-original.json",
       "source_sha256": "ee599efbfc8e0ba639c0a7f71d8d2ebb03f0d9c352db65d35d713a0d00e5ff08",
       "source_bytes_preserved": true
     },
@@ -103,7 +103,7 @@
       "kind": "historical-receipt",
       "current_sha256": "010344461c8f95a54306f2e32664300485767b1e73122250c5418037509e9450",
       "historical_path": ".task/G10.1.10-inputs/early-preflight-release-original.json",
-      "current_path": "docs/validation/preflight/early-preflight-release-original.json",
+      "current_path": "validation/results/resource-preflight/early-preflight-release-original.json",
       "source_sha256": "010344461c8f95a54306f2e32664300485767b1e73122250c5418037509e9450",
       "source_bytes_preserved": true
     },
@@ -111,7 +111,7 @@
       "kind": "historical-receipt",
       "current_sha256": "293a8233e09c0684d53efb895eed58903bb408e4f446edcbf11d3d3b35b4fa95",
       "historical_path": ".task/G10.1.10-inputs/early-preflight-release-revised.json",
-      "current_path": "docs/validation/preflight/early-preflight-release-revised.json",
+      "current_path": "validation/results/resource-preflight/early-preflight-release-revised.json",
       "source_sha256": "293a8233e09c0684d53efb895eed58903bb408e4f446edcbf11d3d3b35b4fa95",
       "source_bytes_preserved": true
     },
@@ -231,7 +231,7 @@
       "kind": "historical-receipt",
       "current_sha256": "66520e6099eb078b1a495c1ed46fca39c1e37092785fd84031188f31cfe8bc9c",
       "historical_path": ".task/G9.3.2.1-author.json",
-      "current_path": "docs/validation/author/pod-layout-author.json",
+      "current_path": "validation/results/store-layout/pod-layout-author.json",
       "source_sha256": "66520e6099eb078b1a495c1ed46fca39c1e37092785fd84031188f31cfe8bc9c",
       "source_bytes_preserved": true
     },
@@ -239,7 +239,7 @@
       "kind": "historical-receipt",
       "current_sha256": "b8d6ba0021f4d305b64c2fcbaf77aa4236241cb890507f92640dd581a1b44bd4",
       "historical_path": ".task/G9.3.2.3-author.json",
-      "current_path": "docs/validation/author/pod-copy-store-author.json",
+      "current_path": "validation/results/store-layout/pod-copy-store-author.json",
       "source_sha256": "b8d6ba0021f4d305b64c2fcbaf77aa4236241cb890507f92640dd581a1b44bd4",
       "source_bytes_preserved": true
     },
@@ -459,7 +459,7 @@
   "unlocated_historical_input": {
     "name": "old-lending-control.zil",
     "sha256": "ecfc8ac00474fa2e5463538d9755ec21c3712e21cd974fb1bc3647448e95cdf4",
-    "receipt": "docs/validation/preflight/early-preflight-release-revised.json",
+    "receipt": "validation/results/resource-preflight/early-preflight-release-revised.json",
     "note": "Receipt records this byte identity; no matching tracked current path was found. No replay or new acceptance is claimed."
   },
   "accepted_profile_documents": [

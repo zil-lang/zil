@@ -29,4 +29,4 @@ K仅分离Parse键的max_tokens和max_nodes；深度及所有其他原字段仍�
 
 ## 预登记
 
-见 `docs/research/089/PREREGISTRATION.md`。正式计时须由root通知独占窗口。
+见 `docs/research/syntax-discovery-reuse/preregistration.md`。正式计时须由root通知独占窗口。

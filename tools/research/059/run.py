@@ -22,7 +22,7 @@ import time
 
 BASE = "6acda08c72dbd3e387893b4260770f0834dcdbe0"
 METHODS = ["mono", "cut", "wire", "production"]
-OVERLAY = ["tools/research/059", "tests/perf/impl059", "docs/research/059"]
+OVERLAY = ["tools/research/059", "tests/perf/impl059", "docs/research/resource-event-relations"]
 ENV = dict(os.environ, CARGO_INCREMENTAL="0", CARGO_PROFILE_DEV_DEBUG="0",
            CARGO_PROFILE_TEST_DEBUG="0", CARGO_PROFILE_RELEASE_DEBUG="0", CARGO_BUILD_JOBS="1")
 

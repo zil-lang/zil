@@ -4,4 +4,4 @@ Roam 是独立开发工具，不进入语言关键词、类型系统、运行时
 
 独立语义模型负责程序含义，状态探索负责历史透明性；二者都不替代独立 Verify。持续探索只有在已登记的有限 profile、停止条件与资源边界内运行；没有后台服务或新领域的默认授权。发现归属必须据真实首发现记录，受控注错和独审发现不能冒称自然 hunt 成果。
 
-用户提供的 TypeScript 原件逐文件保留并校验摘要；现无公开发布许可，不发布至 npm/crates.io。工具协议见 `tools/roam-rs/`、`tools/roam/`，已实施范围见实际测试和 `docs/ROBUSTNESS.md`。历史来源：`.agent/roam-boundary.md`、`.agent/design-and-quality.md`。
+用户提供的 TypeScript 原件逐文件保留并校验摘要；现无公开发布许可，不发布至 npm/crates.io。工具协议见 `tools/roam-rs/`、`tools/roam/`，已实施范围见实际测试和 `docs/development/quality-exploration.md`。历史来源：`.agent/roam-boundary.md`、`.agent/design-and-quality.md`。

@@ -34,4 +34,4 @@ cargo test --offline --locked -p zil-driver --test impl053
 
 Rust参考使用Cell表达串行Desc更新，显式保持对整个Token的借入，避免精确字段捕获把观察对象改成Copy字段快照。Drop外部C语义、最终缓冲刷新等仍属于样例外部合同；此样例不是完整IO库。真实fd成功关闭另见`../resources/fd.zil`。
 
-当前本地具体环境可捕获Desc及拥有Managed；拥有捕获本身不决定FnOnce，移出捕获资源才需要消费调用。闭包显式参数和结果仍限有限Copy，环境逃逸/嵌套保存等边界见`docs/RESOURCE-HANDOFF.md`。
+当前本地具体环境可捕获Desc及拥有Managed；拥有捕获本身不决定FnOnce，移出捕获资源才需要消费调用。闭包显式参数和结果仍限有限Copy，环境逃逸/嵌套保存等边界见`https://github.com/zil-lang/zil/blob/dd766f513bd8022e4d2c703f51a9343824150da8/docs/RESOURCE-HANDOFF.md`。

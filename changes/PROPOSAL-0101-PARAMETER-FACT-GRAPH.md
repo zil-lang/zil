@@ -30,7 +30,7 @@ Origin闭包。由此可检验更强的有限命题：每个函数的转移是�
 
 ## 证据和裁决
 
-具体合同见`docs/research/101/CONTRACT.md`，有限证明见`PROOF.md`。阶段仪器、
+具体合同见`docs/research/parameter-effect-graphs/contract.md`，有限证明见`PROOF.md`。阶段仪器、
 同binary算法选择和同SHA A/A只用于定位，不进入正式无探针binary。先固定
 5轮诊断，检查1%实用回退界的可辨性，再申请正式独占窗口。完整比较保留旧
 十单元、三个小结构和三个真实消费者的实际函数体修改/恢复；固定2预热、

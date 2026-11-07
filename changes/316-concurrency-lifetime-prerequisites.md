@@ -56,4 +56,4 @@ Expand/模块解析需保留trait定义模块、完整有序实际类型实参�
 
 当前同线程结构化`c_with_callback`已能覆盖持续同步事件循环；返回静态无环境C入口的handle也不证明外部捕获环境存活。安装函数返回后保留捕获环境需要真实稳定存储、关闭准入、注销排空与最终清理；不能放宽`c_callback`接受closure来绕过。同步组件组合可继续推进，不等待完整SABI；返回登记、跨线程平台入口和异步I/O分别由真实消费者提出上述义务。
 
-本片检查命令、结果和已知不足在`docs/validation/recovery-capabilities.json`。Rust四目标：本片只提供可重放缺口和安全反例，没有新增运行机制、运行/内存测量、完整框架维护比较或编译速度结果；至少一项产品突破仍未证明。
+本片检查命令、结果和已知不足在`validation/results/language-readiness/recovery-capabilities.json`。Rust四目标：本片只提供可重放缺口和安全反例，没有新增运行机制、运行/内存测量、完整框架维护比较或编译速度结果；至少一项产品突破仍未证明。

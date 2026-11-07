@@ -76,7 +76,7 @@ Analyze 和 Verify 各自执行新的完整可达 CFG/调用固定点权限检�
 
 最近反例含共享原语写/helper写/Desc捕获写/实际head捕获写、父写撞活child/view、移动owner后使用head。raw与decoded runtime Wire在真实Address模式被伪造为shared时独立拒绝（Verify E-VERIFY-HEAD-PERMISSION），真实109合法Wire通过；transitive entry→relay→act中第二输入view活跃而第一输入写，raw caller把两输入改成同一实际存储时两个核/Wire均拒绝。跨模块live/restored cache重新检查当前API写入和caller活跃view。
 
-实际十目标限定命令见 `docs/validation/terminal-342.json`，完整回放分别cross57/generic35/impl19714/review1844/impl20010/impl03310/impl26037/ownedbytes9/ownedbytes-native7/ownedstore18，零失败；最后直接head捕获、state复制去掉重复临时克隆和prepared实参数组收费后完整cross57重放通过。Clippy同十目标、llvm-api、-D warnings通过，首次lint指出新条件可折叠及新增helper位置误挂旧allow，均在生产源码修正。日志342-head-complete-tests.log、342-head-final-tests.log、342-head-clippy.log；不是正式全量。
+实际十目标限定命令见 `https://github.com/zil-lang/zil/blob/dd766f513bd8022e4d2c703f51a9343824150da8/docs/validation/terminal-342.json`，完整回放分别cross57/generic35/impl19714/review1844/impl20010/impl03310/impl26037/ownedbytes9/ownedbytes-native7/ownedstore18，零失败；最后直接head捕获、state复制去掉重复临时克隆和prepared实参数组收费后完整cross57重放通过。Clippy同十目标、llvm-api、-D warnings通过，首次lint指出新条件可折叠及新增helper位置误挂旧allow，均在生产源码修正。日志342-head-complete-tests.log、342-head-final-tests.log、342-head-clippy.log；不是正式全量。
 
 新READ源Expand/Types/Analyze/Verify N=296/391/15016/19227，每个N−1 ResourceLimit且fresh N相同。Analyze首次15009后实际caller分离固定点增至15013，再预费prepared数组为15016；这是新增实际工作收费，默认限额不升。旧无109模块通过已付instruction扫描得到的私有feature激活条件保留原核费用，该条件只启用证明，不携安全许可。
 

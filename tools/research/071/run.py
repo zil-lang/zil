@@ -20,7 +20,7 @@ import time
 
 BASE = "400a082444275e1d0e2ad78c4910b9b6fc526be5"
 RESEARCH_BASE = "bf5876bd8b5e9936ad52e8f24adaa673884232dc"
-OVERLAY = ["tools/research/071", "tests/perf/impl071", "docs/research/071", "changes/IMPLEMENTATION-0071.md"]
+OVERLAY = ["tools/research/071", "tests/perf/impl071", "docs/research/local-location-domains", "changes/IMPLEMENTATION-0071.md"]
 ENV = dict(os.environ, CARGO_INCREMENTAL="0", CARGO_PROFILE_DEV_DEBUG="0", CARGO_PROFILE_TEST_DEBUG="0", CARGO_PROFILE_RELEASE_DEBUG="0", CARGO_BUILD_JOBS="1")
 for name in ("CARGO_TARGET_DIR", "RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS"):
     ENV.pop(name, None)

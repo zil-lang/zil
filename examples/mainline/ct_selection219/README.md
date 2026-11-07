@@ -12,4 +12,4 @@ python3 tools/language/219/consumer.py --repo /path/to/zil --cli /path/to/zil-cl
 
 runner 要求 clean 提交和精确 CLI 构建收据，并在任何运行前写入独立 oracle。它构建两种配置的 O0/O2 普通程序，再用已有 allocator observer 注入每个实际分配点及 last+1；不会从观测输出反推预期。
 
-精确受测身份、成功和历史失败见 `docs/LANGUAGE-219.md` 与 `evidence/impl/219/final/RESULT.json`。这是语言前置消费者，不是 ZUI 框架实现。
+精确受测身份、成功和历史失败见 `https://github.com/zil-lang/zil/blob/dd766f513bd8022e4d2c703f51a9343824150da8/docs/LANGUAGE-219.md` 与 `evidence/impl/219/final/RESULT.json`。这是语言前置消费者，不是 ZUI 框架实现。

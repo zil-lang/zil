@@ -10,7 +10,7 @@ import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[3]
-HISTORY = ROOT / "docs/validation/language-gaps-334.json"
+HISTORY = ROOT / "validation/results/language-readiness/language-gaps-baseline.json"
 HISTORY_SHA256 = "ce3aadadfba28d9d5299a698e36664b7b4316a38d0ebd4a4e8bf39871ea125b0"
 
 
@@ -81,7 +81,7 @@ def main():
         "compiler": {"path": str(binary), "sha256": binary_hash,
                      "source_commit": args.compiler_source,
                      "source_identity_basis": "Caller supplies the frozen source revision; final review must also bind the observed build receipt. This collector does not authenticate compiler provenance."},
-        "historical_receipt": "docs/validation/language-gaps-334.json",
+        "historical_receipt": "validation/results/language-readiness/language-gaps-baseline.json",
         "historical_receipt_sha256": sha(old_bytes), "historical_receipt_modified": False,
         "selected": len(observations),
         "counts": dict(collections.Counter(r["status"] for r in observations)),

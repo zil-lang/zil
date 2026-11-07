@@ -47,4 +47,4 @@ UI tests use real Clang/API O0/O2 (16 builds,24 executions). The allocator obser
 forces16 actual failures: early document/preedit creation cleans owners, and
 failed preedit growth/document commit preserve the prior bytes/cursor/session.
 All observed exits have live0; scoped Clippy passes. Exact source/harness binding
-is in docs/validation/terminal-345-ui.json; OS/window/IME/product limits remain.
+is in https://github.com/zil-lang/zil/blob/dd766f513bd8022e4d2c703f51a9343824150da8/docs/validation/terminal-345-ui.json; OS/window/IME/product limits remain.
