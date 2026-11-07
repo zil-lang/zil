@@ -1230,7 +1230,7 @@ fn entry_wrapper(
             }
             _ => {
                 return unsupported(
-                    "native entry must return i32, unit, or a supported error union (tests also accept bool)",
+                    "native main must return i32, unit, or a supported error union (test entries also accept bool)",
                     Some(function.span),
                 );
             }
