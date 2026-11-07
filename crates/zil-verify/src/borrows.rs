@@ -663,7 +663,9 @@ fn reconstruct(
     let predecessors = &graph.predecessors;
     let reachable = &graph.reachable;
     budget.spend(v)?;
-    if !function_has_sources(module, f, descriptor_origins, budget)? {
+    if !budget.task_borrowed_results
+        && !function_has_sources(module, f, descriptor_origins, budget)?
+    {
         return Ok(Facts {
             values: vec![vec![]; v],
             inputs: vec![],

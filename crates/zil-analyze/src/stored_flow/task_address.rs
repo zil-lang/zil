@@ -4,13 +4,22 @@ use zil_ir::ContractProjection;
 
 pub(super) fn shape(ty: &Type) -> Option<&zil_ir::RetainedLifeShape> {
     match ty {
-        Type::Task {
-            result,
-            retained_life,
-        } if matches!(result.as_ref(), Type::Address { mutable: false, .. }) => Some(retained_life),
+        Type::Task { retained_life, .. } => Some(retained_life),
         Type::Managed(inner) | Type::Desc(inner) | Type::Address { inner, .. } => shape(inner),
         Type::ErrorUnion { result, .. } => shape(result),
         _ => None,
+    }
+}
+fn shared_result(ty: &Type) -> bool {
+    match ty {
+        Type::Task { result, .. } => {
+            matches!(result.as_ref(), Type::Address { mutable: false, .. })
+        }
+        Type::Managed(inner) | Type::Desc(inner) | Type::Address { inner, .. } => {
+            shared_result(inner)
+        }
+        Type::ErrorUnion { result, .. } => shared_result(result),
+        _ => false,
     }
 }
 pub(super) fn admitted_value(ty: &Type) -> bool {
@@ -89,27 +98,31 @@ pub(super) fn seed(
     if !b.task_borrowed_results || shape(ty).is_none() {
         return Ok(());
     }
+    let ports = &shape(ty).unwrap().ports;
     let path = prefix(ty);
-    let target = Target {
-        base,
-        stored: path.clone(),
-        place: vec![],
-        retained_port: Some(0),
-    };
-    let id = loans.len();
-    fee(b, path.len().saturating_add(3))?;
-    loans.push(Loan {
-        targets: Targets::from([target.clone()]),
-        parents: Loans::new(),
-        mutable: false,
-    });
-    value.task_ports.insert(
-        key(&path, 0),
-        Permission {
-            targets: Targets::from([target]),
-            loans: Loans::from([id]),
-        },
-    );
+    fee(b, ports.len().saturating_add(path.len()))?;
+    for (ordinal, port) in ports.iter().enumerate() {
+        let target = Target {
+            base,
+            stored: path.clone(),
+            place: vec![],
+            retained_port: Some(ordinal as u32),
+        };
+        let id = loans.len();
+        fee(b, path.len().saturating_add(3))?;
+        loans.push(Loan {
+            targets: Targets::from([target.clone()]),
+            parents: Loans::new(),
+            mutable: port.mode == zil_ir::StoredBorrowMode::ExclusiveAddress,
+        });
+        value.task_ports.insert(
+            key(&path, ordinal as u32),
+            Permission {
+                targets: Targets::from([target]),
+                loans: Loans::from([id]),
+            },
+        );
+    }
     Ok(())
 }
 pub(super) fn select(
@@ -242,54 +255,80 @@ pub(super) fn transfer(
                 .functions
                 .get(worker.0 as usize)
                 .ok_or_else(|| failure("Task worker is absent"))?;
-            if !matches!(worker.return_type, Type::Address { mutable: false, .. }) {
+            let result = i
+                .result
+                .ok_or_else(|| failure("Task constructor has no actual result"))?;
+            let ports = &shape(value_type(f, result)?)
+                .ok_or_else(|| failure("Task constructor result has no actual retained shape"))?
+                .ports;
+            fee(b, ports.len().saturating_add(port_bindings.len()))?;
+            if ports.len() != port_bindings.len() {
                 return Err(failure(
-                    "mixed Task result profiles need their complete retained consumer",
+                    "Task constructor bindings omit actual retained ports",
                 ));
             }
-            let [binding] = port_bindings.as_slice() else {
-                return Err(failure(
-                    "shared Task result requires one actual port binding",
-                ));
-            };
-            let StorageBase::Parameter(index) = binding.source.base else {
-                return Err(failure("Task port is not an actual parameter"));
-            };
-            if !binding.source.path.is_empty() || binding.port != 0 {
-                return Err(failure("Task shared result port selector is not canonical"));
+            let mut complete = true;
+            for (ordinal, (port, binding)) in ports.iter().zip(port_bindings).enumerate() {
+                let StorageBase::Parameter(index) = binding.source.base else {
+                    return Err(failure("Task port is not an actual parameter"));
+                };
+                if !binding.source.path.is_empty() || binding.port != ordinal as u32 {
+                    return Err(failure("Task input port selector is not canonical"));
+                }
+                let input = *arguments
+                    .get(index as usize)
+                    .ok_or_else(|| failure("Task input is absent"))?;
+                let actual = value_type(f, input)?;
+                b.type_work(actual, false, "actual retained Task argument comparison")?;
+                b.type_work(&port.leaf, false, "actual retained Task port comparison")?;
+                if actual != &port.leaf {
+                    return Err(failure("Task port differs from actual full input type"));
+                }
+                let mut permission = Permission::default();
+                union(&mut permission, &get(input)?.pointer, b)?;
+                complete &= !permission.targets.is_empty();
+                out.task_ports.insert(
+                    key(&[PlaceProjection::ErrorArm(false)], ordinal as u32),
+                    permission,
+                );
             }
-            let input = *arguments
-                .get(index as usize)
-                .ok_or_else(|| failure("Task input is absent"))?;
-            let mut permission = Permission::default();
-            union(&mut permission, &get(input)?.pointer, b)?;
-            out.task_ports
-                .insert(key(&[PlaceProjection::ErrorArm(false)], 0), permission);
-            let summary = &summaries[worker.id.0 as usize];
-            let sources = summary.returned.get(&Vec::new());
-            if let Some(sources) = sources {
-                for source in sources {
-                    fee(
-                        b,
-                        source
-                            .stored
-                            .len()
-                            .saturating_add(source.place.len())
-                            .saturating_add(1),
-                    )?;
-                    if source.base != HoldRoot::Parameter(index)
-                        || source.retained_port.is_some()
-                        || !source.stored.is_empty()
-                        || !source.place.is_empty()
-                    {
-                        return Err(failure(
-                            "Task Ready result is not the actual retained input port",
-                        ));
+            out.creation_complete = Some(complete);
+            if matches!(worker.return_type, Type::Address { mutable: false, .. }) {
+                let [binding] = port_bindings.as_slice() else {
+                    return Err(failure(
+                        "shared Task result requires one actual port binding",
+                    ));
+                };
+                let StorageBase::Parameter(index) = binding.source.base else {
+                    return Err(failure("shared Task result source is not a parameter"));
+                };
+                let summary = &summaries[worker.id.0 as usize];
+                let sources = summary.returned.get(&Vec::new());
+                if let Some(sources) = sources {
+                    for source in sources {
+                        fee(
+                            b,
+                            source
+                                .stored
+                                .len()
+                                .saturating_add(source.place.len())
+                                .saturating_add(1),
+                        )?;
+                        if source.base != HoldRoot::Parameter(index)
+                            || source.retained_port.is_some()
+                            || !source.stored.is_empty()
+                            || !source.place.is_empty()
+                        {
+                            return Err(failure(
+                                "Task Ready result is not the actual retained input port",
+                            ));
+                        }
                     }
                 }
+                out.creation_complete = Some(
+                    complete && summary.complete && sources.is_some_and(|row| !row.is_empty()),
+                );
             }
-            out.creation_complete =
-                Some(summary.complete && sources.is_some_and(|row| !row.is_empty()));
         }
         InstructionKind::PlaceTagLocal { local, path }
             if shape(&f.locals[local.0 as usize].ty).is_some() && path.is_empty() => {}
@@ -331,17 +370,19 @@ pub(super) fn transfer(
             state.locals.remove(local);
         }
         InstructionKind::TaskPoll { task } if shape(value_type(f, *task)?).is_some() => {
-            let permission = select(get(*task)?, &[], 0, b)?;
-            let path = vec![
-                PlaceProjection::ErrorArm(false),
-                PlaceProjection::Variant(zil_ir::VariantProjection {
-                    variant: 1,
-                    index: 0,
-                }),
-            ];
-            out.slots.insert(path, permission);
-            // Both runtime alternatives are possible. Only Ready owns a leaf.
-            out.enum_variants = enum_address::Variants::runtime_poll(b)?;
+            if shared_result(value_type(f, *task)?) {
+                let permission = select(get(*task)?, &[], 0, b)?;
+                let path = vec![
+                    PlaceProjection::ErrorArm(false),
+                    PlaceProjection::Variant(zil_ir::VariantProjection {
+                        variant: 1,
+                        index: 0,
+                    }),
+                ];
+                out.slots.insert(path, permission);
+                // Both runtime alternatives are possible. Only Ready owns a leaf.
+                out.enum_variants = enum_address::Variants::runtime_poll(b)?;
+            }
         }
         InstructionKind::MakeErrorUnion { value, is_error }
             if shape(value_type(

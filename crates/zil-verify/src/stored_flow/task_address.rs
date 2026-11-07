@@ -1,15 +1,19 @@
 //! Independent external Task-result permission reconstruction.
 use super::*;
 
-pub(super) fn shape(ty: &Type) -> bool {
+fn task_type(ty: &Type) -> Option<(&Type, &zil_ir::RetainedLifeShape)> {
     match ty {
-        Type::Task { result, .. } => {
-            matches!(result.as_ref(), Type::Address { mutable: false, .. })
-        }
-        Type::Managed(inner) | Type::Desc(inner) | Type::Address { inner, .. } => shape(inner),
-        Type::ErrorUnion { result, .. } => shape(result),
-        _ => false,
+        Type::Task {
+            result,
+            retained_life,
+        } => Some((result, retained_life)),
+        Type::Managed(inner) | Type::Desc(inner) | Type::Address { inner, .. } => task_type(inner),
+        Type::ErrorUnion { result, .. } => task_type(result),
+        _ => None,
     }
+}
+pub(super) fn shape(ty: &Type) -> bool {
+    task_type(ty).is_some()
 }
 pub(super) fn admitted_value(ty: &Type) -> bool {
     shape(ty)
@@ -112,29 +116,33 @@ pub(super) fn seed(
     if !b.task_borrowed_results || !shape(ty) {
         return Ok(());
     }
+    let (_, context) = task_type(ty).unwrap();
     let leaf = wrapper(ty);
-    b.spend(leaf.len().saturating_add(3))?;
-    let source = Source {
-        base,
-        leaf: leaf.clone(),
-        inline: vec![],
-        retained_port: Some(0),
-    };
-    let id = loans.len();
-    loans.push(Loan {
-        sources: vec![source.clone()],
-        parents: vec![],
-        exclusive: false,
-    });
-    insert(
-        out,
-        &port_path(&leaf, 0),
-        &Permission {
-            sources: vec![source],
-            loans: vec![id],
-        },
-        b,
-    )?;
+    b.spend(context.ports.len().saturating_add(leaf.len()))?;
+    for (ordinal, port) in context.ports.iter().enumerate() {
+        b.spend(leaf.len().saturating_add(3))?;
+        let source = Source {
+            base,
+            leaf: leaf.clone(),
+            inline: vec![],
+            retained_port: Some(ordinal as u32),
+        };
+        let id = loans.len();
+        loans.push(Loan {
+            sources: vec![source.clone()],
+            parents: vec![],
+            exclusive: port.mode == StoredBorrowMode::ExclusiveAddress,
+        });
+        insert(
+            out,
+            &port_path(&leaf, ordinal as u32),
+            &Permission {
+                sources: vec![source],
+                loans: vec![id],
+            },
+            b,
+        )?;
+    }
     Ok(())
 }
 pub(super) fn select(
@@ -267,56 +275,78 @@ pub(super) fn transfer(
                 .functions
                 .get(worker.0 as usize)
                 .ok_or_else(|| err("Task worker is absent"))?;
-            if !matches!(target.return_type, Type::Address { mutable: false, .. }) {
+            let produced = i
+                .result
+                .ok_or_else(|| err("Task constructor result is absent"))?;
+            let (_, context) = task_type(vt(f, produced)?)
+                .ok_or_else(|| err("Task constructor has no actual retained context"))?;
+            b.spend(context.ports.len().saturating_add(port_bindings.len()))?;
+            if context.ports.len() != port_bindings.len() {
                 return Err(err(
-                    "mixed Task result profiles lack their complete retained consumer",
+                    "Task constructor bindings omit actual retained context",
                 ));
             }
-            if port_bindings.len() != 1 {
-                return Err(err("Task borrowed result lacks one exact input port"));
+            let mut all_inputs = true;
+            for (ordinal, (port, row)) in context.ports.iter().zip(port_bindings).enumerate() {
+                let StorageBase::Parameter(index) = row.source.base else {
+                    return Err(err("Task port source is not a parameter"));
+                };
+                if row.port != ordinal as u32 || !row.source.path.is_empty() {
+                    return Err(err("Task input has noncanonical port selector"));
+                }
+                let input = *arguments
+                    .get(index as usize)
+                    .ok_or_else(|| err("Task input is absent"))?;
+                let actual = vt(f, input)?;
+                type_work(actual, &b.limits.clone(), b)?;
+                type_work(&port.leaf, &b.limits.clone(), b)?;
+                if actual != &port.leaf {
+                    return Err(err("Task port differs from actual complete argument type"));
+                }
+                let permission = &get(input)?.address;
+                all_inputs &= !permission.sources.is_empty();
+                insert(
+                    &mut out,
+                    &port_path(&[PlaceProjection::ErrorArm(false)], ordinal as u32),
+                    permission,
+                    b,
+                )?;
             }
-            let row = &port_bindings[0];
-            let StorageBase::Parameter(index) = row.source.base else {
-                return Err(err("Task port source is not a parameter"));
-            };
-            if row.port != 0 || !row.source.path.is_empty() {
-                return Err(err("Task borrowed result has noncanonical port selector"));
-            }
-            let input = arguments
-                .get(index as usize)
-                .ok_or_else(|| err("Task input is absent"))?;
-            insert(
-                &mut out,
-                &port_path(&[PlaceProjection::ErrorArm(false)], 0),
-                &get(*input)?.address,
-                b,
-            )?;
-            let summary = &summaries[target.id.0 as usize];
-            let mut present = false;
-            for (path, sources) in &summary.result {
-                if path.is_empty() {
-                    present |= !sources.is_empty();
-                    for source in sources {
-                        b.spend(
-                            source
-                                .leaf
-                                .len()
-                                .saturating_add(source.inline.len())
-                                .saturating_add(1),
-                        )?;
-                        if source.base != HoldRoot::Parameter(index)
-                            || source.retained_port.is_some()
-                            || !source.leaf.is_empty()
-                            || !source.inline.is_empty()
-                        {
-                            return Err(err(
-                                "Task Ready source differs from its actual retained input",
-                            ));
+            out.creation_complete = Some(all_inputs);
+            if matches!(target.return_type, Type::Address { mutable: false, .. }) {
+                let [row] = port_bindings.as_slice() else {
+                    return Err(err("Task borrowed result lacks one exact input port"));
+                };
+                let StorageBase::Parameter(index) = row.source.base else {
+                    return Err(err("Task borrowed result source is not a parameter"));
+                };
+                let summary = &summaries[target.id.0 as usize];
+                let mut present = false;
+                for (path, sources) in &summary.result {
+                    if path.is_empty() {
+                        present |= !sources.is_empty();
+                        for source in sources {
+                            b.spend(
+                                source
+                                    .leaf
+                                    .len()
+                                    .saturating_add(source.inline.len())
+                                    .saturating_add(1),
+                            )?;
+                            if source.base != HoldRoot::Parameter(index)
+                                || source.retained_port.is_some()
+                                || !source.leaf.is_empty()
+                                || !source.inline.is_empty()
+                            {
+                                return Err(err(
+                                    "Task Ready source differs from its actual retained input",
+                                ));
+                            }
                         }
                     }
                 }
+                out.creation_complete = Some(all_inputs && present && summary.complete);
             }
-            out.creation_complete = Some(present && summary.complete);
         }
         InstructionKind::PlaceTagLocal { local, path }
             if shape(&f.locals[local.0 as usize].ty) && path.is_empty() => {}
@@ -353,20 +383,24 @@ pub(super) fn transfer(
             state.locals[local.0 as usize] = Payload::default();
         }
         InstructionKind::TaskPoll { task } if shape(vt(f, *task)?) => {
-            let p = select(get(*task)?, &[], 0, b)?;
-            add_leaf(
-                &mut out,
-                &[
-                    PlaceProjection::ErrorArm(false),
-                    PlaceProjection::Variant(zil_ir::VariantProjection {
-                        variant: 1,
-                        index: 0,
-                    }),
-                ],
-                &p,
-                b,
-            )?;
-            out.enum_variants = enum_address::Variants::runtime_poll(b)?;
+            if task_type(vt(f, *task)?)
+                .is_some_and(|(result, _)| matches!(result, Type::Address { mutable: false, .. }))
+            {
+                let p = select(get(*task)?, &[], 0, b)?;
+                add_leaf(
+                    &mut out,
+                    &[
+                        PlaceProjection::ErrorArm(false),
+                        PlaceProjection::Variant(zil_ir::VariantProjection {
+                            variant: 1,
+                            index: 0,
+                        }),
+                    ],
+                    &p,
+                    b,
+                )?;
+                out.enum_variants = enum_address::Variants::runtime_poll(b)?;
+            }
         }
         InstructionKind::MakeErrorUnion { value, is_error }
             if shape(vt(
