@@ -1377,6 +1377,21 @@ pub(super) fn preflight(
                         }
                         budget.scoped_threads = true;
                     }
+                    InstructionKind::SyncI32CompareExchange {
+                        address,
+                        expected,
+                        desired,
+                        ..
+                    } => {
+                        budget.input(6, "strong compare exchange operands and order pair")?;
+                        if [address, expected, desired]
+                            .iter()
+                            .any(|v| v.0 as usize >= function.values.len())
+                        {
+                            return Err(bad("compare exchange operand outside actual value table"));
+                        }
+                        budget.scoped_threads = true;
+                    }
                     InstructionKind::SyncI32 { address, value, .. } => {
                         budget.input(3, "sealed cell operation operands")?;
                         if address.0 as usize >= function.values.len()
