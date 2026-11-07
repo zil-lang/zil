@@ -1411,6 +1411,15 @@ fn check_function_signature_type(
         return dynamic_dispatch::type_address(module, ty, span, budget);
     }
     match ty {
+        Type::Address {
+            mutable: true,
+            inner,
+        } if budget.pod_stores
+            && matches!(inner.as_ref(), Type::Package { .. })
+            && dynamic_store::package_inline_store(inner, budget)? =>
+        {
+            packages::check_ordinary_type(module, inner, span, budget)
+        }
         Type::Address { inner, .. }
             if packages::has_children(inner) || packages::shared_product_head(inner) =>
         {
@@ -1491,6 +1500,15 @@ fn check_local_type(
             span,
             "local closure type references an absent environment",
         )),
+        Type::Address {
+            mutable: true,
+            inner,
+        } if budget.pod_stores
+            && matches!(inner.as_ref(), Type::Package { .. })
+            && dynamic_store::package_inline_store(inner, budget)? =>
+        {
+            packages::check_ordinary_type(module, inner, span, budget)
+        }
         Type::Address { inner, .. }
             if packages::has_children(inner) || packages::shared_product_head(inner) =>
         {
@@ -1626,7 +1644,25 @@ fn check_function(
     }
     if matches!(function.return_type, Type::Address { .. }) {
         budget.spend(function.locals.len().saturating_add(function.values.len()))?;
+        let mut store_parent_address = false;
+        if budget.pod_stores {
+            for ty in function
+                .locals
+                .iter()
+                .map(|local| &local.ty)
+                .chain(&function.values)
+            {
+                if let Type::Address { inner, .. } = ty
+                    && ty.is_package_address()
+                    && dynamic_store::package_inline_store(inner, budget)?
+                {
+                    store_parent_address = true;
+                    break;
+                }
+            }
+        }
         if function.return_type.is_package_address()
+            || store_parent_address
             || function
                 .locals
                 .iter()

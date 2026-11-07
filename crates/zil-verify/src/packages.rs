@@ -138,7 +138,11 @@ pub(super) fn check_capture_type(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
-    check_product_type(module, ty, span, budget, true)
+    if budget.pod_stores && dynamic_store::owned_capture_store(ty, budget)? {
+        check_ordinary_type(module, ty, span, budget)
+    } else {
+        check_product_type(module, ty, span, budget, false)
+    }
 }
 
 /// Qualification of an actual complete ordinary Product head. This does not

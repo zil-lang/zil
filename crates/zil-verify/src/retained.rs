@@ -161,7 +161,9 @@ pub(super) fn check_claim(
                         Some(local.span),
                     ));
                 }
-                if packages::has_store_fields(&local.ty) {
+                if packages::has_store_fields(&local.ty)
+                    || (budget.pod_stores && dynamic_store::owned_capture_store(&local.ty, budget)?)
+                {
                     dynamic_store::check_owned_capture(module, &local.ty, Some(limits), budget)?;
                 }
                 packages::check_capture_type(module, &local.ty, Some(local.span), budget)?;
