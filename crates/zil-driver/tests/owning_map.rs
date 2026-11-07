@@ -70,6 +70,25 @@ fn main()->i32{
  return 0
 }
 "#;
+const BYTE_BUFFER_KEY_AND_VALUE: &str = r#"
+import std.owning_map
+import std.owning_entries
+package Key{manages text:ByteBuffer;id:i64}
+package Value{manages bytes:ByteBuffer}
+impl owning_map.KeyEq for Key{fn same(self:&Self,other:&Self)->bool{return self.id==other.id}}
+fn key(id:i64,letter:u8)->Key{let text=bytes_new();bytes_reserve(text,1);bytes_push(text,letter);return Key{text:give text,id:id}}
+fn value(letter:u8)->Value{let bytes=bytes_new();bytes_reserve(bytes,1);bytes_push(bytes,letter);return Value{bytes:give bytes}}
+fn main()->i32{
+ var map=owning_map.new::<Key,Value>()
+ let entry=owning_entries.Entry::<Key,Value>{key:key(7,65u8),value:value(66u8)}
+ match owning_map.insert_or_replace::<Key,Value>(&mut map,entry){.err(_)=>{return 1},.ok(_)=>{}}
+ let query=key(7,67u8)
+ match owning_map.take::<Key,Value>(&mut map,&query){
+  .err(_)=>{return 2},
+  .ok(old)=>{let first=i32(bytes_view(old.key.text)[0]);let second=i32(bytes_view(old.value.bytes)[0]);return first+second-131}
+ }
+}
+"#;
 const ALLOCATION: &str = r#"
 import std.owning_map
 import std.owning_entries
@@ -274,6 +293,42 @@ fn replacement_transfers_complete_old_key_and_value() {
     for backend in backends() {
         for optimization in [Optimization::O0, Optimization::O2] {
             let out = directory("transfer-replaced");
+            let report = compile_project(
+                &source,
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(out.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+            let run = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(
+                run.status.code(),
+                Some(0),
+                "{backend:?}/{optimization:?}: {run:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn byte_buffer_owning_key_and_value_survive_map_round_trip() {
+    let source = project(BYTE_BUFFER_KEY_AND_VALUE);
+    for backend in backends() {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let out = directory("byte-buffer-key-value");
             let report = compile_project(
                 &source,
                 &CompileOptions {
