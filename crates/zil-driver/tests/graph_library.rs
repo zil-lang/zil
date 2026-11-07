@@ -182,7 +182,11 @@ fn payload_api_runs_with_default_analysis_budget() {
 
 #[test]
 fn dynamic_cycle_shared_target_deletion_and_ticket_history_execute() {
-    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for backend in backends {
         for optimization in [Optimization::O0, Optimization::O2] {
             let dir = std::env::temp_dir().join(format!(
                 "zil-graph-library-{}-{}",
