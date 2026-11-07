@@ -136,6 +136,9 @@ fn endpoint<'a>(
 }
 fn closed(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     b.type_work(ty, true, "closed replacement endpoint qualification")?;
+    if matches!(ty, Type::Package { .. }) && b.ordinary_pod_store_type(ty)? {
+        return product::admit_owned(module, ty, b);
+    }
     Ok(
         matches!(ty,Type::Managed(p) if matches!(p.as_ref(),Type::Record{..}) && p.is_copy_value())
             || package::field(ty, b)?.is_some()

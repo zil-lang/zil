@@ -466,7 +466,11 @@ fn local_value(
     if let Type::Address { inner, .. } = ty
         && super::resources::product::nested(inner)
     {
-        return super::resources::product::admit(inner, budget).map(|_| false);
+        return if budget.ordinary_pod_store_type(inner)? {
+            super::resources::product::admit_owned(module, inner, budget)
+        } else {
+            super::resources::product::admit(inner, budget).map(|_| false)
+        };
     }
     if super::resources::product::nested(ty)
         || (matches!(ty, Type::Package { .. }) && budget.ordinary_pod_store_type(ty)?)
@@ -1065,6 +1069,19 @@ pub(super) fn preflight(
             )?;
             budget.spend(1, "ordinary POD Store root allocation")?;
             budget.ordinary_pod_store_roots.insert(root);
+        }
+        if new_ordinary_pod_store
+            && let Type::Address { inner, .. } = ty
+            && matches!(inner.as_ref(), Type::Package { .. })
+        {
+            budget.lookup(
+                budget.ordinary_pod_store_roots.len(),
+                "borrowed ordinary POD Store root insertion",
+            )?;
+            budget.spend(1, "borrowed ordinary POD Store root allocation")?;
+            budget
+                .ordinary_pod_store_roots
+                .insert(inner.as_ref() as *const Type as usize);
         }
     }
     // Complete shape and depth preflight precedes recursive Product admission.
