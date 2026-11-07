@@ -649,6 +649,59 @@ fn main()->i32{
 }
 
 #[test]
+fn owning_entries_insert_and_remove_complete_generic_values() {
+    let main = r#"
+import std.owning_entries
+extern "C" fn putchar(n:i32)->i32;
+resource Ticket{code:i32}
+impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.code)}}}
+package Item{manages ticket:Ticket}
+fn main()->i32{
+ var entries=owning_entries.new::<Item,Managed<Ticket>>()
+ if !owning_entries.reserve::<Item,Managed<Ticket>>(&mut entries,2){return 1}
+ let first=owning_entries.Entry::<Item,Managed<Ticket>>{key:Item{ticket:Ticket{code:65}},value:Ticket{code:66}}
+ match owning_entries.push::<Item,Managed<Ticket>>(&mut entries,first){.err(_)=>{return 2},.ok(_)=>{}}
+ let second=owning_entries.Entry::<Item,Managed<Ticket>>{key:Item{ticket:Ticket{code:67}},value:Ticket{code:68}}
+ match owning_entries.insert_at::<Item,Managed<Ticket>>(&mut entries,0,second){.err(_)=>{return 3},.ok(_)=>{}}
+ if owning_entries.len::<Item,Managed<Ticket>>(&entries)!=2{return 4}
+ match owning_entries.remove_at::<Item,Managed<Ticket>>(&mut entries,0){.err(_)=>{return 5},.ok(old)=>{return old.key.ticket.code+old.value.code-135}}
+}
+"#;
+    let project = ProjectSources {
+        root: ModuleId(0),
+        modules: vec![
+            SourceUnit::new(FileId(0), ModuleId(0), "main.zil", main),
+            SourceUnit::new(FileId(1), ModuleId(1), "std/owning_entries.zil", include_str!("../../../lib/std/owning_entries.zil")),
+            SourceUnit::new(FileId(2), ModuleId(2), "std/store.zil", include_str!("../../../lib/std/store.zil")),
+        ],
+        paths: [
+            (vec!["std".into(), "owning_entries".into()], ModuleId(1)),
+            (vec!["std".into(), "store".into()], ModuleId(2)),
+        ].into(),
+    };
+    let failure = main.replace("(&mut entries,0,second)", "(&mut entries,99,second)");
+    assert_ne!(failure, main);
+    for (source, exit) in [(main, 0), (failure.as_str(), 3)] {
+        let mut project = project.clone();
+        project.modules[0] = SourceUnit::new(FileId(0), ModuleId(0), "main.zil", source);
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let out = dir("owning-entries-complete-values");
+            let report = compile_project(&project, &CompileOptions {
+                stop_after: Stage::Build,
+                backend: if cfg!(feature = "llvm-api") { NativeBackend::LlvmApi } else { NativeBackend::Clang },
+                optimization,
+                output: Some(out.join("program")),
+                ..CompileOptions::default()
+            });
+            assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+            let run = Command::new(&report.artifacts["executable"]).output().unwrap();
+            assert_eq!(run.status.code(), Some(exit), "{run:?}");
+            assert_eq!(run.stdout, b"CDAB", "{run:?}");
+        }
+    }
+}
+
+#[test]
 fn symbolic_key_move_preserves_the_other_actual_owner() {
     native(
         "two-value-entry-partial-move",
