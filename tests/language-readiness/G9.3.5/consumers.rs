@@ -19,6 +19,7 @@ fn ordinary_store_ownership_reaches_complete_native_values() {
         ("ordinary-enum-field", include_str!("ordinary-enum-field.zil"), b"18446744073709551612\n".as_slice(), false),
         ("ordinary-error-field", include_str!("ordinary-error-field.zil"), b"18446744073709551613\n".as_slice(), false),
         ("ordinary-sum-capture", include_str!("ordinary-sum-capture.zil"), b"18446744073709551614\n".as_slice(), false),
+        ("ordinary-direct-shape-captures", include_str!("ordinary-direct-shape-captures.zil"), b"18446744073709551614\n".as_slice(), false),
     ] {
         super::g933_consumers::native_entry_all_backends(label, source, expected, imported, Some("result"));
     }
@@ -80,7 +81,41 @@ fn ordinary_store_same_size_canonical_element_rejects_raw_and_wire() {
 
 #[test]
 fn ordinary_store_actual_parent_field_receiver_rejects_stale_raw_and_wire_provenance() {
-    super::g933_consumers::source_derived_receiver_conflict(include_str!("ordinary-parent-two-views.zil"));
+    let (mut module, mut plan) = candidate(include_str!("ordinary-parent-two-views.zil"));
+    let function = module.functions.iter_mut().find(|f| f.name == "result").unwrap();
+    let function_id = function.id;
+    let mut first = None;
+    let mut changed = false;
+    let mut changed_results = None;
+    for instruction in function.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+        if let I::DescribePackageField { local, index } = &mut instruction.kind {
+            if let Some((original_local, original_index, original_result)) = first {
+                if *local != original_local || *index == original_index { continue; }
+                *index = original_index;
+                changed = true;
+                changed_results = Some((original_result, instruction.result.unwrap()));
+                break;
+            } else { first = Some((*local, *index, instruction.result.unwrap())); }
+        }
+    }
+    assert!(changed, "Source must describe two distinct Store fields of the same parent");
+    let (first_result, second_result) = changed_results.unwrap();
+    let holds = &plan.functions.iter().find(|row| row.function == function_id).unwrap().holds;
+    assert_eq!(holds[first_result.0 as usize].roots, holds[second_result.0 as usize].roots,
+        "public HoldRoot deliberately folds sibling fields under their actual parent Local");
+    let limits = Limits::default();
+    plan.module_fingerprint = module.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    let out = directory("ordinary-sibling-receiver-alias");
+    fs::write(out.join("candidate.wire"), &wire).unwrap();
+    for (route, result) in [
+        ("raw", zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits)),
+        ("wire", zil_verify::verify_module_bytes(&wire, &module.target, &limits)),
+    ] {
+        let errors = result.expect_err(route);
+        assert!(errors.iter().any(|d| d.phase == Phase::Verify && d.category == ResultCategory::SafeReject), "{route}: {errors:?}");
+        fs::write(out.join(format!("{route}.txt")), format!("{errors:#?}")).unwrap();
+    }
 }
 
 #[test]
