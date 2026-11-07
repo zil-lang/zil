@@ -68,7 +68,8 @@ fn local_transfer(
         | InstructionKind::TakeVariantField { local, .. }
         | InstructionKind::StorageLive(local)
         | InstructionKind::StorageDead(local)
-        | InstructionKind::DropClosure { local } => {
+        | InstructionKind::DropClosure { local }
+        | InstructionKind::DropMutexGuard { local } => {
             state.remove(&local);
         }
         InstructionKind::DropManaged { local } | InstructionKind::DropErrorUnion { local }
@@ -224,6 +225,7 @@ fn reconstruct(
                             InstructionKind::ByteBufferBorrow { buffer, .. }
                             | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
                             | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. }
+                            | InstructionKind::MutexValue { guard: buffer }
                                 if budget.head_descriptions =>
                             {
                                 row.insert(id);
@@ -232,6 +234,7 @@ fn reconstruct(
                             InstructionKind::ByteBufferBorrow { .. }
                             | InstructionKind::OwnedStoreBorrow { .. }
                             | InstructionKind::OwnedStoreBorrowMut { .. }
+                            | InstructionKind::MutexValue { .. }
                             | InstructionKind::BorrowOwnedArrayElement { .. }
                             | InstructionKind::BorrowPackageField { .. }
                             | InstructionKind::BorrowVariantLocal { .. }
@@ -1318,6 +1321,7 @@ pub(super) fn check(
                 | InstructionKind::StorageLive(local)
                 | InstructionKind::StorageDead(local)
                 | InstructionKind::DropClosure { local }
+                | InstructionKind::DropMutexGuard { local }
                 | InstructionKind::DropErrorUnion { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::DropOwnedArray { local }
@@ -1423,6 +1427,7 @@ pub(super) fn check(
                         || errors::owned(&f.locals[local.0 as usize].ty, budget.sums)
                         || resources::arrays::is_owned_type(&f.locals[local.0 as usize].ty)
                         || matches!(f.locals[local.0 as usize].ty, Type::Managed(_))
+                        || matches!(f.locals[local.0 as usize].ty, Type::MutexGuard { .. })
                     {
                         access.check(&empty, &[Root::Local(*local)], true, budget)?;
                     }

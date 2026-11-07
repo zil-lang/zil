@@ -24,6 +24,7 @@ mod foreign;
 mod foreign_scoped;
 mod forwarding;
 mod functions;
+mod generic_mutex;
 mod helpers;
 mod incremental;
 mod inference;
@@ -589,6 +590,13 @@ pub fn check(
         &mut remaining,
     )
     .map_err(|e| vec![e])?;
+    generic_mutex::add_definitions(
+        &functions,
+        &mut resource_definitions,
+        limits,
+        &mut remaining,
+    )
+    .map_err(|e| vec![e])?;
     let (life_declarations, life_instances) =
         stored::copy_inventory(core, &mut remaining, limits).map_err(|e| vec![e])?;
     let mut module = TypedModule {
@@ -921,6 +929,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         start: bool,
     ) -> R<LocalId> {
         if scoped_thread::sync_primitive(name).is_some()
+            || generic_mutex::primitive(name)
             || matches!(name, "MutexI32" | "AtomicI32" | "atomic_compare_exchange")
         {
             return Err(error(
@@ -2087,6 +2096,11 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
             if matches!(&callee.kind,CoreExprKind::Name(name) if name=="atomic_compare_exchange") {
                 return self.compare_exchange_call(arguments, expected, e.span);
+            }
+            if let CoreExprKind::Name(name) = &callee.kind
+                && generic_mutex::primitive(name)
+            {
+                return self.generic_mutex_call(name, arguments, expected, e.span);
             }
             if let CoreExprKind::Name(name) = &callee.kind
                 && let Some((kind, op)) = scoped_thread::sync_primitive(name)

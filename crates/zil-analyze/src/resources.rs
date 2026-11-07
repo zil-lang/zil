@@ -340,6 +340,14 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
             owned: true,
             description: false,
         },
+        Type::MutexGuard { .. } => Shape {
+            owned: true,
+            description: true,
+        },
+        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::MutexGuard { .. }) => Shape {
+            owned: false,
+            description: true,
+        },
         Type::Array { element, length }
             if *length > 0
                 && matches!(
@@ -1325,6 +1333,49 @@ impl Flow<'_> {
                 )?;
             }
             match &i.kind {
+                InstructionKind::MutexCreate { value } => {
+                    if check {
+                        tasks::require_synchronous_value(
+                            self.module,
+                            f,
+                            *value,
+                            budget,
+                            Some(i.span),
+                        )?;
+                    }
+                    self.consume(state, *value, check, budget)?;
+                    produced = Some(Fact {
+                        life: BTreeSet::from([Life::Available]),
+                        birth: BTreeSet::from([Birth::Created]),
+                        sources: BTreeSet::new(),
+                    });
+                }
+                InstructionKind::MutexLock { mutex } => {
+                    let head = copied(state, Place::Value(*mutex), budget)?;
+                    if check {
+                        live_sources(state, &head, budget)?;
+                    }
+                    produced = Some(Fact {
+                        life: BTreeSet::from([Life::Available]),
+                        birth: BTreeSet::from([Birth::Incoming]),
+                        sources: head.sources,
+                    });
+                }
+                InstructionKind::MutexValue { guard } => {
+                    let loan = copied(state, Place::Value(*guard), budget)?;
+                    if check {
+                        live_sources(state, &loan, budget)?;
+                    }
+                    if out_shape.is_some_and(|s| s.description) {
+                        produced = Some(Fact {
+                            sources: loan.sources,
+                            ..Fact::default()
+                        });
+                    }
+                }
+                InstructionKind::MutexUnlock { guard } => {
+                    self.consume(state, *guard, check, budget)?;
+                }
                 InstructionKind::VariantTagLocal { local, .. }
                 | InstructionKind::ReadVariantLocal { local, .. }
                 | InstructionKind::BorrowVariantLocal { local, .. }
@@ -2763,6 +2814,7 @@ impl Flow<'_> {
                 InstructionKind::DropTuple { local }
                 | InstructionKind::DropEnum { local }
                 | InstructionKind::DropManaged { local }
+                | InstructionKind::DropMutexGuard { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::DropErrorUnion { local }
                 | InstructionKind::DropOwnedArray { local }

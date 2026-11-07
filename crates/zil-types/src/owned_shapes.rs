@@ -10,6 +10,7 @@ fn inline_store(ty: &Type) -> bool {
 }
 fn shape(ty: &Type) -> Option<bool> {
     match ty {
+        Type::MutexGuard { .. } => Some(true),
         Type::Managed(_) => resources::supported(ty).then_some(true),
         Type::Tuple(fields) => {
             let mut owns = false;

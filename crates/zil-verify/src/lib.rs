@@ -61,6 +61,7 @@ mod dynamic_store;
 mod error_scope_tests;
 mod errors;
 mod foreign;
+mod generic_mutex;
 mod head_access;
 #[cfg(test)]
 mod helper_tests;
@@ -1103,6 +1104,7 @@ fn check_type_shape(
     let mut pod_stores = Vec::new();
     while let Some((ty, depth, context)) = first.take().or_else(|| pending.pop()) {
         budget.spend(1)?;
+        budget.head_descriptions |= matches!(ty, Type::Mutex { .. } | Type::MutexGuard { .. });
         budget.task_origin_roots |= matches!(ty, Type::Task { .. });
         budget.borrowed_task_ports |=
             matches!(ty, Type::Task { retained_life, .. } if !retained_life.ports.is_empty());
@@ -1226,11 +1228,19 @@ fn check_type_shape(
             Type::Opaque { hidden, .. } => {
                 pending.push((hidden, depth + 1, context));
             }
-            Type::Task { result: inner, .. }
+            Type::Mutex { payload: inner }
+            | Type::Task { result: inner, .. }
             | Type::Address { inner, .. }
             | Type::Managed(inner)
             | Type::Desc(inner) => {
                 pending.push((inner, depth + 1, context));
+            }
+            Type::MutexGuard {
+                payload,
+                retained_life,
+            } => {
+                generic_mutex::guard_shape(payload, retained_life, budget)?;
+                pending.push((payload, depth + 1, context));
             }
             Type::ErrorUnion { error, result } => {
                 budget.spend(2)?;
@@ -1426,6 +1436,7 @@ fn check_type(ty: &Type, span: Option<Span>) -> Check<()> {
 }
 fn affine_type(module: &TypedModule, ty: &Type) -> bool {
     match ty {
+        Type::MutexGuard { .. } => true,
         Type::Address { mutable: true, .. } => true,
         Type::Closure(id) => module.closures[id.0 as usize]
             .captures
@@ -1453,6 +1464,23 @@ fn check_function_signature_type(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
+    if let Type::MutexGuard {
+        payload,
+        retained_life,
+    } = ty
+    {
+        generic_mutex::guard_shape(payload, retained_life, budget)?;
+        return Ok(());
+    }
+    if let Type::Address { inner, .. } = ty
+        && let Type::MutexGuard {
+            payload,
+            retained_life,
+        } = inner.as_ref()
+    {
+        generic_mutex::guard_shape(payload, retained_life, budget)?;
+        return Ok(());
+    }
     if matches!(ty, Type::BorrowedStorage { .. }) {
         // The paid stored_flow::qualifications pass checks this same complete
         // signature type after all local/value shape preflights. Do not repeat
@@ -1551,6 +1579,20 @@ fn check_local_type(
         return resources::arrays::check_internal_single_slot_type_for(module, ty, span, budget);
     }
     let checked = match ty {
+        Type::MutexGuard {
+            payload,
+            retained_life,
+        } => generic_mutex::guard_shape(payload, retained_life, budget),
+        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::MutexGuard { .. }) => {
+            let Type::MutexGuard {
+                payload,
+                retained_life,
+            } = inner.as_ref()
+            else {
+                unreachable!()
+            };
+            generic_mutex::guard_shape(payload, retained_life, budget)
+        }
         Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. }) => {
             Ok(())
         }
@@ -2278,10 +2320,7 @@ fn check_instruction(
         | InstructionKind::MutexValue { .. }
         | InstructionKind::MutexUnlock { .. }
         | InstructionKind::DropMutexGuard { .. } => {
-            return Err(unsupported(
-                "generic mutex verification is not implemented",
-                span,
-            ));
+            generic_mutex::instruction(module, function, instruction, budget)?
         }
         InstructionKind::WithForeignCallback { .. } => {
             scoped_callback::instruction(module, function, instruction, budget)?
@@ -2328,7 +2367,9 @@ fn check_instruction(
                     "a non-Copy package requires field projection or whole TakeLocal, never Load",
                 ));
             }
-            if matches!(ty, Type::Managed(_)) || closures::owned_type(module, ty, budget)? {
+            if matches!(ty, Type::Managed(_) | Type::MutexGuard { .. })
+                || closures::owned_type(module, ty, budget)?
+            {
                 return Err(reject(
                     "E-VERIFY-RESOURCE",
                     span,
@@ -2372,6 +2413,12 @@ fn check_instruction(
                 Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
             ) {
                 sums::check_type_for(module, inner, span, budget)?;
+            } else if let Type::MutexGuard {
+                payload,
+                retained_life,
+            } = inner
+            {
+                generic_mutex::guard_shape(payload, retained_life, budget)?;
             } else if matches!(inner, Type::Package { .. }) {
                 packages::check_shared_product_type(module, inner, span, budget)?;
             } else if matches!(inner, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }))
@@ -2399,6 +2446,12 @@ fn check_instruction(
                 Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
             ) {
                 sums::check_type_for(module, inner, span, budget)?;
+            } else if let Type::MutexGuard {
+                payload,
+                retained_life,
+            } = inner
+            {
+                generic_mutex::guard_shape(payload, retained_life, budget)?;
             } else if matches!(inner, Type::Package { .. }) {
                 packages::check_shared_product_type(module, inner, span, budget)?;
             } else if matches!(inner,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))

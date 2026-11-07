@@ -5,6 +5,67 @@ mod owned_error_loans;
 fn source(s: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "review.zil", s)
 }
+#[test]
+fn generic_mutex_source_candidate_has_real_guard_operations() {
+    let src = source(
+        "fn main()->MutexCreateError!i32 {let cell=mutex_create(7)?;let guard=mutex_lock(cell);mutex_unlock(guard);return 0}",
+    );
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let typed = zil_types::check(
+        &core,
+        &zil_base::TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap();
+    assert!(
+        typed
+            .functions
+            .iter()
+            .flat_map(|f| &f.blocks)
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(i.kind, zil_ir::InstructionKind::MutexCreate { .. }))
+    );
+    let plan = zil_analyze::analyze(&typed, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        typed,
+        plan,
+        &zil_base::TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap();
+    let src = source(
+        "fn main()->MutexCreateError!i32 {let cell=mutex_create(7)?;var guard=mutex_lock(cell);let value=mutex_value(&mut guard);*value=9;mutex_unlock(guard);return 0}",
+    );
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let typed = zil_types::check(
+        &core,
+        &zil_base::TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap();
+    let plan = zil_analyze::analyze(&typed, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        typed,
+        plan,
+        &zil_base::TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap();
+    let src = source(
+        "fn main()->MutexCreateError!i32 {let cell=mutex_create(7)?;var guard=mutex_lock(cell);let value=mutex_value(&mut guard);mutex_unlock(guard);return *value}",
+    );
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let typed = zil_types::check(
+        &core,
+        &zil_base::TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap();
+    assert!(zil_analyze::analyze(&typed, &Limits::default()).is_err());
+}
 fn expand(s: &str, limits: &Limits) -> zil_base::CompileResult<zil_expand::ExpandedModule> {
     let src = source(s);
     let ast = zil_syntax::parse(&src).into_result().unwrap();
