@@ -207,10 +207,7 @@ impl Budget {
             .ordinary_pod_store_roots
             .contains(&(ty as *const Type as usize)))
     }
-    pub(super) fn has_owned_store_packages(&self) -> bool {
-        !self.owned_store_package_roots.is_empty()
-    }
-    fn owned_store_package_type(&mut self, ty: &Type) -> CompileResult<bool> {
+    pub(super) fn owned_store_package_type(&mut self, ty: &Type) -> CompileResult<bool> {
         if self.owned_store_package_roots.is_empty() {
             return Ok(false);
         }
@@ -816,6 +813,15 @@ pub(super) fn preflight(
         let mut new_sum = false;
         let mut new_ordinary_pod_store = false;
         let mut contains_owned_store_package_field = false;
+        // Flat Package values with Store fields retain the old complete-
+        // Package route, including callback fields. Borrowed Package
+        // receivers still need the new owned-Store window admission, except
+        // for their old direct-callback profile. Derive both distinctions
+        // during this already charged raw type walk.
+        let mut new_product_shape = false;
+        let address_package = matches!(ty, Type::Address { inner, .. }
+            if matches!(inner.as_ref(), Type::Package { .. }));
+        let mut direct_address_callback = false;
         let mut first = Some((
             ty,
             0usize,
@@ -856,6 +862,7 @@ pub(super) fn preflight(
                     child.pod_aggregate = true;
                 }
                 Type::Package { .. } => {
+                    new_product_shape |= context.in_product && store_element.is_none();
                     child.in_product = true;
                     child.pod_aggregate = true;
                     if context.in_error {
@@ -950,6 +957,7 @@ pub(super) fn preflight(
             }
             match ty {
                 Type::BorrowedStorage { storage, .. } => {
+                    new_product_shape |= context.in_product && store_element.is_none();
                     super::stored_flow::qualification(module, ty, limits, budget)?;
                     budget.stored_borrows = true;
                     pending.push((
@@ -1064,6 +1072,13 @@ pub(super) fn preflight(
                     budget.input(fields.len(), "record fields")?;
                     for (name, t) in fields {
                         budget.input(name.len(), "field name")?;
+                        if address_package
+                            && depth == 1
+                            && matches!(ty, Type::Package { .. })
+                            && matches!(t, Type::Closure(_))
+                        {
+                            direct_address_callback = true;
+                        }
                         // Only ordinary value positions acquire the new Product
                         // profile. Resource heads remain finite Copy, including
                         // unused metadata. Reuse the paid field visit; the old
@@ -1231,7 +1246,10 @@ pub(super) fn preflight(
             budget.spend(1, "ordinary POD Store root allocation")?;
             budget.ordinary_pod_store_roots.insert(root);
         }
-        if contains_owned_store_package_field && matches!(ty, Type::Package { .. }) {
+        if contains_owned_store_package_field
+            && (new_product_shape || new_sum)
+            && matches!(ty, Type::Package { .. })
+        {
             budget.lookup(
                 budget.owned_store_package_roots.len(),
                 "owned Store Package root insertion",
@@ -1240,6 +1258,7 @@ pub(super) fn preflight(
             budget.owned_store_package_roots.insert(root);
         }
         if contains_owned_store_package_field
+            && (new_product_shape || new_sum || !direct_address_callback)
             && let Type::Address { inner, .. } = ty
             && matches!(inner.as_ref(), Type::Package { .. })
         {
