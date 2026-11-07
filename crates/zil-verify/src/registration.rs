@@ -1,5 +1,13 @@
 //! Kernel reconstruction of the stable owning retained callback boundary.
 use super::*;
+mod phase;
+pub(super) fn check_phase(module: &TypedModule, budget: &mut Budget) -> Check<()> {
+    if budget.protocol_contracts || budget.protocol_checked {
+        phase::check(module, budget)
+    } else {
+        Ok(())
+    }
+}
 pub(super) const PREFIX: &str = "@builtin:Registration:";
 pub(super) const ASYNC_PREFIX: &str = "@builtin:AsyncRegistration:";
 fn error(span: Option<Span>, s: &str) -> Diagnostic {
@@ -250,6 +258,10 @@ pub(super) fn instruction(
     let span = Some(i.span);
     budget.registrations = true;
     budget.head_descriptions = true;
+    budget.protocol_checked |= matches!(
+        i.kind,
+        InstructionKind::AsyncRegistrationFinishDestroyChecked { .. }
+    );
     budget.spend(1)?;
     Ok(Some(match i.kind {
         InstructionKind::AsyncRegistrationStart {
@@ -336,7 +348,8 @@ pub(super) fn instruction(
                 Type::Unit
             }
         }
-        InstructionKind::AsyncRegistrationFinishDestroy { registration } => {
+        InstructionKind::AsyncRegistrationFinishDestroy { registration }
+        | InstructionKind::AsyncRegistrationFinishDestroyChecked { registration } => {
             let ty = value_type(f, registration, span)?;
             if !matches!(ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..})) {
                 return Err(error(span, "async finish requires actual owning head"));

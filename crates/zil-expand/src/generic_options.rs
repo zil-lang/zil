@@ -108,6 +108,13 @@ impl crate::ct_selection::Visitor for Probe<'_> {
     fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
         self.budget.text(text, span).map_err(|e| vec![e])
     }
+    fn constructor_pattern(&mut self, path: &[String], _: Span) -> CompileResult<()> {
+        // Only an actual constructor path requests standard declarations.
+        // A literal string or an unrelated binding named Poll keeps its old
+        // path and fee; ordinary alias resolution still handles shadowing.
+        self.tasks |= path.len() >= 2 && task_declaration(&path[path.len() - 2]).is_some();
+        Ok(())
+    }
     fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
         if matches!(ty.kind, TypeKind::Optional(_))
             || matches!(&ty.kind, TypeKind::Named{path,..} if path.as_slice()==["Option"])
@@ -387,6 +394,26 @@ fn task_aliases(module: &Module, span: Span, budget: &mut Budget<'_>) -> R<Vec<I
 #[cfg(test)]
 mod namespace_budget {
     use super::*;
+    #[test]
+    fn standard_type_spelling_in_a_string_keeps_the_plain_path_and_budget() {
+        let prepare_literal = |literal: &str| {
+            let source = zil_base::SourceUnit::new(
+                zil_base::FileId(0),
+                zil_base::ModuleId(0),
+                "literal.zil",
+                format!("fn main(){{let text=\"{literal}\";}}"),
+            );
+            let module = zil_syntax::parse(&source).into_result().unwrap();
+            prepare(&module, &Limits::default()).unwrap()
+        };
+        let (ordinary, ordinary_budget) = prepare_literal("Moll");
+        let (poll, poll_budget) = prepare_literal("Poll");
+        assert!(ordinary.is_none() && poll.is_none());
+        assert_eq!(
+            ordinary_budget.max_analysis_steps,
+            poll_budget.max_analysis_steps
+        );
+    }
     #[test]
     fn common_prefix_standard_namespace_inventory_is_prepaid_at_exact_boundary() {
         fn input(prefix: usize) -> Module {

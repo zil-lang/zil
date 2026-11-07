@@ -31,6 +31,7 @@ fn function(id: u32, result: Type, locals: &[Type], parameters: &[u32]) -> Typed
         foreign: None,
         environment: None,
         callable_contract: None,
+        protocol_contract: None,
         callable_return_contract: None,
         parameters: parameters.iter().copied().map(LocalId).collect(),
         return_type: result,

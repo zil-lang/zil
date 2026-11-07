@@ -24,6 +24,7 @@ fn function(index: usize) -> TypedFunction {
         environment: Some(ClosureId(index as u32)),
         callable_return_contract: None,
         callable_contract: None,
+        protocol_contract: None,
         parameters: vec![],
         return_type: Type::Unit,
         result_mode: PassingMode::Infer,

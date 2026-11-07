@@ -28,6 +28,7 @@ fn function(id: u32) -> TypedFunction {
         environment: None,
         callable_return_contract: None,
         callable_contract: None,
+        protocol_contract: None,
         parameters: vec![],
         return_type: Type::Unit,
         result_mode: PassingMode::Infer,

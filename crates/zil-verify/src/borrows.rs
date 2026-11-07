@@ -1607,6 +1607,7 @@ mod frontier_tests {
                     reference_return_bound: None,
                     callable_return_contract: None,
                     callable_contract: None,
+                    protocol_contract: None,
                     result_mode: zil_ir::PassingMode::Infer,
                     id: FunctionId(i as u32),
                     name: format!("f{i}"),

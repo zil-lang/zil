@@ -211,6 +211,7 @@ pub(super) fn project_symbol(name: &str) -> bool {
     name.starts_with("$module")
         || name.starts_with("$generic_$module")
         || name.starts_with("$generic_$builtinOption340_")
+        || name.starts_with("$generic_$stdTaskPoll343_")
 }
 
 /// Resolve project syntax names against actual declarations, not a parsed
@@ -1426,7 +1427,7 @@ impl Resolver<'_> {
                 let inner = match inner {
                     Type::Managed(payload) | Type::Desc(payload)
                         if *mutable
-                            && matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. }) =>
+                            && matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. } | Type::AsyncRegistration { .. }) =>
                     {
                         Type::Managed(payload)
                     }

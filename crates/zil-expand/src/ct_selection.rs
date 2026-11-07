@@ -15,6 +15,9 @@ pub trait Visitor {
     fn record_variant(&mut self, _: Span, _: usize) -> CompileResult<()> {
         Ok(())
     }
+    fn constructor_pattern(&mut self, _: &[String], _: Span) -> CompileResult<()> {
+        Ok(())
+    }
     fn item(&mut self, item: &s::Item, depth: usize) -> CompileResult<()> {
         walk_item(self, item, depth)
     }
@@ -397,6 +400,7 @@ pub fn walk_pattern<V: Visitor + ?Sized>(
             path: names,
             arguments,
         } => {
+            v.constructor_pattern(names, p.span)?;
             path(v, names, p.span, depth + 1)?;
             for p in arguments {
                 walk_pattern(v, p, depth + 1)?;
@@ -406,6 +410,7 @@ pub fn walk_pattern<V: Visitor + ?Sized>(
             path: names,
             fields,
         } => {
+            v.constructor_pattern(names, p.span)?;
             path(v, names, p.span, depth + 1)?;
             for field in fields {
                 v.node(field.span, depth + 1)?;

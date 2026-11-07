@@ -52,6 +52,8 @@ pub(super) struct Budget {
     pub(super) head_descriptions: bool,
     pub(super) registrations: bool,
     pub(super) async_registrations: bool,
+    pub(super) protocol_contracts: bool,
+    pub(super) protocol_checked: bool,
     pub(super) stored_borrows: bool,
     // Eligibility only; each pure use still proves the actual physical type.
     pub(super) pure_nominal: bool,
@@ -105,6 +107,8 @@ impl Budget {
             head_descriptions: false,
             registrations: false,
             async_registrations: false,
+            protocol_contracts: false,
+            protocol_checked: false,
             stored_borrows: false,
             pure_nominal: false,
             capture_relations: false,
@@ -1403,6 +1407,7 @@ pub(super) fn preflight(
     // scan is needed in the scope checker, including for legacy scalar IR.
     let mut package_functions = Vec::new();
     for (function_index, function) in module.functions.iter().enumerate() {
+        budget.protocol_contracts |= function.protocol_contract.is_some();
         if function.storage_life.is_some() {
             super::stored_flow::header(module, function, budget)?;
             budget.stored_borrows = true;
@@ -1646,8 +1651,13 @@ pub(super) fn preflight(
                     | InstructionKind::AsyncRegistrationValid { registration }
                     | InstructionKind::AsyncRegistrationRequestClose { registration }
                     | InstructionKind::AsyncRegistrationPollClose { registration }
-                    | InstructionKind::AsyncRegistrationFinishDestroy { registration } => {
+                    | InstructionKind::AsyncRegistrationFinishDestroy { registration }
+                    | InstructionKind::AsyncRegistrationFinishDestroyChecked { registration } => {
                         budget.registrations = true;
+                        budget.protocol_checked |= matches!(
+                            instruction.kind,
+                            InstructionKind::AsyncRegistrationFinishDestroyChecked { .. }
+                        );
                         budget.input(1, "registration actual operand")?;
                         if registration.0 as usize >= function.values.len() {
                             return Err(bad("registration operand outside actual values"));

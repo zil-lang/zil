@@ -193,7 +193,8 @@ impl Expander<'_> {
         {
             self.unsupported("generic function specialization", f.span);
         }
-        let result_mode = self.resource_result_mode(f);
+        let protocol_contract = self.resource_protocol_contract(f);
+        let result_mode = self.resource_result_mode(f, protocol_contract.is_some());
         let saved_self = self
             .self_type
             .replace(host.cloned().unwrap_or(Type::Unsupported(
@@ -353,6 +354,7 @@ impl Expander<'_> {
             callable_return,
             type_parameters,
             state_parameters,
+            protocol_contract,
             callable_parameters,
             result_mode,
             foreign: None,

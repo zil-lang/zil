@@ -569,6 +569,7 @@ pub(super) fn profile(
                 | InstructionKind::AsyncRegistrationRequestClose { .. }
                 | InstructionKind::AsyncRegistrationPollClose { .. }
                 | InstructionKind::AsyncRegistrationFinishDestroy { .. }
+                | InstructionKind::AsyncRegistrationFinishDestroyChecked { .. }
                 | InstructionKind::MakeClosure { .. }
                 | InstructionKind::DropClosure { .. }
                 | InstructionKind::UnsafeEnter { .. }

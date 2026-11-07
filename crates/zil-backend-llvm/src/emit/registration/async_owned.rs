@@ -96,12 +96,14 @@ impl FunctionEmitter<'_> {
                     },
                 );
             }
-            InstructionKind::AsyncRegistrationFinishDestroy { registration } => self.reg_call(
-                None,
-                m::Ty::Void,
-                m::global("zil.async_registration.finish".into()),
-                vec![m::Arg::new(m::Ty::Ptr, m::val(value(registration)))],
-            ),
+            InstructionKind::AsyncRegistrationFinishDestroy { registration }
+            | InstructionKind::AsyncRegistrationFinishDestroyChecked { registration } => self
+                .reg_call(
+                    None,
+                    m::Ty::Void,
+                    m::global("zil.async_registration.finish".into()),
+                    vec![m::Arg::new(m::Ty::Ptr, m::val(value(registration)))],
+                ),
             _ => unreachable!(),
         }
         Ok(())

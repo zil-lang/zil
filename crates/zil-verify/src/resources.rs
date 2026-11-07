@@ -2303,6 +2303,7 @@ impl Transfer<'_> {
                     }
                 }
                 InstructionKind::AsyncRegistrationFinishDestroy { registration: task }
+                | InstructionKind::AsyncRegistrationFinishDestroyChecked { registration: task }
                 | InstructionKind::RegistrationClose { registration: task }
                 | InstructionKind::TaskFinishDestroy { task } => {
                     self.consume(state, *task, span, validate)?;
