@@ -203,13 +203,42 @@ pub(super) fn poll_state() -> Type {
     }
 }
 // Callers prepay a complete actual-T walk before cloning/hash generation.
+pub(super) fn poll_name(result: &Type) -> String {
+    format!("@std.task:v1:Poll:{}", result.fingerprint())
+}
 pub(super) fn poll_type(result: &Type) -> Type {
-    Type::Enum {
-        name: format!("@std.task:v1:Poll:{}", result.fingerprint()),
+    let storage = Type::Enum {
+        name: poll_name(result),
         variants: vec![
             ("Pending".into(), vec![]),
             ("Ready".into(), vec![result.clone()]),
         ],
+    };
+    if matches!(result, Type::Address { mutable: false, .. }) {
+        Type::BorrowedStorage {
+            storage: Box::new(storage),
+            life: zil_ir::StorageLifeShape {
+                binder_count: 1,
+                slots: vec![zil_ir::StorageLifeSlot {
+                    path: vec![zil_ir::PlaceProjection::Variant(
+                        zil_ir::VariantProjection {
+                            variant: 1,
+                            index: 0,
+                        },
+                    )],
+                    binder: 0,
+                    mode: zil_ir::StoredBorrowMode::SharedAddress,
+                }],
+                retained: vec![zil_ir::StorageRetainedBinding {
+                    path: vec![zil_ir::LifeTypeProjection::TypeArgument(0)],
+                    class: 0,
+                    binder: 0,
+                }],
+                nominal_arguments: vec![],
+            },
+        }
+    } else {
+        storage
     }
 }
 pub(super) fn create_type(result: &Type, context: zil_ir::RetainedLifeShape) -> Type {

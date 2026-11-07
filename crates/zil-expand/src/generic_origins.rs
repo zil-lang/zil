@@ -13,12 +13,14 @@ use zil_ir::LifeDeclarationIdentity;
 pub(super) struct CompilerPrelude {
     pub(super) len: usize,
     pub(super) option: Option<usize>,
+    pub(super) poll: Option<usize>,
 }
 impl CompilerPrelude {
     fn option_only(inserted: bool) -> Self {
         Self {
             len: usize::from(inserted),
             option: inserted.then_some(0),
+            poll: None,
         }
     }
     fn origin(self, module: &Module, index: usize) -> R<Origin> {
@@ -30,8 +32,23 @@ impl CompilerPrelude {
         let mut origin = Origin::source(module.id, ordinal, module.span)?;
         origin.compiler = true;
         origin.declaration.compiler = true;
+        origin.role = if self.option == Some(index) {
+            Some(CompilerRole::Option)
+        } else if self.poll == Some(index) {
+            Some(CompilerRole::Poll)
+        } else {
+            None
+        };
         Ok(origin)
     }
+}
+
+/// Private provenance from actual prelude insertion. The traversal ordinal is
+/// deliberately separate from a public reserved nominal declaration ID.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CompilerRole {
+    Option,
+    Poll,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -51,6 +68,7 @@ pub(crate) struct Origin {
     pub(crate) member: Option<u32>,
     pub(crate) provider: bool,
     pub(crate) compiler: bool,
+    pub(crate) role: Option<CompilerRole>,
 }
 #[derive(Default)]
 pub(crate) struct Origins {
@@ -77,6 +95,7 @@ impl Origin {
             member: None,
             provider: false,
             compiler: false,
+            role: None,
         })
     }
     pub(crate) fn member(self, ordinal: usize, span: Span) -> R<Self> {
@@ -1016,6 +1035,24 @@ mod retained_member_tests {
                 let item = &prepared.module.items[option];
                 options::storage_identity(item, origins.entries[option], &mut budget).unwrap();
                 assert_eq!(origins.entries[option].declaration.ordinal, 0);
+            }
+            if let Some(poll) = prepared.prelude.poll {
+                let item = &prepared.module.items[poll];
+                let (id, identity) =
+                    options::storage_identity(item, origins.entries[poll], &mut budget).unwrap();
+                assert_eq!(id.module, ModuleId(u32::MAX));
+                assert_eq!(id.declaration, NodeId(1));
+                assert!(id.compiler);
+                assert_eq!(identity.module_path, ["task"]);
+                assert_eq!(identity.declaration_path, ["enum", "Poll"]);
+                assert_eq!(origins.entries[poll].role, Some(CompilerRole::Poll));
+                // A similarly compiler-inserted sibling has no Poll role.
+                let other = (0..prefix)
+                    .find(|index| *index != poll && prepared.prelude.option != Some(*index))
+                    .unwrap();
+                assert!(
+                    options::storage_identity(item, origins.entries[other], &mut budget).is_err()
+                );
             }
             for (ordinal, origin) in origins.entries[prefix..].iter().enumerate() {
                 assert!(!origin.compiler && !origin.declaration.compiler);

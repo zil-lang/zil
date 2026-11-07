@@ -18,7 +18,10 @@ pub(super) fn nominal_name(owner: u32, name: &str, variants: &[(String, Vec<Type
     if name == "$stdTaskPollState343" {
         return "@std.task:v1:TaskPollState".into();
     }
-    if name.starts_with("$generic_$stdTaskPoll343_")
+    // Physical naming preserves the standard ABI. Neither generated spelling
+    // grants the Poll role: qualified instances require the sealed inventory.
+    if (name.starts_with("$generic_$stdTaskPoll343_")
+        || name.starts_with("$stored_$stdTaskPoll343_"))
         && let [(pending, empty), (ready, payload)] = variants
         && pending == "Pending"
         && empty.is_empty()
@@ -329,13 +332,13 @@ pub(super) fn project_definitions(
 ) -> CompileResult<BTreeMap<String, Type>> {
     let mut result = BTreeMap::new();
     for module in &program.modules {
-        if module.core.life_instances.iter().any(|instance| {
+        let poll_borrows = if module.core.life_instances.iter().any(|instance| {
             matches!(&instance.ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Enum { .. }))
         }) {
             // This project namespace can only expose a qualified constructor
             // after the source/Core declaration and full actual graph agree.
-            stored::inventory(&module.core, remaining, limits).map_err(|e| vec![e])?;
-        }
+            stored::inventory(&module.core, remaining, limits).map_err(|e| vec![e])?
+        } else { false };
         for e in &module.core.enums {
             let foreign_stored_candidate = module.core.module_id != current.module_id
                 && !aggregates::project_symbol(&e.name)
@@ -345,6 +348,8 @@ pub(super) fn project_definitions(
             if module.core.module_id != current.module_id
                 && !aggregates::project_symbol(&e.name)
                 && !foreign_stored_candidate
+                && !(poll_borrows
+                    && aggregates::shared_poll_state(e, remaining).map_err(|e| vec![e])?)
             {
                 continue;
             }

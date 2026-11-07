@@ -859,6 +859,9 @@ pub(super) fn inventory(module: &TypedModule, limits: &Limits, b: &mut Budget) -
     let mut declarations = Vec::<&LifeNominalDeclaration>::new();
     for d in &module.life_declarations {
         identity_work(&d.identity, b)?;
+        if enum_address::poll_reserved(d) && !enum_address::poll_declaration(d) {
+            return Err(err("reserved Poll nominal declaration is not authentic"));
+        }
         if d.identity.package.is_empty()
             || d.identity.declaration_path.is_empty()
             || d.identity
@@ -901,6 +904,13 @@ pub(super) fn inventory(module: &TypedModule, limits: &Limits, b: &mut Budget) -
             .iter()
             .find(|d| d.id == instance.declaration)
             .ok_or_else(|| err("nominal instance references absent declaration"))?;
+        if matches!(storage, Type::Enum { name, .. } if name.starts_with("@std.task:v1:Poll:"))
+            && !enum_address::poll_declaration(d)
+        {
+            return Err(err(
+                "reserved Poll physical nominal has no sealed declaration",
+            ));
+        }
         if !matches!(
             (d.kind, storage),
             (LifeNominalKind::Record, Type::Record { .. })
@@ -922,7 +932,8 @@ pub(super) fn inventory(module: &TypedModule, limits: &Limits, b: &mut Budget) -
             return Err(err("nominal actual list omits complete generic ordinal"));
         }
         nominal::rows(module, instance, limits, b)?;
-        b.stored_enum_addresses |= !d.id.compiler && enum_address::candidate(&instance.ty);
+        b.stored_enum_addresses |= (!d.id.compiler || enum_address::poll_declaration(d))
+            && enum_address::candidate(&instance.ty);
         for previous in &module.life_instances[..i] {
             type_work(&previous.ty, limits, b)?;
             type_work(&instance.ty, limits, b)?;
