@@ -430,10 +430,13 @@ fn entry_body(
                 InstructionKind::Load(local)
                 | InstructionKind::StorageLive(local)
                 | InstructionKind::StorageDead(local) => {
-                    if !function
-                        .locals
-                        .get(local.0 as usize)
-                        .is_some_and(|l| scalar(&l.ty))
+                    let receiver_dead = matches!(&instruction.kind,
+                        InstructionKind::StorageDead(id) if *id == function.parameters[0]);
+                    if !receiver_dead
+                        && !function
+                            .locals
+                            .get(local.0 as usize)
+                            .is_some_and(|l| scalar(&l.ty))
                     {
                         return Err(bad(
                             "dyn entry has an unproved local address access",
