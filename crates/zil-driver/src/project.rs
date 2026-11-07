@@ -617,34 +617,34 @@ impl CompilationSession {
             return Ok(());
         }
         let syntax_modules = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
-        let mut syntax_paths = project.paths.clone();
-        if let (Some(lock), Some(scoped)) = (&options.syntax_lock, &options.scoped_imports) {
-            for entry in &lock.entries {
-                for ((_, path), module) in scoped.iter() {
-                    if path != &entry.path {
-                        continue;
-                    }
-                    if syntax_paths
-                        .insert(entry.path.clone(), *module)
-                        .is_some_and(|previous| previous != *module)
-                    {
-                        return Err(reject(
-                            "E-SYNTAX-LOCK-AMBIGUOUS",
-                            None,
-                            format!(
-                                "syntax provider {} resolves to different project modules",
-                                entry.path.join(".")
-                            ),
-                        ));
+        let locked = if let Some(lock) = &options.syntax_lock {
+            let mut syntax_paths = project.paths.clone();
+            if let Some(scoped) = &options.scoped_imports {
+                for entry in &lock.entries {
+                    for ((_, path), module) in scoped.iter() {
+                        if path != &entry.path {
+                            continue;
+                        }
+                        if syntax_paths
+                            .insert(entry.path.clone(), *module)
+                            .is_some_and(|previous| previous != *module)
+                        {
+                            return Err(reject(
+                                "E-SYNTAX-LOCK-AMBIGUOUS",
+                                None,
+                                format!(
+                                    "syntax provider {} resolves to different project modules",
+                                    entry.path.join(".")
+                                ),
+                            ));
+                        }
                     }
                 }
             }
-        }
-        let locked = options
-            .syntax_lock
-            .as_ref()
-            .map(|lock| lock.resolve(&project.modules, &syntax_modules, &syntax_paths))
-            .transpose()?;
+            Some(lock.resolve(&project.modules, &syntax_modules, &syntax_paths)?)
+        } else {
+            None
+        };
         let imports = resolve_imports(
             project,
             &parsed,
@@ -1835,7 +1835,7 @@ mod filesystem_discovery_tests {
             modules: vec![SourceUnit::new(FileId(0), ModuleId(0), "placeholder", "")],
             paths: BTreeMap::new(),
         };
-        match load_sources(&mut p, path, options, session)? {
+        match load_sources(&mut p, path, &mut options.clone(), session)? {
             LoadedProject::Parsed(syntax) => Ok(syntax),
             LoadedProject::Prepared(_, _) | LoadedProject::Semantic(_) => {
                 panic!("this control expects ordinary syntax discovery")
@@ -1851,7 +1851,12 @@ mod filesystem_discovery_tests {
             modules: vec![SourceUnit::new(FileId(0), ModuleId(0), "placeholder", "")],
             paths: BTreeMap::new(),
         };
-        let loaded = load_sources(&mut project, path, options, &CompilationSession::default())?;
+        let loaded = load_sources(
+            &mut project,
+            path,
+            &mut options.clone(),
+            &CompilationSession::default(),
+        )?;
         Ok((project, loaded))
     }
 

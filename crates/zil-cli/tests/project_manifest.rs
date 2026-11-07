@@ -67,7 +67,7 @@ fn declared_path_dependency_and_test_results_are_real() {
     let text = String::from_utf8(test.stdout).unwrap();
     assert!(text.contains("\"status\":\"Pass\""), "{text}");
     assert!(text.contains("\"passed\":3"), "{text}");
-    let default_backend = dir.run(&["test", path, "--json"]);
+    let default_backend = dir.run(&["test", path, "--codegen-units", "2", "--json"]);
     assert!(default_backend.status.success(), "{default_backend:?}");
     fs::write(
         app.join("tests.zil"),
@@ -352,5 +352,10 @@ fn manifest_byte_and_file_budgets_are_checked_before_read_allocation() {
     limits.max_nodes = 2;
     assert!(zil_driver::ProjectManifest::open(&app, &limits).is_ok());
     limits.max_nodes = 1;
+    assert!(zil_driver::ProjectManifest::open(&app, &limits).is_err());
+    limits.max_nodes = 2;
+    limits.max_analysis_steps = "Zil.toml".len() + "lib.zil".len();
+    assert!(zil_driver::ProjectManifest::open(&app, &limits).is_ok());
+    limits.max_analysis_steps -= 1;
     assert!(zil_driver::ProjectManifest::open(&app, &limits).is_err());
 }
