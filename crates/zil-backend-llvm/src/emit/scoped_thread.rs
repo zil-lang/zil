@@ -74,6 +74,7 @@ pub(super) fn present(lir: &LirView<'_>) -> bool {
                 InstructionKind::WithScopedThread { .. }
                     | InstructionKind::WithSyncCell { .. }
                     | InstructionKind::SyncI32 { .. }
+                    | InstructionKind::SyncI32CompareExchange { .. }
             )
         })
 }
@@ -547,6 +548,37 @@ impl FunctionEmitter<'_> {
         self.event(m::Event::Label(format!("{prefix}.ok")));
     }
 
+    pub(super) fn sync_compare_exchange(
+        &mut self,
+        instruction: &Instruction,
+        address: ValueId,
+        expected: ValueId,
+        desired: ValueId,
+        success: AtomicOrdering,
+        failure: AtomicOrdering,
+    ) -> CompileResult<()> {
+        if !matches!(self.value_type(address)?,Type::Address{mutable:false,inner} if inner.as_ref()==&Type::SyncCell(SyncCellKind::AtomicI32))
+        {
+            return invalid(
+                "E-CODEGEN-SYNC",
+                "compare exchange requires the actual AtomicI32 address",
+                Some(instruction.span),
+            );
+        }
+        self.event(inst(
+            Some(format!("v.{}", result(instruction)?.0)),
+            m::Op::AtomicCompareExchange {
+                result: m::Ty::Struct(vec![m::Ty::Int(32), m::Ty::Int(1)]),
+                expected: m::Arg::new(m::Ty::Int(32), m::val(value(expected))),
+                desired: m::val(value(desired)),
+                ptr: m::val(value(address)),
+                align: 4,
+                success: machine_order(success),
+                failure: machine_order(failure),
+            },
+        ));
+        Ok(())
+    }
     pub(super) fn sync_i32(
         &mut self,
         instruction: &Instruction,
