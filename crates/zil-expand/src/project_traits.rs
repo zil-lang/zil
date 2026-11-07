@@ -47,7 +47,9 @@ pub(super) fn method_owners(
                 if a.generics.is_empty()
                     && matches!(
                         a.kind,
-                        s::AggregateKind::Struct | s::AggregateKind::Resource
+                        s::AggregateKind::Struct
+                            | s::AggregateKind::Resource
+                            | s::AggregateKind::Package
                     ) =>
             {
                 // A library's generic bound may be instantiated with its
