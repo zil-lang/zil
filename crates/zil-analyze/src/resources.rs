@@ -366,14 +366,20 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 .get(id.0 as usize)
                 .ok_or_else(|| error("absent closure shape"))?;
             budget.spend(c.captures.len(), "resource environment classification")?;
+            let mut owned = c.kind == CallableKind::FnOnce
+                || c.captures.iter().any(|t| {
+                    matches!(
+                        t,
+                        Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+                    )
+                });
+            if budget.has_ordinary_store_sum_capture(*id)? {
+                for ty in &c.captures {
+                    owned |= budget.ordinary_store_sum_capture(*id, ty)?;
+                }
+            }
             Shape {
-                owned: c.kind == CallableKind::FnOnce
-                    || c.captures.iter().any(|t| {
-                        matches!(
-                            t,
-                            Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
-                        )
-                    }),
+                owned,
                 description: c.captures.iter().any(|t| matches!(t, Type::Desc(_))),
             }
         }

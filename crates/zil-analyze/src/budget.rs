@@ -117,10 +117,18 @@ impl Budget {
         }
     }
 
-    pub(super) fn has_ordinary_store_sum_capture(&self, id: zil_ir::ClosureId) -> bool {
-        self.ordinary_store_sum_captures
+    pub(super) fn has_ordinary_store_sum_capture(
+        &mut self,
+        id: zil_ir::ClosureId,
+    ) -> CompileResult<bool> {
+        if self.ordinary_store_sum_captures.is_empty() {
+            return Ok(false);
+        }
+        self.spend(1, "ordinary Sum capture closure lookup")?;
+        Ok(self
+            .ordinary_store_sum_captures
             .get(id.0 as usize)
-            .is_some_and(|roots| !roots.is_empty())
+            .is_some_and(|roots| !roots.is_empty()))
     }
 
     pub(super) fn ordinary_store_sum_capture(
@@ -1522,7 +1530,7 @@ pub(super) fn preflight(
             return Err(bad("function references an absent environment"));
         }
         if let Some(id) = function.environment
-            && budget.has_ordinary_store_sum_capture(id)
+            && budget.has_ordinary_store_sum_capture(id)?
         {
             for ty in &module.closures[id.0 as usize].captures {
                 budget.input(1, "entry Sum capture membership")?;

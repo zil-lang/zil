@@ -190,6 +190,7 @@ pub(super) fn check(
                         {
                             return Err(bad_path());
                         }
+                        let ordinary_store_leaf = ownership_store::pod_owned(ty);
                         if !ty.is_copy_value()
                             && !matches!(
                                 ty,
@@ -198,8 +199,20 @@ pub(super) fn check(
                                     | Type::Enum { .. }
                                     | Type::ErrorUnion { .. }
                             )
+                            && !ordinary_store_leaf
                         {
                             return Err(bad_path());
+                        }
+                        if ordinary_store_leaf {
+                            let Some(Type::Address { inner, .. }) =
+                                f.values.get(address.0 as usize)
+                            else {
+                                return Err(bad_path());
+                            };
+                            if !resources::sums::admit(module, inner, b)? {
+                                return Err(bad_path());
+                            }
+                            ownership_store::ordinary_owned(module, ty, b)?;
                         }
                         if matches!(
                             ty,

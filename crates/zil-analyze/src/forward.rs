@@ -150,8 +150,12 @@ pub(super) fn envelope(
                         .get(index as usize)
                         .ok_or_else(|| bad("forward capture write index is absent"))?;
                     budget.type_work(ty, true, "forward actual capture write type")?;
+                    let owning_sum = budget.ordinary_store_sum_capture(id, ty)?;
+                    if owning_sum && !resources::sums::admit(module, ty, budget)? {
+                        return Err(bad("forward owned Sum write lacks an ordinary Store leaf"));
+                    }
                     if def.kind == CallableKind::Fn
-                        || !ty.is_copy_value()
+                        || (!ty.is_copy_value() && !(owning_sum && def.kind == CallableKind::FnMut))
                         || body.values.get(value.0 as usize) != Some(ty)
                         || instruction.result.is_some()
                     {
@@ -180,6 +184,14 @@ pub(super) fn envelope(
             Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
         ) {
             budget.spend(1, "parameter return cleanup index")?;
+            cleanup.push(index as u32);
+        } else if budget.ordinary_store_sum_capture(definition.id, ty)? {
+            if !resources::sums::admit(module, ty, budget)? {
+                return Err(bad(
+                    "parameter return Sum capture lacks an ordinary Store leaf",
+                ));
+            }
+            budget.spend(1, "parameter return Sum cleanup index")?;
             cleanup.push(index as u32);
         }
     }
