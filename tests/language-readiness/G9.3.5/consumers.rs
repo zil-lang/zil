@@ -469,11 +469,11 @@ fn ordinary_store_pair_cannot_duplicate_one_parent_raw_or_wire() {
         .flat_map(|f| &mut f.blocks)
         .flat_map(|b| &mut b.instructions)
     {
-        if let I::MakePackage { fields } = &mut instruction.kind {
-            if fields.len() == 2 {
-                fields[1] = fields[0];
-                mutated = true;
-            }
+        if let I::MakePackage { fields } = &mut instruction.kind
+            && fields.len() == 2
+        {
+            fields[1] = fields[0];
+            mutated = true;
         }
     }
     assert!(mutated, "Source must construct the two-parent Pair");
