@@ -263,7 +263,7 @@ fn ordinary_direct_sum_capture_source_rejects_lost_ownership() {
         "{}",
         report.to_json()
     );
-    assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
+    assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
     assert!(
         report
             .diagnostics
