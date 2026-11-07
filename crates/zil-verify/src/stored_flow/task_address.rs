@@ -118,6 +118,7 @@ pub(super) fn seed(
         base,
         leaf: leaf.clone(),
         inline: vec![],
+        heap_element: None,
         retained_port: Some(0),
     };
     let id = loans.len();

@@ -128,11 +128,11 @@ fn analyze_budgeted(
         });
     }
     let mut stored_holds = None;
-    if budget.stored_borrows || budget.task_borrowed_results {
+    if budget.stored_borrows || budget.task_borrowed_results || budget.store_option_results {
         // These actual opaque carriers cannot enter the legacy stored lane.
         // A stored module with only scalar helpers retains its old path/fees.
         let ordinary_required = budget.tasks || budget.registrations;
-        if budget.task_borrowed_results {
+        if budget.task_borrowed_results || budget.store_option_results {
             for function in &module.functions {
                 stored_flow::header(module, function, budget)?;
             }
@@ -229,7 +229,25 @@ fn analyze_budgeted(
     };
     if let Some(stored) = stored_holds {
         for (index, rows) in stored.into_iter().enumerate() {
-            if budget.task_borrowed_results || budget.composition_stored[index] {
+            if budget.store_option_results && !budget.task_borrowed_results {
+                if rows.len() != module.functions[index].values.len() {
+                    return Err(bad("stored Option proof omitted an actual SSA value"));
+                }
+                for (ty, (stored, ordinary)) in module.functions[index]
+                    .values
+                    .iter()
+                    .zip(rows.iter().zip(&actual_holds[index]))
+                {
+                    budget.spend(1, "stored Option and ordinary Hold comparison")?;
+                    if matches!(ty, Type::BorrowedStorage { .. })
+                        || ty.is_shared_package_address()
+                    {
+                        if stored.roots != ordinary.roots {
+                            return Err(bad("stored Option and ordinary actual roots disagree"));
+                        }
+                    }
+                }
+            } else if budget.task_borrowed_results || budget.composition_stored[index] {
                 if rows.len() != module.functions[index].values.len() {
                     return Err(bad("stored composition solver omitted an owned function"));
                 }

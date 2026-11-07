@@ -94,6 +94,7 @@ pub(super) fn seed(
         base,
         stored: path.clone(),
         place: vec![],
+        heap_element: None,
         retained_port: Some(0),
     };
     let id = loans.len();
