@@ -436,7 +436,9 @@ fn raw_and_wire_rebuild_unused_product_storage_and_leaf_qualification() {
                 fields[1].0 = fields[0].0.clone();
             }
             2 => {
-                // Store inside a Product remains outside the finite profile.
+                // Ordinary Product ownership does not make a Product
+                // containing Store an admissible Store element. This also
+                // lacks the exact inner Store<i32> resource definition.
                 fields[1].1 = Type::Managed(Box::new(Type::OwnedStore {
                     element: Box::new(Type::I32),
                 }));
@@ -451,7 +453,7 @@ fn raw_and_wire_rebuild_unused_product_storage_and_leaf_qualification() {
             [
                 "each Product Package requires a transitive explicit manages leaf",
                 "package fields must have unique nonempty names",
-                "POD Store ownership is not admitted inside owning aggregate fields",
+                "non-Copy type requires another checker",
             ][variant],
         );
     }
