@@ -10,7 +10,7 @@
 
 父任务汇总完整范围，子任务记录具体交付，父子不重复计数；子项全完成不自动代表父项完成。需要独立派工、复核或验收的补充工作才新增任务编号，沿用父编号加一段；零散修正记在原任务进展中。编号同时用于分支与实施说明，不再另设勾稽编号。
 
-**当前主线：通用语言完整性与 Rust 竞争力优先。** G9.3.2 普通 POD 动态集合与原大值 O0 修复已由 [PR49 验收][e-pr49] 合入；G3.4.1 共享借入迭代、G9.3.1 普通 UTF8 入口已交付。G2.4.1 的普通 trait 逐调用共享 lending 已由 [PR50 验收][e-pr50] 合入；本批 G2.4.2、G9.3.3、G9.3.4 和 G10.6.1 已由 [PR51 验收][e-pr51] 合入，有限语言初稿可构建、运行并从远端恢复；当前 P0 为 Codex 认领的 G9.3.5：POD/标量 Store 进入普通拥有数据模型。其余 dyn/显式存储、更广借用、状态协议和异步责任仍待分派。GPU/GUI 专用 G10.3.1、G9.5.1、G9.6.2 后置；ZUI 保持 GPUI/GPU 方向。实现与常规独审采用 sol high，疑难问题才交 Astra。
+**当前主线：通用语言完整性与 Rust 竞争力优先。** G9.3.2 普通 POD 动态集合与原大值 O0 修复已由 [PR49 验收][e-pr49] 合入；G3.4.1 共享借入迭代、G9.3.1 普通 UTF8 入口已交付。G2.4.1 的普通 trait 逐调用共享 lending 已由 [PR50 验收][e-pr50] 合入；本批 G2.4.2、G9.3.3、G9.3.4 和 G10.6.1 已由 [PR51 验收][e-pr51] 合入，有限语言初稿可构建、运行并从远端恢复；当前 P0 为 Codex 认领的 G9.3.5（POD/标量 Store 普通拥有组合）与 G5.2.1（有限共享 dyn 实际派发）；[全文复核与分工][review-chat9]已保存。其余 dyn/显式存储、更广借用、状态协议和异步责任仍待分派。GPU/GUI 专用 G10.3.1、G9.5.1、G9.6.2 后置；ZUI 保持 GPUI/GPU 方向。实现与常规独审采用 sol high，疑难问题才交 Astra。
 
 ## G1 · 基础类型与模式
 
@@ -189,7 +189,7 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G5.2.1 | 两个 provider 的单共享 dyn 接收者与固定标量方法槽 | 待执行 | P1 | 待派 | 通用抽象后续批次；贯通真实接收者/入口身份、两核和机器结果，保留错 provider/slot 反例；不先开放拥有擦除存储。 |
+| G5.2.1 | 两个 provider 的单共享 dyn 接收者与固定标量方法槽 | 进行中 | P0 | Codex · 本会话 | [合同与基线][task-g521]已推送；复用既有 Core/公开表示，补 Source coercion、真实合同、独立两核及机器调用。双 provider 源在 Expand、旧共享源在 Types 仍 Unsupported；尚未实现或验收。 |
 
 </details>
 
@@ -242,7 +242,6 @@
 | G9.3.2 | 普通 POD 动态集合与真实借入视图 | 已合入 | — | — | [PR49 验收][e-pr49]：普通 Record 的 std.store、reserve/push/pop/shared view 和大 Copy 协议；默认5124/0、参考5012/0、文本70/0及工程门通过。原262144字节源码默认栈 O0/O2通过；一般元素/可变片/拥有组合仍另缺。 |
 | G9.3.3 | 普通 POD 集合的可变元素借用：实际写入、helper 重借用与结构修改互斥 | 已合入 | — | — | [PR51 验收][e-pr51]：真实 std.store 可变元素与 helper 重借用、写后读回、失败保留、两核 raw/Wire 和双后端 O0/O2通过；保留整 Store 排他，不推断不同下标不交。 |
 | G9.3.4 | 标量动态序列：直接 Store<i32/u64/usize/bool/浮点等既有标量> 与真实 std.store | 已合入 | — | — | [PR51 验收][e-pr51]：bool/u8/u16/i32/i64/u64/usize/f32/f64 直接序列与真实 std.store、完整 u64 和双后端通过；Unit、一般拥有/捕获及 standalone Array/Tuple/Enum 仍排除。 |
-
 | G9.3.5 | POD/标量 Store 的普通拥有数据模型：字段、整值流、替换与自含捕获 | 进行中 | P0 | Codex · 本会话 | [合同与基线][task-g935]已推送；真实 Source 复现新族字段在 Types Unsupported、旧族与独立标量通过。先接完整责任/清理链，尚未实现或验收；一般借用/dyn/状态协议/跨线程异步不在本单。 |
 
 <details>
@@ -379,4 +378,7 @@
 
 [e-pr51]: https://github.com/zil-lang/zil/blob/15b9e09d83aeea9be1cc9ea4b4bdd9f5a5f9fa71/docs/validation/G10.6.1-common-acceptance.json
 
-[task-g935]: https://github.com/zil-lang/zil/blob/7cd2745203f6388bd97823719e37c3f5eb2b60b3/.task/G9.3.5.md
+[task-g935]: https://github.com/zil-lang/zil/blob/f07b9a22c348ab6a9709d0be805cca114134582b/.task/G9.3.5.md
+
+[task-g521]: https://github.com/zil-lang/zil/blob/b8048c021b6bd45ffb152d77812c547c96b54529/.task/G5.2.1.md
+[review-chat9]: https://github.com/zil-lang/zil/blob/f07b9a22c348ab6a9709d0be805cca114134582b/docs/reviews/CHAT9-REVIEW.md
