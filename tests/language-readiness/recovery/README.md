@@ -1,27 +1,15 @@
-# 恢复后的真实语言探针
+# 冻结语言能力探针
 
-以下表格和`check.py`的硬编码基线均属于316在`7f039d16`的历史观察，不是当前
-main结论。334保持25份源原字节复跑，现为8 Success、7 Unsupported、10
-SafeReject；life参数返回及具体泛型trait已成功，三份未声明life源均明确拒绝。
-当前复跑使用`../language-gap-replay/replay-frozen-baseline.py`，精简结果见
-`validation/inputs/language-readiness/language-gaps-baseline.json`；不覆盖本目录的历史收据。
+本目录保留 25 份原始 ZIL Source，用于比较普通借用、trait、life、线程和作用域边界。`controls` 是到 Verify 的正控；`rejects` 是相交窗口、局部逃逸、缺 nominal impl、伪造 Transfer 和捕获闭包转 C 入口的拒绝控制；`pending` 是当时尚未实现的合法目标，不是永久拒绝条件；`probes` 显示旧实现对未声明 life 的擦除。普通名字、解析成功或公共数字不产生线程、锁或挂起能力。
 
-本目录由316在现存主线重新建立；不继承无法恢复的301–312源码、公共表示或成绩。合同及后续阶段见[316说明](../../../changes/316-concurrency-lifetime-prerequisites.md)，逐源观察见[结果](../../../validation/inputs/language-readiness/recovery-capabilities.json)。
+固定基线提交 `7f039d16` 的逐源观察在 [冻结收据](../../../validation/inputs/language-readiness/recovery-capabilities.json)。该收据记录 6 个 controls 成功、5 个 rejects 为 SafeReject、11 个 pending 中 9 个 Unsupported/2 个 SafeReject、3 个 probes 到 Verify；其中 pending 的 SafeReject 和 probes 的成功不建立规范许可。另一次在更晚候选上的相同字节复跑记录 8 Success、7 Unsupported、10 SafeReject，见 [语言缺口基线](../../../validation/inputs/language-readiness/language-gaps-baseline.json)。两次观察绑定不同编译器，不能合并为当前主线结论。
+
+使用当前编译器重新观察时，把输出写到独立临时文件，保留原收据：
 
 ```sh
-source /workspace/.zil-env/env.sh
 python3 tests/language-readiness/recovery/check.py \
-  --zil /workspace/.zil-env/target-recovery-root/debug/zil \
-  --output validation/inputs/language-readiness/recovery-capabilities.json
+  --zil /absolute/path/to/zil \
+  --output /tmp/zil-recovery-observation.json
 ```
 
-`check.py`只调用真实生产CLI，不注册Cargo测试target，不执行非法程序、不做原生或性能测量。输出绑定源、二进制和规范SHA；`collection_status=Complete`只说明取证完成。新版编译器可用同一原源重跑，pending变化为Success应继续验证和晋升，不能以旧失败为永久测试预期。
-
-| 来源组 | 本轮观察 | 含义 |
-| --- | --- | --- |
-| `controls` 6源 | Success，各1次Verify | 普通借用返回、两输入来源、静态trait、Copy函数指针及同线程scope保持。`ordinary-mutex-poll-names`只检查普通record与函数，不是Mutex/SABI。 |
-| `rejects` 5源 | SafeReject | 局部逃逸、相交窗口、缺nominal impl、伪造Transfer、捕获closure转C入口仍拒绝。两个借用反例实际到独立Verify拒绝。 |
-| `pending` 11源 | 9 Unsupported、2 SafeReject | life binder、间接借用签名、HRTB、四种trait组合、Suspend/spawn合同及Transfer/Share约束尚未贯通。后两项当前按未声明nominal trait误归SafeReject，不能据此宣称规范禁止。 |
-| `probes` 3源 | Success，各1次Verify | 非泛型未声明life、错life拼写返回及Self接收者的life均被擦除；这是语义未完成观察，不是有效life正控或safe UB证明。 |
-
-其中scoped正控只检查源到Verify，外部register/close承诺没有执行。runtime TypedIR/Wire并无旧121/122/123，普通名字、公共数字与源码解析都不产生线程、锁或挂起能力。当前结果不宣称完整1.4、ZUI、B0或Rust四目标产品验收。
+`check.py` 调用真实 CLI，仅检查源码阶段和诊断；它不执行非法程序、原生程序或性能测量。报告绑定输入、二进制和规范摘要。`collection_status=Complete` 只表示取证完成。合法目标从 Unsupported 变为 Success 时须继续验证机器行为及近邻反例；scoped 正控的外部 register/close 也未在本收据执行。完整语言和产品门另行验收。

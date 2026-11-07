@@ -8,11 +8,11 @@
 
 | 能力簇 | 预览支持范围 | 已验收证据 | 边界 |
 | --- | --- | --- | --- |
-| 有限拥有组合与共享动态派发 | 普通 POD/九种标量 Store 的有限拥有父形状和自包含捕获；两提供者的共享借入 dyn 固定标量槽 | 精确源码的 Source、独立核、Clang/LLVM API O0/O2、共同门及冷恢复见本批收据 | Unit dyn Source Unsupported；无 owning/mut dyn、擦除拥有存储或一般 lending |
+| 有限拥有组合与共享动态派发 | 普通 POD/九种标量 Store 的有限拥有父形状和自包含捕获；两提供者的共享借入 dyn 固定标量槽 | 精确源码的 Source、独立核、Clang/LLVM API O0/O2、共同门及冷恢复见绑定源码的收据 | Unit dyn Source Unsupported；无 owning/mut dyn、擦除拥有存储或一般 lending |
 | 普通集合与文本 | 真实 `std.store` 的有限 POD Record 和九种基础标量集合、容量管理、push/pop、共享与独占元素窗口；现有 UTF-8 字面量/只读入口和显式 String | 普通 POD Store 和文本已接受收据；原地修改与直接标量 Store 同批验收的源码、raw/Wire、两核、Clang/LLVMAPI O0/O2、分配失败与近邻拒绝 | 可变窗口须保持整 Store 排他，未知不同下标不能推定不交；一般拥有/异构容器、完整 Unicode/格式化另列 |
-| trait 与借入迭代 | 现有普通泛型 trait、关联 Item、共享逐调用 lending；类型限定的静态关联函数及符号泛型宿主已通过本轮验收 | 普通 trait lending 已接受收据；静态关联函数 具体/符号宿主源码、独立两核及机器结果 | 一般关联投影、资源宿主 lending 不随该历史片开放；本批仅有限共享借入 dyn |
+| trait 与借入迭代 | 现有普通泛型 trait、关联 Item、共享逐调用 lending；类型限定的静态关联函数及符号泛型宿主已通过绑定源码的验收 | 普通 trait lending 已接受收据；静态关联函数 具体/符号宿主源码、独立两核及机器结果 | 一般关联投影、资源宿主 lending 不随该历史片开放；该验收仅有限共享借入 dyn |
 | 普通程序组合 | 选定真实跨模块程序中的集合更新、错误传播、明确资源责任与短借用 | 固定源文件/输入/完整 stdout、退出状态、失败清理、合法及最近反例；精确提交与 O0/O2 结果见共同收据 | 只晋升该组合实际覆盖的行为；其他长期借用形状按真实阻塞另行实现 |
-| 交付与质量 | Source→Types→Analyze→独立 Verify→机器产物的有限 profile；CLI 区分 Success、SafeReject、Unsupported、ResourceLimit、InfraError | 源码和摘要绑定本批共同收据；完整默认/参考回归、两后端原生、失败清理及冷恢复分别记录，全部通过，冷恢复边界单独记录 | 零命中、Unsupported、超时、工具失败与旧提交收据均非本次 Pass；正式 B0 和产品门维持原状态 |
+| 交付与质量 | Source→Types→Analyze→独立 Verify→机器产物的有限 profile；CLI 区分 Success、SafeReject、Unsupported、ResourceLimit、InfraError | 源码和摘要绑定绑定源码的共同收据；完整默认/参考回归、两后端原生、失败清理及冷恢复分别记录，全部通过，冷恢复边界单独记录 | 零命中、Unsupported、超时、工具失败与旧提交收据均非本次 Pass；正式 B0 和产品门维持原状态 |
 
 ## 快速开始
 
@@ -27,7 +27,7 @@ mkdir -p out
 printf '10 20 -3\n' | ./out/stream
 ```
 
-该已存在的普通多模块样例预期输出为 `3 0 45`（含换行），退出 0；本批已在远端重新拉取的同一源码与所标环境执行。本批组合样例在 `examples/mainline/draft_foundations/`，结合实际 std.store、trait 静态工厂、可变 helper 与显式失败处理。开发运行命令如下（本批恢复实跑使用 release CLI）：
+该已存在的普通多模块样例预期输出为 `3 0 45`（含换行），退出 0；冻结验收已在远端重新拉取的同一源码与所标环境执行。组合样例在 `examples/mainline/draft_foundations/`，结合实际 std.store、trait 静态工厂、可变 helper 与显式失败处理。开发运行命令如下（冻结恢复实跑使用 release CLI）：
 
 ```sh
 ./target/debug/zil run examples/mainline/draft_foundations/main.zil --entry main

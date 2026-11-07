@@ -1,42 +1,18 @@
-# 语言完整性来源样本
+# 语言支持与缺口输入
 
-当前共同候选B `14832d5a35630b7002c79e4df47b0cbb007570b6`的增量结果在
-`https://github.com/zil-lang/zil/blob/dd766f513bd8022e4d2c703f51a9343824150da8/docs/validation/language-gaps-334-final.json`：同52输入当前27/13/12，下面的
-52/18收据仍属于历史40fb。新的组合component另四配置，原两CT源另八次native；
-不将旧CLI结果归给B。记录变体、有限default、Copy-T/life和具体父闭包线程已
-有限贯通，完整Option/trait/life/dyn/异步/库与产品门仍未完成。
+本目录的 Source 是有限能力正反例和合法目标探针。目录名 `pending`、`recovery`、`codegen-pending` 是冻结来源名，不能单凭名字判定当前支持或永久拒绝。每份源可用 `zil check <path> --json` 在当前编译器重跑，源码到 Verify 的检查、原生执行和完整语言验收须分别记账。现行语义以 `_zil_design.md` 与具名附件为准。
 
-当前十方面核查见 `validation/inputs/language-readiness/language-gaps-baseline.json`，基线为已合入main的
-`40fbcca6ef506f3cb8e1d40a4f8995c788627da0`：52源检查和9源的18次API O0/O2
-原生构建/执行分别记账。复跑入口为 `language-gap-replay/README.md`。历史基线与实际观察
-仍见 `https://github.com/zil-lang/zil/blob/dd766f513bd8022e4d2c703f51a9343824150da8/docs/validation/language-readiness-baseline.json`。
-上一批本地受测候选为 `a57a668b68044e37e870d058684f9364307e04b1`，后续结果元数据经PR28合入远端main `0d7d74f7`；CI因账号支付/额度未启动，不能称为CI通过。322–328的有限life/trait/Direct线程与原a18修复已进入本基线，完整语言尚未完成。
-`controls` 保留既有源码到Verify正控；`pending` 是历史路径，不能仅按目录名判为当前缺口，也不注册为“必须拒绝”测试。
+[冻结语言缺口收据](../../validation/inputs/language-readiness/language-gaps-baseline.json)绑定旧主线 `40fbcca6ef506f3cb8e1d40a4f8995c788627da0`，包含 52 份 Source 检查及 9 源×O0/O2 的 18 次机器运行。后续候选 `14832d5a35630b7002c79e4df47b0cbb007570b6` 的同源投影、组合/CT 机器检查见[精确历史结果](https://github.com/zil-lang/zil/blob/dd766f513bd8022e4d2c703f51a9343824150da8/docs/validation/language-gaps-334-final.json)。两套结果不可跨源码累加；当前主线须重新运行并绑定其二进制、工具链和输入。复跑入口见 [冻结基线回放](language-gap-replay/README.md) 和 [恢复探针](recovery/README.md)。
 
-以下四份源保留原路径和字节，现已作为正控运行，不重复重写：
+下列原 `pending` 输入已作为有限正控，仍保留原路径和字节：
 
-| 历史pending源 | 已本地验证的有限能力 |
+| 输入 | 覆盖行为 |
 | --- | --- |
-| `pending/runtime-tuple-binding.zil` | 313普通有限Copy tuple绑定；321补泛型符号消费者。 |
-| `pending/ct-type-generic-function.zil` | 314 Type/Syntax普通Copy泛型函数。 |
-| `pending/ct-type-generic-record.zil` | 314具体纯记录CT组合；320补Struct Copy消费者。 |
-| `pending/mutable-product-helper-gap.zil` | 315普通完整Product局部`&mut`同步helper。 |
+| `pending/runtime-tuple-binding.zil` | 普通有限 Copy tuple 绑定及泛型符号消费者 |
+| `pending/ct-type-generic-function.zil` | Type/Syntax 普通 Copy 泛型函数 |
+| `pending/ct-type-generic-record.zil` | 具体纯记录 CT 与 Struct Copy 消费者 |
+| `pending/mutable-product-helper-gap.zil` | 普通完整 Product 局部 `&mut` 同步 helper |
 
-317实际多模块组合消费者也已完成本地源码与O0/O2运行、错误/关闭清理验证，见`examples/mainline/component-language-prerequisites`及`changes/317-recovery-consumer.md`。
-316仅为`recovery/`中的25源历史能力核查，结果见`validation/inputs/language-readiness/recovery-capabilities.json`。
-334复跑相同字节时，life参数返回和具体泛型trait已成功，三份未声明life源已明确
-拒绝。有限life-only、具体泛型trait和Direct线程不代表一般life/trait、异步/Mutex
-或其余基础类型/模式已经完成。`language-gap-replay/partial-copy-tuple.zil`保留已支持的
-Copy tuple通配部分解构对照；新增usize/u64及类型/life混合源保留合法目标。
-大数组原a18已由324有限生产修复，两后端O0/O2限定机器复验通过；旧崩溃报告原样保留。一般巨型按值ABI尚未完成，具体边界见`codegen-pending/README.md`。
+`controls` 是源码到 Verify 的正控。`language-gap-replay/partial-copy-tuple.zil` 保留 Copy tuple 通配部分解构；新增 usize/u64、类型/life 混合源是合法目标，不将旧 Unsupported/SafeReject 变成规范禁令。返回捕获环境的 `design-probes/returned-captured-handler.zil` 定位真实稳定存储与关闭协议的需求，不能仅放宽 `c_callback`；回调 scope、guard、Store 独占 helper 和局部 Product 是相邻对照。
 
-其余合法入口未来修复须保留原意并晋升正控。历史最小源的检查层级和317机器运行分别记账，不从未支持诊断推断安全，也不将源到Verify检查冒充原生执行或完整语言覆盖。
-
-每份源可用 `zil check <path> --json` 重跑；判定以当前规范及其具名附件为准。
-这些源覆盖典型缺口，不构成完整语言测试集；接口设计仍未固定的浮点/匿名union没有加入必修清单。
-
-`design-probes/returned-captured-handler.zil`故意尝试当前仅静态入口的闭包转换，
-应被现行规则拒绝；它只定位“返回后外部持有捕获环境”的需求缺口，
-不能通过放宽`c_callback`来晋升。未来须提供真实稳定存储与关闭协议。
-回调scope、返回静态guard、已有Store独占helper及普通局部Product对照
-分别保留，防止把已支持能力重新列为缺失。
+大型数组的限定修复与未覆盖 ABI 见 [大值输入](codegen-pending/README.md)。多模块组合消费者的完整返回值、清理和机器运行按其实际收据解释；不从最小 Source 检查推断这些行为。更广 Option、trait、life、dyn、异步、库和产品目标需独立验证。
