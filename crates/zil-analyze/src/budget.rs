@@ -65,6 +65,11 @@ pub(super) struct Budget {
     pub(super) pure_nominal: bool,
     pub(super) capture_relations: bool,
     pub(super) stored_owned_fixed: bool,
+    // Presence flags from paid actual-type/slot/capture inventories. These
+    // select new proof work and never grant authority to a borrowed value.
+    pub(super) stored_packages: bool,
+    pub(super) stored_fixed_owner: bool,
+    pub(super) stored_projected_slots: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_helper_bodies: std::collections::BTreeMap<zil_ir::FunctionId, BTreeSet<u32>>,
@@ -124,6 +129,9 @@ impl Budget {
             pure_nominal: false,
             capture_relations: false,
             stored_owned_fixed: false,
+            stored_packages: false,
+            stored_fixed_owner: false,
+            stored_projected_slots: false,
             shared_thread_functions: BTreeSet::new(),
             scoped_functions: BTreeSet::new(),
             scoped_helper_bodies: std::collections::BTreeMap::new(),
@@ -1322,6 +1330,7 @@ pub(super) fn preflight(
 
         for ty in &closure.captures {
             if closure.storage_life.is_some() {
+                budget.stored_fixed_owner |= matches!(ty, Type::Managed(_) | Type::Package { .. });
                 if !super::stored_callables::capture(ty)
                     && !super::stored_callables::owned_capture(ty, budget)?
                 {
