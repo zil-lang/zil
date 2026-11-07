@@ -3,6 +3,8 @@
 mod g241_consumers;
 #[path = "../../../tests/language-readiness/G2.4.2/consumers.rs"]
 mod g242_consumers;
+#[path = "../../../tests/language-readiness/G5.2.1/consumers.rs"]
+mod g521_consumers;
 use std::{
     collections::BTreeMap,
     fs,
