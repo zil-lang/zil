@@ -26,6 +26,11 @@ fn leaves(ty: &Type, budget: &mut Budget) -> Check<usize> {
     while let Some((ty, depth)) = pending.pop() {
         budget.spend(depth)?;
         match ty {
+            Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Package { .. }) =>
+            {
+                pending.push((storage, depth + 1));
+            }
             Type::Managed(_) => {
                 width = width
                     .checked_add(1)
@@ -69,6 +74,11 @@ impl Plan {
     }
 
     fn shape(&mut self, ty: &Type, budget: &mut Budget) -> Check<Option<Shape>> {
+        let ty = match ty {
+            Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Package { .. }) => storage.as_ref(),
+            _ => ty,
+        };
         let Type::Package { fields, .. } = ty else {
             return Ok(None);
         };

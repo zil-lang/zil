@@ -318,6 +318,7 @@ fn slot<'a>(ty: &'a Type, path: &[PlaceProjection], b: &mut Budget) -> CompileRe
     let mut ty = ty;
     for part in path {
         fee(b, 1)?;
+        ty = carrier(ty).map_or(ty, |(storage, _)| storage);
         ty = match (ty, part) {
             (
                 Type::Record { fields, .. } | Type::Package { fields, .. },
@@ -1034,8 +1035,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     if !matches!(
         storage,
         Type::Record { .. } | Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. }
-    ) || (!life.retained.is_empty() && !life.slots.is_empty())
-        || (matches!(storage, Type::Enum { .. })
+    ) || (matches!(storage, Type::Enum { .. })
             && (!life.slots.is_empty() || !retained::pure(storage, b)?))
     {
         return Err(vec![Diagnostic::unsupported(
@@ -1048,7 +1048,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     fn walk(
         ty: &Type,
         path: &mut Path,
-        out: &mut Vec<(Path, StoredBorrowMode)>,
+        out: &mut Vec<(Path, StoredBorrowMode, Option<(Vec<LifeTypeProjection>, u32)>)>,
         b: &mut Budget,
         owning: bool,
     ) -> CompileResult<()> {
@@ -1069,6 +1069,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                     } else {
                         StoredBorrowMode::SharedAddress
                     },
+                    None,
                 ));
             }
             Type::Record { name, fields } | Type::Package { name, fields } => {
@@ -1134,11 +1135,29 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                 }
                 walk(element, path, out, b, owning)?;
             }
-            Type::BorrowedStorage { .. } => {
-                if !retained::pure(ty, b)? {
-                    return Err(failure(
-                        "retained physical leaf needs a real borrowing consumer",
-                    ));
+            Type::BorrowedStorage { storage, life } => {
+                if !owning || !matches!(storage.as_ref(), Type::Package { .. }) {
+                    return Err(failure("nested physical child requires an owning Package"));
+                }
+                physical(ty, b)?;
+                let start = out.len();
+                let prefix = path.len();
+                walk(storage, path, out, b, true)?;
+                let boundary: Vec<_> = path
+                    .iter()
+                    .copied()
+                    .map(LifeTypeProjection::Place)
+                    .collect();
+                for (actual, _, class) in &mut out[start..] {
+                    let relative = actual
+                        .get(prefix..)
+                        .ok_or_else(|| failure("nested physical slot lost prefix"))?;
+                    let child = life
+                        .slots
+                        .iter()
+                        .find(|slot| slot.path == relative)
+                        .ok_or_else(|| failure("nested physical slot lacks child class"))?;
+                    *class = Some((boundary.clone(), child.binder));
                 }
             }
             Type::Managed(payload) if owning => {
@@ -1198,17 +1217,24 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                 .ok_or_else(|| failure("binder overflow"))?;
         }
     }
-    for ((path, mode), decl) in actual.iter().zip(&life.slots) {
+    for ((path, mode, child_class), decl) in actual.iter().zip(&life.slots) {
         fee(b, path.len().saturating_add(decl.path.len()))?;
         if path != &decl.path || mode != &decl.mode || decl.binder >= life.binder_count {
             return Err(failure(
                 "stored slot order, mode or binder differs from actual fields",
             ));
         }
+        if let Some((boundary, class)) = child_class {
+            if !life.retained.iter().any(|row| {
+                &row.path == boundary && row.class == *class && row.binder == decl.binder
+            }) {
+                return Err(failure("nested slot binder differs from retained child class"));
+            }
+        }
         if *mode == StoredBorrowMode::ExclusiveAddress
             && (!matches!(storage, Type::Record { .. } | Type::Package { .. })
-                || !life.retained.is_empty()
-                || !matches!(path.as_slice(), [PlaceProjection::Field(_)]))
+                || !path.iter().all(|part| matches!(part, PlaceProjection::Field(_)))
+                || (child_class.is_none() && path.len() != 1))
         {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
@@ -1465,9 +1491,11 @@ fn select(
     let mut out = Permission::default();
     for root in &address.targets {
         fee(b, root.stored.len().saturating_add(1))?;
-        if !root.stored.is_empty() || !root.place.is_empty() {
+        if !root.stored.is_empty() {
             return Err(failure("stored target is not an inline carrier address"));
         }
+        let mut actual_path = root.place.clone();
+        actual_path.extend_from_slice(path);
         let slots = match root.base {
             HoldRoot::Static => {
                 return Err(failure("static UTF8 cannot grant nested carrier slots"));
@@ -1487,8 +1515,8 @@ fn select(
                     .ok_or_else(|| failure("external carrier has no actual slot facts"))?
             }
         };
-        ordered(b, slots.len(), path.len())?;
-        if let Some(leaf) = slots.get(path) {
+        ordered(b, slots.len(), actual_path.len())?;
+        if let Some(leaf) = slots.get(&actual_path) {
             union(&mut out, leaf, b)?;
         }
     }
@@ -3826,6 +3854,9 @@ fn actual_instructions(
                     if !child.is_copy_value()
                         && !pure_read(module, child, b)?
                         && !pure_inline(module, child, b)?
+                        && !(matches!(child, Type::BorrowedStorage { storage, .. }
+                            if matches!(storage.as_ref(), Type::Package { .. }))
+                            && physical(child, b)?)
                         && !matches!(child, Type::Managed(payload)
                             if module.resources.iter().any(|definition| definition.payload == **payload))
                     {

@@ -30,8 +30,10 @@ fn scan(
         ));
     }
     match ty {
-        Type::BorrowedStorage { life, .. } => {
-            if !pure(ty, span, left)? {
+        Type::BorrowedStorage { storage, life } => {
+            if !matches!(storage.as_ref(), Type::Package { .. })
+                && !pure(ty, span, left)?
+            {
                 return Err(error(
                     "E-STORED-IDENTITY",
                     span,
