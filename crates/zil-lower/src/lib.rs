@@ -245,6 +245,7 @@ fn lower_view_with_budget(
         let old_return = sum_budget.borrowed(&function.return_type, 0)?
             || function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
+            || matches!(function.return_type, Type::MutexGuard { .. })
             || resource_type(&function.return_type, &module.resources)
             || package_value_type(&function.return_type, &module.resources)
             || error_type(&function.return_type, &module.resources)
@@ -272,6 +273,7 @@ fn lower_view_with_budget(
             let old = sum_budget.borrowed(ty, 0)?
                 || ty.is_copy_value()
                 || ty.is_scalar_or_address()
+                || matches!(ty, Type::MutexGuard { .. })
                 || resource_type(ty, &module.resources)
                 || resource_head_address(ty)
                 || package_value_type(ty, &module.resources)
@@ -307,6 +309,8 @@ fn lower_view_with_budget(
                 && !concrete_closure
                 && !ty.is_shared_sync_cell_address()
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
+                && !matches!(ty, Type::MutexGuard { .. })
+                && !matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::MutexGuard { .. }))
                 && !resource_head_address(ty)
                 && !ty.is_exclusive_task_head_address()
                 && !ty.is_package_address()
@@ -427,6 +431,10 @@ fn resource_head_address(ty: &Type) -> bool {
 }
 
 fn resource_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
+    if matches!(ty, Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::Mutex { .. }) && resources.iter().any(|r| r.payload == **p && r.teardown.is_none()))
+    {
+        return true;
+    }
     if matches!(ty, Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(),Type::Registration{..}|Type::AsyncRegistration{..}) && resources.iter().any(|r|r.payload==**p && r.teardown.is_none()))
     {
         return true;

@@ -2422,10 +2422,12 @@ impl Transfer<'_> {
                                 bad(span, "guard helper result lacks retained head slot")
                             })?;
                         let mut roots = BTreeSet::new();
+                        let mut matching_inputs = 0usize;
                         for &value in arguments {
                             if matches!(&f.values[value.0 as usize], Type::Desc(inner) if matches!(inner.as_ref(), Type::Mutex { .. }))
                                 || matches!(&f.values[value.0 as usize], Type::MutexGuard { .. })
                             {
+                                matching_inputs += 1;
                                 let src = slots.desc_value[value.0 as usize].ok_or_else(|| {
                                     bad(span, "guard helper input lacks actual head slot")
                                 })?;
@@ -2433,10 +2435,10 @@ impl Transfer<'_> {
                                 roots.extend(state.desc[src].iter().cloned());
                             }
                         }
-                        if roots.is_empty() {
+                        if matching_inputs != 1 || roots.is_empty() {
                             return Err(bad(
                                 span,
-                                "guard helper result has no actual mutex head input",
+                                "guard helper result requires one actual mutex head input",
                             ));
                         }
                         state.desc[dst] = roots;

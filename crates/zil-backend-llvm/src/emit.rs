@@ -13,6 +13,7 @@ pub use enums::ct_layout_of_checked_type;
 pub(crate) use tasks::export_name as task_export_name;
 mod errors;
 mod foreign;
+mod generic_mutex;
 mod owned_sums;
 mod packages;
 mod parallel_lowering;
@@ -377,6 +378,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         &copy_plans.store_protocols,
     )?);
     text.append(scoped_thread::runtime(lir)?);
+    text.append(generic_mutex::runtime(lir)?);
     text.append(tasks::runtime(
         lir,
         verified.uses_scalar_tasks(),
@@ -933,6 +935,7 @@ fn bind_lir(
         if !(function.return_type.is_copy_value()
             || stored_borrows::representation_type(&function.return_type)
             || function.return_type.is_scalar_or_address()
+            || matches!(function.return_type, Type::MutexGuard { .. })
             || drop_plan::sum_address(&function.return_type, lir.resources)
             || resources::supported_type(&function.return_type, lir.resources)
             || packages::supported_value_type(&function.return_type, lir.resources)
@@ -945,6 +948,7 @@ fn bind_lir(
                 !(ty.is_copy_value()
                     || stored_borrows::representation_type(ty)
                     || ty.is_scalar_or_address()
+                    || matches!(ty, Type::MutexGuard { .. })
                     || resource_head_address(ty)
                     || drop_plan::sum_address(ty, lir.resources)
                     || resources::supported_type(ty, lir.resources)
@@ -969,6 +973,8 @@ fn bind_lir(
                 && !ty.is_shared_sync_cell_address()
                 && !drop_plan::sum_address(ty, lir.resources)
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
+                && !matches!(ty, Type::MutexGuard { .. })
+                && !matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::MutexGuard { .. }))
                 && !resource_head_address(ty)
                 && !ty.is_exclusive_task_head_address()
                 && !ty.is_package_address()
@@ -1828,6 +1834,18 @@ impl FunctionEmitter<'_> {
                 )));
             }
             InstructionKind::DescribeLocal { local } => {
+                if matches!(self.local_type(*local)?, Type::Managed(inner) if matches!(inner.as_ref(), Type::Mutex { .. }))
+                {
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(format!("v.{}", result(instruction)?.0)),
+                        m::Op::Load {
+                            ty: m::Ty::Ptr,
+                            ptr: m::local(format!("local.{}", local.0)),
+                            align: 8,
+                        },
+                    )));
+                    return Ok(());
+                }
                 self.event(m::Event::Instruction(m::Inst::new(
                     Some(format!("v.{}", result(instruction)?.0)),
                     m::Op::Gep {
@@ -2750,15 +2768,12 @@ impl FunctionEmitter<'_> {
             InstructionKind::Unsupported(feature) => {
                 return unsupported(feature.clone(), Some(instruction.span));
             }
-            InstructionKind::MutexCreate { .. }
-            | InstructionKind::MutexLock { .. }
-            | InstructionKind::MutexValue { .. }
-            | InstructionKind::MutexUnlock { .. }
-            | InstructionKind::DropMutexGuard { .. } => {
-                return unsupported(
-                    "generic mutex code generation is not implemented",
-                    Some(instruction.span),
-                );
+            InstructionKind::MutexCreate { value } => self.mutex_create(instruction, *value)?,
+            InstructionKind::MutexLock { mutex } => self.mutex_lock(instruction, *mutex)?,
+            InstructionKind::MutexValue { guard } => self.mutex_value(instruction, *guard)?,
+            InstructionKind::MutexUnlock { guard } => self.mutex_unlock(instruction, *guard)?,
+            InstructionKind::DropMutexGuard { local } => {
+                self.drop_mutex_guard(instruction, *local)?
             }
         }
         Ok(())
@@ -3556,6 +3571,8 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
     match ty {
         Type::BorrowedStorage { storage, .. } => llvm_type(storage),
         Type::Registration { .. }
+        | Type::Mutex { .. }
+        | Type::MutexGuard { .. }
         | Type::AsyncRegistration { .. }
         | Type::Task { .. }
         | Type::TaskI32 => Ok(m::Ty::Ptr),
@@ -3605,6 +3622,7 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
             if inner.is_copy_value()
                 || ty.is_shared_sync_cell_address()
                 || matches!(inner.as_ref(), Type::Closure(_))
+                || matches!(inner.as_ref(), Type::MutexGuard { .. })
                 || resource_head_address(ty)
                 || ty.is_exclusive_task_head_address()
                 || ty.is_package_address()
@@ -3625,7 +3643,10 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
                     payload.as_ref(),
                     Type::Registration { .. } | Type::AsyncRegistration { .. }
                 )
-                || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
+                || matches!(
+                    payload.as_ref(),
+                    Type::OwnedStore { .. } | Type::Mutex { .. }
+                ) =>
         {
             Ok("ptr".into())
         }
@@ -3637,7 +3658,10 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
                     payload.as_ref(),
                     Type::Registration { .. } | Type::AsyncRegistration { .. }
                 )
-                || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
+                || matches!(
+                    payload.as_ref(),
+                    Type::OwnedStore { .. } | Type::Mutex { .. }
+                ) =>
         {
             llvm_type(payload)
         }
@@ -3809,6 +3833,8 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::U8 => Ok(1),
         Type::U16 => Ok(2),
         Type::ByteBuffer
+        | Type::Mutex { .. }
+        | Type::MutexGuard { .. }
         | Type::Task { .. }
         | Type::TaskI32
         | Type::Registration { .. }
@@ -3822,6 +3848,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
             if inner.is_address_pointee()
                 || ty.is_shared_sync_cell_address()
                 || matches!(inner.as_ref(), Type::Closure(_))
+                || matches!(inner.as_ref(), Type::MutexGuard { .. })
                 || resource_head_address(ty)
                 || ty.is_exclusive_task_head_address()
                 || ty.is_package_address()
@@ -3842,7 +3869,10 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                     payload.as_ref(),
                     Type::Registration { .. } | Type::AsyncRegistration { .. }
                 )
-                || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
+                || matches!(
+                    payload.as_ref(),
+                    Type::OwnedStore { .. } | Type::Mutex { .. }
+                ) =>
         {
             Ok(8)
         }
@@ -3854,7 +3884,10 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                     payload.as_ref(),
                     Type::Registration { .. } | Type::AsyncRegistration { .. }
                 )
-                || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
+                || matches!(
+                    payload.as_ref(),
+                    Type::OwnedStore { .. } | Type::Mutex { .. }
+                ) =>
         {
             alignment(payload, closures)
         }

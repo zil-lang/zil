@@ -3126,10 +3126,12 @@ impl Flow<'_> {
                         matches!(f.values[id.0 as usize], Type::MutexGuard { .. })
                     }) {
                         let mut sources = BTreeSet::new();
+                        let mut matching_inputs = 0usize;
                         for value in arguments {
                             if matches!(&f.values[value.0 as usize], Type::Desc(inner) if matches!(inner.as_ref(), Type::Mutex { .. }))
                                 || matches!(&f.values[value.0 as usize], Type::MutexGuard { .. })
                             {
+                                matching_inputs += 1;
                                 let fact = copied(state, Place::Value(*value), budget)?;
                                 budget.spend(
                                     fact.sources.len(),
@@ -3138,9 +3140,9 @@ impl Flow<'_> {
                                 sources.extend(fact.sources);
                             }
                         }
-                        if sources.is_empty() {
+                        if matching_inputs != 1 || sources.is_empty() {
                             return Err(error(
-                                "guard helper result has no actual mutex head input",
+                                "guard helper result requires one actual mutex head input",
                             ));
                         }
                         Some(sources)
