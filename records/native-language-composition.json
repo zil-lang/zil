@@ -279,7 +279,8 @@
     "ref": "archive/source-history",
     "tested_source_checkpoint": "865e7ad6b1725fac6944c642cbaed6ff20ecbf3a",
     "source_snapshot_verified": true,
-    "meaning": "Actual commits, trees, preserved worktree source and original author tips remain reachable; archive is not acceptance."
+    "meaning": "Actual commits, trees, preserved worktree source and original author tips remain reachable; archive is not acceptance.",
+    "delivered_checkpoint": "1c8631a18f209241222b4084d971cab196aee8e2"
   },
   "raw_evidence": "/workspace/.zil-env/native-foundations/accepted-corrected",
   "limits": "Mixed owning/borrowed Package, unified same-function permissions, general projection/lending, arbitrary protocols, cross-thread close, Rust product gates and GUI remain open.",
@@ -289,5 +290,23 @@
     "General graph/independent deletion",
     "Cross-thread registration close, general Guard, mixed owner/borrow Package and same-function unified storage/async proof",
     "GUI/GPU/ZUI completeness"
-  ]
+  ],
+  "toolchain": {
+    "rust": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+    "clang": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)",
+    "clang_sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67",
+    "target": "x86_64-unknown-linux-gnu"
+  },
+  "retirement": {
+    "local_task_branches": 5,
+    "remote_task_branches": 1,
+    "remote_heads": [
+      "main",
+      "goal",
+      "archive/source-history"
+    ],
+    "scope": "Only five completed current task refs; four clean author worktrees removed, integration tree detached to preserve ignored outputs; historical dirty worktrees untouched.",
+    "source_reachable_from": "archive/source-history@1c8631a18f209241222b4084d971cab196aee8e2"
+  }
 }
