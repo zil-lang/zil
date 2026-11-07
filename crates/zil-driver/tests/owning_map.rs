@@ -46,7 +46,8 @@ fn main()->i32{
  let found=Key{ticket:Ticket{code:66},id:9}
  match owning_map.get_copy::<Key,i32>(&map,&found){Option.None()=>{return 2},Option.Some(value)=>{if value!=42{return 3}}}
  let absent=Key{ticket:Ticket{code:67},id:10}
- match owning_map.get_copy::<Key,i32>(&map,&absent){Option.None()=>{return 0},Option.Some(_)=>{return 4}}
+ match owning_map.get_copy::<Key,i32>(&map,&absent){Option.None()=>{},Option.Some(_)=>{return 4}}
+ match owning_map.take::<Key,i32>(&mut map,&absent){.err(_)=>{return i32(owning_map.len::<Key,i32>(&map))-1},.ok(_)=>{return 5}}
 }
 "#;
 const ALLOCATION: &str = r#"
