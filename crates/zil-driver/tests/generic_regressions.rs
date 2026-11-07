@@ -6087,7 +6087,36 @@ fn async_registration_actual_task_carrier_cleanup_requires_synchronous_origin() 
             "{prefix}{package}fn invoke<F:FnOnce()->bool>(f:F)->bool{{return f()}}fn main()->std.task.TaskCreateError!i32{{var task=task_create(worker,37)?;task_poll(&mut task);{tail}}}"
         );
         let report = compile_source(&source(&text), &CompileOptions::default());
-        if ["package", "closure", "once"].contains(&case) {
+        if ["closure", "once"].contains(&case) {
+            assert_eq!(
+                report.status,
+                ResultCategory::SafeReject,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(
+                report.phase,
+                zil_base::Phase::Analyze,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 0);
+            let expected = if case == "closure" {
+                "pollable Task automatic Drop requires asynchronous continuation"
+            } else {
+                "Task automatic Drop has no complete synchronous worker origin"
+            };
+            assert!(
+                report
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.code == "E-TASK-ABI" && d.message == expected),
+                "{}",
+                report.to_json()
+            );
+            continue;
+        }
+        if case == "package" {
             assert_eq!(
                 report.status,
                 ResultCategory::Unsupported,

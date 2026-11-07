@@ -1,10 +1,13 @@
 //! Test-only loading of structurally transcoded historical candidate records.
 //! Frozen Input40 source lineage: 28b3e37bb4d8a1fe8b146c72cf891fc99de32440:tools/migrate-impl253-wire40.py. Old v32/v34/v37/v40
-//! bytes stay immutable. The40->43 changes append opcode133, async type37,
-//! opcodes134..139, static root tag3 and foreign role tags3..5; existing record layouts are
-//! identical. This adapter decodes the restricted frozen old structure,
+//! bytes stay immutable. This frozen v40 subset lacks the V44
+//! function.protocol_contract field; the restricted walker inserts None at parsed
+//! function boundaries. New TaskCreate port bindings never occur in this subset.
+//! This adapter decodes the restricted frozen old structure,
 //! updates both schema fields and module identity, then fully re-encodes it.
 //! Neither the old candidate plan nor this adapter grants proof authority.
+#[path = "historical_function_layout.rs"]
+mod historical;
 pub fn migrate(bytes: &[u8], limits: &zil_base::Limits) -> Vec<u8> {
     // This is a migration of these17 immutable fixtures, not a general old
     // grammar decoder. In particular, a relabelled new Type37 cannot enter.
@@ -47,15 +50,21 @@ pub fn migrate(bytes: &[u8], limits: &zil_base::Limits) -> Vec<u8> {
     assert!(FROZEN_SHA256.contains(&zil_base::Fingerprint::of(bytes).to_hex().as_str()));
     assert_eq!(&bytes[..8], b"ZILMODP\0");
     assert_eq!(&bytes[8..12], &40u32.to_le_bytes());
-    const CURRENT_LAYOUT: u32 = 43;
+    const CURRENT_LAYOUT: u32 = 44;
     assert_eq!(zil_ir::wire::WIRE_VERSION, CURRENT_LAYOUT);
     assert_eq!(zil_base::SCHEMA_VERSION, CURRENT_LAYOUT);
     // The production decoder still rejects every old transport envelope. Only
-    // this temporary test-owned copy permits reading the unchanged40 layout.
+    // this temporary test-owned copy structurally migrates the frozen40 layout.
     let errors = zil_ir::wire::decode_module_candidate(bytes, limits).unwrap_err();
     assert_eq!(errors[0].code, "E-WIRE-VERSION");
-    let mut transport = bytes.to_vec();
-    transport[8..12].copy_from_slice(&CURRENT_LAYOUT.to_le_bytes());
+    let transport = historical::transport(
+        bytes,
+        limits.max_source_bytes,
+        limits.max_nodes,
+        limits.max_call_depth,
+        limits.max_analysis_steps,
+    )
+    .expect("restricted frozen40 structural migration");
     let (mut module, mut plan) = zil_ir::wire::decode_module_candidate(&transport, limits).unwrap();
     assert_eq!(module.schema_version, 40);
     assert_eq!(plan.schema_version, 40);

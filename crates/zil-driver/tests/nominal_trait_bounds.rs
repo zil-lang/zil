@@ -302,21 +302,21 @@ fn self_associated_constant_self_associated_constants_effective_and_default_chec
             .contains("Source Driver verified CT materialization"),
         "{errors:?}"
     );
-    // Exact old composition fence; the literal control fails on the baseline too.
+    // Structural Drop and ordinary nominal associated constants coexist; the
+    // old nominal-bound pass incorrectly treated Drop as a missing trait.
     for value in ["42", "Self.A+1"] {
         let text = format!(
             "resource R{{n:i32}}impl Drop for R{{fn drop(self:Self){{}}}}trait C{{const A:i32;const B:i32={value};}}struct P{{}}impl C for P{{const A:i32=41;}}fn main()->i32{{let r=R{{n:1}};return P.B-42}}"
         );
         let report = check(&text);
-        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
-        assert!(
-            report
-                .diagnostics
-                .iter()
-                .any(|d| d.message == "generic bound Drop is not a declared nominal trait"),
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
             "{}",
             report.to_json()
         );
+        assert_eq!(report.phase, Phase::Verify, "{}", report.to_json());
+        assert_eq!(report.verification_runs, 1, "{}", report.to_json());
     }
 }
 
