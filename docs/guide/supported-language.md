@@ -1,6 +1,6 @@
 # ZIL 语言初稿开发预览
 
-状态：**有限 profile 已验收，实验性开发预览**。最近一次语言共同验收绑定源码 `498f0f5a1e7595e12e5303750ef7686b1a7dc41b`，Rust 1.99.1、LLVM 23.1.4、Linux x86_64：默认 5248/0、参考 5136/0、文本 70/0，双配置严格检查、原生消费者及远端源码恢复构建通过。精确范围见[验收结果](../../validation/results/ownership-and-dispatch/ordinary-ownership-and-shared-dispatch-acceptance.json)。后续文档整理不作为语言重测，也不表示完整语言、B0、ZUI 或 Rust 产品目标达成。
+状态：**有限 profile 已验收，实验性开发预览**。最近一次语言共同验收绑定源码 `498f0f5a1e7595e12e5303750ef7686b1a7dc41b`，Rust 1.99.1、LLVM 23.1.4、Linux x86_64：默认 5248/0、参考 5136/0、文本 70/0，双配置严格检查、原生消费者及远端源码恢复构建通过。精确范围见[验收结果](https://github.com/zil-lang/zil/blob/28b3e37bb4d8a1fe8b146c72cf891fc99de32440/validation/results/ownership-and-dispatch/ordinary-ownership-and-shared-dispatch-acceptance.json)。后续文档整理不作为语言重测，也不表示完整语言、B0、ZUI 或 Rust 产品目标达成。
 
 当前有限拥有组合包括普通 POD/九种标量 Store 进入 Package、Tuple、Enum、ErrorUnion，以及自包含 Fn/FnMut/FnOnce 捕获；共享借入 dyn 支持两个 Copy struct 提供者的固定标量方法槽。具体限制与其它支持能力如下。
 
@@ -16,7 +16,7 @@
 
 ## 快速开始
 
-在具备 `rust-toolchain.toml` 指定 Rust、相应 LLVM/clang 与系统链接器的已支持环境中，从仓库根目录运行。LLVM 安装、环境变量和版本检查见 [LLVM 工具链](../development/toolchain.md#安装与构建)；先 `cargo fetch --locked` 备妥依赖，再使用离线构建：
+在具备 `rust-toolchain.toml` 指定 Rust、相应 LLVM/clang 与系统链接器的已支持环境中，从仓库根目录运行。LLVM 安装、环境变量和版本检查见 [LLVM 工具链](build.md#安装与构建)；先 `cargo fetch --locked` 备妥依赖，再使用离线构建：
 
 ```sh
 cargo build --offline --locked -p zil-cli
@@ -40,4 +40,4 @@ printf '10 20 -3\n' | ./out/stream
 - GPU 首帧、字体、OS IME、完整 ZUI 与原生 Windows 执行不包含在本有限语言预览。目标/后端只按本次收据中真实执行的组合列出；Win64 交叉构建或 Wine 不等于原生 Windows 验证。
 - `validation/product-gates.json` 中零 safe UB、同语义 Rust 运行/内存与编译/维护成本条件、至少一项可重复净突破及发布前提原样有效。目前不得宣称这些产品条件达成。B0、完整语言与 ZUI 终态验收继续独立进行。
 
-本预览依据 `_zil_design.md` §20、`validation/product-gates.json`、`docs/development/workflow.md` 与实时 `goal:goal.md`。源码、各门结果及恢复范围绑定共同收据；远端恢复复用已准备的固定工具链和 Cargo 缓存，不代表空机器安装或旧历史重新验收。
+本预览依据 `_zil_design.md` §20、`validation/product-gates.json`、`goal:workflow.md` 与实时 `goal:goal.md`。源码、各门结果及恢复范围绑定共同收据；远端恢复复用已准备的固定工具链和 Cargo 缓存，不代表空机器安装或旧历史重新验收。

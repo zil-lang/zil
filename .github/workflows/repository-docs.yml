@@ -28,14 +28,11 @@ jobs:
           if [ -z "$base" ] || [[ "$base" =~ ^0+$ ]]; then base=HEAD^; fi
           python3 tools/check-repository-layout.py --base "$base" --delivery
           python3 -m unittest discover -s tools -p test_check_repository_layout.py
-      - name: Check navigation, provenance and generated views
+      - name: Check static language contracts and indexes
         shell: bash
         run: |
           set -euo pipefail
-          python3 tools/check-documentation.py
-          python3 tools/check-docs.py
-          python3 tools/update_designer.py
+          python3 tools/check-plan.py --self-test
+          python3 tools/check-conformance.py
           python3 tools/update-indexes.py
-          git diff --exit-code -- data lang-designer.html
-      - name: Check handoff record consumers
-        run: node --test tests/handoff.test.mjs
+          git diff --exit-code -- conformance/index.json spec/diagnostics.json data/normative-inputs.json

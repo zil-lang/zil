@@ -815,7 +815,5 @@
       "implementation_obligations": "在测试前冻结同语义 Rust 基线、场景 manifest 和目标profile，测量运行/内存/编译/演进及全部成本；逐项发布产品证据。\n\n正式计时独占资源，构造/清理/转换/取消、元程序首次准备、核验和缓存成本都计入。阈值只能引用profile，不能在工单另定更宽数值。未证明Rust基线最快不得称全局最快，结构性退步不能由平均掩盖。",
       "boundary_obligations": "不改所引用规则和profile。不把 IR 夹具、手工 lowering 或依赖策略检查冒充真实源码贯通；不恢复旧世代方案、不隐式加入 GC/RC/锁/堆盒。共享 schema、根 Cargo/工具链、其他写集变更须由集成者记录关联变更，不能以实现便利暗改接口。"
     }
-  },
-  "handoff_protocol": "An artifact ID alone does not prove completion. Each producer handoff must include actual artifact version, exact source commit, and build evidence; consumers verify the interface in spec/interfaces.json.",
-  "acceptance_evidence": "Record the exact delivery commit, normative input and profile digests, toolchain, command, selected/executed/assertion counts, stdout/stderr, exit codes, stage and machine artifacts, and failure examples. An independent reviewer binds a verdict to the exact delivery commit; historical Done text does not establish current acceptance."
+  }
 }

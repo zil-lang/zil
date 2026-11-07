@@ -1,0 +1,7 @@
+# Ordinary Store ownership
+
+A scalar or POD `Store<T>` may occupy existing finite ordinary owning positions: Package, Tuple, Enum, ErrorUnion, concrete calls/results and self-contained Fn/FnMut/FnOnce environments, subject to the same structural responsibility rules as other admitted Store owners. Preserve exact canonical element identity, Copy protocol, actual initialized prefix and allocation debt. This ordinary ownership does not independently grant `StoreElement`, array, borrowed storage, dynamic dispatch, asynchronous qualification, shared address or capture permission.
+
+Construction, initialization, movement, transfer, field take/refill/replace, branch selection, return and cleanup must account for every real owner once. Prepare a replacement RHS before retiring the old value; preparation failure leaves old obligations intact. A scalar/POD element has no per-element destructor debt, while the Store allocation is released exactly once by its actual owner. Unused capacity has no cleanup debt. Borrowed views block conflicting move, replace or structural mutation through their last use.
+
+Types qualifies all admitted positions; Analyze tracks responsibility and roots; Verify independently checks real raw/Wire metadata, origins and flow; Lower/LLVM consume verified active branches and emit actual cleanup. A finite composition must reject forged Store definitions, duplicate transfer, incomplete parents and stale views. Governing rule: `_zil_design.md` §8.1.3.2. Implementation and acceptance are tracked separately.
