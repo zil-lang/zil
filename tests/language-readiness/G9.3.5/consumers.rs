@@ -8,6 +8,12 @@ mod allocation;
 fn ordinary_store_ownership_reaches_complete_native_values() {
     for (label, source, expected, imported) in [
         (
+            "ordinary-tuple-copy-companions",
+            include_str!("ordinary-tuple-copy-companions.zil"),
+            b"19\n".as_slice(),
+            false,
+        ),
+        (
             "ordinary-data-model",
             include_str!("ordinary-data-model.zil"),
             b"18446744073709551612\n".as_slice(),
