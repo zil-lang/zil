@@ -5,19 +5,7 @@ import std.int
 // A bounded byte stream becomes one checked UTF-8 String before searching.
 fn read_input()->io.Error!ByteBuffer contract {result(create)} {
     let input=io.stdin()?
-    let raw=bytes_new()
-    if !bytes_reserve(raw,4096) {return io.Error.Allocation}
-    var block=io.empty_buffer()
-    loop {
-        let result=io.read_chunk(&input,&mut block)?
-        if result.eof {break}
-        var at:i64=0
-        while at<result.count {
-            if bytes_len(raw)>=4096 {return io.Error.InvalidResult}
-            if !bytes_push(raw,block[at]) {return io.Error.Allocation}
-            at+=1
-        }
-    }
+    let raw=io.read_to_end(&input,4096)?
     return give raw
 }
 

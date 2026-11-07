@@ -558,10 +558,12 @@ fn ordinary_utf8_stream_search_is_native() {
             );
             assert_eq!(report.verification_runs, 1);
             let program = &report.artifacts["executable"];
+            let at_limit = vec![b'a'; 4096];
             for (bytes, code, stdout) in [
                 ("猫\n猫猫".as_bytes(), 0, "3\n".as_bytes()),
                 ("dog\0猫".as_bytes(), 0, "1\n".as_bytes()),
                 ("".as_bytes(), 0, "0\n".as_bytes()),
+                (&at_limit[..], 0, "0\n".as_bytes()),
                 (&[0xf0, 0x28, 0x8c, 0xbc][..], 2, "".as_bytes()),
             ] {
                 let mut child = Command::new(program)
