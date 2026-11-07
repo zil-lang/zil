@@ -894,7 +894,7 @@ impl FunctionEmitter<'_> {
 }
 
 #[cfg(test)]
-mod impl243_layout_tests {
+mod owned_sum_layout_tests {
     use super::*;
     fn buffer() -> Type {
         Type::Managed(Box::new(Type::ByteBuffer))
@@ -908,7 +908,7 @@ mod impl243_layout_tests {
         }))
     }
     #[test]
-    fn impl243_enum_managed_headers_keep_aligned_max_payload_abi() {
+    fn enum_managed_headers_keep_aligned_max_payload_abi() {
         let ty = Type::Enum {
             name: "Headers".into(),
             variants: vec![
@@ -941,7 +941,7 @@ mod impl243_layout_tests {
         assert_eq!(physical_layout(&error).unwrap().size, 64);
     }
     #[test]
-    fn impl243_product_sum_nested_layout_preserves_field_offsets_and_bool_storage() {
+    fn product_sum_nested_layout_preserves_field_offsets_and_bool_storage() {
         let inner = Type::Enum {
             name: "Inner".into(),
             variants: vec![("None".into(), vec![]), ("Some".into(), vec![buffer()])],
@@ -1179,7 +1179,7 @@ mod qualified_pure_layout_tests {
     }
 
     #[test]
-    fn g4463_qualified_enum_payload_keeps_nested_array_layout_and_ct_boundary() {
+    fn qualified_enum_payload_keeps_nested_array_layout_and_ct_boundary() {
         // Synthetic layout probe only; this does not establish nominal/source
         // authority. The Source/native test must traverse the independent kernels.
         let leaf = qualified(Type::Record {

@@ -486,7 +486,7 @@ mod tests {
     }
 
     #[test]
-    fn g336_staged_verify_local_origin_and_hostile_neighbors() {
+    fn staged_verify_local_origin_and_hostile_neighbors() {
         let original = model();
         assert!(resolve(&original, &mut Budget::new(&Limits::default())).unwrap());
         for case in 0..13 {
@@ -554,7 +554,7 @@ mod tests {
     }
 
     #[test]
-    fn g336_staged_verify_local_budget_depth_and_old_direct_fee() {
+    fn staged_verify_local_budget_depth_and_old_direct_fee() {
         let m = model();
         let limits = Limits::default();
         let mut budget = Budget::new(&limits);
@@ -606,7 +606,7 @@ mod tests {
             "old direct role cost changed"
         );
         eprintln!(
-            "G3.3.6 Verify local staged origin work N={n}, N-1/depth reject; direct old role=10"
+            "Verify local staged origin work N={n}, N-1/depth reject; direct old role=10"
         );
     }
     #[allow(dead_code)]
@@ -617,7 +617,7 @@ mod tests {
         ));
     }
     #[test]
-    fn g337_verify_tail_origin_checks_whole_graph_and_unique_consumption() {
+    fn verify_tail_origin_checks_whole_graph_and_unique_consumption() {
         let limits = Limits::default();
         let mut m = model();
         tail_fixture::fork(&mut m.functions[0]);
@@ -675,7 +675,7 @@ mod tests {
         ));
     }
     #[test]
-    fn g338_verify_actual_origin_dag_joins_and_path_retirement() {
+    fn verify_actual_origin_dag_joins_and_path_retirement() {
         let limits = Limits::default();
         for drop_branch in [false, true] {
             let mut m = model();

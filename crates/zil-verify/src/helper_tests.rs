@@ -1175,7 +1175,7 @@ fn callback_claim_limits_are_paid_before_fingerprinting_and_no_partial_pass() {
         }
     }
     assert!(low > 0);
-    eprintln!("impl066 address_caller raw work boundary N={low}");
+    eprintln!("address_caller raw work boundary N={low}");
     for (work, pass) in [(low - 1, false), (low, true), (low + 1, true)] {
         let limits = Limits {
             max_analysis_steps: work,

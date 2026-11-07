@@ -2438,7 +2438,7 @@ mod child_frame_tests {
         ))
     }
     #[test]
-    fn child343_actual_frame_planning_exact_budget_and_distinct_instances() {
+    fn actual_frame_planning_exact_budget_and_distinct_instances() {
         let (n, plan) = planned(8, 1_000_000).unwrap();
         assert_eq!(plan.children.len(), 8);
         let positions = plan

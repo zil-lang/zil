@@ -260,7 +260,7 @@ fn unused_parameter_and_resource_only_callback_elements_are_checked() {
 }
 
 #[test]
-fn two_distinct_self_contained_copy_result_callbacks_are_accepted_since_203() {
+fn two_distinct_self_contained_copy_result_callbacks_are_accepted() {
     // This is the original 201 heterogeneous-root input. The explicit 203
     // profile now admits its two direct, self-contained Fn/Unit roots.
     let mut different = element(2);
@@ -736,7 +736,7 @@ fn scalar_store_all_nine_complete_types_and_both_windows() {
             accepted(&pop);
         }
     }
-    println!("G9.3.4 Analyze scalar shared/mutable exact N, N-1 and fresh: {bounds:?}");
+    println!("Analyze scalar shared/mutable exact N, N-1 and fresh: {bounds:?}");
 }
 
 #[test]
@@ -950,7 +950,7 @@ fn pod_store_admits_complete_numeric_trees_without_element_debts() {
     accepted(&pod_fixture(element));
     let raw = pod_fixture(pod_element());
     let required = minimum(&raw);
-    println!("G9.3.2 POD Store Analyze N={required}; N-1 ResourceLimit; fresh identical");
+    println!("POD Store Analyze N={required}; N-1 ResourceLimit; fresh identical");
 }
 
 #[test]
@@ -1224,7 +1224,7 @@ fn pod_store_windows_keep_actual_roots_last_use_and_structural_conflicts() {
         vec![HoldRoot::Local(LocalId(0))]
     );
     let required = minimum(&baseline);
-    println!("G9.3.2 POD view Analyze N={required}; N-1 ResourceLimit; fresh identical");
+    println!("POD view Analyze N={required}; N-1 ResourceLimit; fresh identical");
     for kind in 0..3 {
         let mut raw = baseline.clone();
         let f = &mut raw.functions[0];
@@ -1386,7 +1386,7 @@ fn pod_mutable_field_write_keeps_the_actual_store_parent() {
         );
     }
     let required = minimum(&raw);
-    println!("G9.3.3 Analyze mutable field N={required}; N-1 ResourceLimit; fresh identical");
+    println!("Analyze mutable field N={required}; N-1 ResourceLimit; fresh identical");
 }
 
 #[test]

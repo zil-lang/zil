@@ -2261,7 +2261,7 @@ pub(super) fn test_tagged_invalidation_budget(
         zil_base::ResultCategory::ResourceLimit
     );
     assert!(solve(low).is_ok());
-    println!("G9.3.2.3 partial Sum indexed invalidation N={low}; N-1 ResourceLimit; fresh N pass");
+    println!("partial Sum indexed invalidation N={low}; N-1 ResourceLimit; fresh N pass");
 }
 
 pub(super) fn check_module(

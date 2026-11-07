@@ -296,7 +296,7 @@ mod tests {
         assert!(measured[1] > measured[0], "{measured:?}");
         assert_eq!(measured, [1_890, 2_805]);
         println!(
-            "G1.3.5 raw machine recipe narrow/full Enum N={measured:?}; N-1/fresh retry; no source permission claim"
+            "raw machine recipe narrow/full Enum N={measured:?}; N-1/fresh retry; no source permission claim"
         );
     }
 
@@ -342,7 +342,7 @@ mod tests {
         let repeated = minimum(&module.functions[0]);
         assert!(repeated > single);
         println!(
-            "G1.3 machine replacement recipe single N={single}; repeated N={repeated}; N-1 rejects; fresh retry agrees"
+            "machine replacement recipe single N={single}; repeated N={repeated}; N-1 rejects; fresh retry agrees"
         );
     }
 }

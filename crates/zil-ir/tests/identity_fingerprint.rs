@@ -4,9 +4,9 @@ use zil_base::{
 };
 use zil_ir::*;
 
-#[path = "support/cp34_instruction_cases.rs"]
+#[path = "support/identity_instruction_cases.rs"]
 mod cases;
-#[path = "support/cp34_reference_v34.rs"]
+#[path = "support/identity_reference_v34.rs"]
 mod legacy;
 
 fn types(flag: bool) -> Vec<Type> {
@@ -363,7 +363,7 @@ fn equal(module: &TypedModule) {
 
 #[test]
 fn frozen_vec_oracle_and_archived_encoders_have_pinned_independent_sources() {
-    let source = include_str!("support/cp34_legacy_v31.rs");
+    let source = include_str!("support/identity_legacy_v31.rs");
     let (_, original) = source
         .split_once("// BEGIN FROZEN BASELINE ENCODER\n")
         .unwrap();
@@ -371,28 +371,28 @@ fn frozen_vec_oracle_and_archived_encoders_have_pinned_independent_sources() {
         Fingerprint::of(original.as_bytes()).to_hex(),
         "96c82451fb7280e734046399bc51f1ed6e534bd6c3633e7ed519244ce4f41cab"
     );
-    let (_, archived30) = include_str!("support/cp34_legacy_v30.rs")
+    let (_, archived30) = include_str!("support/identity_legacy_v30.rs")
         .split_once("// BEGIN FROZEN BASELINE ENCODER\n")
         .unwrap();
     assert_eq!(
         Fingerprint::of(archived30.as_bytes()).to_hex(),
         "b66ed171400a682a28b20b1347b7499fdc57abcdb3525924c4aa017211084458"
     );
-    let (_, archived29) = include_str!("support/cp34_legacy_v29.rs")
+    let (_, archived29) = include_str!("support/identity_legacy_v29.rs")
         .split_once("// BEGIN FROZEN BASELINE ENCODER\n")
         .unwrap();
     assert_eq!(
         Fingerprint::of(archived29.as_bytes()).to_hex(),
         "03a8e0ee37770932c86d79274ae98d5d720fb06d2d4790f835b4dbdb7289e4a8"
     );
-    let (_, previous) = include_str!("support/cp34_legacy_v28.rs")
+    let (_, previous) = include_str!("support/identity_legacy_v28.rs")
         .split_once("// BEGIN FROZEN BASELINE ENCODER\n")
         .unwrap();
     assert_eq!(
         Fingerprint::of(previous.as_bytes()).to_hex(),
         "18d902acfce7342c5f5d8ec797b282ebbeb120d3e649761b6c520795ed522b56"
     );
-    let (_, archived) = include_str!("support/cp34_legacy_v27.rs")
+    let (_, archived) = include_str!("support/identity_legacy_v27.rs")
         .split_once("// BEGIN FROZEN BASELINE ENCODER\n")
         .unwrap();
     assert_eq!(
@@ -473,7 +473,7 @@ fn callable_public_fingerprints_keep_the_original_vec_contracts() {
 }
 
 #[test]
-fn defer227_domain_rejects_v27_identity_even_with_the_same_schema_claim() {
+fn domain_rejects_v27_identity_even_with_the_same_schema_claim() {
     let mut input = module(false);
     input.schema_version = 27;
     let mut old_domain = legacy::bytes_v31(&input);
@@ -484,7 +484,7 @@ fn defer227_domain_rejects_v27_identity_even_with_the_same_schema_claim() {
 }
 
 #[test]
-fn product237_domain_rejects_previous_v28_even_with_same_schema_claim() {
+fn domain_rejects_previous_v28_even_with_same_schema_claim() {
     let mut input = module(false);
     input.schema_version = 28;
     let mut previous = legacy::bytes_v31(&input);
@@ -493,7 +493,7 @@ fn product237_domain_rejects_previous_v28_even_with_same_schema_claim() {
 }
 
 #[test]
-fn owned_sum239_domain_rejects_previous_v29_with_same_schema_claim() {
+fn owned_sum_domain_rejects_previous_v29_with_same_schema_claim() {
     let mut input = module(false);
     input.schema_version = 29;
     let mut previous = legacy::bytes_v31(&input);
@@ -502,7 +502,7 @@ fn owned_sum239_domain_rejects_previous_v29_with_same_schema_claim() {
 }
 
 #[test]
-fn forward251_source_and_returned_debt_are_bound_in_all_public_identities() {
+fn source_and_returned_debt_are_bound_in_all_public_identities() {
     let mut input = module(false);
     input.functions[0].callable_return_contract = Some(return_contract(CallableKind::Fn));
     input.functions[0].callable_contract = Some(contract(false));
@@ -553,7 +553,7 @@ fn forward251_source_and_returned_debt_are_bound_in_all_public_identities() {
 }
 
 #[test]
-fn forward251_wire_preserves_actual_parameter_and_rejects_unknown_source() {
+fn wire_preserves_actual_parameter_and_rejects_unknown_source() {
     let limits = zil_base::Limits::default();
     let mut input = module(false);
     input.functions[0].callable_return_contract = Some(return_contract(CallableKind::Fn));
@@ -714,7 +714,7 @@ fn life_and_scoped_thread_identity_fields_match_the_extended_reference() {
 }
 
 #[test]
-fn terminal35_numeric_sync_task_and_address_fields_match_reference_bytes() {
+fn numeric_sync_task_and_address_fields_match_reference_bytes() {
     let mut input = module(false);
     let address = Type::Address {
         mutable: true,
@@ -834,7 +834,7 @@ fn terminal35_numeric_sync_task_and_address_fields_match_reference_bytes() {
 }
 
 #[test]
-fn terminal37_higher_rank_and_suspend_fields_match_independent_reference() {
+fn higher_rank_and_suspend_fields_match_independent_reference() {
     let mut input = module(false);
     input.functions[0].call_kind = CallKind::Suspend;
     input.functions[0].callable_contract = Some(contract(false));

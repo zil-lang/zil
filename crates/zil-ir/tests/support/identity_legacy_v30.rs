@@ -1,5 +1,5 @@
-// Schema31 Vec oracle migrated from archived, unchanged cp34_legacy_v30.rs.
-// Domain31, actual-parameter result provenance and Returned cleanup extend it.
+// Schema30 Vec oracle migrated from archived, unchanged identity_legacy_v29.rs.
+// Domain30 and four explicit local Enum encodings extend that historical oracle.
 // The suffix below the marker is independently frozen; do not update it.
 #![allow(dead_code)]
 use zil_base::{Fingerprint, Span};
@@ -30,7 +30,7 @@ fn cleanup_exit_tag(kind: CleanupExitKind) -> u8 {
 }
 // BEGIN FROZEN BASELINE ENCODER
 fn encode_module(module: &TypedModule) -> Vec<u8> {
-    let mut bytes = b"ZIL-TYPED-MODULE-V31\0".to_vec();
+    let mut bytes = b"ZIL-TYPED-MODULE-V30\0".to_vec();
     encode_u32(&mut bytes, module.schema_version);
     encode_u32(&mut bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -884,24 +884,17 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind) {
 
 /// Deterministic binding for a raw callable relation, not a verification token.
 pub fn callable_contract_fingerprint(contract: &CallableParameterContract) -> Fingerprint {
-    let mut bytes = b"ZIL-CALLABLE-CONTRACT-4\0".to_vec();
+    let mut bytes = b"ZIL-CALLABLE-CONTRACT-3\0".to_vec();
     encode_callable_contract(&mut bytes, contract);
     Fingerprint::of(&bytes)
 }
 /// Deterministic identity only; this hash never grants verification authority.
 pub fn callable_return_contract_fingerprint(contract: &CallableReturnContract) -> Fingerprint {
-    let mut bytes = b"ZIL-CALLABLE-RETURN-CONTRACT-3\0".to_vec();
+    let mut bytes = b"ZIL-CALLABLE-RETURN-CONTRACT-2\0".to_vec();
     encode_callable_return_contract(&mut bytes, contract);
     Fingerprint::of(&bytes)
 }
 fn encode_callable_return_contract(b: &mut Vec<u8>, c: &CallableReturnContract) {
-    match c.source {
-        CallableReturnSource::Fresh => b.push(0),
-        CallableReturnSource::Parameter(parameter) => {
-            b.push(1);
-            encode_u32(b, parameter);
-        }
-    }
     encode_u32(b, c.closure.0);
     b.push(callable_kind_tag(c.kind));
     for indices in [&c.hold, &c.call, &c.writes, &c.cleanup, &c.lending_captures] {
@@ -934,7 +927,6 @@ fn encode_callable_contract(b: &mut Vec<u8>, c: &CallableParameterContract) {
         b.push(match role.cleanup {
             CallableCleanup::Owned => 0,
             CallableCleanup::Borrowed => 1,
-            CallableCleanup::Returned => 2,
         });
     }
     match &c.traces {

@@ -3199,7 +3199,7 @@ mod tests {
             assert!(check(low - 1, wire).is_err());
             assert_eq!(check(low, wire).unwrap().fingerprint(), expected);
             println!(
-                "G3.3.2.2 capture helper Verify wire={wire} N={low}; N-1/fresh/warm/retry passed"
+                "capture helper Verify wire={wire} N={low}; N-1/fresh/warm/retry passed"
             );
         }
     }
@@ -3602,7 +3602,7 @@ mod tests {
             assert_eq!(check(low, wire).unwrap().fingerprint(), expected);
             assert!(check(low - 1, wire).is_err());
             assert_eq!(check(low, wire).unwrap().fingerprint(), expected);
-            println!("G3.3.3.1 owning Fixed Verify wire={wire} N={low}; N-1/fresh/repeated/retry");
+            println!("owning Fixed Verify wire={wire} N={low}; N-1/fresh/repeated/retry");
         }
         let mut forged = c;
         forged.functions[0].holds[8].roots.clear();

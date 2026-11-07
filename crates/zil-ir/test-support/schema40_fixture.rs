@@ -9,27 +9,27 @@ pub fn migrate(bytes: &[u8], limits: &zil_base::Limits) -> Vec<u8> {
     // This is a migration of these17 immutable fixtures, not a general old
     // grammar decoder. In particular, a relabelled new Type37 cannot enter.
     const FROZEN_SHA256: &[&str] = &[
-        // crates/zil-analyze/tests/impl253_fixtures/v40/control_concrete_copy_byvalue_call.wire
+        // crates/zil-analyze/tests/forward_call_wire_fixtures/v40/control_concrete_copy_byvalue_call.wire
         "4c4b440bfb693fbe1a9b544302c7fea6f2bc12ae5043a470de4312379d6f366e",
-        // crates/zil-analyze/tests/impl253_fixtures/v40/control_shared_callback_i32_argument.wire
+        // crates/zil-analyze/tests/forward_call_wire_fixtures/v40/control_shared_callback_i32_argument.wire
         "e544bdc6b175229704572fe18b0b318b57cb9359e854cf67f12c1413fdb5b516",
-        // crates/zil-analyze/tests/impl253_fixtures/v40/escape_byvalue_symbolic_fn_call.wire
+        // crates/zil-analyze/tests/forward_call_wire_fixtures/v40/escape_byvalue_symbolic_fn_call.wire
         "31c462fbfdc3ec3f9efbb2da9c4b31fdcbcbd92675915404548432a5f121754d",
-        // crates/zil-analyze/tests/impl253_fixtures/v40/escape_callback_argument.wire
+        // crates/zil-analyze/tests/forward_call_wire_fixtures/v40/escape_callback_argument.wire
         "e3d61e6f1e8e2a2324383753077d9e0449600dfed08f417753122fe72f981d3b",
-        // crates/zil-analyze/tests/impl253_fixtures/v40/escape_shared_callback_f_argument.wire
+        // crates/zil-analyze/tests/forward_call_wire_fixtures/v40/escape_shared_callback_f_argument.wire
         "612afe15ff2d13b52f76d4a0afbe6ec2c45cd16c43222c4f74f7d80e1d389e97",
-        // crates/zil-analyze/tests/impl253_fixtures/v40/escape_thin_store.wire
+        // crates/zil-analyze/tests/forward_call_wire_fixtures/v40/escape_thin_store.wire
         "81a97f6a646aa09f8c1590794a7697a731f48018c1cc98af7fd376872022543c",
-        // crates/zil-analyze/tests/impl253_fixtures/v40/escape_two_element_array.wire
+        // crates/zil-analyze/tests/forward_call_wire_fixtures/v40/escape_two_element_array.wire
         "1df37d660f6175d8da818a303b0828cb5d1ce29bdce2f71d717576d00db844ab",
-        // crates/zil-analyze/tests/impl253_fixtures/v40/parent_stale_no_call_edge.wire
+        // crates/zil-analyze/tests/forward_call_wire_fixtures/v40/parent_stale_no_call_edge.wire
         "f56c04244a28ac12d9469b9b0fc2103cb6aac50effd88f512e4459dc3481c094",
-        // crates/zil-analyze/tests/impl253_fixtures/v40/parent_stale_with_call_edge.wire
+        // crates/zil-analyze/tests/forward_call_wire_fixtures/v40/parent_stale_with_call_edge.wire
         "e41340a11fcf1b119a5af0d587b5b16b26895705e530a9e5f985947822e576aa",
-        // crates/zil-analyze/tests/impl253_fixtures/v40/parent_valid_no_call_edge.wire
+        // crates/zil-analyze/tests/forward_call_wire_fixtures/v40/parent_valid_no_call_edge.wire
         "f193b557e3d4c2660f9a79e0a97671319ca30d0b694a28f0c3cab8dd8d6f745e",
-        // crates/zil-analyze/tests/impl253_fixtures/v40/parent_valid_with_call_edge.wire
+        // crates/zil-analyze/tests/forward_call_wire_fixtures/v40/parent_valid_with_call_edge.wire
         "a20e2cb8c8750ee488b6d30a8350a4ce13ee2d629236abf6813283073bc46045",
         // crates/zil-driver/tests/review223_fixtures/v40/mutable-product.wire
         "d3c496c8fc68d4135731791e7fbb052eb977475433c4646e3692f2deb1c0e14f",
