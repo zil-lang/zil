@@ -12,6 +12,8 @@ fn ordinary_store_ownership_reaches_complete_native_values() {
         ("ordinary-captures", include_str!("ordinary-captures.zil"), b"18446744073709551612\n".as_slice(), false),
         ("ordinary-direct-captures", include_str!("ordinary-direct-captures.zil"), b"18446744073709551612\n".as_slice(), false),
         ("ordinary-pair-baseline", include_str!("ordinary-pair-baseline.zil"), b"18446744073709551611\n".as_slice(), false),
+        ("ordinary-prepare-failure", include_str!("ordinary-prepare-failure.zil"), b"18446744073709551612\n".as_slice(), false),
+        ("ordinary-parent-two-views", include_str!("ordinary-parent-two-views.zil"), b"18446744073709551613\n".as_slice(), false),
     ] {
         super::g933_consumers::native_entry_all_backends(label, source, expected, imported, Some("result"));
     }
@@ -67,6 +69,11 @@ fn ordinary_store_same_size_canonical_element_rejects_raw_and_wire() {
         assert!(errors.iter().any(|d| d.phase == Phase::Verify && d.category == ResultCategory::SafeReject), "{route}: {errors:?}");
         fs::write(out.join(format!("{route}.txt")), format!("{errors:#?}")).unwrap();
     }
+}
+
+#[test]
+fn ordinary_store_actual_parent_field_receiver_rejects_stale_raw_and_wire_provenance() {
+    super::g933_consumers::source_derived_receiver_conflict(include_str!("ordinary-parent-two-views.zil"));
 }
 
 #[test]
