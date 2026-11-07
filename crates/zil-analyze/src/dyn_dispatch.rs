@@ -893,6 +893,13 @@ mod tests {
         m.functions[1].blocks[0].instructions[0].kind = InstructionKind::Constant(Constant::I32(7));
         assert!(admitted(&m).is_err());
         let mut m = fixture();
+        if let InstructionKind::CallDynSlot { interface, .. } =
+            &mut m.functions[1].blocks[0].instructions[2].kind
+        {
+            interface.index = 1;
+        }
+        assert!(admitted(&m).is_err());
+        let mut m = fixture();
         let mut bad = m.dyn_vtables[0].clone();
         bad.id.index = 1;
         bad.entries[0].function = FunctionId(99);
