@@ -1,17 +1,18 @@
 {
   "commit_parents": [
-    "adfd1737815a06d7dd5cd75f0f3ca682f5017beb",
+    "98c60edc1762e76928234848338dec75cbddeaca",
     "092a773fbec37e49c04b84fab4571f18cff02613",
-    "1151c930d102dff73403860ca75f420f4f0fb411",
-    "178581edf77d2ab97289b53e1cb2d8a4738513d1",
-    "1fd8f7f1c2df12c8a2276a0e0e96edde63ebc019",
-    "33c4daba5abb087eb1e0a13c4196e962606a6a6f",
-    "4918c33a95f533a78c96b130071e707cf4d93f61",
-    "75bf6d51b29daf9392a45088ce3946c1f8bf54fe",
+    "103bb7993ca899395cb03f6eca17c0de82fff9a2",
+    "20f3f0687e102a972c163f434daa0c25853116fa",
+    "238babb94cdea1d58ab8f6b14e162b3a221d2786",
+    "5e25c55b9f7b6ae5b5797b451f78aa616891a2f5",
+    "9154302211ccc799d98a656190a68e23353e7fc0",
+    "9c3af091b3c7a8d2f9ae4a32541b8732aae3ab34",
     "a68b66eeb15bd8920caf6cd89f737d50c33c8339",
-    "bd7016a449a183791087074066ee6f0d1a4e1f41",
-    "d7fc8d42d6774871e908e2f6c1be54556feddd66",
-    "d86d173224620927d65369a6dc87c82032ec8000"
+    "adfd1737815a06d7dd5cd75f0f3ca682f5017beb",
+    "b95fe6d370fdd80da3c29c2e41e119c1cfaaf4e4",
+    "e5be2170c2a63452c6e40ac7998253eab0aa489a",
+    "eeb168ee1a19f085a8ff70317717d7ff1df39c01"
   ],
   "commit_tips": [
     "01d47eee6797d755e35938fc9769fc3733424944",
@@ -21,10 +22,9 @@
     "092a773fbec37e49c04b84fab4571f18cff02613",
     "0b35ea60996babf37b8b6cbc5ed8b19b1ae28b83",
     "0ba64a223494860d513d7d7522e1d1b942af6069",
-    "1151c930d102dff73403860ca75f420f4f0fb411",
+    "103bb7993ca899395cb03f6eca17c0de82fff9a2",
     "1512f5ced96ddb676f1f719fc9c1dd2a4734f6c2",
     "15498f14af8f11d3a3bf4b198fe69208be5913ce",
-    "178581edf77d2ab97289b53e1cb2d8a4738513d1",
     "17ceca5374b8ea75a1c45de0025ad574124099e6",
     "19f8663c0d22953b5a24cd809bfa92cba9659b21",
     "1afac7a91ec6bf6b4ffc717cf4562975b0f47990",
@@ -33,12 +33,13 @@
     "1d609cc24e5b46f884bad63e53aacbb6636f2b37",
     "1e751cbcac25cec9ecee88ee77fcf1ae4c20e2ce",
     "1ebad1346ae520d34c9422c187f44035cdf2de4e",
-    "1fd8f7f1c2df12c8a2276a0e0e96edde63ebc019",
     "20d40f57580265788915f48f35ba567fe286b301",
     "20de6d9734393bf70db58bec0d4f7c1ac0e7beb4",
+    "20f3f0687e102a972c163f434daa0c25853116fa",
     "22985cefd14ff8a8367f7baaab92724467ac7468",
     "22efbc330a40ef01d6912e22d9cff34cfa87486f",
     "23484fdef72b146a0b4b797ee84422e6d57bdd20",
+    "238babb94cdea1d58ab8f6b14e162b3a221d2786",
     "251809a418584a12a3ec4751767891625048e8ad",
     "251bbf98e06fa939ab5313ec819bff6b67887c4c",
     "27178049ae1ed69ffc4338591fe8063c073fecf5",
@@ -50,7 +51,6 @@
     "31864832c972773b9a0446b5abb157aa2e587247",
     "31fe310b1c919c3dc8da2c89b05ff262f456614c",
     "33542bff29621d271c3d82208ebb4770aeacf20e",
-    "33c4daba5abb087eb1e0a13c4196e962606a6a6f",
     "36e532e8636e3f208b477547b764c3661016748b",
     "37fd067b6d2ada95961b7dc37b587a5317c7ea86",
     "385a2d7b536be0b60aa75d1e19bfdfabc5152029",
@@ -64,7 +64,6 @@
     "46d99e8f20d8ef36ce1ae940f4ce1831286e50f0",
     "46fa64eb92f2308147b967a1178c897982000224",
     "4732c90ec2e6d93742230136f717b13669494d1e",
-    "4918c33a95f533a78c96b130071e707cf4d93f61",
     "4dc87401d6b9dbd8d77a74e4d7b40bd8c3ec8fe9",
     "51e84f87f16dd0a2c8a93d889c4952f2e801c591",
     "5304bf5f06fcce7b101497a91788a2f17022a354",
@@ -79,6 +78,7 @@
     "5921c1fd19f87c611f3691bf707a32180b282f03",
     "5b207389c70f8e2a2eb540667d2422675b238864",
     "5bccd3cd2de833d51d7031a96ce6a0c3c33adecd",
+    "5e25c55b9f7b6ae5b5797b451f78aa616891a2f5",
     "5e3e0495d9ad1267c84cfaea135e5f49e98ae5b2",
     "5ec284ae5257fae4dfc64142d866d58a4147c57d",
     "62aaedea97cd389172f0fe2d2d21344d4ad82160",
@@ -93,7 +93,6 @@
     "6fb14e208527ec8a6a113f48e1a90adfdde2f1c4",
     "7129a4687194a8b3f15ef3f8672ea2430f256ff6",
     "74b8c270560f3d28e4404c38142e142894e5e826",
-    "75bf6d51b29daf9392a45088ce3946c1f8bf54fe",
     "7744ffe6ba1f5c523f3a4d1452f796ce91e5bf85",
     "78c8db3c010454b1085981a19f4268ffdbb9deb2",
     "78cc97f6e2a06b35fb886f8bcdeec3c9ddc0607f",
@@ -115,6 +114,7 @@
     "8ea37c2de56cf65f1448e4fa647671f4459ad148",
     "9087959cd2018acbc1c888f4de129740ba41e3a0",
     "90de84c528f01745866796a9ce440f79065fde68",
+    "9154302211ccc799d98a656190a68e23353e7fc0",
     "94515c1c78c77c8bb9eb2300cdadce714fed7e19",
     "958957042c31b16d92b281caec3688e5d7d2e014",
     "960fc28c6f39ecf3e94b31e66ad8f8b83f30f8a0",
@@ -122,6 +122,7 @@
     "9867b6341a9faca631d5c57d1bef61b5cad89c8e",
     "998260386ff926a5bfb367a72d9ac04b4168dc46",
     "9abdbdb7f9bb75ee8615855f06d1a7f64ab19c3d",
+    "9c3af091b3c7a8d2f9ae4a32541b8732aae3ab34",
     "9f75c55383d46a5ac2440549abafe14e5853dd1f",
     "a128fd8942b18fb2d1a99e97ac303f056f32984e",
     "a19ee3339e47da012c3e2f97ee631d8d72fd0a3c",
@@ -137,11 +138,11 @@
     "afb2650380f2583ab47cefc4e1013b73cfbcdacc",
     "b3f3888f2a8fd66f9cd2c20393299964c1fd73b1",
     "b83b57e14ccc3585342b9a2cef1025812e64b0ab",
+    "b95fe6d370fdd80da3c29c2e41e119c1cfaaf4e4",
     "ba2af02c54f1ab24bb4725990a32bbd8ad3d38d5",
     "bb69ef7a1f239c9b1401ac65b8c9e2f0b40e33a6",
     "bb9d113455d3f940cfa2fe237347039f1e241007",
     "bd4ae974fdf228aaf6c3c5b0e48b5217a46bd1b3",
-    "bd7016a449a183791087074066ee6f0d1a4e1f41",
     "be1084c9fe2ddcab7c9215522347fa218717be17",
     "bfbc703e6c3ee3ea4d169b96b16a814b1b875115",
     "bfd84b224a4b5089a7b8bd1c1503be5b80505faf",
@@ -160,8 +161,6 @@
     "d3d5c39bd5e73214ed63f8aac2e0f34f45f34431",
     "d49001092b6b98f04bfaf2185f67fe20d36862fe",
     "d5fdb8a65799951fd9d5ce5c5764fdf825474224",
-    "d7fc8d42d6774871e908e2f6c1be54556feddd66",
-    "d86d173224620927d65369a6dc87c82032ec8000",
     "d8b8b4f58ec893da3dde77b826647ee260f96c33",
     "dbf09adcfd0a792b33d66333e658a6c842f0e25c",
     "dc7be483d725028055aca0840f9ead85b0946f4b",
@@ -172,6 +171,7 @@
     "e48fb3643d092fb1045bcab5d28a97a874d49bfd",
     "e533d9d469caec0c30e264e32c957bfc26c45104",
     "e5b3274ba9c7d1ac86c085a7d0d8005f2963523f",
+    "e5be2170c2a63452c6e40ac7998253eab0aa489a",
     "e800b39d5f9a096b33560625a4273c1ef11e3d92",
     "e83c911061c3521746fc12fbd850006ce09176ff",
     "e92508be996a190fa188d08319d37cc8b522bae6",
@@ -179,6 +179,7 @@
     "eb3fd3e791221391a67b67886fbb84c5e87e2f2a",
     "ebeb85adba3e3c706e952a1aab14cf48b7a7fadc",
     "ee788ecbb7596dafe4101e66a4405e4dfb16184a",
+    "eeb168ee1a19f085a8ff70317717d7ff1df39c01",
     "f1240f5be6318170c0a9af53486bd5b8f3ba44b9",
     "f1492652cb6497a33f39e615fd398456ce09253a",
     "f3091ac509e3c3af24dfb51bb0ad110fd433df4f",
@@ -193,7 +194,7 @@
     "fe4cb19ae9bf82cedc1c80dd7677808aa46b4072",
     "fe790f94f10b08025ecb041b6c4c503a59949f93"
   ],
-  "created_utc": "2026-11-07T23:09:22.351872+00:00",
+  "created_utc": "2026-11-07T23:09:55.660905+00:00",
   "format": 1,
   "local_refs": {
     "refs/heads/goal": "251bbf98e06fa939ab5313ec819bff6b67887c4c",
@@ -263,7 +264,7 @@
     "refs/remotes/origin/main": "e800b39d5f9a096b33560625a4273c1ef11e3d92"
   },
   "missing_commit_objects": [],
-  "prior_archive": "adfd1737815a06d7dd5cd75f0f3ca682f5017beb",
+  "prior_archive": "98c60edc1762e76928234848338dec75cbddeaca",
   "remote_refs": {
     "refs/heads/archive/source-history": "adfd1737815a06d7dd5cd75f0f3ca682f5017beb",
     "refs/heads/goal": "251bbf98e06fa939ab5313ec819bff6b67887c4c",
@@ -385,7 +386,7 @@
         "?? crates/zil-verify/src/resources/replacements/tests.rs",
         "?? crates/zil-verify/src/sums/replacements.rs"
       ],
-      "wip_commit": "bd7016a449a183791087074066ee6f0d1a4e1f41",
+      "wip_commit": "b95fe6d370fdd80da3c29c2e41e119c1cfaaf4e4",
       "work_tree": "4fd3a438e1e25dc66782d540ce0d4a2bf6547a56"
     },
     {
@@ -431,7 +432,7 @@
         "?? tests/language-readiness/terminal/343/cas-negative-values.zil",
         "?? tests/language-readiness/terminal/343/cas.rs"
       ],
-      "wip_commit": "178581edf77d2ab97289b53e1cb2d8a4738513d1",
+      "wip_commit": "9154302211ccc799d98a656190a68e23353e7fc0",
       "work_tree": "1437c82bdcdaf1d06def8be0ba4cdadf4ddc4626"
     },
     {
@@ -536,7 +537,7 @@
       "status": [
         "?? crates/zil-verify/tests/review_g442_scope_depth.rs"
       ],
-      "wip_commit": "1151c930d102dff73403860ca75f420f4f0fb411",
+      "wip_commit": "9c3af091b3c7a8d2f9ae4a32541b8732aae3ab34",
       "work_tree": "1831f46bc7c62344bf4472ea8fabcf3b68cd46b4"
     },
     {
@@ -863,7 +864,7 @@
         " M tests/language-readiness/foreign-thread-registration/threaded-host.c",
         "?? tests/language-readiness/foreign-thread-registration/threaded-generic.zil"
       ],
-      "wip_commit": "75bf6d51b29daf9392a45088ce3946c1f8bf54fe",
+      "wip_commit": "e5be2170c2a63452c6e40ac7998253eab0aa489a",
       "work_tree": "18c7d80dd827099763ee1023127d8d48c8cc018e"
     },
     {
@@ -1036,7 +1037,7 @@
         " M crates/zil-verify/src/stored_flow.rs",
         " M crates/zil-verify/src/stored_flow/task_address.rs"
       ],
-      "wip_commit": "d7fc8d42d6774871e908e2f6c1be54556feddd66",
+      "wip_commit": "eeb168ee1a19f085a8ff70317717d7ff1df39c01",
       "work_tree": "b455263c1c778a0bcdce4f3ac26c89f5ed499e58"
     },
     {
@@ -1058,7 +1059,7 @@
         " M crates/zil-driver/tests/stored_environment_lending_raw.rs",
         "?? tests/fixtures/task-borrow-results/allocation-error.zil"
       ],
-      "wip_commit": "d86d173224620927d65369a6dc87c82032ec8000",
+      "wip_commit": "103bb7993ca899395cb03f6eca17c0de82fff9a2",
       "work_tree": "48a7429eb276faa810b23985fe7961b82689f0fe"
     },
     {
@@ -1114,7 +1115,7 @@
       "status": [
         "?? crates/zil-driver/tests/review_g334_source.rs"
       ],
-      "wip_commit": "4918c33a95f533a78c96b130071e707cf4d93f61",
+      "wip_commit": "238babb94cdea1d58ab8f6b14e162b3a221d2786",
       "work_tree": "25492802ef2fff050dd5170bbd658f5f87d75408"
     },
     {
@@ -1128,7 +1129,7 @@
       "status": [
         "?? crates/zil-driver/tests/review_g335_source.rs"
       ],
-      "wip_commit": "33c4daba5abb087eb1e0a13c4196e962606a6a6f",
+      "wip_commit": "5e25c55b9f7b6ae5b5797b451f78aa616891a2f5",
       "work_tree": "5cc7b74808f9c55617a7313896a47fe0df449b93"
     },
     {
@@ -1204,7 +1205,7 @@
         " M crates/zil-driver/tests/codegen_work_budget.rs",
         " M crates/zil-driver/tests/llvm_api_driver_integration.rs"
       ],
-      "wip_commit": "1fd8f7f1c2df12c8a2276a0e0e96edde63ebc019",
+      "wip_commit": "20f3f0687e102a972c163f434daa0c25853116fa",
       "work_tree": "e55b57a46a60fabd8ae847eacadf8849b372435f"
     },
     {
