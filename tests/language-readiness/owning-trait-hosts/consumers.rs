@@ -1,4 +1,4 @@
-//! A non-Copy Package provides a static shared trait method across modules.
+//! Non-Copy Packages provide ordinary shared and exclusive trait methods across modules.
 use super::{NEXT, project};
 use std::{fs, process::Command, sync::atomic::Ordering};
 use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit, TargetProfile};
@@ -189,7 +189,7 @@ fn owning_package_shared_trait_rejects_wrong_provider_and_bad_definitions() {
     );
     assert!(result.diagnostics.iter().any(|d| {
         d.message
-            .contains("project Package traits require fixed shared receivers")
+            .contains("project Package traits require fixed borrowed receivers")
     }));
     let owning_parameter = KEY_EQ.replace("other:&Self", "other:Self");
     let result = check(
@@ -199,7 +199,7 @@ fn owning_package_shared_trait_rejects_wrong_provider_and_bad_definitions() {
     );
     assert!(result.diagnostics.iter().any(|d| {
         d.message
-            .contains("project Package traits require fixed shared receivers")
+            .contains("project Package traits require fixed borrowed receivers")
     }));
     let generic_trait = KEY_EQ.replace("KeyEq {", "KeyEq<T:Copy> {");
     let generic_impl = unused.replace(
@@ -213,7 +213,7 @@ fn owning_package_shared_trait_rejects_wrong_provider_and_bad_definitions() {
     );
     assert!(result.diagnostics.iter().any(|d| {
         d.message
-            .contains("project Package traits require fixed shared receivers")
+            .contains("project Package traits require fixed borrowed receivers")
     }));
 }
 
@@ -403,4 +403,450 @@ fn shared_i64_field(types: &[zil_ir::Type], address: ValueId, value: ValueId) ->
         types[address.0 as usize],
         zil_ir::Type::Address { mutable: false, .. }
     ) && types[value.0 as usize] == zil_ir::Type::I64
+}
+
+const MUTABLE_PROTOCOL: &str = r#"
+pub trait Control {
+ fn reset(self:&mut Self);
+ fn replace(self:&mut Self,value:i64)->i64;
+ fn read(self:&Self)->i64;
+}
+"#;
+const MUTABLE_MODEL: &str = r#"
+import control
+pub package Item {manages data:ByteBuffer; key:i64}
+impl control.Control for Item {
+ fn reset(self:&mut Self){self.key=0}
+ fn replace(self:&mut Self,value:i64)->i64{let old=self.key;self.key=value;return old}
+ fn read(self:&Self)->i64{return self.key}
+}
+pub enum Error{Allocation}
+pub fn make()->Error!Item {
+ let data=bytes_new()
+ if !bytes_reserve(data,1) || !bytes_push(data,65u8){return Error.Allocation}
+ return Item{data:give data,key:9}
+}
+pub fn byte(value:&Item)->u8{return bytes_view(value.data)[0]}
+"#;
+const MUTABLE_LIBRARY: &str = r#"
+import control
+import model
+pub fn ordinary(value:&mut model.Item)->i64{value.reset();return value.replace(11)}
+pub fn reset<K:StoreElement+control.Control>(value:&mut K){value.reset()}
+pub fn replace<K:StoreElement+control.Control>(value:&mut K,n:i64)->i64{return value.replace(n)}
+pub fn read<K:StoreElement+control.Control>(value:&K)->i64{return value.read()}
+"#;
+const MUTABLE_MAIN: &str = r#"
+import model
+import library
+fn main()->model.Error!i32 {
+ var value=model.make()?
+ if library.ordinary(&mut value)!=0{return 1}
+ if library.read(&value)!=11{return 2}
+ library.reset(&mut value)
+ if library.replace(&mut value,42)!=0{return 3}
+ if library.read(&value)!=42 || model.byte(&value)!=65u8{return 4}
+ return 0
+}
+"#;
+fn mutable_files() -> [(&'static str, &'static str); 4] {
+    [
+        ("main", MUTABLE_MAIN),
+        ("control", MUTABLE_PROTOCOL),
+        ("model", MUTABLE_MODEL),
+        ("library", MUTABLE_LIBRARY),
+    ]
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn owning_package_mutable_trait_crosses_plain_and_generic_helpers_with_exact_cleanup() {
+    use std::{
+        os::unix::fs::PermissionsExt,
+        path::{Path, PathBuf},
+    };
+    let dir = std::env::temp_dir().join(format!(
+        "zil-owning-mutable-traits-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    fs::create_dir_all(&dir).unwrap();
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    let observer = dir.join("observer.o");
+    let built=Command::new(&clang).args(["-std=c11","-Wall","-Wextra","-Werror","-c"])
+ .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/language-readiness/terminal/generics-and-constants/store-elements/allocation-observer.c"))
+ .arg("-o").arg(&observer).output().unwrap();
+    assert!(built.status.success(), "{built:?}");
+    let quote = |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
+    let wrapper = dir.join("link.sh");
+    fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\nfor arg in \"$@\"; do case \"$arg\" in -c|-S|-E|--version) link=0;; esac; done\nif [ \"$link\" = 1 ]; then exec {} \"$@\" -x none {} -Wl,--wrap=realloc -Wl,--wrap=calloc -Wl,--wrap=free; fi\nexec {} \"$@\"\n",quote(&clang),quote(&observer),quote(&clang))).unwrap();
+    fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let report = compile_project(
+                &project(&mutable_files()),
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    clang: Some(wrapper.clone()),
+                    stop_after: Stage::Build,
+                    output: Some(dir.join(format!("program-{backend:?}-{optimization:?}"))),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
+            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+            for (failure, exit, stdout) in [
+                (None, 0, b"1:1:1\n".as_slice()),
+                (Some("1"), 1, b"1:0:0\n".as_slice()),
+            ] {
+                let mut command = Command::new(&report.artifacts["executable"]);
+                command.env_remove("ZIL_POD_ALLOC_FAIL_AT");
+                if let Some(at) = failure {
+                    command.env("ZIL_POD_ALLOC_FAIL_AT", at);
+                }
+                let output = command.output().unwrap();
+                assert_eq!(
+                    output.status.code(),
+                    Some(exit),
+                    "{backend:?}/{optimization:?} fail={failure:?}: {output:?}"
+                );
+                assert_eq!(
+                    output.stdout, stdout,
+                    "{backend:?}/{optimization:?} fail={failure:?}"
+                );
+                assert!(output.stderr.is_empty(), "{output:?}");
+            }
+        }
+    }
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn owning_package_mutable_trait_keeps_shared_permissions_provider_identity_and_live_views() {
+    let shared = MUTABLE_LIBRARY.replace("value:&mut model.Item", "value:&model.Item");
+    let immutable = MUTABLE_MAIN.replace("var value=", "let value=");
+    let view_model = format!(
+        "{MUTABLE_MODEL}\npub fn view(value:&Item)->&[u8]{{return bytes_view(value.data)}}"
+    );
+    let view_main = MUTABLE_MAIN
+        .replace(
+            "var value=model.make()?",
+            "var value=model.make()?;let live=model.view(&value)",
+        )
+        .replace("return 0", "return i32(live[0])-65");
+    let other_model = MUTABLE_MODEL
+        .replace("import control", "import other")
+        .replace("impl control.Control", "impl other.Control");
+    let bad_signature = MUTABLE_MODEL.replace("fn reset(self:&mut Self)", "fn reset(self:&Self)");
+    for (name, main, model, library, other) in [
+        (
+            "shared-receiver",
+            MUTABLE_MAIN,
+            MUTABLE_MODEL,
+            shared.as_str(),
+            false,
+        ),
+        (
+            "immutable-owner",
+            immutable.as_str(),
+            MUTABLE_MODEL,
+            MUTABLE_LIBRARY,
+            false,
+        ),
+        (
+            "live-view",
+            view_main.as_str(),
+            view_model.as_str(),
+            MUTABLE_LIBRARY,
+            false,
+        ),
+        (
+            "wrong-trait",
+            MUTABLE_MAIN,
+            other_model.as_str(),
+            MUTABLE_LIBRARY,
+            true,
+        ),
+        (
+            "wrong-mode",
+            MUTABLE_MAIN,
+            bad_signature.as_str(),
+            MUTABLE_LIBRARY,
+            false,
+        ),
+    ] {
+        let mut files = vec![
+            ("main", main),
+            ("control", MUTABLE_PROTOCOL),
+            ("model", model),
+            ("library", library),
+        ];
+        if other {
+            files.push(("other", MUTABLE_PROTOCOL));
+        }
+        let report = compile_project(
+            &project(&files),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{name}: {}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .all(|d| !matches!(d.code.as_str(), "E-MODULE-ID" | "E-GENERIC-ORIGIN")),
+            "{name}: {}",
+            report.to_json()
+        );
+    }
+    // Unused provider bodies retain the declaration's actual exclusive mode.
+    let root = "import model;fn unused(value:&mut model.Item){value.reset()}fn main(){}";
+    let report = compile_project(
+        &project(&[
+            ("main", root),
+            ("control", MUTABLE_PROTOCOL),
+            ("model", bad_signature.as_str()),
+        ]),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn owning_package_mutable_trait_default_body_preserves_actual_self_and_mode() {
+    let protocol = MUTABLE_PROTOCOL.replace(
+        "fn reset(self:&mut Self);",
+        "fn reset(self:&mut Self){self.replace(0)}",
+    );
+    let model = MUTABLE_MODEL.replace(" fn reset(self:&mut Self){self.key=0}\n", "");
+    let report = compile_project(
+        &project(&[
+            ("main", MUTABLE_MAIN),
+            ("control", protocol.as_str()),
+            ("model", model.as_str()),
+            ("library", MUTABLE_LIBRARY),
+        ]),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+const MUTABLE_RAW: &str = r#"
+trait Control{fn replace(self:&mut Self,value:i64)->i64;}
+package Item{manages data:ByteBuffer;key:i64}
+package Other{manages data:ByteBuffer;key:i64}
+impl Control for Item{
+ fn replace(self:&mut Self,value:i64)->i64{
+  let appended=bytes_push(self.data,66u8);let old=self.key;self.key=value;return old
+ }
+}
+impl Control for Other{
+ fn replace(self:&mut Self,value:i64)->i64{let old=self.key;self.key=value;return old}
+}
+fn apply<K:StoreElement+Control>(value:&mut K,n:i64)->i64{return value.replace(n)}
+fn main()->i32{
+ var value=Item{data:bytes_new(),key:1}
+ let before=bytes_view(value.data)
+ let size=before.len()
+ let old=apply(&mut value,7)
+ return i32(old+size-1)
+}
+"#;
+
+#[test]
+fn owning_package_mutable_trait_raw_and_wire_rebuild_actual_receiver_identity_and_effects() {
+    use zil_ir::Type;
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "mutable-owning-trait.zil",
+        MUTABLE_RAW,
+    );
+    let ast = zil_syntax::parse(&source).into_result().unwrap();
+    let core = zil_expand::expand(&source, &ast).unwrap();
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let original = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&original, &limits).unwrap();
+    zil_verify::verify_module(original.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&original, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    let provider = original
+        .functions
+        .iter()
+        .find(|f| f.name.ends_with("Item.replace"))
+        .unwrap()
+        .id;
+    let other = original
+        .functions
+        .iter()
+        .find(|f| f.name.ends_with("Other.replace"))
+        .unwrap()
+        .id;
+    let helper = original
+        .functions
+        .iter()
+        .find(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.kind,InstructionKind::Call{function,..}if function==provider))
+        })
+        .unwrap()
+        .id;
+    for mutation in [
+        "shared-actual-receiver",
+        "same-layout-wrong-self",
+        "future-view-use",
+    ] {
+        let mut forged = original.clone();
+        match mutation {
+            "shared-actual-receiver" => {
+                let main = forged
+                    .functions
+                    .iter_mut()
+                    .find(|f| f.name == "main")
+                    .unwrap();
+                let borrow=main.blocks.iter_mut().flat_map(|b|&mut b.instructions).find(|i|
+      matches!(i.kind,InstructionKind::BorrowLocalMut{..})&&i.result.is_some_and(|v|matches!(&main.values[v.0 as usize],Type::Address{mutable:true,inner}if matches!(inner.as_ref(),Type::Package{..})))).unwrap();
+                let InstructionKind::BorrowLocalMut { local } = borrow.kind else {
+                    unreachable!()
+                };
+                borrow.kind = InstructionKind::BorrowLocal { local };
+            }
+            "same-layout-wrong-self" => {
+                let call=forged.functions[helper.0 as usize].blocks.iter_mut().flat_map(|b|&mut b.instructions).find(|i|matches!(i.kind,InstructionKind::Call{function,..}if function==provider)).unwrap();
+                let InstructionKind::Call { function, .. } = &mut call.kind else {
+                    unreachable!()
+                };
+                *function = other;
+            }
+            "future-view-use" => {
+                let main = forged
+                    .functions
+                    .iter_mut()
+                    .find(|f| f.name == "main")
+                    .unwrap();
+                let block = main
+                    .blocks
+                    .iter_mut()
+                    .find(|b| {
+                        b.instructions
+                            .iter()
+                            .any(|i| matches!(i.kind, InstructionKind::SliceLength { .. }))
+                    })
+                    .unwrap();
+                let at = block
+                    .instructions
+                    .iter()
+                    .position(|i| matches!(i.kind, InstructionKind::SliceLength { .. }))
+                    .unwrap();
+                let length = block.instructions.remove(at);
+                let value = length.result.unwrap();
+                let stored = block
+                    .instructions
+                    .iter()
+                    .position(|i| matches!(i.kind,InstructionKind::Store{value:v,..}if v==value))
+                    .unwrap();
+                let store = block.instructions.remove(stored);
+                let after = block
+                    .instructions
+                    .iter()
+                    .position(
+                        |i| matches!(i.kind,InstructionKind::Call{function,..}if function==helper),
+                    )
+                    .unwrap()
+                    + 1;
+                block.instructions.splice(after..after, [length, store]);
+            }
+            _ => unreachable!(),
+        }
+        // Opcode/type and nominal-call forgeries are checked independently at
+        // Verify admission. The well-typed reordered view also reaches the
+        // producer's actual resource-window check.
+        if mutation == "future-view-use" {
+            let errors = zil_analyze::analyze(&forged, &limits).expect_err(mutation);
+            assert!(
+                errors
+                    .iter()
+                    .any(|d| d.category == ResultCategory::SafeReject
+                        && d.message.contains("conflicts with a live")),
+                "{mutation}: {errors:?}"
+            );
+        }
+        let mut claim = plan.clone();
+        claim.module_fingerprint = forged.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
+        for result in [
+            zil_verify::verify_module(forged, claim, &target, &limits),
+            zil_verify::verify_module_bytes(&wire, &target, &limits),
+        ] {
+            let errors = result.expect_err(mutation);
+            eprintln!(
+                "{mutation}: {}",
+                errors
+                    .iter()
+                    .map(|d| d.code.as_str())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
+            assert!(
+                errors
+                    .iter()
+                    .all(|d| d.category == ResultCategory::SafeReject),
+                "{mutation}: {errors:?}"
+            );
+            assert!(
+                errors.iter().all(|d| !matches!(
+                    d.code.as_str(),
+                    "E-VERIFY-PLAN" | "E-VERIFY-PLAN-IDENTITY" | "E-VERIFY-HOLD"
+                )),
+                "{mutation}: {errors:?}"
+            );
+            let expected = match mutation {
+                "shared-actual-receiver" => "E-VERIFY-TYPE",
+                "same-layout-wrong-self" => "E-VERIFY-CALL",
+                "future-view-use" => "E-BORROW-CONFLICT",
+                _ => unreachable!(),
+            };
+            assert!(
+                errors.iter().any(|d| d.code == expected),
+                "{mutation}: {errors:?}"
+            );
+        }
+    }
 }

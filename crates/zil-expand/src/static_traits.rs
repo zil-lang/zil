@@ -70,12 +70,21 @@ fn shared_self(parameter: &s::Param) -> bool {
         )
 }
 
+fn exclusive_self(parameter: &s::Param) -> bool {
+    !parameter.give
+        && matches!(
+            &parameter.ty.kind,
+            s::TypeKind::Reference { mutable: true, inner, .. }
+                if plain_name(inner) == Some("Self")
+        )
+}
+
 fn project_package_method(method: &s::Function) -> bool {
     finite_method(method)
         && method
             .params
             .first()
-            .is_some_and(|p| p.name == "self" && shared_self(p))
+            .is_some_and(|p| p.name == "self" && (shared_self(p) || exclusive_self(p)))
         && method
             .params
             .iter()
@@ -546,7 +555,7 @@ impl<'a> Expander<'a> {
                     })
                 {
                     self.unsupported(
-                        "project Package traits require fixed shared receivers and scalar results",
+                        "project Package traits require fixed borrowed receivers and scalar results",
                         item.span,
                     );
                     continue;
