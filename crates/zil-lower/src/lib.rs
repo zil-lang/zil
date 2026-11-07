@@ -54,16 +54,6 @@ fn lower_view_with_budget(
 ) -> CompileResult<(LirView<'_>, owned_sums::Budget<'_>)> {
     let module = verified.module();
     let target = &module.target;
-    if !module.dyn_declarations.is_empty()
-        || !module.dyn_interfaces.is_empty()
-        || !module.dyn_vtables.is_empty()
-    {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Lower,
-            "dynamic interface lowering is not yet implemented",
-            None,
-        )]);
-    }
     if module.schema_version != SCHEMA_VERSION {
         return Err(vec![Diagnostic::error(
             Phase::Lower,
@@ -84,6 +74,7 @@ fn lower_view_with_budget(
     // Reserve the complete new callable relation before LIR retains/clones it.
     // This budget is also consumed by ordinary owning/stored lowering below.
     sum_budget.callable_metadata(module)?;
+    sum_budget.dyn_tables(module)?;
     for closure in &module.closures {
         for ty in &closure.captures {
             if matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Tuple(_) | Type::Enum{..} | Type::ErrorUnion{..}))
@@ -190,15 +181,9 @@ fn lower_view_with_budget(
                 .parameters
                 .iter()
                 .any(|p| matches!(p, Type::Address { .. }));
-        if !matches!(
-            closure.kind,
-            CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-        ) || !(owning_signature || invocation_signature || closure.result.is_copy_value()
-            || (!closure.lending_captures.is_empty()
-                && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
-                && matches!(&closure.result, Type::Address { inner, mutable: false }
-                    if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))))
-            || !closure.captures.iter().all(|ty| {
+        let mut complete_captures = true;
+        for ty in &closure.captures {
+            let legacy_capture = {
                 ty.is_copy_value()
                     || callable_parameter_type(ty, &module.closures)
                     || ty.is_shared_sync_cell_address()
@@ -214,7 +199,21 @@ fn lower_view_with_budget(
                         && !matches!(ty, Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. })))
                     || (package_capture_type(ty, &module.resources)
                         && !package_array_fields(ty))
-            })
+            };
+            if !legacy_capture && !sum_budget.inline_store_capture(ty, &module.resources)? {
+                complete_captures = false;
+                break;
+            }
+        }
+        if !matches!(
+            closure.kind,
+            CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
+        ) || !(owning_signature || invocation_signature || closure.result.is_copy_value()
+            || (!closure.lending_captures.is_empty()
+                && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
+                && matches!(&closure.result, Type::Address { inner, mutable: false }
+                    if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))))
+            || !complete_captures
             || !closure.parameters.iter().all(|ty| {
                 owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address()
                     || (captured_fixed_signature && shared_qualified_capture_address(ty)) || (qualified_signature
@@ -379,6 +378,15 @@ fn clone_function(
                 .map(|instruction| {
                     if let zil_ir::InstructionKind::StaticUtf8 { bytes } = &instruction.kind {
                         budget.static_bytes(bytes.len())?;
+                    }
+                    if let zil_ir::InstructionKind::CallDynSlot { arguments, .. } =
+                        &instruction.kind
+                    {
+                        budget.static_bytes(
+                            arguments
+                                .len()
+                                .saturating_mul(std::mem::size_of::<zil_ir::ValueId>()),
+                        )?;
                     }
                     Ok(instruction.clone())
                 })

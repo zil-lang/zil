@@ -95,6 +95,362 @@ fn with_entry(kind: CallableKind, function: TypedFunction) -> TypedModule {
     m
 }
 
+fn direct_store_sum() -> Type {
+    Type::Enum {
+        name: "CaptureChoice935".into(),
+        variants: vec![
+            (
+                "Own".into(),
+                vec![Type::Managed(Box::new(Type::OwnedStore {
+                    element: Box::new(Type::I32),
+                }))],
+            ),
+            ("Empty".into(), vec![]),
+        ],
+    }
+}
+
+// The selected Empty arm is complete and live even though it has no Managed
+// leaf. Its capture flag must still distinguish it from a taken empty slot.
+fn direct_store_sum_capture() -> TypedModule {
+    let sum = direct_store_sum();
+    let mut main = Body::new(Type::I32);
+    let initial = main.value(
+        sum.clone(),
+        InstructionKind::MakeVariant {
+            variant: 1,
+            fields: vec![],
+        },
+    );
+    let closure = main.value(
+        Type::Closure(ClosureId(0)),
+        InstructionKind::MakeClosure {
+            closure: ClosureId(0),
+            captures: vec![initial],
+        },
+    );
+    let saved = main.storage(Type::Closure(ClosureId(0)));
+    main.op(InstructionKind::Store {
+        local: saved,
+        value: closure,
+    });
+    let result = main.value(
+        Type::I32,
+        InstructionKind::CallClosureMut {
+            callee: saved,
+            arguments: vec![],
+        },
+    );
+    main.op(InstructionKind::DropClosure { local: saved });
+    let mut entry = Body::new(Type::I32);
+    entry.0.id = FunctionId(1);
+    entry.0.name = "direct_sum_mutator".into();
+    entry.0.environment = Some(ClosureId(0));
+    let taken = entry.value(sum.clone(), InstructionKind::TakeCapture { index: 0 });
+    let previous = entry.storage(sum.clone());
+    entry.op(InstructionKind::Store {
+        local: previous,
+        value: taken,
+    });
+    let refill = entry.value(sum.clone(), InstructionKind::TakeLocal { local: previous });
+    entry.op(InstructionKind::WriteCapture {
+        index: 0,
+        value: refill,
+    });
+    let answer = entry.value(Type::I32, InstructionKind::Constant(Constant::I32(7)));
+    let mut module = module(main.finish(Some(result), CleanupExitKind::Return));
+    module
+        .functions
+        .push(entry.finish(Some(answer), CleanupExitKind::Return));
+    module.closures.push(ClosureDefinition {
+        storage_life: None,
+        lending_captures: vec![],
+        id: ClosureId(0),
+        function: FunctionId(1),
+        kind: CallableKind::FnMut,
+        captures: vec![sum],
+        parameters: vec![],
+        result: Type::I32,
+    });
+    module.resources.push(ResourceDefinition {
+        name: crate::dynamic_store::definition_name(&Type::I32),
+        payload: Type::OwnedStore {
+            element: Box::new(Type::I32),
+        },
+        teardown: None,
+    });
+    module
+}
+
+fn direct_sum_rejected(module: TypedModule, code: &str, message: &str) {
+    let (raw, wire) = check_both(module);
+    for result in [raw, wire] {
+        let errors = result.unwrap_err();
+        assert_eq!(errors[0].code, code, "{errors:?}");
+        assert_eq!(errors[0].message, message, "{errors:?}");
+    }
+}
+
+fn direct_store_sum_error_exit() -> TypedModule {
+    let mut module = direct_store_sum_capture();
+    let result_type = Type::ErrorUnion {
+        error: Box::new(Type::I32),
+        result: Box::new(Type::I32),
+    };
+    let main = &mut module.functions[0];
+    let call = main.blocks[0]
+        .instructions
+        .iter()
+        .find_map(|i| matches!(i.kind, InstructionKind::CallClosureMut { .. }).then_some(i.result))
+        .flatten()
+        .unwrap();
+    main.values[call.0 as usize] = result_type.clone();
+    let returned = ValueId(main.values.len() as u32);
+    main.values.push(Type::I32);
+    let at = main.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::ScopeExit { .. }))
+        .unwrap();
+    main.blocks[0].instructions.insert(
+        at,
+        ins(Some(returned), InstructionKind::Constant(Constant::I32(7))),
+    );
+    main.blocks[0].terminator = Terminator::Return(Some(returned));
+
+    let entry = &mut module.functions[1];
+    entry.return_type = result_type.clone();
+    let code = ValueId(2);
+    let error = ValueId(entry.values.len() as u32);
+    entry.values.push(result_type.clone());
+    let at = entry.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::ScopeExit { .. }))
+        .unwrap();
+    entry.blocks[0].instructions.insert(
+        at,
+        ins(
+            Some(error),
+            InstructionKind::MakeErrorUnion {
+                is_error: true,
+                value: code,
+            },
+        ),
+    );
+    let InstructionKind::ScopeExit { kind, .. } = &mut entry.blocks[0].instructions[at + 1].kind
+    else {
+        unreachable!()
+    };
+    *kind = CleanupExitKind::Error;
+    entry.blocks[0].terminator = Terminator::Return(Some(error));
+    module.closures[0].result = result_type;
+    module
+}
+
+#[test]
+fn direct_store_sum_fnmut_error_exit_requires_exact_refill() {
+    accepted(direct_store_sum_error_exit());
+    let mut missing = direct_store_sum_error_exit();
+    let entry = &mut missing.functions[1];
+    let take = entry.blocks[0]
+        .instructions
+        .iter_mut()
+        .find(|i| matches!(i.kind, InstructionKind::TakeLocal { .. }))
+        .unwrap();
+    take.result = None;
+    take.kind = InstructionKind::DropEnum { local: LocalId(0) };
+    entry.values.remove(1);
+    for instruction in &mut entry.blocks[0].instructions {
+        if instruction.result == Some(ValueId(2)) {
+            instruction.result = Some(ValueId(1));
+        } else if instruction.result == Some(ValueId(3)) {
+            instruction.result = Some(ValueId(2));
+        }
+        if let InstructionKind::MakeErrorUnion { value, .. } = &mut instruction.kind {
+            *value = ValueId(1);
+        }
+    }
+    entry.blocks[0]
+        .instructions
+        .retain(|i| !matches!(i.kind, InstructionKind::WriteCapture { .. }));
+    entry.blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
+    direct_sum_rejected(
+        missing,
+        "E-VERIFY-SUM",
+        "Fn/FnMut return leaves an unfilled direct Sum capture",
+    );
+}
+
+#[test]
+fn direct_store_sum_capture_refill_distinguishes_empty_arm_from_empty_slot() {
+    accepted(direct_store_sum_capture());
+    let mut missing = direct_store_sum_capture();
+    let entry = &mut missing.functions[1];
+    let op = entry.blocks[0]
+        .instructions
+        .iter_mut()
+        .find(|i| matches!(i.kind, InstructionKind::TakeLocal { .. }))
+        .unwrap();
+    op.result = None;
+    op.kind = InstructionKind::DropEnum { local: LocalId(0) };
+    entry.values.remove(1);
+    entry.blocks[0].terminator = Terminator::Return(Some(ValueId(1)));
+    for instruction in &mut entry.blocks[0].instructions {
+        if instruction.result == Some(ValueId(2)) {
+            instruction.result = Some(ValueId(1));
+        }
+    }
+    entry.blocks[0]
+        .instructions
+        .retain(|i| !matches!(i.kind, InstructionKind::WriteCapture { .. }));
+    direct_sum_rejected(
+        missing,
+        "E-VERIFY-SUM",
+        "Fn/FnMut return leaves an unfilled direct Sum capture",
+    );
+}
+
+#[test]
+fn direct_store_sum_capture_rejects_copy_take_twice_and_live_refill() {
+    let mut copied = direct_store_sum_capture();
+    copied.functions[1].blocks[0].instructions[1].kind = InstructionKind::ReadCapture { index: 0 };
+    direct_sum_rejected(
+        copied,
+        "E-VERIFY-CAPTURE",
+        "owned captures require their explicit resource or Package view operations, never copying ReadCapture",
+    );
+
+    let mut twice = direct_store_sum_capture();
+    let entry = &mut twice.functions[1];
+    let second = ValueId(entry.values.len() as u32);
+    entry.values.push(direct_store_sum());
+    entry.blocks[0].instructions.insert(
+        2,
+        ins(Some(second), InstructionKind::TakeCapture { index: 0 }),
+    );
+    direct_sum_rejected(
+        twice,
+        "E-VERIFY-SUM",
+        "direct Sum capture was already transferred",
+    );
+
+    let mut live_write = direct_store_sum_capture();
+    let entry = &mut live_write.functions[1];
+    let fresh = ValueId(entry.values.len() as u32);
+    entry.values.push(direct_store_sum());
+    entry.blocks[0].instructions.insert(
+        1,
+        ins(
+            Some(fresh),
+            InstructionKind::MakeVariant {
+                variant: 1,
+                fields: vec![],
+            },
+        ),
+    );
+    entry.blocks[0].instructions.insert(
+        2,
+        ins(
+            None,
+            InstructionKind::WriteCapture {
+                index: 0,
+                value: fresh,
+            },
+        ),
+    );
+    direct_sum_rejected(
+        live_write,
+        "E-VERIFY-SUM",
+        "direct Sum capture refill would overwrite an active owner",
+    );
+
+    let mut shared = direct_store_sum_capture();
+    shared.closures[0].kind = CallableKind::Fn;
+    let call = shared.functions[0].blocks[0]
+        .instructions
+        .iter_mut()
+        .find(|i| matches!(i.kind, InstructionKind::CallClosureMut { .. }))
+        .unwrap();
+    call.kind = InstructionKind::CallClosureShared {
+        callee: LocalId(0),
+        arguments: vec![],
+    };
+    direct_sum_rejected(
+        shared,
+        "E-VERIFY-CLOSURE-CALL",
+        "moving an owned capture requires a Consume entry",
+    );
+
+    let mut wrong_index = direct_store_sum_capture();
+    let write = wrong_index.functions[1].blocks[0]
+        .instructions
+        .iter_mut()
+        .find(|i| matches!(i.kind, InstructionKind::WriteCapture { .. }))
+        .unwrap();
+    if let InstructionKind::WriteCapture { index, .. } = &mut write.kind {
+        *index = 1;
+    }
+    direct_sum_rejected(wrong_index, "E-VERIFY-CAPTURE", "capture field is absent");
+
+    let mut spent_value = direct_store_sum_capture();
+    let entry = &mut spent_value.functions[1];
+    let second_write = entry.blocks[0]
+        .instructions
+        .iter()
+        .find(|i| matches!(i.kind, InstructionKind::WriteCapture { .. }))
+        .unwrap()
+        .clone();
+    let at = entry.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::WriteCapture { .. }))
+        .unwrap();
+    entry.blocks[0].instructions.insert(at + 1, second_write);
+    direct_sum_rejected(
+        spent_value,
+        "E-VERIFY-SUM",
+        "direct Sum capture refill would overwrite an active owner",
+    );
+}
+
+#[test]
+fn direct_store_sum_capture_has_exact_fresh_raw_wire_budget() {
+    let module = direct_store_sum_capture();
+    let plan = resource_tests::plan(&module);
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    for wire in [false, true] {
+        let check = |steps| {
+            let limits = Limits {
+                max_analysis_steps: steps,
+                ..Limits::default()
+            };
+            if wire {
+                verify_module_bytes(&bytes, &module.target, &limits)
+            } else {
+                verify_module(module.clone(), plan.clone(), &module.target, &limits)
+            }
+        };
+        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+        check(high).unwrap();
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if check(mid).is_ok() {
+                high = mid;
+            } else {
+                low = mid + 1;
+            }
+        }
+        assert!(low > 0);
+        check(low).unwrap();
+        assert_eq!(
+            check(low - 1).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        check(low).unwrap();
+    }
+}
+
 fn read_candidate(kind: CallableKind) -> TypedModule {
     let (mut body, local) = entry(Type::I32);
     let d = body.value(

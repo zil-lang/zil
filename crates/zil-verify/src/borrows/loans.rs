@@ -244,7 +244,10 @@ fn reconstruct(
                                 row.insert(id);
                                 join(&mut parents, &flow.values[address.0 as usize], budget)?;
                             }
-                            InstructionKind::ReborrowAddress { address, .. } => {
+                            InstructionKind::ReborrowAddress { address, .. }
+                            | InstructionKind::MakeDynBorrow {
+                                source: address, ..
+                            } => {
                                 row.insert(id);
                                 let source = &flow.values[address.0 as usize];
                                 if flow.environment[id] {
@@ -618,6 +621,7 @@ fn consumers(kind: &InstructionKind) -> impl Iterator<Item = &ValueId> {
         | InstructionKind::WithScopedThread { body, .. }
         | InstructionKind::WithSyncCell { body, .. } => (Some(body), &[]),
         InstructionKind::Call { arguments, .. }
+        | InstructionKind::CallDynSlot { arguments, .. }
         | InstructionKind::CallIndirect { arguments, .. }
         | InstructionKind::ForeignCall { arguments, .. }
         | InstructionKind::CallClosure { arguments, .. }
@@ -935,6 +939,7 @@ pub(super) fn check(
                 }
                 InstructionKind::WithSyncCell { body, .. } => (&flow.values[body.0 as usize], &[]),
                 InstructionKind::Call { arguments, .. }
+                | InstructionKind::CallDynSlot { arguments, .. }
                 | InstructionKind::CallIndirect { arguments, .. } => (&empty, arguments),
                 InstructionKind::ForeignCall { arguments, .. } => (&empty, arguments),
                 _ => (&empty, &[]),
@@ -1277,6 +1282,9 @@ pub(super) fn check(
                 | InstructionKind::ReadAddress { address }
                 | InstructionKind::SliceLength { address }
                 | InstructionKind::WriteAddress { address, .. }
+                | InstructionKind::MakeDynBorrow {
+                    source: address, ..
+                }
                 | InstructionKind::ReborrowAddress { address, .. } => {
                     let write = matches!(
                         instruction.kind,
@@ -1334,7 +1342,8 @@ pub(super) fn check(
                     access.check(&empty, &[Root::Local(*local)], true, budget)?;
                 }
                 InstructionKind::TakeLocal { local } => {
-                    if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
+                    if crate::dynamic_dispatch::present(module)
+                        || matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
                         || matches!(f.locals[local.0 as usize].ty, Type::Package { .. })
                         || crate::sums::owned(&f.locals[local.0 as usize].ty)
                         || errors::owned(&f.locals[local.0 as usize].ty, budget.sums)
@@ -1362,11 +1371,17 @@ pub(super) fn check(
                             || matches!(&f.values[value.0 as usize], Type::Managed(payload)
                                 if matches!(payload.as_ref(), Type::OwnedStore { .. }))
                             || matches!(f.values[value.0 as usize], Type::Closure(_))
+                            || (budget.pod_stores
+                                && matches!(
+                                    f.values[value.0 as usize],
+                                    Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                                ))
                     }) =>
                 {
                     access.check(&empty, &[Root::Capture(*index)], true, budget)?;
                 }
                 InstructionKind::Call { arguments, .. }
+                | InstructionKind::CallDynSlot { arguments, .. }
                 | InstructionKind::CallIndirect { arguments, .. }
                 | InstructionKind::ForeignCall { arguments, .. }
                 | InstructionKind::MakeClosure {
@@ -1374,6 +1389,14 @@ pub(super) fn check(
                     ..
                 } => {
                     check_pairs(arguments, module, f, &flow, span, apart_ref, budget)?;
+                    if let InstructionKind::CallDynSlot { callee, .. } = &instruction.kind {
+                        access.check(
+                            &flow.values[callee.0 as usize],
+                            &facts.values[callee.0 as usize],
+                            false,
+                            budget,
+                        )?;
+                    }
                     for value in arguments {
                         if let Type::Address { mutable, ref inner } = f.values[value.0 as usize] {
                             if matches!(inner.as_ref(), Type::Closure(_)) {

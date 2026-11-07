@@ -518,6 +518,11 @@ fn check(
                             || matches!(&f.values[value.0 as usize], Type::Managed(payload)
                                 if matches!(payload.as_ref(), Type::OwnedStore { .. }))
                             || matches!(f.values[value.0 as usize], Type::Closure(_))
+                            || (budget.pod_stores
+                                && matches!(
+                                    f.values[value.0 as usize],
+                                    Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                                ))
                     }) =>
                 {
                     Some(Root::Capture(index))
@@ -788,6 +793,9 @@ fn reconstruct(
                             }
                             InstructionKind::DescribeAddress { address }
                             | InstructionKind::ReborrowAddress { address, .. }
+                            | InstructionKind::MakeDynBorrow {
+                                source: address, ..
+                            }
                             | InstructionKind::AddressSlice { address, .. }
                             | InstructionKind::AddressIndex { address, .. } => {
                                 roots_join(&mut row, &values[address.0 as usize], budget)?;

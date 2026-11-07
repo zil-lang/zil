@@ -1,0 +1,76 @@
+{
+  "reviewer": "/root/final_store_review",
+  "verdict": "Pass",
+  "source_sha": "498f0f5a1e7595e12e5303750ef7686b1a7dc41b",
+  "baseline_sha": "15b9e09d83aeea9be1cc9ea4b4bdd9f5a5f9fa71",
+  "scope": "G9.3.5 ordinary POD/scalar Store ownership and incremental G5.2.1 shared dyn consumer review at exact 498f0f5a source",
+  "method": "Independent static read of 9eb0f901→498f0f5a delta across Types/Analyze/Verify/Lower/LLVM plus exact-SHA source/native and root default-run logs; no Cargo or source edits by reviewer",
+  "evidence": {
+    "source_sweep": "/workspace/.zil-env/ordinary-dyn-batch/source-sweep-28/summary.json",
+    "source_sweep_sha": "498f0f5a1e7595e12e5303750ef7686b1a7dc41b",
+    "source_sweep_result": "17/17 actual Source inputs reached Verify Success; 68/68 native Clang and LLVM API O0/O2 rows Pass, all exit 0 and recorded source SHA256 matched current fixture bytes.",
+    "focused_consumer_log": "/workspace/.zil-env/G9.3.5-common-run/default.log",
+    "focused_consumer_result": "Actual Running sections: impl223_product_store 52/0, impl162_trait_bounds 92/0, zil_types 59/0; old noncallback Store, old Product/Copy budgets and allocation cleanup tests appear as passing named cases.",
+    "prior_review": "/workspace/.zil-env/ordinary-dyn-batch/store-review.json",
+    "dyn_prior_review": "/workspace/.zil-env/ordinary-dyn-batch/dyn-review.json",
+    "read": [
+      "AGENTS.md",
+      "_zil_design.md:408",
+      "_zil_design.md:699",
+      "changes/G9.3.5-ordinary-store-ownership.md",
+      "changes/G5.2.1-shared-dyn-dispatch.md",
+      "docs/WORKFLOW.md",
+      "crates/zil-types/src/capture_cleanup.rs",
+      "crates/zil-types/src/closures.rs",
+      "crates/zil-analyze/src/budget.rs",
+      "crates/zil-analyze/src/resources.rs",
+      "crates/zil-analyze/src/resources/sums.rs",
+      "crates/zil-verify/src/resources.rs",
+      "crates/zil-verify/src/sums.rs",
+      "crates/zil-verify/src/mixed_address_sums.rs",
+      "crates/zil-lower/src/lib.rs",
+      "crates/zil-backend-llvm/src/emit.rs",
+      "crates/zil-backend-llvm/src/emit/resource_closures.rs",
+      "crates/zil-backend-llvm/src/emit/drop_plan.rs"
+    ],
+    "source_sweep_file_sha256": "0bb8d1ab485954992ff3cffc07b5c3b5dbbe7c26e9b546904b8f6b49bc39d53c",
+    "focused_consumer_log_sha256": "3b6a14d9e2c20bf3f8a54f53e0bbd1b265a3dbb5546038de9204745c3d31b7f2",
+    "formal_default_result": "/workspace/.zil-env/G9.3.5-common-run/default-result.json",
+    "formal_default_result_summary": "498f0f5a source before/after, clean worktree after, cargo test --locked --workspace --no-fail-fast exit 0; 5248 passed, 0 failed, 0 ignored, 423 groups; this default profile is root-run evidence, not the pending reference/release profiles.",
+    "final_scope_collector": "/workspace/.zil-env/ordinary-dyn-batch/delivery-prepare/final-scope-evidence.json",
+    "final_log_manifest": "/workspace/.zil-env/ordinary-dyn-batch/delivery-prepare/final-log-manifest.json"
+  },
+  "findings": [],
+  "resolved_findings": [
+    {
+      "id": "G935-F1",
+      "resolution": "Backend finite capture admission added at 39f90d573; ordinary-two-sum-captures native Pass on Clang and LLVM API O0/O2 at e200e036."
+    },
+    {
+      "id": "G935-F2",
+      "resolution": "Verify actual Sum address source bridge added at 0b2da0f74; ordinary-direct-shape-captures reaches Verify Success at e200e036, with native helper failure separately recorded as F4."
+    },
+    {
+      "id": "G935-F3",
+      "resolution": "Verify raw-root gates retain old-only fees; current actual default log passes old_noncallback_store_budget_is_unchanged, old_source_budget_controls, old_product_type_budget_and_new_sum_boundary_retry_are_exact and old Types dispatch boundary."
+    },
+    {
+      "id": "G935-F4",
+      "resolution": "Captured Sum drop helpers are collected from exact newly admitted roots with prepaid scan; source-sweep-28 on 498f0f5a passes all 17 Source Verify inputs and 68 native backend/opt rows, including direct-shape captures."
+    },
+    {
+      "id": "G935-F5",
+      "resolution": "87781973f infers consuming tuple capture from owning child bindings; e58cae6 source-sweep-25 Copy companion native Pass across Clang/LLVM API O0/O2."
+    }
+  ],
+  "observations": [
+    "Types capture_cleanup_age walks paid CFG predecessor states, intersects definitely initialized owners, unions possible owner order, requires each owned capture definitely live at a returning exit and rejects contradictory order cycles. A defer-bearing scope uses its existing lexical path. Analyze and Verify separately track actual TakeCapture/WriteCapture debt and require complete Fn/FnMut return capture state; LLVM flags clear on take and set after write.",
+    "Verify marks direct Sum capture leaves as Captured(index,path) only for actual marked definitions. Its resources debt slots derive from real capture types and check live-to-moved-to-live transitions. No Verify call into Analyze proof functions found in reviewed path.",
+    "Compared with scoped G5.2.1 review at ff603523, shared Lower/backend changes are closure and ordinary Sum admission/cleanup paths; dyn_dispatch table and scalar collector code did not change. No material dyn-specific regression identified by this static diff; retained dyn native results remain prior-source evidence.",
+    "9eb0f901→498f0f5a production changes after prior review are equivalent short-circuit/lifetime lint rewrites plus Analyze Product Copy-companion and borrowed-boundary correction: Copy Tuple/Enum/ErrorUnion companions stay on the old finite Copy path without owning Sum rewalk; borrowed nested Package retains its old finite admission and reports valid out-of-profile owners Unsupported. The test migration separates newly legal Package/Tuple/Enum/ErrorUnion Store owners from true Record/Array/user resource-head negatives, with a real Source→Types→Analyze→Verify→Wire→native scalar Package consumer.",
+    "A normal revert removed accidentally merged documentation/asset migration from the language worktree; final git diff from 9eb0f901 to 498f0f5a contains language-related files only. No source deletion was observed."
+  ],
+  "pending_scope": [
+    "This scoped Pass covers the reviewed language slice at 498f0f5a and same-SHA default/source/native evidence. Root still owns reference and release profiles, repository integration, remote clean restoration and final common acceptance; no test count alone establishes a safety proof or complete language/product Done."
+  ]
+}

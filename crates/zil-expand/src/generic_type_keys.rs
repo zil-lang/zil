@@ -195,7 +195,18 @@ fn shape(ty: &TypeRef, budget: &mut Budget<'_>, depth: usize) -> R<Shape> {
     let mut result = Shape::default();
     let (overhead, slots) = match &ty.kind {
         TypeKind::Named { path, args } if path.as_slice() == ["void"] && args.is_empty() => (2, 0),
-        TypeKind::Named { path, args } => {
+        TypeKind::Named { path, args }
+        | TypeKind::Dyn {
+            path,
+            args,
+            bindings: _,
+        } => {
+            if matches!(&ty.kind, TypeKind::Dyn { bindings, .. } if !bindings.is_empty()) {
+                return Err(unsupported(
+                    ty.span,
+                    "dyn binding needs its canonical identity consumer",
+                ));
+            }
             budget.identity_work(path.len().saturating_add(args.len()), ty.span)?;
             let mut name = path.len().saturating_sub(1);
             for part in path {

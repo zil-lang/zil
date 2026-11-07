@@ -128,6 +128,7 @@ pub(crate) fn package_owners(ty: &Type, b: &mut Budget) -> Check<Option<Vec<usiz
             {
                 owners.push(index);
             }
+            Type::Managed(_) if dynamic_store::inline_owner(ty) => owners.push(index),
             Type::Unit
             | Type::Bool
             | Type::I32
@@ -268,7 +269,9 @@ fn package_helper(
         helper_copy_result(&f.return_type, b)?
     } else {
         helper_owned_result(module, &f.return_type, b)?
-    }) || (package_owners(endpoint, b)?.is_none() && !enum_endpoint(module, endpoint, b)?)
+    }) || (package_owners(endpoint, b)?.is_none()
+        && !enum_endpoint(module, endpoint, b)?
+        && !dynamic_store::inline_owner(endpoint))
     {
         return Ok(false);
     }
@@ -502,8 +505,12 @@ pub(crate) fn at_type<'a>(
     if !target.mutable {
         return Err(invalid("replacement cannot promote a shared actual source"));
     }
+    let owner_root = ty;
+    let mut direct_package_field = !target.steps.is_empty();
     b.spend(target.steps.len().saturating_add(1))?;
     for step in &target.steps {
+        direct_package_field &=
+            matches!(step, PlaceProjection::Field(_)) && matches!(ty, Type::Package { .. });
         ty = match (step, ty) {
             (PlaceProjection::Field(i), Type::Tuple(fs)) => fs.get(*i as usize),
             (
@@ -521,6 +528,10 @@ pub(crate) fn at_type<'a>(
         .ok_or_else(|| invalid("replacement actual route crosses a view or different Type"))?;
     }
     resources::charge_payload(ty, b)?;
+    let inline_store = dynamic_store::inline_owner(ty);
+    if inline_store {
+        resources::check_type_for(module, ty, None, b)?;
+    }
     if !matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Record{..})&&payload.is_copy_value())
     {
         let whole_local = matches!(target.base, actual::Base::Local(_)) && target.steps.is_empty();
@@ -541,8 +552,25 @@ pub(crate) fn at_type<'a>(
                 }
                 _ => false,
             };
-        if (!whole_local && !whole_input)
-            || (package_owners(ty, b)?.is_none() && !enum_endpoint(module, ty, b)?)
+        let store_field = inline_store
+            && direct_package_field
+            && package_owners(owner_root, b)?.is_some()
+            && match target.base {
+                actual::Base::Local(local) => !f.parameters.contains(&local),
+                actual::Base::Input(p) => package_helper(module, f, owner_root, Some(p), b)?,
+                actual::Base::Environment(_) => package_helper(module, f, owner_root, None, b)?,
+                actual::Base::InputCapture(p, c) => {
+                    f.foreign.is_none()
+                        && f.callable_return_contract.is_none()
+                        && f.reference_return_bound.is_none()
+                        && f.storage_life.is_none()
+                        && helper_copy_result(&f.return_type, b)?
+                        && resources::public_roles::mutable_capture(module, f, p, c, b)?
+                }
+                actual::Base::Element(_) => false,
+            };
+        if (!whole_local && !whole_input && !store_field)
+            || (package_owners(ty, b)?.is_none() && !enum_endpoint(module, ty, b)? && !inline_store)
         {
             return Err(unsupported(
                 "owning replacement endpoint cleanup/hold bridge is under construction",

@@ -210,10 +210,84 @@ pub(super) fn is_carrier(ty: &Type) -> bool {
     element(ty).is_some()
 }
 
+/// A shape classifier for the new ordinary owning positions. Admission still
+/// requires check_carrier against the exact sealed resource table.
+pub(super) fn inline_owner(ty: &Type) -> bool {
+    matches!(ty, Type::Managed(_)) && element(ty).is_some_and(plain_element)
+}
+
+/// Find an actual inline Store in direct or nested Package fields. This
+/// intentionally excludes Sum children: the admitted mutable Package address
+/// replacement endpoints currently traverse only Package fields.
+pub(super) fn package_inline_store(ty: &Type, budget: &mut Budget) -> Check<bool> {
+    budget.spend(1)?;
+    let mut pending = vec![ty];
+    while let Some(ty) = pending.pop() {
+        budget.spend(1)?;
+        if inline_owner(ty) {
+            return Ok(true);
+        }
+        if let Type::Package { fields, .. } = ty {
+            budget.spend(fields.len())?;
+            pending.extend(fields.iter().map(|(_, field)| field));
+        }
+    }
+    Ok(false)
+}
+
+/// Search only ordinary owning constructors for a Store captured through a
+/// Product/Sum child. Borrowed, array and Store-element subtrees never grant
+/// capture permission through this classifier.
+pub(super) fn owned_capture_store(ty: &Type, budget: &mut Budget) -> Check<bool> {
+    budget.spend(1)?;
+    let mut pending = vec![ty];
+    while let Some(ty) = pending.pop() {
+        budget.spend(1)?;
+        if inline_owner(ty) {
+            return Ok(true);
+        }
+        match ty {
+            Type::Package { fields, .. } => {
+                budget.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, field)| field));
+            }
+            Type::Tuple(fields) => {
+                budget.spend(fields.len())?;
+                pending.extend(fields);
+            }
+            Type::Enum { variants, .. } => {
+                budget.spend(variants.len())?;
+                for (_, fields) in variants {
+                    budget.spend(fields.len())?;
+                    pending.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                budget.spend(2)?;
+                pending.extend([error.as_ref(), result.as_ref()]);
+            }
+            _ => {}
+        }
+    }
+    Ok(false)
+}
+
+pub(super) fn inline_sum_capture(ty: &Type, budget: &mut Budget) -> Check<bool> {
+    if !budget.pod_stores
+        || !matches!(
+            ty,
+            Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+        )
+    {
+        return Ok(false);
+    }
+    owned_capture_store(ty, budget)
+}
+
 pub(super) fn check_owner_field(ty: &Type, span: Option<Span>) -> Check<()> {
-    if element(ty).is_some_and(plain_element) {
+    if matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. })) {
         return Err(unsupported(
-            "POD Store ownership is not admitted in owning aggregate fields",
+            "owning aggregate fields require an actual Store owner, not a description",
             span,
         ));
     }
@@ -292,6 +366,12 @@ fn check_captured_store(
     // Copy predicates or canonical identity allocation below.
     budget.spend(1)?;
     resources::charge_payload(element, budget)?;
+    if plain_element(element) {
+        // The raw type preflight has bounded the entire capture tree. The
+        // independent carrier check requalifies its exact element and sealed
+        // resource definition before this environment acquires any debt.
+        return check_carrier(module, ty, None, budget);
+    }
     check_capture_leaf_tree(element, budget)?;
     let Type::Package { name, fields } = element.as_ref() else {
         return Err(unsupported(
@@ -364,28 +444,61 @@ pub(super) fn check_owned_capture(
     if is_carrier(ty) {
         return check_captured_store(module, ty, limits, budget);
     }
-    let Type::Package { fields, .. } = ty else {
+    if !matches!(
+        ty,
+        Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+    ) {
         return Err(unsupported(
-            "expected a complete Store-owning Package capture",
+            "expected a complete Store-owning Product or Sum capture",
             None,
         ));
-    };
+    }
     budget.spend(1)?;
     resources::charge_payload(ty, budget)?;
-    for (_, field) in fields {
-        if is_carrier(field) {
-            check_captured_store(module, field, limits, budget)?;
-        } else if !(field.is_copy_value()
-            || matches!(field, Type::Managed(inner) if **inner == Type::ByteBuffer
-                || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value())))
-        {
-            return Err(unsupported(
-                "Store-owning Package capture requires direct qualified Store, Managed and finite Copy fields",
-                None,
-            ));
+    let mut pending = vec![ty];
+    while let Some(ty) = pending.pop() {
+        budget.spend(1)?;
+        if is_carrier(ty) {
+            check_captured_store(module, ty, limits, budget)?;
+        } else {
+            match ty {
+                Type::Package { fields, .. } => {
+                    budget.spend(fields.len())?;
+                    pending.extend(fields.iter().map(|(_, field)| field));
+                }
+                Type::Tuple(fields) => {
+                    budget.spend(fields.len())?;
+                    pending.extend(fields);
+                }
+                Type::Enum { variants, .. } => {
+                    budget.spend(variants.len())?;
+                    for (_, fields) in variants {
+                        budget.spend(fields.len())?;
+                        pending.extend(fields);
+                    }
+                }
+                Type::ErrorUnion { error, result } => {
+                    budget.spend(2)?;
+                    pending.extend([error.as_ref(), result.as_ref()]);
+                }
+                Type::Managed(inner)
+                    if **inner == Type::ByteBuffer
+                        || (matches!(inner.as_ref(), Type::Record { .. })
+                            && inner.is_copy_value()) => {}
+                ty if ty.is_copy_value() => {}
+                _ => {
+                    return Err(unsupported(
+                        "Store-owning Package capture requires qualified Store, Product, Sum, Managed and finite Copy fields",
+                        None,
+                    ));
+                }
+            }
         }
     }
-    packages::check_type_for(module, ty, None, budget)
+    match ty {
+        Type::Package { .. } => packages::check_ordinary_type(module, ty, None, budget),
+        _ => sums::check_type_for(module, ty, None, budget),
+    }
 }
 
 pub(super) fn check_capture_result(

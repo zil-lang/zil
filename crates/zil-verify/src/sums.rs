@@ -156,7 +156,19 @@ pub(super) fn check_type_for(
                 budget.spend(2)?;
                 // Keep the existing resource-success profile. Ordinary Sum
                 // composition does not turn an owning error into a Copy error.
-                if matches!(result.as_ref(), Type::Managed(_)) {
+                if dynamic_store::inline_owner(error) || dynamic_store::inline_owner(result) {
+                    for payload in [error.as_ref(), result.as_ref()] {
+                        if !payload.is_copy_value()
+                            && !matches!(payload, Type::Package { .. } | Type::Enum { .. })
+                            && !dynamic_store::inline_owner(payload)
+                        {
+                            return Err(unsupported(
+                                "ordinary inline Store error-union arms require finite Copy, Product, Enum or sealed inline Store owners",
+                                span,
+                            ));
+                        }
+                    }
+                } else if matches!(result.as_ref(), Type::Managed(_)) {
                     resources::charge_payload(error, budget)?;
                     if !error.is_copy_value() {
                         return Err(unsupported(
@@ -482,6 +494,7 @@ pub(super) fn check_instruction(
 enum Source {
     Fresh,
     Input(u32, Vec<u32>),
+    Captured(u32, Vec<u32>),
     ReturnedFresh,
     ReturnedInput(u32, Vec<u32>),
     Unknown,
@@ -498,6 +511,44 @@ enum Content {
 }
 
 impl Content {
+    fn mark_captured(
+        &mut self,
+        capture: u32,
+        path: &mut Vec<u32>,
+        budget: &mut Budget,
+    ) -> Check<()> {
+        budget.spend(path.len().saturating_add(1))?;
+        match self {
+            Self::Leaf(sources) => {
+                sources.clear();
+                sources.insert(Source::Captured(capture, path.clone()));
+            }
+            Self::Product(fields) => {
+                budget.spend(fields.len())?;
+                for (index, field) in fields.iter_mut().enumerate() {
+                    budget.spend(path.len().saturating_add(2))?;
+                    path.extend([0, index as u32]);
+                    field.mark_captured(capture, path, budget)?;
+                    path.truncate(path.len() - 2);
+                }
+            }
+            Self::Sum(variants, _) => {
+                budget.spend(variants.len())?;
+                for (tag, fields) in variants {
+                    budget.spend(fields.len())?;
+                    for (index, field) in fields.iter_mut().enumerate() {
+                        budget.spend(path.len().saturating_add(3))?;
+                        path.extend([1, *tag, index as u32]);
+                        field.mark_captured(capture, path, budget)?;
+                        path.truncate(path.len() - 3);
+                    }
+                }
+            }
+            Self::Missing(child) => child.mark_captured(capture, path, budget)?,
+            Self::Copy => {}
+        }
+        Ok(())
+    }
     fn cost(&self, budget: &mut Budget) -> Check<()> {
         budget.spend(1)?;
         match self {
@@ -505,7 +556,10 @@ impl Content {
             Self::Leaf(sources) => {
                 budget.spend(sources.len())?;
                 for source in sources {
-                    if let Source::Input(_, path) | Source::ReturnedInput(_, path) = source {
+                    if let Source::Input(_, path)
+                    | Source::Captured(_, path)
+                    | Source::ReturnedInput(_, path) = source
+                    {
                         budget.spend(path.len())?;
                     }
                 }
@@ -945,6 +999,7 @@ struct State {
     initialized: Vec<u8>, // 1 vacant, 2 initialized; join is may-union.
     locals: Vec<Arc<Content>>,
     values: Vec<Arc<Content>>,
+    captures: Vec<Option<Arc<Content>>>,
     facts: BTreeSet<Fact>,
     observations: BTreeSet<ValueId>,
     partial: Option<partial_places::State>,
@@ -957,6 +1012,7 @@ impl State {
                 .len()
                 .saturating_add(self.locals.len())
                 .saturating_add(self.values.len())
+                .saturating_add(self.captures.len())
                 .saturating_add(self.observations.len())
                 .saturating_add(self.facts.len()),
         )?;
@@ -990,6 +1046,16 @@ impl State {
             .chain(self.values.iter_mut().zip(&other.values))
         {
             if !Arc::ptr_eq(a, b) {
+                if Arc::strong_count(a) > 1 {
+                    a.cost(budget)?;
+                }
+                changed |= Arc::make_mut(a).merge(b, budget)?;
+            }
+        }
+        for (a, b) in self.captures.iter_mut().zip(&other.captures) {
+            if let (Some(a), Some(b)) = (a, b)
+                && !Arc::ptr_eq(a, b)
+            {
                 if Arc::strong_count(a) > 1 {
                     a.cost(budget)?;
                 }
@@ -1376,6 +1442,68 @@ impl Flow<'_> {
                 result = Some(value);
             }
             match &instruction.kind {
+                InstructionKind::BorrowCapture { index, .. }
+                    if state
+                        .captures
+                        .get(*index as usize)
+                        .is_some_and(Option::is_some) =>
+                {
+                    let captured = state.captures[*index as usize]
+                        .as_ref()
+                        .expect("actual direct Sum capture");
+                    if validate && !captured.complete(budget)? {
+                        return Err(bad(
+                            Some(instruction.span),
+                            "direct Sum borrow reads an unfilled captured owner",
+                        ));
+                    }
+                }
+                InstructionKind::TakeCapture { index }
+                    if state
+                        .captures
+                        .get(*index as usize)
+                        .is_some_and(Option::is_some) =>
+                {
+                    let current = state.captures[*index as usize]
+                        .as_ref()
+                        .expect("actual direct Sum capture");
+                    if validate && !current.complete(budget)? {
+                        return Err(bad(
+                            Some(instruction.span),
+                            "direct Sum capture was already transferred",
+                        ));
+                    }
+                    result = Some(current.duplicate(budget)?);
+                    let ty = &self.module.closures
+                        [self.f.environment.expect("capture entry").0 as usize]
+                        .captures[*index as usize];
+                    state.captures[*index as usize] =
+                        Some(Arc::new(content(ty, None, &mut Vec::new(), true, budget)?));
+                }
+                InstructionKind::WriteCapture { index, value }
+                    if state
+                        .captures
+                        .get(*index as usize)
+                        .is_some_and(Option::is_some) =>
+                {
+                    let current = state.captures[*index as usize]
+                        .as_ref()
+                        .expect("actual direct Sum capture");
+                    if validate && current.complete(budget)? {
+                        return Err(bad(
+                            Some(instruction.span),
+                            "direct Sum capture refill would overwrite an active owner",
+                        ));
+                    }
+                    let incoming = state.values[value.0 as usize].duplicate(budget)?;
+                    if validate && !incoming.complete(budget)? {
+                        return Err(bad(
+                            Some(instruction.span),
+                            "direct Sum capture refill requires a complete actual value",
+                        ));
+                    }
+                    state.captures[*index as usize] = Some(Arc::new(incoming));
+                }
                 InstructionKind::BorrowLocalMut { local }
                     if matches!(self.f.locals[local.0 as usize].ty, Type::Enum { .. }) =>
                 {
@@ -1867,10 +1995,35 @@ fn run_with_replacements(
     for ty in &f.values {
         values.push(Arc::new(content(ty, None, &mut Vec::new(), true, budget)?));
     }
+    let mut captures = Vec::new();
+    if let Some(environment) = f.environment
+        && budget.direct_sum_capture_closures.contains(&environment.0)
+    {
+        let definition = &module.closures[environment.0 as usize];
+        budget.spend(definition.captures.len())?;
+        let mut direct_sum = false;
+        for ty in &definition.captures {
+            if budget.inline_store_root(ty)? {
+                direct_sum |= dynamic_store::inline_sum_capture(ty, budget)?;
+            }
+        }
+        if direct_sum {
+            budget.spend(definition.captures.len())?;
+            captures = vec![None; definition.captures.len()];
+            for (index, ty) in definition.captures.iter().enumerate() {
+                if budget.inline_store_root(ty)? && dynamic_store::inline_sum_capture(ty, budget)? {
+                    let mut actual = content(ty, None, &mut Vec::new(), false, budget)?;
+                    actual.mark_captured(index as u32, &mut Vec::new(), budget)?;
+                    captures[index] = Some(Arc::new(actual));
+                }
+            }
+        }
+    }
     let mut state = State {
         initialized: vec![1; f.locals.len()],
         locals,
         values,
+        captures,
         facts: BTreeSet::new(),
         observations: BTreeSet::new(),
         partial: None,
@@ -2006,6 +2159,21 @@ fn run_with_replacements(
     for (block, input) in inputs.into_iter().enumerate() {
         if let Some(mut state) = input {
             rows[block] = flow.block(block, &mut state, validate, validate, budget)?;
+            if validate
+                && matches!(f.blocks[block].terminator, Terminator::Return(_))
+                && f.environment
+                    .is_some_and(|id| module.closures[id.0 as usize].kind != CallableKind::FnOnce)
+            {
+                budget.spend(state.captures.len())?;
+                for capture in state.captures.iter().flatten() {
+                    if !capture.complete(budget)? {
+                        return Err(bad(
+                            Some(f.span),
+                            "Fn/FnMut return leaves an unfilled direct Sum capture",
+                        ));
+                    }
+                }
+            }
             if let Terminator::Return(Some(value)) = f.blocks[block].terminator {
                 result.merge(&state.values[value.0 as usize], budget)?;
             }

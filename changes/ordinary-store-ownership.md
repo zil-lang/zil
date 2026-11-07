@@ -1,0 +1,87 @@
+# G9.3.5 · Close ordinary data-model ownership for POD/scalar Stores
+
+Status: frozen implementation scope under the user instruction to proceed;
+implementation and acceptance remain separate. Baseline main `15b9e09d83aeea9be1cc9ea4b4bdd9f5a5f9fa71`.
+Existing semantic authority: design §8.1 and its Product/Sum/closure contracts,
+§8.2.5 and the G9.3.2/G9.3.3/G9.3.4 Store profiles.
+
+## Problem and intended behavior
+
+`Store<i32>` and `Store<Cell>` work as independent owners but are explicitly
+excluded from aggregate owning fields, ordinary ownership shapes and captured
+Store qualification. An older `Store<Item>` with direct-Managed Package Item
+already enters a Package, moves, returns and releases its initialized prefix.
+The new element families need the same ordinary value composition while keeping
+their exact canonical element identity, Copy protocol and builtin allocation debt.
+
+## One coherent delivery
+
+| Area | Required closure |
+| --- | --- |
+| Value admission | Real scalar/POD Store owners in direct and existing finite nested Package, Tuple, Enum and ErrorUnion ownership positions; retain complete nominal identities, layouts and actual active branch. |
+| Ordinary flow | Construction, initialization, local/SSA movement, concrete calls/returns and complete parent/child transfer; reject duplicate transfers, incomplete parents and forged Store definitions. |
+| Mutation | Existing whole-field take/refill/replace and whole-parent replacement; prepare RHS first, preserve old obligations on preparation failure, retire old descriptions on actual replacement. No new deep Place syntax. |
+| Capture | Existing concrete self-contained Fn/FnMut/FnOnce owning captures of these Stores or their admitted owning parents; retain actual environment/provider identity, one-shot consumption and responsibility on every normal/error exit. |
+| Views | Existing actual Store/parent/field provenance and whole-Store exclusive windows; reject conflicting move/replace/structural mutation and live unrelated or stale views, preserve legal last-use cases. No new lifetime/storage authority. |
+| Cleanup | Exactly one allocation release at its actual owner, no per-element destructor debt for scalar/POD elements, existing field/branch/initialization cleanup order, no debt in the unused tail. Failure push returns the full value; failed reserve keeps contents. |
+
+Admission is structural over the existing finite responsibility constructors;
+avoid a new exception for each scalar spelling or each consumer. This does not
+confer StoreElement, shared-address, array, capture, Transfer or Share permission
+by ordinary ownership alone. Each separately admitted context still checks its
+own rules. Existing owning-array or callback-container eligibility is not widened
+incidentally by a changed helper predicate.
+
+## Kernel and representation requirements
+
+Types must check complete declarations including unused metadata. Analyze and
+Verify separately reconstruct actual owner/field roots, initialization, real
+transfers and cleanup debt; Verify must not call Types/Analyze proof functions.
+Raw/Wire candidates must not gain permission by renaming a head, switching the
+element to a same-size type, fabricating a parent Hold or changing capture mode.
+Lower/LLVM must use the existing complete inline Store protocol, field layout
+and verified cleanup plan. No new public opcode/schema/ABI is presumed.
+
+Prepay new type walks, queues, captures, state copies and layout work against the
+existing request. Keep exact old profiles' fees and defaults; same old source
+must not create a new Store-family index or scan merely because this task exists.
+
+## Evidence and exclusions
+
+Use retained baseline Source plus real `std.store` imports, both scalar/POD
+families, two actual Stores/parents and complete values. Cover the table above
+as one data-model/closure program family, same-source independent raw/Wire
+neighbors, N/N−1/fresh request boundaries, Clang/API O0/O2 and injected allocation
+failures with actual allocator/single-free observations. Reuse existing targets.
+Old Unsupported ownership witnesses may become positive only after their exact
+real path is accepted; retain separately invalid identities and duplicate debt.
+
+General recursive by-value layouts, new element families (`Store<Store<T>>`,
+arbitrary Array/Tuple/Enum elements), new user teardown semantics, borrowed or
+escaping captures, general lending, dyn, cross-thread/async and Transfer/Share
+remain outside this task. No complete-language/B0 or Rust superiority conclusion
+follows from this delivery. A blocker on one required row stays explicit; rows
+are not silently dropped to label the full task Done.
+
+## Owning Sum capture activation and refill
+
+For the admitted inline-Store owning Tuple/Enum/ErrorUnion family, a concrete
+FnMut body may take a complete capture into a real owned Value and refill that
+same capture. This uses the existing TakeCapture/WriteCapture representation;
+the opcode alone confers no right. The actual environment must be exclusively
+active, the actual slot and complete type must agree, and a take transfers its
+single LIVE debt to the Value while making the slot empty. An owning write only
+fills that empty slot from a complete unique Value, consuming that Value debt;
+it never overwrites an unpaid owner. Copy writes retain their existing rules.
+Shared Fn cannot take an owning capture. FnOnce retains its consuming contract.
+
+Every normal or error-returning FnMut exit must restore the complete captured
+shape, independently reconstructed from actual instructions. Constructing a new
+owner can fail; propagating that failure while the slot remains empty is rejected.
+An abort with no returning/unwinding edge need not synthesize restoration or
+promise cleanup. Cleanup and caller validity use the actual returned environment,
+not a candidate claim that it must be complete. Re-entry, slot substitution,
+duplicate takes, wrong values, missing refill, and live-slot overwrite require
+nearest raw/Wire counterexamples. Existing environment/mode/Value/capture facts
+are sufficient only when both safety kernels and actual machine debt bits prove
+these transitions; no schema flag, implicit owner copy or runtime lease is added.

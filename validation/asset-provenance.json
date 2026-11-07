@@ -461,5 +461,21 @@
     "sha256": "ecfc8ac00474fa2e5463538d9755ec21c3712e21cd974fb1bc3647448e95cdf4",
     "receipt": "docs/validation/preflight/early-preflight-release-revised.json",
     "note": "Receipt records this byte identity; no matching tracked current path was found. No replay or new acceptance is claimed."
-  }
+  },
+  "accepted_profile_documents": [
+    {
+      "source_commit": "498f0f5a1e7595e12e5303750ef7686b1a7dc41b",
+      "old_path": "changes/G9.3.5-ordinary-store-ownership.md",
+      "current_path": "changes/ordinary-store-ownership.md",
+      "sha256": "f08637d4e29d3b978283691a5b5799473159e02a64e868bf058a8916b2277639",
+      "same_bytes": true
+    },
+    {
+      "source_commit": "498f0f5a1e7595e12e5303750ef7686b1a7dc41b",
+      "old_path": "changes/G5.2.1-shared-dyn-dispatch.md",
+      "current_path": "changes/shared-scalar-dynamic-dispatch.md",
+      "sha256": "ed8870152f582d371699d852aa2f1207957dfc941b5fb817b9b2c3fcdcabfb15",
+      "same_bytes": true
+    }
+  ]
 }

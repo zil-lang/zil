@@ -2,11 +2,15 @@
 //! shared-address or resource-header qualification. Callers reserve the bounded
 //! complete type before querying; classification visits each shape node once.
 use super::*;
+fn inline_store(ty: &Type) -> bool {
+    matches!(ty, Type::Managed(payload)
+        if matches!(payload.as_ref(), Type::OwnedStore { element }
+            if dynamic_store::inline_element(element)
+                && dynamic_store::supported_element(element)))
+}
 fn shape(ty: &Type) -> Option<bool> {
     match ty {
-        Type::Managed(_) => (resources::supported(ty)
-            && !dynamic_store::element(ty).is_some_and(dynamic_store::inline_element))
-        .then_some(true),
+        Type::Managed(_) => resources::supported(ty).then_some(true),
         Type::Tuple(fields) => {
             let mut owns = false;
             for field in fields {
@@ -43,12 +47,22 @@ fn shape(ty: &Type) -> Option<bool> {
             Some(owns)
         }
         Type::ErrorUnion { error, result } => {
+            // A selected inline Store can owe the error or success branch. The
+            // tag still determines which one actual allocation is retired.
+            if inline_store(error) || inline_store(result) {
+                let branch = |ty: &Type| {
+                    ty.is_copy_value()
+                        || matches!(ty, Type::Package { .. } | Type::Enum { .. })
+                        || inline_store(ty)
+                };
+                if !branch(error) || !branch(result) {
+                    return None;
+                }
+                return Some(shape(error)? | shape(result)?);
+            }
             // The older direct Managed-success profile retains its Copy-error rule.
             if matches!(result.as_ref(), Type::Managed(_)) {
-                return (error.is_copy_value()
-                    && resources::supported(result)
-                    && !dynamic_store::element(result).is_some_and(dynamic_store::inline_element))
-                .then_some(true);
+                return (error.is_copy_value() && resources::supported(result)).then_some(true);
             }
             if !matches!(error.as_ref(), Type::Package { .. } | Type::Enum { .. })
                 && !error.is_copy_value()

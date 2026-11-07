@@ -481,8 +481,15 @@ impl Slots {
         let mut borrowed_closures = Vec::with_capacity(module.closures.len());
         for closure in &module.closures {
             budget.spend(closure.captures.len().saturating_mul(2))?;
+            let mut inline_sum_owner = false;
+            for ty in &closure.captures {
+                if budget.inline_store_root(ty)? {
+                    inline_sum_owner |= dynamic_store::inline_sum_capture(ty, budget)?;
+                }
+            }
             owned_closures.push(
                 closure.kind == CallableKind::FnOnce
+                    || inline_sum_owner
                     || closure.captures.iter().any(|ty| {
                         matches!(
                             ty,
@@ -501,7 +508,35 @@ impl Slots {
         let mut desc_count = 0usize;
         let sum_extension = budget.sums;
         let head_descriptions = budget.head_descriptions;
-        let mut slot = |ty: &Type, managed: bool| {
+        let inline_store_addresses = budget.inline_store_addresses;
+        // Only actual Sum addresses containing an inline Store need this
+        // additional origin row. Leave old-only functions' slot inventory and
+        // traversal unchanged.
+        let (local_sum_address, value_sum_address) = if inline_store_addresses {
+            budget.spend(f.locals.len().saturating_add(f.values.len()))?;
+            let mut local = Vec::with_capacity(f.locals.len());
+            let mut value = Vec::with_capacity(f.values.len());
+            for declaration in &f.locals {
+                local.push(match &declaration.ty {
+                    Type::Address { inner, .. } if budget.inline_store_root(&declaration.ty)? => {
+                        dynamic_store::inline_sum_capture(inner, budget)?
+                    }
+                    _ => false,
+                });
+            }
+            for ty in &f.values {
+                value.push(match ty {
+                    Type::Address { inner, .. } if budget.inline_store_root(ty)? => {
+                        dynamic_store::inline_sum_capture(inner, budget)?
+                    }
+                    _ => false,
+                });
+            }
+            (local, value)
+        } else {
+            (Vec::new(), Vec::new())
+        };
+        let mut slot = |ty: &Type, managed: bool, sum_address: bool| {
             let count = if managed {
                 &mut debt_count
             } else {
@@ -519,6 +554,10 @@ impl Slots {
                     owned_closures[id.0 as usize]
                 } else { borrowed_closures[id.0 as usize] })
                 || (!managed && head_descriptions && (head_address(ty) || ty.is_package_address()))
+                // A projected Store head can be reached through an ordinary
+                // Sum address. Keep its actual address source through local
+                // copies until BorrowPlaceAddress selects the checked field.
+                || (!managed && sum_address)
                 || (!managed
                     && matches!(ty,
                     Type::Address { inner, .. }
@@ -538,7 +577,7 @@ impl Slots {
         let mut array_declarations = Vec::new();
         let mut managed_local = Vec::with_capacity(f.locals.len());
         for (local, declaration) in f.locals.iter().enumerate() {
-            managed_local.push(slot(&declaration.ty, true));
+            managed_local.push(slot(&declaration.ty, true, false));
             if let Type::Package { fields, .. } = &declaration.ty {
                 budget.spend(2)?;
                 package_declarations.push((local, fields));
@@ -555,9 +594,31 @@ impl Slots {
             }
         }
         let local_count = managed_local.iter().flatten().count();
-        let managed_value = f.values.iter().map(|t| slot(t, true)).collect();
-        let desc_local = f.locals.iter().map(|l| slot(&l.ty, false)).collect();
-        let desc_value = f.values.iter().map(|t| slot(t, false)).collect();
+        let managed_value = f.values.iter().map(|t| slot(t, true, false)).collect();
+        let desc_local = f
+            .locals
+            .iter()
+            .enumerate()
+            .map(|(index, local)| {
+                slot(
+                    &local.ty,
+                    false,
+                    local_sum_address.get(index).copied().unwrap_or(false),
+                )
+            })
+            .collect();
+        let desc_value = f
+            .values
+            .iter()
+            .enumerate()
+            .map(|(index, ty)| {
+                slot(
+                    ty,
+                    false,
+                    value_sum_address.get(index).copied().unwrap_or(false),
+                )
+            })
+            .collect();
         budget.spend(f.values.len())?;
         let mut package_widths = Vec::new();
         for (value, ty) in f.values.iter().enumerate() {
@@ -610,20 +671,23 @@ impl Slots {
         let capture_debt = captures
             .iter()
             .enumerate()
-            .map(|(index, ty)| {
-                if matches!(ty, Type::Managed(_) | Type::Closure(_)) {
+            .map(|(index, ty)| -> Check<Option<usize>> {
+                if matches!(ty, Type::Managed(_) | Type::Closure(_))
+                    || (budget.inline_store_root(ty)?
+                        && dynamic_store::inline_sum_capture(ty, budget)?)
+                {
                     let next = debt_count;
                     debt_count += 1;
-                    Some(next)
+                    Ok(Some(next))
                 } else if matches!(ty, Type::Package { .. }) {
                     let local =
                         views.by_capture[index].expect("independently checked Package binding");
-                    managed_local[local.0 as usize]
+                    Ok(managed_local[local.0 as usize])
                 } else {
-                    None
+                    Ok(None)
                 }
             })
-            .collect();
+            .collect::<Check<Vec<_>>>()?;
         let mut retained_debt = Vec::new();
         if !views.by_local.is_empty() {
             budget.spend(
@@ -1701,6 +1765,34 @@ impl Transfer<'_> {
                     {
                         return Err(bad(span, "borrow reads a transferred captured closure"));
                     }
+                    if let Some(row) = instruction
+                        .result
+                        .and_then(|value| slots.desc_value[value.0 as usize])
+                    {
+                        budget.spend(1)?;
+                        state.desc[row] =
+                            BTreeSet::from([if slots.capture_debt[*index as usize].is_some() {
+                                Root::OwnedCapture(*index)
+                            } else {
+                                Root::BorrowedCapture(*index)
+                            }]);
+                    }
+                }
+                InstructionKind::BorrowPlaceAddress { address, .. } => {
+                    if let Some(dst) = instruction
+                        .result
+                        .and_then(|value| slots.desc_value[value.0 as usize])
+                    {
+                        let src = slots.desc_value[address.0 as usize].ok_or_else(|| {
+                            bad(
+                                span,
+                                "projected resource head lacks an actual address source",
+                            )
+                        })?;
+                        budget.spend(state.desc[src].len())?;
+                        state.desc[dst] =
+                            state.desc[src].iter().map(|root| root.parent()).collect();
+                    }
                 }
                 InstructionKind::DescribeCapture { index } => {
                     let debt = slots.capture_debt[*index as usize].expect("typed owned capture");
@@ -1743,6 +1835,40 @@ impl Transfer<'_> {
                     fresh_result = Some(INPUT);
                     state.debt[debt] = MOVED;
                 }
+                InstructionKind::WriteCapture { index, value }
+                    if self.f.environment.is_some_and(|id| {
+                        matches!(
+                            self.module.closures[id.0 as usize].captures[*index as usize],
+                            Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                        )
+                    }) && budget.inline_store_root(
+                        &self.module.closures
+                            [self.f.environment.expect("capture entry").0 as usize]
+                            .captures[*index as usize],
+                    )? && dynamic_store::inline_sum_capture(
+                        &self.module.closures
+                            [self.f.environment.expect("capture entry").0 as usize]
+                            .captures[*index as usize],
+                        budget,
+                    )? =>
+                {
+                    let debt = slots.capture_debt[*index as usize]
+                        .ok_or_else(|| bad(span, "owning Sum capture has no actual debt slot"))?;
+                    if validate && state.debt[debt] != MOVED {
+                        return Err(bad(
+                            span,
+                            "owning Sum capture refill requires its consumed empty slot",
+                        ));
+                    }
+                    let source = slots.managed_value[value.0 as usize]
+                        .ok_or_else(|| bad(span, "capture refill has no actual owner source"))?;
+                    let fresh = state.fresh[source];
+                    self.consume(state, *value, span, validate)?;
+                    state.debt[debt] = LIVE;
+                    state.fresh[debt] = fresh;
+                    budget.spend(written.len().saturating_add(1))?;
+                    written.insert(Root::OwnedCapture(*index));
+                }
                 InstructionKind::ByteBufferReserve { buffer: desc, .. }
                 | InstructionKind::ByteBufferTruncate { buffer: desc, .. }
                 | InstructionKind::ByteBufferPush { buffer: desc, .. }
@@ -1761,10 +1887,27 @@ impl Transfer<'_> {
                         .result
                         .and_then(|v| slots.desc_value[v.0 as usize])
                     {
-                        let src =
-                            slots.desc_local[local.0 as usize].expect("typed description local");
-                        budget.spend(state.desc[src].len())?;
-                        state.desc[dst] = state.desc[src].clone();
+                        if let Some(src) = slots.desc_local[local.0 as usize] {
+                            budget.spend(state.desc[src].len())?;
+                            state.desc[dst] = state.desc[src].clone();
+                        } else if let Some(debt) = slots.managed_local[local.0 as usize]
+                            && matches!(
+                                instruction.kind,
+                                InstructionKind::BorrowLocal { .. }
+                                    | InstructionKind::BorrowLocalMut { .. }
+                            )
+                        {
+                            if validate && state.debt[debt] != LIVE {
+                                return Err(bad(
+                                    span,
+                                    "Sum address requires a live owned position",
+                                ));
+                            }
+                            budget.spend(1)?;
+                            state.desc[dst] = BTreeSet::from([Root::Local(*local)]);
+                        } else {
+                            return Err(bad(span, "resource address has no actual local source"));
+                        }
                     }
                 }
                 InstructionKind::ReborrowAddress { address, .. } => {

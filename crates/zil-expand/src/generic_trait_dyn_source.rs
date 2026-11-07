@@ -22,6 +22,247 @@ pub(super) struct Target {
     function: zil_base::NodeId,
 }
 
+fn receiver_position() -> zil_ir::StoragePosition {
+    zil_ir::StoragePosition {
+        base: zil_ir::StorageBase::Parameter(0),
+        path: Vec::new(),
+    }
+}
+
+fn scalar_read_contract() -> zil_ir::DynContract {
+    let receiver = receiver_position();
+    zil_ir::DynContract {
+        requires: Some(vec![zil_ir::DynRequirement::Read(receiver.clone())]),
+        guarantees: Some(Vec::new()),
+        hold: Some(Vec::new()),
+        call: Some(zil_ir::DynCallAccess {
+            reads: vec![receiver],
+            writes: Vec::new(),
+        }),
+        result: Some(zil_ir::DynResultSource::Value),
+        cleanup: Some(zil_ir::DynCleanupContract {
+            environment: false,
+            positions: Vec::new(),
+            access: zil_ir::DynCallAccess {
+                reads: Vec::new(),
+                writes: Vec::new(),
+            },
+            effects: Vec::new(),
+        }),
+        effects: Some(Vec::new()),
+        resume: Some(zil_ir::DynResumeBound::Local),
+        threads: Some(zil_ir::DynThreadRequirements {
+            transfer: false,
+            share: false,
+        }),
+    }
+}
+
+fn prove_scalar_read(
+    provider: &zil_ir::CoreFunction,
+    table: &zil_ir::CoreDynVtable,
+    slot: &zil_ir::DynSlot,
+    modules: &[&zil_ir::CoreModule],
+    budget: &mut Budget<'_>,
+) -> R<()> {
+    budget.node(provider.span, 0)?;
+    let zil_ir::Type::Named(self_name) = &table.self_type else {
+        return Err(unsupported(
+            provider.span,
+            "dyn provider Self needs a concrete named Copy struct",
+        ));
+    };
+    budget.text(self_name, provider.span)?;
+    if provider.foreign.is_some()
+        || !provider.type_parameters.is_empty()
+        || !provider.state_parameters.is_empty()
+        || !provider.callable_parameters.is_empty()
+        || provider.parameters.len() != slot.parameters.len() + 1
+        || provider.return_type != slot.result
+        || provider.result_mode != slot.result_mode
+        || !slot.result.is_b0_scalar()
+        || slot.receiver.mutable
+        || provider.parameters[0].mode != slot.receiver.mode
+        || provider.parameters[0].ty
+            != (zil_ir::Type::Address {
+                mutable: false,
+                inner: Box::new(table.self_type.clone()),
+            })
+    {
+        return Err(unsupported(
+            provider.span,
+            "dyn provider is outside closed scalar read profile",
+        ));
+    }
+    for (actual, expected) in provider.parameters.iter().skip(1).zip(&slot.parameters) {
+        budget.node(actual.span, 0)?;
+        if actual.ty != *expected {
+            return Err(error(
+                actual.span,
+                "dyn provider parameter differs from slot",
+            ));
+        }
+    }
+    let owner = modules
+        .iter()
+        .find(|module| module.module_id == table.id.module)
+        .ok_or_else(|| unsupported(provider.span, "dyn provider module absent"))?;
+    let mut current = provider;
+    let mut seen = Vec::new();
+    let value = loop {
+        budget.node(current.span, 0)?;
+        for id in &seen {
+            budget.node(current.span, 0)?;
+            if *id == current.id {
+                return Err(unsupported(
+                    current.span,
+                    "dyn provider call cycle is unknown",
+                ));
+            }
+        }
+        seen.push(current.id);
+        let [statement] = current.body.statements.as_slice() else {
+            return Err(unsupported(
+                current.span,
+                "dyn provider body needs one proven return",
+            ));
+        };
+        let zil_ir::CoreStatementKind::Return(Some(value)) = &statement.kind else {
+            return Err(unsupported(
+                statement.span,
+                "dyn provider body has unproven effects",
+            ));
+        };
+        let zil_ir::CoreExprKind::Call { callee, arguments } = &value.kind else {
+            break value;
+        };
+        // Default methods have a real wrapper. Resolve its exact callee in
+        // the originating module and carry the shared Self root through each
+        // reachable direct call. No callee-name spelling grants authority.
+        let zil_ir::CoreExprKind::Name(target_name) = &callee.kind else {
+            return Err(unsupported(
+                callee.span,
+                "dyn provider callee is not direct",
+            ));
+        };
+        budget.text(target_name, callee.span)?;
+        if !slot.parameters.is_empty()
+            || current.parameters.len() != 1
+            || arguments.len() != 1
+            || !matches!(&arguments[0].kind, zil_ir::CoreExprKind::Name(name) if name == &current.parameters[0].name)
+        {
+            return Err(unsupported(
+                value.span,
+                "dyn provider call arguments are unproven",
+            ));
+        }
+        let mut target = None;
+        for function in &owner.functions {
+            budget.node(function.span, 0)?;
+            if function.name == *target_name {
+                if target.is_some() {
+                    return Err(unsupported(
+                        value.span,
+                        "dyn provider call target is ambiguous",
+                    ));
+                }
+                target = Some(function);
+            }
+        }
+        let next =
+            target.ok_or_else(|| unsupported(value.span, "dyn provider call target absent"))?;
+        if next.foreign.is_some()
+            || !next.type_parameters.is_empty()
+            || !next.state_parameters.is_empty()
+            || !next.callable_parameters.is_empty()
+            || next.parameters.len() != 1
+            || next.parameters[0].ty != current.parameters[0].ty
+            || next.parameters[0].mode != current.parameters[0].mode
+            || next.return_type != current.return_type
+            || next.result_mode != current.result_mode
+        {
+            return Err(unsupported(
+                value.span,
+                "dyn provider call target is not closed",
+            ));
+        }
+        current = next;
+    };
+    if matches!(
+        &value.kind,
+        zil_ir::CoreExprKind::Integer(_)
+            | zil_ir::CoreExprKind::Float(_)
+            | zil_ir::CoreExprKind::Bool(_)
+            | zil_ir::CoreExprKind::Literal(_)
+    ) {
+        // Ordinary Types still checks the exact literal's value and result
+        // type. Its syntax has no receiver access or reachable call.
+        return Ok(());
+    }
+    let zil_ir::CoreExprKind::Member {
+        object,
+        member,
+        owner: None,
+    } = &value.kind
+    else {
+        return Err(unsupported(
+            value.span,
+            "dyn provider result must read receiver scalar field",
+        ));
+    };
+    if !matches!(&object.kind, zil_ir::CoreExprKind::Name(name) if name == &current.parameters[0].name)
+    {
+        return Err(unsupported(
+            object.span,
+            "dyn provider read must originate at actual receiver",
+        ));
+    }
+    let zil_ir::Type::Named(name) = &table.self_type else {
+        return Err(unsupported(
+            provider.span,
+            "dyn provider Self needs a concrete named Copy struct",
+        ));
+    };
+    for module in modules {
+        budget.node(provider.span, 0)?;
+        if module.module_id == table.id.module {
+            for aggregate in &module.aggregates {
+                budget.node(aggregate.span, 0)?;
+            }
+        }
+    }
+    let aggregate = modules
+        .iter()
+        .find(|module| module.module_id == table.id.module)
+        .and_then(|module| {
+            module
+                .aggregates
+                .iter()
+                .find(|aggregate| &aggregate.name == name)
+        })
+        .ok_or_else(|| unsupported(provider.span, "dyn provider concrete Self aggregate absent"))?;
+    for field in &aggregate.fields {
+        budget.node(field.span, 0)?;
+        budget.text(&field.name, field.span)?;
+    }
+    if aggregate.kind != zil_ir::AggregateKind::Struct
+        || aggregate
+            .fields
+            .iter()
+            .any(|field| field.manages || !field.ty.is_b0_scalar())
+        || !aggregate
+            .fields
+            .iter()
+            .any(|field| field.name == *member && field.ty == slot.result)
+    {
+        return Err(unsupported(
+            value.span,
+            "dyn provider field read lacks finite Copy proof",
+        ));
+    }
+    Ok(())
+}
+
 fn parameters(parameters: &[GenericParam], budget: &mut Budget<'_>) -> R<Vec<LifeParameterKind>> {
     let mut result = Vec::new();
     for parameter in parameters {
@@ -343,6 +584,83 @@ impl Catalog {
                 .find(|(core, _)| core.module_id == table.id.module)
                 .ok_or_else(|| error(span, "dyn source vtable output module absent"))?;
             core.dyn_vtables.push(table);
+        }
+        // A slot is executable only when *every* actual entry has a closed
+        // body. This first lane proves precisely one receiver-field scalar
+        // read and no reachable calls, writes, cleanup or retained result.
+        // A declaration's scalar signature alone never grants these facts.
+        for _ in cores.iter() {
+            budget.node(span, 0)?;
+        }
+        let snapshot: Vec<&zil_ir::CoreModule> = cores.iter().map(|(core, _)| &**core).collect();
+        let mut decisions = Vec::new();
+        for core in &snapshot {
+            for interface in &core.dyn_interfaces {
+                for (ordinal, slot) in interface.slots.iter().enumerate() {
+                    budget.node(span, 0)?;
+                    let mut found = false;
+                    let mut proven = true;
+                    for module in &snapshot {
+                        for table in &module.dyn_vtables {
+                            budget.node(span, 0)?;
+                            if table.interface != interface.id {
+                                continue;
+                            }
+                            found = true;
+                            let entry = table.entries.get(ordinal).ok_or_else(|| {
+                                unsupported(span, "dyn slot has no actual provider entry")
+                            })?;
+                            if entry.slot as usize != ordinal {
+                                return Err(error(span, "dyn provider slot order differs"));
+                            }
+                            for owner in &snapshot {
+                                budget.node(span, 0)?;
+                                if owner.module_id == entry.module {
+                                    for function in &owner.functions {
+                                        budget.node(function.span, 0)?;
+                                    }
+                                }
+                            }
+                            let provider = snapshot
+                                .iter()
+                                .find(|owner| owner.module_id == entry.module)
+                                .and_then(|owner| {
+                                    owner.functions.iter().find(|f| f.id == entry.function)
+                                })
+                                .ok_or_else(|| unsupported(span, "dyn entry target body absent"))?;
+                            match prove_scalar_read(provider, table, slot, &snapshot, budget) {
+                                Ok(()) => {}
+                                Err(diagnostic)
+                                    if diagnostic.category
+                                        == zil_base::ResultCategory::Unsupported =>
+                                {
+                                    proven = false
+                                }
+                                Err(diagnostic) => return Err(diagnostic),
+                            }
+                        }
+                    }
+                    decisions.push((
+                        interface.id,
+                        ordinal,
+                        found
+                            && proven
+                            && interface.application.actuals.is_empty()
+                            && interface.inherited.is_empty(),
+                    ));
+                }
+            }
+        }
+        drop(snapshot);
+        for (core, _) in cores.iter_mut() {
+            for interface in &mut core.dyn_interfaces {
+                for (id, ordinal, proven) in &decisions {
+                    budget.node(span, 0)?;
+                    if *proven && *id == interface.id {
+                        interface.slots[*ordinal].contract = scalar_read_contract();
+                    }
+                }
+            }
         }
         Ok(())
     }

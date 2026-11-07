@@ -804,6 +804,21 @@ struct Resolver<'a> {
     remaining: usize,
     depth_limit: usize,
 }
+// An inline Store written as an ordinary Sum/Tuple payload is an owned value.
+// Direct standalone descriptions, Ref<Store>, Store elements and arrays retain
+// their distinct gates. Resolution has already checked the complete element.
+fn ordinary_inline_store(raw: &Type, resolved: Type) -> Type {
+    match resolved {
+        Type::Desc(payload)
+            if matches!(raw, Type::Named(_) | Type::Desc(_))
+                && matches!(payload.as_ref(), Type::OwnedStore { element }
+                    if dynamic_store::inline_element(element)) =>
+        {
+            Type::Managed(payload)
+        }
+        other => other,
+    }
+}
 impl Resolver<'_> {
     fn callback_error_payload(&mut self, ty: &Type, depth: usize, span: Span) -> R<bool> {
         let Type::Package { fields, .. } = ty else {
@@ -842,12 +857,6 @@ impl Resolver<'_> {
     }
     fn field_type(&mut self, field: &CoreField, depth: usize) -> R<Type> {
         let resolved = self.ty(&field.ty, depth, field.span)?;
-        if dynamic_store::element(&resolved).is_some_and(dynamic_store::inline_element) {
-            return Err(unsupported(
-                field.span,
-                "POD Store ownership in aggregate fields is not implemented",
-            ));
-        }
         if dynamic_store::is_carrier(&resolved) && !field.manages {
             return Err(unsupported(
                 field.span,
@@ -1020,7 +1029,8 @@ impl Resolver<'_> {
             for (variant, raw_fields) in &declaration.variants {
                 let mut fields = Vec::new();
                 for field in raw_fields {
-                    let ty = self.ty(field, depth + 1, declaration.span)?;
+                    let resolved = self.ty(field, depth + 1, declaration.span)?;
+                    let ty = ordinary_inline_store(field, resolved);
                     let copy = ty.is_copy_value()
                         || stored_instance
                             // The instance still contains its Core actual here;
@@ -1363,7 +1373,10 @@ impl Resolver<'_> {
             Type::Tuple(fields) => Type::Tuple(
                 fields
                     .iter()
-                    .map(|t| self.ty(t, depth + 1, span))
+                    .map(|t| {
+                        let resolved = self.ty(t, depth + 1, span)?;
+                        Ok(ordinary_inline_store(t, resolved))
+                    })
                     .collect::<R<_>>()?,
             ),
             Type::Managed(inner) | Type::Desc(inner) => {
@@ -1427,14 +1440,25 @@ impl Resolver<'_> {
                     }
                     Type::Package { .. }
                         if packages::product::nested(&inner)
-                            || packages::product::supported(&inner) =>
+                            || packages::product::supported(&inner)
+                            || (dynamic_store::contains_inline_carrier(&inner)
+                                && packages::product::owned_supported(&inner)) =>
                     {
-                        packages::product::validate(
-                            &inner,
-                            &mut self.remaining,
-                            self.depth_limit,
-                            span,
-                        )?;
+                        if packages::product::supported(&inner) {
+                            packages::product::validate(
+                                &inner,
+                                &mut self.remaining,
+                                self.depth_limit,
+                                span,
+                            )?;
+                        } else {
+                            packages::product::validate_owned(
+                                &inner,
+                                &mut self.remaining,
+                                self.depth_limit,
+                                span,
+                            )?;
+                        }
                         inner
                     }
                     Type::Package { .. } if self.store_element_shape(&inner, depth, span)? => inner,
@@ -1483,8 +1507,8 @@ impl Resolver<'_> {
                 error: failure,
                 result,
             } => {
-                let failure = self.ty(failure, depth + 1, span)?;
-                let result = self.ty(result, depth + 1, span)?;
+                let failure = ordinary_inline_store(failure, self.ty(failure, depth + 1, span)?);
+                let result = ordinary_inline_store(result, self.ty(result, depth + 1, span)?);
                 let union = Type::ErrorUnion {
                     error: Box::new(failure),
                     result: Box::new(result),
@@ -1680,7 +1704,10 @@ impl Resolver<'_> {
     fn expr(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
         self.charge(depth, e.span)?;
         match &mut e.kind {
-            CoreExprKind::Unary { operand, .. }
+            CoreExprKind::MakeDynBorrow {
+                source: operand, ..
+            }
+            | CoreExprKind::Unary { operand, .. }
             | CoreExprKind::CompileTime(operand)
             | CoreExprKind::Try(operand) => self.expr(operand, depth + 1),
             CoreExprKind::Binary { left, right, .. } => self.expr_pair(left, right, depth + 1),
@@ -1694,7 +1721,9 @@ impl Resolver<'_> {
             CoreExprKind::Record { .. } => self.expr_variant_record(e, depth),
             CoreExprKind::RecordUpdate { .. } => self.expr_variant_recordupdate(e, depth),
             CoreExprKind::TypeApply { .. } => self.expr_variant_typeapply(e, depth),
-            CoreExprKind::Call { .. } => self.expr_variant_call(e, depth),
+            CoreExprKind::Call { .. } | CoreExprKind::CallDynSlot { .. } => {
+                self.expr_variant_call(e, depth)
+            }
             CoreExprKind::Slice { .. } => self.expr_variant_slice(e, depth),
             CoreExprKind::Member { .. } => self.expr_variant_member(e, depth),
             CoreExprKind::Sequence { .. } => self.expr_variant_sequence(e, depth),
@@ -1786,7 +1815,10 @@ impl Resolver<'_> {
     #[inline(never)]
     fn expr_variant_call(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
         match &mut e.kind {
-            CoreExprKind::Call { callee, arguments } => {
+            CoreExprKind::Call { callee, arguments }
+            | CoreExprKind::CallDynSlot {
+                callee, arguments, ..
+            } => {
                 self.expr(callee, depth + 1)?;
                 for e in arguments {
                     self.expr(e, depth + 1)?;

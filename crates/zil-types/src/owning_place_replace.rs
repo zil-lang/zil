@@ -85,6 +85,13 @@ fn nested_package_endpoint(ty: &Type, state: &mut closures::State, span: Span) -
             {
                 owns = true
             }
+            Type::Managed(payload)
+                if matches!(payload.as_ref(), Type::OwnedStore { element }
+                    if dynamic_store::inline_element(element)
+                        && dynamic_store::supported_element(element)) =>
+            {
+                owns = true
+            }
             ty if ty.is_b0_scalar() => {}
             _ => return Ok(false),
         }
@@ -107,9 +114,6 @@ fn whole_sum_endpoint(ty: &Type, state: &mut closures::State, span: Span) -> R<b
                 let Type::OwnedStore { element } = payload.as_ref() else {
                     unreachable!()
                 };
-                if dynamic_store::inline_element(element) {
-                    return Ok(false);
-                }
                 if !dynamic_store::supported_element(element) {
                     return Ok(false);
                 }
@@ -253,7 +257,11 @@ impl Builder<'_, '_> {
         match at {
             Type::Managed(payload) => {
                 self.closures.snapshot_type(at, 2, 0, target.span)?;
-                if !matches!(payload.as_ref(), Type::Record { .. }) || !payload.is_copy_value() {
+                if !(matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()
+                    || matches!(payload.as_ref(), Type::OwnedStore { element }
+                        if dynamic_store::inline_element(element)
+                            && dynamic_store::supported_element(element)))
+                {
                     return Ok(false);
                 }
             }
@@ -263,8 +271,11 @@ impl Builder<'_, '_> {
                 let mut owners = 0;
                 for (_, field) in fields {
                     if let Type::Managed(payload) = field {
-                        if !matches!(payload.as_ref(), Type::Record { .. })
-                            || !payload.is_copy_value()
+                        if !(matches!(payload.as_ref(), Type::Record { .. })
+                            && payload.is_copy_value()
+                            || matches!(payload.as_ref(), Type::OwnedStore { element }
+                                if dynamic_store::inline_element(element)
+                                    && dynamic_store::supported_element(element)))
                         {
                             return Ok(false);
                         }

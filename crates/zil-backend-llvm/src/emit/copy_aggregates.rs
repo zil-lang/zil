@@ -81,7 +81,8 @@ pub(super) fn plan(
                     InstructionKind::MakeAggregate { fields }
                     | InstructionKind::MakeVariant { fields, .. } => fields.len(),
                     InstructionKind::Call { arguments, .. }
-                    | InstructionKind::CallIndirect { arguments, .. } => arguments.len(),
+                    | InstructionKind::CallIndirect { arguments, .. }
+                    | InstructionKind::CallDynSlot { arguments, .. } => arguments.len(),
                     _ => 2,
                 };
                 let cost = shape

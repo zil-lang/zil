@@ -1,6 +1,6 @@
 # ZIL
 
-ZIL 是开发中的系统语言与编译器。当前可执行范围、限制和示例以 [语言初稿](docs/LANGUAGE-DRAFT.md) 为准；语言语义、安全边界和拒绝条件以 [_zil_design.md](_zil_design.md) 及其具名附件为准。开发检查点不代表完整语言或产品验收。实时任务、分配与阻塞只在独立 [goal 分支](https://github.com/zil-lang/zil/blob/goal/goal.md) 的 `goal.md`。
+ZIL 是开发中的系统语言与编译器。当前可执行范围、限制和示例以 [语言初稿](docs/LANGUAGE-DRAFT.md) 为准；语言语义、安全边界和拒绝条件以 [_zil_design.md](_zil_design.md) 及其具名附件为准。开发检查点不代表完整语言或产品验收。有限普通拥有 Store 与共享借入 dyn 的范围和共同验收见 [语言交付收据](docs/validation/ordinary-ownership-and-shared-dispatch-acceptance.json)。实时任务、分配与阻塞只在独立 [goal 分支](https://github.com/zil-lang/zil/blob/goal/goal.md) 的 `goal.md`。
 
 ## 构建与运行
 

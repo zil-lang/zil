@@ -3,7 +3,7 @@
 use super::*;
 use zil_base::Limits;
 
-fn inline_protocol_element(ty: &Type) -> bool {
+pub(super) fn inline_protocol_element(ty: &Type) -> bool {
     matches!(
         ty,
         Type::Record { .. }

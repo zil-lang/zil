@@ -334,6 +334,14 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
             owned: true,
             description: false,
         },
+        Type::Address { inner, .. }
+            if budget.ordinary_store_sum_address(ty)? && sums::admit(module, inner, budget)? =>
+        {
+            Shape {
+                owned: false,
+                description: true,
+            }
+        }
         Type::Address { .. }
             if budget.head_descriptions && (head_address(ty) || ty.is_package_address()) =>
         {
@@ -366,14 +374,20 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 .get(id.0 as usize)
                 .ok_or_else(|| error("absent closure shape"))?;
             budget.spend(c.captures.len(), "resource environment classification")?;
+            let mut owned = c.kind == CallableKind::FnOnce
+                || c.captures.iter().any(|t| {
+                    matches!(
+                        t,
+                        Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+                    )
+                });
+            if budget.has_ordinary_store_sum_capture(*id)? {
+                for ty in &c.captures {
+                    owned |= budget.ordinary_store_sum_capture(*id, ty)?;
+                }
+            }
             Shape {
-                owned: c.kind == CallableKind::FnOnce
-                    || c.captures.iter().any(|t| {
-                        matches!(
-                            t,
-                            Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
-                        )
-                    }),
+                owned,
                 description: c.captures.iter().any(|t| matches!(t, Type::Desc(_))),
             }
         }
@@ -384,7 +398,10 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
     })
 }
 fn package_owned_field(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
-    if matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) {
+    if matches!(
+        ty,
+        Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+    ) {
         if budget.sum_functions.is_empty() {
             return Ok(false);
         }
@@ -459,7 +476,11 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
             if matches!(
                 ty,
                 Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
-            ) {
+            ) || (matches!(
+                ty,
+                Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+            ) && budget.ordinary_store_sum_capture(id, ty)?)
+            {
                 budget.lookup(result.len(), "resource capture insertion")?;
                 result.insert(
                     Place::Capture(index as u32),
@@ -1961,7 +1982,22 @@ impl Flow<'_> {
                             && (matches!(ty, Type::Package { .. })
                                 || matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()));
                         if shared_owned && matches!(ty, Type::Package { .. }) {
-                            product::admit(ty, budget)?;
+                            let direct_store = if budget.pod_stores {
+                                let Type::Package { fields, .. } = ty else {
+                                    unreachable!()
+                                };
+                                budget.spend(fields.len(), "borrowed ordinary Store field scan")?;
+                                fields
+                                    .iter()
+                                    .any(|(_, field)| crate::ownership_store::pod_owned(field))
+                            } else {
+                                false
+                            };
+                            if direct_store || budget.ordinary_pod_store_type(ty)? {
+                                product::admit_owned(self.module, ty, budget)?;
+                            } else {
+                                product::admit(ty, budget)?;
+                            }
                         }
                         if (!ty.is_copy_value() && !matches!(ty, Type::Closure(_)) && !shared_owned)
                             || (mutable && !decl.mutable)
@@ -2156,7 +2192,11 @@ impl Flow<'_> {
                     if matches!(f.locals[local.0 as usize].ty, Type::Package { .. }) =>
                 {
                     let ty = &f.locals[local.0 as usize].ty;
-                    product::admit(ty, budget)?;
+                    if budget.ordinary_pod_store_type(ty)? {
+                        product::admit_owned(self.module, ty, budget)?;
+                    } else {
+                        product::admit(ty, budget)?;
+                    }
                     let Type::Package { fields, .. } = ty else {
                         unreachable!("Package borrow")
                     };
@@ -2293,6 +2333,80 @@ impl Flow<'_> {
                             ));
                         }
                     }
+                    if let Some(id) = f.environment
+                        && let Some(ty) = self
+                            .module
+                            .closures
+                            .get(id.0 as usize)
+                            .and_then(|closure| closure.captures.get(*index as usize))
+                        && budget.ordinary_store_sum_capture(id, ty)?
+                        && check
+                        && !exact(
+                            &copied(state, Place::Capture(*index), budget)?,
+                            Life::Available,
+                        )
+                    {
+                        return Err(error("cannot borrow an empty owning Sum capture"));
+                    }
+                    if out_shape.is_some_and(|s| s.description)
+                        && let Some(id) = f.environment
+                        && let Some(ty) = self
+                            .module
+                            .closures
+                            .get(id.0 as usize)
+                            .and_then(|closure| closure.captures.get(*index as usize))
+                        && budget.ordinary_store_sum_capture(id, ty)?
+                    {
+                        budget.type_work(ty, true, "borrowed Sum capture address identity")?;
+                        let expected = Type::Address {
+                            mutable: matches!(
+                                i.kind,
+                                InstructionKind::BorrowCapture { mutable: true, .. }
+                            ),
+                            inner: Box::new(ty.clone()),
+                        };
+                        if i.result.and_then(|v| f.values.get(v.0 as usize)) != Some(&expected) {
+                            return Err(error("borrowed Sum capture address type differs"));
+                        }
+                        produced = Some(Fact {
+                            sources: BTreeSet::from([Source::OwnedField(*index)]),
+                            ..Fact::default()
+                        });
+                    }
+                }
+                InstructionKind::BorrowPlaceAddress {
+                    address,
+                    path,
+                    mutable,
+                } if out_shape.is_some_and(|s| s.description) => {
+                    let (available, endpoint) =
+                        mixed_address_sums::endpoint(f, *address, path, budget)?;
+                    if !ownership_store::pod_owned(endpoint) || (*mutable && !available) {
+                        return Err(error(
+                            "borrowed Sum Store field is not an actual owning leaf",
+                        ));
+                    }
+                    budget.type_work(
+                        endpoint,
+                        true,
+                        "borrowed Sum Store field address identity",
+                    )?;
+                    let expected = Type::Address {
+                        mutable: *mutable,
+                        inner: Box::new(endpoint.clone()),
+                    };
+                    if i.result.and_then(|v| f.values.get(v.0 as usize)) != Some(&expected) {
+                        return Err(error("borrowed Sum Store field address type differs"));
+                    }
+                    ownership_store::ordinary_owned(self.module, endpoint, budget)?;
+                    let source = copied(state, Place::Value(*address), budget)?;
+                    if check {
+                        live_sources(state, &source, budget)?;
+                    }
+                    produced = Some(Fact {
+                        sources: source.sources,
+                        ..Fact::default()
+                    });
                 }
                 InstructionKind::DescribeCapture { index } => {
                     if f.environment
@@ -2337,6 +2451,9 @@ impl Flow<'_> {
                     });
                 }
                 InstructionKind::ReadCapture { index } => {
+                    let id = f
+                        .environment
+                        .ok_or_else(|| error("capture has no environment"))?;
                     let c = f
                         .environment
                         .and_then(|id| self.module.closures.get(id.0 as usize))
@@ -2348,7 +2465,11 @@ impl Flow<'_> {
                     if matches!(
                         ty,
                         Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
-                    ) {
+                    ) || (matches!(
+                        ty,
+                        Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                    ) && budget.ordinary_store_sum_capture(id, ty)?)
+                    {
                         return Err(error(
                             "ReadCapture cannot copy an owned Managed or Package field",
                         ));
@@ -2364,15 +2485,30 @@ impl Flow<'_> {
                     }
                 }
                 InstructionKind::TakeCapture { index } => {
-                    if f.environment
+                    let id = f
+                        .environment
+                        .ok_or_else(|| error("TakeCapture environment absent"))?;
+                    let capture_ty = f
+                        .environment
                         .and_then(|id| self.module.closures.get(id.0 as usize))
                         .and_then(|capture| capture.captures.get(*index as usize))
-                        .is_some_and(|ty| matches!(ty, Type::Package { .. }))
-                    {
+                        .ok_or_else(|| error("TakeCapture actual capture absent"))?;
+                    if matches!(capture_ty, Type::Package { .. }) {
                         return Err(error("Package capture movement requires its bound view"));
                     }
-                    if callable != Some(CallableKind::FnOnce) {
+                    let ordinary_sum = matches!(
+                        capture_ty,
+                        Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                    ) && budget.ordinary_store_sum_capture(id, capture_ty)?;
+                    if callable != Some(CallableKind::FnOnce)
+                        && !(ordinary_sum && callable == Some(CallableKind::FnMut))
+                    {
                         return Err(error("TakeCapture requires a consuming entry"));
+                    }
+                    if ordinary_sum
+                        && i.result.and_then(|v| f.values.get(v.0 as usize)) != Some(capture_ty)
+                    {
+                        return Err(error("TakeCapture owning Sum result type differs"));
                     }
                     let place = Place::Capture(*index);
                     let mut fact = copied(state, place, budget)?;
@@ -2390,6 +2526,37 @@ impl Flow<'_> {
                     produced = Some(fact.clone());
                     fact.life = BTreeSet::from([Life::Transferred]);
                     replace(state, place, fact, budget)?;
+                }
+                InstructionKind::WriteCapture { index, value } => {
+                    let id = f
+                        .environment
+                        .ok_or_else(|| error("WriteCapture environment absent"))?;
+                    let capture_ty = f
+                        .environment
+                        .and_then(|id| self.module.closures.get(id.0 as usize))
+                        .and_then(|closure| closure.captures.get(*index as usize))
+                        .ok_or_else(|| error("WriteCapture actual capture absent"))?;
+                    if matches!(
+                        capture_ty,
+                        Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                    ) && budget.ordinary_store_sum_capture(id, capture_ty)?
+                    {
+                        if callable != Some(CallableKind::FnMut)
+                            || f.values.get(value.0 as usize) != Some(capture_ty)
+                        {
+                            return Err(error("owning Sum refill requires FnMut and exact type"));
+                        }
+                        let slot = Place::Capture(*index);
+                        if check && !exact(&copied(state, slot, budget)?, Life::Transferred) {
+                            return Err(error("owning Sum refill requires an empty capture"));
+                        }
+                        let source = copied(state, Place::Value(*value), budget)?;
+                        if check && !exact(&source, Life::Available) {
+                            return Err(error("owning Sum refill requires one live value"));
+                        }
+                        self.consume(state, *value, check, budget)?;
+                        replace(state, slot, source, budget)?;
+                    }
                 }
                 InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                     if let Some(s) = self.shapes.get(&Place::Local(*local)) {
@@ -2626,7 +2793,17 @@ impl Flow<'_> {
                                 .life
                                 .contains(&Life::Available)
                             {
-                                return Err(error("storage boundary discards an owned carrier"));
+                                let local_ty = &f.locals[local.0 as usize].ty;
+                                let new_store_sum = matches!(local_ty,
+                                    Type::ErrorUnion { error, .. }
+                                        if crate::ownership_store::pod_owned(error))
+                                    || (matches!(local_ty, Type::Package { .. })
+                                        && budget.ordinary_pod_store_type(local_ty)?);
+                                if !new_store_sum || !state.sums.no_live_owner(*local, budget)? {
+                                    return Err(error(
+                                        "storage boundary discards an owned carrier",
+                                    ));
+                                }
                             }
                             no_later_use(
                                 state,
@@ -3057,7 +3234,11 @@ impl Flow<'_> {
                 | InstructionKind::BorrowLocalMut { local } = i.kind
                 && matches!(
                     f.locals[local.0 as usize].ty,
-                    Type::Package { .. } | Type::Managed(_)
+                    Type::Package { .. }
+                        | Type::Managed(_)
+                        | Type::Tuple(_)
+                        | Type::Enum { .. }
+                        | Type::ErrorUnion { .. }
                 )
             {
                 produced = Some(Fact {
@@ -3128,6 +3309,18 @@ impl Flow<'_> {
                     if matches!(place, Place::Capture(_) | Place::CaptureField { .. }) {
                         if callable != Some(CallableKind::FnOnce) && !exact(fact, Life::Available) {
                             return Err(error("repeatable entry fails to restore owned fields"));
+                        }
+                        if callable != Some(CallableKind::FnOnce)
+                            && let Place::Capture(index) = place
+                            && let Some(id) = f.environment
+                            && let Some(ty) = self
+                                .module
+                                .closures
+                                .get(id.0 as usize)
+                                .and_then(|closure| closure.captures.get(*index as usize))
+                            && budget.ordinary_store_sum_capture(id, ty)?
+                        {
+                            state.sums.require_capture_complete(*index, budget)?;
                         }
                     } else if fact.life.contains(&Life::Available) {
                         return Err(error("normal return leaves a responsibility unpaid"));
@@ -3213,7 +3406,7 @@ fn analyze_function_program(
         whole_commits: whole_helper.then(BTreeMap::new),
         sums: sums
             .as_ref()
-            .map(|p| p.initial(f, budget))
+            .map(|p| p.initial(module, f, budget))
             .transpose()?
             .unwrap_or_default(),
         ..State::default()
@@ -3732,7 +3925,7 @@ fn analyze_function_eager_reference(
         product_births,
         sums: sums
             .as_ref()
-            .map(|p| p.initial(f, budget))
+            .map(|p| p.initial(module, f, budget))
             .transpose()?
             .unwrap_or_default(),
         ..State::default()

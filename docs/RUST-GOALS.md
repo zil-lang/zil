@@ -654,3 +654,10 @@ checkout; this is a reproducibility improvement. Runtime/RSS, compilation speed
 and framework-maintenance costs against same-semantics Rust remain unmeasured.
 The concrete expressibility gains are not yet a measured product-level net
 breakthrough; existing product gates and broader language/platform gaps remain.
+
+
+## 2026-11-07：有限普通拥有 Store 与共享借入 dyn
+
+精确源码 `498f0f5a1e7595e12e5303750ef7686b1a7dc41b` 的共同收据记录普通 POD/九标量 Store 有限父形状与自包含捕获，以及双 Copy struct 提供者的共享借入 dyn 固定标量派发。Source、独立核、原生机器与失败清理均按本批实际证据审查；Unit dyn Source 仍 Unsupported。该批增进普通程序可表达性，并保持原有内联责任、默认额度及旧预算控制。
+
+Rust 同语义运行/RSS、编译时间和维护成本未测；有限表达性收益尚不能推出产品级净突破。完整语言、B0、ZUI 与原 product-gates 仍按各自状态验收。

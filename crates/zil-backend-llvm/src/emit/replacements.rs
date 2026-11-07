@@ -96,6 +96,21 @@ fn ordinary_sum_endpoint(ty: &Type) -> bool {
         ty => ty.is_b0_scalar(),
     }
 }
+fn inline_store_owner(ty: &Type) -> bool {
+    match ty {
+        Type::Managed(payload) => matches!(payload.as_ref(), Type::OwnedStore { element }
+            if dynamic_store::inline_protocol_element(element)),
+        Type::Package { fields, .. } => fields.iter().any(|(_, ty)| inline_store_owner(ty)),
+        Type::Tuple(fields) => fields.iter().any(inline_store_owner),
+        Type::Enum { variants, .. } => variants
+            .iter()
+            .any(|(_, fields)| fields.iter().any(inline_store_owner)),
+        Type::ErrorUnion { error, result } => {
+            inline_store_owner(error) || inline_store_owner(result)
+        }
+        _ => false,
+    }
+}
 
 impl FunctionEmitter<'_> {
     pub(super) fn commit_replacement(
@@ -153,10 +168,22 @@ impl FunctionEmitter<'_> {
         let complete_sum = (matches!(ty, Type::Tuple(_) | Type::ErrorUnion { .. })
             || (matches!(ty, Type::Enum { .. }) && !complete_enum))
             && ordinary_sum_endpoint(&ty);
+        let complete_inline_store = matches!(&ty, Type::Managed(payload)
+            if matches!(payload.as_ref(), Type::OwnedStore { element }
+                if dynamic_store::inline_protocol_element(element))
+            && dynamic_store::is_resource(&ty, self.resources));
+        // The verified ordinary Product may hold its Store below several
+        // complete Package/Sum fields. The reserved machine recipe paid for
+        // the entire root/path tree and exact resource-definition scans.
+        let complete_inline_product = matches!(&ty, Type::Package { .. })
+            && inline_store_owner(&ty)
+            && drop_plan::value_type(&ty, self.resources);
         if !matches!(&ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
             && !complete_package
             && !complete_enum
             && !complete_sum
+            && !complete_inline_store
+            && !complete_inline_product
         {
             return unsupported(
                 "replacement machine cleanup requires an admitted complete managed leaf",

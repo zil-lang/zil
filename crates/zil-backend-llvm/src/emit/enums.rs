@@ -83,6 +83,7 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
         | Type::ForeignHandle
         | Type::CWideString
         | Type::ForeignCallback { .. } => Layout { size: 8, align: 8 },
+        ty if dyn_dispatch::address(ty) => Layout { size: 16, align: 8 },
         Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Slice { .. }) => {
             Layout { size: 16, align: 8 }
         }

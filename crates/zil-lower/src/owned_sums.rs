@@ -98,6 +98,37 @@ impl<'a> Budget<'a> {
         }
         Ok(())
     }
+    pub(super) fn dyn_tables(&mut self, module: &zil_ir::TypedModule) -> CompileResult<()> {
+        if module.dyn_interfaces.is_empty() && module.dyn_vtables.is_empty() {
+            return Ok(());
+        }
+        self.metadata(
+            module
+                .dyn_interfaces
+                .len()
+                .saturating_add(module.dyn_vtables.len()),
+        )?;
+        for interface in &module.dyn_interfaces {
+            self.metadata(interface.slots.len())?;
+            for slot in &interface.slots {
+                self.metadata(slot.parameters.len().saturating_add(2))?;
+                if slot.receiver.mutable
+                    || !slot.result.is_b0_scalar()
+                    || !slot.parameters.iter().all(Type::is_b0_scalar)
+                {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Lower,
+                        "shared dyn lowering requires a shared receiver and scalar slots",
+                        None,
+                    )]);
+                }
+            }
+        }
+        for table in &module.dyn_vtables {
+            self.metadata(table.entries.len())?;
+        }
+        Ok(())
+    }
     pub(super) fn callable_metadata(&mut self, module: &zil_ir::TypedModule) -> CompileResult<()> {
         self.metadata(
             module
@@ -409,6 +440,53 @@ impl<'a> Budget<'a> {
                 Ok(ty.is_copy_value())
             }
         }
+    }
+
+    // This is a representation admission after independent Verify, not a
+    // source ownership rule. Only visit it when legacy capture admission failed.
+    pub(super) fn inline_store_capture(
+        &mut self,
+        ty: &Type,
+        resources: &[zil_ir::ResourceDefinition],
+    ) -> CompileResult<bool> {
+        fn contains(b: &mut Budget<'_>, ty: &Type, depth: usize) -> CompileResult<bool> {
+            b.pay(ty, depth)?;
+            let mut found = false;
+            match ty {
+                Type::Managed(payload) => {
+                    return Ok(matches!(payload.as_ref(), Type::OwnedStore { element }
+                        if !matches!(element.as_ref(), Type::Package { .. })));
+                }
+                Type::Package { fields, .. } => {
+                    b.metadata(fields.len())?;
+                    for (_, field) in fields {
+                        found |= contains(b, field, depth + 1)?;
+                    }
+                }
+                Type::Tuple(fields) => {
+                    b.metadata(fields.len())?;
+                    for field in fields {
+                        found |= contains(b, field, depth + 1)?;
+                    }
+                }
+                Type::Enum { variants, .. } => {
+                    b.metadata(variants.len())?;
+                    for (_, fields) in variants {
+                        b.metadata(fields.len())?;
+                        for field in fields {
+                            found |= contains(b, field, depth + 1)?;
+                        }
+                    }
+                }
+                Type::ErrorUnion { error, result } => {
+                    b.metadata(2)?;
+                    found = contains(b, error, depth + 1)? | contains(b, result, depth + 1)?;
+                }
+                _ => {}
+            }
+            Ok(found)
+        }
+        Ok(contains(self, ty, 0)? && self.admits(ty, resources, 0)?)
     }
 }
 fn limit() -> Vec<Diagnostic> {

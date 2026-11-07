@@ -233,9 +233,16 @@ fn model() -> (m::Module, LirModule) {
         }));
     }
     let mut intrinsics = BTreeSet::new();
+    let dyn_module = no_dyn_test_module(
+        lir.target.clone(),
+        &lir.functions,
+        &lir.closures,
+        &lir.resources,
+    );
     for f in lir.functions.iter().filter(|f| f.foreign.is_none()) {
         code.append(
             FunctionEmitter {
+                dyn_module: &dyn_module,
                 task_ownership: None,
                 function: f,
                 target: &lir.target,

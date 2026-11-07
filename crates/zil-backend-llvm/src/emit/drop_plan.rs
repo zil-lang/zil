@@ -561,6 +561,7 @@ pub(super) fn functions(
     lir: &LirView<'_>,
     limits: &zil_base::Limits,
     enabled: bool,
+    capture_roots: &[&Type],
     entry: EntryPoint,
 ) -> CompileResult<m::Code> {
     if !enabled {
@@ -655,6 +656,17 @@ pub(super) fn functions(
             {
                 visit(ty, &mut found, &mut seen, &mut budget, true, 0)?;
             }
+        }
+    }
+    if !capture_roots.is_empty() {
+        // A captured Sum can be absent from every function local/value and
+        // callable signature, yet closure teardown still calls its drop
+        // symbol. Prepay each actual capture tree before classifying it, then
+        // force the selected tree so an ErrorUnion with a direct Store arm and
+        // every nested Package child Sum receive their concrete helpers.
+        // Legacy captures never enter this list or pay this new traversal.
+        for ty in capture_roots {
+            visit(ty, &mut found, &mut seen, &mut budget, true, 0)?;
         }
     }
     // Entry error extraction, storage, typed cleanup GEPs and helper names
@@ -958,7 +970,14 @@ mod impl243_plan_tests {
         for (_, child) in fields {
             assert!(matches!(child,DropPlan::Leaf(name) if name.starts_with("zil.sum.drop.")));
         }
-        let code = functions(&recipe_input().as_view(), &limits, true, EntryPoint::None).unwrap();
+        let code = functions(
+            &recipe_input().as_view(),
+            &limits,
+            true,
+            &[],
+            EntryPoint::None,
+        )
+        .unwrap();
         let text = m::Module {
             triple: "x86_64-unknown-linux-gnu".into(),
             fingerprint: String::new(),
@@ -970,15 +989,64 @@ mod impl243_plan_tests {
         assert!(text.contains("call void @llvm.trap()"));
     }
     #[test]
+    fn captured_inline_store_sum_has_its_actual_drop_helper() {
+        let mut lir = recipe_input();
+        let captured = Type::Enum {
+            name: "Captured".into(),
+            variants: vec![
+                ("Empty".into(), vec![]),
+                (
+                    "Value".into(),
+                    vec![Type::Managed(Box::new(Type::OwnedStore {
+                        element: Box::new(Type::U64),
+                    }))],
+                ),
+            ],
+        };
+        lir.resources.push(ResourceDefinition {
+            name: "@builtin:OwnedStore<u64>".into(),
+            payload: Type::OwnedStore {
+                element: Box::new(Type::U64),
+            },
+            teardown: None,
+        });
+        lir.closures.push(ClosureDefinition {
+            storage_life: None,
+            id: ClosureId(0),
+            function: FunctionId(0),
+            captures: vec![captured.clone()],
+            parameters: vec![],
+            result: Type::Unit,
+            kind: CallableKind::FnOnce,
+            lending_captures: vec![],
+        });
+        let actual_root = &lir.closures[0].captures[0];
+        let code = functions(
+            &lir.as_view(),
+            &zil_base::Limits::default(),
+            true,
+            &[actual_root],
+            EntryPoint::None,
+        )
+        .unwrap();
+        let text = m::Module {
+            triple: "x86_64-unknown-linux-gnu".into(),
+            fingerprint: String::new(),
+            items: code.into_items().unwrap(),
+        }
+        .to_text();
+        assert!(text.contains(&format!("define internal void @{}", symbol(actual_root))));
+    }
+    #[test]
     fn impl243_drop_plan_honors_current_shared_limit_and_fresh_boundary() {
         let lir = recipe_input();
         let mut limits = zil_base::Limits {
             max_analysis_steps: 0,
             ..zil_base::Limits::default()
         };
-        assert!(functions(&lir.as_view(), &limits, false, EntryPoint::None).is_ok());
+        assert!(functions(&lir.as_view(), &limits, false, &[], EntryPoint::None).is_ok());
         assert_eq!(
-            functions(&lir.as_view(), &limits, true, EntryPoint::None)
+            functions(&lir.as_view(), &limits, true, &[], EntryPoint::None)
                 .err()
                 .unwrap()[0]
                 .category,
@@ -988,24 +1056,24 @@ mod impl243_plan_tests {
         while low + 1 < high {
             let mid = (low + high) / 2;
             limits.max_analysis_steps = mid;
-            if functions(&lir.as_view(), &limits, true, EntryPoint::None).is_ok() {
+            if functions(&lir.as_view(), &limits, true, &[], EntryPoint::None).is_ok() {
                 high = mid
             } else {
                 low = mid
             }
         }
         limits.max_analysis_steps = high;
-        assert!(functions(&lir.as_view(), &limits, true, EntryPoint::None).is_ok());
+        assert!(functions(&lir.as_view(), &limits, true, &[], EntryPoint::None).is_ok());
         limits.max_analysis_steps = high - 1;
         assert_eq!(
-            functions(&lir.as_view(), &limits, true, EntryPoint::None)
+            functions(&lir.as_view(), &limits, true, &[], EntryPoint::None)
                 .err()
                 .unwrap()[0]
                 .category,
             zil_base::ResultCategory::ResourceLimit
         );
         limits.max_analysis_steps = high;
-        assert!(functions(&lir.as_view(), &limits, true, EntryPoint::None).is_ok());
+        assert!(functions(&lir.as_view(), &limits, true, &[], EntryPoint::None).is_ok());
     }
 
     #[test]
@@ -1013,11 +1081,11 @@ mod impl243_plan_tests {
         fn threshold(lir: &LirModule) -> usize {
             let mut limits = zil_base::Limits::default();
             let (mut low, mut high) = (0, limits.max_analysis_steps);
-            assert!(functions(&lir.as_view(), &limits, true, EntryPoint::None).is_ok());
+            assert!(functions(&lir.as_view(), &limits, true, &[], EntryPoint::None).is_ok());
             while low + 1 < high {
                 let mid = (low + high) / 2;
                 limits.max_analysis_steps = mid;
-                if functions(&lir.as_view(), &limits, true, EntryPoint::None).is_ok() {
+                if functions(&lir.as_view(), &limits, true, &[], EntryPoint::None).is_ok() {
                     high = mid;
                 } else {
                     low = mid;
@@ -1049,13 +1117,14 @@ mod impl243_plan_tests {
             max_analysis_steps: new_n,
             ..zil_base::Limits::default()
         };
-        assert!(functions(&owning.as_view(), &limits, true, EntryPoint::None).is_ok());
+        assert!(functions(&owning.as_view(), &limits, true, &[], EntryPoint::None).is_ok());
         limits.max_analysis_steps = new_n - 1;
         assert_eq!(
-            functions(&owning.as_view(), &limits, true, EntryPoint::None).unwrap_err()[0].category,
+            functions(&owning.as_view(), &limits, true, &[], EntryPoint::None).unwrap_err()[0]
+                .category,
             zil_base::ResultCategory::ResourceLimit
         );
         limits.max_analysis_steps = new_n;
-        assert!(functions(&owning.as_view(), &limits, true, EntryPoint::None).is_ok());
+        assert!(functions(&owning.as_view(), &limits, true, &[], EntryPoint::None).is_ok());
     }
 }

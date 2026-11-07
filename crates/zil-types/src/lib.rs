@@ -11,9 +11,11 @@ mod borrowed_fp;
 mod borrowed_fp_qualified;
 mod byte_buffer;
 mod callable_fields;
+mod capture_cleanup;
 mod closures;
 mod conditions;
 mod deferred;
+mod dyn_dispatch;
 mod dynamic_store;
 mod enums;
 mod errors;
@@ -429,6 +431,23 @@ pub fn check(
     let inferred = aggregates::resolve(infer_source_closures(core, limits)?, limits)?;
     let core = &inferred;
     let mut signatures = signatures(core, limits, 0, None)?;
+    let dyn_vtables = dyn_dispatch::inventory(core, &signatures, limits).map_err(|e| vec![e])?;
+    if !core.dyn_declarations.is_empty() && core.dyn_interfaces.is_empty() {
+        return Err(vec![unsupported(
+            Span::default(),
+            "dyn declaration has no actual interface",
+        )]);
+    }
+    if core.dyn_interfaces.iter().any(|interface| {
+        !dyn_vtables
+            .iter()
+            .any(|table| table.interface == interface.id)
+    }) {
+        return Err(vec![unsupported(
+            Span::default(),
+            "dyn interface has no actual provider table",
+        )]);
+    }
     let mut resource_definitions =
         resources::definitions(core, &signatures).map_err(|e| vec![e])?;
     let mut enum_work = limits.max_analysis_steps;
@@ -499,6 +518,9 @@ pub fn check(
         )
         .and_then(|mut b| {
             b.enums = Some(&enum_types);
+            b.dyn_declarations = &core.dyn_declarations;
+            b.dyn_interfaces = &core.dyn_interfaces;
+            b.dyn_vtables = &dyn_vtables;
             b.finish(&f.body)
         }) {
             Ok(typed) => {
@@ -554,9 +576,9 @@ pub fn check(
     let mut module = TypedModule {
         life_declarations,
         life_instances,
-        dyn_declarations: Vec::new(),
-        dyn_interfaces: Vec::new(),
-        dyn_vtables: Vec::new(),
+        dyn_declarations: core.dyn_declarations.clone(),
+        dyn_interfaces: core.dyn_interfaces.clone(),
+        dyn_vtables,
         resources: resource_definitions,
         schema_version: SCHEMA_VERSION,
         module_id: core.module_id,
@@ -579,6 +601,9 @@ struct Builder<'a, 'c> {
     state_uses: Option<state_origins::Uses>,
     factory_bound: Option<CoreCallableReturn>,
     signatures: &'a BTreeMap<String, Signature>,
+    dyn_declarations: &'a [DynDeclaration],
+    dyn_interfaces: &'a [DynInterface],
+    dyn_vtables: &'a [DynVtable],
     imports: Option<&'a program::Imports<'a>>,
     enums: Option<&'a BTreeMap<String, Type>>,
     limits: &'a Limits,
@@ -600,6 +625,7 @@ struct Builder<'a, 'c> {
     address_written_captures: BTreeMap<LocalId, u32>,
     managed_captures: BTreeMap<LocalId, (u32, Type)>,
     closure_captures: BTreeMap<LocalId, (u32, Type)>,
+    owned_sum_captures: BTreeMap<LocalId, u32>,
     factory_modes: Option<owning_factory::Modes>,
     forwarding_modes: bool,
     closure_slots: BTreeMap<LocalId, ClosureId>,
@@ -617,6 +643,7 @@ struct Builder<'a, 'c> {
     managed_rebindings: std::collections::BTreeSet<managed_slots::BindingSite>,
     replacement_input: Option<LocalId>,
     sum_slots: BTreeMap<LocalId, Type>,
+    inline_store_sum_slots: std::collections::BTreeSet<LocalId>,
 }
 struct LoopContext {
     continue_target: BlockId,
@@ -670,6 +697,9 @@ impl<'a, 'c> Builder<'a, 'c> {
             state_uses: None,
             factory_bound: f.callable_return.clone(),
             signatures,
+            dyn_declarations: &[],
+            dyn_interfaces: &[],
+            dyn_vtables: &[],
             imports: None,
             enums: None,
             limits,
@@ -691,6 +721,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             address_written_captures: BTreeMap::new(),
             managed_captures: BTreeMap::new(),
             closure_captures: BTreeMap::new(),
+            owned_sum_captures: BTreeMap::new(),
             factory_modes: owning_factory::template(f).then(owning_factory::Modes::default),
             forwarding_modes: false,
             closure_slots: BTreeMap::new(),
@@ -706,6 +737,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             managed_slots: std::collections::BTreeSet::new(),
             replacement_input: None,
             sum_slots: BTreeMap::new(),
+            inline_store_sum_slots: std::collections::BTreeSet::new(),
             managed_slot_work: limits.max_analysis_steps,
             managed_rebindings: managed_slots::reassigned_bindings(&f.body, limits)?,
         };
@@ -1109,6 +1141,9 @@ impl<'a, 'c> Builder<'a, 'c> {
     }
     fn end_scopes_kind(&mut self, depth: usize, kind: CleanupExitKind, span: Span) -> R<()> {
         self.abort_exiting_replacements(depth, kind, span)?;
+        if self.end_owned_sum_capture_scopes(depth, kind, span)? {
+            return Ok(());
+        }
         for index in (depth..self.scopes.len()).rev() {
             let mut locals = self.scopes[index].values().copied().collect::<Vec<_>>();
             locals.sort_unstable_by(|a, b| b.cmp(a));
@@ -1129,6 +1164,20 @@ impl<'a, 'c> Builder<'a, 'c> {
                 };
                 if deferred {
                     self.invoke_defer(local, span)?;
+                } else if let Some(capture) = self.owned_sum_captures.get(&local).copied() {
+                    // FnMut temporarily owns the complete captured Sum during
+                    // activation. Refill the empty environment field exactly
+                    // once; Analyze and Verify check every actual exit.
+                    let ty = self.function.locals[local.0 as usize].ty.clone();
+                    let value = self.value(InstructionKind::TakeLocal { local }, ty, span)?;
+                    self.emit(
+                        InstructionKind::WriteCapture {
+                            index: capture,
+                            value,
+                        },
+                        None,
+                        span,
+                    )?;
                 } else if !self.temporary_locals.contains(&local)
                     || self.resource_temps.contains(&local)
                 {
@@ -1634,6 +1683,33 @@ impl<'a, 'c> Builder<'a, 'c> {
         }
     }
     fn expr(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        if let Some(Type::Address {
+            mutable: false,
+            inner,
+        }) = expected
+            && let Type::Dyn { interface } = inner.as_ref()
+            && matches!(
+                &e.kind,
+                CoreExprKind::Unary {
+                    op: UnaryOp::Borrow,
+                    ..
+                }
+            )
+        {
+            let (source, actual) = self.expr_raw(e, None)?;
+            let Type::Address {
+                mutable: false,
+                inner: concrete,
+            } = actual
+            else {
+                return Err(error(
+                    "E-DYN-RECEIVER",
+                    e.span,
+                    "dyn coercion needs an actual shared address",
+                ));
+            };
+            return self.dyn_coerce(source, &concrete, *interface, e.span);
+        }
         if let Some(sum) = expected.filter(|ty| enums::anonymous(ty))
             && !matches!(
                 &e.kind,
@@ -1740,9 +1816,18 @@ impl<'a, 'c> Builder<'a, 'c> {
     #[inline(never)]
     fn expr_non_call_value(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
         match &e.kind {
-            CoreExprKind::MakeDynBorrow { .. } | CoreExprKind::CallDynSlot { .. } => Err(
-                unsupported(e.span, "dyn expression consumer is not yet implemented"),
-            ),
+            CoreExprKind::MakeDynBorrow {
+                interface,
+                vtable,
+                source,
+                mutable,
+            } => self.dyn_make_borrow(*interface, *vtable, source, *mutable, e.span),
+            CoreExprKind::CallDynSlot {
+                callee,
+                interface,
+                slot,
+                arguments,
+            } => self.dyn_call(callee, *interface, *slot, arguments, e.span),
             CoreExprKind::Literal(_)
             | CoreExprKind::Float(_)
             | CoreExprKind::Integer(_)
@@ -1980,6 +2065,21 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
             if let Some((ty, variant)) = self.enum_constructor(callee)? {
                 return self.make_variant(ty, variant, arguments, expected, e.span);
+            }
+            if let CoreExprKind::Member {
+                object,
+                member,
+                owner,
+            } = &callee.kind
+                && let Some((interface, slot)) = self.dyn_method_slot(object, member)
+            {
+                if owner.is_some() {
+                    return Err(unsupported(
+                        e.span,
+                        "dyn member qualification needs exact slot application",
+                    ));
+                }
+                return self.dyn_call(object, interface, slot, arguments, e.span);
             }
             if let CoreExprKind::Member {
                 object,
@@ -2515,6 +2615,11 @@ impl<'a, 'c> Builder<'a, 'c> {
                     )
                 })?;
                 self.closures.snapshot(work, input.span)?;
+                if self.inline_store_sum_slots.contains(local)
+                    && let Some(ty) = self.sum_slots.get(local)
+                {
+                    self.closures.snapshot_type(ty, 1, 0, input.span)?;
+                }
                 outer.insert(
                     name.clone(),
                     (
@@ -2525,6 +2630,12 @@ impl<'a, 'c> Builder<'a, 'c> {
                             .or_else(|| self.managed_captures.get(local).map(|(_, ty)| ty.clone()))
                             .or_else(|| self.closure_captures.get(local).map(|(_, ty)| ty.clone()))
                             .or_else(|| self.closure_slots.get(local).copied().map(Type::Closure))
+                            .or_else(|| {
+                                self.inline_store_sum_slots
+                                    .contains(local)
+                                    .then(|| self.sum_slots.get(local).cloned())
+                                    .flatten()
+                            })
                             .unwrap_or_else(|| self.function.locals[local.0 as usize].ty.clone()),
                     ),
                 );
@@ -2647,7 +2758,11 @@ impl<'a, 'c> Builder<'a, 'c> {
         let mut values = Vec::new();
         for capture in captures {
             let stored = capture.stored_type();
-            let value = if self.closure_slots.contains_key(&capture.source) {
+            let value = if capture.moved && self.inline_store_sum_slots.contains(&capture.source) {
+                self.take_sum_slot(capture.source, Some(&stored), capture.span, false)?
+                    .expect("actual captured Sum slot")
+                    .0
+            } else if self.closure_slots.contains_key(&capture.source) {
                 if capture.moved {
                     self.take_closure_slot(capture.source, capture.span)?.0
                 } else {
@@ -2857,6 +2972,55 @@ impl<'a, 'c> Builder<'a, 'c> {
         for (index, capture) in captures.into_iter().enumerate() {
             let stored = capture.stored_type();
             if matches!(stored, Type::Package { .. }) {
+                continue;
+            }
+            if owned_shapes::sum(&stored)
+                && builder
+                    .closures
+                    .ordinary_store_capture(&stored, capture.span)?
+            {
+                let kind = builder.closures.pending[id.0 as usize].callable_kind();
+                if kind == CallableKind::Fn {
+                    // Shared calls retain the owner in the environment. The
+                    // activation sees only its real address and may form
+                    // child reference patterns without copying the Sum.
+                    let address = Type::Address {
+                        mutable: false,
+                        inner: Box::new(stored.clone()),
+                    };
+                    let local =
+                        builder.local(&capture.name, address.clone(), false, capture.span)?;
+                    let value = builder.value(
+                        InstructionKind::BorrowCapture {
+                            index: index as u32,
+                            mutable: false,
+                        },
+                        address,
+                        capture.span,
+                    )?;
+                    builder.store(local, value, capture.span)?;
+                    builder.borrowed_captures.insert(local, stored);
+                } else {
+                    // FnMut takes the complete owner for this activation and
+                    // refills its field on every exit. FnOnce consumes it.
+                    let local = builder.local(
+                        &capture.name,
+                        stored.clone(),
+                        capture.written,
+                        capture.span,
+                    )?;
+                    let value = builder.value(
+                        InstructionKind::TakeCapture {
+                            index: index as u32,
+                        },
+                        stored,
+                        capture.span,
+                    )?;
+                    builder.store(local, value, capture.span)?;
+                    if kind == CallableKind::FnMut {
+                        builder.owned_sum_captures.insert(local, index as u32);
+                    }
+                }
                 continue;
             }
             if let Type::Closure(child) = &stored {
