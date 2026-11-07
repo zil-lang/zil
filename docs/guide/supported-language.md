@@ -4,6 +4,8 @@
 
 当前有限拥有组合包括普通 POD/九种标量 Store 进入 Package、Tuple、Enum、ErrorUnion，以及自包含 Fn/FnMut/FnOnce 捕获；共享借入 dyn 支持两个 Copy struct 提供者的固定标量方法槽。具体限制与其它支持能力如下。
 
+新增有限组合包括单直接可变地址字段的名义 Record holder，以及普通 impl 关联类型等式的显式约束。holder 的子重借保留真实目标及载体父链；impl 约束在定义期按自身符号前提证明，保持 trait 与 impl 的独立 binder。边界分别见[可变存储载体](../../spec/mutable-stored-holder.md)和[trait 合同](../../spec/trait-method-lending.md)，精确源码验收索引维护于[协调分支](https://github.com/zil-lang/zil/tree/goal/records)。
+
 ## 支持矩阵
 
 | 能力簇 | 预览支持范围 | 已验收证据 | 边界 |
@@ -12,6 +14,7 @@
 | 普通集合与文本 | 真实 `std.store` 的有限 POD Record 和九种基础标量集合、容量管理、push/pop、共享与独占元素窗口；现有 UTF-8 字面量/只读入口和显式 String | 普通 POD Store 和文本已接受收据；原地修改与直接标量 Store 同批验收的源码、raw/Wire、两核、Clang/LLVMAPI O0/O2、分配失败与近邻拒绝 | 可变窗口须保持整 Store 排他，未知不同下标不能推定不交；一般拥有/异构容器、完整 Unicode/格式化另列 |
 | trait 与借入迭代 | 现有普通泛型 trait、关联 Item、共享逐调用 lending；类型限定的静态关联函数及符号泛型宿主已通过绑定源码的验收 | 普通 trait lending 已接受收据；静态关联函数 具体/符号宿主源码、独立两核及机器结果 | 一般关联投影、资源宿主 lending 不随该历史片开放；该验收仅有限共享借入 dyn |
 | 普通程序组合 | 选定真实跨模块程序中的集合更新、错误传播、明确资源责任与短借用 | 固定源文件/输入/完整 stdout、退出状态、失败清理、合法及最近反例；精确提交与 O0/O2 结果见共同收据 | 只晋升该组合实际覆盖的行为；其他长期借用形状按真实阻塞另行实现 |
+| 可变借入存储 | 单直接可变地址字段的名义 Record holder；跨模块构造、helper 子重借与实际写入 | 真实 Source、独立 raw/Wire 反例、Clang/LLVM API O0/O2；借用目标和载体父链分别核验 | 不含混合拥有 Package、槽替换/取走、多可变叶或可变捕获；旧共享多叶行为保留 |
 | 交付与质量 | Source→Types→Analyze→独立 Verify→机器产物的有限 profile；CLI 区分 Success、SafeReject、Unsupported、ResourceLimit、InfraError | 源码和摘要绑定绑定源码的共同收据；完整默认/参考回归、两后端原生、失败清理及冷恢复分别记录，全部通过，冷恢复边界单独记录 | 零命中、Unsupported、超时、工具失败与旧提交收据均非本次 Pass；正式 B0 和产品门维持原状态 |
 
 ## 快速开始

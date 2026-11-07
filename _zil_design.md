@@ -1344,6 +1344,8 @@ fn measured<T: Measure>(value: &T) -> usize {
 
 匹配 impl 头只找到候选配方，全部前提满足后才发布证据。候选关联等式不得证明自身前提。泛型正文使用独立已有 bound 支持的符号投影；不要求为常见迭代器组合写手工字典。名义字段递归在声明身份停止；实际关联展开环错误，非重复增长按确定配额停止。
 
+普通关联类型的 impl 等式可显式列出额外 bound。trait 声明的 bound 与 impl 自身断言分别在各自词法 binder 中代换，并在 impl 定义期由真实符号前提证明；同拼写的 trait 参数与 impl 参数不得混同。未使用实现同样检查，不能等具体调用补证。impl 额外断言不扩大泛型调用者从 trait 声明获得的权限。模块正规化保留 bound 的真实声明身份；新扫描、代换及证明继续预付当前请求预算。该有限规则不自动开放泛型关联类型或新的 impl life/const 参数。
+
 lending 使用 `<life a>` 和 `&'a T`，每次调用绑定与环境固定依赖分开。可写字段与相关内容参数不变型，不能通过缩短表面借期把短命对象写入长命容器。结构性质 Copy/Transfer/Share 由结构规则或明确审计点建立，空 impl 不造权限。
 
 有限显式 life 来源合同：普通 Direct 函数及具体 inherent 方法可声明仅由 `<life a, life b>` 组成的 life binder，以一层共享地址参数和返回类型的 `&'a T` 关联真实来源。binder 属于当前函数，最终接收者占真实参数索引0；返回标注必须对应至少一个实际共享地址输入，同名 life 只规定允许的来源集合，不证明对象相同、独占或不相交。实际 CFG 的每个借用返回根必须属于该声明上界；局部逃逸、窗口冲突、清理和所有既有完整性责任仍独立核验。
@@ -1371,6 +1373,8 @@ lending 使用 `<life a>` 和 `&'a T`，每次调用绑定与环境固定依赖�
 可调用参数的高阶life关系：`F: for<life a> Fn(&'a T)->&'a T`把FunctionLifeContract保留在CoreCallableParameter及Typed CallableRole，约束每次真实调用的输入/返回关系，固定环境Hold仍独立保留。未用定义须按声明关系验证，具体闭包的实际CFG返回根须在该次声明允许的输入集合内；固定捕获根不能洗为新调用binder。参数顺序、可变模式、密集binder、非空返回来源及同时活动窗口由两个核分别重建。源/Core签名依赖、JSON接口、Wire及缓存身份均包含关系，旧候选不能复用旧核验结论。新字段使旧无life角色字节也改变，因此该候选使用Typed/Wire36、typed module域V36、CallableParameterContract域5；CT artifact域2和CallableReturnContract域3在字节不变时保持。现有Type编码未变，不由角色字段自动更改Type身份域。只有完整消费者与独立证据完成后才升级实际接收版本，登记不算通过。
 
 普通有限借入存储共同合同（共同Wire39）：`BorrowedStorage{storage,life}`保留有限Record/Package/Tuple/Enum/ErrorUnion的完整底层布局与相对存储叶关系，不制造实际目标或权限。`StorageLifeShape`以声明顺序记录`StorageLifeSlot{path,binder,mode}`；路径仅含真实内联Field/Variant/ErrorArm，完整覆盖每个实际Address/Desc叶恰一次，保留实际tag与初始化。binder按真实语义遍历首次出现规范密集编号；无任何真实关系的空wrapper、重复、漏项、错误模式、无用尾类、直接双wrapper及相互不一致的嵌套关系拒绝。可写/只读描述模式只是访问上界；Copy/StoreElement/capture/Transfer/Share、拥有叶责任与raw pointee资格仍分别证明。机器布局可擦除关系，语义身份不可擦除。
+
+有限可变存储载体允许真实名义 Record 恰有一个直接可变地址借入叶、无额外 retained 类。构造将实际独占地址转入该槽，槽模式必须为 ExclusiveAddress；经可变载体地址读取该叶形成子重借，保留实际目标 loan 与载体父 loan。子借用活跃期间阻止相交重借、目标冲突访问及载体提前退休；跨普通 helper 返回的子地址保留相同真实父链。两核分别从实际类型、槽和 CFG 重建这些事实，机器仅加载已核物理槽中的指针。该规则不授予整体 Copy、槽取走或替换、借入 Package、多可变叶及捕获权限；细则见 `spec/mutable-stored-holder.md`。
 
 `StorageLifeContract`把持久Fixed与每次新鲜Invocation分域，绑定到真实Parameter/Capture/Result及其完整位置。Fixed须从实际保留的载体类（capture、存储载体或dyn环境port）独立建立，不限语法Capture位置，但裸新调用输入/结果不能凭空引入Fixed。满足已有Fixed的调用不得缩短、重命名为新类或选择较短交集；结果只能引用已实际建立的类。声明同类不证明对象相同、不相交或可变权限。参数空路径选实际外层Address；非空物理路径最多在入口解开一次外层Address，不能隐式穿过存储Address/Desc。实际借用位置的合同路径为`ContractProjection::Place`及终端`RetainedPort`；RetainedPort只在真实保留载体选择已核typed port，不是GEP、物理字段或加载权限。共同40以独立的`SignatureLifeClass{base,path:Vec<LifeTypeProjection>,class}`选择完整语义类型的持久类，`StorageLifeContract.classes`将其映射到Fixed或Invocation；类位置绝不是StoragePosition、实际目标根、loan或Read/Write/Manage/Call路径。旧39把类写成`RetainedClass`的bindings在40不规范，消费者必须迁移或拒绝，不接纳两种等价拼写。dyn值须保持接收者和映射到的实际目标根。
 
