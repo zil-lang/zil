@@ -153,10 +153,15 @@ impl FunctionEmitter<'_> {
         let complete_sum = (matches!(ty, Type::Tuple(_) | Type::ErrorUnion { .. })
             || (matches!(ty, Type::Enum { .. }) && !complete_enum))
             && ordinary_sum_endpoint(&ty);
+        let complete_inline_store = matches!(&ty, Type::Managed(payload)
+            if matches!(payload.as_ref(), Type::OwnedStore { element }
+                if dynamic_store::inline_protocol_element(element))
+            && dynamic_store::is_resource(&ty, self.resources));
         if !matches!(&ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
             && !complete_package
             && !complete_enum
             && !complete_sum
+            && !complete_inline_store
         {
             return unsupported(
                 "replacement machine cleanup requires an admitted complete managed leaf",
