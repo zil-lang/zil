@@ -94,7 +94,7 @@ fn owned(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<
                         Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
                     )
                 });
-            if budget.has_ordinary_store_sum_capture(*id) {
+            if budget.has_ordinary_store_sum_capture(*id)? {
                 for capture in &c.captures {
                     is_owned |= budget.ordinary_store_sum_capture(*id, capture)?;
                 }

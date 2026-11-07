@@ -373,7 +373,7 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
                     )
                 });
-            if budget.has_ordinary_store_sum_capture(*id) {
+            if budget.has_ordinary_store_sum_capture(*id)? {
                 for ty in &c.captures {
                     owned |= budget.ordinary_store_sum_capture(*id, ty)?;
                 }
