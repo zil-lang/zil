@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use zil_ir::{CallableFlowNext, CallableTraces};
 
 use zil_base::{CompileResult, Diagnostic, Limits, Phase, SCHEMA_VERSION, Span};
@@ -16,6 +16,10 @@ fn exhausted(context: &str) -> Vec<Diagnostic> {
 
 pub(super) struct Budget {
     remaining: usize,
+    // Only immutable Type nodes reached from the actual TypedFunction local
+    // inventory enter this table. A key is the address of that node for this
+    // one analysis request; it never escapes the request or becomes authority.
+    addressed_copy_sums: BTreeMap<usize, bool>,
     // Derived from raw instructions; only avoids work in unaffected modules.
     pub(super) static_utf8: bool,
     pub(super) pod_stores: bool,
@@ -81,6 +85,7 @@ impl Budget {
     pub(super) fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
+            addressed_copy_sums: BTreeMap::new(),
             static_utf8: false,
             pod_stores: false,
             dyn_interfaces: BTreeSet::new(),
@@ -211,6 +216,19 @@ impl Budget {
     }
     pub(super) fn remaining(&self) -> usize {
         self.remaining
+    }
+
+    pub(super) fn addressed_copy_sum(&mut self, ty: &Type) -> CompileResult<bool> {
+        self.lookup(self.addressed_copy_sums.len(), "addressed Sum Copy memo lookup")?;
+        let key = ty as *const Type as usize;
+        if let Some(copy) = self.addressed_copy_sums.get(&key) {
+            return Ok(*copy);
+        }
+        self.type_work(ty, true, "mutable local Enum tag knowledge")?;
+        let copy = ty.is_copy_value();
+        self.spend(1, "addressed Sum Copy memo insertion")?;
+        self.addressed_copy_sums.insert(key, copy);
+        Ok(copy)
     }
 
     pub(super) fn spend(&mut self, amount: usize, context: &str) -> CompileResult<()> {

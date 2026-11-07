@@ -285,8 +285,16 @@ impl Tree {
                 return Ok(());
             }
         }
-        budget.type_work(ty, true, "mutable local Enum tag knowledge")?;
-        if matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) && ty.is_copy_value() {
+        // This method starts at an immutable local type and descends only
+        // through that type's actual children. Product nodes have no tag to
+        // classify; the recursive walk below pays for their real children.
+        let copy_sum = if matches!(self.node, Node::Sum(_)) {
+            budget.addressed_copy_sum(ty)?
+        } else {
+            budget.spend(1, "addressed Product tag descent")?;
+            false
+        };
+        if copy_sum {
             let old = self.copied(budget)?;
             let mut unknown = Self::unknown(ty, budget)?;
             unknown.preserve_missing(&old, budget)?;
