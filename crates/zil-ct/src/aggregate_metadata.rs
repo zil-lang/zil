@@ -106,7 +106,12 @@ pub fn preflight_aggregate_metadata(
         w.node(0, Some(template.span))?;
         w.text(&template.name, template.span)?;
         w.node(0, Some(template.span))?;
-        w.text(&template.parameter.name, template.span)?;
+        for (index, parameter) in template.parameters.iter().enumerate() {
+            if index != 0 {
+                w.node(0, Some(template.span))?;
+            }
+            w.text(&parameter.name, template.span)?;
+        }
         if template.fields.len() > limits.max_locals {
             return Err(quota(Some(template.span)));
         }
@@ -297,11 +302,11 @@ mod tests {
             aggregate_templates: vec![CoreAggregateTemplate {
                 id: NodeId(23),
                 name: "Bag".into(),
-                parameter: CoreTypeParameter {
+                parameters: vec![CoreTypeParameter {
                     index: 0,
                     name: "T".into(),
                     bound: CoreTypeBound::StoreElement,
-                },
+                }],
                 fields: vec![CoreAggregateFieldRecipe {
                     name: "items".into(),
                     public: false,

@@ -310,11 +310,11 @@ fn prepared_and_function_session_recheck_unused_metadata_after_a_scalar_success(
         .push(CoreAggregateTemplate {
             id: zil_base::NodeId(999),
             name: "Unused".into(),
-            parameter: CoreTypeParameter {
+            parameters: vec![CoreTypeParameter {
                 index: 0,
                 name: "T".into(),
                 bound: CoreTypeBound::StoreElement,
-            },
+            }],
             fields: vec![CoreAggregateFieldRecipe {
                 name: "unbound".into(),
                 public: false,

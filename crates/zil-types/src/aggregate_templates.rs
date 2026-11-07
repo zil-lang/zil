@@ -176,18 +176,26 @@ impl Index {
                     remaining,
                     t.name
                         .len()
-                        .saturating_add(t.parameter.name.len())
+                        .saturating_add(t.parameters.iter().map(|p| p.name.len()).sum::<usize>())
+                        .saturating_add(t.parameters.len().saturating_sub(1).saturating_mul(t.parameters.len()))
                         .saturating_add(t.fields.len().saturating_mul(2)),
                     t.span,
                 )?;
                 if t.name.is_empty()
-                    || t.parameter.index != 0
-                    || t.parameter.name.is_empty()
-                    || t.parameter.bound != CoreTypeBound::StoreElement
+                    || t.parameters.is_empty()
+                    || t.parameters.len() > limits.max_locals
+                    || t.parameters.iter().enumerate().any(|(index, p)| {
+                        p.index as usize != index
+                            || p.name.is_empty()
+                            || p.bound != CoreTypeBound::StoreElement
+                            || t.parameters[..index]
+                                .iter()
+                                .any(|prior| prior.name == p.name)
+                    })
                 {
                     return Err(bad(
                         t.span,
-                        "generic Product requires one index-zero StoreElement formal",
+                        "generic Product requires distinct ordered StoreElement formals",
                     ));
                 }
                 let mut names = BTreeSet::new();
@@ -205,7 +213,7 @@ impl Index {
                             "generic Product recipe fields must be unique and nonempty",
                         ));
                     }
-                    validate_recipe(&f.ty, 0, limits, remaining, f.span)?;
+                    validate_recipe(&f.ty, t.parameters.len(), 0, limits, remaining, f.span)?;
                 }
                 spend(remaining, before.saturating_sub(*remaining), t.span)?;
                 if result
@@ -237,12 +245,6 @@ impl Index {
                     return Err(bad(
                         d.span,
                         "generic Product application requires one Package header without teardown",
-                    ));
-                }
-                if a.arguments.len() != 1 {
-                    return Err(bad(
-                        d.span,
-                        "generic Product application needs one complete argument",
                     ));
                 }
                 for arg in &a.arguments {
@@ -286,11 +288,15 @@ impl Index {
             }
         }
         for (_, a, d) in result.applications.values() {
-            if !result
+            let template = result
                 .templates
-                .contains_key(&(a.template_module, a.template))
-            {
-                return Err(bad(d.span, "generic Product application family is absent"));
+                .get(&(a.template_module, a.template))
+                .ok_or_else(|| bad(d.span, "generic Product application family is absent"))?;
+            if a.arguments.len() != template.parameters.len() {
+                return Err(bad(
+                    d.span,
+                    "generic Product application needs every declared argument",
+                ));
             }
             if let Some(o) = &a.owner {
                 let bindings = result
@@ -333,7 +339,11 @@ impl Index {
                 template,
                 arguments,
             } => {
-                if !self.templates.contains_key(&(*module, *template)) || arguments.len() != 1 {
+                if self
+                    .templates
+                    .get(&(*module, *template))
+                    .is_none_or(|t| arguments.len() != t.parameters.len())
+                {
                     return Err(bad(
                         span,
                         "generic Product recipe references an absent family or wrong arity",
@@ -378,6 +388,7 @@ pub(super) fn type_work(ty: &Type, limits: &Limits, left: &mut usize, span: Span
 }
 fn validate_recipe(
     r: &CoreAggregateTypeRecipe,
+    arity: usize,
     depth: usize,
     limits: &Limits,
     left: &mut usize,
@@ -392,7 +403,7 @@ fn validate_recipe(
         ));
     }
     match r {
-        CoreAggregateTypeRecipe::Parameter { index: 0 } => {}
+        CoreAggregateTypeRecipe::Parameter { index } if (*index as usize) < arity => {}
         CoreAggregateTypeRecipe::Parameter { .. } => {
             return Err(bad(
                 span,
@@ -410,9 +421,9 @@ fn validate_recipe(
                 ports.len().saturating_add(*binder_count as usize),
                 span,
             )?;
-            validate_recipe(result, depth + 1, limits, left, span)?;
+            validate_recipe(result, arity, depth + 1, limits, left, span)?;
             for port in ports {
-                validate_recipe(&port.pointee, depth + 1, limits, left, span)?;
+                validate_recipe(&port.pointee, arity, depth + 1, limits, left, span)?;
                 if port.binder >= *binder_count {
                     return Err(bad(span, "Task recipe port class absent"));
                 }
@@ -428,12 +439,12 @@ fn validate_recipe(
             environment: element,
         }
         | CoreAggregateTypeRecipe::Store { element } => {
-            validate_recipe(element, depth + 1, limits, left, span)?
+            validate_recipe(element, arity, depth + 1, limits, left, span)?
         }
         CoreAggregateTypeRecipe::Apply { arguments, .. } => {
             spend(left, arguments.len(), span)?;
             for a in arguments {
-                validate_recipe(a, depth + 1, limits, left, span)?;
+                validate_recipe(a, arity, depth + 1, limits, left, span)?;
             }
         }
     }
@@ -949,13 +960,13 @@ pub(super) fn metadata_snapshot(core: &CoreModule, limits: &Limits, left: &mut u
             left,
             t.name
                 .len()
-                .saturating_add(t.parameter.name.len())
+                .saturating_add(t.parameters.iter().map(|p| p.name.len()).sum::<usize>())
                 .saturating_add(t.fields.len()),
             t.span,
         )?;
         for f in &t.fields {
             spend(left, f.name.len(), f.span)?;
-            validate_recipe(&f.ty, 0, limits, left, f.span)?;
+            validate_recipe(&f.ty, t.parameters.len(), 0, limits, left, f.span)?;
         }
     }
     for a in &core.aggregate_applications {

@@ -824,7 +824,8 @@ pub struct CoreTypeParameter {
 pub struct CoreAggregateTemplate {
     pub id: NodeId,
     pub name: String,
-    pub parameter: CoreTypeParameter,
+    /// Declared order; each bounded value parameter has its own dense index.
+    pub parameters: Vec<CoreTypeParameter>,
     pub fields: Vec<CoreAggregateFieldRecipe>,
     pub span: Span,
 }

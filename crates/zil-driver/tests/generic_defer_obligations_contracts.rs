@@ -228,8 +228,8 @@ fn unused_template_and_application_tables_cannot_override_the_generated_header()
                 .aggregate_templates
                 .push(input.aggregate_templates[0].clone()),
             "empty-family-name" => input.aggregate_templates[0].name.clear(),
-            "wrong-formal-index" => input.aggregate_templates[0].parameter.index = 1,
-            "empty-formal-name" => input.aggregate_templates[0].parameter.name.clear(),
+            "wrong-formal-index" => input.aggregate_templates[0].parameters[0].index = 1,
+            "empty-formal-name" => input.aggregate_templates[0].parameters[0].name.clear(),
             "duplicate-application" => input
                 .aggregate_applications
                 .push(input.aggregate_applications[0].clone()),
@@ -374,11 +374,11 @@ fn unused_recursive_recipe_is_rejected_without_relying_on_a_value_use() {
     input.aggregate_templates.push(CoreAggregateTemplate {
         id: family,
         name: "UnusedCycle".into(),
-        parameter: CoreTypeParameter {
+        parameters: vec![CoreTypeParameter {
             index: 0,
             name: "T".into(),
             bound: CoreTypeBound::StoreElement,
-        },
+        }],
         fields: vec![
             CoreAggregateFieldRecipe {
                 name: "child".into(),
@@ -567,11 +567,11 @@ fn phantom_metadata(name: &str) -> CoreModule {
     input.aggregate_templates.push(CoreAggregateTemplate {
         id: NodeId(9100),
         name: name.into(),
-        parameter: CoreTypeParameter {
+        parameters: vec![CoreTypeParameter {
             index: 0,
             name: "T".into(),
             bound: CoreTypeBound::StoreElement,
-        },
+        }],
         fields: vec![CoreAggregateFieldRecipe {
             name: "marker".into(),
             public: false,
@@ -1021,11 +1021,11 @@ fn an_unused_concrete_recipe_cannot_capture_f_hidden_in_another_familys_argument
     input.aggregate_templates.push(CoreAggregateTemplate {
         id: NodeId(9200),
         name: "UnusedCannotCaptureCallerF".into(),
-        parameter: CoreTypeParameter {
+        parameters: vec![CoreTypeParameter {
             index: 0,
             name: "T".into(),
             bound: CoreTypeBound::StoreElement,
-        },
+        }],
         fields: vec![CoreAggregateFieldRecipe {
             name: "child".into(),
             public: false,

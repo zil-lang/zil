@@ -1248,7 +1248,7 @@ impl<'a> Engine<'a> {
             ));
         }
         let product =
-            matches!(&item.kind, ItemKind::Aggregate(a) if products::parameter(a).is_some());
+            matches!(&item.kind, ItemKind::Aggregate(a) if products::parameters(a).is_some());
         let product_arguments = if product {
             for argument in &arguments {
                 self.budget.ty(argument)?;

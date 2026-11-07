@@ -693,6 +693,7 @@ fn resolve_indexed(
         metadata_context: true,
         generic_limits: limits.clone(),
         ordinary_parameter: None,
+        aggregate_parameters: BTreeSet::new(),
         active_callable_parameters: &[],
         active_state_parameters: &[],
         callable_names: core
@@ -751,11 +752,17 @@ fn resolve_indexed(
             .map(|(key, t)| (*key, t.clone()))
             .collect::<Vec<_>>();
         for (family, template) in templates {
-            resolver.ordinary_parameter = Some(template.parameter.name.clone());
+            resolver.aggregate_parameters =
+                template.parameters.iter().map(|p| p.name.clone()).collect();
+            resolver.ordinary_parameter = template.parameters.first().map(|p| p.name.clone());
             resolver
                 .generic_materialize(
                     family,
-                    &[Type::Named(template.parameter.name.clone())],
+                    &template
+                        .parameters
+                        .iter()
+                        .map(|p| Type::Named(p.name.clone()))
+                        .collect::<Vec<_>>(),
                     None,
                     0,
                     template.span,
@@ -763,6 +770,7 @@ fn resolve_indexed(
                 .map_err(|e| vec![e])?;
         }
         resolver.ordinary_parameter = None;
+        resolver.aggregate_parameters.clear();
     }
     for d in &core.aggregates {
         resolver
@@ -994,6 +1002,7 @@ struct Resolver<'a> {
     generic_limits: Limits,
     callable_names: BTreeSet<String>,
     ordinary_parameter: Option<String>,
+    aggregate_parameters: BTreeSet<String>,
     active_callable_parameters: &'a [CoreCallableParameter],
     active_state_parameters: &'a [CoreStateParameter],
     declarations: BTreeMap<String, &'a CoreAggregate>,
@@ -1104,7 +1113,8 @@ impl Resolver<'_> {
     }
     fn store_element_shape(&mut self, ty: &Type, depth: usize, span: Span) -> R<bool> {
         if let Type::Named(name) = ty
-            && self.ordinary_parameter.as_ref() == Some(name)
+            && (self.ordinary_parameter.as_ref() == Some(name)
+                || self.aggregate_parameters.contains(name))
         {
             return Ok(true);
         }
@@ -1512,7 +1522,12 @@ impl Resolver<'_> {
             ));
         }
         Ok(match ty {
-            Type::Named(name) if self.ordinary_parameter.as_ref() == Some(name) => ty.clone(),
+            Type::Named(name)
+                if self.ordinary_parameter.as_ref() == Some(name)
+                    || self.aggregate_parameters.contains(name) =>
+            {
+                ty.clone()
+            }
             Type::Named(name) if name == "TaskI32" => Type::Desc(Box::new(Type::TaskI32)),
             Type::Named(name) if name == "ByteBuffer" => Type::Desc(Box::new(Type::ByteBuffer)),
             Type::Named(name)
@@ -3404,20 +3419,22 @@ impl Resolver<'_> {
                     "generic Product family is absent",
                 )
             })?;
-        if args.len() != 1 {
+        if args.len() != template.parameters.len() {
             return Err(error(
                 "E-PRODUCT-TEMPLATE",
                 span,
-                "generic Product needs one complete type argument",
+                "generic Product needs every declared type argument",
             ));
         }
-        aggregate_templates::type_work(&args[0], &self.generic_limits, &mut self.remaining, span)?;
-        if !self.store_element_shape(&args[0], depth, span)? {
-            return Err(error(
-                "E-PRODUCT-TEMPLATE",
-                span,
-                "generic Product actual type does not satisfy its StoreElement declaration",
-            ));
+        for arg in args {
+            aggregate_templates::type_work(arg, &self.generic_limits, &mut self.remaining, span)?;
+            if !self.store_element_shape(arg, depth, span)? {
+                return Err(error(
+                    "E-PRODUCT-TEMPLATE",
+                    span,
+                    "generic Product actual type does not satisfy its StoreElement declaration",
+                ));
+            }
         }
         aggregate_templates::spend(&mut self.remaining, template.fields.len(), span)?;
         let mut fields = Vec::new();
@@ -3533,14 +3550,14 @@ impl Resolver<'_> {
                 )?;
                 Ok(ty)
             }
-            CoreAggregateTypeRecipe::Parameter { index: 0 } => {
+            CoreAggregateTypeRecipe::Parameter { index } if (*index as usize) < args.len() => {
                 aggregate_templates::type_work(
-                    &args[0],
+                    &args[*index as usize],
                     &self.generic_limits,
                     &mut self.remaining,
                     span,
                 )?;
-                Ok(args[0].clone())
+                Ok(args[*index as usize].clone())
             }
             CoreAggregateTypeRecipe::Parameter { .. } => Err(error(
                 "E-PRODUCT-TEMPLATE",
