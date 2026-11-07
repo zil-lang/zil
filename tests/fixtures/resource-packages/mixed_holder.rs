@@ -1,9 +1,17 @@
 //! A real mixed Package keeps resource responsibility and an external loan.
 use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit, TargetProfile};
-use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_source};
+use zil_driver::{
+    CompileOptions, NativeBackend, Optimization, Stage, compile_path, compile_source,
+};
 
 const PROGRAM: &str = include_str!("mixed-owned-borrowed-package.zil");
 const TWO_LEAF: &str = include_str!("two-leaf-stored-borrow.zil");
+const OWNED_STORE_HEAD: &str = include_str!("owned-store-package-head.zil");
+
+fn stdlib_store_head_path() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/resource-packages/stdlib-owned-store-package-head.zil")
+}
 
 fn source(name: &str, program: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), name, program)
@@ -16,6 +24,7 @@ fn mixed_package_source_raw_and_wire() {
     for (name, program) in [
         ("mixed-owned-borrowed-package.zil", PROGRAM),
         ("two-leaf-stored-borrow.zil", TWO_LEAF),
+        ("owned-store-package-head.zil", OWNED_STORE_HEAD),
     ] {
         let source = source(name, program);
         let report = compile_source(
@@ -58,9 +67,18 @@ fn mixed_package_source_raw_and_wire() {
 #[test]
 #[cfg(target_os = "linux")]
 fn mixed_package_native_both_optimizations() {
-    for (name, program) in [
-        ("mixed-owned-borrowed-package.zil", PROGRAM),
-        ("two-leaf-stored-borrow.zil", TWO_LEAF),
+    for (name, program, expected) in [
+        (
+            "mixed-owned-borrowed-package.zil",
+            PROGRAM,
+            b"42\n".as_slice(),
+        ),
+        ("two-leaf-stored-borrow.zil", TWO_LEAF, b"42\n".as_slice()),
+        (
+            "owned-store-package-head.zil",
+            OWNED_STORE_HEAD,
+            b"1\n".as_slice(),
+        ),
     ] {
         for optimization in [Optimization::O0, Optimization::O2] {
             let output = std::env::temp_dir().join(format!(
@@ -89,10 +107,58 @@ fn mixed_package_native_both_optimizations() {
                 .output()
                 .unwrap();
             assert!(output_result.status.success());
-            assert_eq!(output_result.stdout, b"42\n");
+            assert_eq!(output_result.stdout, expected);
             std::fs::remove_file(output).unwrap();
         }
     }
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let output = std::env::temp_dir().join(format!(
+            "zil-stdlib-store-head-{}-{optimization:?}",
+            std::process::id()
+        ));
+        let report = compile_path(
+            &stdlib_store_head_path(),
+            &CompileOptions {
+                stop_after: Stage::Build,
+                backend: NativeBackend::Clang,
+                optimization,
+                entry: Some("main".into()),
+                output: Some(output.clone()),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        let output_result = std::process::Command::new(&report.artifacts["executable"])
+            .output()
+            .unwrap();
+        assert!(output_result.status.success());
+        assert_eq!(output_result.stdout, b"1\n");
+        std::fs::remove_file(output).unwrap();
+    }
+}
+
+#[test]
+fn stdlib_owned_store_head_verifies() {
+    let report = compile_path(
+        &stdlib_store_head_path(),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
 }
 
 #[test]

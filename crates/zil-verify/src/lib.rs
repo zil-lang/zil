@@ -1522,6 +1522,9 @@ fn check_function_signature_type(
         {
             sums::check_type_for(module, inner, span, budget)
         }
+        Type::Address { inner, .. } if packages::has_store_fields(inner) => {
+            packages::check_ordinary_type(module, inner, span, budget)
+        }
         Type::Address { inner, .. } if ty.is_package_address() => {
             dynamic_store::check_element(module, inner, span, budget)
         }
@@ -1622,6 +1625,9 @@ fn check_local_type(
             ) =>
         {
             sums::check_type_for(module, inner, span, budget)
+        }
+        Type::Address { inner, .. } if packages::has_store_fields(inner) => {
+            packages::check_ordinary_type(module, inner, span, budget)
         }
         Type::Address { inner, .. } if ty.is_package_address() => {
             dynamic_store::check_element(module, inner, span, budget)
@@ -2419,6 +2425,8 @@ fn check_instruction(
             } = inner
             {
                 generic_mutex::guard_shape(payload, retained_life, budget)?;
+            } else if packages::has_store_fields(inner) {
+                packages::check_ordinary_type(module, inner, span, budget)?;
             } else if matches!(inner, Type::Package { .. }) {
                 packages::check_shared_product_type(module, inner, span, budget)?;
             } else if matches!(inner, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }))
@@ -2452,6 +2460,8 @@ fn check_instruction(
             } = inner
             {
                 generic_mutex::guard_shape(payload, retained_life, budget)?;
+            } else if packages::has_store_fields(inner) {
+                packages::check_ordinary_type(module, inner, span, budget)?;
             } else if matches!(inner, Type::Package { .. }) {
                 packages::check_shared_product_type(module, inner, span, budget)?;
             } else if matches!(inner,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
@@ -2543,7 +2553,9 @@ fn check_instruction(
                 Type::Tuple(fields) => fields.get(*index as usize),
                 Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, ty)| ty),
                 Type::Package { fields, .. } => {
-                    if matches!(inner.as_ref(), Type::BorrowedStorage { .. }) {
+                    if matches!(inner.as_ref(), Type::BorrowedStorage { .. })
+                        || packages::has_store_fields(projected)
+                    {
                         packages::check_ordinary_type(module, inner, span, budget)?;
                     } else if budget.inline_store_root(value_type(function, *address, span)?)?
                         && dynamic_store::package_inline_store(projected, budget)?

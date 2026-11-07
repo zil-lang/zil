@@ -1643,6 +1643,18 @@ impl Resolver<'_> {
                         inner
                     }
                     Type::Package { .. } if self.store_element_shape(&inner, depth, span)? => inner,
+                    Type::Package { .. }
+                        if packages::has_store_fields(&inner)
+                            && packages::product::owned_supported(&inner) =>
+                    {
+                        packages::product::validate_owned(
+                            &inner,
+                            &mut self.remaining,
+                            self.depth_limit,
+                            span,
+                        )?;
+                        inner
+                    }
                     Type::Managed(_) | Type::Desc(_) | Type::Package { .. } => {
                         return Err(unsupported(
                             span,
