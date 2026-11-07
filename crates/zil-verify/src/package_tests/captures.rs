@@ -182,6 +182,15 @@ fn direct_store_sum_capture() -> TypedModule {
     module
 }
 
+fn direct_sum_rejected(module: TypedModule, code: &str, message: &str) {
+    let (raw, wire) = check_both(module);
+    for result in [raw, wire] {
+        let errors = result.unwrap_err();
+        assert_eq!(errors[0].code, code, "{errors:?}");
+        assert_eq!(errors[0].message, message, "{errors:?}");
+    }
+}
+
 #[test]
 fn direct_store_sum_capture_refill_distinguishes_empty_arm_from_empty_slot() {
     accepted(direct_store_sum_capture());
@@ -204,8 +213,9 @@ fn direct_store_sum_capture_refill_distinguishes_empty_arm_from_empty_slot() {
     entry.blocks[0]
         .instructions
         .retain(|i| !matches!(i.kind, InstructionKind::WriteCapture { .. }));
-    rejected(
+    direct_sum_rejected(
         missing,
+        "E-VERIFY-SUM",
         "Fn/FnMut return leaves an unfilled direct Sum capture",
     );
 }
@@ -214,7 +224,11 @@ fn direct_store_sum_capture_refill_distinguishes_empty_arm_from_empty_slot() {
 fn direct_store_sum_capture_rejects_copy_take_twice_and_live_refill() {
     let mut copied = direct_store_sum_capture();
     copied.functions[1].blocks[0].instructions[1].kind = InstructionKind::ReadCapture { index: 0 };
-    rejected(copied, "never copying ReadCapture");
+    direct_sum_rejected(
+        copied,
+        "E-VERIFY-CAPTURE",
+        "owned captures require their explicit resource or Package view operations, never copying ReadCapture",
+    );
 
     let mut twice = direct_store_sum_capture();
     let entry = &mut twice.functions[1];
@@ -224,7 +238,11 @@ fn direct_store_sum_capture_rejects_copy_take_twice_and_live_refill() {
         2,
         ins(Some(second), InstructionKind::TakeCapture { index: 0 }),
     );
-    rejected(twice, "direct Sum capture was already transferred");
+    direct_sum_rejected(
+        twice,
+        "E-VERIFY-SUM",
+        "direct Sum capture was already transferred",
+    );
 
     let mut live_write = direct_store_sum_capture();
     let entry = &mut live_write.functions[1];
@@ -250,7 +268,11 @@ fn direct_store_sum_capture_rejects_copy_take_twice_and_live_refill() {
             },
         ),
     );
-    rejected(live_write, "refill requires its consumed empty slot");
+    direct_sum_rejected(
+        live_write,
+        "E-VERIFY-SUM",
+        "direct Sum capture refill would overwrite an active owner",
+    );
 
     let mut shared = direct_store_sum_capture();
     shared.closures[0].kind = CallableKind::Fn;
@@ -263,7 +285,11 @@ fn direct_store_sum_capture_rejects_copy_take_twice_and_live_refill() {
         callee: LocalId(0),
         arguments: vec![],
     };
-    rejected(shared, "moving an owned capture requires a Consume entry");
+    direct_sum_rejected(
+        shared,
+        "E-VERIFY-CLOSURE-CALL",
+        "moving an owned capture requires a Consume entry",
+    );
 
     let mut wrong_index = direct_store_sum_capture();
     let write = wrong_index.functions[1].blocks[0]
@@ -274,7 +300,7 @@ fn direct_store_sum_capture_rejects_copy_take_twice_and_live_refill() {
     if let InstructionKind::WriteCapture { index, .. } = &mut write.kind {
         *index = 1;
     }
-    rejected(wrong_index, "capture field is absent");
+    direct_sum_rejected(wrong_index, "E-VERIFY-CAPTURE", "capture field is absent");
 
     let mut spent_value = direct_store_sum_capture();
     let entry = &mut spent_value.functions[1];
@@ -290,7 +316,11 @@ fn direct_store_sum_capture_rejects_copy_take_twice_and_live_refill() {
         .position(|i| matches!(i.kind, InstructionKind::WriteCapture { .. }))
         .unwrap();
     entry.blocks[0].instructions.insert(at + 1, second_write);
-    rejected(spent_value, "refill requires its consumed empty slot");
+    direct_sum_rejected(
+        spent_value,
+        "E-VERIFY-SUM",
+        "direct Sum capture refill would overwrite an active owner",
+    );
 }
 
 #[test]
