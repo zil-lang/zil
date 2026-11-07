@@ -335,16 +335,17 @@
 | G10.4 | 原生Windows执行和平台差异验证 | 待执行 | P2 | 待派 | 需要原生 Windows 主机；环境可提前准备。 |
 | G10.5 | 与Rust同语义的安全、运行/内存、编译、维护成本及至少一项可重复净突破 | 待执行 | P2 | root | 固定真实消费者、同语义 Rust 对照和独占计时窗口。 |
 | G10.6 | B0、完整语言与ZUI终态验收 | 待执行 | P2 | root | 依赖全部必需语言任务、G9.6、G10.4、G10.5。 |
-| G10.7 | 工程布局与交付流程：功能命名、正式合同、任务过程退出主树、决策与入口收敛 | 进行中 | P1 | Astra · 本会话 | 三路 sol high 首批已实现并推送 task/G10.7：11 份旧协作文档归为 8 份语义决策、14 份静态合同与工具解耦、55 个真实输入迁出；候选当前树已清除 .task/旧 goal/重复快照。三切片与父静态独审通过，远端恢复/受影响 Cargo 验证中；其余编号目录与 changes 逐件整理不计已完成，父任务尚未验收。 |
+| G10.7 | 工程布局与交付流程：功能命名、正式合同、任务过程退出主树、决策与入口收敛 | 部分实现 | P1 | Astra · 本会话 | 首批由 [PR53 验收][e-pr53] 合入：11 份协作文档归为 8 份语义决策、14 份静态合同与工具解耦、55 个真实输入迁出；main 已清除 .task/旧 goal/重复快照。精确集成 `162e572e3` 独审、296/0 Rust、静态/工具/浏览器及远端恢复通过。其余编号目录与历史 proposals 见 .4，不把首批交付当全仓完成。 |
 
 <details>
 <summary>G10.7 · 子任务</summary>
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G10.7.1 | 文档入口、工作流与长期决定的语义归档 | 实现待验 | P1 | repo_structure_plan · sol high | 沿已定方案整理 README/AGENTS/WORKFLOW/DELIVERY 与 .agent；不触及语言验收收据，永久文件名不绑定任务号。 |
-| G10.7.2 | 正式工程合同迁出与治理工具解耦 | 实现待验 | P1 | repository_contracts · sol high | 14/63/93 静态义务与案例映射已迁出，runner 缺结果/失败/零选择不能通过；离线页不再嵌入旧 goal，独审通过，待父集成验收。 |
-| G10.7.3 | 工单中的真实 Source/Rust 输入与历史收据追溯 | 实现待验 | P1 | legacy_document_assets · sol high | 55 资产迁入语义目录；53 字节原样、2 Rust 仅 include 路径变化，25 ZUI 输入与旧收据哈希对应；独审通过，Cargo 验证待执行。 |
+| G10.7.1 | 文档入口、工作流与长期决定的语义归档 | 已合入 | — | — | [PR53 验收][e-pr53] 随首批完成静态义务、来源/字节映射、独审与真实消费者；源过程保留在 Git 历史。 |
+| G10.7.2 | 正式工程合同迁出与治理工具解耦 | 已合入 | — | — | [PR53 验收][e-pr53] 随首批完成静态义务、来源/字节映射、独审与真实消费者；源过程保留在 Git 历史。 |
+| G10.7.3 | 工单中的真实 Source/Rust 输入与历史收据追溯 | 已合入 | — | — | [PR53 验收][e-pr53] 随首批完成静态义务、来源/字节映射、独审与真实消费者；源过程保留在 Git 历史。 |
+| G10.7.4 | 剩余编号测试/示例/工具目录的语义迁名与历史提案逐件归档 | 待执行 | P1 | root · 待派 | 沿语义写集分批，保持 Source/Wire/断言与实际选择；602 份 changes 的任务分支库存只是待复核清单，不是删除依据。 |
 
 </details>
 
@@ -376,7 +377,7 @@
 
 </details>
 
-[design]: https://github.com/zil-lang/zil/blob/c2ae6edb94f56ac710b7a66a23db03c451193cc8/_zil_design.md
+[design]: https://github.com/zil-lang/zil/blob/dd766f513bd8022e4d2c703f51a9343824150da8/_zil_design.md
 [gates]: https://github.com/zil-lang/zil/blob/adbead51fc8916ac1cb1019702d906a19ebd3e98/validation/product-gates.json
 [c39]: https://github.com/zil-lang/zil/tree/c15b77847502d02acc83474bf7f9a8789186a3ac
 [c40]: https://github.com/zil-lang/zil/tree/7dfc6846194643e5295a7704a0b8ce99fa5176e4
@@ -421,3 +422,5 @@
 [review-chat9]: https://github.com/zil-lang/zil/blob/f07b9a22c348ab6a9709d0be805cca114134582b/docs/reviews/CHAT9-REVIEW.md
 
 [e-pr52]: https://github.com/zil-lang/zil/blob/c2ae6edb94f56ac710b7a66a23db03c451193cc8/docs/validation/ordinary-ownership-and-shared-dispatch-acceptance.json
+
+[e-pr53]: https://github.com/zil-lang/zil/blob/dd766f513bd8022e4d2c703f51a9343824150da8/docs/validation/repository-organization-acceptance.json
