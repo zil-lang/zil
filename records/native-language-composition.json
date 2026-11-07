@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "kind": "native-language-composition",
-  "status": "InProgress",
-  "accepted_main_commit": null,
+  "status": "Pass",
+  "accepted_main_commit": "e800b39d5f9a096b33560625a4273c1ef11e3d92",
+  "remote_main_commit": "e800b39d5f9a096b33560625a4273c1ef11e3d92",
+  "tested_tree": "35376ad31586f02e441c436c68019edc6e5e5d5d",
   "base_main_commit": "2b603607dacf07273ccc3b741f309a29ab7e33b9",
-  "published_integration_commit": "e800b39d5f9a096b33560625a4273c1ef11e3d92",
-  "source_branch": "task/G10.6.2",
   "scope": [
     "Single direct mutable borrowed Record leaf",
     "Definition-time explicit impl associated bounds",
@@ -34,53 +34,260 @@
       "target_passed": 166
     }
   ],
-  "integration": {
-    "status": "InProgress",
-    "consumer": "tests/language-readiness/native-composition/{main,model,rules}.zil",
-    "native": "Single linked program passes Clang and LLVM API at O0/O2: Verify=1, exact backend, no fallback, exit42, complete queued-host output.",
-    "review": "Exact e800b39 test delta and preceding production review NoBlockingFinding; no production decoder/API relaxation.",
-    "regression": "Corrected full default Pass: 5269/0, clean frozen source before/after. Reference, text-reference and cold recovery build still running/pending.",
-    "recovery": "GitHub recovered source matches all 3735 tracked files byte-for-byte; cold target build pending."
+  "wire_version": 44,
+  "checks": {
+    "default": {
+      "status": "Pass",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--no-fail-fast"
+      ],
+      "passed": 5269,
+      "failed": 0,
+      "log_sha256": "52d8c28b9424dcb0045ec2ef4bdbfd6c1d34aa6193411fa3079136538761082b",
+      "kind": "Executed Rust test functions"
+    },
+    "reference": {
+      "status": "Pass",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--no-fail-fast",
+        "--no-default-features"
+      ],
+      "passed": 5157,
+      "failed": 0,
+      "log_sha256": "8daf328dd50d3916f250ddf836d2cbc3021232fee75000703593e771cdb4b6f8",
+      "kind": "Executed Rust test functions"
+    },
+    "text-reference": {
+      "status": "Pass",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "text-reference"
+      ],
+      "passed": 70,
+      "failed": 0,
+      "log_sha256": "3503ab2196688cf931ac3a2381b2f668c14ce164fe6b82e32418a39133983314",
+      "kind": "Executed Rust test functions"
+    },
+    "cold-build": {
+      "status": "Pass",
+      "command": [
+        "cargo",
+        "build",
+        "--release",
+        "--locked",
+        "-p",
+        "zil-cli"
+      ],
+      "log_sha256": "367e481f30adcdbbe5ff0c0edd13abf21f49df5973b31519d4411dafae5fe8b9",
+      "kind": "source-build"
+    },
+    "recovery-consumer": {
+      "status": "Pass",
+      "command": [
+        "python3",
+        "/workspace/.zil-env/native-foundations/recovery_acceptance.py"
+      ],
+      "log_sha256": "a22502a2feabe838ca83aad0f777f60537a2a590daf6c33c8a61d521a4f5eecb",
+      "kind": "native-execution",
+      "actual_executions": 4
+    },
+    "native-api-validation": {
+      "status": "Pass",
+      "command": [
+        "python3",
+        "/workspace/.zil-env/native-foundations/recovered-source/tools/research/native-api-validation/validate.py",
+        "--repo",
+        "/workspace/.zil-env/native-foundations/recovered-source",
+        "--cli",
+        "/workspace/.zil-env/native-foundations/build/recovery/release/zil",
+        "--clang",
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "--out",
+        "/workspace/.zil-env/native-foundations/accepted-corrected/native-api-validation"
+      ],
+      "log_sha256": "94491c3fda930c37b535f112cf1899f84e99c525535407364e6fa047cb660b0a",
+      "kind": "native-execution",
+      "actual_executions": 128
+    },
+    "fmt": {
+      "status": "Pass",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--check"
+      ],
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "static-check"
+    },
+    "layout": {
+      "status": "Pass",
+      "command": [
+        "python3",
+        "tools/check-repository-layout.py",
+        "--full",
+        "--delivery"
+      ],
+      "log_sha256": "a99397acf0451021c5dd7ac7a501d73475b4bc5ab75823bf366c663736fdc830",
+      "kind": "static-check"
+    },
+    "static-plan": {
+      "status": "Pass",
+      "command": [
+        "python3",
+        "tools/check-plan.py",
+        "--self-test"
+      ],
+      "log_sha256": "d1e867749a6c57ec0ea847833bd947ece6cd25cb7a78f774c50b5da02e7bcd76",
+      "kind": "metadata-only"
+    },
+    "static-conformance": {
+      "status": "Pass",
+      "command": [
+        "python3",
+        "tools/check-conformance.py"
+      ],
+      "log_sha256": "811312af547020caf8a134823faa31ec1d41e89740af6c05400084988e7dfacf",
+      "kind": "metadata-only"
+    }
   },
-  "raw_evidence": "/workspace/.zil-env/native-foundations/",
-  "archive_commit": "7eca802e321dab7650be503a4759223f8ea96527",
-  "limits": "Mixed owning/borrowed Package, unified same-function permissions, general projection/lending, arbitrary protocols, cross-thread close, Rust product gates and GUI remain open.",
+  "strict_clippy": {
+    "status": "Pass",
+    "scope": "Locked workspace, all targets; LLVM API/default and no-default-features reference configurations, -D warnings",
+    "logs": {
+      "clippy-default.log": "9aa7dd548bef256a348805e61d33fea7022be1304348ff82919a5dcc95bbc7df",
+      "clippy-reference.log": "aef29750ac376ac400e6fed184aaedc3d47d3da31edc45f7cec04d86b0ca0c70"
+    }
+  },
+  "native_composition": {
+    "source": "tests/language-readiness/native-composition/{main,model,rules}.zil",
+    "source_hashes": {
+      "model.zil": "f79cefc670c11e61e3d0d9c1bf8074b0cceb6e3df3d2745046244e80407502b8",
+      "main.zil": "fd7b4e1f5cbdb04d29f8977ace09b705a345f0b8edfbf7c52894800f7c6696e4",
+      "rules.zil": "9241f80b07bb29578b45f5d372876684c4ea4cd0dff946c3a3414fe66c61d9b3"
+    },
+    "observations": [
+      {
+        "backend": "clang",
+        "optimization": "O0",
+        "verify_runs": 1,
+        "fallback": null,
+        "exit": 42,
+        "stdout": "pending retried; ready drained; registration dropped once\n",
+        "executable_sha256": "f568e46203a9335061fcfe3d4605d95f81ce44221c3d81c48f4d03a263ef26f8"
+      },
+      {
+        "backend": "clang",
+        "optimization": "O2",
+        "verify_runs": 1,
+        "fallback": null,
+        "exit": 42,
+        "stdout": "pending retried; ready drained; registration dropped once\n",
+        "executable_sha256": "a961bb0609a8cc4010699f80ad9431a97dfe442767f8eb26575c300cb5728c15"
+      },
+      {
+        "backend": "llvm-api",
+        "optimization": "O0",
+        "verify_runs": 1,
+        "fallback": null,
+        "exit": 42,
+        "stdout": "pending retried; ready drained; registration dropped once\n",
+        "executable_sha256": "a8cef46e965ee571c579be6d7a9aa5c1bf07ec9e0e8c21609a51fbed9e9eff36"
+      },
+      {
+        "backend": "llvm-api",
+        "optimization": "O2",
+        "verify_runs": 1,
+        "fallback": null,
+        "exit": 42,
+        "stdout": "pending retried; ready drained; registration dropped once\n",
+        "executable_sha256": "139ad941934bc6e74dd14a4df1b78a87836d80726f03d6ae25de4f5504dad44e"
+      }
+    ],
+    "compiler_sha256": "cbba4bb7dc440b93317a45decf9cd2ea2edd67bc60a5f796bdc784704292d231",
+    "meaning": "One linked ordinary program: scalar mutable-holder bridge, definition-time trait bounds, owned queued callback with checked phase close, then retained-input Task; exact host output and exit42."
+  },
+  "native_api": {
+    "status": "Pass",
+    "actual_builds": 16,
+    "executions": 128,
+    "injected_failures": 56,
+    "oracle": "tools/language/composed-state-store/consumer.py scenarios (preexisting business oracle)",
+    "boundary": "Existing composed State/Store consumers with actual LLVM API objects, CGU1/8 and O0/O2; not a Rust product-cost benchmark."
+  },
+  "recovery": {
+    "status": "Pass",
+    "source_commit": "e800b39d5f9a096b33560625a4273c1ef11e3d92",
+    "tree": "35376ad31586f02e441c436c68019edc6e5e5d5d",
+    "kind": "Fresh GitHub clone and latest source fetched normally; all tracked source bytes checked",
+    "tracked_files": 3735,
+    "index_sha256": "deae45e8da0827f4ec327718cb2363f92700d17aaeebaf7918246b5479839918",
+    "worktree_clean": true,
+    "clone_path": "/workspace/.zil-env/native-foundations/recovered-source",
+    "cold_build_status": "Pass",
+    "observed_utc": "2026-11-07T15:10:06.723342+00:00",
+    "cold_build_seconds": 173.43,
+    "compiler_sha256": "cbba4bb7dc440b93317a45decf9cd2ea2edd67bc60a5f796bdc784704292d231",
+    "boundary": "Fresh GitHub source and empty Cargo target, installed Rust/LLVM toolchain reused. No claim of a new machine/toolchain installation."
+  },
+  "independent_reviews": [
+    {
+      "commit": "f1d1b45a6a71175032e50cdcc9025615a2d5e822",
+      "status": "NoBlockingFinding",
+      "role": "Independent Sol high reviewer; own test edits excluded and reviewed by integrator",
+      "summary": "Independent stored/ordinary proof boundaries, complete function headers and definition edges, exact retained roots, conservative cleanup, accounting and immutable legacy fixtures checked.",
+      "report_sha256": "3534a5a32030c1934f7dabe466da8e9c3eaa27c46da3fdf4ee75b36455d775d5"
+    },
+    {
+      "commit": "e800b39d5f9a096b33560625a4273c1ef11e3d92",
+      "status": "NoBlockingFinding",
+      "role": "Independent Sol high reviewer; own test edits excluded and reviewed by integrator",
+      "summary": "Independent stored/ordinary proof boundaries, complete function headers and definition edges, exact retained roots, conservative cleanup, accounting and immutable legacy fixtures checked.",
+      "report_sha256": "a88716a7527941e5d0f2bc8184dc663af09d4b6bf1aa95e669f2f510a207f65c"
+    }
+  ],
   "first_default": {
     "source": "f1d1b45a6a71175032e50cdcc9025615a2d5e822",
     "status": "Fail",
     "passed": 5259,
     "failed": 10,
-    "log_sha256": "60adf09e3f2cbe076d7d40f0303bc6dd9acd5e4abf256b5beec245fa9618a1fc",
-    "resolution": "Eight historical Wire adapter failures fixed without changing the 17 frozen byte inputs or production decoder. Two tests updated to actual valid Drop composition / precise rejected Task cleanup behavior."
-  },
-  "default_acceptance": {
-    "profiles": {
-      "CARGO_PROFILE_DEV_STRIP": "symbols",
-      "CARGO_PROFILE_TEST_STRIP": "symbols",
-      "CARGO_PROFILE_DEV_DEBUG": "0",
-      "CARGO_PROFILE_TEST_DEBUG": "0",
-      "CARGO_BUILD_JOBS": "2"
-    },
-    "source": "e800b39d5f9a096b33560625a4273c1ef11e3d92",
-    "source_after": "e800b39d5f9a096b33560625a4273c1ef11e3d92",
-    "worktree_after": "",
-    "command": [
-      "cargo",
-      "test",
-      "--locked",
-      "--workspace",
-      "--no-fail-fast"
-    ],
-    "exit_code": 0,
-    "status": "Pass",
-    "elapsed_seconds": 587.33,
     "groups": 423,
-    "passed": 5269,
-    "failed": 0,
-    "ignored": 0,
-    "log_sha256": "52d8c28b9424dcb0045ec2ef4bdbfd6c1d34aa6193411fa3079136538761082b",
-    "failures": [],
-    "reclaimed_cache_files": 409,
-    "reclaimed_cache_bytes": 18101015600
-  }
+    "log_sha256": "60adf09e3f2cbe076d7d40f0303bc6dd9acd5e4abf256b5beec245fa9618a1fc"
+  },
+  "first_failure_resolution": [
+    "Eight historical Wire40 fixture tests used the old layout adapter; 17 original SHA/byte inputs unchanged; bounded function walker inserts None only at parsed boundaries and production decoder remains version44-only.",
+    "Valid structural Drop plus nominal associated constants now reaches Verify. Uninvoked/invoked captured Task cleanup remains exact Analyze SafeReject, while unsupported Package transport stays rejected."
+  ],
+  "prior_review_not_accepted": {
+    "commit": "aeba5438dc941699afec2acd071811e4445874f2",
+    "reason": "Mixed Analyze missed stored header checking; Verify partition did not scan resource payload. Both fixed before accepted tests; raw/Wire missing-header control passes."
+  },
+  "archive": {
+    "ref": "archive/source-history",
+    "tested_source_checkpoint": "865e7ad6b1725fac6944c642cbaed6ff20ecbf3a",
+    "source_snapshot_verified": true,
+    "meaning": "Actual commits, trees, preserved worktree source and original author tips remain reachable; archive is not acceptance."
+  },
+  "raw_evidence": "/workspace/.zil-env/native-foundations/accepted-corrected",
+  "limits": "Mixed owning/borrowed Package, unified same-function permissions, general projection/lending, arbitrary protocols, cross-thread close, Rust product gates and GUI remain open.",
+  "not_claimed": [
+    "Complete language or B0",
+    "Rust runtime/compile cost gates",
+    "General graph/independent deletion",
+    "Cross-thread registration close, general Guard, mixed owner/borrow Package and same-function unified storage/async proof",
+    "GUI/GPU/ZUI completeness"
+  ]
 }

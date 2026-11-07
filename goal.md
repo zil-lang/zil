@@ -10,7 +10,7 @@
 
 父任务汇总完整范围，子任务记录具体交付，父子不重复计数；子项全完成不自动代表父项完成。需要独立派工、复核或验收的补充工作才新增任务编号，沿用父编号加一段；零散修正记在原任务进展中。编号同时用于分支与实施说明，不再另设勾稽编号。
 
-**当前主线：通用语言完整性与 Rust 竞争力优先。** G9.3.2 普通 POD 动态集合与原大值 O0 修复已由 [PR49 验收][e-pr49] 合入；G3.4.1 共享借入迭代、G9.3.1 普通 UTF8 入口已交付。G2.4.1 的普通 trait 逐调用共享 lending 已由 [PR50 验收][e-pr50] 合入；本批 G2.4.2、G9.3.3、G9.3.4 和 G10.6.1 已由 [PR51 验收][e-pr51] 合入，有限语言初稿可构建、运行并从远端恢复；G9.3.5（POD/标量 Store 普通拥有组合）与 G5.2.1（有限共享 dyn 实际派发）已由 [PR52 验收][e-pr52] 合入；G10.7 仓库组织重构已由[本轮验收](records/repository-organization.json)交付，[全文复核与分工][review-chat9]已保存。下一批通用语言施工已派定：G3.4.2 可变借入载体（拥有组合接续）、G2.4.3 关联投影与泛型库、G8.6.2 借入 Task、G6.1.1 逐结果状态转换由四条 sol high 施工线并行推进；G10.6.2 统一真实消费者、独审与集成验收。其余 dyn/显式存储和跨线程责任按上述前置接续。GPU/GUI 专用 G10.3.1、G9.5.1、G9.6.2 后置；ZUI 保持 GPUI/GPU 方向。实现与常规独审采用 sol high，疑难问题才交 Astra。
+**当前主线：通用语言完整性与 Rust 竞争力优先。** G9.3.2 普通 POD 动态集合与原大值 O0 修复已由 [PR49 验收][e-pr49] 合入；G3.4.1 共享借入迭代、G9.3.1 普通 UTF8 入口已交付。G2.4.1 的普通 trait 逐调用共享 lending 已由 [PR50 验收][e-pr50] 合入；本批 G2.4.2、G9.3.3、G9.3.4 和 G10.6.1 已由 [PR51 验收][e-pr51] 合入，有限语言初稿可构建、运行并从远端恢复；G9.3.5（POD/标量 Store 普通拥有组合）与 G5.2.1（有限共享 dyn 实际派发）已由 [PR52 验收][e-pr52] 合入；G10.7 仓库组织重构已由[本轮验收](records/repository-organization.json)交付，[全文复核与分工][review-chat9]已保存。本批 G3.4.2（单可变叶 holder）、G2.4.3（impl 关联约束）、G8.6.2（共享 i32 借入 Task）和 G6.1.1（登记三态合同），连同 G10.6.2 联合验收，已合入 `main@e800b39d5`：[验收记录][e-native-foundations]。四条 Sol high 施工线复用既有成果；疑难分派与历史迁移由 Astra 协助，默认5269/0、参考5157/0、文本参考70/0，真实联合程序和远端空缓存恢复通过。父项仍按完整范围保留部分实现；接续优先混合拥有/借入 Package、一般 projection/lending 与 Guard/跨线程关闭。其余 dyn/显式存储和跨线程责任按上述前置接续。GPU/GUI 专用 G10.3.1、G9.5.1、G9.6.2 后置；ZUI 保持 GPUI/GPU 方向。实现与常规独审采用 sol high，疑难问题才交 Astra。
 
 ## G1 · 基础类型与模式
 
@@ -51,7 +51,7 @@
 | --- | --- | --- | --- | --- | --- |
 | G2.4.1 | 普通 trait 逐调用 lending iterator：关联 Item、方法 life 与真实接收者来源 | 已合入 | — | — | [PR50 验收][e-pr50]：跨模块关联 Item、方法 life、真实 std.iter、两后端 O0/O2；默认5146/0、参考5034/0。原 SliceIter/Option 转发回归已修复；资源宿主/一般 owning lending 仍缺。 |
 | G2.4.2 | 普通 trait 静态关联函数：类型限定调用、符号泛型宿主、既有 type-only 参数与返回组合 | 已合入 | — | — | [PR51 验收][e-pr51]：具体/符号类型宿主、type-only 方法、where 与完整返回、跨模块 provider 身份通过；旧 receiver 调用费用保持。 |
-| G2.4.3 | impl 关联类型显式约束：定义期证明、独立 binder 与跨模块泛型消费者 | 实现待验 | P0 | sol high · trait | 源码 `bac390bdd`；task/G2.4.3。完整 trait 目标93/0（含双后端 O0/O2），非作者独审无阻塞，正在集成；一般投影/lending 仍由父项接续。 |
+| G2.4.3 | impl 关联类型显式约束：定义期证明、独立 binder 与跨模块泛型消费者 | 已合入 | — | — | `main@e800b39d5`；定义期显式 impl 关联约束、独立 binder、跨模块及原生已接受。[共同验收][e-native-foundations]；一般投影/lending 留在父项。 |
 
 <details>
 <summary>G2.4.2 · 子任务</summary>
@@ -83,7 +83,7 @@
 | G3.1 | 普通/嵌套Product借给可变helper、CopyT+mutable life、有限FP/HRTB和实际来源检查 | 已合入 | — | — | [已合入证据][e37]；一般借用返回见 G3.4。 |
 | G3.2 | shared stored View、qualified静态Code及捕获为空的Fn，每个实际role独立核验 | 已合入 | — | — | [本批验收][e41]；真实静态 Code、空捕获 Fn 与逐 role 检查已通过共同验收。 |
 | **G3.3** | **捕获的外层Fixed上下文、qualified FnMut/FnOnce的真实环境与调用关系** | 已合入 | — | — | [PR46 验收][e-pr46] 本表 Fixed/Invocation、闭包 helper、循环及多 role 组合已闭合；普通闭包 Value 的 give 按规范拒绝，一般 lending 继续见 G3.4。 |
-| G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P1 | 待派 | shared View/片与短借入 getter 已通；尚缺 mutable holder、借入＋拥有 Package、resource 宿主关联 Item/lending、一般 lending 和 Source 地址数组参数；原 SliceIter 的共享借入迭代首片已由 G3.4.1 交付。 |
+| G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P1 | 待派 | shared View/片、短 getter、共享迭代与单直接可变叶 holder 已通；借入＋拥有 Package、多可变叶/槽替换、resource 宿主关联 Item/lending、一般 lending 和 Source 地址数组参数仍缺。 |
 | G3.5 | 一般拥有/借入捕获及责任组合的消费者矩阵 | 待排期 | P1 | 待派 | 依赖 G3.4、G6.1；按真实 API 补齐。 |
 
 <details>
@@ -117,7 +117,7 @@
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G3.4.1 | 原 SliceIter 与 Option<&T> 的 life/返回来源消费者 | 已合入 | — | — | [PR48 验收][e-pr48]：原始源码、两核 raw/Wire、连续 next/失效及四配置原生完整输出42；合法life遮蔽和原位置拒绝回退已修复。机器首片限thin shared Address，一般lending另缺。 |
-| G3.4.2 | 单直接可变叶 Record holder：真实来源、父 loan、helper 重借与失效 | 实现待验 | P0 | sol high · storage | `845a454db` 已进入集成分支；完整目标111/0、双后端 O0/O2 与非作者独审通过。混合拥有/借入 Package、槽替换和多可变叶仍属父项。 |
+| G3.4.2 | 单直接可变叶 Record holder：真实来源、父 loan、helper 重借与失效 | 已合入 | — | — | `main@e800b39d5`；实际目标/父 loan、helper 重借、raw/Wire 和双后端 O0/O2 接受；通过标量 helper 与 Task/登记联编。[验收][e-native-foundations]；混合拥有 Package、多叶和槽操作仍缺。 |
 
 </details>
 
@@ -212,7 +212,7 @@
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G6.0 | 有限资源U/K/D、初始化/部分移动、Store及callable State合同 | 已合入 | — | — | [已合入证据][e37]；一般状态协议另列。 |
-| G6.1 | 逐结果的一般状态转换、角色与别名规则 | 部分实现 | P1 | 待派 | [C40][c40] 已有逐 role 检查；一般转换待补。 |
+| G6.1 | 逐结果的一般状态转换、角色与别名规则 | 部分实现 | P1 | 待派 | [C40][c40] 已有逐 role 检查；G6.1.1 的登记三态及逐 Poll 结果已合入，一般用户协议/转换仍待补。 |
 | G6.2 | 真实投影、失效关系、历史撤销和导出上界组合 | 部分实现 | P1 | 待派 | 依赖 G6.1、G3.4。 |
 | G6.3 | 状态协议与拥有存储、替换及异步责任共同运行 | 待排期 | P1 | 待派 | 依赖 G1.3、G6.2、G8.4、G8.6。 |
 
@@ -221,7 +221,7 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G6.1.1 | 已有登记协议的逐结果静态核验：Closing/Closed、真实 Poll 结果及受检关闭 | 实现待验 | P0 | sol high · protocol | `443c8cdd3` 已进入集成分支；完整目标166/0、真实队列 Pending→Ready、双后端 O0/O2 与独审通过。一般用户协议、跨线程关闭及通用 Guard 未完成。 |
+| G6.1.1 | 已有登记协议的逐结果静态核验：Closing/Closed、真实 Poll 结果及受检关闭 | 已合入 | — | — | `main@e800b39d5`；逐 Poll 结果三态合同、跨 helper、旧结果反例和真实排空已接受。[共同验收][e-native-foundations]；通用用户协议、Guard 和跨线程关闭仍缺。 |
 
 </details>
 
@@ -250,7 +250,7 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G8.6.2 | 单共享 &i32 输入 Task：真实 port、工厂返回及 frame 全寿命保留 | 实现待验 | P0 | sol high · task | `5119e3278` 已进入集成分支；完整目标171/0、PC0/取消/挂起、跨模块与独审通过。保守保留至成功 Destroy/同步 Drop；其它结果、借入 Task 输入及跨线程未开放。 |
+| G8.6.2 | 单共享 &i32 输入 Task：真实 port、工厂返回及 frame 全寿命保留 | 已合入 | — | — | `main@e800b39d5`；实际共享 &i32 port 保留至 Destroy/同步 Drop，跨模块返回、PC0/取消及独立 raw/Wire/预算通过。[验收][e-native-foundations]；其它结果、Task 输入和线程迁移未开放。 |
 
 </details>
 
@@ -377,7 +377,7 @@
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G10.6.1 | 语言初稿开发预览：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 已合入 | — | — | [PR51 验收][e-pr51]：精确源码 `a8c7953e7` 默认5190/0、参考5078/0、文本70/0；双严格检查、release、10项工程门及远端源码恢复构建运行通过。有限预览不替代 B0/完整语言。 |
-| G10.6.2 | 通用 Native 库与异步资源联合验收：精确源码、真实消费者、独审和远端恢复 | 进行中 | P0 | root · 集成 | 候选 `e800b39d5`：默认全仓5269/0，双后端 O0/O2 联合程序与独审通过，GitHub 恢复3735文件逐字节一致。首轮10项测试适配/预期问题已修，17份冻结字节未改；参考配置与冷恢复构建仍在验收。[本批记录](records/native-language-composition.json)；未作联合通过声明。 |
+| G10.6.2 | 通用 Native 库与异步资源联合验收：精确源码、真实消费者、独审和远端恢复 | 已合入 | — | — | `main@e800b39d5`：默认5269/0、参考5157/0、文本70/0；真实联合双后端 O0/O2、3735文件远端恢复/空缓存构建、16次 API 构建/128次运行/56次故障注入均通过。[本批记录][e-native-foundations]。 |
 
 </details>
 
@@ -449,3 +449,5 @@
 [e-pr53]: https://github.com/zil-lang/zil/blob/dd766f513bd8022e4d2c703f51a9343824150da8/docs/validation/repository-organization-acceptance.json
 
 [e-pr54]: https://github.com/zil-lang/zil/blob/28b3e37bb4d8a1fe8b146c72cf891fc99de32440/validation/results/documentation-layout/acceptance.json
+
+[e-native-foundations]: https://github.com/zil-lang/zil/blob/goal/records/native-language-composition.json
