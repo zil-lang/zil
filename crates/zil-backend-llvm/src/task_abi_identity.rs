@@ -572,6 +572,6 @@ mod tests {
         global.initializer = Some(m::Val::F64(0x7ff8_0000_0000_0002));
         assert_eq!(cost(&floating), float_n);
         assert_ne!(paid_hash(&floating, float_n).unwrap().0, before.0);
-        eprintln!("task343 actual machine identity N={n}");
+        eprintln!("actual machine identity N={n}");
     }
 }

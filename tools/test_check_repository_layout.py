@@ -127,7 +127,12 @@ class RepositoryLayoutTests(unittest.TestCase):
                       "tests/cases/PLAN-T01-003.json",
                       "tests/perf/chain-reverse-256.zil")
         source = self.root / "crates/schema-v40/src/wire_v34.rs"
-        source.write_text("fn schema40_decode() {}\nfn u64_roundtrip() {}\n", encoding="utf-8")
+        source.write_text(
+            "fn schema40_decode() {}\nfn u64_roundtrip() {}\n"
+            "fn legal_240_level_value() {}\nfn all_65536_pairs() {}\n"
+            "fn buffered_sha256_blocks() {}\n",
+            encoding="utf-8",
+        )
         _, failures, _ = layout.check(full=True, root=self.root)
         self.assertEqual(failures, [])
 
@@ -146,7 +151,8 @@ class RepositoryLayoutTests(unittest.TestCase):
     def test_full_scans_existing_production_declarations(self):
         self.baseline("crates/compiler/src/lib.rs", "tools/check.py")
         (self.root / "crates/compiler/src/lib.rs").write_text(
-            "pub fn impl243_layout() {}\nfn product237_budget() {}\n",
+            "pub fn impl243_layout() {}\nfn product237_budget() {}\n"
+            "fn impl243_all_65536_pairs() {}\n",
             encoding="utf-8",
         )
         (self.root / "tools/check.py").write_text("def batch336_probe():\n    pass\n", encoding="utf-8")
@@ -154,6 +160,7 @@ class RepositoryLayoutTests(unittest.TestCase):
         self.assertEqual({issue for _, issue in failures}, {
             "construction ID declaration impl243_layout",
             "construction ID declaration product237_budget",
+            "construction ID declaration impl243_all_65536_pairs",
             "construction ID declaration batch336_probe",
         })
 
