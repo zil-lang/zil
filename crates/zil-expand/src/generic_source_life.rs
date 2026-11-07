@@ -517,6 +517,15 @@ impl Check<'_, '_, '_> {
                     "source annotation cannot equate distinct declared lifetime classes",
                 ));
             }
+            // An anonymous physical borrow supplies local Task context
+            // identity, but cannot establish a caller's declared source class.
+            // This is a known lifetime mismatch, as when the class is absent.
+            (Fact::Class(_), Fact::LocalClass(_)) => {
+                return Err(error(
+                    span,
+                    "retained reference has no actual declared source class",
+                ));
+            }
             (Fact::LocalClass(a), Fact::LocalClass(b)) if a == b => {}
             (Fact::Named(Head::Declaration(a), xs), Fact::Named(Head::Declaration(b), ys)) => {
                 if expected.has_class() && (a != b || xs.len() != ys.len()) {
@@ -1358,8 +1367,8 @@ impl Check<'_, '_, '_> {
                             }
                         } else {
                             // The constructor sees this exact physical borrow
-                            // even without a lexical life name. Its span is a
-                            // private source-class identity, never a target or
+                            // even without a lexical life name. Its actual node
+                            // supplies private class identity, never a target or
                             // permission certificate.
                             Fact::Address(Some(Box::new(self.borrow_class(e)?)), Box::new(source))
                         }
@@ -2241,6 +2250,49 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
 #[cfg(test)]
 mod local_class_tests {
     use super::*;
+
+    #[test]
+    fn local_borrows_cannot_satisfy_a_declared_retained_source_class() {
+        let declaration = "enum Maybe<T>{Some(T),None}";
+        let signature = "fn hold<life a>(input:&'a i32)->Maybe<&'a i32>";
+        for (body, accepted) in [
+            ("return Maybe::<&'a i32>.Some(input)", true),
+            ("return Maybe::<&'a i32>.Some(&*input)", true),
+            (
+                "let local=*input;return Maybe::<&'a i32>.Some(&local)",
+                false,
+            ),
+            (
+                "let local=*input;let alias=&local;return Maybe::<&'a i32>.Some(alias)",
+                false,
+            ),
+        ] {
+            let source = zil_base::SourceUnit::new(
+                zil_base::FileId(0),
+                zil_base::ModuleId(0),
+                "retained-source-class.zil",
+                format!("{declaration}{signature}{{{body}}}fn main(){{}}"),
+            );
+            let parsed = zil_syntax::parse(&source).into_result().unwrap();
+            let limits = zil_base::Limits::default();
+            let mut budget = Budget::new(&limits);
+            crate::lifetimes::validate(&parsed, &mut budget).unwrap();
+            assert!(budget.has_stored_lifetimes());
+            let result = validate(&parsed, &mut budget);
+            if accepted {
+                result.unwrap();
+            } else {
+                let diagnostic = result.unwrap_err();
+                assert_eq!(diagnostic.phase, Phase::Expand);
+                assert_eq!(diagnostic.category, zil_base::ResultCategory::SafeReject);
+                assert_eq!(diagnostic.code, "E-GENERIC-ARGUMENT");
+                assert_eq!(
+                    diagnostic.message,
+                    "retained reference has no actual declared source class"
+                );
+            }
+        }
+    }
 
     #[test]
     fn identical_spans_do_not_merge_distinct_actual_borrow_nodes() {
