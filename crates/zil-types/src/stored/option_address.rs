@@ -57,7 +57,7 @@ pub(super) fn shape(
         fee(left, 1, span)?;
         true
     } else {
-        closed_copy(pointee, left, 0, depth, span)?
+        closed_copy(pointee, left, 0, depth, span)? || matches!(pointee, Type::Package { .. })
     };
     if !closed {
         return Ok(false);
