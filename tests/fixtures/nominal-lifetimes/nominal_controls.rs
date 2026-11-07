@@ -4,7 +4,7 @@ use zil_driver::{CompileOptions, Stage};
 use zil_ir::{LifeNominalActual, LifeNominalKind, LifeParameterKind, LifeTypeProjection, Type};
 
 #[test]
-fn g4461_core_named_fields_and_actuals_get_resolved_physical_checks() {
+fn core_named_fields_and_actuals_get_resolved_physical_checks() {
     for actual in ["i32", "Pair"] {
         let text = format!(
             "struct Pair{{left:i32;right:u64}}enum Choice{{Empty,Pair(i32,u64)}}struct Phantom<life a,T:Copy,#N:i32>{{tuple:(i32,bool);array:[i32;2];record:Pair;variant:Choice}}fn result<life s>(p:&'s i32)->u64{{let value=Phantom::<'s,{actual},37>{{tuple:(37,true),array:[37,38],record:Pair{{left:39,right:18446744073709551557u64}},variant:Choice.Pair(40,18446744073709551557u64)}};return value.record.right}}fn main()->u64{{let n=0;return result(&n)}}"
@@ -131,7 +131,7 @@ fn g4461_core_named_fields_and_actuals_get_resolved_physical_checks() {
 }
 
 #[test]
-fn g4461_same_child_distinct_outer_relations_coexist() {
+fn same_child_distinct_outer_relations_coexist() {
     let text = "struct Phantom<life a>{n:i32}struct Wrap<T:Copy,U:Copy>{n:i32}fn same<life s>(p:&'s i32)->i32{let w=Wrap::<Phantom<'s>,Phantom<'s>>{n:20};return w.n}fn apart<life a,life b>(p:&'a i32,q:&'b i32)->i32{let w=Wrap::<Phantom<'a>,Phantom<'b>>{n:22};return w.n}fn main()->i32{let p=0;let q=1;return same(&p)+apart(&p,&q)}";
     let source = zil_base::SourceUnit::new(
         zil_base::FileId(0),
@@ -155,7 +155,7 @@ fn g4461_same_child_distinct_outer_relations_coexist() {
 }
 
 #[test]
-fn g4461_actual_pure_fields_retained_source_raw_wire() {
+fn actual_pure_fields_retained_source_raw_wire() {
     for text in [
         "struct Phantom<life a,T:Copy,#N:i32>{n:i32}struct View<life a>{p:&'a i32}struct Wrap<T:Copy>{value:T}fn result<life s>(p:&'s i32)->i32{let borrowed=View::<'s>{p:p};let w=Wrap::<Phantom<'s,i32,42>>{value:Phantom::<'s,i32,42>{n:42}};let copied=w.value;return copied.n+*borrowed.p}fn main()->i32{let n=0;return result(&n)}",
         "struct Phantom<life a>{n:i32}struct View<life a>{p:&'a i32}struct Wrap<T:Copy,U:Copy>{left:T;right:(U)}fn result<life a,life b>(p:&'a i32,q:&'b i32)->i32{let borrowed=View::<'a>{p:p};let w=Wrap::<Phantom<'a>,Phantom<'b>>{left:Phantom::<'a>{n:20},right:Phantom::<'b>{n:22}};let left=w.left;let right=w.right;return left.n+right.n+*borrowed.p}fn main()->i32{let p=0;let q=1;return result(&p,&q)}",
@@ -347,7 +347,7 @@ fn g4461_actual_pure_fields_retained_source_raw_wire() {
 }
 
 #[test]
-fn g4461_actual_core_nested_type_metadata_controls() {
+fn actual_core_nested_type_metadata_controls() {
     let source = zil_base::SourceUnit::new(
         zil_base::FileId(0),
         zil_base::ModuleId(0),
@@ -456,9 +456,9 @@ fn g4461_actual_core_nested_type_metadata_controls() {
 }
 
 #[test]
-fn g4461_actual_nested_type_nominal_source_raw_wire() {
+fn actual_nested_type_nominal_source_raw_wire() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct6-ambient-type-actual.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-ambient-type-actual.zil"
     )
     .replace("life a,T:Copy", "life a,life b,T:Copy")
     .replace("Phantom<'s,i32,42>", "Phantom<'s,'s,i32,42>");

@@ -22,7 +22,7 @@
 | `pending/ct-type-generic-record.zil` | 314具体纯记录CT组合；320补Struct Copy消费者。 |
 | `pending/mutable-product-helper-gap.zil` | 315普通完整Product局部`&mut`同步helper。 |
 
-317实际多模块组合消费者也已完成本地源码与O0/O2运行、错误/关闭清理验证，见`examples/mainline/recovery317`及`changes/317-recovery-consumer.md`。
+317实际多模块组合消费者也已完成本地源码与O0/O2运行、错误/关闭清理验证，见`examples/mainline/component-language-prerequisites`及`changes/317-recovery-consumer.md`。
 316仅为`recovery/`中的25源历史能力核查，结果见`validation/results/language-readiness/recovery-capabilities.json`。
 334复跑相同字节时，life参数返回和具体泛型trait已成功，三份未声明life源已明确
 拒绝。有限life-only、具体泛型trait和Direct线程不代表一般life/trait、异步/Mutex

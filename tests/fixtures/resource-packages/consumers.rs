@@ -268,29 +268,29 @@ fn native_complete_consumers(inputs: &[(&str, &str, &[u8])]) {
 // Disjoint groups allow each implementation to be independently checked while
 // the complete existing aggregates target still executes every prepared case.
 #[test]
-fn g10110_ownership_source_raw_wire() {
+fn ownership_source_raw_wire() {
     source_and_honest_raw_wire(&INPUTS[..7]);
 }
 #[test]
-fn g10110_callable_source_raw_wire() {
+fn callable_source_raw_wire() {
     source_and_honest_raw_wire(&INPUTS[7..]);
 }
 #[test]
-fn g10110_ownership_negatives() {
+fn ownership_negatives() {
     nearest_source_negatives(true);
 }
 #[test]
-fn g10110_callable_negatives() {
+fn callable_negatives() {
     nearest_source_negatives(false);
 }
 #[test]
 #[cfg(target_os = "linux")]
-fn g10110_ownership_native() {
+fn ownership_native() {
     native_complete_consumers(&INPUTS[..7]);
 }
 #[test]
 #[cfg(target_os = "linux")]
-fn g10110_callable_native() {
+fn callable_native() {
     native_complete_consumers(&INPUTS[7..]);
 }
 
@@ -303,7 +303,7 @@ const COMPOSED: &[(&str, &str, &[u8])] = &[(
 )];
 
 #[test]
-fn g10111_two_role_replacement_source_raw_wire() {
+fn two_role_replacement_source_raw_wire() {
     source_and_honest_raw_wire(COMPOSED);
     let aliased = replace_once(
         COMPOSED[0].1,
@@ -331,15 +331,15 @@ fn g10111_two_role_replacement_source_raw_wire() {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn g10111_two_role_replacement_native() {
+fn two_role_replacement_native() {
     native_complete_consumers(COMPOSED);
 }
 
 #[test]
 #[cfg(target_os = "linux")]
-fn g10111_ct_ambient_type_preserves_outer_nominal_inventory() {
+fn ct_ambient_type_preserves_outer_nominal_inventory() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct6-ambient-type-actual.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-ambient-type-actual.zil"
     );
     let directory = super::Temp::new();
     let cache = directory.0.join("cache");
