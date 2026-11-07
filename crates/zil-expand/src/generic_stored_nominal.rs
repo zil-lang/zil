@@ -990,7 +990,7 @@ impl<'a> Engine<'a> {
         let origin = self
             .template_origin(item)?
             .ok_or_else(|| error(span, "stored nominal source provenance is absent"))?;
-        let (declaration_id, stable_identity) = if template == options::TEMPLATE {
+        let (declaration_id, stable_identity) = if origin.role.is_some() {
             options::storage_identity(item, origin, &mut self.budget)?
         } else {
             let origins = self
@@ -1385,7 +1385,8 @@ impl<'a> Engine<'a> {
         self.record_inherent_instance(&generated, template, &substitution, span)?;
         if existing.is_none() {
             if let ItemKind::Enum(physical) = &instance.kind
-                && !produced.instance.declaration.compiler
+                && (!produced.instance.declaration.compiler
+                    || origin.role == Some(origins::CompilerRole::Poll))
                 && matches!(&produced.instance.ty, zil_ir::Type::BorrowedStorage { life, .. } if !life.slots.is_empty())
             {
                 self.stored_lookup_fee(self.stored_enum_layouts.len(), generated.len(), span)?;

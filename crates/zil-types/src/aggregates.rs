@@ -339,6 +339,26 @@ fn shared_task_create_error(declaration: &CoreEnum, remaining: &mut usize) -> R<
     Ok(true)
 }
 
+// The borrowed Poll error-wrapper path needs the actual standard error
+// declaration in importing modules too. This gate is derived from the paid
+// sealed Poll inventory, preserving the old non-borrowing resolver path.
+pub(super) fn shared_poll_state(declaration: &CoreEnum, remaining: &mut usize) -> R<bool> {
+    if declaration.name != "$stdTaskPollState343" {
+        return Ok(false);
+    }
+    aggregate_templates::spend(remaining, 96, declaration.span)?;
+    if !matches!(declaration.variants.as_slice(), [(complete,a),(cancelled,b),(invalid,c)]
+        if complete=="Complete" && a.is_empty() && cancelled=="Cancelled" && b.is_empty() && invalid=="Invalid" && c.is_empty())
+    {
+        return Err(error(
+            "E-TASK-POLL-STATE-TYPE",
+            declaration.span,
+            "shared TaskPollState requires its exact Complete/Cancelled/Invalid declaration",
+        ));
+    }
+    Ok(true)
+}
+
 /// Resolve project syntax names against actual declarations, not a parsed
 /// module number in a generated string. Nominal identity belongs to the module
 /// which contains the declaration; importer aliases never participate.
@@ -403,7 +423,7 @@ fn resolve_indexed(
     limits: &Limits,
     remaining: &mut usize,
 ) -> CompileResult<CoreModule> {
-    stored::inventory(&core, remaining, limits).map_err(|e| vec![e])?;
+    let mut poll_borrows = stored::inventory(&core, remaining, limits).map_err(|e| vec![e])?;
     let mut declarations = BTreeMap::new();
     for d in &core.aggregates {
         if d.kind != AggregateKind::Package && d.fields.iter().any(|f| f.manages) {
@@ -475,6 +495,81 @@ fn resolve_indexed(
             }
         }
     }
+    // Build the paid complete project-instance index before its namespaces
+    // consume borrowed Poll declarations or their standard error wrapper.
+    let mut stored_instances = BTreeMap::new();
+    for (inventory, aggregates, enums, module, source) in std::iter::once((
+        core.life_instances.as_slice(),
+        core.aggregates.as_slice(),
+        core.enums.as_slice(),
+        core.module_id,
+        None,
+    ))
+    .chain(
+        project
+            .iter()
+            .copied()
+            .filter(|source| source.module_id != core.module_id)
+            .map(|source| {
+                (
+                    source.life_instances.as_slice(),
+                    source.aggregates.as_slice(),
+                    source.enums.as_slice(),
+                    source.module_id,
+                    Some(source),
+                )
+            }),
+    ) {
+        for instance in inventory {
+            let Type::BorrowedStorage { storage, .. } = &instance.ty else {
+                continue;
+            };
+            let name = match storage.as_ref() {
+                Type::Record { name, .. }
+                | Type::Package { name, .. }
+                | Type::Enum { name, .. } => name,
+                _ => continue,
+            };
+            aggregate_templates::spend(
+                remaining,
+                name.len()
+                    .saturating_add(1)
+                    .saturating_mul(stored_instances.len().saturating_add(1)),
+                Span::default(),
+            )
+            .map_err(|e| vec![e])?;
+            let actual_name = match storage.as_ref() {
+                Type::Record { .. } | Type::Package { .. } => {
+                    stored::aggregate(aggregates, module, name, remaining)
+                        .map_err(|e| vec![e])?
+                        .name
+                        .as_str()
+                }
+                Type::Enum { .. } => stored::enum_from(enums, module, name, remaining)
+                    .map_err(|e| vec![e])?
+                    .name
+                    .as_str(),
+                _ => unreachable!(),
+            };
+            // This dispatch is a work gate, never role authority. A candidate
+            // foreign instance must pass its own complete inventory first.
+            if !poll_borrows
+                && instance.declaration.compiler
+                && instance.declaration.module.0 == u32::MAX
+                && instance.declaration.declaration.0 == 1
+                && let Some(source) = source
+            {
+                poll_borrows = stored::inventory(source, remaining, limits).map_err(|e| vec![e])?;
+            }
+            if stored_instances.insert(actual_name, instance).is_some() {
+                return Err(vec![error(
+                    "E-STORED-IDENTITY",
+                    Span::default(),
+                    "duplicate project stored instance",
+                )]);
+            }
+        }
+    }
     let mut owners = declarations
         .keys()
         .chain(enum_declarations.keys())
@@ -521,8 +616,10 @@ fn resolve_indexed(
                         Some(declaration.span),
                     )]
                 })?;
-            let shared_task_error =
-                shared_task_create_error(declaration, remaining).map_err(|e| vec![e])?;
+            let shared_task_error = shared_task_create_error(declaration, remaining)
+                .map_err(|e| vec![e])?
+                || (poll_borrows
+                    && shared_poll_state(declaration, remaining).map_err(|e| vec![e])?);
             if shared_task_error {
                 if declarations.contains_key(&declaration.name) {
                     return Err(vec![error(
@@ -532,7 +629,16 @@ fn resolve_indexed(
                     )]);
                 }
                 if let Some(existing) = enum_declarations.get(&declaration.name) {
-                    shared_task_create_error(existing, remaining).map_err(|e| vec![e])?;
+                    if !shared_task_create_error(existing, remaining).map_err(|e| vec![e])?
+                        && !(poll_borrows
+                            && shared_poll_state(existing, remaining).map_err(|e| vec![e])?)
+                    {
+                        return Err(vec![error(
+                            "E-TASK-POLL-STATE-TYPE",
+                            existing.span,
+                            "shared standard error declaration differs",
+                        )]);
+                    }
                     // Repeated exact prelude declarations have the same sealed
                     // semantic identity; unrelated project names remain unique.
                     continue;
@@ -578,67 +684,6 @@ fn resolve_indexed(
     }
     let generic = aggregate_templates::Index::new(&generic_modules, limits, remaining)
         .map_err(|e| vec![e])?;
-    let mut stored_instances = BTreeMap::new();
-    for (inventory, aggregates, enums, module) in std::iter::once((
-        core.life_instances.as_slice(),
-        core.aggregates.as_slice(),
-        core.enums.as_slice(),
-        core.module_id,
-    ))
-    .chain(
-        project
-            .iter()
-            .copied()
-            .filter(|source| source.module_id != core.module_id)
-            .map(|source| {
-                (
-                    source.life_instances.as_slice(),
-                    source.aggregates.as_slice(),
-                    source.enums.as_slice(),
-                    source.module_id,
-                )
-            }),
-    ) {
-        for instance in inventory {
-            let Type::BorrowedStorage { storage, .. } = &instance.ty else {
-                continue;
-            };
-            let name = match storage.as_ref() {
-                Type::Record { name, .. }
-                | Type::Package { name, .. }
-                | Type::Enum { name, .. } => name,
-                _ => continue,
-            };
-            aggregate_templates::spend(
-                remaining,
-                name.len()
-                    .saturating_add(1)
-                    .saturating_mul(stored_instances.len().saturating_add(1)),
-                Span::default(),
-            )
-            .map_err(|e| vec![e])?;
-            let actual_name = match storage.as_ref() {
-                Type::Record { .. } | Type::Package { .. } => {
-                    stored::aggregate(aggregates, module, name, remaining)
-                        .map_err(|e| vec![e])?
-                        .name
-                        .as_str()
-                }
-                Type::Enum { .. } => stored::enum_from(enums, module, name, remaining)
-                    .map_err(|e| vec![e])?
-                    .name
-                    .as_str(),
-                _ => unreachable!(),
-            };
-            if stored_instances.insert(actual_name, instance).is_some() {
-                return Err(vec![error(
-                    "E-STORED-IDENTITY",
-                    Span::default(),
-                    "duplicate project stored instance",
-                )]);
-            }
-        }
-    }
     let mut resolver = Resolver {
         stored_instances,
         generic,
@@ -1195,6 +1240,7 @@ impl Resolver<'_> {
                             .is_some_and(|instance| {
                                 stored::option_address_payload(instance, field)
                                     || stored::enum_address_payload(instance, field)
+                                    || stored::poll_address_payload(instance, field)
                             })
                         || (stored_instance.is_some()
                             && stored::pure_inline(
@@ -1234,8 +1280,32 @@ impl Resolver<'_> {
                     }
                 }
             }
+            let poll_payload = match variants.as_slice() {
+                [(_, _), (_, fields)] => match fields.as_slice() {
+                    [payload]
+                        if stored_instance.is_some_and(|instance| {
+                            declaration
+                                .variants
+                                .get(1)
+                                .and_then(|(_, fields)| fields.first())
+                                .is_some_and(|raw| stored::poll_address_payload(instance, raw))
+                        }) =>
+                    {
+                        Some(payload)
+                    }
+                    _ => None,
+                },
+                _ => None,
+            };
+            let nominal = if let Some(payload) = poll_payload {
+                let work = inference::type_snapshot_work(payload, span, &self.generic_limits)?;
+                aggregate_templates::spend(&mut self.remaining, work.saturating_add(96), span)?;
+                tasks::poll_name(payload)
+            } else {
+                enums::nominal_name(self.owners[name], name, &variants)
+            };
             let ty = Type::Enum {
-                name: enums::nominal_name(self.owners[name], name, &variants),
+                name: nominal,
                 variants,
             };
             if owns {

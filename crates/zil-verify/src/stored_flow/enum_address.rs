@@ -2,6 +2,26 @@
 //! The verifier maintains its own sorted tag sets and actual source leaves.
 use super::*;
 
+pub(super) fn poll_declaration(d: &LifeNominalDeclaration) -> bool {
+    d.id.compiler
+        && d.id.module.0 == u32::MAX
+        && d.id.declaration.0 == 1
+        && d.identity.package == "@zil.builtin"
+        && d.identity.module_path == ["task"]
+        && d.identity.declaration_path == ["enum", "Poll"]
+        && d.identity.generation_path.is_empty()
+        && d.kind == LifeNominalKind::Enum
+        && d.parameters == [zil_ir::LifeParameterKind::Type]
+}
+
+// Reserved domains are rejection fences; spelling never grants the role.
+pub(super) fn poll_reserved(d: &LifeNominalDeclaration) -> bool {
+    (d.id.module.0 == u32::MAX && d.id.declaration.0 == 1)
+        || (d.identity.package == "@zil.builtin"
+            && d.identity.module_path == ["task"]
+            && d.identity.declaration_path == ["enum", "Poll"])
+}
+
 pub(super) fn candidate(ty: &Type) -> bool {
     matches!(ty, Type::BorrowedStorage { storage, life }
         if matches!(storage.as_ref(), Type::Enum { .. }) && !life.slots.is_empty())
@@ -225,7 +245,11 @@ pub(crate) fn ordinary(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check
         .find(|d| d.id == instance.declaration)
         .ok_or_else(|| err("borrowed Enum declaration is absent"))?;
     if declaration.id.compiler {
-        return Ok(false);
+        if !poll_declaration(declaration) {
+            return Ok(false);
+        }
+        poll_instance(instance, b)?;
+        return Ok(true);
     }
     if declaration.kind != LifeNominalKind::Enum {
         return Err(err("borrowed Enum declaration kind differs"));
@@ -1122,4 +1146,50 @@ pub(super) fn refine(
         result.inactive.push(inactive);
     }
     Ok(removed.then_some(result))
+}
+
+pub(super) fn poll_instance(instance: &LifeNominalInstance, b: &mut Budget) -> Check<()> {
+    b.spend(96)?;
+    let Type::BorrowedStorage { storage, life } = &instance.ty else {
+        return Err(err("Poll omits its qualified type"));
+    };
+    let [LifeNominalActual::Type(actual)] = instance.arguments.as_slice() else {
+        return Err(err("Poll omits its complete Type argument"));
+    };
+    let Type::Enum { name, variants } = storage.as_ref() else {
+        return Err(err("Poll physical type is not Enum"));
+    };
+    type_work(actual, &b.limits.clone(), b)?;
+    b.spend(name.len().saturating_add(96))?;
+    if name != &format!("@std.task:v1:Poll:{}", actual.fingerprint())
+        || variants.len() != 2
+        || variants[0].0 != "Pending"
+        || !variants[0].1.is_empty()
+        || variants[1].0 != "Ready"
+        || variants[1].1.len() != 1
+        || variants[1].1[0] != *actual
+        || !matches!(actual, Type::Address { mutable: false, .. })
+        || life.binder_count != 1
+        || !life.nominal_arguments.is_empty()
+        || life.retained.len() != 1
+        || life.retained[0].path != [LifeTypeProjection::TypeArgument(0)]
+        || life.retained[0].class != 0
+        || life.retained[0].binder != 0
+        || life.slots.len() != 1
+        || life.slots[0].path
+            != [PlaceProjection::Variant(zil_ir::VariantProjection {
+                variant: 1,
+                index: 0,
+            })]
+        || life.slots[0].mode != StoredBorrowMode::SharedAddress
+        || life.slots[0].binder != 0
+    {
+        return Err(err(
+            "Poll actual nominal, variants, or shared class mapping differs",
+        ));
+    }
+    if !shape(&instance.ty, &b.limits.clone(), b)? {
+        return Err(err("Poll lacks its complete shared payload shape"));
+    }
+    Ok(())
 }

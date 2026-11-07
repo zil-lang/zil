@@ -87,6 +87,27 @@ pub(super) fn enum_from<'a>(
         if name == declaration.name || name == format!("@module{}:{}", module.0, declaration.name) {
             return Ok(declaration);
         }
+        // Re-resolving a checked project keeps the same physical Poll ABI.
+        // This only locates its Core layout; inventory authenticates the role.
+        if name.starts_with("@std.task:v1:Poll:") {
+            for (_, fields) in &declaration.variants {
+                fee(left, fields.len(), declaration.span)?;
+                for field in fields {
+                    let work = inference::type_snapshot_work(
+                        field,
+                        declaration.span,
+                        &Limits {
+                            max_analysis_steps: *left,
+                            ..Limits::default()
+                        },
+                    )?;
+                    fee(left, work.saturating_add(96), declaration.span)?;
+                }
+            }
+            if name == enums::nominal_name(module.0, &declaration.name, &declaration.variants) {
+                return Ok(declaration);
+            }
+        }
     }
     Err(error(
         "E-STORED-IDENTITY",
@@ -95,9 +116,10 @@ pub(super) fn enum_from<'a>(
     ))
 }
 
-pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) -> R<()> {
+/// Return the shared Poll profile only from the already paid complete inventory.
+pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) -> R<bool> {
     if core.life_instances.is_empty() && core.life_declarations.is_empty() {
-        return Ok(());
+        return Ok(false);
     }
     let span = Span::default();
     let cost = inference::life_inventory_snapshot_work(
@@ -111,7 +133,18 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
     let mut declarations = BTreeMap::new();
     for (index, declaration) in core.life_declarations.iter().enumerate() {
         fee(left, declarations.len().saturating_add(1), span)?;
-        if declaration.id.compiler && !option_address::declaration(declaration) {
+        if enum_address::poll_reserved(declaration) && !enum_address::poll_declaration(declaration)
+        {
+            return Err(error(
+                "E-STORED-IDENTITY",
+                span,
+                "reserved Poll declaration domain is not authentic",
+            ));
+        }
+        if declaration.id.compiler
+            && !option_address::declaration(declaration)
+            && !enum_address::poll_declaration(declaration)
+        {
             return Err(unsupported(
                 span,
                 "stored compiler nominal requires its authentic builtin declaration",
@@ -168,6 +201,7 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
         }
     }
     let mut names = std::collections::BTreeSet::new();
+    let mut poll_borrows = false;
     for (index, instance) in core.life_instances.iter().enumerate() {
         fee(left, declarations.len().saturating_add(1), span)?;
         let declaration = declarations.get(&instance.declaration).ok_or_else(|| {
@@ -214,6 +248,13 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                 "E-STORED-IDENTITY",
                 span,
                 "multiple stored instances claim the same actual declaration layout",
+            ));
+        }
+        if name.starts_with("@std.task:v1:Poll:") && !enum_address::poll_declaration(declaration) {
+            return Err(error(
+                "E-STORED-IDENTITY",
+                span,
+                "reserved Poll physical domain lacks its authentic declaration",
             ));
         }
         if let Type::Enum { variants, .. } = storage.as_ref() {
@@ -319,6 +360,7 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
             }
         }
         nominal::rows(core, instance, limits, left, InventoryPhase::Core)?;
+        poll_borrows |= enum_address::poll_declaration(declaration);
         for prior in &core.life_instances[..index] {
             if prior.declaration == instance.declaration
                 && nominal::same_key(prior, instance, limits, left)?
@@ -331,7 +373,7 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
             }
         }
     }
-    Ok(())
+    Ok(poll_borrows)
 }
 
 /// Resolver alone rebuilt these instances from the actual checked declarations
@@ -549,6 +591,16 @@ pub(super) fn pure_inline(ty: &Type, left: &mut usize, limits: &Limits, span: Sp
 pub(super) fn enum_address_payload(instance: &LifeNominalInstance, ty: &Type) -> bool {
     !instance.declaration.compiler
         && enum_address::candidate(&instance.ty)
+        && matches!(ty, Type::Address { mutable: false, .. })
+}
+
+// The Core inventory already authenticated the reserved declaration and every
+// complete actual before Resolver uses this physical-layout dispatch.
+pub(super) fn poll_address_payload(instance: &LifeNominalInstance, ty: &Type) -> bool {
+    instance.declaration.compiler
+        && instance.declaration.module.0 == u32::MAX
+        && instance.declaration.declaration.0 == 1
+        && matches!(instance.arguments.as_slice(),[LifeNominalActual::Type(actual)] if actual==ty)
         && matches!(ty, Type::Address { mutable: false, .. })
 }
 

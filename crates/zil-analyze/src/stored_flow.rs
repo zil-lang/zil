@@ -622,6 +622,9 @@ pub(super) fn inventory(
     )?;
     for (index, decl) in module.life_declarations.iter().enumerate() {
         identity_work(&decl.identity, b)?;
+        if enum_address::poll_reserved(decl) && !enum_address::poll_declaration(decl) {
+            return Err(failure("reserved Poll declaration domain is not authentic"));
+        }
         if decl.identity.package.is_empty()
             || decl.identity.declaration_path.is_empty()
             || decl
@@ -672,6 +675,13 @@ pub(super) fn inventory(
             .iter()
             .find(|d| d.id == instance.declaration)
             .ok_or_else(|| failure("nominal instance references absent declaration"))?;
+        if matches!(storage, Type::Enum { name, .. } if name.starts_with("@std.task:v1:Poll:"))
+            && !enum_address::poll_declaration(decl)
+        {
+            return Err(failure(
+                "reserved Poll physical domain lacks its authentic declaration",
+            ));
+        }
         if !matches!(
             (decl.kind, storage),
             (LifeNominalKind::Record, Type::Record { .. })
@@ -702,7 +712,8 @@ pub(super) fn inventory(
             ));
         }
         nominal::rows(module, instance, limits, b)?;
-        b.stored_enum_addresses |= !decl.id.compiler && enum_address::candidate(&instance.ty);
+        b.stored_enum_addresses |= (!decl.id.compiler || enum_address::poll_declaration(decl))
+            && enum_address::candidate(&instance.ty);
         for earlier in &module.life_instances[..index] {
             shape_work(&earlier.ty, limits, b)?;
             shape_work(&instance.ty, limits, b)?;

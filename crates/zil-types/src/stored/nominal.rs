@@ -63,7 +63,9 @@ fn walk(
     if decl.id.compiler {
         fee(left, 96, span)?;
     }
-    if (decl.id.compiler && !option_address::declaration(decl))
+    if (decl.id.compiler
+        && !option_address::declaration(decl)
+        && !enum_address::poll_declaration(decl))
         || !matches!(
             (decl.kind, storage.as_ref()),
             (LifeNominalKind::Record, Type::Record { .. })
@@ -86,6 +88,11 @@ fn walk(
             .saturating_add(life.nominal_arguments.len()),
         span,
     )?;
+    if decl.id.compiler && enum_address::poll_declaration(decl) {
+        enum_address::poll_instance(instance, left, limits, phase)?;
+        active.pop();
+        return Ok(Vec::new());
+    }
     if decl.id.compiler {
         for actual in &instance.arguments {
             if let LifeNominalActual::Type(ty) = actual {

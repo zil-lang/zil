@@ -12,6 +12,356 @@ use zil_ir::{
 };
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 #[test]
+fn standard_poll_shared_payload_has_its_actual_sealed_declaration_and_source() {
+    let module = typed_stored(include_str!(
+        "../../../tests/fixtures/borrowed-enums/poll.zil"
+    ));
+    let declaration = module
+        .life_declarations
+        .iter()
+        .find(|d| d.id.compiler && d.id.declaration.0 == 1)
+        .unwrap();
+    assert_eq!(declaration.id.module, ModuleId(u32::MAX));
+    assert_eq!(declaration.identity.package, "@zil.builtin");
+    assert_eq!(declaration.identity.module_path, ["task"]);
+    assert_eq!(declaration.identity.declaration_path, ["enum", "Poll"]);
+    assert_eq!(declaration.parameters, [zil_ir::LifeParameterKind::Type]);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+}
+
+#[test]
+fn standard_poll_shared_payload_native_keeps_ready_and_pending_sources() {
+    for (name, text) in [
+        (
+            "poll.zil",
+            include_str!("../../../tests/fixtures/borrowed-enums/poll.zil"),
+        ),
+        (
+            "poll-record.zil",
+            include_str!("../../../tests/fixtures/borrowed-enums/poll-record.zil"),
+        ),
+    ] {
+        native_borrowed_enum(&zil_driver::ProjectSources {
+            root: ModuleId(0),
+            modules: vec![SourceUnit::new(FileId(0), ModuleId(0), name, text)],
+            paths: Default::default(),
+        });
+    }
+}
+
+#[test]
+fn standard_poll_full_actual_resolves_the_complete_nominal_pointee() {
+    let module = typed_stored(include_str!(
+        "../../../tests/fixtures/borrowed-enums/poll-record.zil"
+    ));
+    let instance = &module.life_instances[0];
+    let [zil_ir::LifeNominalActual::Type(actual)] = instance.arguments.as_slice() else {
+        panic!("full actual missing")
+    };
+    assert!(
+        matches!(actual, Type::Address { mutable:false, inner } if matches!(inner.as_ref(), Type::Record { fields, .. } if fields.len()==2))
+    );
+    let Type::BorrowedStorage { storage, .. } = &instance.ty else {
+        panic!("qualified Poll missing")
+    };
+    assert!(
+        matches!(storage.as_ref(), Type::Enum { name, variants } if name==&format!("@std.task:v1:Poll:{}", actual.fingerprint()) && variants[1].1==[actual.clone()])
+    );
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+}
+
+#[test]
+fn standard_poll_error_wrapped_cross_module_helpers_preserve_ready_sources() {
+    native_borrowed_enum(&zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![
+            SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "main.zil",
+                include_str!("../../../tests/fixtures/borrowed-enums/poll-module-main.zil"),
+            ),
+            SourceUnit::new(
+                FileId(1),
+                ModuleId(1),
+                "api.zil",
+                include_str!("../../../tests/fixtures/borrowed-enums/poll-module-api.zil"),
+            ),
+        ],
+        paths: std::collections::BTreeMap::from([(vec!["api".into()], ModuleId(1))]),
+    });
+}
+
+#[test]
+fn standard_poll_raw_and_wire_require_the_full_sealed_role_and_actual_payload() {
+    let module = typed_stored(include_str!(
+        "../../../tests/fixtures/borrowed-enums/poll.zil"
+    ));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    type Mutation = (&'static str, fn(&mut TypedModule));
+    let mutations: &[Mutation] = &[
+        ("poll-role-compiler-flag", |m| {
+            m.life_declarations[0].id.compiler = false;
+            m.life_instances[0].declaration.compiler = false;
+        }),
+        ("poll-role-id", |m| {
+            m.life_declarations[0].id.declaration.0 = 7;
+            m.life_instances[0].declaration.declaration.0 = 7;
+        }),
+        ("poll-role-module", |m| {
+            m.life_declarations[0].id.module = ModuleId(0);
+            m.life_instances[0].declaration.module = ModuleId(0);
+        }),
+        ("poll-role-package", |m| {
+            m.life_declarations[0].identity.package = "user".into()
+        }),
+        ("poll-role-path", |m| {
+            m.life_declarations[0].identity.module_path = vec!["other".into()]
+        }),
+        ("poll-role-declaration", |m| {
+            m.life_declarations[0].identity.declaration_path[1] = "Other".into()
+        }),
+        ("poll-role-generation", |m| {
+            m.life_declarations[0].identity.generation_path.push(0)
+        }),
+        ("poll-role-formal", |m| {
+            m.life_declarations[0].parameters[0] = zil_ir::LifeParameterKind::Lifetime
+        }),
+        ("poll-role-kind", |m| {
+            m.life_declarations[0].kind = zil_ir::LifeNominalKind::Record
+        }),
+        ("poll-missing-instance", |m| m.life_instances.clear()),
+        ("poll-wrong-actual", |m| {
+            m.life_instances[0].arguments[0] = zil_ir::LifeNominalActual::Type(Type::I64)
+        }),
+        ("poll-retained-ordinal", |m| {
+            change_enum_shape(m, |s| {
+                s.retained[0].path = vec![zil_ir::LifeTypeProjection::TypeArgument(1)]
+            })
+        }),
+        ("poll-retained-class", |m| {
+            change_enum_shape(m, |s| s.retained[0].class = 1)
+        }),
+        ("poll-payload-path", |m| {
+            change_enum_shape(m, |s| {
+                s.slots[0].path = vec![zil_ir::PlaceProjection::Variant(
+                    zil_ir::VariantProjection {
+                        variant: 0,
+                        index: 0,
+                    },
+                )]
+            })
+        }),
+        ("poll-payload-mode", |m| {
+            change_enum_shape(m, |s| {
+                s.slots[0].mode = zil_ir::StoredBorrowMode::ExclusiveAddress
+            })
+        }),
+        ("poll-payload-class", |m| {
+            change_enum_shape(m, |s| s.slots[0].binder = 1)
+        }),
+        ("poll-reserved-physical-domain", |m| {
+            let d = &mut m.life_declarations[0];
+            d.id.compiler = false;
+            d.id.module = ModuleId(0);
+            d.id.declaration.0 = 17;
+            d.identity.package = "user".into();
+            d.identity.module_path = vec!["ordinary".into()];
+            m.life_instances[0].declaration = d.id;
+        }),
+        ("poll-wrong-canonical-actual-name", |m| {
+            change_poll_type(m, |t| {
+                let Type::BorrowedStorage { storage, .. } = t else {
+                    unreachable!()
+                };
+                let Type::Enum { name, .. } = storage.as_mut() else {
+                    unreachable!()
+                };
+                *name = "@std.task:v1:Poll:wrong-actual".into();
+            })
+        }),
+        ("poll-wrong-ready-layout", |m| {
+            change_poll_type(m, |t| {
+                let Type::BorrowedStorage { storage, .. } = t else {
+                    unreachable!()
+                };
+                let Type::Enum { variants, .. } = storage.as_mut() else {
+                    unreachable!()
+                };
+                variants[1].0 = "Some".into();
+            })
+        }),
+    ];
+    for (name, mutate) in mutations {
+        let mut changed = module.clone();
+        mutate(&mut changed);
+        let errors = zil_analyze::analyze(&changed, &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.category == ResultCategory::SafeReject),
+            "{name}: {errors:?}"
+        );
+        reject(name, changed, plan.clone(), "E-VERIFY-STORED");
+    }
+}
+
+fn change_poll_type(module: &mut TypedModule, mutate: fn(&mut Type)) {
+    let before = module.life_instances[0].ty.clone();
+    let mut after = before.clone();
+    mutate(&mut after);
+    for function in &mut module.functions {
+        for ty in function
+            .values
+            .iter_mut()
+            .chain(function.locals.iter_mut().map(|l| &mut l.ty))
+            .chain(std::iter::once(&mut function.return_type))
+        {
+            if *ty == before {
+                *ty = after.clone();
+            }
+        }
+    }
+    module.life_instances[0].ty = after;
+}
+
+#[test]
+fn standard_poll_payload_permissions_require_real_variant_and_error_guards() {
+    let error_source = format!(
+        "{}fn main(){{}}",
+        include_str!("../../../tests/fixtures/borrowed-enums/poll-module-api.zil")
+    );
+    for (name, source, error_guard) in [
+        (
+            "poll-missing-variant-guard",
+            include_str!("../../../tests/fixtures/borrowed-enums/poll.zil"),
+            false,
+        ),
+        ("poll-missing-error-guard", error_source.as_str(), true),
+    ] {
+        let mut module = typed_stored(source);
+        let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        zil_verify::verify_module(
+            module.clone(),
+            plan.clone(),
+            &module.target,
+            &Limits::default(),
+        )
+        .unwrap();
+        let mut changed = false;
+        for function in &mut module.functions {
+            for i in function.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+                if (!error_guard && matches!(i.kind, InstructionKind::VariantTag { .. }))
+                    || (error_guard && matches!(i.kind, InstructionKind::ErrorTag { .. }))
+                {
+                    i.kind = InstructionKind::Constant(if error_guard {
+                        zil_ir::Constant::Bool(false)
+                    } else {
+                        zil_ir::Constant::I32(1)
+                    });
+                    changed = true;
+                }
+            }
+        }
+        assert!(changed, "{name}");
+        let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.category == ResultCategory::SafeReject),
+            "{name}: {errors:?}"
+        );
+        reject(name, module, plan, "E-VERIFY-STORED");
+    }
+}
+
+#[test]
+fn standard_poll_core_cannot_claim_the_reserved_role_as_an_ordinary_declaration() {
+    let mut core = stored_core(include_str!(
+        "../../../tests/fixtures/borrowed-enums/poll.zil"
+    ));
+    core.life_declarations[0].id.compiler = false;
+    core.life_instances[0].declaration.compiler = false;
+    let errors =
+        zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.category == ResultCategory::SafeReject && d.code == "E-STORED-IDENTITY"),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn user_poll_name_stays_an_ordinary_nominal_and_preserves_actual_borrows() {
+    let source = "enum Poll<T>{Pending,Ready(T)}fn select<life a>(p:&'a i32)->Poll<&'a i32>{return Poll::<&'a i32>.Ready(p)}fn main()->i32{let n=42;match select(&n){Poll.Pending()=>{return 1},Poll.Ready(p)=>{return *p-42}}}";
+    let module = typed_stored(source);
+    assert!(module.life_declarations.iter().all(|d| !d.id.compiler));
+    assert!(module.life_instances.iter().all(|i| matches!(&i.ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Enum { name, .. } if name.starts_with("@module")))));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+}
+
+#[test]
+fn standard_poll_and_option_keep_distinct_roles_after_prelude_alias_insertion() {
+    let source = concat!(
+        "fn ready<life a>(p:&'a i32)->Poll<&'a i32>{return Poll::<&'a i32>.Ready(p)}",
+        "fn some<life a>(p:&'a i32)->Option<&'a i32>{return Option::<&'a i32>.Some(p)}",
+        "fn main()->i32{let n=42;let a=ready(&n);let b=some(&n);match a{Poll.Pending()=>{return 1},Poll.Ready(p)=>{match b{Option.None()=>{return 2},Option.Some(q)=>{return *p+*q-84}}}}}"
+    );
+    let module = typed_stored(source);
+    let mut roles = module
+        .life_declarations
+        .iter()
+        .map(|d| {
+            assert!(d.id.compiler && d.id.module == ModuleId(u32::MAX));
+            (d.id.declaration.0, d.identity.module_path.clone())
+        })
+        .collect::<Vec<_>>();
+    roles.sort();
+    assert_eq!(
+        roles,
+        vec![(0, vec!["option".into()]), (1, vec!["task".into()])]
+    );
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+}
+
+#[test]
 fn ordinary_borrowed_enum_source_uses_actual_tagged_slots() {
     let source = include_str!("../../../tests/fixtures/borrowed-enums/choice.zil");
     let module = typed_stored(source);
