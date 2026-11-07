@@ -535,6 +535,12 @@ impl State {
         inference::charge_type_snapshot(ty, span, &self.limits, &mut self.work_left, copies)
     }
 
+    /// Retained factories cannot borrow the internal work ledger directly.
+    /// Recheck a newly admitted complete Store parent on the same request.
+    pub(super) fn ordinary_store_capture(&mut self, ty: &Type, span: Span) -> R<bool> {
+        dynamic_store::owned_capture(ty, &mut self.work_left, &self.limits, span)
+    }
+
     pub(super) fn source_helper_bounds(
         &mut self,
         function: &CoreFunction,
