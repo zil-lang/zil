@@ -1117,6 +1117,83 @@ fn ordinary_containers_and_aliases_preserve_associated_provider_identity() {
 }
 
 #[test]
+fn ordinary_iterator_item_can_be_held_in_a_generic_container() {
+    let files = [
+        (
+            "main",
+            include_str!(
+                "../../../tests/language-readiness/terminal/generics-and-constants/associated-container/iterator/main.zil"
+            ),
+        ),
+        ("iter", include_str!("../../../lib/std/iter.zil")),
+        (
+            "cursor",
+            include_str!(
+                "../../../tests/language-readiness/terminal/generics-and-constants/associated-container/iterator/cursor.zil"
+            ),
+        ),
+        (
+            "consumer",
+            include_str!(
+                "../../../tests/language-readiness/terminal/generics-and-constants/associated-container/iterator/consumer.zil"
+            ),
+        ),
+    ];
+    let report = compile_project(&project(&files), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert!(report.verification_runs >= 1, "{}", report.to_json());
+    native_both(&files);
+}
+
+#[test]
+fn enum_payloads_use_only_declared_copy_associated_projections() {
+    for source in [
+        include_str!(
+            "../../../tests/language-readiness/terminal/generics-and-constants/associated-container/enum.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/generics-and-constants/associated-container/enum-provider.zil"
+        ),
+    ] {
+        let report = check(source);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert!(report.verification_runs >= 1, "{}", report.to_json());
+        native_both(&[("main", source)]);
+    }
+
+    for invalid in [
+        "trait Read{type Item;}enum Bucket<T:Read>{Value(T.Item)}fn main(){}",
+        "trait Read{type Item:Copy;}enum Bucket<T:Read>{Value(T.Missing)}fn main(){}",
+        "trait A{type Item:Copy;}trait B{type Item:Copy;}enum Bucket<T:A+B>{Value(T.Item)}fn main(){}",
+        "trait Read{type Item:Copy;}struct P{}impl Read for P{type Item=P.Item;}enum Bucket<T:Read>{Value(T.Item)}fn main(){}",
+    ] {
+        let report = check(invalid);
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{invalid}: {}",
+            report.to_json()
+        );
+        assert_eq!(
+            report.phase,
+            Phase::Expand,
+            "{invalid}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
 fn owned_replacement_symbolic_trait_arguments_preserve_declared_and_actual_targets() {
     for text in [
         include_str!(

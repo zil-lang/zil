@@ -876,7 +876,9 @@ impl<'a> Engine<'a> {
                                         || trait_instances::head(bound).is_some()
                                 })
                             || matches!(item.kind, ItemKind::Enum(_))
-                                && bounds.iter().all(copy::is_bound)
+                                && bounds.iter().all(|bound| {
+                                    copy::is_bound(bound) || trait_instances::head(bound).is_some()
+                                })
                             || matches!(item.kind, ItemKind::Function(_)) => {}
                     _ => {
                         return Err(unsupported(
@@ -949,7 +951,13 @@ impl<'a> Engine<'a> {
                 && e.name != options::TEMPLATE
                 && e.name != options::TASK_POLL
             {
-                enums::validate_declaration(e, item.span, &engine.nominals, &mut engine.budget)?;
+                enums::validate_declaration(
+                    e,
+                    item.span,
+                    &engine.nominals,
+                    &engine.traits,
+                    &mut engine.budget,
+                )?;
             }
             if let ItemKind::Aggregate(a) = &item.kind {
                 let variables: BTreeSet<_> = a
@@ -1499,11 +1507,28 @@ impl<'a> Engine<'a> {
         // Inspect complete substituted value fields while their ordinary
         // template identity exists. Explicit Managed arguments remain owning
         // values; this never grants Copy or manufactures a resource header.
-        if let ItemKind::Enum(e) = &instance.kind
+        if let ItemKind::Enum(e) = &mut instance.kind
             && template != options::TEMPLATE
         {
-            for variant in &e.variants {
-                if let VariantFields::Tuple(fields) = &variant.fields {
+            let projected_bounds = if e.generics.iter().any(|parameter| {
+                matches!(&parameter.kind, GenericParamKind::Type(bounds)
+                    if bounds.iter().any(|bound| trait_instances::head(bound).is_some()))
+            }) {
+                Some(
+                    self.traits
+                        .parameter_bounds(&e.generics, &mut self.budget)?,
+                )
+            } else {
+                None
+            };
+            let projection_variables = e
+                .generics
+                .iter()
+                .filter(|parameter| matches!(parameter.kind, GenericParamKind::Type(_)))
+                .map(|parameter| parameter.name.clone())
+                .collect::<BTreeSet<_>>();
+            for variant in &mut e.variants {
+                if let VariantFields::Tuple(fields) = &mut variant.fields {
                     for field in fields {
                         if field.manages {
                             return Err(unsupported(field.span, "owned generic enum payload"));
@@ -1513,10 +1538,34 @@ impl<'a> Engine<'a> {
                             &self.nominals,
                             &mut self.budget,
                         )? {
+                            if projected_bounds.is_some()
+                                && trait_bounds::associated::contains(&field.ty, &mut self.budget)?
+                            {
+                                let available = projected_bounds.as_ref().ok_or_else(|| {
+                                    error(field.span, "enum projection has no declared trait bound")
+                                })?;
+                                field.ty = self.traits.normalize_associated(
+                                    &field.ty,
+                                    available,
+                                    &projection_variables,
+                                    &mut self.budget,
+                                )?;
+                                if trait_bounds::associated::contains(&field.ty, &mut self.budget)?
+                                {
+                                    copy::require(
+                                        &field.ty,
+                                        &self.nominals,
+                                        available,
+                                        &projection_variables,
+                                        &mut self.budget,
+                                    )?;
+                                    continue;
+                                }
+                            }
                             copy::concrete_storage(&field.ty, &self.nominals, &mut self.budget)?;
                         }
                     }
-                } else if let VariantFields::Record(fields) = &variant.fields {
+                } else if let VariantFields::Record(fields) = &mut variant.fields {
                     for field in fields {
                         self.budget.node(field.span, 0)?;
                         if !stores::explicit_managed_value(
@@ -1524,6 +1573,30 @@ impl<'a> Engine<'a> {
                             &self.nominals,
                             &mut self.budget,
                         )? {
+                            if projected_bounds.is_some()
+                                && trait_bounds::associated::contains(&field.ty, &mut self.budget)?
+                            {
+                                let available = projected_bounds.as_ref().ok_or_else(|| {
+                                    error(field.span, "enum projection has no declared trait bound")
+                                })?;
+                                field.ty = self.traits.normalize_associated(
+                                    &field.ty,
+                                    available,
+                                    &projection_variables,
+                                    &mut self.budget,
+                                )?;
+                                if trait_bounds::associated::contains(&field.ty, &mut self.budget)?
+                                {
+                                    copy::require(
+                                        &field.ty,
+                                        &self.nominals,
+                                        available,
+                                        &projection_variables,
+                                        &mut self.budget,
+                                    )?;
+                                    continue;
+                                }
+                            }
                             copy::concrete_storage(&field.ty, &self.nominals, &mut self.budget)?;
                         }
                     }
