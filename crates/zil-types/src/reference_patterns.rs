@@ -300,7 +300,7 @@ impl Builder<'_, '_> {
                     p.span,
                 )?;
                 let ordered = enums::record_pattern_fields(declared, fields, &ty, p.span)?;
-                let Type::Record { fields: actual, .. } = stored::physical(&ty) else {
+                let (Type::Record { fields: actual, .. } | Type::Package { fields: actual, .. }) = stored::physical(&ty) else {
                     unreachable!("checked record pattern")
                 };
                 for (index, (field, field_ty)) in ordered.into_iter().enumerate() {

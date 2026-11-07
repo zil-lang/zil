@@ -183,11 +183,11 @@ pub(super) fn record_pattern_fields<'a>(
     expected: &'a Type,
     span: Span,
 ) -> R<Vec<(&'a CorePattern, &'a Type)>> {
-    let Type::Record { fields, .. } = stored::physical(expected) else {
+    let (Type::Record { fields, .. } | Type::Package { fields, .. }) = stored::physical(expected) else {
         return Err(error(
             "E-MATCH-TYPE",
             span,
-            "record pattern requires a record",
+            "record pattern requires a record or package",
         ));
     };
     if declared != expected {
@@ -714,7 +714,7 @@ impl Coverage<'_> {
         let constructors = match stored::physical(&types[0]) {
             Type::Unit => vec![Constructor::Unit],
             Type::Bool => vec![Constructor::Bool(false), Constructor::Bool(true)],
-            Type::Tuple(_) | Type::Record { .. } => vec![Constructor::Tuple],
+            Type::Tuple(_) | Type::Record { .. } | Type::Package { .. } => vec![Constructor::Tuple],
             Type::ErrorUnion { .. } => vec![Constructor::Variant(0), Constructor::Variant(1)],
             Type::Enum { variants, .. } => (0..variants.len())
                 .map(|i| Constructor::Variant(i as u32))
@@ -750,7 +750,7 @@ impl Coverage<'_> {
 fn constructor_fields(constructor: &Constructor, ty: &Type) -> Vec<Type> {
     match (constructor, stored::physical(ty)) {
         (Constructor::Tuple, Type::Tuple(fields)) => fields.clone(),
-        (Constructor::Tuple, Type::Record { fields, .. }) => {
+        (Constructor::Tuple, Type::Record { fields, .. } | Type::Package { fields, .. }) => {
             fields.iter().map(|(_, ty)| ty.clone()).collect()
         }
         (Constructor::Variant(index), Type::ErrorUnion { error, result }) => {
