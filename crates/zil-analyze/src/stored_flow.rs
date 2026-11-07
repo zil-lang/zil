@@ -1591,6 +1591,7 @@ fn seed_value(
             parents: Loans::new(),
             mutable: *mutable,
         });
+        b.stored_exclusive_loans |= *mutable;
         value.pointer = Permission {
             targets: BTreeSet::from([target]),
             loans: Loans::from([id]),
@@ -1614,6 +1615,7 @@ fn seed_value(
                 parents: Loans::new(),
                 mutable: mode == StoredBorrowMode::ExclusiveAddress,
             });
+            b.stored_exclusive_loans |= mode == StoredBorrowMode::ExclusiveAddress;
             value.slots.insert(
                 path,
                 Permission {
@@ -1640,6 +1642,7 @@ fn seed_value(
                 parents: Loans::new(),
                 mutable: decl.mode == StoredBorrowMode::ExclusiveAddress,
             });
+            b.stored_exclusive_loans |= decl.mode == StoredBorrowMode::ExclusiveAddress;
             ordered(b, slots.len(), decl.path.len())?;
             slots.insert(
                 decl.path.clone(),
@@ -1984,6 +1987,7 @@ fn slot_loan_ids(
                 ordered(b, ids.len(), path.len())?;
                 let id = loans.len();
                 loans.push(Loan::default());
+                b.stored_exclusive_loans |= mutable;
                 if ids
                     .insert((site, parameter, path.clone()), (id, mutable))
                     .is_some()
@@ -2067,6 +2071,7 @@ fn retain_slot(
     loan.targets = joined.targets;
     loan.parents = joined.loans;
     loan.mutable = *mutable;
+    b.stored_exclusive_loans |= loan.mutable;
     let mut result = Permission::default();
     union(&mut result, source, b)?;
     result.loans.clear();
@@ -2853,6 +2858,7 @@ fn transfer(
         loan.targets = targets.targets;
         loan.parents = targets.loans;
         loan.mutable = matches!(value_type(f, result)?, Type::Address { mutable: true, .. });
+        b.stored_exclusive_loans |= loan.mutable;
         out.pointer.loans.clear();
         fee(b, 1)?;
         out.pointer.loans.insert(id);
@@ -2871,6 +2877,7 @@ fn transfer(
         loan.targets = collected.targets;
         loan.parents = collected.loans;
         loan.mutable = true;
+        b.stored_exclusive_loans = true;
         out.pointer.loans.clear();
         fee(b, 1)?;
         out.pointer.loans.insert(id);
@@ -2904,6 +2911,7 @@ fn transfer(
                 loan.targets = collected.targets;
                 loan.parents = collected.loans;
                 loan.mutable = declaration.mode == StoredBorrowMode::ExclusiveAddress;
+                b.stored_exclusive_loans |= loan.mutable;
                 permission.loans.clear();
                 fee(b, 1)?;
                 permission.loans.insert(next);
@@ -3249,7 +3257,9 @@ fn windows(
             };
             match &i.kind {
                 InstructionKind::MakeAggregate { fields }
-                | InstructionKind::MakePackage { fields } => {
+                | InstructionKind::MakePackage { fields }
+                    if b.stored_exclusive_loans =>
+                {
                     let result = i.result.ok_or_else(|| failure("aggregate lacks result"))?;
                     if let Some((_, shape)) = carrier(value_type(f, result)?) {
                         for (index, slot) in shape.slots.iter().enumerate() {
@@ -3717,6 +3727,10 @@ fn derive_cfg(
                 continue;
             }
             let (preds, reachable) = &graphs[index];
+            // This solve builds a new function-local arena. Record mutable
+            // loans at its existing paid creation/binding sites, including
+            // constructor sites whose loans are not currently live.
+            b.stored_exclusive_loans = false;
             fee(
                 b,
                 f.values
