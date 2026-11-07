@@ -1062,6 +1062,61 @@ fn impl_associated_bounds_are_proved_at_definition_and_relay_across_modules() {
 }
 
 #[test]
+fn ordinary_containers_and_aliases_preserve_associated_provider_identity() {
+    let main = include_str!(
+        "../../../tests/language-readiness/terminal/generics-and-constants/associated-container/main.zil"
+    );
+    let api = include_str!(
+        "../../../tests/language-readiness/terminal/generics-and-constants/associated-container/api.zil"
+    );
+    let model = include_str!(
+        "../../../tests/language-readiness/terminal/generics-and-constants/associated-container/model.zil"
+    );
+    let consumer = include_str!(
+        "../../../tests/language-readiness/terminal/generics-and-constants/associated-container/consumer.zil"
+    );
+    let files = [
+        ("main", main),
+        ("api", api),
+        ("model", model),
+        ("consumer", consumer),
+    ];
+    let report = compile_project(&project(&files), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert!(report.verification_runs >= 1, "{}", report.to_json());
+    native_both(&files);
+
+    for invalid in [
+        "trait Read{type Item:Copy;}struct Holder<T>{value:T.Item}fn main(){}",
+        "trait Read{type Item:Copy;}struct P{}type Ghost=P.Item;fn main(){}",
+        "trait Read{type Item:Copy;}struct P{}type Maybe<T:Read>=Option<T.Item>;fn unused(x:Maybe<P>){}fn main(){}",
+        "trait Read{type Item:Copy;}type Maybe<T:Read>=Option<T.Item>;fn unused<U>(x:Maybe<U>){}fn main(){}",
+        "trait Read{type Item:Copy;}type Phantom<T:Read>=i32;fn main(){}",
+        "trait A{type Item:Copy;}trait B{type Item:Copy;}struct P{}impl A for P{type Item=i32;}impl B for P{type Item=bool;}fn bad(x:P.Item)->P.Item{return x}fn main(){}",
+        "trait Read{type Item:Copy;}struct P{}impl Read for P{type Item=P.Item;}fn main(){}",
+    ] {
+        let report = check(invalid);
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{invalid}: {}",
+            report.to_json()
+        );
+        assert_eq!(
+            report.phase,
+            Phase::Expand,
+            "{invalid}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
 fn owned_replacement_symbolic_trait_arguments_preserve_declared_and_actual_targets() {
     for text in [
         include_str!(

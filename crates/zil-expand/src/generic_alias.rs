@@ -9,6 +9,53 @@ pub(super) struct Normalized {
     pub(super) rich_aliases: Vec<TypeRef>,
 }
 
+fn projected_alias_bound(
+    value: &TypeRef,
+    parameter: &str,
+    bound: &TypeRef,
+    budget: &mut Budget<'_>,
+) -> R<bool> {
+    use super::super::ct_selection::Visitor as TypeVisitor;
+    let expected = type_key(bound, budget)?;
+    struct Scan<'a, 'l> {
+        parameter: &'a str,
+        expected: &'a str,
+        found: bool,
+        budget: &'a mut Budget<'l>,
+    }
+    impl TypeVisitor for Scan<'_, '_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.budget.node(span, depth).map_err(|e| vec![e])
+        }
+        fn text(&mut self, value: &str, span: Span) -> CompileResult<()> {
+            self.budget.text(value, span).map_err(|e| vec![e])
+        }
+        fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
+            if let Some((_, host, application)) = trait_bounds::associated::parts(ty) {
+                self.budget.ty(host).map_err(|e| vec![e])?;
+                let actual = type_key(application, self.budget).map_err(|e| vec![e])?;
+                self.budget
+                    .text(self.parameter, ty.span)
+                    .map_err(|e| vec![e])?;
+                self.budget
+                    .text(self.expected, ty.span)
+                    .map_err(|e| vec![e])?;
+                self.found |=
+                    trait_bounds::plain(host) == Some(self.parameter) && actual == self.expected;
+            }
+            super::super::ct_selection::walk_type(self, ty, depth)
+        }
+    }
+    let mut scan = Scan {
+        parameter,
+        expected: &expected,
+        found: false,
+        budget,
+    };
+    scan.ty(value, 0).map_err(|mut errors| errors.remove(0))?;
+    Ok(scan.found)
+}
+
 pub(super) fn reserved_declaration_name(name: &str) -> bool {
     matches!(
         name,
@@ -51,6 +98,19 @@ pub(super) fn normalize_with_budget<'a>(
     {
         return Ok((None, budget));
     }
+    let bounded_projection_alias = module.items.iter().any(|item| {
+        matches!(&item.kind, ItemKind::TypeAlias(alias)
+            if alias.generics.iter().any(|parameter|
+                matches!(&parameter.kind, GenericParamKind::Type(bounds) if !bounds.is_empty())))
+    });
+    let prepared = trait_bounds::associated::prepare(
+        module,
+        bounded_projection_alias,
+        None,
+        None,
+        &mut budget,
+    )?;
+    let module = prepared.as_ref().unwrap_or(module);
     let mut names = BTreeSet::new();
     for item in &module.items {
         // Bound the borrowed input before cloning any subtree or name table.
@@ -90,7 +150,24 @@ pub(super) fn normalize_with_budget<'a>(
                         parameter.span,
                     ));
                 }
-                if !matches!(&parameter.kind, GenericParamKind::Type(bounds) if bounds.is_empty()) {
+                let supported = match &parameter.kind {
+                    GenericParamKind::Type(bounds) if bounds.is_empty() => true,
+                    GenericParamKind::Type(bounds) if bounded_projection_alias => {
+                        if let ([bound], Some(value)) = (bounds.as_slice(), a.value.as_ref()) {
+                            trait_instances::head(bound).is_some()
+                                && projected_alias_bound(
+                                    value,
+                                    &parameter.name,
+                                    bound,
+                                    &mut budget,
+                                )?
+                        } else {
+                            false
+                        }
+                    }
+                    _ => false,
+                };
+                if !supported {
                     return Err(unsupported(
                         parameter.span,
                         "alias bounds, lifetime and const parameters require their semantic solver",
@@ -105,12 +182,22 @@ pub(super) fn normalize_with_budget<'a>(
     let protected = super::super::modules::protect_alias_nominals(module, &mut budget)?;
     let bound = super::super::modules::protect_alias_binders(protected.as_ref(), &mut budget)?;
     let module = bound.as_ref();
+    let projections = if module.items.iter().any(|item| {
+        matches!(&item.kind, ItemKind::Trait(declaration)
+            if declaration.members.iter().any(|member| matches!(member.kind, ItemKind::TypeAlias(_))))
+    }) {
+        trait_bounds::Index::declarations_only(module, &mut budget)?
+            .concrete_projection_names(&mut budget)?
+    } else {
+        BTreeMap::new()
+    };
     let mut resolver = Resolver {
         life_scope: Vec::new(),
         definitions: BTreeMap::new(),
         nominals: BTreeMap::new(),
         resolved: BTreeMap::new(),
         active: BTreeSet::new(),
+        projections,
         budget,
     };
     for item in &module.items {
@@ -273,6 +360,7 @@ struct Resolver<'s, 'l> {
     nominals: BTreeMap<String, &'s [GenericParam]>,
     resolved: BTreeMap<String, Alias>,
     active: BTreeSet<String>,
+    projections: BTreeMap<String, TypeRef>,
     budget: Budget<'l>,
 }
 impl Resolver<'_, '_> {
@@ -291,6 +379,14 @@ impl Resolver<'_, '_> {
         }
         self.budget.ty_depth(raw, depth)?;
         let mut target = raw.clone();
+        if !self.projections.is_empty() {
+            self.budget
+                .substituted_type_depth(&target, &self.projections, depth)?;
+            Substitution {
+                substitutions: &self.projections,
+            }
+            .ty(&mut target);
+        }
         let parameters = definition
             .generics
             .iter()
@@ -354,6 +450,9 @@ impl Resolver<'_, '_> {
     }
     fn target(&mut self, ty: &mut TypeRef, variables: &Names, depth: usize) -> R<()> {
         self.budget.node(ty.span, depth)?;
+        if trait_bounds::associated::parts(ty).is_some() {
+            return Ok(());
+        }
         match &mut ty.kind {
             TypeKind::Named { path, args } if path.len() == 1 => {
                 if !variables.contains(&path[0]) && self.definitions.contains_key(&path[0]) {

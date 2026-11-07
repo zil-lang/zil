@@ -66,7 +66,7 @@ impl Index<'_> {
         budget: &mut Budget<'_>,
         span: Span,
     ) -> R<BTreeMap<String, TypeRef>> {
-        let mut result = BTreeMap::new();
+        let mut result = self.concrete_projection_names(budget)?;
         for (subject, bounds) in available {
             budget.text(subject, span)?;
             if subject.starts_with('\0') {
@@ -144,6 +144,66 @@ impl Index<'_> {
                     } else {
                         result.insert(key, value);
                     }
+                }
+            }
+        }
+        Ok(result)
+    }
+
+    // A concrete nominal host can be named in an ordinary type position
+    // without a lexical type parameter. Resolve that spelling through its
+    // actual impl and retain the full trait application in the atom.
+    pub(crate) fn concrete_projection_names(
+        &self,
+        budget: &mut Budget<'_>,
+    ) -> R<BTreeMap<String, TypeRef>> {
+        let mut result = BTreeMap::new();
+        for (ordinal, item) in self.items.iter().enumerate() {
+            budget.node(item.span, 0)?;
+            let ItemKind::Impl(implementation) = &item.kind else {
+                continue;
+            };
+            let Some(application) = implementation.trait_type.as_ref() else {
+                continue;
+            };
+            let Some(host) = plain(&implementation.target) else {
+                continue;
+            };
+            let Some(trait_name) = trait_instances::head(application) else {
+                continue;
+            };
+            budget.text(trait_name, application.span)?;
+            if !self.declarations.contains_key(trait_name) {
+                continue;
+            }
+            let origin = self
+                .origins
+                .map(|origins| origins.get(ordinal, item.span))
+                .transpose()?;
+            let reference =
+                budget.with_origin(origin, |budget| self.pattern_reference(application, budget))?;
+            let (_, declaration) = self.declaration_item(&reference);
+            for member in &declaration.members {
+                budget.node(member.span, 0)?;
+                let ItemKind::TypeAlias(alias) = &member.kind else {
+                    continue;
+                };
+                budget.text(host, item.span)?;
+                budget.text(&alias.name, member.span)?;
+                let key = format!("{host}.{}", alias.name);
+                let projected = atom(
+                    &implementation.target,
+                    &reference,
+                    &alias.name,
+                    budget,
+                    member.span,
+                )?;
+                if let Some(previous) = result.get(&key) {
+                    if type_key(previous, budget)? != type_key(&projected, budget)? {
+                        result.insert(key, named("$ambiguous_associated_projection", member.span));
+                    }
+                } else {
+                    result.insert(key, projected);
                 }
             }
         }
@@ -376,6 +436,7 @@ pub(crate) fn prepare(
         let original_parameters = match &item.kind {
             ItemKind::Impl(i) => i.generics.as_slice(),
             ItemKind::Trait(t) => t.generics.as_slice(),
+            ItemKind::TypeAlias(a) => a.generics.as_slice(),
             _ => params(item),
         };
         for parameter in original_parameters {
@@ -545,7 +606,37 @@ pub(crate) fn prepare(
             }
         }
     }
+    reject_ambiguous_projections(&result, budget)?;
     Ok(Some(result))
+}
+
+fn reject_ambiguous_projections(module: &Module, budget: &mut Budget<'_>) -> R<()> {
+    use super::super::super::ct_selection::Visitor;
+    struct Check<'a, 'l>(&'a mut Budget<'l>);
+    impl Visitor for Check<'_, '_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.0.node(span, depth).map_err(|e| vec![e])
+        }
+        fn text(&mut self, value: &str, span: Span) -> CompileResult<()> {
+            self.0.text(value, span).map_err(|e| vec![e])
+        }
+        fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
+            if matches!(&grouped(ty).kind, TypeKind::Named { path, args }
+                if path.as_slice() == ["$ambiguous_associated_projection"] && args.is_empty())
+            {
+                return Err(vec![error(
+                    ty.span,
+                    "associated type requires one unambiguous declared trait bound",
+                )]);
+            }
+            super::super::super::ct_selection::walk_type(self, ty, depth)
+        }
+    }
+    let mut check = Check(budget);
+    for item in &module.items {
+        check.item(item, 0).map_err(|mut errors| errors.remove(0))?;
+    }
+    Ok(())
 }
 
 pub(crate) fn equation_key(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
