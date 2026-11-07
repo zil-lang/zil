@@ -98,6 +98,7 @@ fn ordinary_sum_replacement_and_owned_captures_release_every_actual_store_once()
         ("direct-shape-captures", include_str!("ordinary-direct-shape-captures.zil"), b"18446744073709551614\n".as_slice(), 5),
         ("parent-captures", include_str!("ordinary-captures.zil"), b"18446744073709551612\n".as_slice(), 3),
         ("direct-captures", include_str!("ordinary-direct-captures.zil"), b"18446744073709551612\n".as_slice(), 3),
+        ("both-owned-error", include_str!("ordinary-both-owned-error.zil"), b"18446744073709551613\n".as_slice(), 2),
     ] {
         let dir = directory(&format!("ordinary-sum-allocation-{label}"));
         let wrapper = super::super::pod_collections::allocation::allocator_wrapper(&dir);

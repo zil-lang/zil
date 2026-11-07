@@ -20,6 +20,7 @@ fn ordinary_store_ownership_reaches_complete_native_values() {
         ("ordinary-error-field", include_str!("ordinary-error-field.zil"), b"18446744073709551613\n".as_slice(), false),
         ("ordinary-sum-capture", include_str!("ordinary-sum-capture.zil"), b"18446744073709551614\n".as_slice(), false),
         ("ordinary-direct-shape-captures", include_str!("ordinary-direct-shape-captures.zil"), b"18446744073709551614\n".as_slice(), false),
+        ("ordinary-both-owned-error", include_str!("ordinary-both-owned-error.zil"), b"18446744073709551613\n".as_slice(), false),
     ] {
         super::g933_consumers::native_entry_all_backends(label, source, expected, imported, Some("result"));
     }
