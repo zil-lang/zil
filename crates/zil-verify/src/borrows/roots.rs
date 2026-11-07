@@ -125,6 +125,9 @@ pub(super) fn store_element_roots(
         }
         Ok(count)
     }
+    // This copy is additional work beyond the ordinary roots_join. Charge it
+    // before allocating, even when all payload widths are already cached.
+    budget.spend(source.len())?;
     let mut output = Vec::with_capacity(source.len());
     let mut width = None;
     for root in source {
