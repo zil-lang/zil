@@ -22,6 +22,13 @@ impl Builder<'_, '_> {
         )?;
         let local = self.local(name, package, true, span)?;
         self.store(local, value, span)?;
+        if dynamic_store::contains_inline_carrier(&ty) {
+            self.closures.snapshot(
+                self.inline_store_sum_slots.len().saturating_add(1).ilog2() as usize + 1,
+                span,
+            )?;
+            self.inline_store_sum_slots.insert(local);
+        }
         self.sum_slots.insert(local, ty);
         Ok(())
     }
