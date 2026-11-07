@@ -4,7 +4,7 @@
   "status": "InProgress",
   "accepted_main_commit": null,
   "base_main_commit": "2b603607dacf07273ccc3b741f309a29ab7e33b9",
-  "published_integration_commit": "f1d1b45a6a71175032e50cdcc9025615a2d5e822",
+  "published_integration_commit": "e800b39d5f9a096b33560625a4273c1ef11e3d92",
   "source_branch": "task/G10.6.2",
   "scope": [
     "Single direct mutable borrowed Record leaf",
@@ -38,11 +38,49 @@
     "status": "InProgress",
     "consumer": "tests/language-readiness/native-composition/{main,model,rules}.zil",
     "native": "Single linked program passes Clang and LLVM API at O0/O2: Verify=1, exact backend, no fallback, exit42, complete queued-host output.",
-    "review": "Exact f1d1b45 production review NoBlockingFinding. Earlier aeba543 independent header and resource payload omissions were fixed; rejected candidate preserved in archive.",
-    "regression": "First complete default run is still collecting results. Known failures are historical Wire40 fixture migration and stale expectations for newly admitted structural Drop composition / earlier exact Task cleanup rejection. No accepted main update yet.",
-    "recovery": "Fresh GitHub clone matches all 3734 tracked files byte-for-byte, cold build pending."
+    "review": "Exact e800b39 test delta and preceding production review NoBlockingFinding; no production decoder/API relaxation.",
+    "regression": "Corrected full default Pass: 5269/0, clean frozen source before/after. Reference, text-reference and cold recovery build still running/pending.",
+    "recovery": "GitHub recovered source matches all 3735 tracked files byte-for-byte; cold target build pending."
   },
   "raw_evidence": "/workspace/.zil-env/native-foundations/",
   "archive_commit": "7eca802e321dab7650be503a4759223f8ea96527",
-  "limits": "Mixed owning/borrowed Package, unified same-function permissions, general projection/lending, arbitrary protocols, cross-thread close, Rust product gates and GUI remain open."
+  "limits": "Mixed owning/borrowed Package, unified same-function permissions, general projection/lending, arbitrary protocols, cross-thread close, Rust product gates and GUI remain open.",
+  "first_default": {
+    "source": "f1d1b45a6a71175032e50cdcc9025615a2d5e822",
+    "status": "Fail",
+    "passed": 5259,
+    "failed": 10,
+    "log_sha256": "60adf09e3f2cbe076d7d40f0303bc6dd9acd5e4abf256b5beec245fa9618a1fc",
+    "resolution": "Eight historical Wire adapter failures fixed without changing the 17 frozen byte inputs or production decoder. Two tests updated to actual valid Drop composition / precise rejected Task cleanup behavior."
+  },
+  "default_acceptance": {
+    "profiles": {
+      "CARGO_PROFILE_DEV_STRIP": "symbols",
+      "CARGO_PROFILE_TEST_STRIP": "symbols",
+      "CARGO_PROFILE_DEV_DEBUG": "0",
+      "CARGO_PROFILE_TEST_DEBUG": "0",
+      "CARGO_BUILD_JOBS": "2"
+    },
+    "source": "e800b39d5f9a096b33560625a4273c1ef11e3d92",
+    "source_after": "e800b39d5f9a096b33560625a4273c1ef11e3d92",
+    "worktree_after": "",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--workspace",
+      "--no-fail-fast"
+    ],
+    "exit_code": 0,
+    "status": "Pass",
+    "elapsed_seconds": 587.33,
+    "groups": 423,
+    "passed": 5269,
+    "failed": 0,
+    "ignored": 0,
+    "log_sha256": "52d8c28b9424dcb0045ec2ef4bdbfd6c1d34aa6193411fa3079136538761082b",
+    "failures": [],
+    "reclaimed_cache_files": 409,
+    "reclaimed_cache_bytes": 18101015600
+  }
 }
