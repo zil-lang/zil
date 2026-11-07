@@ -569,6 +569,6 @@ mod terminal343_snapshot_budget {
                 );
             }
         }
-        eprintln!("task343 exact definition ledger N={minimum}");
+        eprintln!("exact task definition ledger N={minimum}");
     }
 }

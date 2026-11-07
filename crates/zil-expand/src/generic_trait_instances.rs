@@ -1420,7 +1420,7 @@ mod static_trait_request {
                 "{label} fresh result"
             );
             println!(
-                "G2.4.2 {label} exact request work N={high}; N-1 ResourceLimit; fresh result equal"
+                "{label} exact request work N={high}; N-1 ResourceLimit; fresh result equal"
             );
         }
     }

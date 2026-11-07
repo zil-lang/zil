@@ -413,7 +413,7 @@ mod tests {
     use zil_base::{FileId, Fingerprint, ModuleId, SCHEMA_VERSION};
 
     #[test]
-    fn impl105_enum_reification_charges_fresh_constructor_nodes_text_and_depth() {
+    fn enum_reification_charges_fresh_constructor_nodes_text_and_depth() {
         let ty = Type::Enum {
             name: "@module0:E".into(),
             variants: vec![("N".into(), vec![Type::I64])],
@@ -674,7 +674,7 @@ mod tests {
     }
 
     #[test]
-    fn impl090_slice_identity_cursor_visits_object_and_both_bounds() {
+    fn slice_identity_cursor_visits_object_and_both_bounds() {
         for selected in 0..3 {
             let mut core = input();
             let mut children = [

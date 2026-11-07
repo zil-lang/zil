@@ -1,10 +1,10 @@
 use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_ir::{CallableKind, CoreModule, Type};
 
-const SAME: &str = include_str!("impl203_fixtures/01_same_factory_distinct_modes.zil");
-const TWICE: &str = include_str!("impl203_fixtures/02_once_repeated.zil");
-const REVERSED: &str = include_str!("impl203_fixtures/03_reversed_declared_modes.zil");
-const MARKERS: &str = include_str!("impl203_fixtures/04_mode_cleanup_markers.zil");
+const SAME: &str = include_str!("state_binding_fixtures/same_factory_distinct_modes.zil");
+const TWICE: &str = include_str!("state_binding_fixtures/once_repeated.zil");
+const REVERSED: &str = include_str!("state_binding_fixtures/reversed_declared_modes.zil");
+const MARKERS: &str = include_str!("state_binding_fixtures/mode_cleanup_markers.zil");
 
 fn expand(text: &str) -> CoreModule {
     let source = SourceUnit::new(FileId(0), ModuleId(0), "state203.zil", text);
@@ -79,22 +79,22 @@ fn reject_once(text: &str) {
 }
 
 #[test]
-fn original_same_factory_has_two_declared_state_bindings() {
+fn same_factory_has_two_declared_state_bindings() {
     positive(SAME);
 }
 
 #[test]
-fn original_once_repetition_is_checked_before_instantiation() {
+fn once_repetition_is_checked_before_instantiation() {
     reject_once(TWICE);
 }
 
 #[test]
-fn original_reversed_modes_do_not_follow_one_representative_bound() {
+fn reversed_modes_do_not_follow_one_representative_bound() {
     reject_once(REVERSED);
 }
 
 #[test]
-fn original_cleanup_markers_keep_the_same_state_mapping() {
+fn cleanup_markers_keep_the_same_state_mapping() {
     positive(MARKERS);
 }
 
@@ -358,7 +358,7 @@ fn extract<F: Fn() -> i32, G: FnOnce() -> i32>(state: State<i32,F,G>) -> Item<F>
 
 #[test]
 fn an_owned_dual_state_can_remain_complete_on_an_error_union_side() {
-    let original = include_str!("impl203_fixtures/05_independent_error_side.zil");
+    let original = include_str!("state_binding_fixtures/independent_error_side.zil");
     let core = expand(original);
     expand(&original.replace("    return 0\n}", "    return -1\n}"));
     let function = core

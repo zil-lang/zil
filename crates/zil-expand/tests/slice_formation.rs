@@ -1,7 +1,7 @@
 use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit};
 
 fn expanded(text: &str, limits: &Limits) -> zil_base::CompileResult<zil_expand::ExpandedModule> {
-    let input = SourceUnit::new(FileId(0), ModuleId(0), "impl090-formation.zil", text);
+    let input = SourceUnit::new(FileId(0), ModuleId(0), "slice-formation.zil", text);
     let syntax = zil_syntax::parse(&input).into_result().unwrap();
     zil_expand::expand_with_map_limits(&input, &syntax, limits)
 }
