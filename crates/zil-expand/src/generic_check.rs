@@ -5020,7 +5020,8 @@ impl Check<'_, '_, '_> {
                 // mutating authority to the callee.
                 self.store_field_write_permission(&argument.value, state)?;
                 let actual = self.expr(&argument.value, state, Some(&hint), true)?;
-                self.alias_replace_place(&argument.value, state)?;
+                self.alias_borrow(&argument.value, state, true)?;
+                self.alias_hold_result(state, true, argument.span, Some(index))?;
                 actual
             } else {
                 self.argument(

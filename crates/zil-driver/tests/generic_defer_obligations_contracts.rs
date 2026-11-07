@@ -308,14 +308,19 @@ fn no_resource_zero_debt_package_rejects_raw_double_take_and_call() {
             }), "{case}: {analyze_errors:#?}");
         let mut candidate = plan.clone();
         candidate.module_fingerprint = changed.fingerprint();
-        let verified = zil_verify::verify_module(changed, candidate, &target, &limits);
-        let verify_errors = verified.expect_err("Verify must reject a duplicate affine transfer");
-        assert!(verify_errors.iter().any(|error| error.phase == Phase::Verify
-            && error.code == match case {
-                "double-take" => "E-VERIFY-INITIALIZATION",
-                "same-ssa-double-call" => "E-VERIFY-RESOURCE",
-                _ => unreachable!(),
-            }), "{case}: {verify_errors:#?}");
+        let wire = zil_ir::wire::encode_module_candidate(&changed, &candidate, &limits).unwrap();
+        for verified in [
+            zil_verify::verify_module(changed, candidate, &target, &limits),
+            zil_verify::verify_module_bytes(&wire, &target, &limits),
+        ] {
+            let verify_errors = verified.expect_err("Verify and Wire must reject a duplicate affine transfer");
+            assert!(verify_errors.iter().any(|error| error.phase == Phase::Verify
+                && error.code == match case {
+                    "double-take" => "E-VERIFY-INITIALIZATION",
+                    "same-ssa-double-call" => "E-VERIFY-RESOURCE",
+                    _ => unreachable!(),
+                }), "{case}: {verify_errors:#?}");
+        }
     }
 }
 
@@ -646,6 +651,35 @@ fn main()->i32{
     assert!(report.diagnostics.iter().any(|diagnostic|
         diagnostic.phase == Phase::Expand && diagnostic.message.contains("shared Package reference cannot write its Store field")),
         "{}", report.to_json());
+}
+
+#[test]
+fn static_store_write_port_stays_held_through_later_arguments() {
+    let prefix = "package Map<T:StoreElement>{manages items:Store<T>}fn mutate<T:Copy+StoreElement>(items:Store<T>,peek:&T)->T{store_pop(items);return *peek}fn mutate_rev<T:Copy+StoreElement>(peek:&T,items:Store<T>)->T{store_pop(items);return *peek}";
+    for body in [
+        "fn bad<T:Copy+StoreElement>(map:&mut Map<T>)->T{return mutate(map.items,store_at(map.items,0))}",
+        "fn bad<T:Copy+StoreElement>(map:&mut Map<T>)->T{return mutate_rev(store_at(map.items,0),map.items)}",
+    ] {
+        let report = compile_source(&unit(&format!("{prefix}{body}fn main()->i32{{return 0}}")), &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        });
+        assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+        assert!(report.diagnostics.iter().any(|diagnostic| diagnostic.phase == Phase::Expand
+            && diagnostic.message.contains("conflicts with a prepared callee or argument window")), "{}", report.to_json());
+    }
+    let good = format!("{prefix}fn good(left:&mut Map<i32>,right:&Map<i32>)->i32{{return mutate(left.items,store_at(right.items,0))}}fn good_rev(left:&mut Map<i32>,right:&Map<i32>)->i32{{return mutate_rev(store_at(right.items,0),left.items)}}fn main()->i32{{let a:Store<i32>=store_new();let b:Store<i32>=store_new();store_reserve(a,1);store_reserve(b,1);store_push(a,7);store_push(b,9);var first=Map::<i32>{{items:give a}};let second=Map::<i32>{{items:give b}};return good(&mut first,&second)-9}}");
+    let report = compile_source(&unit(&good), &CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    });
+    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    let reversed = good.replace("good(&mut first,&second)", "good_rev(&mut first,&second)");
+    let report = compile_source(&unit(&reversed), &CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    });
+    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
 }
 
 #[test]

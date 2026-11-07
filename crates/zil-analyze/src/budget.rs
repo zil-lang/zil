@@ -26,6 +26,9 @@ pub(super) struct Budget {
     pub(super) helper_edges: usize,
     pub(super) helper_depth: usize,
     pub(super) shared_product_capture: bool,
+    // Actual nonempty Package presence from the paid complete raw-type walk.
+    // An affine zero-debt value still needs the independent resource flow.
+    pub(super) affine_packages: bool,
     pub(super) address_capture: bool,
     pub(super) owning_address_captures: bool,
     pub(super) replacement_functions: BTreeSet<zil_ir::FunctionId>,
@@ -96,6 +99,7 @@ impl Budget {
             helper_edges: limits.max_analysis_steps,
             helper_depth: limits.max_call_depth,
             shared_product_capture: false,
+            affine_packages: false,
             address_capture: false,
             owning_address_captures: false,
             replacement_functions: BTreeSet::new(),
@@ -833,6 +837,8 @@ pub(super) fn preflight(
             first.take().or_else(|| pending.pop())
         {
             budget.input(1, "type shape")?;
+            budget.affine_packages |= matches!(ty, Type::Package { name, fields }
+                if !name.is_empty() && !fields.is_empty());
             budget.task_origin_roots |= matches!(ty, Type::Task { .. });
             budget.borrowed_task_ports |=
                 matches!(ty, Type::Task { retained_life, .. } if !retained_life.ports.is_empty());

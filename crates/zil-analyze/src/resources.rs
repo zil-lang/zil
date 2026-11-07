@@ -4003,17 +4003,9 @@ pub(super) fn check_module(
 ) -> CompileResult<()> {
     budget.spend(module.closures.len(), "resource closure presence")?;
     if module.resources.is_empty() {
-        fn zero_debt_package(ty: &Type) -> bool {
-            matches!(ty, Type::Package { name, fields }
-                if !name.is_empty() && !fields.is_empty()
-                    && fields.iter().all(|(name, field)| {
-                        !name.is_empty()
-                            && (field.is_copy_value() || zero_debt_package(field))
-                    }))
-        }
         // An absent raw table cannot bypass actual replacement obligations.
         // The paid preflight already inventoried these owning ticket sites.
-        let mut owning_entry = !budget.replacement_functions.is_empty();
+        let mut owning_entry = !budget.replacement_functions.is_empty() || budget.affine_packages;
         for closure in &module.closures {
             budget.spend(closure.captures.len(), "resource capture presence")?;
             owning_entry |= closure.kind == CallableKind::FnOnce
@@ -4036,8 +4028,7 @@ pub(super) fn check_module(
                 .unwrap_or(false);
             owning_entry |= function.locals.iter().map(|l| &l.ty).chain(&function.values)
                 .any(|ty| matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
-                    || matches!(package_storage(ty), Type::Array { element, .. } if matches!(package_storage(element.as_ref()), Type::Package { .. } | Type::Closure(_)))
-                    || zero_debt_package(ty));
+                    || matches!(package_storage(ty), Type::Array { element, .. } if matches!(package_storage(element.as_ref()), Type::Package { .. } | Type::Closure(_))));
         }
         if !owning_entry {
             return Ok(());
