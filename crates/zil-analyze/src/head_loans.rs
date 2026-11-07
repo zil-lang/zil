@@ -673,6 +673,10 @@ fn check_function(
                 }
             }
             inputs[index] = state_copy(&state, b)?;
+            // A same-block Store establishes one definite local address
+            // source. Incoming CFG state stays coarse: a missing predecessor
+            // must never turn a known branch into an alias certificate.
+            let mut exact_locals = BTreeSet::new();
             for i in &block.instructions {
                 fee(b, 1)?;
                 if let Some(result) = i.result {
@@ -809,12 +813,12 @@ fn check_function(
                             fresh = true;
                         }
                     }
-                    // Only direct projections of a certified descriptor carry
-                    // field precision. Loads, calls and CFG joins keep the
-                    // coarse Hold root until every incoming source is proven.
+                    // Direct projections and a same-block, definitely stored
+                    // local address inherit a certified Store field owner.
+                    // Calls and CFG joins keep the coarse Hold root.
                     if store_fields
                         && matches!(f.values[id], Type::Address { .. } | Type::Desc(_))
-                        && matches!(
+                        && (matches!(
                             i.kind,
                             InstructionKind::OwnedStoreBorrow { .. }
                                 | InstructionKind::OwnedStoreBorrowMut { .. }
@@ -823,7 +827,7 @@ fn check_function(
                                 | InstructionKind::AddressField { .. }
                                 | InstructionKind::AddressSlice { .. }
                                 | InstructionKind::AddressIndex { .. }
-                        )
+                        ) || matches!(i.kind, InstructionKind::Load(local) if exact_locals.contains(&local)))
                     {
                         fee(b, parents.len())?;
                         let source = if fresh {
@@ -859,6 +863,30 @@ fn check_function(
                         changed |= union(&mut nodes[id].parents, &parents, b)?;
                     }
                     changed |= merge(&mut values[id], &carrier, b)?;
+                }
+                if store_fields {
+                    match i.kind {
+                        InstructionKind::Store { local, value } => {
+                            b.lookup(exact_locals.len(), "Store field exact local source")?;
+                            let precise = matches!(
+                                nodes[value.0 as usize].roots.as_slice(),
+                                [LoanRoot::LocalStoreField(..) | LoanRoot::CaptureStoreField(..)]
+                            ) && direct(&values[value.0 as usize], b)?.len() == 1;
+                            if precise {
+                                fee(b, 1)?;
+                                exact_locals.insert(local);
+                            } else {
+                                exact_locals.remove(&local);
+                            }
+                        }
+                        InstructionKind::StorageLive(local)
+                        | InstructionKind::StorageDead(local)
+                        | InstructionKind::TakeLocal { local }
+                        | InstructionKind::DropClosure { local } => {
+                            exact_locals.remove(&local);
+                        }
+                        _ => {}
+                    }
                 }
                 transfer(&mut state, i, &values, b)?;
             }

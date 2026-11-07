@@ -120,7 +120,10 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                     }
                 } else {
                     for slot in [e.as_ref(), result.as_ref()] {
-                        if !matches!(slot, Type::Package { .. } | Type::Enum { .. }) {
+                        if !matches!(slot, Type::Package { .. } | Type::Enum { .. })
+                            && !(std::ptr::eq(slot, e.as_ref())
+                                && crate::ownership_store::pod_owned(slot))
+                        {
                             budget.type_work(
                                 slot,
                                 true,
