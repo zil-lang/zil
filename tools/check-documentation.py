@@ -58,6 +58,12 @@ def check(root=ROOT):
         current += sorted((root / directory).glob('*.md'))
     if sorted(p.name for p in (root / 'docs').iterdir() if p.is_file()) != ['README.md']:
         errors.append('docs root must contain only the navigation README')
+    allowed_sections = {'guide', 'development', 'decisions', 'research'}
+    for path in (root / 'docs').rglob('*'):
+        if path.is_file():
+            parts = path.relative_to(root / 'docs').parts
+            if len(parts) > 1 and parts[0] not in allowed_sections:
+                errors.append(f'Unexpected documentation section: {parts[0]}')
     for path in current:
         text = path.read_text()
         # Code examples may contain placeholder paths; only rendered Markdown links are navigation.

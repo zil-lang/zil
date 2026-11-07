@@ -56,4 +56,4 @@ python3 tools/package_check.py
 
 [文档来源索引](../../validation/documentation-provenance.json)给出迁移前的固定提交、原路径、原字节摘要和新位置；空目标表示仅在该 Git 提交保留。可用 `git show <source_commit>:<source_path>` 读回并核 SHA256。GitHub 固定提交链接同样可读；浅克隆需先取得原提交。该索引不重审旧结果，不把已知缺失的对象和原始日志标成恢复成功。
 
-`handoff --check` 读取静态合同和当前精简语言验收；`--legacy-audit` 另查冻结历史。原 274 份记录的 220 Unavailable、54 Unreviewed 与 `claims_revalidated=false` 仍按原对象解释。当前清单移动只更新实时定位，冻结历史记录和旧 review_commit 路径保持原身份。工具并不联网证实远端合入；推送后仍需读回实际远端 SHA。
+`handoff --check` 读取静态合同和当前精简语言验收；`--legacy-audit` 另查冻结历史。冻结历史仍按原对象解释并保留 `claims_revalidated=false`；Unavailable/Unreviewed 的数量取决于本次实际恢复的 Git 对象，必须报告当次检查结果，不能复制旧计数。当前清单移动只更新实时定位，冻结历史记录和旧 review_commit 路径保持原身份。工具并不联网证实远端合入；推送后仍需读回实际远端 SHA。
