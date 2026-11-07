@@ -613,6 +613,94 @@ fn task_borrowed_result_mixed_profile_preserves_exclusive_port_access() {
 }
 
 #[test]
+#[cfg(target_os = "linux")]
+fn task_borrowed_result_native_allocation_failure_preserves_the_input() {
+    use std::{os::unix::fs::PermissionsExt, path::Path, process::Command};
+    fn quote(path: &Path) -> String {
+        format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"))
+    }
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    let directory = std::env::temp_dir().join(format!(
+        "task-result-allocation-error-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    fs::create_dir_all(&directory).unwrap();
+    let observer = directory.join("allocator-observer.o");
+    let built = Command::new(&clang)
+        .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join(
+            "../../tests/language-readiness/terminal/concurrency-and-registration/task-observer.c",
+        ))
+        .arg("-o")
+        .arg(&observer)
+        .output()
+        .unwrap();
+    assert!(built.status.success(), "{built:?}");
+    let wrapper = directory.join("link.sh");
+    fs::write(&wrapper, format!(
+        "#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n",
+        quote(&clang), quote(&observer), quote(&clang)
+    )).unwrap();
+    fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+    let text = include_str!("../../../tests/fixtures/task-borrow-results/allocation-error.zil");
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "allocation-error.zil", text);
+    for backend in [
+        zil_driver::NativeBackend::Clang,
+        zil_driver::NativeBackend::LlvmApi,
+    ] {
+        for optimization in [zil_driver::Optimization::O0, zil_driver::Optimization::O2] {
+            let label = format!("{backend:?}-{optimization:?}");
+            let executable = directory.join(&label);
+            let report = zil_driver::compile_source(
+                &source,
+                &zil_driver::CompileOptions {
+                    stop_after: zil_driver::Stage::Build,
+                    backend,
+                    optimization,
+                    clang: Some(wrapper.clone()),
+                    output: Some(executable.clone()),
+                    emit_dir: Some(directory.join(format!("phases-{label}"))),
+                    ..Default::default()
+                },
+            );
+            fs::write(
+                directory.join(format!("compile-{label}.json")),
+                report.to_json(),
+            )
+            .unwrap();
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let summary = report.native_codegen.as_ref().unwrap();
+            assert_eq!(summary.backend, backend);
+            assert!(summary.fallback.is_none());
+            let output = Command::new(&executable)
+                .env("ZIL343_TASK_ALLOC_FAIL", "1")
+                .output()
+                .unwrap();
+            fs::write(
+                directory.join(format!("run-{label}.txt")),
+                format!("{output:?}"),
+            )
+            .unwrap();
+            assert_eq!(output.status.code(), Some(0), "{label}: {output:?}");
+            assert_eq!(
+                output.stdout, b"A",
+                "one failed frame allocation, no nonnull free: {label}: {output:?}"
+            );
+            assert!(output.stderr.is_empty(), "{label}: {output:?}");
+        }
+    }
+}
+
+#[test]
 fn task_borrowed_result_native_outlives_the_destroyed_task() {
     native_borrowed_enum(&zil_driver::ProjectSources {
         root: ModuleId(0),
