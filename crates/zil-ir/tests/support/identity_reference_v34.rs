@@ -261,6 +261,9 @@ fn encode_type(b: &mut Vec<u8>, t: &Type) {
             b.push(12);
             encode_text(b, s);
         }
+        Type::Mutex { .. } | Type::MutexGuard { .. } => {
+            panic!("V34 identity reference cannot encode V45 mutex types")
+        }
     }
 }
 fn encode_function(b: &mut Vec<u8>, f: &TypedFunction, v32: bool) {
@@ -1266,6 +1269,15 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
         InstructionKind::Unsupported(s) => {
             b.push(255);
             encode_text(b, s);
+        }
+        InstructionKind::MutexCreate { .. }
+        | InstructionKind::MutexLock { .. }
+        | InstructionKind::MutexValue { .. }
+        | InstructionKind::MutexUnlock { .. }
+        | InstructionKind::DropMutexGuard { .. }
+        | InstructionKind::SyncInteger { .. }
+        | InstructionKind::SyncIntegerCompareExchange { .. } => {
+            panic!("V34 identity reference cannot encode V45 operations")
         }
     }
 }

@@ -575,8 +575,15 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
             (Some(*argument), Some(*body), &[])
         }
         InstructionKind::WithSyncCell { initial, body, .. } => (Some(*initial), Some(*body), &[]),
-        InstructionKind::SyncI32 { address, value, .. } => (Some(*address), *value, &[]),
+        InstructionKind::SyncI32 { address, value, .. }
+        | InstructionKind::SyncInteger { address, value, .. } => (Some(*address), *value, &[]),
         InstructionKind::SyncI32CompareExchange {
+            address,
+            expected,
+            desired,
+            ..
+        }
+        | InstructionKind::SyncIntegerCompareExchange {
             address,
             expected,
             desired,

@@ -57,9 +57,18 @@ pub enum CallKind {
 pub enum SyncCellKind {
     MutexI32 = 0,
     AtomicI32 = 1,
+    AtomicI64 = 2,
+    AtomicU64 = 3,
+    AtomicUsize = 4,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SyncI32Op {
+    Load = 0,
+    Store = 1,
+    FetchAdd = 2,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SyncIntegerOp {
     Load = 0,
     Store = 1,
     FetchAdd = 2,
@@ -682,6 +691,9 @@ impl Type {
             Self::SyncCell(kind) => match kind {
                 SyncCellKind::MutexI32 => "MutexI32",
                 SyncCellKind::AtomicI32 => "AtomicI32",
+                SyncCellKind::AtomicI64 => "AtomicI64",
+                SyncCellKind::AtomicU64 => "AtomicU64",
+                SyncCellKind::AtomicUsize => "AtomicUsize",
             }
             .into(),
             Self::CWideString => "c_wstr".into(),
@@ -1998,6 +2010,21 @@ pub enum InstructionKind {
     /// Result is ordinary Tuple[I32, Bool]: observed value, then exchanged.
     /// Raw fields carry no root, order compatibility or synchronization proof.
     SyncI32CompareExchange {
+        address: ValueId,
+        expected: ValueId,
+        desired: ValueId,
+        success: AtomicOrdering,
+        failure: AtomicOrdering,
+    },
+    /// Width follows the actual sealed atomic cell, never the operation tag.
+    SyncInteger {
+        op: SyncIntegerOp,
+        address: ValueId,
+        value: Option<ValueId>,
+        ordering: AtomicOrdering,
+    },
+    /// Strong conditional RMW; observed integer width follows the cell.
+    SyncIntegerCompareExchange {
         address: ValueId,
         expected: ValueId,
         desired: ValueId,
@@ -3719,6 +3746,35 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             failure,
         } => {
             b.push(133);
+            encode_u32(b, address.0);
+            encode_u32(b, expected.0);
+            encode_u32(b, desired.0);
+            b.push(*success as u8);
+            b.push(*failure as u8);
+        }
+        InstructionKind::SyncInteger {
+            op,
+            address,
+            value,
+            ordering,
+        } => {
+            b.push(146);
+            b.push(*op as u8);
+            encode_u32(b, address.0);
+            b.push(u8::from(value.is_some()));
+            if let Some(value) = value {
+                encode_u32(b, value.0);
+            }
+            b.push(*ordering as u8);
+        }
+        InstructionKind::SyncIntegerCompareExchange {
+            address,
+            expected,
+            desired,
+            success,
+            failure,
+        } => {
+            b.push(147);
             encode_u32(b, address.0);
             encode_u32(b, expected.0);
             encode_u32(b, desired.0);

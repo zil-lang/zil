@@ -1560,6 +1560,35 @@ impl<'a> Writer<'a> {
                 self.u8(*success as u8)?;
                 self.u8(*failure as u8)?;
             }
+            InstructionKind::SyncInteger {
+                op,
+                address,
+                value,
+                ordering,
+            } => {
+                self.u8(146)?;
+                self.u8(*op as u8)?;
+                self.u32(address.0)?;
+                self.boolean(value.is_some())?;
+                if let Some(value) = value {
+                    self.u32(value.0)?;
+                }
+                self.u8(*ordering as u8)?;
+            }
+            InstructionKind::SyncIntegerCompareExchange {
+                address,
+                expected,
+                desired,
+                success,
+                failure,
+            } => {
+                self.u8(147)?;
+                self.u32(address.0)?;
+                self.u32(expected.0)?;
+                self.u32(desired.0)?;
+                self.u8(*success as u8)?;
+                self.u8(*failure as u8)?;
+            }
             InstructionKind::MutexCreate { value } => {
                 self.u8(141)?;
                 self.u32(value.0)?;
@@ -2982,6 +3011,9 @@ impl<'a> Reader<'a> {
                 30 => Type::SyncCell(match self.u8()? {
                     0 => SyncCellKind::MutexI32,
                     1 => SyncCellKind::AtomicI32,
+                    2 => SyncCellKind::AtomicI64,
+                    3 => SyncCellKind::AtomicU64,
+                    4 => SyncCellKind::AtomicUsize,
                     _ => return Err(malformed("E-WIRE-TYPE", "unknown sealed cell kind")),
                 }),
                 21 => Type::CWideString,
@@ -4288,6 +4320,9 @@ impl<'a> Reader<'a> {
                 kind: match self.u8()? {
                     0 => SyncCellKind::MutexI32,
                     1 => SyncCellKind::AtomicI32,
+                    2 => SyncCellKind::AtomicI64,
+                    3 => SyncCellKind::AtomicU64,
+                    4 => SyncCellKind::AtomicUsize,
                     _ => return Err(malformed("E-WIRE-OPCODE", "unknown sealed cell kind")),
                 },
                 initial: ValueId(self.u32()?),
@@ -4316,6 +4351,33 @@ impl<'a> Reader<'a> {
                 },
             },
             133 => InstructionKind::SyncI32CompareExchange {
+                address: ValueId(self.u32()?),
+                expected: ValueId(self.u32()?),
+                desired: ValueId(self.u32()?),
+                success: self.atomic_ordering()?,
+                failure: self.atomic_ordering()?,
+            },
+            146 => InstructionKind::SyncInteger {
+                op: match self.u8()? {
+                    0 => SyncIntegerOp::Load,
+                    1 => SyncIntegerOp::Store,
+                    2 => SyncIntegerOp::FetchAdd,
+                    _ => {
+                        return Err(malformed(
+                            "E-WIRE-OPCODE",
+                            "unknown integer atomic operation",
+                        ));
+                    }
+                },
+                address: ValueId(self.u32()?),
+                value: if self.boolean()? {
+                    Some(ValueId(self.u32()?))
+                } else {
+                    None
+                },
+                ordering: self.atomic_ordering()?,
+            },
+            147 => InstructionKind::SyncIntegerCompareExchange {
                 address: ValueId(self.u32()?),
                 expected: ValueId(self.u32()?),
                 desired: ValueId(self.u32()?),

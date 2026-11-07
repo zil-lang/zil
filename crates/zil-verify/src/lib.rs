@@ -2124,6 +2124,13 @@ fn check_instruction(
         stored_flow::instruction_work(function, instruction, budget)?;
     }
     let expected = match &instruction.kind {
+        InstructionKind::SyncInteger { .. }
+        | InstructionKind::SyncIntegerCompareExchange { .. } => {
+            return Err(unsupported(
+                "wide atomic operation awaits independent validation",
+                span,
+            ));
+        }
         InstructionKind::AsyncRegistrationStart { .. }
         | InstructionKind::AsyncRegistrationValid { .. }
         | InstructionKind::AsyncRegistrationRequestClose { .. }
@@ -3569,6 +3576,16 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
 
 fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (prefix, rest): ([Option<ValueId>; 2], &[ValueId]) = match instruction {
+        InstructionKind::SyncInteger { address, value, .. } => ([Some(*address), *value], &[]),
+        InstructionKind::SyncIntegerCompareExchange {
+            address,
+            expected,
+            desired,
+            ..
+        } => (
+            [Some(*address), Some(*expected)],
+            std::slice::from_ref(desired),
+        ),
         InstructionKind::MutexCreate { value } => ([Some(*value), None], &[]),
         InstructionKind::MutexLock { mutex } => ([Some(*mutex), None], &[]),
         InstructionKind::MutexValue { guard } | InstructionKind::MutexUnlock { guard } => {

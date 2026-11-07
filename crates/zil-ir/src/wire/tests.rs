@@ -2,6 +2,62 @@ use super::*;
 use zil_base::ResultCategory;
 
 #[test]
+fn wide_atomic_transport_binds_kind_width_operands_and_orders() {
+    let limits = Limits::default();
+    let mut identities = std::collections::BTreeSet::new();
+    for kind in [
+        SyncCellKind::AtomicI64,
+        SyncCellKind::AtomicU64,
+        SyncCellKind::AtomicUsize,
+    ] {
+        let ty = Type::SyncCell(kind);
+        let mut writer = Writer::new(&limits);
+        writer.ty(&ty, 0).unwrap();
+        let mut reader = Reader::new(&writer.output, &limits).unwrap();
+        assert_eq!(reader.ty(0).unwrap(), ty);
+        reader.finish().unwrap();
+        assert!(identities.insert(ty.fingerprint()));
+    }
+    let mut operation_identities = std::collections::BTreeSet::new();
+    for kind in [
+        InstructionKind::SyncInteger {
+            op: SyncIntegerOp::FetchAdd,
+            address: ValueId(1),
+            value: Some(ValueId(2)),
+            ordering: AtomicOrdering::AcqRel,
+        },
+        InstructionKind::SyncIntegerCompareExchange {
+            address: ValueId(3),
+            expected: ValueId(4),
+            desired: ValueId(5),
+            success: AtomicOrdering::SeqCst,
+            failure: AtomicOrdering::Acquire,
+        },
+    ] {
+        let instruction = Instruction {
+            result: Some(ValueId(6)),
+            kind,
+            span: Span::default(),
+        };
+        let mut writer = Writer::new(&limits);
+        writer.instruction(&instruction).unwrap();
+        let mut reader = Reader::new(&writer.output, &limits).unwrap();
+        assert_eq!(reader.instruction().unwrap(), instruction);
+        reader.finish().unwrap();
+        for end in 0..writer.output.len() {
+            assert!(
+                Reader::new(&writer.output[..end], &limits)
+                    .and_then(|mut r| r.instruction())
+                    .is_err()
+            );
+        }
+        let mut identity = Vec::new();
+        crate::encode_instruction(&mut identity, &instruction.kind);
+        assert!(operation_identities.insert(identity));
+    }
+}
+
+#[test]
 fn mutex_candidate_transport_preserves_payload_life_and_operands() {
     let limits = Limits::default();
     let payload = Type::Package {
@@ -128,7 +184,7 @@ fn async_registration_raw_operations_preserve_every_field_without_admission() {
             assert!(identities.insert(encoded));
         }
         let mut bad = writer.output;
-        bad[5] = 141;
+        bad[5] = 240;
         assert_eq!(
             Reader::new(&bad, &limits)
                 .unwrap()
@@ -177,7 +233,7 @@ fn async_registration_complete_environment_is_bounded_noncopy_raw_data() {
         );
     }
     let mut bad = writer.output;
-    bad[0] = 38;
+    bad[0] = 240;
     assert_eq!(
         Reader::new(&bad, &limits).unwrap().ty(0).unwrap_err().code,
         "E-WIRE-TYPE"
