@@ -60,6 +60,8 @@ fn primitive_name(name: &str) -> bool {
             | "store_capacity"
             | "store_at"
             | "store_at_mut"
+            | "error_ok"
+            | "error_err"
             | "ByteBuffer"
             | "bytes_new"
             | "bytes_reserve"
@@ -72,6 +74,13 @@ fn primitive_name(name: &str) -> bool {
     )
 }
 fn primitive_reserved(name: &str, span: Span) -> Diagnostic {
+    if matches!(name, "error_ok" | "error_err") {
+        return error(
+            "E-ERROR-CONSTRUCTOR-NAME",
+            span,
+            "bare error-union constructors cannot be rebound",
+        );
+    }
     if matches!(name, "Store" | "StoreElement") || name.starts_with("store_") {
         return error(
             "E-OWNED-STORE-NAME",

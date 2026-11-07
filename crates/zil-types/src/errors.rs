@@ -63,6 +63,53 @@ pub(super) fn injection(actual: &Type, union: &Type, span: Span) -> R<Option<boo
 }
 
 impl Builder<'_, '_> {
+    pub(super) fn explicit_error_constructor(
+        &mut self,
+        name: &str,
+        type_arguments: &[Type],
+        arguments: &[CoreExpr],
+        expected: Option<&Type>,
+        span: Span,
+    ) -> R<(ValueId, Type)> {
+        let [error_type, result_type] = type_arguments else {
+            return Err(error(
+                "E-ERROR-CONSTRUCTOR",
+                span,
+                "error constructor needs explicit error and result types",
+            ));
+        };
+        let [payload] = arguments else {
+            return Err(error(
+                "E-CALL-ARITY",
+                span,
+                "error constructor needs one complete payload",
+            ));
+        };
+        let union = Type::ErrorUnion {
+            error: Box::new(error_type.clone()),
+            result: Box::new(result_type.clone()),
+        };
+        if !supported(&union) {
+            return Err(unsupported(
+                span,
+                "error constructor payloads require an implemented complete ErrorUnion shape",
+            ));
+        }
+        let is_error = name == "error_err";
+        let selected = if is_error { error_type } else { result_type };
+        let (value, actual) = self.expr(payload, Some(selected))?;
+        self.same(&actual, selected, payload.span)?;
+        let value = self.value(
+            InstructionKind::MakeErrorUnion { is_error, value },
+            union.clone(),
+            span,
+        )?;
+        if let Some(expected) = expected {
+            self.same(&union, expected, span)?;
+        }
+        Ok((value, union))
+    }
+
     pub(super) fn inject_error_union(
         &mut self,
         value: ValueId,

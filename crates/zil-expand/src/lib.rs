@@ -159,6 +159,7 @@ fn primitive_name(name: &str) -> bool {
         || name == "Option"
         || name == "thread_scope"
         || name == "move_out"
+        || matches!(name, "error_ok" | "error_err")
         || integer_name(name)
         || foreign_constructor_name(name)
         || byte_buffer_name(name)
@@ -192,6 +193,13 @@ fn primitive_name_error(name: &str, span: Span) -> Diagnostic {
             "E-MOVE-OUT-NAME",
             Some(span),
             "move_out is a reserved bare stored-borrow primitive and cannot be rebound",
+        )
+    } else if matches!(name, "error_ok" | "error_err") {
+        Diagnostic::error(
+            Phase::Expand,
+            "E-ERROR-CONSTRUCTOR-NAME",
+            Some(span),
+            "bare error-union constructors cannot be rebound",
         )
     } else if name == "thread_scope" {
         Diagnostic::error(
@@ -1340,6 +1348,7 @@ impl Expander<'_> {
             || name == "c_with_callback"
             || name == "thread_scope"
             || name == "move_out"
+            || matches!(name, "error_ok" | "error_err")
         {
             self.diagnostics.push(primitive_name_error(name, span));
         }
@@ -1897,21 +1906,30 @@ impl Expander<'_> {
                         let static_path = matches!(&target.kind, s::ExprKind::Name(_))
                             || matches!(&target.kind, s::ExprKind::Member { object, member: s::MemberName::Name(_) }
                                 if matches!(&object.kind, s::ExprKind::Name(_)));
+                        let error_constructor = matches!(&target.kind,
+                            s::ExprKind::Name(name) if matches!(name.as_str(), "error_ok" | "error_err"));
                         if !static_path
-                            || types.len() != 1
-                            || !matches!(types.first(), Some(s::GenericArg::Type(_)))
+                            || types.len() != if error_constructor { 2 } else { 1 }
+                            || !types
+                                .iter()
+                                .all(|arg| matches!(arg, s::GenericArg::Type(_)))
                         {
-                            return self.expr_node(CoreExprKind::Unsupported("ordinary type application needs one type and a static direct callee".into()), e.span);
+                            return self.expr_node(CoreExprKind::Unsupported("type application has the wrong static callee or type arguments".into()), e.span);
                         }
-                        let s::GenericArg::Type(ty) = &types[0] else {
-                            unreachable!()
-                        };
                         let target = self.expr(target);
-                        let argument = self.dyn_type_ref(ty);
+                        let type_arguments = types
+                            .iter()
+                            .map(|argument| {
+                                let s::GenericArg::Type(ty) = argument else {
+                                    unreachable!()
+                                };
+                                self.dyn_type_ref(ty)
+                            })
+                            .collect();
                         self.expr_node(
                             CoreExprKind::TypeApply {
                                 callee: Box::new(target),
-                                type_arguments: vec![argument],
+                                type_arguments,
                             },
                             callee.span,
                         )

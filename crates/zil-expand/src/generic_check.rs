@@ -4161,9 +4161,59 @@ impl Check<'_, '_, '_> {
         state: &mut State,
         expected: Option<&TypeRef>,
     ) -> R<Option<TypeRef>> {
-        let ExprKind::Call { callee, .. } = &e.kind else {
+        let ExprKind::Call { callee, arguments } = &e.kind else {
             unreachable!("special call dispatcher")
         };
+        if let ExprKind::TypeApply {
+            callee: base,
+            arguments: type_arguments,
+        } = &callee.kind
+            && let ExprKind::Name(name) = &base.kind
+            && matches!(name.as_str(), "error_ok" | "error_err")
+        {
+            let [GenericArg::Type(error_type), GenericArg::Type(result_type)] =
+                type_arguments.as_slice()
+            else {
+                return Err(error(
+                    e.span,
+                    "error constructor needs explicit error and result types",
+                ));
+            };
+            let [payload] = arguments.as_slice() else {
+                return Err(error(
+                    e.span,
+                    "error constructor needs one complete payload",
+                ));
+            };
+            if payload.spread {
+                return Err(error(
+                    payload.span,
+                    "error constructor cannot spread its payload",
+                ));
+            }
+            self.budget.ty(error_type)?;
+            self.budget.ty(result_type)?;
+            let selected = if name == "error_err" {
+                error_type
+            } else {
+                result_type
+            };
+            let actual = self.expr(&payload.value, state, Some(selected), false)?;
+            role_check::same(
+                &actual,
+                selected,
+                payload.span,
+                self.class_scope,
+                self.budget,
+            )?;
+            return Ok(Some(TypeRef {
+                span: e.span,
+                kind: TypeKind::Error {
+                    error: Box::new(error_type.clone()),
+                    result: Box::new(result_type.clone()),
+                },
+            }));
+        }
         if let Some(name) =
             super::super::foreign::bare_name(callee).filter(|name| stores::primitive(name))
         {

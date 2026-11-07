@@ -1926,7 +1926,11 @@ impl<'a> Walker<'a> {
                 callee,
                 type_arguments,
             } => {
-                if type_arguments.len() != 1 || !static_type_callee(callee) {
+                let error_constructor = matches!(&callee.kind, CoreExprKind::Name(name)
+                    if matches!(name.as_str(), "error_ok" | "error_err"));
+                if type_arguments.len() != if error_constructor { 2 } else { 1 }
+                    || !static_type_callee(callee)
+                {
                     return Err(unsupported(
                         e.span,
                         "type application requires one complete type and a static function callee",
@@ -1934,7 +1938,9 @@ impl<'a> Walker<'a> {
                 }
                 // Bound metadata before copying either the vector or callee.
                 // Types still checks placement and actual complete identity.
-                self.pattern_type_shape(&type_arguments[0], depth + 1, e.span)?;
+                for argument in type_arguments {
+                    self.pattern_type_shape(argument, depth + 1, e.span)?;
+                }
                 CoreExprKind::TypeApply {
                     callee: Box::new(self.expr(callee, None, depth + 1)?),
                     type_arguments: type_arguments.clone(),

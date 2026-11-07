@@ -1075,14 +1075,18 @@ impl Collector<'_> {
                 let static_callee = matches!(&callee.kind, CoreExprKind::Name(_))
                     || matches!(&callee.kind, CoreExprKind::Member { object, .. }
                         if matches!(&object.kind, CoreExprKind::Name(_)));
-                if type_arguments.len() != 1 || !static_callee {
+                let error_constructor = matches!(&callee.kind, CoreExprKind::Name(name)
+                    if matches!(name.as_str(), "error_ok" | "error_err"));
+                if type_arguments.len() != if error_constructor { 2 } else { 1 } || !static_callee {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Ct,
                         "type application requires one complete type and a static function callee",
                         Some(e.span),
                     )]);
                 }
-                self.ty(&type_arguments[0], depth + 1)?;
+                for argument in type_arguments {
+                    self.ty(argument, depth + 1)?;
+                }
                 self.expression(module, callee, depth + 1)?;
             }
             CoreExprKind::Literal(_) if self.query => {

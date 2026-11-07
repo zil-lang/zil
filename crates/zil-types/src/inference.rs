@@ -1460,8 +1460,10 @@ fn expression_has_closure_type_apply(
             type_arguments,
         } => {
             {
+                let error_constructor = matches!(&callee.kind, CoreExprKind::Name(name)
+                    if matches!(name.as_str(), "error_ok" | "error_err"));
                 if !direct_type_callee
-                    || type_arguments.len() != 1
+                    || type_arguments.len() != if error_constructor { 2 } else { 1 }
                     || !(matches!(&callee.kind, CoreExprKind::Name(_))
                         || matches!(&callee.kind, CoreExprKind::Member { object, .. } if matches!(&object.kind, CoreExprKind::Name(_))))
                 {
