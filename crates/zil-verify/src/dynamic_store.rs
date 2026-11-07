@@ -272,6 +272,18 @@ pub(super) fn owned_capture_store(ty: &Type, budget: &mut Budget) -> Check<bool>
     Ok(false)
 }
 
+pub(super) fn inline_sum_capture(ty: &Type, budget: &mut Budget) -> Check<bool> {
+    if !budget.pod_stores
+        || !matches!(
+            ty,
+            Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+        )
+    {
+        return Ok(false);
+    }
+    owned_capture_store(ty, budget)
+}
+
 pub(super) fn check_owner_field(ty: &Type, span: Option<Span>) -> Check<()> {
     if matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. })) {
         return Err(unsupported(
@@ -432,12 +444,15 @@ pub(super) fn check_owned_capture(
     if is_carrier(ty) {
         return check_captured_store(module, ty, limits, budget);
     }
-    let Type::Package { .. } = ty else {
+    if !matches!(
+        ty,
+        Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+    ) {
         return Err(unsupported(
-            "expected a complete Store-owning Package capture",
+            "expected a complete Store-owning Product or Sum capture",
             None,
         ));
-    };
+    }
     budget.spend(1)?;
     resources::charge_payload(ty, budget)?;
     let mut pending = vec![ty];
@@ -480,7 +495,10 @@ pub(super) fn check_owned_capture(
             }
         }
     }
-    packages::check_capture_type(module, ty, None, budget)
+    match ty {
+        Type::Package { .. } => packages::check_capture_type(module, ty, None, budget),
+        _ => sums::check_type_for(module, ty, None, budget),
+    }
 }
 
 pub(super) fn check_capture_result(
