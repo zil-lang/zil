@@ -681,8 +681,22 @@ impl Content {
         if let Self::Missing(child) = self {
             return child.forget_copy_tags(ty, b);
         }
-        resources::charge_payload(ty, b)?;
-        if matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) && ty.is_copy_value() {
+        let copy_sum = match self {
+            Self::Sum(_, _)
+                if b.pod_stores && matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) =>
+            {
+                b.addressed_copy_sum(ty)?
+            }
+            Self::Product(_) if b.pod_stores => false,
+            Self::Copy | Self::Leaf(_) if b.pod_stores => {
+                return Ok(());
+            }
+            _ => {
+                resources::charge_payload(ty, b)?;
+                matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) && ty.is_copy_value()
+            }
+        };
+        if copy_sum {
             let old = self.duplicate(b)?;
             let mut unknown = content(ty, None, &mut Vec::new(), false, b)?;
             unknown.retain_missing(&old, b)?;

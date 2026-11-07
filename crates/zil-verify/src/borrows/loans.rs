@@ -599,17 +599,24 @@ fn active(
     locals: &Locals,
     live: &[bool],
     v: usize,
+    lending_values: &[usize],
     budget: &mut Budget,
 ) -> Check<Loans> {
-    budget.spend(live.len())?;
+    // The SSA loan rows are fixed after reconstruction. Visiting empty rows
+    // for every instruction performs no loan work; local rows remain dynamic.
+    budget.spend(lending_values.len().saturating_add(locals.len()))?;
     let mut active = Loans::new();
-    for (i, yes) in live.iter().enumerate() {
-        if !yes {
-            continue;
-        }
-        if i < v {
+    for &i in lending_values {
+        if live[i] {
             join(&mut active, &flow.values[i], budget)?;
-        } else if let Some(row) = locals.get(&LocalId((i - v) as u32)) {
+        }
+    }
+    for (local, row) in locals {
+        if v.checked_add(local.0 as usize)
+            .and_then(|index| live.get(index))
+            .copied()
+            .unwrap_or(false)
+        {
             join(&mut active, row, budget)?;
         }
     }
@@ -1049,6 +1056,13 @@ pub(super) fn check(
     let flow = reconstruct(module, f, graph, facts, ports, budget)?;
     let n = f.blocks.len();
     let v = f.values.len();
+    reserve(budget, &[v])?;
+    let lending_values: Vec<_> = flow
+        .values
+        .iter()
+        .enumerate()
+        .filter_map(|(i, loans)| (!loans.is_empty()).then_some(i))
+        .collect();
     let width = v
         .checked_add(f.locals.len())
         .ok_or_else(|| limit("loan liveness overflow"))?;
@@ -1112,7 +1126,7 @@ pub(super) fn check(
             BTreeSet::new()
         };
         for (i, instruction) in block.instructions.iter().enumerate() {
-            let mut active = active(&flow, f, &locals, &after[i], v, budget)?;
+            let mut active = active(&flow, f, &locals, &after[i], v, &lending_values, budget)?;
             // Owning values retain their ports until an executable transfer or
             // destruction, including SSA values with no future use.
             for owner in &retained_owners {

@@ -34,7 +34,11 @@
 //! }
 //! ```
 
-use std::{collections::BTreeSet, fmt, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+    sync::Arc,
+};
 use zil_base::{
     CompileResult, Diagnostic, Fingerprint, Limits, Phase, RULE_VERSION, SCHEMA_VERSION, Span,
     TargetProfile,
@@ -322,6 +326,7 @@ fn limit(message: impl Into<String>) -> Diagnostic {
 
 struct Budget {
     remaining: usize,
+    addressed_copy_sums: BTreeMap<usize, bool>,
     // Derived from raw instructions; only avoids work in unaffected modules.
     static_utf8: bool,
     pod_stores: bool,
@@ -373,6 +378,7 @@ impl Budget {
     fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
+            addressed_copy_sums: BTreeMap::new(),
             static_utf8: false,
             pod_stores: false,
             inline_store_roots: BTreeSet::new(),
@@ -419,6 +425,26 @@ impl Budget {
             .checked_sub(amount)
             .ok_or_else(|| limit("independent verification work budget exhausted"))?;
         Ok(())
+    }
+    // Callers pass immutable local Type trees from the checked module; their
+    // nodes keep these addresses for this verification request. The first
+    // query pays for the complete tree walk, and each lookup pays for the map.
+    fn addressed_copy_sum(&mut self, ty: &Type) -> Check<bool> {
+        self.spend(
+            self.addressed_copy_sums
+                .len()
+                .checked_ilog2()
+                .map_or(1, |n| n as usize + 2),
+        )?;
+        let key = ty as *const Type as usize;
+        if let Some(copy) = self.addressed_copy_sums.get(&key) {
+            return Ok(*copy);
+        }
+        resources::charge_payload(ty, self)?;
+        let copy = ty.is_copy_value();
+        self.spend(1)?;
+        self.addressed_copy_sums.insert(key, copy);
+        Ok(copy)
     }
     fn inline_store_root(&mut self, ty: &Type) -> Check<bool> {
         if self.inline_store_roots.is_empty() {
