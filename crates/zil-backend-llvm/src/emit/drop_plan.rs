@@ -561,6 +561,7 @@ pub(super) fn functions(
     lir: &LirView<'_>,
     limits: &zil_base::Limits,
     enabled: bool,
+    capture_roots: &[&Type],
     entry: EntryPoint,
 ) -> CompileResult<m::Code> {
     if !enabled {
@@ -655,6 +656,17 @@ pub(super) fn functions(
             {
                 visit(ty, &mut found, &mut seen, &mut budget, true, 0)?;
             }
+        }
+    }
+    if !capture_roots.is_empty() {
+        // A captured Sum can be absent from every function local/value and
+        // callable signature, yet closure teardown still calls its drop
+        // symbol. Prepay each actual capture tree before classifying it, then
+        // force the selected tree so an ErrorUnion with a direct Store arm and
+        // every nested Package child Sum receive their concrete helpers.
+        // Legacy captures never enter this list or pay this new traversal.
+        for ty in capture_roots {
+            visit(ty, &mut found, &mut seen, &mut budget, true, 0)?;
         }
     }
     // Entry error extraction, storage, typed cleanup GEPs and helper names
