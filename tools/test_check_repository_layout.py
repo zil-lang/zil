@@ -123,11 +123,25 @@ class RepositoryLayoutTests(unittest.TestCase):
     def test_full_accepts_protocol_width_case_and_fixture_numbers(self):
         self.baseline("crates/schema-v40/src/wire_v34.rs", "tools/llvm23/check.py",
                       "tests/case_344.rs", "tests/fixture01_valid_callback.rs",
-                      "examples/m0/main.zil")
+                      "examples/m0/main.zil", "tests/fixtures/01_record.zil",
+                      "tests/cases/PLAN-T01-003.json",
+                      "tests/perf/chain-reverse-256.zil")
         source = self.root / "crates/schema-v40/src/wire_v34.rs"
         source.write_text("fn schema40_decode() {}\nfn u64_roundtrip() {}\n", encoding="utf-8")
         _, failures, _ = layout.check(full=True, root=self.root)
         self.assertEqual(failures, [])
+
+    def test_short_case_ordinal_needs_a_name_and_three_digits_fail(self):
+        self.baseline("README.md")
+        for path in ("tests/fixtures/01_record.zil", "tests/fixtures/1-record.zil",
+                     "tests/fixtures/344_record.zil", "tests/fixtures/01.zil",
+                     "tests/fixtures/01_2.zil"):
+            self.write(path)
+        _, failures, _ = layout.check(full=True, root=self.root)
+        self.assertEqual({path for path, _ in failures}, {
+            "tests/fixtures/344_record.zil", "tests/fixtures/01.zil",
+            "tests/fixtures/01_2.zil",
+        })
 
     def test_full_scans_existing_production_declarations(self):
         self.baseline("crates/compiler/src/lib.rs", "tools/check.py")
