@@ -1353,6 +1353,9 @@ impl Visitor<'_, '_, '_> {
             }
             ItemKind::TypeAlias(a) => {
                 self.declaration_name(&mut a.name, top, item.span)?;
+                for bound in &mut a.bounds {
+                    self.ty(bound, &types, depth + 1)?;
+                }
                 if let Some(t) = &mut a.value {
                     self.ty(t, &types, depth + 1)?;
                 }
@@ -1366,6 +1369,30 @@ impl Visitor<'_, '_, '_> {
                 }
             }
             ItemKind::Impl(i) => {
+                for parameter in &mut i.generics {
+                    match &mut parameter.kind {
+                        GenericParamKind::Type(bounds) => {
+                            for bound in bounds {
+                                self.ty(bound, &types, depth + 1)?;
+                            }
+                        }
+                        GenericParamKind::Const(ty) => self.ty(ty, &types, depth + 1)?,
+                        GenericParamKind::Lifetime => {}
+                    }
+                }
+                for clause in &mut i.where_clause {
+                    self.budget.node(clause.span, depth + 1)?;
+                    match &mut clause.subject {
+                        BoundSubject::Type(subject) => self.ty(subject, &types, depth + 1)?,
+                        BoundSubject::Lifetime(name) => self.budget.text(name, clause.span)?,
+                    }
+                    for bound in &mut clause.bounds {
+                        self.ty(bound, &types, depth + 1)?;
+                    }
+                    if let Some(name) = &clause.lifetime_bound {
+                        self.budget.text(name, clause.span)?;
+                    }
+                }
                 self.ty(&mut i.target, &types, depth + 1)?;
                 if let Some(t) = &mut i.trait_type {
                     self.ty(t, &types, depth + 1)?;

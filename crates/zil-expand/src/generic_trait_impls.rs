@@ -196,11 +196,38 @@ impl<'a> Engine<'a> {
                         self.budget.ty(actual)?;
                         substitutions.insert(parameter.name.clone(), actual.clone());
                     }
-                    for bound in &alias.bounds {
-                        self.budget.substituted_type(bound, &substitutions)?;
+                    let mut own_bounds = None;
+                    for candidate in &implementation.members {
+                        self.budget.node(candidate.span, 0)?;
+                        if let ItemKind::TypeAlias(own) = &candidate.kind {
+                            self.budget.text(&own.name, candidate.span)?;
+                            self.budget.text(&alias.name, member.span)?;
+                            if own.name == alias.name {
+                                own_bounds = Some(own.bounds.as_slice());
+                                break;
+                            }
+                        }
+                    }
+                    let own_substitutions =
+                        BTreeMap::from([("Self".to_owned(), implementation.target.clone())]);
+                    // The trait contract and the impl's extra assertion have
+                    // different binders. In particular an impl binder may have
+                    // the same spelling as a trait parameter.
+                    for (bound, substitution) in alias
+                        .bounds
+                        .iter()
+                        .map(|bound| (bound, &substitutions))
+                        .chain(
+                            own_bounds
+                                .into_iter()
+                                .flatten()
+                                .map(|bound| (bound, &own_substitutions)),
+                        )
+                    {
+                        self.budget.substituted_type(bound, substitution)?;
                         let mut bound = bound.clone();
                         Substitution {
-                            substitutions: &substitutions,
+                            substitutions: substitution,
                         }
                         .ty(&mut bound);
                         if copy::is_bound(&bound) {

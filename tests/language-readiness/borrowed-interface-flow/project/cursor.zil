@@ -7,7 +7,7 @@ pub fn make<T:Copy>(first:T,second:T)->ArrayCursor<T>{
 }
 
 impl<T:Copy> api.LendingIterator for ArrayCursor<T>{
-    type Item=T;
+    type Item:Copy=T;
     fn next<life p>(self:&'p mut Self)->Option<&'p T>{
         if self.index>=2usize{return Option::<&'p T>.None()}
         let i=self.index;
