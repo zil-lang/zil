@@ -1961,7 +1961,22 @@ impl Flow<'_> {
                             && (matches!(ty, Type::Package { .. })
                                 || matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()));
                         if shared_owned && matches!(ty, Type::Package { .. }) {
-                            product::admit(ty, budget)?;
+                            let direct_store = if budget.pod_stores {
+                                let Type::Package { fields, .. } = ty else {
+                                    unreachable!()
+                                };
+                                budget.spend(fields.len(), "borrowed ordinary Store field scan")?;
+                                fields
+                                    .iter()
+                                    .any(|(_, field)| crate::ownership_store::pod_owned(field))
+                            } else {
+                                false
+                            };
+                            if direct_store || budget.ordinary_pod_store_type(ty)? {
+                                product::admit_owned(self.module, ty, budget)?;
+                            } else {
+                                product::admit(ty, budget)?;
+                            }
                         }
                         if (!ty.is_copy_value() && !matches!(ty, Type::Closure(_)) && !shared_owned)
                             || (mutable && !decl.mutable)
@@ -2156,7 +2171,11 @@ impl Flow<'_> {
                     if matches!(f.locals[local.0 as usize].ty, Type::Package { .. }) =>
                 {
                     let ty = &f.locals[local.0 as usize].ty;
-                    product::admit(ty, budget)?;
+                    if budget.ordinary_pod_store_type(ty)? {
+                        product::admit_owned(self.module, ty, budget)?;
+                    } else {
+                        product::admit(ty, budget)?;
+                    }
                     let Type::Package { fields, .. } = ty else {
                         unreachable!("Package borrow")
                     };
