@@ -1,5 +1,5 @@
-# 当前施工进度
+# 2026-11-02 施工进度记录
 
-拥有Event/dispatch/Reply与规定范围内的回调原值转交已合入主线；实际main `9aeffc11` 的两组完整CI已独立核回。当前257–262并行完成Type/Syntax及ZUI生成前置，仍为施工，之后接长期外部生命周期。
+当时拥有Event/dispatch/Reply与规定范围内的回调原值转交已合入主线；实际main `9aeffc11` 的两组完整CI已独立核回。257–262当时并行完成Type/Syntax及ZUI生成前置，之后接长期外部生命周期。
 
-精确提交、验收、环境和接续入口见[CURRENT-HANDOFF](CURRENT-HANDOFF.md)；分工见主树[_zil_goal.md](../_zil_goal.md)和`.task/impl/257.md`至`262.md`。完整语言/ZUI与产品门尚未完成，不以测试计数代替功能结论。
+当时精确提交、验收、环境和接续入口见[CURRENT-HANDOFF](CURRENT-HANDOFF.md)；257–262的施工记录在[固定提交的任务历史](https://github.com/zil-lang/zil/tree/a613756467fdd03d7329b6eee03f1bad957404f8/.task/impl)中。当前分工和状态只读独立[goal 分支](https://github.com/zil-lang/zil/blob/goal/goal.md)。本记录不将测试计数当作完整语言/ZUI与产品门结论。
