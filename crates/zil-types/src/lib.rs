@@ -2113,33 +2113,45 @@ impl<'a, 'c> Builder<'a, 'c> {
         expected: Option<&Type>,
         span: Span,
     ) -> R<(ValueId, Type)> {
-        let result = {
-            if arguments.len() != signature.parameters.len() {
-                return Err(error(
-                    "E-CALL-ARITY",
-                    span,
-                    format!(
-                        "{} arguments required, {} supplied",
-                        signature.parameters.len(),
-                        arguments.len()
-                    ),
-                ));
-            }
-            let mut values = vec![];
-            for (a, t) in arguments.iter().zip(&signature.parameters) {
-                let (v, actual) = self.argument_expr(a, t)?;
-                self.same(&actual, t, a.span)?;
-                values.push(self.stage_argument(v, &actual, a.span)?)
-            }
-            let values = self.commit_arguments(values, span)?;
-            let call = self.direct_call(signature, values, span)?;
-            if signature.result == Type::Unit {
-                self.emit(call, None, span)?;
-                self.constant(Constant::Unit, span)?
-            } else {
-                let id = self.value(call, signature.result.clone(), span)?;
-                (id, signature.result.clone())
-            }
+        if arguments.len() != signature.parameters.len() {
+            return Err(error(
+                "E-CALL-ARITY",
+                span,
+                format!(
+                    "{} arguments required, {} supplied",
+                    signature.parameters.len(),
+                    arguments.len()
+                ),
+            ));
+        }
+        let mut values = vec![];
+        for (a, t) in arguments.iter().zip(&signature.parameters) {
+            let (v, actual) = self.argument_expr(a, t)?;
+            self.same(&actual, t, a.span)?;
+            values.push(self.stage_argument(v, &actual, a.span)?)
+        }
+        self.finish_direct_call(signature, values, expected, span)
+    }
+
+    // Recursive arguments must finish before reserving the large instruction
+    // temporaries used to commit and emit a call. Otherwise every nested call
+    // retains that unrelated storage on the ordinary API worker stack.
+    #[inline(never)]
+    fn finish_direct_call(
+        &mut self,
+        signature: &Signature,
+        values: Vec<(ValueId, Option<LocalId>)>,
+        expected: Option<&Type>,
+        span: Span,
+    ) -> R<(ValueId, Type)> {
+        let values = self.commit_arguments(values, span)?;
+        let call = self.direct_call(signature, values, span)?;
+        let result = if signature.result == Type::Unit {
+            self.emit(call, None, span)?;
+            self.constant(Constant::Unit, span)?
+        } else {
+            let id = self.value(call, signature.result.clone(), span)?;
+            (id, signature.result.clone())
         };
         if let Some(expected) = expected {
             self.same(&result.1, expected, span)?;
