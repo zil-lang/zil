@@ -614,6 +614,20 @@ fn shared_dyn_cannot_call_mutable_slot_or_create_exclusive_dyn() {
 }
 
 #[test]
+fn arithmetic_provider_cannot_claim_an_empty_dyn_effect_set() {
+    let source = "trait Change{fn step(self:&mut Self)->();}struct A{n:i32}impl Change for A{fn step(self:&mut Self)->(){self.n+=1;return ()}}fn main()->i32{var a=A{n:1};let d:&mut dyn Change=&mut a;d.step();return a.n}";
+    let report = compile(source, &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 0);
+}
+
+#[test]
 fn explicit_exclusive_dyn_local_retains_real_owner() {
     let source = format!(
         "{MUTABLE_PREFIX}fn main()->i32{{var a=A{{n:1}};let d:&mut dyn Change=&mut a;d.set(5);return a.n}}"
