@@ -4310,6 +4310,85 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             return self.known_term(&Type::Tuple(vec![Type::I32, Type::Bool]), span);
         }
         if let CoreExprKind::Name(name) = &callee.kind
+            && let Some(kind) = scoped_thread::wide_compare_exchange_kind(name)
+        {
+            self.budget.node(depth + 1, callee.span)?;
+            self.expression_index += 1;
+            if arguments.len() != 3 {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "wide atomic compare_exchange requires three arguments",
+                ));
+            }
+            let address = scoped_thread::sync_address(kind);
+            let integer = scoped_thread::integer_type(kind);
+            for (index, argument) in arguments.iter().enumerate() {
+                let wanted = if index == 0 { &address } else { &integer };
+                let term = self.expr_expected(argument, Some(wanted), depth + 1, false)?;
+                self.bind_term(&term, wanted, argument.span)?;
+            }
+            return self.known_term(&Type::Tuple(vec![integer, Type::Bool]), span);
+        }
+        if let CoreExprKind::Name(name) = &callee.kind
+            && let Some((kind, op)) = scoped_thread::wide_primitive(name)
+        {
+            self.budget.node(depth + 1, callee.span)?;
+            self.expression_index += 1;
+            let address = scoped_thread::sync_address(kind);
+            let integer = scoped_thread::integer_type(kind);
+            let result = if let Some(op) = op {
+                let arity = if op == SyncIntegerOp::Load { 1 } else { 2 };
+                if arguments.len() != arity {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "incorrect wide atomic operation arity",
+                    ));
+                }
+                for (index, argument) in arguments.iter().enumerate() {
+                    let wanted = if index == 0 { &address } else { &integer };
+                    let term = self.expr_expected(argument, Some(wanted), depth + 1, false)?;
+                    self.bind_term(&term, wanted, argument.span)?;
+                }
+                if op == SyncIntegerOp::Store {
+                    Type::Unit
+                } else {
+                    integer
+                }
+            } else {
+                let [initial, body] = arguments.as_slice() else {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "wide atomic scope requires initial integer and body",
+                    ));
+                };
+                let term = self.expr_expected(initial, Some(&integer), depth + 1, false)?;
+                self.bind_term(&term, &integer, initial.span)?;
+                let Term::Closure(id) = self.expr(body, depth + 1, false)? else {
+                    return Err(error(
+                        "E-SYNC-BODY",
+                        body.span,
+                        "wide atomic scope requires concrete closure",
+                    ));
+                };
+                if self.closures[id].parameters.len() != 1 {
+                    return Err(error(
+                        "E-SYNC-BODY",
+                        body.span,
+                        "wide atomic scope body takes one sealed cell address",
+                    ));
+                }
+                self.graph
+                    .bind(self.closures[id].parameters[0], &address, body.span)?;
+                self.graph
+                    .bind(self.closures[id].result, &Type::I32, body.span)?;
+                Type::Tuple(vec![Type::Bool, Type::I32])
+            };
+            return self.known_term(&result, span);
+        }
+        if let CoreExprKind::Name(name) = &callee.kind
             && let Some((kind, op)) = scoped_thread::sync_primitive(name)
         {
             self.budget.node(depth + 1, callee.span)?;

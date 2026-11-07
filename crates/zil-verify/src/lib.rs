@@ -2130,13 +2130,6 @@ fn check_instruction(
         stored_flow::instruction_work(function, instruction, budget)?;
     }
     let expected = match &instruction.kind {
-        InstructionKind::SyncInteger { .. }
-        | InstructionKind::SyncIntegerCompareExchange { .. } => {
-            return Err(unsupported(
-                "wide atomic operation awaits independent validation",
-                span,
-            ));
-        }
         InstructionKind::AsyncRegistrationStart { .. }
         | InstructionKind::AsyncRegistrationValid { .. }
         | InstructionKind::AsyncRegistrationRequestClose { .. }
@@ -2325,7 +2318,9 @@ fn check_instruction(
         }
         InstructionKind::WithSyncCell { .. }
         | InstructionKind::SyncI32 { .. }
-        | InstructionKind::SyncI32CompareExchange { .. } => {
+        | InstructionKind::SyncI32CompareExchange { .. }
+        | InstructionKind::SyncInteger { .. }
+        | InstructionKind::SyncIntegerCompareExchange { .. } => {
             scoped_thread::sync_instruction(module, function, instruction, budget)?
         }
         InstructionKind::MutexCreate { .. }

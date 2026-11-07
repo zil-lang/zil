@@ -130,6 +130,249 @@ fn generic_mutex_forged_reserved_resource_is_rejected() {
     assert!(errors[0].message.contains("mutex identity"), "{errors:?}");
 }
 #[test]
+fn wide_atomic_native_candidate() {
+    for (name, kind, suffix, literal) in [
+        ("i64", "AtomicI64", "i64", "i64"),
+        ("u64", "AtomicU64", "u64", "u64"),
+        ("usize", "AtomicUsize", "usize", "usize"),
+    ] {
+        let src = source(&format!(
+            "fn main()->i32{{let(ok,value)=atomic_{suffix}_scope({literal}(7),(cell:&{kind})->i32=>{{let old=atomic_{suffix}_fetch_add(cell,{literal}(2));if old!={literal}(7){{return 1}}let(observed,exchanged)=atomic_{suffix}_compare_exchange(cell,{literal}(9),{literal}(11));if !exchanged||observed!={literal}(9){{return 2}}atomic_{suffix}_store(cell,{literal}(13));if atomic_{suffix}_load(cell)!={literal}(13){{return 3}}return 0}});if !ok{{return 4}}return value}}"
+        ));
+        check_mutex_native(&src, name);
+    }
+}
+#[test]
+fn wide_atomic_thread_shared_native_candidate() {
+    for (name, kind, suffix, literal) in [
+        ("i64", "AtomicI64", "i64", "i64"),
+        ("u64", "AtomicU64", "u64", "u64"),
+        ("usize", "AtomicUsize", "usize", "usize"),
+    ] {
+        let src = source(&format!(
+            "fn worker(cell:&{kind})->i32{{atomic_{suffix}_fetch_add(cell,{literal}(1));return 0}}fn main()->i32{{let(ok,value)=atomic_{suffix}_scope({literal}(0),(cell:&{kind})->i32=>{{let(created,child,parent)=thread_scope(worker,cell,()->i32=>{{atomic_{suffix}_fetch_add(cell,{literal}(1));return 0}});if !created{{return 1}}if atomic_{suffix}_load(cell)!={literal}(2){{return 2}}return child+parent}});if !ok{{return 3}}return value}}"
+        ));
+        check_mutex_native(&src, &format!("wide-atomic-thread-{name}"));
+    }
+}
+#[test]
+fn wide_atomic_raw_width_and_order_are_rejected_by_both_kernels() {
+    use zil_ir::{
+        AtomicOrdering as O, InstructionKind as I, SyncCellKind, SyncI32Op, SyncIntegerOp, Type,
+    };
+    let src = source(
+        "fn main()->i32{let(ok,value)=atomic_i64_scope(i64(7),(cell:&AtomicI64)->i32=>{let old=atomic_i64_load(cell);let before=atomic_i64_fetch_add(cell,i64(1));atomic_i64_store(cell,i64(8));let(observed,changed)=atomic_i64_compare_exchange(cell,i64(8),i64(9));if changed&&old==i64(7)&&before==i64(7)&&observed==i64(8){return 0}return 1});if !ok{return 2}return value}",
+    );
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let typed = zil_types::check(
+        &core,
+        &zil_base::TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap();
+    let plan = zil_analyze::analyze(&typed, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        typed.clone(),
+        plan.clone(),
+        &zil_base::TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap();
+    for case in 0..4 {
+        let mut raw = typed.clone();
+        let instruction = raw
+            .functions
+            .iter_mut()
+            .flat_map(|f| &mut f.blocks)
+            .flat_map(|b| &mut b.instructions)
+            .find(|i| match (case, &i.kind) {
+                (
+                    0 | 1 | 2,
+                    I::SyncInteger {
+                        op: SyncIntegerOp::Load,
+                        ..
+                    },
+                ) => true,
+                (3, I::SyncIntegerCompareExchange { .. }) => true,
+                _ => false,
+            })
+            .unwrap();
+        match (&mut instruction.kind, case) {
+            (I::SyncInteger { ordering, .. }, 0) => *ordering = O::Release,
+            (I::SyncInteger { address, .. }, 1) => *address = zil_ir::ValueId(u32::MAX),
+            (I::SyncInteger { address, .. }, 2) => {
+                instruction.kind = I::SyncI32 {
+                    op: SyncI32Op::Load,
+                    address: *address,
+                    value: None,
+                    ordering: O::SeqCst,
+                }
+            }
+            (
+                I::SyncIntegerCompareExchange {
+                    success, failure, ..
+                },
+                3,
+            ) => {
+                *success = O::Relaxed;
+                *failure = O::Acquire;
+            }
+            _ => unreachable!(),
+        }
+        let analyzed = zil_analyze::analyze(&raw, &Limits::default()).unwrap_err();
+        assert_eq!(
+            analyzed[0].category,
+            ResultCategory::SafeReject,
+            "case {case}: {analyzed:?}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        let verified = zil_verify::verify_module(
+            raw,
+            claim,
+            &zil_base::TargetProfile::default(),
+            &Limits::default(),
+        )
+        .unwrap_err();
+        assert_eq!(
+            verified[0].category,
+            ResultCategory::SafeReject,
+            "case {case}: {verified:?}"
+        );
+    }
+    let mut mismatched = typed.clone();
+    let (function_index, address) = mismatched
+        .functions
+        .iter()
+        .enumerate()
+        .find_map(|(index, f)| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .find_map(|instruction| {
+                    if let I::SyncInteger {
+                        op: SyncIntegerOp::Load,
+                        address,
+                        ..
+                    } = instruction.kind
+                    {
+                        Some((index, address))
+                    } else {
+                        None
+                    }
+                })
+        })
+        .unwrap();
+    mismatched.functions[function_index].values[address.0 as usize] = Type::Address {
+        mutable: false,
+        inner: Box::new(Type::SyncCell(SyncCellKind::AtomicI32)),
+    };
+    assert_eq!(
+        zil_analyze::analyze(&mismatched, &Limits::default()).unwrap_err()[0].category,
+        ResultCategory::SafeReject
+    );
+    let mut claim = plan.clone();
+    claim.module_fingerprint = mismatched.fingerprint();
+    assert_eq!(
+        zil_verify::verify_module(
+            mismatched,
+            claim,
+            &zil_base::TargetProfile::default(),
+            &Limits::default()
+        )
+        .unwrap_err()[0]
+            .category,
+        ResultCategory::SafeReject
+    );
+    for (op, admitted) in [
+        (SyncIntegerOp::Load, [true, true, false, false, true]),
+        (SyncIntegerOp::Store, [true, false, true, false, true]),
+        (SyncIntegerOp::FetchAdd, [true; 5]),
+    ] {
+        for (index, order) in [O::Relaxed, O::Acquire, O::Release, O::AcqRel, O::SeqCst]
+            .into_iter()
+            .enumerate()
+        {
+            let mut raw = typed.clone();
+            let instruction = raw
+                .functions
+                .iter_mut()
+                .flat_map(|f| &mut f.blocks)
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| matches!(i.kind, I::SyncInteger { op: actual, .. } if actual == op))
+                .unwrap();
+            let I::SyncInteger { ordering, .. } = &mut instruction.kind else {
+                unreachable!()
+            };
+            *ordering = order;
+            assert_eq!(
+                zil_analyze::analyze(&raw, &Limits::default()).is_ok(),
+                admitted[index],
+                "{op:?}/{order:?} Analyze"
+            );
+            let mut claim = plan.clone();
+            claim.module_fingerprint = raw.fingerprint();
+            let verified = zil_verify::verify_module(
+                raw,
+                claim,
+                &zil_base::TargetProfile::default(),
+                &Limits::default(),
+            );
+            assert_eq!(
+                verified.is_ok(),
+                admitted[index],
+                "{op:?}/{order:?} Verify: {verified:?}"
+            );
+        }
+    }
+    for success in [O::Relaxed, O::Acquire, O::Release, O::AcqRel, O::SeqCst] {
+        for failure in [O::Relaxed, O::Acquire, O::Release, O::AcqRel, O::SeqCst] {
+            let mut raw = typed.clone();
+            let instruction = raw
+                .functions
+                .iter_mut()
+                .flat_map(|f| &mut f.blocks)
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| matches!(i.kind, I::SyncIntegerCompareExchange { .. }))
+                .unwrap();
+            let I::SyncIntegerCompareExchange {
+                success: actual_success,
+                failure: actual_failure,
+                ..
+            } = &mut instruction.kind
+            else {
+                unreachable!()
+            };
+            *actual_success = success;
+            *actual_failure = failure;
+            let admitted = match success {
+                O::Relaxed | O::Release => failure == O::Relaxed,
+                O::Acquire | O::AcqRel => matches!(failure, O::Relaxed | O::Acquire),
+                O::SeqCst => matches!(failure, O::Relaxed | O::Acquire | O::SeqCst),
+            };
+            assert_eq!(
+                zil_analyze::analyze(&raw, &Limits::default()).is_ok(),
+                admitted,
+                "{success:?}/{failure:?} Analyze"
+            );
+            let mut claim = plan.clone();
+            claim.module_fingerprint = raw.fingerprint();
+            assert_eq!(
+                zil_verify::verify_module(
+                    raw,
+                    claim,
+                    &zil_base::TargetProfile::default(),
+                    &Limits::default()
+                )
+                .is_ok(),
+                admitted,
+                "{success:?}/{failure:?} Verify"
+            );
+        }
+    }
+}
+#[test]
 fn generic_mutex_thread_candidate() {
     let src = source(
         "fn worker(cell:Mutex<i32>)->i32{var guard=mutex_lock(cell);let value=mutex_value(&mut guard);*value+=1;return 0}fn run(cell:Mutex<i32>)->i32{let (created,child,parent)=thread_scope(worker,cell,()->i32=>worker(cell));if !created{return 1}var guard=mutex_lock(cell);let value=mutex_value(&mut guard);let result=*value;return result-2+child+parent}fn entry()->MutexCreateError!i32{let cell=mutex_create(0)?;return run(cell)}fn main()->i32{match entry(){.ok(value)=>{return value},.err(_)=>{return 1}}}",

@@ -31,6 +31,45 @@ pub(super) fn sync_primitive(name: &str) -> Option<(SyncCellKind, Option<SyncI32
     })
 }
 
+pub(super) fn wide_primitive(name: &str) -> Option<(SyncCellKind, Option<SyncIntegerOp>)> {
+    let (kind, suffix) = if let Some(suffix) = name.strip_prefix("atomic_i64_") {
+        (SyncCellKind::AtomicI64, suffix)
+    } else if let Some(suffix) = name.strip_prefix("atomic_u64_") {
+        (SyncCellKind::AtomicU64, suffix)
+    } else {
+        (
+            SyncCellKind::AtomicUsize,
+            name.strip_prefix("atomic_usize_")?,
+        )
+    };
+    let op = match suffix {
+        "scope" => None,
+        "load" => Some(SyncIntegerOp::Load),
+        "store" => Some(SyncIntegerOp::Store),
+        "fetch_add" => Some(SyncIntegerOp::FetchAdd),
+        _ => return None,
+    };
+    Some((kind, op))
+}
+
+pub(super) fn wide_compare_exchange_kind(name: &str) -> Option<SyncCellKind> {
+    Some(match name {
+        "atomic_i64_compare_exchange" => SyncCellKind::AtomicI64,
+        "atomic_u64_compare_exchange" => SyncCellKind::AtomicU64,
+        "atomic_usize_compare_exchange" => SyncCellKind::AtomicUsize,
+        _ => return None,
+    })
+}
+
+pub(super) fn integer_type(kind: SyncCellKind) -> Type {
+    match kind {
+        SyncCellKind::AtomicI64 => Type::I64,
+        SyncCellKind::AtomicU64 => Type::U64,
+        SyncCellKind::AtomicUsize => Type::Usize,
+        SyncCellKind::AtomicI32 | SyncCellKind::MutexI32 => Type::I32,
+    }
+}
+
 pub(super) fn sync_address(kind: SyncCellKind) -> Type {
     Type::Address {
         mutable: false,
@@ -39,6 +78,139 @@ pub(super) fn sync_address(kind: SyncCellKind) -> Type {
 }
 
 impl Builder<'_, '_> {
+    pub(super) fn wide_compare_exchange_call(
+        &mut self,
+        kind: SyncCellKind,
+        arguments: &[CoreExpr],
+        expected: Option<&Type>,
+        span: Span,
+    ) -> R<(ValueId, Type)> {
+        let [address, old, new] = arguments else {
+            return Err(error(
+                "E-CALL-ARITY",
+                span,
+                "wide atomic compare_exchange requires three arguments",
+            ));
+        };
+        let address_ty = sync_address(kind);
+        let integer = integer_type(kind);
+        let address_span = address.span;
+        let (address, actual) = self.expr(address, Some(&address_ty))?;
+        self.same(&actual, &address_ty, address_span)?;
+        let (expected_value, actual) = self.expr(old, Some(&integer))?;
+        self.same(&actual, &integer, old.span)?;
+        let (desired, actual) = self.expr(new, Some(&integer))?;
+        self.same(&actual, &integer, new.span)?;
+        let ty = Type::Tuple(vec![integer, Type::Bool]);
+        if let Some(wanted) = expected {
+            self.same(&ty, wanted, span)?;
+        }
+        let value = self.value(
+            InstructionKind::SyncIntegerCompareExchange {
+                address,
+                expected: expected_value,
+                desired,
+                success: AtomicOrdering::SeqCst,
+                failure: AtomicOrdering::SeqCst,
+            },
+            ty.clone(),
+            span,
+        )?;
+        Ok((value, ty))
+    }
+    pub(super) fn wide_sync_call(
+        &mut self,
+        kind: SyncCellKind,
+        op: Option<SyncIntegerOp>,
+        arguments: &[CoreExpr],
+        expected: Option<&Type>,
+        span: Span,
+    ) -> R<(ValueId, Type)> {
+        let integer = integer_type(kind);
+        if let Some(op) = op {
+            let arity = if op == SyncIntegerOp::Load { 1 } else { 2 };
+            if arguments.len() != arity {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "incorrect wide atomic operation arity",
+                ));
+            }
+            let address_ty = sync_address(kind);
+            let (address, actual) = self.expr(&arguments[0], Some(&address_ty))?;
+            self.same(&actual, &address_ty, arguments[0].span)?;
+            let value = if let Some(argument) = arguments.get(1) {
+                let (value, actual) = self.expr(argument, Some(&integer))?;
+                self.same(&actual, &integer, argument.span)?;
+                Some(value)
+            } else {
+                None
+            };
+            let ty = if op == SyncIntegerOp::Store {
+                Type::Unit
+            } else {
+                integer
+            };
+            if let Some(wanted) = expected {
+                self.same(&ty, wanted, span)?;
+            }
+            let value = self.value(
+                InstructionKind::SyncInteger {
+                    op,
+                    address,
+                    value,
+                    ordering: AtomicOrdering::SeqCst,
+                },
+                ty.clone(),
+                span,
+            )?;
+            return Ok((value, ty));
+        }
+        let [initial, body] = arguments else {
+            return Err(error(
+                "E-CALL-ARITY",
+                span,
+                "wide atomic scope requires initial integer and body",
+            ));
+        };
+        let (initial_value, initial_ty) = self.expr(initial, Some(&integer))?;
+        self.same(&initial_ty, &integer, initial.span)?;
+        let (body_value, body_ty) = self.transfer_expr(body, None)?;
+        let Type::Closure(id) = body_ty else {
+            return Err(error(
+                "E-SYNC-BODY",
+                body.span,
+                "wide atomic scope requires concrete closure",
+            ));
+        };
+        self.closures.snapshot(1, span)?;
+        if self.closures.pending[id.0 as usize].inference.arity() != 1
+            || self.closures.thread_parameter(id, 0)?.as_ref() != Some(&sync_address(kind))
+        {
+            return Err(error(
+                "E-SYNC-BODY",
+                body.span,
+                "wide atomic scope body takes matching sealed address",
+            ));
+        }
+        self.closures
+            .thread_expect_result(id, &Type::I32, body.span)?;
+        self.materialize_closure(id)?;
+        let ty = Type::Tuple(vec![Type::Bool, Type::I32]);
+        if let Some(wanted) = expected {
+            self.same(&ty, wanted, span)?;
+        }
+        let value = self.value(
+            InstructionKind::WithSyncCell {
+                kind,
+                initial: initial_value,
+                body: body_value,
+            },
+            ty.clone(),
+            span,
+        )?;
+        Ok((value, ty))
+    }
     pub(super) fn compare_exchange_call(
         &mut self,
         arguments: &[CoreExpr],

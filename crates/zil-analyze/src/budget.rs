@@ -1799,6 +1799,12 @@ pub(super) fn preflight(
                         expected,
                         desired,
                         ..
+                    }
+                    | InstructionKind::SyncIntegerCompareExchange {
+                        address,
+                        expected,
+                        desired,
+                        ..
                     } => {
                         budget.input(6, "strong compare exchange operands and order pair")?;
                         if [address, expected, desired]
@@ -1809,7 +1815,8 @@ pub(super) fn preflight(
                         }
                         budget.scoped_threads = true;
                     }
-                    InstructionKind::SyncI32 { address, value, .. } => {
+                    InstructionKind::SyncI32 { address, value, .. }
+                    | InstructionKind::SyncInteger { address, value, .. } => {
                         budget.input(3, "sealed cell operation operands")?;
                         if address.0 as usize >= function.values.len()
                             || value.is_some_and(|value| value.0 as usize >= function.values.len())

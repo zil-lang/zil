@@ -4317,6 +4317,141 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             return self.known(&Type::Tuple(vec![Type::I32, Type::Bool]), span);
         }
         if let CoreExprKind::Name(name) = &callee.kind
+            && let Some(kind) = scoped_thread::wide_compare_exchange_kind(name)
+        {
+            self.visit(depth + 1, callee.span)?;
+            self.graph.spend_count(8, span)?;
+            if arguments.len() != 3 {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "wide atomic compare_exchange requires three arguments",
+                ));
+            }
+            let address = scoped_thread::sync_address(kind);
+            let integer = scoped_thread::integer_type(kind);
+            for (index, argument) in arguments.iter().enumerate() {
+                let wanted = if index == 0 { &address } else { &integer };
+                let term = self.expr_expected(argument, Some(wanted), depth + 1)?;
+                self.graph.thread_work(self.work_left, |graph| {
+                    term.bind(graph, wanted, argument.span)
+                })?;
+            }
+            return self.known(&Type::Tuple(vec![integer, Type::Bool]), span);
+        }
+        if let CoreExprKind::Name(name) = &callee.kind
+            && let Some((kind, op)) = scoped_thread::wide_primitive(name)
+        {
+            self.visit(depth + 1, callee.span)?;
+            *self.work_left = self
+                .work_left
+                .checked_sub(8)
+                .ok_or_else(|| limit("wide atomic type construction budget exceeded", span))?;
+            let address = scoped_thread::sync_address(kind);
+            let integer = scoped_thread::integer_type(kind);
+            if let Some(op) = op {
+                let arity = if op == SyncIntegerOp::Load { 1 } else { 2 };
+                if arguments.len() != arity {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "incorrect wide atomic operation arity",
+                    ));
+                }
+                for (index, argument) in arguments.iter().enumerate() {
+                    let wanted = if index == 0 { &address } else { &integer };
+                    let term = self.expr_expected(argument, Some(wanted), depth + 1)?;
+                    self.graph.thread_work(self.work_left, |graph| {
+                        term.bind(graph, wanted, argument.span)
+                    })?;
+                }
+                return self.known(
+                    &if op == SyncIntegerOp::Store {
+                        Type::Unit
+                    } else {
+                        integer
+                    },
+                    span,
+                );
+            }
+            let [initial, body] = arguments.as_slice() else {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "wide atomic scope requires initial integer and body",
+                ));
+            };
+            let term = self.expr_expected(initial, Some(&integer), depth + 1)?;
+            self.graph.thread_work(self.work_left, |graph| {
+                term.bind(graph, &integer, initial.span)
+            })?;
+            let term = self.expr(body, depth + 1)?;
+            let signature = match term {
+                LocalType::Nested(index, None) => self.nested_signature(index, span)?,
+                LocalType::Scalar(variable) => self
+                    .graph
+                    .thread_query(self.work_left, |graph| graph.ty(variable))?
+                    .ok_or_else(|| {
+                        error(
+                            "E-SYNC-BODY",
+                            body.span,
+                            "wide atomic body signature is unresolved",
+                        )
+                    })?,
+                LocalType::Closure(id, None, _) => {
+                    let pending = &self.closures[id.0 as usize];
+                    if pending.inference.arity() != 1 {
+                        return Err(error(
+                            "E-SYNC-BODY",
+                            body.span,
+                            "wide atomic body takes one sealed address",
+                        ));
+                    }
+                    pending
+                        .inference
+                        .graph
+                        .thread_query(self.work_left, |graph| {
+                            let parameter =
+                                graph.ty(pending.inference.parameters[0])?.ok_or_else(|| {
+                                    error(
+                                        "E-SYNC-BODY",
+                                        body.span,
+                                        "wide atomic body parameter is unresolved",
+                                    )
+                                })?;
+                            let result = graph.ty(pending.inference.result)?.ok_or_else(|| {
+                                error(
+                                    "E-SYNC-BODY",
+                                    body.span,
+                                    "wide atomic body result is unresolved",
+                                )
+                            })?;
+                            Ok(Type::FunctionPointer {
+                                parameters: vec![parameter],
+                                result: Box::new(result),
+                            })
+                        })?
+                }
+                _ => {
+                    return Err(error(
+                        "E-SYNC-BODY",
+                        body.span,
+                        "wide atomic scope requires a concrete closure",
+                    ));
+                }
+            };
+            if !matches!(&signature, Type::FunctionPointer { parameters, result } if parameters.as_slice() == [address] && result.as_ref() == &Type::I32)
+            {
+                return Err(error(
+                    "E-SYNC-BODY",
+                    body.span,
+                    "wide atomic body has wrong sealed cell signature",
+                ));
+            }
+            self.transferred_closure(body, term);
+            return self.known(&Type::Tuple(vec![Type::Bool, Type::I32]), span);
+        }
+        if let CoreExprKind::Name(name) = &callee.kind
             && let Some((kind, op)) = scoped_thread::sync_primitive(name)
         {
             self.visit(depth + 1, callee.span)?;
