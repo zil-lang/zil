@@ -506,7 +506,35 @@ impl Slots {
         let mut desc_count = 0usize;
         let sum_extension = budget.sums;
         let head_descriptions = budget.head_descriptions;
-        let mut slot = |ty: &Type, managed: bool| {
+        let pod_stores = budget.pod_stores;
+        // Only actual Sum addresses containing an inline Store need this
+        // additional origin row. Leave old-only functions' slot inventory and
+        // traversal unchanged.
+        let (local_sum_address, value_sum_address) = if pod_stores {
+            budget.spend(f.locals.len().saturating_add(f.values.len()))?;
+            let mut local = Vec::with_capacity(f.locals.len());
+            let mut value = Vec::with_capacity(f.values.len());
+            for declaration in &f.locals {
+                local.push(match &declaration.ty {
+                    Type::Address { inner, .. } => {
+                        dynamic_store::inline_sum_capture(inner, budget)?
+                    }
+                    _ => false,
+                });
+            }
+            for ty in &f.values {
+                value.push(match ty {
+                    Type::Address { inner, .. } => {
+                        dynamic_store::inline_sum_capture(inner, budget)?
+                    }
+                    _ => false,
+                });
+            }
+            (local, value)
+        } else {
+            (Vec::new(), Vec::new())
+        };
+        let mut slot = |ty: &Type, managed: bool, sum_address: bool| {
             let count = if managed {
                 &mut debt_count
             } else {
@@ -524,6 +552,10 @@ impl Slots {
                     owned_closures[id.0 as usize]
                 } else { borrowed_closures[id.0 as usize] })
                 || (!managed && head_descriptions && (head_address(ty) || ty.is_package_address()))
+                // A projected Store head can be reached through an ordinary
+                // Sum address. Keep its actual address source through local
+                // copies until BorrowPlaceAddress selects the checked field.
+                || (!managed && sum_address)
                 || (!managed
                     && matches!(ty,
                     Type::Address { inner, .. }
@@ -543,7 +575,7 @@ impl Slots {
         let mut array_declarations = Vec::new();
         let mut managed_local = Vec::with_capacity(f.locals.len());
         for (local, declaration) in f.locals.iter().enumerate() {
-            managed_local.push(slot(&declaration.ty, true));
+            managed_local.push(slot(&declaration.ty, true, false));
             if let Type::Package { fields, .. } = &declaration.ty {
                 budget.spend(2)?;
                 package_declarations.push((local, fields));
@@ -560,9 +592,31 @@ impl Slots {
             }
         }
         let local_count = managed_local.iter().flatten().count();
-        let managed_value = f.values.iter().map(|t| slot(t, true)).collect();
-        let desc_local = f.locals.iter().map(|l| slot(&l.ty, false)).collect();
-        let desc_value = f.values.iter().map(|t| slot(t, false)).collect();
+        let managed_value = f.values.iter().map(|t| slot(t, true, false)).collect();
+        let desc_local = f
+            .locals
+            .iter()
+            .enumerate()
+            .map(|(index, local)| {
+                slot(
+                    &local.ty,
+                    false,
+                    local_sum_address.get(index).copied().unwrap_or(false),
+                )
+            })
+            .collect();
+        let desc_value = f
+            .values
+            .iter()
+            .enumerate()
+            .map(|(index, ty)| {
+                slot(
+                    ty,
+                    false,
+                    value_sum_address.get(index).copied().unwrap_or(false),
+                )
+            })
+            .collect();
         budget.spend(f.values.len())?;
         let mut package_widths = Vec::new();
         for (value, ty) in f.values.iter().enumerate() {
@@ -1708,6 +1762,34 @@ impl Transfer<'_> {
                     {
                         return Err(bad(span, "borrow reads a transferred captured closure"));
                     }
+                    if let Some(row) = instruction
+                        .result
+                        .and_then(|value| slots.desc_value[value.0 as usize])
+                    {
+                        budget.spend(1)?;
+                        state.desc[row] =
+                            BTreeSet::from([if slots.capture_debt[*index as usize].is_some() {
+                                Root::OwnedCapture(*index)
+                            } else {
+                                Root::BorrowedCapture(*index)
+                            }]);
+                    }
+                }
+                InstructionKind::BorrowPlaceAddress { address, .. } => {
+                    if let Some(dst) = instruction
+                        .result
+                        .and_then(|value| slots.desc_value[value.0 as usize])
+                    {
+                        let src = slots.desc_value[address.0 as usize].ok_or_else(|| {
+                            bad(
+                                span,
+                                "projected resource head lacks an actual address source",
+                            )
+                        })?;
+                        budget.spend(state.desc[src].len())?;
+                        state.desc[dst] =
+                            state.desc[src].iter().map(|root| root.parent()).collect();
+                    }
                 }
                 InstructionKind::DescribeCapture { index } => {
                     let debt = slots.capture_debt[*index as usize].expect("typed owned capture");
@@ -1798,10 +1880,27 @@ impl Transfer<'_> {
                         .result
                         .and_then(|v| slots.desc_value[v.0 as usize])
                     {
-                        let src =
-                            slots.desc_local[local.0 as usize].expect("typed description local");
-                        budget.spend(state.desc[src].len())?;
-                        state.desc[dst] = state.desc[src].clone();
+                        if let Some(src) = slots.desc_local[local.0 as usize] {
+                            budget.spend(state.desc[src].len())?;
+                            state.desc[dst] = state.desc[src].clone();
+                        } else if let Some(debt) = slots.managed_local[local.0 as usize]
+                            && matches!(
+                                instruction.kind,
+                                InstructionKind::BorrowLocal { .. }
+                                    | InstructionKind::BorrowLocalMut { .. }
+                            )
+                        {
+                            if validate && state.debt[debt] != LIVE {
+                                return Err(bad(
+                                    span,
+                                    "Sum address requires a live owned position",
+                                ));
+                            }
+                            budget.spend(1)?;
+                            state.desc[dst] = BTreeSet::from([Root::Local(*local)]);
+                        } else {
+                            return Err(bad(span, "resource address has no actual local source"));
+                        }
                     }
                 }
                 InstructionKind::ReborrowAddress { address, .. } => {
