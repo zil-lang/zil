@@ -1,5 +1,7 @@
 # draft22：终态差距与本轮实际推进
 
+> 历史输入与施工记录，按原提交解释；其中旧工单和计划路径不再作为当前入口。当前规范、派工及流程分别见 `_zil_design.md`、独立 `goal:goal.md` 与 `docs/WORKFLOW.md`。
+
 判据只取当前`_zil_design.md`、`_zil_goal.md`、正式工单及
 `validation/product-gates.json`，不按新增测试数估算完成百分比。四个Rust目标是
 合取条件，至少一项突破也不能抵消安全或运行结构的退步。

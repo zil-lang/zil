@@ -44,8 +44,15 @@ def zil_path():
     if not p.is_file():raise CaseFailure('compiler binary missing: '+str(p))
     return str(p.resolve())
 def result_json(proc):
-    try:return json.loads(proc.stdout)
+    try:
+        value=json.loads(proc.stdout)
+        if not isinstance(value,dict):raise CaseFailure('compiler JSON result must be an object')
+        return value
     except ValueError as ex:raise CaseFailure('compiler did not return JSON: '+proc.stdout[:400]+' '+proc.stderr[:400]) from ex
+
+def reject_reported_failure(obj):
+    for field in ('failure','failures','error','errors','failed'):
+        if obj.get(field) not in (None,'',[],{},0):raise CaseFailure('command reported '+field)
 
 def source_step(s,folder):
     src=inside(s['source'])
@@ -66,6 +73,7 @@ def source_step(s,folder):
         if output.exists():raise CaseFailure('rejected source produced executable')
         return {'executed':1,'assertions':3,'observed':d}
     if p.returncode or d.get('status')!='Success':raise CaseFailure('compiler did not succeed: '+str(d))
+    reject_reported_failure(d)
     assertions+=1
     for key in s.get('required_artifacts',[]):
         paths=d.get('artifacts',{})
@@ -96,16 +104,20 @@ def cargo_step(s,folder):
 def command_step(s,folder):
     cmd=[str(x).replace('{python}',sys.executable).replace('{root}',str(ROOT)) for x in s['command']]
     p=execute(cmd,folder,s.get('timeout',120))
-    if p.returncode!=s.get('exit_code',0):raise CaseFailure('command exit mismatch')
+    if p.returncode!=0:raise CaseFailure('command exited nonzero')
     checks=1
     for text in s.get('stdout_contains',[]):
         if text not in p.stdout:raise CaseFailure('missing stdout assertion '+text)
         checks+=1
     if s.get('result_json'):
         obj=json.loads(p.stdout)
-        if obj.get('executed',0)<1 or obj.get('assertions',0)<1:raise CaseFailure('zero execution/assertions')
-        if obj.get('status','Pass') not in ('Pass','Success') or obj.get('ok',True) is not True:raise CaseFailure('command reported a nonpassing result')
-        checks+=2
+        if not isinstance(obj,dict):raise CaseFailure('command result must be an object')
+        if type(obj.get('executed')) is not int or obj['executed']<1 or type(obj.get('assertions')) is not int or obj['assertions']<1:raise CaseFailure('zero or missing execution/assertions')
+        if 'status' not in obj and 'ok' not in obj:raise CaseFailure('command result lacks an explicit outcome')
+        if 'status' in obj and obj['status'] not in ('Pass','Success'):raise CaseFailure('command reported a nonpassing status')
+        if 'ok' in obj and obj['ok'] is not True:raise CaseFailure('command reported ok != true')
+        reject_reported_failure(obj)
+        checks+=3
     return {'executed':1,'assertions':checks}
 
 def run_step(s,folder):
@@ -157,8 +169,17 @@ def main():
     args=p.parse_args();manifest=inside(args.manifest)
     try: data=json.loads(manifest.read_text())
     except (OSError,ValueError) as ex:print(json.dumps({'status':'InfraError','reason':str(ex)}));return 2
+    if args.manifest not in ('validation/task-test-plans.json','conformance/index.json'):
+        print(json.dumps({'status':'Fail','reason':'unsupported manifest'}));return 1
+    contracts=json.loads((ROOT/'validation/engineering-contracts.json').read_text())['contracts']
+    matches=[(name,c) for name,c in contracts.items() if c.get('source_id')==args.task]
+    if len(matches)!=1:
+        print(json.dumps({'status':'Fail','selected':0,'executed':0,'assertions':0,'reason':'unknown contract'}));return 1
+    contract_key,contract=matches[0]
     cases=[c for c in data.get('cases',[]) if c.get('owner')==args.task]
-    if not cases:print(json.dumps({'status':'Fail','selected':0,'executed':0,'assertions':0,'reason':'zero selected cases'}));return 1
+    expected=set(contract['conformance_case_ids' if args.manifest=='conformance/index.json' else 'plan_case_ids'])
+    if not cases or {c.get('id') for c in cases}!=expected or len(cases)!=len(expected):
+        print(json.dumps({'status':'Fail','selected':len(cases),'executed':0,'assertions':0,'reason':'zero or incomplete case selection'}));return 1
     stamp=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+uuid.uuid4().hex[:8]
     out=inside(args.out_root)/stamp;out.mkdir(parents=True,exist_ok=False)
     frozen=json.loads((ROOT/'data/normative-inputs.json').read_text())
@@ -166,13 +187,11 @@ def main():
     normative=hashlib.sha256(''.join(name+'\0'+sha+'\n' for name,sha in sorted(hashes.items())).encode()).hexdigest()
     if normative!=frozen['normative_hash'] or hashes!=frozen['files']:
         print(json.dumps({'status':'Fail','reason':'normative inputs changed; explicit baseline refresh required'}));return 1
-    taskpath=ROOT/'.task'/f'{args.task}.md'
-    task=json.loads(re.search(r'```json\n(.*?)\n```',taskpath.read_text(),re.S).group(1)) if taskpath.is_file() else {}
-    conformance='conformance' in args.manifest
+    conformance=args.manifest=='conformance/index.json'
     results=[run_case(c,out,conformance) for c in cases]
     try:commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
     except (OSError,subprocess.CalledProcessError):commit=None
-    report={'schema_version':1,'task':args.task,'task_revision':task.get('task_revision'),'base_revision':task.get('base_revision'),'candidate_commit':commit,'run_id':stamp,'normative_hash':normative,'manifest_sha256':digest(manifest),'selected':len(cases),'executed':sum(r['attempted_steps']>0 for r in results),'passed':sum(r['status']=='Pass' for r in results),'assertions':sum(r['assertions'] for r in results),'status':'Pass' if all(r['status']=='Pass' for r in results) else 'Fail','cases':results,'result_path':str((out/'result.json').relative_to(ROOT))}
+    report={'schema_version':1,'task':args.task,'contract':contract_key,'candidate_commit':commit,'run_id':stamp,'normative_hash':normative,'manifest_sha256':digest(manifest),'selected':len(cases),'executed':sum(r['attempted_steps']>0 for r in results),'passed':sum(r['status']=='Pass' for r in results),'assertions':sum(r['assertions'] for r in results),'status':'Pass' if all(r['status']=='Pass' for r in results) else 'Fail','cases':results,'result_path':str((out/'result.json').relative_to(ROOT))}
     for key,name in [('toolchain_sha256','tools/toolchain-profile.json'),('profile_sha256','validation/product-gates.json')]:
         fp=ROOT/name;report[key]=digest(fp) if fp.is_file() else None
     write(out/'result.json',report)

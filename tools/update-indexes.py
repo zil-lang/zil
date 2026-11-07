@@ -30,15 +30,12 @@ files={p:sha(p) for p in inputs}
 canonical=''.join(p+'\0'+h+'\n' for p,h in sorted(files.items()))
 bundle=hashlib.sha256(canonical.encode()).hexdigest()
 dump('data/normative-inputs.json',{'schema_version':1,'algorithm':'sha256 of sorted path + NUL + sha256 + LF entries','files':files,'normative_hash':bundle})
-items=[]
-for p in sorted((R/'.task').glob('*.md')):
-    text=p.read_text();m=re.search(r'```json\n(.*?)\n```',text,re.S)
-    if not m:continue
-    t=json.loads(m.group(1));t['spec_hash']=files['_zil_design.md'];t['normative_hash']=bundle
-    t['case_ids']=[c['id'] for c in cases if c['owner']==t['id']]
-    text=text[:m.start(1)]+json.dumps(t,ensure_ascii=False,indent=2)+text[m.end(1):]
-    p.write_text(text);items.append(t)
-dump('data/task-index.json',{'generated_from':'.task/*.md','tasks':items})
+contracts=json.loads((R/'validation/engineering-contracts.json').read_text())['contracts']
+if len(contracts)!=14 or any(not c.get('requirements') or not c.get('done_when') for c in contracts.values()):
+    raise ValueError('static engineering contracts missing or incomplete')
 dump('data/requirement-index.json',{'generated_from':'_zil_design.md','ids':rules})
-dump('data/requirement-coverage.json',{'generated_from':'.task/*.md','coverage':{i:[t['id'] for t in items if i in t['requirements']] for i in rules}})
-print(json.dumps({'tasks':len(items),'rules':len(rules),'source_cases':len(cases),'diagnostics':len(diagnostics),'normative_hash':bundle},ensure_ascii=False))
+coverage={i:[key for key,c in contracts.items() if i in c['requirements']] for i in rules}
+if not all(coverage.values()):
+    raise ValueError('normative rule without engineering contract')
+dump('data/requirement-coverage.json',{'generated_from':'validation/engineering-contracts.json','coverage':coverage})
+print(json.dumps({'contracts':len(contracts),'rules':len(rules),'source_cases':len(cases),'diagnostics':len(diagnostics),'normative_hash':bundle},ensure_ascii=False))

@@ -6,7 +6,7 @@
 
 规范标识：ZIL-LANG-1.4。语言规则、编译器架构不变量、永久拒绝边界和产品验收条件以本文件为唯一文字定义源。`spec/grammar.ebnf` 定义文法产生式，`spec/attributes.json` 定义属性注册表，`validation/product-gates.json` 定义量化测试配置；它们是本规范的具名附件，不允许另设同名条件的第二份定义。`spec/diagnostics.json` 登记稳定诊断标识；`spec/interfaces.json` 固定阶段间的数据与可信构造边界；`policy/dependencies.json` 固定编译器依赖边。派工同时锁定正文与全部附件的摘要。
 
-本文只描述终态要求。“必须”是实现义务，不是实现完成或证明通过的声明。实施顺序属于 `_zil_goal.md`，单项执行与证据属于 `.task/` 和 `evidence/`，变更理由属于 `changes/`。HTML 是这些源文件生成的阅读视图，不是另一份可编辑规范。
+本文只描述终态要求。“必须”是实现义务，不是实现完成或证明通过的声明。实施顺序与派工属于独立 `goal` 分支的 `goal.md`；过程工单仅保留在任务分支。生效静态工程合同属于 `spec/`、`validation/`，当前有效的长期决定属于 `docs/decisions/`；精简独审与验收收据随源码交付，原始运行按实际交付清单保存。HTML 是规范与静态工作流生成的阅读视图，不是另一份可编辑规范或实时计划。
 
 <a id="ZIL-TARGET"></a>
 

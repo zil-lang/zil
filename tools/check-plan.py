@@ -1,299 +1,200 @@
 #!/usr/bin/env python3
-"""Validate engineering contracts; does not read the live goal board or check all development branches."""
-from pathlib import Path
+"""Check static engineering contracts and registries without inferring task state."""
 import argparse
 import copy
 import hashlib
 import json
 import re
 import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED = {'B0', *(f'T{i:02}' for i in range(1, 10)), *(f'W{i}' for i in range(1, 5))}
-GOAL_ID = re.compile(r'G[1-9][0-9]*(?:\.(?:0|[1-9][0-9]*))+')
-STATES = {'Planned', 'Ready', 'Doing', 'Review', 'Done', 'Cancelled'}
+FIELDS = {'source_id', 'title', 'requirements', 'acceptance', 'depends_on',
+          'required_artifacts', 'provided_artifacts', 'plan_case_ids',
+          'conformance_case_ids', 'profile', 'test_plan_manifest',
+          'test_commands', 'conformance_command', 'done_when',
+          'input_obligations', 'implementation_obligations', 'boundary_obligations'}
 
-
-def load_json(path):
+def load(path):
     return json.loads(path.read_text(encoding='utf-8'))
-
 
 def hashes(root, interfaces):
     entries = []
     for name in sorted(interfaces['normative_inputs']):
-        p = root / name
-        if not p.resolve().is_relative_to(root.resolve()) or not p.is_file():
+        path = (root / name).resolve()
+        if not path.is_relative_to(root.resolve()) or not path.is_file():
             raise ValueError(f'invalid normative input: {name}')
-        entries.append(name + '\0' + hashlib.sha256(p.read_bytes()).hexdigest() + '\n')
-    return {
-        'spec_hash': hashlib.sha256((root / '_zil_design.md').read_bytes()).hexdigest(),
-        'normative_hash': hashlib.sha256(''.join(entries).encode('utf-8')).hexdigest(),
-    }
+        entries.append(name + '\0' + hashlib.sha256(path.read_bytes()).hexdigest() + '\n')
+    return {'spec_hash': hashlib.sha256((root / '_zil_design.md').read_bytes()).hexdigest(),
+            'normative_hash': hashlib.sha256(''.join(entries).encode('utf-8')).hexdigest()}
 
+def read_contracts(root=ROOT):
+    data = load(root / 'validation/engineering-contracts.json')
+    if (data.get('schema_version') != 1 or not isinstance(data.get('contracts'), dict)
+            or not isinstance(data.get('handoff_protocol'), str) or not data['handoff_protocol'].strip()
+            or not isinstance(data.get('acceptance_evidence'), str) or not data['acceptance_evidence'].strip()):
+        raise ValueError('missing or invalid static engineering contracts')
+    return data['contracts']
 
-def read_tasks(root):
-    tasks = []
-    for p in sorted((root / '.task').glob('*.md')):
-        if p.stem == 'TEMPLATE' or GOAL_ID.fullmatch(p.stem):
+def validate(contracts, interfaces, plans, conformance, rules=None, gates=None):
+    errors = []
+    def need(ok, message):
+        if not ok:
+            errors.append(message)
+
+    need(len(contracts) == 14, 'expected 14 static contracts')
+    ids = [c.get('source_id') for c in contracts.values() if isinstance(c, dict)]
+    need(set(ids) == EXPECTED and len(ids) == len(set(ids)) == len(contracts), 'missing or duplicate source ID')
+    need(all(re.fullmatch(r'[a-z][a-z0-9]*(?:_[a-z0-9]+)*', key) for key in contracts), 'contract keys must name capabilities')
+    dependencies = {}
+    for key, c in contracts.items():
+        if not isinstance(c, dict):
+            need(False, f'{key}: contract must be an object')
             continue
-        if p.stem not in EXPECTED:
-            raise ValueError(f'unknown formal contract or noncanonical Goal ID: {p.name}')
-        found = re.search(r'```json\s*\n(.*?)\n```', p.read_text(encoding='utf-8'), re.S)
-        if not found:
-            raise ValueError(f'missing task JSON: {p.name}')
-        task = json.loads(found.group(1))
-        if task.get('id') != p.stem:
-            raise ValueError(f'filename/task ID mismatch: {p.name}')
-        tasks.append(task)
-    if {t['id'] for t in tasks} != EXPECTED:
-        raise ValueError('expected exactly B0, T01..T09, W1..W4; Goal notes cannot replace formal contracts')
-    return tasks
+        need(set(c) == FIELDS, f'{key}: missing or unexpected fields {sorted(FIELDS ^ set(c))}')
+        for field in ['requirements', 'acceptance', 'provided_artifacts', 'plan_case_ids', 'done_when', 'test_commands']:
+            value = c.get(field)
+            need(isinstance(value, list) and bool(value) and all(isinstance(x, str) and x.strip() for x in value) and len(set(value)) == len(value), f'{key}: invalid {field}')
+        for field in ['depends_on', 'required_artifacts', 'conformance_case_ids']:
+            value = c.get(field)
+            need(isinstance(value, list) and all(isinstance(x, str) and x for x in value) and len(set(value)) == len(value), f'{key}: invalid {field}')
+        for field in ['title', 'input_obligations', 'implementation_obligations', 'boundary_obligations']:
+            need(isinstance(c.get(field), str) and bool(c[field].strip()), f'{key}: missing {field}')
+        need(c.get('profile') == 'validation/product-gates.json', f'{key}: wrong product profile')
+        need(c.get('test_plan_manifest') == 'validation/task-test-plans.json', f'{key}: wrong plan manifest')
+        need(set(c.get('depends_on', [])) <= set(contracts) and key not in c.get('depends_on', []), f'{key}: invalid dependency')
+        dependencies[key] = c.get('depends_on', [])
+        tid = c.get('source_id')
+        for command in c.get('test_commands', []):
+            need('tools/run-cases.py' in command and f'--task {tid} ' in command and '--manifest validation/task-test-plans.json' in command and f'--out-root evidence/{tid}' in command, f'{key}: invalid plan runner command')
+        command = c.get('conformance_command')
+        need(isinstance(command, str) and 'tools/run-cases.py' in command and f'--task {tid} ' in command and '--manifest conformance/index.json' in command and f'--out-root evidence/{tid}' in command, f'{key}: invalid conformance runner command')
+        if rules is not None:
+            need(set(c.get('requirements', [])) <= rules, f'{key}: unknown rule ID')
+        if gates is not None:
+            need(set(c.get('acceptance', [])) <= gates, f'{key}: unknown acceptance ID')
 
-
-def goal_implementation_notes(root):
-    return {
-        'scope': 'Canonical Goal ID filenames only; note contents, review and acceptance are not validated.',
-        'validated': False,
-        'paths': [str(p.relative_to(root)) for p in sorted((root / '.task').glob('*.md')) if GOAL_ID.fullmatch(p.stem)],
-    }
-
-
-def literal_prefix(pattern):
-    """Conservative path-prefix overlap. False positives need narrower write sets."""
-    return re.split(r'[?*\[]', pattern, maxsplit=1)[0]
-
-
-def overlaps(a, b):
-    pa, pb = literal_prefix(a), literal_prefix(b)
-    wa, wb = pa != a, pb != b
-    if not wa and not wb:
-        return a == b
-    if wa and b.startswith(pa):
-        return True
-    if wb and a.startswith(pb):
-        return True
-    return (wa and wb) and (pa.startswith(pb) or pb.startswith(pa))
-
-
-def validate(root, tasks, interfaces, plans, conformance=None, allow_pending=False):
-    errors, warnings = [], []
-
-    def require(condition, text):
-        if not condition:
-            errors.append(text)
-
-    by = {t.get('id'): t for t in tasks}
-    require(len(by) == len(tasks), 'duplicate task ID')
-    require(set(by) == EXPECTED, 'expected exactly B0, T01..T09, W1..W4')
-    for tid, t in by.items():
-        require(t.get('status') in STATES, f'{tid}: invalid status')
-        require(isinstance(t.get('task_revision'), int) and t['task_revision'] > 0, f'{tid}: missing revision')
-        require(set(t.get('blocked_by', [])) <= set(by), f'{tid}: unknown dependency')
-        require(tid not in t.get('blocked_by', []), f'{tid}: self dependency')
-        require(bool(t.get('write_set')), f'{tid}: empty write set')
-        require(bool(t.get('done_when')), f'{tid}: no completion criteria')
-        require(bool(t.get('requirements')) and bool(t.get('acceptance')), f'{tid}: missing rule/acceptance references')
-        require(bool(t.get('plan_case_ids')), f'{tid}: no required protocol fixtures')
-        require(t.get('test_plan_manifest') == 'validation/task-test-plans.json', f'{tid}: wrong test-plan manifest')
-        require(bool(t.get('test_commands')), f'{tid}: missing executable runner contract')
-        for command in t.get('test_commands', []):
-            require('tools/run-cases.py' in command and f'--task {tid} ' in command and '--manifest validation/task-test-plans.json' in command and f'--out-root evidence/{tid}' in command,
-                    f'{tid}: invalid runner command contract')
-        for name in t.get('write_set', []):
-            require(not name.startswith('/') and '..' not in Path(name).parts, f'{tid}: unsafe write-set path {name}')
-
-    visiting, visited, ancestor_map = set(), set(), {}
-
-    def ancestors(tid):
-        if tid in visiting:
-            raise ValueError('task dependency cycle at ' + str(tid))
-        if tid in visited:
-            return ancestor_map[tid]
-        visiting.add(tid)
+    ancestors = {}
+    visiting = set()
+    def ancestor(key):
+        if key in visiting:
+            raise ValueError('contract dependency cycle at ' + key)
+        if key in ancestors:
+            return ancestors[key]
+        visiting.add(key)
         found = set()
-        for dep in by[tid].get('blocked_by', []):
-            if dep in by:
+        for dep in dependencies.get(key, []):
+            if dep in contracts:
                 found.add(dep)
-                found.update(ancestors(dep))
-        visiting.remove(tid)
-        visited.add(tid)
-        ancestor_map[tid] = found
+                found.update(ancestor(dep))
+        visiting.remove(key)
+        ancestors[key] = found
         return found
-
-    dag_ok = True
     try:
-        for tid in by:
-            ancestors(tid)
+        for key in contracts:
+            ancestor(key)
     except ValueError as ex:
         errors.append(str(ex))
-        dag_ok = False
 
-    artifacts = interfaces.get('artifacts', [])
-    amap = {a.get('id'): a for a in artifacts}
-    require(len(amap) == len(artifacts) and bool(amap), 'duplicate/empty artifact registry')
-    actual_producers = {}
-    actual_consumers = {aid: [] for aid in amap}
-    for tid, t in by.items():
-        for aid in t.get('provided_artifacts', []):
-            require(aid not in actual_producers, f'{aid}: multiple producing tasks')
-            actual_producers[aid] = tid
-            require(aid in amap and amap[aid].get('producer') == tid, f'{tid}: artifact producer mismatch for {aid}')
-        for aid in t.get('required_artifacts', []):
-            require(aid in amap, f'{tid}: unknown required artifact {aid}')
+    artifacts = interfaces.get('artifacts')
+    need(isinstance(artifacts, list) and bool(artifacts), 'empty artifact registry')
+    artifacts = artifacts if isinstance(artifacts, list) else []
+    amap = {a.get('id'): a for a in artifacts if isinstance(a, dict)}
+    need(len(amap) == len(artifacts), 'duplicate artifact ID')
+    producers, consumers = {}, {key: [] for key in amap}
+    for key, c in contracts.items():
+        if not isinstance(c, dict):
+            continue
+        for aid in c.get('provided_artifacts', []):
+            need(aid not in producers, f'{aid}: multiple producers')
+            producers[aid] = key
+            need(aid in amap and amap[aid].get('producer') == c.get('source_id'), f'{key}: artifact producer mismatch {aid}')
+        for aid in c.get('required_artifacts', []):
+            need(aid in amap, f'{key}: unknown required artifact {aid}')
             if aid in amap:
-                actual_consumers[aid].append(tid)
-                producer = amap[aid].get('producer')
-                require(producer in by, f'{aid}: unknown producer')
-                if dag_ok:
-                    require(producer in ancestor_map[tid], f'{tid}: artifact {aid} producer is not an ancestor')
-    require(set(actual_producers) == set(amap), 'unowned or undeclared artifact')
-    for aid, artifact in amap.items():
-        require(sorted(artifact.get('consumers', [])) == sorted(actual_consumers[aid]), f'{aid}: consumer registry differs from task requirements')
-        require(bool(artifact.get('handoff_required')), f'{aid}: missing handoff requirements')
+                consumers[aid].append(c.get('source_id'))
+                producer = next((name for name, value in contracts.items() if isinstance(value, dict) and value.get('source_id') == amap[aid].get('producer')), None)
+                need(producer in ancestors.get(key, set()), f'{key}: artifact producer is not an ancestor: {aid}')
+    need(set(producers) == set(amap), 'unowned artifact')
+    for aid, a in amap.items():
+        need(sorted(a.get('consumers', [])) == sorted(consumers[aid]) and bool(a.get('handoff_required')), f'{aid}: consumer or handoff mismatch')
 
-    parallel_pairs = []
-    if dag_ok:
-        names = sorted(by)
-        for i, a in enumerate(names):
-            for b in names[i + 1:]:
-                if a in ancestor_map[b] or b in ancestor_map[a]:
-                    continue
-                parallel_pairs.append([a, b])
-                conflicts = [(x, y) for x in by[a]['write_set'] for y in by[b]['write_set'] if overlaps(x, y)]
-                require(not conflicts, f'parallel write-set conflict {a}/{b}: {conflicts[:3]}')
-
-    cases = plans.get('cases', [])
-    cmap = {c.get('id'): c for c in cases}
-    require(len(cmap) == len(cases) and bool(cmap), 'duplicate/empty protocol case registry')
+    for manifest, field, label in [(plans, 'plan_case_ids', 'plan'), (conformance, 'conformance_case_ids', 'conformance')]:
+        cases = manifest.get('cases')
+        need(isinstance(cases, list) and bool(cases), f'empty {label} cases')
+        cases = cases if isinstance(cases, list) else []
+        cmap = {c.get('id'): c for c in cases if isinstance(c, dict)}
+        need(len(cmap) == len(cases), f'duplicate {label} ID')
+        claimed = []
+        for c in contracts.values():
+            if not isinstance(c, dict):
+                continue
+            for cid in c.get(field, []):
+                claimed.append(cid)
+                need(cid in cmap and cmap[cid].get('owner') == c.get('source_id'), f'foreign or missing {label} case {cid}')
+        need(len(claimed) == len(set(claimed)) and set(claimed) == set(cmap), f'incomplete {label} case mapping')
+        for cid, case in cmap.items():
+            need(case.get('owner') in ids, f'{cid}: unknown owner')
+            if label == 'plan':
+                need(bool(case.get('required_fixture')) and bool(case.get('required_observations')), f'{cid}: missing fixture or observations')
+                need(case.get('status') in {'NotImplemented', 'Implemented'}, f'{cid}: invalid implementation state')
+                need(type(case.get('minimum_executed')) is int and case['minimum_executed'] >= 1 and type(case.get('minimum_assertions')) is int and case['minimum_assertions'] >= 1, f'{cid}: zero minimum')
+    need(len(plans.get('cases', [])) == 63 and len(conformance.get('cases', [])) == 93, 'case baseline differs from 63/93')
     runner = plans.get('runner_contract', {})
-    for key in ['selected_min', 'executed_min', 'assertions_min']:
-        require(isinstance(runner.get(key), int) and runner[key] >= 1, f'runner: {key} must be positive')
-    for key in ['zero_selected', 'zero_executed', 'missing_fixture', 'unknown_status']:
-        require(runner.get(key) == 'fail', f'runner: {key} must fail')
-    for key in ['unsupported', 'resource_limit', 'timeout', 'infrastructure_failure']:
-        require(runner.get(key) == 'non-pass', f'runner: {key} must not pass')
-    require(runner.get('all_selected_must_execute') is True, 'runner: selected cases must actually execute')
-    claimed = []
-    for tid, t in by.items():
-        for cid in t.get('plan_case_ids', []):
-            claimed.append(cid)
-            require(cid in cmap and cmap[cid].get('owner') == tid, f'{tid}: missing/foreign protocol case {cid}')
-    require(len(claimed) == len(set(claimed)) and set(claimed) == set(cmap), 'protocol case mapping is incomplete/duplicated')
-    for cid, case in cmap.items():
-        require(case.get('owner') in by, f'{cid}: unknown owner')
-        require(bool(case.get('required_fixture')) and bool(case.get('required_observations')), f'{cid}: missing fixture/observable oracle')
-        require(case.get('status') in {'NotImplemented', 'Implemented'}, f'{cid}: implementation status must not pretend execution')
-        require(case.get('minimum_executed', 0) >= 1 and case.get('minimum_assertions', 0) >= 1, f'{cid}: empty execution or assertions allowed')
-
-    conformance_by = {}
-    if conformance is not None:
-        source_cases = conformance.get('cases', [])
-        conformance_by = {c.get('id'): c for c in source_cases}
-        require(len(conformance_by) == len(source_cases), 'duplicate conformance ID')
-        claims = []
-        for tid, t in by.items():
-            for cid in t.get('case_ids', []):
-                claims.append(cid)
-                require(cid in conformance_by and conformance_by[cid].get('owner') == tid, f'{tid}: missing/foreign conformance case {cid}')
-        require(len(claims) == len(set(claims)) and set(claims) == set(conformance_by), 'conformance case owner mapping incomplete/duplicated')
-    elif any(t.get('case_ids') for t in tasks):
-        errors.append('task case_ids exist but conformance manifest is missing')
-
-    wanted = hashes(root, interfaces)
-    for tid, t in by.items():
-        for key in ['spec_hash', 'normative_hash']:
-            value = t.get(key)
-            if allow_pending and value == 'PENDING':
-                warnings.append(f'{tid}: draft {key} remains PENDING')
-            else:
-                require(value == wanted[key], f'{tid}: stale/missing {key}')
-        if t.get('status') in {'Ready', 'Doing', 'Review', 'Done'}:
-            require(bool(re.fullmatch(r'[0-9a-f]{40}|[0-9a-f]{64}', str(t.get('base_revision') or ''))), f'{tid}: active task lacks precise Git baseline')
-            require(all(by[d].get('status') == 'Done' for d in t.get('blocked_by', []) if d in by), f'{tid}: active task has incomplete dependency')
-            require(t.get('spec_hash') != 'PENDING' and t.get('normative_hash') != 'PENDING', f'{tid}: active task has unfrozen inputs')
-        if t.get('status') == 'Cancelled':
-            require(bool(t.get('cancelled_reason')) and bool(t.get('reassigned_to')), f'{tid}: cancellation must retain capability ownership')
-        if t.get('status') == 'Done':
-            require(bool(t.get('acceptance_record')), f'{tid}: Done lacks integrator decision')
-            require(bool(t.get('evidence')), f'{tid}: Done lacks actual evidence')
-            observed = set()
-            for ref in t.get('evidence', []):
-                name = ref if isinstance(ref, str) else ref.get('result_path', '')
-                path = root / name
-                if not name or not path.resolve().is_relative_to(root.resolve()) or not path.is_file():
-                    errors.append(f'{tid}: missing evidence result {name}')
-                    continue
-                try:
-                    run = load_json(path)
-                    require(run.get('task') == tid and run.get('status') == 'Pass', f'{tid}: wrong/nonpassing evidence {name}')
-                    require(run.get('normative_hash') == t['normative_hash'], f'{tid}: stale evidence {name}')
-                    require(run.get('selected', 0) > 0 and run.get('executed') == run.get('selected') and run.get('assertions', 0) > 0, f'{tid}: zero/partial evidence {name}')
-                    for c in run.get('cases', []):
-                        if c.get('status') == 'Pass' and c.get('executed', 0) > 0 and c.get('assertions', 0) > 0:
-                            observed.add(c.get('id'))
-                except (ValueError, TypeError, KeyError) as ex:
-                    errors.append(f'{tid}: invalid evidence {name}: {ex}')
-            require(set(t['plan_case_ids'] + t.get('case_ids', [])) <= observed, f'{tid}: Done has missing actual case executions')
-    return {
-        'scope': 'Engineering-contract record consistency only; does not read the live goal board or check all development branches. Not compiler, language-safety or product acceptance.',
-        'live_plan_checked': False,
-        'development_branches_checked': False,
-        'goal_implementation_notes': goal_implementation_notes(root),
-        'ok': not errors,
-        'tasks': len(tasks),
-        'protocol_case_requirements': len(cases),
-        'conformance_sources': len(conformance_by),
-        'registered_artifacts': len(amap),
-        'unordered_task_pairs_checked': len(parallel_pairs),
-        'recorded_ready_tasks': [t['id'] for t in tasks if t.get('status') == 'Ready'],
-        'errors': errors,
-        'warnings': warnings,
-    }
-
+    for field in ['selected_min', 'executed_min', 'assertions_min']:
+        need(type(runner.get(field)) is int and runner[field] >= 1, f'runner: {field} must be positive')
+    for field in ['zero_selected', 'zero_executed', 'missing_fixture', 'unknown_status']:
+        need(runner.get(field) == 'fail', f'runner: {field} must fail')
+    for field in ['unsupported', 'resource_limit', 'timeout', 'infrastructure_failure']:
+        need(runner.get(field) == 'non-pass', f'runner: {field} must not pass')
+    need(runner.get('all_selected_must_execute') is True, 'runner: partial execution forbidden')
+    if rules is not None:
+        need(set(rules) == {r for c in contracts.values() if isinstance(c, dict) for r in c.get('requirements', [])}, 'rule coverage incomplete')
+    if gates is not None:
+        need(set(gates) <= {r for c in contracts.values() if isinstance(c, dict) for r in c.get('acceptance', [])}, 'acceptance coverage incomplete')
+    return {'ok': not errors, 'scope': 'Static engineering contract and registry consistency; no execution or acceptance claim.',
+            'contracts': len(contracts), 'plan_cases': len(plans.get('cases', [])), 'conformance_cases': len(conformance.get('cases', [])), 'artifacts': len(amap), 'errors': errors}
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--allow-pending', action='store_true', help='allow draft hashes only; never makes a task Ready')
-    parser.add_argument('--print-hashes', action='store_true')
-    parser.add_argument('--self-test', action='store_true', help='mutate in-memory plan fixtures; does not test ZIL')
+    parser.add_argument('--self-test', action='store_true')
+    parser.add_argument('--print-hashes', action='store_true', help='print current normative input hashes without inferring acceptance')
     args = parser.parse_args()
-    interfaces = load_json(ROOT / 'spec/interfaces.json')
+    interfaces = load(ROOT / 'spec/interfaces.json')
     if args.print_hashes:
         print(json.dumps(hashes(ROOT, interfaces), indent=2))
         return 0
-    tasks = read_tasks(ROOT)
-    plans = load_json(ROOT / 'validation/task-test-plans.json')
-    conformance_path = ROOT / 'conformance/index.json'
-    conformance = load_json(conformance_path) if conformance_path.exists() else None
-    report = validate(ROOT, tasks, interfaces, plans, conformance, args.allow_pending)
-    if args.self_test:
-        if not report['ok']:
-            print(json.dumps(report, ensure_ascii=False, indent=2))
-            return 1
+    contracts = read_contracts()
+    plans = load(ROOT / 'validation/task-test-plans.json')
+    conformance = load(ROOT / 'conformance/index.json')
+    spec = (ROOT / '_zil_design.md').read_text(encoding='utf-8')
+    rules = set(re.findall(r'<a id="(ZIL-[A-Z]+(?:-[A-Z]+)*)"></a>', spec))
+    gates = set(re.findall(r'\| (V\d\d) \|', spec))
+    report = validate(contracts, interfaces, plans, conformance, rules, gates)
+    if args.self_test and report['ok']:
         results = []
-        def mutation(name, edit):
-            ts, ins, ps = copy.deepcopy(tasks), copy.deepcopy(interfaces), copy.deepcopy(plans)
-            edit(ts, ins, ps)
-            result = validate(ROOT, ts, ins, ps, conformance, args.allow_pending)
-            results.append({'name': name, 'rejected': not result['ok']})
-        def task(ts, tid):
-            return next(t for t in ts if t['id'] == tid)
-        mutation('dependency cycle', lambda ts, ins, ps: task(ts, 'B0')['blocked_by'].append('W4'))
-        mutation('missing artifact owner', lambda ts, ins, ps: ins['artifacts'][0].update(producer='MISSING'))
-        mutation('parallel write conflict', lambda ts, ins, ps: task(ts, 'T04')['write_set'].append('crates/zil-syntax/**'))
-        mutation('Ready without baseline', lambda ts, ins, ps: task(ts, 'B0').update(status='Ready', base_revision=None))
-        mutation('zero execution minimum', lambda ts, ins, ps: ps['runner_contract'].update(executed_min=0))
-        mutation('unmapped protocol case', lambda ts, ins, ps: task(ts, 'B0')['plan_case_ids'].pop())
-        mutation('Done without actual results', lambda ts, ins, ps: task(ts, 'B0').update(status='Done', base_revision='a'*40))
+        def mutate(name, edit):
+            cs, ins, ps, cf = copy.deepcopy((contracts, interfaces, plans, conformance))
+            edit(cs, ins, ps, cf)
+            results.append({'name': name, 'rejected': not validate(cs, ins, ps, cf, rules, gates)['ok']})
+        first = next(iter(contracts))
+        mutate('missing field', lambda cs, ins, ps, cf: cs[first].pop('done_when'))
+        mutate('missing implementation obligation', lambda cs, ins, ps, cf: cs[first].update(implementation_obligations=''))
+        mutate('empty case list', lambda cs, ins, ps, cf: cs[first].update(plan_case_ids=[]))
+        mutate('redirected evidence', lambda cs, ins, ps, cf: cs[first].update(test_commands=[cs[first]['test_commands'][0].replace('--out-root evidence/B0', '--out-root tmp')]))
+        mutate('dependency cycle', lambda cs, ins, ps, cf: cs[first].update(depends_on=[next(reversed(cs))]))
+        mutate('missing artifact owner', lambda cs, ins, ps, cf: ins['artifacts'][0].update(producer='MISSING'))
+        mutate('unmapped case', lambda cs, ins, ps, cf: ps['cases'].pop())
+        mutate('zero execution minimum', lambda cs, ins, ps, cf: ps['runner_contract'].update(executed_min=0))
         report['self_tests'] = results
-        report['ok'] = report['ok'] and all(x['rejected'] for x in results)
+        report['ok'] = all(x['rejected'] for x in results)
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0 if report['ok'] else 1
-
 
 if __name__ == '__main__':
     try:
         sys.exit(main())
     except (OSError, ValueError, TypeError, KeyError) as ex:
-        print(json.dumps({'ok': False, 'scope': 'construction-plan-check', 'errors': [str(ex)]}, ensure_ascii=False))
+        print(json.dumps({'ok': False, 'errors': [str(ex)]}, ensure_ascii=False))
         sys.exit(2)

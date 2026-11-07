@@ -10,16 +10,22 @@ with tempfile.TemporaryDirectory(prefix='runner-faults-',dir=ROOT/'.work') as te
     cmd=[sys.executable,str(ROOT/'tools/run-cases.py'),'--task','NO-SUCH-TASK','--manifest','validation/task-test-plans.json','--out-root',str(rel/'empty')]
     p=subprocess.run(cmd,capture_output=True,text=True,timeout=10,cwd=ROOT)
     assert p.returncode!=0 and json.loads(p.stdout)['selected']==0;executed+=1;assertions+=1
-    for name,fixture in [('missing',None),('empty',{'steps':[]}),('zero',{'steps':[{'kind':'command','command':['{python}','-c','print(\'{"executed":0,"assertions":0}\')'],'result_json':True}]}),('no-assertions',{'steps':[{'kind':'command','command':['{python}','-c','print(\'{"executed":1,"assertions":0}\')'],'result_json':True}]}),('unsupported',{'steps':[{'kind':'accept','source':'examples/bootstrap/unsupported.zil','phase':'verify'}]}),('reported-failure',{'steps':[{'kind':'command','command':['{python}','-c','print(\'{"executed":1,"assertions":1,"status":"Fail"}\')'],'result_json':True}]})]:
+    for name,fixture in [('missing',None),('empty',{'steps':[]}),('zero',{'steps':[{'kind':'command','command':['{python}','-c','print(\'{"executed":0,"assertions":0}\')'],'result_json':True}]}),('no-assertions',{'steps':[{'kind':'command','command':['{python}','-c','print(\'{"executed":1,"assertions":0}\')'],'result_json':True}]}),('unsupported',{'steps':[{'kind':'accept','source':'examples/bootstrap/unsupported.zil','phase':'verify'}]}),('reported-failure',{'steps':[{'kind':'command','command':['{python}','-c','print(\'{"executed":1,"assertions":1,"status":"Fail"}\')'],'result_json':True}]}),('missing-outcome',{'steps':[{'kind':'command','command':['{python}','-c','print(\'{"executed":1,"assertions":1}\')'],'result_json':True}]}),('failure-field',{'steps':[{'kind':'command','command':['{python}','-c','print(\'{"executed":1,"assertions":1,"status":"Pass","failure":"broken"}\')'],'result_json':True}]}),('nonzero-exit',{'steps':[{'kind':'command','command':['{python}','-c','raise SystemExit(3)'],'result_json':True}]})]:
         f=root/f'{name}.json'
         if fixture is not None:f.write_text(json.dumps(fixture))
         c={'id':'POLICY-'+name,'required_fixture':str(f.relative_to(ROOT))}
         result=runner.run_case(c,root,False)
         assert result['status']=='Fail',result;executed+=1;assertions+=1
+    for field,value in [('failure','broken'),('failures',['broken']),('error','broken'),('errors',['broken']),('failed',1)]:
+        report={'status':'Pass','executed':1,'assertions':1,field:value}
+        step={'kind':'command','command':['{python}','-c','import json; print(json.dumps('+repr(report)+'))'],'result_json':True}
+        try:runner.command_step(step,root/('failure-'+field))
+        except runner.CaseFailure:executed+=1;assertions+=1
+        else:raise AssertionError(field+' failure field passed')
     try:runner.execute([sys.executable,'-c','import time; time.sleep(0.2)'],root/'timeout',timeout=.01)
     except runner.CaseFailure as ex:assert 'timeout' in str(ex);executed+=1;assertions+=1
     else:raise AssertionError('timeout passed')
     try:runner.inside('../outside')
     except runner.CaseFailure:executed+=1;assertions+=1
     else:raise AssertionError('path escape accepted')
-print(json.dumps({'executed':executed,'assertions':assertions,'evidence_level':'HarnessPolicy'}))
+print(json.dumps({'status':'Pass','executed':executed,'assertions':assertions,'evidence_level':'HarnessPolicy'}))

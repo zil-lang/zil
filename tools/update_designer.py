@@ -131,7 +131,7 @@ d['sources'].extend([
  {'id':'SRC-LEAN-SYNTAX','title':'Lean · Notations and Macros','url':'https://lean-lang.org/doc/reference/latest/Notations-and-Macros/','kind':'official','note':'语法、宏、卫生与elaboration分层参考。'}])
 d['meta'].update(version='ZIL-LANG-1.3',date='2026-10-23',rules=len(d['rules']),sourceSpec='_zil_design.md',scope='Current normative ZIL routes; other language survey preserved from input, not reverified')
 spec=(ROOT/'_zil_design.md').read_text();digest=hashlib.sha256(spec.encode()).hexdigest()[:12];d['meta']['specSha256']=hashlib.sha256(spec.encode()).hexdigest()
-workflow=(ROOT/'docs/WORKFLOW.md').read_text();goal=(ROOT/'_zil_goal.md').read_text()
+workflow=(ROOT/'docs/WORKFLOW.md').read_text()
 guide='''# 阅读与使用
 
 ## 从目标查看方案
@@ -144,11 +144,11 @@ ZIL数据、变量选择、代码示例和完整正文同步来自当前规则�
 
 ## 施工文件的分工
 
-终态规范只定义规则；施工总计划定义阶段；工单定义单项实现与状态。变更审查、实际检查记录有单独页。HTML是生成视图，不手工维护另一份规范。
+终态规范只定义规则；当前目标和任务状态在独立 goal 分支的 goal.md，工作流说明如何读取它。变更审查、实际检查记录有单独页。HTML是生成视图，不手工维护另一份规范。
 
 ## 可下载内容
 
-页面下载规范与独立Markdown字节一致。设计/来源页提供施工计划、协作规程、语法与属性附件。完整ZIP另含任务单、门禁工具和证据；单文件HTML离线阅读无需网络。
+页面下载规范与独立Markdown字节一致。设计/来源页提供协作规程、语法与属性附件。单文件HTML离线阅读无需网络；实时目标请读取 goal 分支。
 
 ## 比较口径
 
@@ -167,7 +167,7 @@ syntax='''# 语法与属性实施入口
 ```json
 '''+(ROOT/'spec/attributes.json').read_text()+'\n```\n'
 verification=(ROOT/'evidence/REPORT.md').read_text() if (ROOT/'evidence/REPORT.md').exists() else '# 检查范围\n\n文档与阅读系统检查记录由构建生成，不代表语言实现。'
-docs={'spec':spec,'guide':guide,'goal':goal,'workflow':workflow,'syntax':syntax,'changes':(ROOT/'changes/REVIEW.md').read_text(),'verification':verification}
+docs={'spec':spec,'guide':guide,'workflow':workflow,'syntax':syntax,'changes':(ROOT/'changes/REVIEW.md').read_text(),'verification':verification}
 # JSON embedding must not close its script or execute source snippets.
 def safe(obj):return json.dumps(obj,ensure_ascii=False,separators=(',',':')).replace('<','\\u003c').replace('>','\\u003e').replace('&','\\u0026')
 out=re.sub(r'(<script id="atlas-data" type="application/json">).*?(</script>)',lambda m:m[1]+safe(d)+m[2],text,flags=re.S)
@@ -177,15 +177,15 @@ out=out.replace('语言设计图谱 D2 · 2026-10-19','语言设计图谱 · 202
 out=out.replace('ZIL 按 R2 设计合同登记','ZIL 按当前规范路线登记')
 out=out.replace('language-atlas-d2','language-atlas-current-v1')
 out=out.replace("proposal:'设计目标'","proposal:'规范路线（未验收）'")
-out=out.replace("['guide','sources','changes','verification'].includes(id)","['guide','goal','workflow','syntax','sources','changes','verification'].includes(id)")
+out=out.replace("['guide','sources','changes','verification'].includes(id)","['guide','workflow','syntax','sources','changes','verification'].includes(id)")
 out=out.replace("[{id:'0',title:'定位与阅读口径'","[{id:'intro',title:'规范权威与阅读口径'")
-out=out.replace("[['guide','使用与设计说明'],['spec','ZIL 完整语言设计'],['sources','官方资料与证据'],['changes','本版修改'],['verification','验证记录']]","[['guide','使用说明'],['spec','终态规范'],['goal','施工总计划'],['workflow','协作规程'],['syntax','语法与属性'],['sources','资料与来源'],['changes','变更审查'],['verification','实际检查']]")
+out=out.replace("[['guide','使用与设计说明'],['spec','ZIL 完整语言设计'],['sources','官方资料与证据'],['changes','本版修改'],['verification','验证记录']]","[['guide','使用说明'],['spec','终态规范'],['workflow','协作规程'],['syntax','语法与属性'],['sources','资料与来源'],['changes','变更审查'],['verification','实际检查']]")
 out=out.replace('ZIL R2 原始规范','ZIL 当前终态规范').replace('保留最新找回的 R2 原文；展示体系的修改不改写语言合同。','与独立 _zil_design.md 同源生成；正文不混入排期、版本过程和测试成绩。')
 out=out.replace('ZIL 来自本次找回的 R2 设计；其他语言的方案判断是对来源的归纳，不等于本轮逐语言编译与性能实测。','ZIL 对应当前规范；其他语言沿用上传图谱的资料快照，未在本次逐项重新核实，也不是本次编译或性能实测。')
 out=out.replace("download('zil-language-design.md',DOCS.spec","download('_zil_design.md',DOCS.spec")
 # New documentation pages are still single-source files. Download them directly, without requiring ZIP extraction.
 out=out.replace("else content=`<article class=\"panel doc\">${markdown(DOCS[state.doc]||'暂无内容。')}</article>`;","else content=`<article class=\"panel doc\"><div class=\"doc-toolbar\"><p>此页由对应源文件生成，不另行维护规则。</p>${btn('download-doc','下载本页 Markdown')}</div>${markdown(DOCS[state.doc]||'暂无内容。')}</article>`;")
-out=out.replace("if(action==='download-spec'){", "if(action==='download-doc'){download(({goal:'_zil_goal.md',workflow:'WORKFLOW.md',syntax:'SYNTAX.md',changes:'REVIEW.md',verification:'REPORT.md',guide:'GUIDE.md'})[state.doc]||'document.md',DOCS[state.doc]||'', 'text/markdown;charset=utf-8');return;}\n if(action==='download-spec'){")
+out=out.replace("if(action==='download-spec'){", "if(action==='download-doc'){download(({workflow:'WORKFLOW.md',syntax:'SYNTAX.md',changes:'REVIEW.md',verification:'REPORT.md',guide:'GUIDE.md'})[state.doc]||'document.md',DOCS[state.doc]||'', 'text/markdown;charset=utf-8');return;}\n if(action==='download-spec'){")
 # Stable requirement anchor navigation from Markdown is supported without making HTML authoritative.
 out=out.replace("if(a.specAnchor){e.preventDefault();const n=/^#s?(\\d+)/.exec(a.specAnchor);if(n&&specChapters.some(c=>c.id===n[1])){state.view='docs';state.doc='spec';state.chapter=n[1];render({top:true});}return;}","if(a.specAnchor){e.preventDefault();const id=a.specAnchor.slice(1);const chapter=specChapters.find(c=>c.text.includes('id=\"'+id+'\"'))||specChapters.find(c=>c.id===id.replace(/^s/,''));if(chapter){state.view='docs';state.doc='spec';state.chapter=chapter.id;render({top:true});}return;}")
 # Proposal filter includes ZIL empirical goals under an explicitly broader design switch.
@@ -198,5 +198,7 @@ out=out.replace('</style>','.edition{max-width:132px;overflow-wrap:anywhere}.pri
 (ROOT/'data/designer-data.json').write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n')
 (ROOT/'data/designer-docs.json').write_text(json.dumps(docs,ensure_ascii=False,indent=2)+'\n')
 report={'goals':len(d['goals']),'variables':len(d['variables']),'languages':len(d['languages']),'rules':len(d['rules']),'coverage':len(d['coverage']),'zil_routes_replaced':42,'zil_settings_replaced':28,'original_goal_records_equal':d['goals']==original['goals'],'non_zil_coverage_equal':[x for x in d['coverage'] if x['language']!='zil']==[x for x in original['coverage'] if x['language']!='zil'],'non_zil_settings_equal':[x for x in d['settings'] if x['language']!='zil']==[x for x in original['settings'] if x['language']!='zil'],'spec_sha256':d['meta']['specSha256']}
-(ROOT/'evidence/designer-data.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
+report_path=ROOT/'evidence/designer-data.json'
+report_path.parent.mkdir(parents=True,exist_ok=True)
+report_path.write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
 print(json.dumps(report,ensure_ascii=False,indent=2))

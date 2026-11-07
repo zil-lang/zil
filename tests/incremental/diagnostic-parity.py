@@ -29,4 +29,4 @@ with tempfile.TemporaryDirectory(prefix='zil-parity-') as temporary:
         assert a['phase']==b['phase'],(name,a,b);assertions+=1
         assert a['diagnostics']==b['diagnostics'],(name,a,b);assertions+=1
         assert (cli.returncode==0)==(ide.returncode==0)==(expected=='Success');assertions+=1
-print(json.dumps({'executed':executed,'assertions':assertions,'scope':'actual CLI/editor process diagnostic parity','cases':len(cases)}))
+print(json.dumps({'status':'Pass','executed':executed,'assertions':assertions,'scope':'actual CLI/editor process diagnostic parity','cases':len(cases)}))

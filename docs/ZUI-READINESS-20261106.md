@@ -1,6 +1,6 @@
 # ZUI：按 GPUI 方向复核语言缺口
 
-基线为 main `adbead51fc8916ac1cb1019702d906a19ebd3e98`。本次三路 sol high 审计复用 PR46 的 release 编译器；生产输入与该 main 相同。原始执行身份、可重放命令、阶段与诊断见[精简收据](validation/G9.6.1-zui-readiness-audit.json)，小型探针保存在 [G9.6.1 输入](../.task/G9.6.1-inputs)。这是缺口核对与下一批合同，不是新增语言能力或完整 ZUI 验收；当前排期只读 [goal](https://github.com/zil-lang/zil/blob/goal/goal.md)。
+基线为 main `adbead51fc8916ac1cb1019702d906a19ebd3e98`。本次三路 sol high 审计复用 PR46 的 release 编译器；生产输入与该 main 相同。原始执行身份、可重放命令、阶段与诊断见[精简收据](validation/G9.6.1-zui-readiness-audit.json)，小型探针现保存在[语言缺口输入](../validation/inputs/zui-readiness)，其旧路径、固定提交与逐文件字节摘要见[资产定位表](../validation/asset-provenance.json)。收据内的旧命令按当时基线保留；使用当前路径重放时应按定位表替换输入，并生成新的执行记录。这是缺口核对与下一批合同，不是新增语言能力或完整 ZUI 验收；当前排期只读 [goal](https://github.com/zil-lang/zil/blob/goal/goal.md)。
 
 ## 架构约束
 

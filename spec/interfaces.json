@@ -1805,7 +1805,7 @@
     "budget": "Prepay actual new scans/maps/clones/substitutions with existing request, no default limit increase"
   },
   "ordinary_store_ownership_G9_3_5": {
-    "proposal": "changes/G9.3.5-ordinary-store-ownership.md",
+    "proposal": "changes/ordinary-store-ownership.md",
     "normative": "_zil_design.md §8.1.3.2",
     "representation": "Existing complete Managed<OwnedStore<T>>, Package/Tuple/Enum/ErrorUnion, concrete capture and actual ownership/loan instructions; no schema/ABI bump.",
     "consumers": [
@@ -1817,7 +1817,7 @@
     "trust": "Ordinary ownership does not grant StoreElement, array, borrowed storage, dyn or asynchronous qualification. Admission and execution require scoped independent acceptance."
   },
   "shared_dyn_dispatch_G5_2_1": {
-    "proposal": "changes/G5.2.1-shared-dyn-dispatch.md",
+    "proposal": "changes/shared-scalar-dynamic-dispatch.md",
     "normative": "_zil_design.md §9.4",
     "representation": "Existing Dyn declarations/interface/vtable, DynContract, shared Address<Dyn>, MakeDynBorrow and CallDynSlot; actual receiver pointer plus immutable static table pointer. No schema/Wire/ABI bump.",
     "consumers": [
