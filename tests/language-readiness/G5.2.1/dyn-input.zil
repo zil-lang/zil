@@ -10,4 +10,4 @@ fn select(which:bool)->i32{
     if which {return read_it(&a)} else {return read_it(&b)}
 }
 extern "C" fn getchar()->i32;
-fn main()->i32{let value=unsafe{getchar()};return select(value==49)}
+fn main()->i32{var value:i32=0;unsafe{value=getchar();}return select(value==49)}
