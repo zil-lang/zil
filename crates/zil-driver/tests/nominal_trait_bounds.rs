@@ -1189,6 +1189,66 @@ fn independent_copy_and_store_element_bounds_prove_generic_entry_storage() {
 }
 
 #[test]
+fn noncopy_associated_package_moves_through_ordinary_generic_result() {
+    let files = [
+        (
+            "main",
+            include_str!(
+                "../../../tests/language-readiness/terminal/generics-and-constants/associated-container/owned/main.zil"
+            ),
+        ),
+        (
+            "api",
+            include_str!(
+                "../../../tests/language-readiness/terminal/generics-and-constants/associated-container/owned/api.zil"
+            ),
+        ),
+        (
+            "model",
+            include_str!(
+                "../../../tests/language-readiness/terminal/generics-and-constants/associated-container/owned/model.zil"
+            ),
+        ),
+    ];
+    let report = compile_project(&project(&files), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    native_both(&files);
+
+    let invalid = files[1]
+        .1
+        .replace("return value", "let moved=value;return value");
+    let rejected = compile_project(
+        &project(&[
+            ("main", files[0].1),
+            ("api", &invalid),
+            ("model", files[2].1),
+        ]),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        rejected.status,
+        ResultCategory::SafeReject,
+        "{}",
+        rejected.to_json()
+    );
+    let unused = compile_project(
+        &project(&[("main", "import api;fn main(){}"), ("api", &invalid)]),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        unused.status,
+        ResultCategory::SafeReject,
+        "{}",
+        unused.to_json()
+    );
+}
+
+#[test]
 fn enum_payloads_use_only_declared_copy_associated_projections() {
     for source in [
         include_str!(
