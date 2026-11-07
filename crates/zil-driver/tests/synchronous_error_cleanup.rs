@@ -8,7 +8,9 @@ use std::{
     time::{Duration, Instant},
 };
 use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
-use zil_driver::{CompileOptions, Stage, compile_path, compile_source};
+use zil_driver::{
+    CompileOptions, NativeBackend, Optimization, Stage, compile_path, compile_source,
+};
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
 struct Temp(PathBuf);
@@ -195,6 +197,100 @@ fn source_error_boundaries_are_rejected_without_fabricated_success() {
         assert_eq!(report.diagnostics[0].phase, Phase::Types, "{name}");
         assert_eq!(report.diagnostics[0].code, code, "{name}");
         assert!(!report.artifacts.contains_key("executable"));
+    }
+}
+
+#[test]
+fn explicit_equal_error_payloads_select_both_tags_on_real_machines() {
+    let source = r#"
+fn success()->i32!i32{return error_ok::<i32,i32>(42)}
+fn failure()->i32!i32{return error_err::<i32,i32>(7)}
+fn choose<E:Copy,T:Copy>(failure:E,success:T,fail:bool)->E!T{
+ if fail{return error_err::<E,T>(failure)}
+ return error_ok::<E,T>(success)
+}
+
+fn good()->i32{match success(){.ok(value)=>{return value},.err(_)=>{return 0}}}
+fn bad()->i32{match failure(){.ok(_)=>{return 0},.err(value)=>{return value}}}
+fn generic_good()->i32{match choose::<i32,i32>(7,42,false){.ok(value)=>{return value},.err(_)=>{return 0}}}
+fn generic_bad()->i32{match choose::<i32,i32>(7,42,true){.ok(_)=>{return 0},.err(value)=>{return value}}}
+fn main()->i32{return good()+bad()+generic_good()+generic_bad()-98}
+"#;
+    let temp = Temp::new();
+    let input = temp.0.join("explicit-error-construction.zil");
+    fs::write(&input, source).unwrap();
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let report = compile_path(
+                &input,
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(
+                        temp.0
+                            .join(format!("explicit-{backend:?}-{optimization:?}")),
+                    ),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+            run(&report.artifacts["executable"], b"", 0, "");
+        }
+    }
+}
+
+#[test]
+fn error_constructor_names_cannot_be_rebound_or_choose_the_wrong_payload() {
+    for (name, source) in [
+        (
+            "declaration",
+            "fn error_ok(n:i32)->i32{return n} fn main()->i32{return 0}",
+        ),
+        (
+            "parameter",
+            "fn read(error_err:i32)->i32{return error_err} fn main()->i32{return 0}",
+        ),
+        ("local", "fn main()->i32{let error_ok=7;return error_ok}"),
+        (
+            "wrong-payload",
+            "fn make()->i32!i32{return error_ok::<i32,i32>(true)} fn main()->i32{return 0}",
+        ),
+        (
+            "wrong-arity",
+            "fn make()->i32!i32{return error_err::<i32,i32>(1,2)} fn main()->i32{return 0}",
+        ),
+        (
+            "missing-types",
+            "fn make()->i32!i32{return error_ok(1)} fn main()->i32{return 0}",
+        ),
+    ] {
+        let report = compile_source(
+            &SourceUnit::new(FileId(0), ModuleId(0), name, source),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert!(
+            matches!(
+                report.status,
+                ResultCategory::SafeReject | ResultCategory::Unsupported
+            ),
+            "{name}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0, "{name}: {}", report.to_json());
     }
 }
 

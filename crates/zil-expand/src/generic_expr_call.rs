@@ -196,6 +196,43 @@ impl Engine<'_> {
             self.ty(&mut result, depth + 1)?;
             return Ok(Some(Some(result)));
         }
+        if let ExprKind::TypeApply {
+            callee: base,
+            arguments: type_args,
+        } = &mut callee.kind
+            && let ExprKind::Name(name) = &base.kind
+            && matches!(name.as_str(), "error_ok" | "error_err")
+        {
+            let [GenericArg::Type(error_type), GenericArg::Type(result_type)] =
+                type_args.as_mut_slice()
+            else {
+                return Err(error(
+                    e.span,
+                    "error constructor needs explicit error and result types",
+                ));
+            };
+            if arguments.len() != 1 || arguments[0].spread {
+                return Err(error(
+                    e.span,
+                    "error constructor needs one complete payload",
+                ));
+            }
+            self.ty(error_type, depth + 1)?;
+            self.ty(result_type, depth + 1)?;
+            let selected = if name == "error_err" {
+                &*error_type
+            } else {
+                &*result_type
+            };
+            self.expr_expected(&mut arguments[0].value, env, Some(selected), depth + 1)?;
+            return Ok(Some(Some(TypeRef {
+                span: e.span,
+                kind: TypeKind::Error {
+                    error: Box::new(error_type.clone()),
+                    result: Box::new(result_type.clone()),
+                },
+            })));
+        }
         if crate::foreign::bare_name(callee).is_some_and(|name| {
             name == "async_registration_poll_close"
                 && !env.contains_key(name)

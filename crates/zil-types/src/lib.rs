@@ -2126,6 +2126,17 @@ impl<'a, 'c> Builder<'a, 'c> {
                 type_arguments,
             } = &callee.kind
             {
+                if let CoreExprKind::Name(name) = &target.kind
+                    && matches!(name.as_str(), "error_ok" | "error_err")
+                {
+                    return self.explicit_error_constructor(
+                        name,
+                        type_arguments,
+                        arguments,
+                        expected,
+                        e.span,
+                    );
+                }
                 if matches!(&target.kind, CoreExprKind::Name(name) if name == "owned_dyn") {
                     let [Type::Dyn { interface }] = type_arguments.as_slice() else {
                         return Err(error(
