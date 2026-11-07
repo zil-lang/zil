@@ -613,6 +613,64 @@ fn ordinary_source_derived_two_sum_capture_debts_reject_raw_and_wire() {
 }
 
 #[test]
+fn ordinary_source_derived_error_exit_must_refill_sum_capture_raw_and_wire() {
+    let (mut module, plan) = candidate(include_str!("ordinary-fnmut-error-capture.zil"));
+    let definition = module
+        .closures
+        .iter()
+        .find(|definition| {
+            definition.kind == zil_ir::CallableKind::FnMut
+                && definition.captures.len() == 1
+                && matches!(definition.captures[0], Type::Enum { .. })
+                && matches!(&definition.result, Type::ErrorUnion { error, result }
+                    if matches!(error.as_ref(), Type::I32)
+                        && matches!(result.as_ref(), Type::U64))
+        })
+        .expect("Source FnMut error entry with one actual owning Sum capture");
+    let entry_id = definition.function;
+    let environment = definition.id;
+    let failure = module
+        .functions
+        .iter()
+        .find(|function| {
+            function.environment.is_none()
+                && function.parameters.is_empty()
+                && matches!(&function.return_type, Type::ErrorUnion { error, result }
+                    if matches!(error.as_ref(), Type::I32)
+                        && matches!(result.as_ref(), Type::U64))
+        })
+        .expect("Source calls a real ErrorUnion producer")
+        .id;
+    let entry = module
+        .functions
+        .iter_mut()
+        .find(|function| function.id == entry_id && function.environment == Some(environment))
+        .expect("Source error closure entry relation");
+    let error_block = entry
+        .blocks
+        .iter_mut()
+        .find(|block| {
+            block.instructions.iter().any(|instruction| {
+                matches!(instruction.kind, I::Call { function, .. } if function == failure)
+            }) && block
+                .instructions
+                .iter()
+                .any(|instruction| matches!(instruction.kind, I::WriteCapture { index: 0, .. }))
+        })
+        .expect("actual error return path refills the owning capture");
+    error_block
+        .instructions
+        .retain(|instruction| !matches!(instruction.kind, I::WriteCapture { index: 0, .. }));
+    reject_direct_sum_capture_candidate(
+        "ordinary-error-exit-unfilled-capture",
+        module,
+        plan,
+        "E-VERIFY-SUM",
+        "Fn/FnMut return leaves an unfilled direct Sum capture",
+    );
+}
+
+#[test]
 fn ordinary_owning_store_request_budgets_are_exact_and_fresh() {
     for (label, text) in [
         ("siblings", include_str!("ordinary-parent-two-views.zil")),
