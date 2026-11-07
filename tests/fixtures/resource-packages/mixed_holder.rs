@@ -39,6 +39,7 @@ const EXCLUSIVE_RECORD_BRANCH_REFILL: &str = include_str!("exclusive-record-bran
 const EXCLUSIVE_RECORD_BRANCH_UNINITIALIZED: &str =
     include_str!("exclusive-record-branch-uninitialized.zil");
 const EXCLUSIVE_RECORD_AFTER_MOVE: &str = include_str!("exclusive-record-after-move.zil");
+const EXCLUSIVE_PAIR: &str = include_str!("exclusive-pair.zil");
 
 fn stdlib_store_head_path() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -332,6 +333,63 @@ fn exclusive_record_branch_join_requires_initialized_carrier() {
         );
         assert_eq!(rejected.diagnostics[0].code, "E-UNINITIALIZED");
     }
+}
+
+#[test]
+fn exclusive_pair_raw_constructor_cannot_repeat_one_address() {
+    let input = source("exclusive-pair.zil", EXCLUSIVE_PAIR);
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &input,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: input.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let mut raw = zil_types::check(&core, &target, &limits).unwrap();
+    let mut candidate = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), candidate.clone(), &target, &limits).unwrap();
+    let function = raw
+        .functions
+        .iter_mut()
+        .find(|function| function.name == "make")
+        .unwrap();
+    let fields = function
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .find_map(|instruction| {
+            if let zil_ir::InstructionKind::MakeAggregate { fields } = &mut instruction.kind {
+                Some(fields)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    assert_eq!(fields.len(), 2);
+    fields[1] = fields[0];
+    candidate.module_fingerprint = raw.fingerprint();
+    let analyze_error = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    let verify_error =
+        zil_verify::verify_module(raw.clone(), candidate.clone(), &target, &limits).unwrap_err();
+    assert!(
+        format!("{analyze_error:?}").contains("simultaneously live access overlaps"),
+        "{analyze_error:?}"
+    );
+    assert!(
+        format!("{verify_error:?}").contains("actual target intersects"),
+        "{verify_error:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &candidate, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&wire, &target, &limits).is_err());
 }
 
 #[test]
