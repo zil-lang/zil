@@ -61,6 +61,25 @@ pub fn insert_or_replace<K:StoreElement+KeyEq,V:StoreElement>(map:&mut OwningMap
     }
 }
 
+// Returns the old Entry with replaced=true, or returns the original incoming
+// Entry with replaced=false when the key is missing or suffix preparation
+// fails. The status is a separate caller-owned Copy slot because both outcomes
+// transfer the same complete Entry type. A successful remove frees one slot.
+pub fn replace_existing<K:StoreElement+KeyEq,V:StoreElement>(map:&mut OwningMap<K,V>,entry:owning_entries.Entry<K,V>,replaced:&mut bool)->owning_entries.Entry<K,V> {
+    *replaced=false
+    let at=find::<K,V>(map,&entry.key)
+    if at<0 {return entry}
+    match store.remove::<owning_entries.Entry<K,V>>(map.items,at) {
+        .err(_)=>{return entry},
+        .ok(old)=>{
+            match store_push(map.items,entry) {
+                .err(original)=>{store_push(map.items,old);return original},
+                .ok(_)=>{*replaced=true;return old}
+            }
+        }
+    }
+}
+
 // A miss leaves the map unchanged; a hit transfers the actual key and value.
 pub fn take<K:StoreElement+KeyEq,V:StoreElement>(map:&mut OwningMap<K,V>,key:&K)->void!owning_entries.Entry<K,V> {
     let at=find::<K,V>(map,key)

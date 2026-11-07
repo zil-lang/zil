@@ -50,6 +50,26 @@ fn main()->i32{
  match owning_map.take::<Key,i32>(&mut map,&absent){.err(_)=>{return i32(owning_map.len::<Key,i32>(&map))-1},.ok(_)=>{return 5}}
 }
 "#;
+const TRANSFER_REPLACED_ENTRY: &str = r#"
+import std.owning_map
+import std.owning_entries
+resource Ticket{code:i32}
+package Key{manages ticket:Ticket;id:i64}
+impl owning_map.KeyEq for Key{fn same(self:&Self,other:&Self)->bool{return self.id==other.id}}
+fn main()->i32{
+ var map=owning_map.new::<Key,Managed<Ticket>>()
+ var replaced=true
+ let missing=owning_entries.Entry::<Key,Managed<Ticket>>{key:Key{ticket:Ticket{code:65},id:1},value:Ticket{code:66}}
+ let returned=owning_map.replace_existing::<Key,Managed<Ticket>>(&mut map,missing,&mut replaced)
+ if replaced || returned.key.ticket.code+returned.value.code!=131 || owning_map.len::<Key,Managed<Ticket>>(&map)!=0{return 1}
+ let first=owning_entries.Entry::<Key,Managed<Ticket>>{key:Key{ticket:Ticket{code:67},id:1},value:Ticket{code:68}}
+ match owning_map.insert_or_replace::<Key,Managed<Ticket>>(&mut map,first){.err(_)=>{return 2},.ok(_)=>{}}
+ let incoming=owning_entries.Entry::<Key,Managed<Ticket>>{key:Key{ticket:Ticket{code:69},id:1},value:Ticket{code:70}}
+ let old=owning_map.replace_existing::<Key,Managed<Ticket>>(&mut map,incoming,&mut replaced)
+ if !replaced || old.key.ticket.code+old.value.code!=135 || owning_map.len::<Key,Managed<Ticket>>(&map)!=1{return 3}
+ return 0
+}
+"#;
 const ALLOCATION: &str = r#"
 import std.owning_map
 import std.owning_entries
@@ -188,6 +208,42 @@ fn copy_value_read_does_not_move_owning_key() {
     for backend in backends() {
         for optimization in [Optimization::O0, Optimization::O2] {
             let out = directory("copy-value");
+            let report = compile_project(
+                &source,
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(out.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+            let run = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(
+                run.status.code(),
+                Some(0),
+                "{backend:?}/{optimization:?}: {run:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn replacement_transfers_complete_old_key_and_value() {
+    let source = project(TRANSFER_REPLACED_ENTRY);
+    for backend in backends() {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let out = directory("transfer-replaced");
             let report = compile_project(
                 &source,
                 &CompileOptions {
