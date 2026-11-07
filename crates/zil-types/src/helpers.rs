@@ -916,6 +916,12 @@ impl Builder<'_, '_> {
         }
         pending.inference.expect_result(&bound.result, span)?;
         self.materialize_closure(closure)?;
+        if bound.transfer {
+            return Err(unsupported(
+                span,
+                "callable Transfer requires the actual thread environment consumer",
+            ));
+        }
         if bound.closed_environment {
             registration::closed_environment(self.closures, closure, span)?;
         }
@@ -1947,6 +1953,7 @@ mod origin_classification_tests {
                 life: None,
                 source_life: None,
                 closed_environment: false,
+                transfer: false,
             })
             .collect()
     }

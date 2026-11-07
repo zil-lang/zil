@@ -63,6 +63,7 @@ pub(crate) fn reserve(
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
         )
         || bound.closed_environment
+        || bound.transfer
         || context.bound_ordinal != 0
         || context.parameters.iter().enumerate().any(|(index, kind)| {
             if index == context.generic_parameter as usize {

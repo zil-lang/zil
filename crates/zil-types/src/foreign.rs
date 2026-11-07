@@ -128,14 +128,18 @@ pub(super) fn check_declaration(
             result: Box::new(Type::I64),
         };
         let valid = match role {
-            ScopedCallbackRole::AsyncPollDrain => {
+            ScopedCallbackRole::AsyncPollDrain | ScopedCallbackRole::ThreadAsyncPollDrain => {
                 parameters == vec![&Type::ForeignHandle] && function.return_type == Type::I32
             }
-            ScopedCallbackRole::Register | ScopedCallbackRole::AsyncRegister => {
+            ScopedCallbackRole::Register
+            | ScopedCallbackRole::AsyncRegister
+            | ScopedCallbackRole::ThreadAsyncRegister => {
                 parameters == vec![&callback, &Type::ForeignHandle]
                     && function.return_type == Type::ForeignHandle
             }
-            ScopedCallbackRole::Close | ScopedCallbackRole::AsyncRequestClose => {
+            ScopedCallbackRole::Close
+            | ScopedCallbackRole::AsyncRequestClose
+            | ScopedCallbackRole::ThreadAsyncRequestClose => {
                 parameters == vec![&Type::ForeignHandle] && function.return_type == Type::Unit
             }
         };

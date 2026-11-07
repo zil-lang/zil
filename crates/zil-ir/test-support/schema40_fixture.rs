@@ -95,6 +95,9 @@ pub fn migrate(bytes: &[u8], limits: &zil_base::Limits) -> Vec<u8> {
                 zil_ir::ScopedCallbackRole::AsyncRegister
                     | zil_ir::ScopedCallbackRole::AsyncRequestClose
                     | zil_ir::ScopedCallbackRole::AsyncPollDrain
+                    | zil_ir::ScopedCallbackRole::ThreadAsyncRegister
+                    | zil_ir::ScopedCallbackRole::ThreadAsyncRequestClose
+                    | zil_ir::ScopedCallbackRole::ThreadAsyncPollDrain
             )
         )));
         if let Some(contract) = &function.callable_contract {
