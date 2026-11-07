@@ -32,4 +32,4 @@
 
 独立准备实现、模型通过、一阶段测试或实施切片合入，只证明各自冻结范围；它们不解除父任务的前置依赖、完整接口及 Done/发布验收条件。父任务状态须由集成者依据全部规定案例和正式裁决更新。
 
-冷启动先 fetch/read `goal:goal.md`，再跑 `node tools/handoff.mjs --check` 检查工程树。该命令不读取 goal 内容、不遍历全部开发分支，也不证明语言/产品通过。源码 ZIP 可在支持的工具链和锁定依赖已准备的环境中构建；恢复原历史和原始审计须按 `docs/DELIVERY.md` 的 manifest 与 bundle。干净源码克隆测试不等于空机器无缓存安装。远端状态须在 push 后读回精确 SHA；离线历史必须显式包含 goal 引用。
+冷启动先 fetch/read `goal:goal.md`，再跑 `node tools/handoff.mjs --check` 检查工程树。该命令不读取 goal 内容、不遍历全部开发分支，也不证明语言/产品通过。 不带 `--check` 生成的 `data/handoff.json` 只是本地工程快照，不提交主树；历史快照按原提交追溯。源码 ZIP 可在支持的工具链和锁定依赖已准备的环境中构建；恢复原历史和原始审计须按 `docs/DELIVERY.md` 的 manifest 与 bundle。干净源码克隆测试不等于空机器无缓存安装。远端状态须在 push 后读回精确 SHA；离线历史必须显式包含 goal 引用。

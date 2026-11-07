@@ -9,3 +9,7 @@ __pycache__/
 
 # Disposable run output; required regression inputs live under tests/fixtures.
 /evidence/
+
+# Local engineering snapshots; current planning lives on the goal branch.
+/data/handoff.json
+/data/construction-progress.json
