@@ -336,7 +336,8 @@ pub(super) fn instruction(
                 Type::Unit
             }
         }
-        InstructionKind::AsyncRegistrationFinishDestroy { registration } => {
+        InstructionKind::AsyncRegistrationFinishDestroy { registration }
+                    | InstructionKind::AsyncRegistrationFinishDestroyChecked { registration } => {
             let ty = value_type(f, registration, span)?;
             if !matches!(ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..})) {
                 return Err(error(span, "async finish requires actual owning head"));

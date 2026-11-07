@@ -96,7 +96,8 @@ impl FunctionEmitter<'_> {
                     },
                 );
             }
-            InstructionKind::AsyncRegistrationFinishDestroy { registration } => self.reg_call(
+            InstructionKind::AsyncRegistrationFinishDestroy { registration }
+                    | InstructionKind::AsyncRegistrationFinishDestroyChecked { registration } => self.reg_call(
                 None,
                 m::Ty::Void,
                 m::global("zil.async_registration.finish".into()),

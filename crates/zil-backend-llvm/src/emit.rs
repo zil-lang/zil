@@ -1649,7 +1649,8 @@ impl FunctionEmitter<'_> {
             | InstructionKind::AsyncRegistrationValid { .. }
             | InstructionKind::AsyncRegistrationRequestClose { .. }
             | InstructionKind::AsyncRegistrationPollClose { .. }
-            | InstructionKind::AsyncRegistrationFinishDestroy { .. } => {
+            | InstructionKind::AsyncRegistrationFinishDestroy { .. }
+                | InstructionKind::AsyncRegistrationFinishDestroyChecked { .. } => {
                 self.async_registration_instruction(instruction)?;
             }
             InstructionKind::MakeDynBorrow {

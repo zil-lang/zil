@@ -346,6 +346,7 @@ impl Expander<'_> {
                 None
             }
         };
+        let protocol_contract = self.resource_protocol_contract(f);
         self.functions.push(CoreFunction {
             storage_life: None,
             call_kind,
@@ -353,6 +354,7 @@ impl Expander<'_> {
             callable_return,
             type_parameters,
             state_parameters,
+            protocol_contract,
             callable_parameters,
             result_mode,
             foreign: None,

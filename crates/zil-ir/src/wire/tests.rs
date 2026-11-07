@@ -472,6 +472,7 @@ fn module_candidate() -> (TypedModule, CandidatePlan) {
             reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,
+            protocol_contract: None,
             result_mode: PassingMode::Infer,
             foreign: None,
             environment: None,

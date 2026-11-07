@@ -385,7 +385,8 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                             },
                         )
                     }
-                    InstructionKind::AsyncRegistrationFinishDestroy { registration } => {
+                    InstructionKind::AsyncRegistrationFinishDestroy { registration }
+                    | InstructionKind::AsyncRegistrationFinishDestroyChecked { registration } => {
                         if !matches!(value(registration)?,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
                         {
                             return Err(fail(i.span, "async finish consumes actual owning head"));

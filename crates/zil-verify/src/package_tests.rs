@@ -50,6 +50,7 @@ impl Body {
             reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,
+            protocol_contract: None,
             id: FunctionId(0),
             name: "main".into(),
             foreign: None,

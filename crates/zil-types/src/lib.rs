@@ -675,6 +675,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 reference_return_bound: lifetimes::compile(f, closures, limits)?,
                 callable_return_contract: None,
                 callable_contract: None,
+                protocol_contract: f.protocol_contract.clone(),
                 result_mode: f.result_mode,
                 foreign: f.foreign.clone(),
                 id,
@@ -929,6 +930,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 | "async_registration_request_close"
                 | "async_registration_poll_close"
                 | "async_registration_finish_destroy"
+            | "async_registration_finish_destroy_checked"
         ) {
             return Err(error(
                 "E-REGISTRATION-NAME",
@@ -2709,6 +2711,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 life: None,
                 callable_return: None,
                 state_parameters: Vec::new(),
+                protocol_contract: None,
                 type_parameters: Vec::new(),
                 callable_parameters: Vec::new(),
                 result_mode: zil_ir::PassingMode::Infer,
@@ -2914,6 +2917,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             life: None,
             callable_return: None,
             state_parameters: Vec::new(),
+            protocol_contract: None,
             type_parameters: Vec::new(),
             callable_parameters: Vec::new(),
             result_mode: zil_ir::PassingMode::Infer,
@@ -3542,6 +3546,7 @@ mod tests {
                 life: None,
                 callable_return: None,
                 state_parameters: Vec::new(),
+                protocol_contract: None,
                 type_parameters: Vec::new(),
                 callable_parameters: Vec::new(),
                 result_mode: zil_ir::PassingMode::Infer,

@@ -1646,7 +1646,8 @@ pub(super) fn preflight(
                     | InstructionKind::AsyncRegistrationValid { registration }
                     | InstructionKind::AsyncRegistrationRequestClose { registration }
                     | InstructionKind::AsyncRegistrationPollClose { registration }
-                    | InstructionKind::AsyncRegistrationFinishDestroy { registration } => {
+                    | InstructionKind::AsyncRegistrationFinishDestroy { registration }
+                    | InstructionKind::AsyncRegistrationFinishDestroyChecked { registration } => {
                         budget.registrations = true;
                         budget.input(1, "registration actual operand")?;
                         if registration.0 as usize >= function.values.len() {

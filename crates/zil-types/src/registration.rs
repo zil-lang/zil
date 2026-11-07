@@ -15,6 +15,7 @@ pub(super) fn primitive(e: &CoreExpr) -> Option<&str> {
             | "async_registration_request_close"
             | "async_registration_poll_close"
             | "async_registration_finish_destroy"
+            | "async_registration_finish_destroy_checked"
     )
     .then_some(n)
 }
@@ -324,9 +325,9 @@ impl Builder<'_, '_> {
                             Type::Bool,
                         )
                     }
-                    "async_registration_finish_destroy" if matches!(&ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..})) => {
+                    "async_registration_finish_destroy" | "async_registration_finish_destroy_checked" if matches!(&ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..})) => {
                         (
-                            InstructionKind::AsyncRegistrationFinishDestroy { registration },
+                            if name == "async_registration_finish_destroy_checked" { InstructionKind::AsyncRegistrationFinishDestroyChecked { registration } } else { InstructionKind::AsyncRegistrationFinishDestroy { registration } },
                             Type::Unit,
                         )
                     }

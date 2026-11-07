@@ -791,6 +791,7 @@ pub(super) fn snapshot_context_function(
         life: function.life.clone(),
         type_parameters: function.type_parameters.clone(),
         state_parameters: function.state_parameters.clone(),
+        protocol_contract: function.protocol_contract.clone(),
         callable_return: function.callable_return.clone(),
         id: function.id,
         name: function.name.clone(),

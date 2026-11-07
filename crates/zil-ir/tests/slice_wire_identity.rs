@@ -35,6 +35,7 @@ fn raw(start: Option<ValueId>, end: Option<ValueId>) -> TypedModule {
             return_type: Type::Unit,
             result_mode: PassingMode::Infer,
             callable_contract: None,
+            protocol_contract: None,
             callable_return_contract: None,
             foreign: None,
             locals: vec![],

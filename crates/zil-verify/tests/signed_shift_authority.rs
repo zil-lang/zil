@@ -29,6 +29,7 @@ fn module(left: Constant, right: Constant, op: BinaryOp) -> TypedModule {
             name: "value".into(),
             environment: None,
             callable_contract: None,
+            protocol_contract: None,
             callable_return_contract: None,
             result_mode: PassingMode::Infer,
             foreign: None,

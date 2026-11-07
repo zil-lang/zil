@@ -52,6 +52,7 @@ fn base(kind: CallableKind) -> TypedModule {
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
+        protocol_contract: None,
         id: FunctionId(0),
         name: "callback".into(),
         foreign: None,

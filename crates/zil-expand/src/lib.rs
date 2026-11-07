@@ -121,6 +121,7 @@ fn registration_name(name: &str) -> bool {
             | "async_registration_request_close"
             | "async_registration_poll_close"
             | "async_registration_finish_destroy"
+            | "async_registration_finish_destroy_checked"
     )
 }
 fn primitive_name(name: &str) -> bool {
