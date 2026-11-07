@@ -34,7 +34,7 @@ capabilities and require their own actual protocol and target evidence.
 Types constructs candidates. Analyze and Verify independently reconstruct
 ownership, initialization, origins, loans, effects and capability requirements,
 including raw/Wire inputs and unused declarations. Lower and each backend use
-only verified operations. Schema/Wire 45 reserves type tags 38/39 for mutex and
+only verified operations. Joint schema/Wire 46 reserves type tags 38/39 for mutex and
 guard, and instruction tags 141–145 for create/lock/project/unlock/guard cleanup.
 Transport alone does not establish executable support or release acceptance.
 

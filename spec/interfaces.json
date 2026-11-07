@@ -1891,8 +1891,8 @@
   "owned_dyn_storage": {
     "proposal": "spec/owned-dyn-storage.md",
     "normative": "_zil_design.md §9.4",
-    "schema_version": 45,
-    "wire_version": 45,
+    "schema_version": 46,
+    "wire_version": 46,
     "type": "OwnedDyn{interface} tag40; affine two-pointer owner, distinct from unsized Dyn and Address<Dyn>",
     "instructions": {
       "148": "MakeDynOwned{interface,vtable,source,route:Heap} -> DynCreateError!OwnedDyn",
@@ -1905,8 +1905,8 @@
   },
   "affine_mutex": {
     "source": "_zil_design.md §§8,11; spec/affine-mutex.md",
-    "schema_version": 45,
-    "wire_version": 45,
+    "schema_version": 46,
+    "wire_version": 46,
     "representation": "Type::Mutex{payload} tag38; Type::MutexGuard{payload,retained_life} tag39; actual stable owned mutex head and affine inline guard. Complete type/retained metadata is untrusted.",
     "instructions": {
       "141": "MutexCreate{value}",
@@ -1915,7 +1915,7 @@
       "144": "MutexUnlock{guard}",
       "145": "DropMutexGuard{local}"
     },
-    "identity": "Typed/Type/LifeInventory V45 and Wire45 reject prior envelopes; CT schema unchanged.",
+    "identity": "Typed/Type/LifeInventory V46 and Wire46 reject prior envelopes; CT schema unchanged.",
     "trust": "Actual input cleanup, lock invariant, once-only unlock, guard-child loans, head retention and thread capability are reconstructed independently. Public transport is not source or machine acceptance."
   }
 }
