@@ -98,7 +98,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
             .saturating_add(module.dyn_vtables.len()),
         WORK,
     )?;
-    let mut declarations = BTreeSet::new();
+    let mut declarations = BTreeMap::new();
     let mut identities = BTreeSet::new();
     for declaration in &module.dyn_declarations {
         budget.spend(
@@ -106,10 +106,35 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
                 .members
                 .len()
                 .saturating_add(declaration.parameters.len())
+                .saturating_add(declaration.identity.package.len())
+                .saturating_add(
+                    declaration
+                        .identity
+                        .module_path
+                        .iter()
+                        .fold(0usize, |n, s| n.saturating_add(s.len())),
+                )
+                .saturating_add(
+                    declaration
+                        .identity
+                        .declaration_path
+                        .iter()
+                        .fold(0usize, |n, s| n.saturating_add(s.len())),
+                )
+                .saturating_add(declaration.identity.generation_path.len())
+                .saturating_add(
+                    declaration
+                        .members
+                        .iter()
+                        .fold(0usize, |n, m| n.saturating_add(m.name.len())),
+                )
                 .saturating_add(1),
             WORK,
         )?;
-        if !declarations.insert(declaration.id) || !identities.insert(declaration.identity.clone())
+        budget.lookup(declarations.len(), WORK)?;
+        budget.lookup(identities.len(), WORK)?;
+        if declarations.insert(declaration.id, declaration).is_some()
+            || !identities.insert(declaration.identity.clone())
         {
             return Err(bad("dyn declaration identity is repeated"));
         }
@@ -128,9 +153,9 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
     for interface in &module.dyn_interfaces {
         budget.lookup(declarations.len(), WORK)?;
         if !interfaces.insert(interface.id)
-            || !module.dyn_declarations.iter().any(|d| {
-                d.id == interface.application.declaration && d.kind == DynDeclarationKind::Trait
-            })
+            || !declarations
+                .get(&interface.application.declaration)
+                .is_some_and(|d| d.kind == DynDeclarationKind::Trait)
         {
             return Err(bad("dyn interface has no unique actual trait declaration"));
         }
@@ -147,6 +172,13 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
             return Err(bad("dyn interface is outside the finite shared profile"));
         }
         for slot in &interface.slots {
+            budget.spend(
+                slot.parameters
+                    .len()
+                    .saturating_add(slot.parameter_modes.len())
+                    .saturating_add(24),
+                WORK,
+            )?;
             if slot.member.application != interface.application
                 || !slot.actuals.is_empty()
                 || slot.receiver.mutable
@@ -163,10 +195,8 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
                 return Err(bad("dyn slot lacks a body-derived closed shared contract"));
             }
             budget.lookup(declarations.len(), WORK)?;
-            let declaration = module
-                .dyn_declarations
-                .iter()
-                .find(|d| d.id == slot.member.application.declaration)
+            let declaration = declarations
+                .get(&slot.member.application.declaration)
                 .ok_or_else(|| bad("dyn slot trait declaration absent"))?;
             if !matches!(declaration.members.get(slot.member.ordinal as usize), Some(DynMemberDeclaration { kind: DynMemberKind::Method(actuals), .. }) if actuals.is_empty())
             {
@@ -321,16 +351,42 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         if tables.insert(table.id, table).is_some() {
             return Err(bad("dyn vtable identity is repeated"));
         }
+        budget.spend(
+            module
+                .dyn_interfaces
+                .len()
+                .saturating_add(module.dyn_declarations.len())
+                .saturating_add(table.entries.len())
+                .saturating_add(1),
+            WORK,
+        )?;
         let interface = module
             .dyn_interfaces
             .iter()
             .find(|i| i.id == table.interface)
             .ok_or_else(|| bad("dyn vtable interface is absent"))?;
+        let Type::Record { name, fields } = &table.self_type else {
+            return Err(bad("dyn table Self is not a concrete record"));
+        };
+        budget.spend(
+            name.len().saturating_add(fields.len()).saturating_add(1),
+            WORK,
+        )?;
+        let mut names = BTreeSet::new();
+        if name.is_empty() || fields.is_empty() {
+            return Err(bad("dyn table Self lacks finite nominal storage"));
+        }
+        for (field, ty) in fields {
+            budget.spend(field.len().saturating_add(1), WORK)?;
+            budget.lookup(names.len(), WORK)?;
+            if field.is_empty() || !scalar(ty) || !names.insert(field) {
+                return Err(bad("dyn table Self has an invalid scalar field"));
+            }
+        }
         if !module
             .dyn_declarations
             .iter()
             .any(|d| d.id == table.implementation && d.kind == DynDeclarationKind::Impl)
-            || !matches!(&table.self_type, Type::Record { fields, .. } if !fields.is_empty() && fields.iter().all(|(_, ty)| scalar(ty)))
             || !table.actuals.is_empty()
             || !table.ports.is_empty()
             || table.cleanup.is_some()
@@ -459,6 +515,59 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                                 != Some(&selected.result)
                         {
                             return Err(bad("dyn call actual callee, arguments or result differs"));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The ordinary Hold analysis reconstructs actual SSA/local provenance and
+/// windows. Its candidate facts are used here only for Analyze's own final
+/// grounding; Verify rebuilds both facts independently.
+pub(super) fn check_roots(
+    module: &TypedModule,
+    plans: &[FunctionPlan],
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    if budget.dyn_interfaces.is_empty() {
+        return Ok(());
+    }
+    for (f, plan) in module.functions.iter().zip(plans) {
+        budget.spend(f.blocks.len().saturating_add(1), WORK)?;
+        for block in &f.blocks {
+            budget.spend(block.instructions.len(), WORK)?;
+            for instruction in &block.instructions {
+                let roots = |id: ValueId| -> CompileResult<&[HoldRoot]> {
+                    let hold = plan
+                        .holds
+                        .get(id.0 as usize)
+                        .ok_or_else(|| bad("dyn value has no actual Hold fact"))?;
+                    if hold.value != id {
+                        return Err(bad("dyn Hold identity differs"));
+                    }
+                    Ok(&hold.roots)
+                };
+                match instruction.kind {
+                    InstructionKind::MakeDynBorrow { source, .. } => {
+                        let result = instruction
+                            .result
+                            .ok_or_else(|| bad("dyn borrow result absent"))?;
+                        budget.spend(
+                            roots(source)?.len().saturating_add(roots(result)?.len()),
+                            WORK,
+                        )?;
+                        if roots(source)?.is_empty() || roots(source)? != roots(result)? {
+                            return Err(bad("dyn borrow does not retain its actual source root"));
+                        }
+                    }
+                    InstructionKind::CallDynSlot { callee, .. } => {
+                        budget.spend(roots(callee)?.len(), WORK)?;
+                        if roots(callee)?.is_empty() {
+                            return Err(bad("dyn call callee has no actual borrow root"));
                         }
                     }
                     _ => {}

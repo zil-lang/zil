@@ -140,6 +140,7 @@ fn analyze_budgeted(
         for (function, holds) in plan.functions.iter_mut().zip(actual) {
             function.holds = holds;
         }
+        dyn_dispatch::check_roots(module, &plan.functions, budget)?;
         return Ok(plan);
     }
     foreign_scoped::check(module, &hold_graphs, budget)?;
@@ -159,6 +160,7 @@ fn analyze_budgeted(
     for (function, holds) in plan.functions.iter_mut().zip(actual_holds) {
         function.holds = holds;
     }
+    dyn_dispatch::check_roots(module, &plan.functions, budget)?;
     tasks::loans(module, &plan, &hold_graphs, budget)?;
     Ok(plan)
 }

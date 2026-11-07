@@ -1584,7 +1584,14 @@ fn infer_with_private(
         .as_ref()
         .map(|definitions| definitions.schedule(f, reachable, budget))
         .transpose()?;
-    let mut pattern_windows = budget.owning_address_captures || replacement_schedule.is_some();
+    let dyn_windows = if budget.dyn_interfaces.is_empty() {
+        false
+    } else {
+        budget.spend(v, "dyn actual address window classification")?;
+        f.values.iter().any(|ty| matches!(ty, Type::Address { mutable: false, inner } if matches!(inner.as_ref(), Type::Dyn { .. })))
+    };
+    let mut pattern_windows =
+        budget.owning_address_captures || replacement_schedule.is_some() || dyn_windows;
     if budget.addressed_sums {
         budget.spend(f.blocks.len(), "pattern window function scan")?;
         for block in &f.blocks {
