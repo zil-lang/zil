@@ -2,6 +2,7 @@
 """Check static engineering contracts and registries without inferring task state."""
 import argparse
 import copy
+import hashlib
 import json
 import re
 import sys
@@ -17,6 +18,16 @@ FIELDS = {'source_id', 'title', 'requirements', 'acceptance', 'depends_on',
 
 def load(path):
     return json.loads(path.read_text(encoding='utf-8'))
+
+def hashes(root, interfaces):
+    entries = []
+    for name in sorted(interfaces['normative_inputs']):
+        path = (root / name).resolve()
+        if not path.is_relative_to(root.resolve()) or not path.is_file():
+            raise ValueError(f'invalid normative input: {name}')
+        entries.append(name + '\0' + hashlib.sha256(path.read_bytes()).hexdigest() + '\n')
+    return {'spec_hash': hashlib.sha256((root / '_zil_design.md').read_bytes()).hexdigest(),
+            'normative_hash': hashlib.sha256(''.join(entries).encode('utf-8')).hexdigest()}
 
 def read_contracts(root=ROOT):
     data = load(root / 'validation/engineering-contracts.json')
@@ -148,9 +159,13 @@ def validate(contracts, interfaces, plans, conformance, rules=None, gates=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--self-test', action='store_true')
+    parser.add_argument('--print-hashes', action='store_true', help='print current normative input hashes without inferring acceptance')
     args = parser.parse_args()
-    contracts = read_contracts()
     interfaces = load(ROOT / 'spec/interfaces.json')
+    if args.print_hashes:
+        print(json.dumps(hashes(ROOT, interfaces), indent=2))
+        return 0
+    contracts = read_contracts()
     plans = load(ROOT / 'validation/task-test-plans.json')
     conformance = load(ROOT / 'conformance/index.json')
     spec = (ROOT / '_zil_design.md').read_text(encoding='utf-8')
