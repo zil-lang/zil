@@ -11,6 +11,9 @@ const LOCAL_EXCLUSIVE_SLOT: &str = include_str!("local-exclusive-package-slot.zi
 const WHOLE_TARGET_REPLACEMENT: &str = include_str!("whole-package-target-replacement.zil");
 const MULTI_LEAF_PACKAGE: &str = include_str!("multi-leaf-mixed-package.zil");
 const SLOT_REPLACEMENT: &str = include_str!("mutable-package-slot-replacement.zil");
+const SHARED_EXCLUSIVE_REPLACEMENT: &str =
+    include_str!("mixed-shared-exclusive-slot-replacement.zil");
+const REPLACE_AND_RETURN_CHILD: &str = include_str!("replace-and-return-stored-child.zil");
 const LOCAL_SLOT_REPLACEMENT: &str = include_str!("local-package-slot-replacement.zil");
 const CONDITIONAL_SLOT_REPLACEMENT: &str = include_str!("conditional-package-slot-replacement.zil");
 
@@ -43,6 +46,14 @@ fn mixed_package_source_raw_and_wire() {
         ),
         ("multi-leaf-mixed-package.zil", MULTI_LEAF_PACKAGE),
         ("mutable-package-slot-replacement.zil", SLOT_REPLACEMENT),
+        (
+            "mixed-shared-exclusive-slot-replacement.zil",
+            SHARED_EXCLUSIVE_REPLACEMENT,
+        ),
+        (
+            "replace-and-return-stored-child.zil",
+            REPLACE_AND_RETURN_CHILD,
+        ),
         ("local-package-slot-replacement.zil", LOCAL_SLOT_REPLACEMENT),
     ] {
         let source = source(name, program);
@@ -399,6 +410,121 @@ fn helper_slot_write_does_not_leave_its_input_ssa_writable() {
 }
 
 #[test]
+fn helper_replacement_rejects_a_live_child_of_the_same_carrier_ssa() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let source = source("mutable-package-slot-replacement.zil", SLOT_REPLACEMENT);
+    let syntax = zil_syntax::parse(&source).into_result().unwrap();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &source,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let mut raw = zil_types::check(&core, &target, &limits).unwrap();
+    let replace_id = raw
+        .functions
+        .iter()
+        .find(|f| f.name == "replace")
+        .unwrap()
+        .id;
+    let relay = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "relay")
+        .unwrap();
+    let block = &mut relay.blocks[0];
+    let call = block
+        .instructions
+        .iter()
+        .position(|i| matches!(&i.kind, zil_ir::InstructionKind::Call { function, .. } if *function == replace_id))
+        .unwrap();
+    let (carrier, span) = match &block.instructions[call] {
+        zil_ir::Instruction {
+            kind: zil_ir::InstructionKind::Call { arguments, .. },
+            span,
+            ..
+        } => (arguments[0], *span),
+        _ => unreachable!(),
+    };
+    let child = zil_ir::ValueId(relay.values.len() as u32);
+    relay.values.push(zil_ir::Type::Address {
+        mutable: true,
+        inner: Box::new(zil_ir::Type::I32),
+    });
+    let literal = zil_ir::ValueId(relay.values.len() as u32);
+    relay.values.push(zil_ir::Type::I32);
+    block.instructions.insert(
+        call,
+        zil_ir::Instruction {
+            result: Some(child),
+            kind: zil_ir::InstructionKind::LoadStoredBorrow {
+                storage: carrier,
+                path: vec![zil_ir::PlaceProjection::Field(1)],
+                mode: zil_ir::StoredBorrowLoad::Reborrow { mutable: true },
+            },
+            span,
+        },
+    );
+    block.instructions.insert(
+        call + 2,
+        zil_ir::Instruction {
+            result: Some(literal),
+            kind: zil_ir::InstructionKind::Constant(zil_ir::Constant::I32(7)),
+            span,
+        },
+    );
+    let mut candidate = zil_analyze::analyze(&raw, &limits).unwrap();
+    let relay = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "relay")
+        .unwrap();
+    relay.blocks[0].instructions.insert(
+        call + 3,
+        zil_ir::Instruction {
+            result: None,
+            kind: zil_ir::InstructionKind::WriteAddress {
+                address: child,
+                value: literal,
+            },
+            span,
+        },
+    );
+    candidate.module_fingerprint = raw.fingerprint();
+    let analyze_error = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(
+        analyze_error
+            .iter()
+            .any(|d| d.message.contains("simultaneously live access")),
+        "{analyze_error:?}"
+    );
+    let verify_error =
+        zil_verify::verify_module(raw.clone(), candidate.clone(), &target, &limits).unwrap_err();
+    assert!(
+        verify_error
+            .iter()
+            .any(|d| d.message.contains("live incompatible loan")),
+        "{verify_error:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &candidate, &limits).unwrap();
+    let wire_error = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert!(
+        wire_error
+            .iter()
+            .any(|d| d.message.contains("live incompatible loan")),
+        "{wire_error:?}"
+    );
+}
+
+#[test]
 #[cfg(target_os = "linux")]
 fn mixed_package_native_both_optimizations() {
     for (name, program, expected) in [
@@ -431,6 +557,16 @@ fn mixed_package_native_both_optimizations() {
         (
             "mutable-package-slot-replacement.zil",
             SLOT_REPLACEMENT,
+            b"0\n".as_slice(),
+        ),
+        (
+            "mixed-shared-exclusive-slot-replacement.zil",
+            SHARED_EXCLUSIVE_REPLACEMENT,
+            b"0\n".as_slice(),
+        ),
+        (
+            "replace-and-return-stored-child.zil",
+            REPLACE_AND_RETURN_CHILD,
             b"0\n".as_slice(),
         ),
         (
@@ -588,6 +724,23 @@ fn same_stored_leaf_and_same_exclusive_input_reject() {
             "stored-replacement-target-write.zil",
             &replaced_target_write,
         ),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    let overlapping_return = REPLACE_AND_RETURN_CHILD.replace(
+        "  *child=*child+1\n",
+        "  let sibling=session.pointer\n  *child=*child+1\n  *sibling=*sibling+1\n",
+    );
+    let report = compile_source(
+        &source("overlapping-returned-stored-child.zil", &overlapping_return),
         &CompileOptions {
             stop_after: Stage::Verify,
             ..CompileOptions::default()

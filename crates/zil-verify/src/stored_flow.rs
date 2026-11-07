@@ -2389,6 +2389,19 @@ fn check_call(
                 requirements,
                 b,
             )?;
+            if *mutable && let Some((_, shape)) = addressed(ty) {
+                for slot in &shape.slots {
+                    let held = select(state, &value.address, &slot.path, b)?;
+                    access(
+                        &held,
+                        slot.mode == StoredBorrowMode::ExclusiveAddress,
+                        active,
+                        &solution.loans,
+                        requirements,
+                        b,
+                    )?;
+                }
+            }
         }
         for (_, p) in &value.leaves {
             access(p, false, active, &solution.loans, requirements, b)?;

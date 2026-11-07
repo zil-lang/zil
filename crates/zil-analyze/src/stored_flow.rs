@@ -2966,6 +2966,19 @@ fn windows(
                         let ty = &callee.locals[parameter.0 as usize].ty;
                         if let Type::Address { mutable, .. } = ty {
                             use_permission(&actual.pointer, *mutable, &current, loans, apart, b)?;
+                            if *mutable && let Some((_, shape)) = pointed_carrier(ty) {
+                                for slot in &shape.slots {
+                                    let held = select(&state, &actual.pointer, &slot.path, b)?;
+                                    use_permission(
+                                        &held,
+                                        slot.mode == StoredBorrowMode::ExclusiveAddress,
+                                        &current,
+                                        loans,
+                                        apart,
+                                        b,
+                                    )?;
+                                }
+                            }
                         }
                         for leaf in actual.slots.values() {
                             use_permission(leaf, false, &current, loans, apart, b)?;
