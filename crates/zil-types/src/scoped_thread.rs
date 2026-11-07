@@ -11,7 +11,8 @@ impl Signature {
             && self.template.is_none()
             && self.receiver.is_none()
             && (self.parameters.as_slice() == [Type::I32]
-                || matches!(self.parameters.as_slice(), [Type::Address { mutable: false, inner }] if **inner == Type::I32 || matches!(inner.as_ref(), Type::SyncCell(_))))
+                || matches!(self.parameters.as_slice(), [Type::Address { mutable: false, inner }] if **inner == Type::I32 || matches!(inner.as_ref(), Type::SyncCell(_)))
+                || matches!(self.parameters.as_slice(), [Type::Desc(inner)] if matches!(inner.as_ref(), Type::Mutex { .. })))
             && self.result == Type::I32
     }
 }

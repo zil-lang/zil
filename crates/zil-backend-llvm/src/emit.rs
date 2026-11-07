@@ -3826,6 +3826,7 @@ fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
             || ty.is_package_address()
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
+            || matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(), Type::Mutex { .. }))
             || matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
             || matches!(ty, Type::Package { .. })
             || drop_plan::owned_sum(ty) =>
@@ -3932,6 +3933,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                     && !field.is_package_address()
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
+                    && !matches!(field,Type::Desc(payload) if matches!(payload.as_ref(), Type::Mutex { .. }))
                     && !matches!(field, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
                     && !matches!(field, Type::Package { .. })
                     && !drop_plan::owned_sum(field)

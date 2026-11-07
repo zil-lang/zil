@@ -60,6 +60,11 @@ pub(super) fn runtime(lir: &LirView<'_>) -> CompileResult<m::Code> {
         return unsupported("generic pthread mutex requires Linux x86-64 ABI", None);
     }
     let existing_scoped = scoped_thread::present(lir);
+    let existing_scoped_mutex = lir.functions.iter().any(|f| f.blocks.iter().flat_map(|b|&b.instructions).any(|i| match i.kind {
+        InstructionKind::WithSyncCell { kind: zil_ir::SyncCellKind::MutexI32, .. } => true,
+        InstructionKind::SyncI32 { address, .. } => matches!(f.values.get(address.0 as usize), Some(Type::Address { inner, .. }) if matches!(inner.as_ref(), Type::SyncCell(zil_ir::SyncCellKind::MutexI32))),
+        _ => false,
+    }));
     let existing_free = lir
         .resources
         .iter()
@@ -69,8 +74,10 @@ pub(super) fn runtime(lir: &LirView<'_>) -> CompileResult<m::Code> {
         declarations.push(("free", m::Ty::Void, vec![m::Ty::Ptr]));
     }
     if !existing_scoped {
+        declarations.push(("abort", m::Ty::Void, vec![]));
+    }
+    if !existing_scoped_mutex {
         declarations.extend([
-            ("abort", m::Ty::Void, vec![]),
             ("pthread_mutex_init", m::Ty::Int(32), vec![m::Ty::Ptr; 2]),
             ("pthread_mutex_destroy", m::Ty::Int(32), vec![m::Ty::Ptr]),
             ("pthread_mutex_lock", m::Ty::Int(32), vec![m::Ty::Ptr]),

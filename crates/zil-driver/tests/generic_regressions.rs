@@ -110,6 +110,36 @@ fn generic_mutex_source_candidate_has_real_guard_operations() {
     assert!(zil_analyze::analyze(&typed, &Limits::default()).is_err());
 }
 #[test]
+fn generic_mutex_thread_candidate() {
+    let src = source(
+        "fn worker(cell:Mutex<i32>)->i32{var guard=mutex_lock(cell);let value=mutex_value(&mut guard);*value+=1;return 0}fn run(cell:Mutex<i32>)->i32{let (created,child,parent)=thread_scope(worker,cell,()->i32=>worker(cell));if !created{return 1}var guard=mutex_lock(cell);let value=mutex_value(&mut guard);let result=*value;return result-2+child+parent}fn entry()->MutexCreateError!i32{let cell=mutex_create(0)?;return run(cell)}fn main()->i32{match entry(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
+    );
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let typed = zil_types::check(
+        &core,
+        &zil_base::TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap();
+    let plan = zil_analyze::analyze(&typed, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        typed,
+        plan,
+        &zil_base::TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap();
+    check_mutex_native(&src, "thread-shared");
+}
+#[test]
+fn generic_mutex_owned_package_thread_candidate() {
+    let src = source(
+        "package Payload{manages bytes:ByteBuffer;pub count:i32}fn worker(cell:Mutex<Payload>)->i32{var guard=mutex_lock(cell);let value=mutex_value(&mut guard);value.count+=1;return 0}fn run(cell:Mutex<Payload>)->i32{let (created,child,parent)=thread_scope(worker,cell,()->i32=>worker(cell));if !created{return 1}var guard=mutex_lock(cell);let value=mutex_value(&mut guard);let result=value.count;return result-2+child+parent}fn entry()->MutexCreateError!i32{let bytes=bytes_new();let cell=mutex_create(Payload{bytes:give bytes,count:0})?;return run(cell)}fn main()->i32{match entry(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
+    );
+    check_mutex_native(&src, "thread-owned-package");
+}
+#[test]
 fn generic_mutex_copy_native_candidate() {
     let src = source(
         "fn run()->MutexCreateError!i32{let cell=mutex_create(7)?;var guard=mutex_lock(cell);let value=mutex_value(&mut guard);*value=9;let answer=*value;mutex_unlock(guard);return answer}fn main()->i32{match run(){.ok(value)=>{return value-9},.err(_)=>{return 1}}}",
