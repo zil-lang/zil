@@ -1403,6 +1403,27 @@ impl Check<'_, '_, '_> {
                                 }
                                 _ => Fact::Address(None, Box::new(source)),
                             }
+                        } else if let ExprKind::Member { object, member } = &operand.kind {
+                            // A field borrowed through a real address retains
+                            // that address's declared source class. Resolve the
+                            // field in the actual nominal inventory; the class
+                            // is only a source relation, never a loan proof.
+                            let owner = self.expr(object, scope, env, None, depth + 1)?;
+                            match &owner {
+                                Fact::Address(Some(life), _) => {
+                                    let field =
+                                        self.field(&owner, member, operand.span, depth + 1)?;
+                                    if matches!(field, Fact::Unknown) {
+                                        Fact::Address(None, Box::new(source))
+                                    } else {
+                                        Fact::Address(
+                                            Some(Box::new(self.copy(life, operand.span)?)),
+                                            Box::new(field),
+                                        )
+                                    }
+                                }
+                                _ => Fact::Address(None, Box::new(source)),
+                            }
                         } else {
                             // The constructor sees this exact physical borrow
                             // even without a lexical life name. Its actual node
@@ -1477,7 +1498,9 @@ impl Check<'_, '_, '_> {
                 if let Some(name) = root {
                     self.lookup(env.len(), name.len(), e.span)?;
                 }
-                if let Some(name) = root.filter(|name| !env.contains_key(*name)) {
+                let shadowed = root.is_some_and(|name| env.contains_key(name));
+                let mut declared_function = false;
+                if let Some(name) = root.filter(|_| !shadowed) {
                     for owner in 0..self.functions.len() {
                         self.pay(e.span, 1)?;
                         if !self.standalone[owner] {
@@ -1489,6 +1512,7 @@ impl Check<'_, '_, '_> {
                         if f.name != name {
                             continue;
                         }
+                        declared_function = true;
                         let definition = Scope {
                             owner,
                             parameters: &f.generics,
@@ -1553,6 +1577,30 @@ impl Check<'_, '_, '_> {
                             output = self.substitute(&result, &map, e.span)?;
                         }
                         break;
+                    }
+                }
+                if matches!(output, Fact::Unknown)
+                    && root == Some("store_at")
+                    && !declared_function
+                    && !shadowed
+                    && let [first, _] = arguments.as_slice()
+                    && let ExprKind::Member { object, member } = &first.value.kind
+                {
+                    // A Store element window inherits the source class of the
+                    // actual borrowed manager field. A local Store or a named
+                    // value without an address source acquires no class here.
+                    let owner = self.expr(object, scope, env, None, depth + 1)?;
+                    if let Fact::Address(Some(life), _) = &owner {
+                        let field = self.field(&owner, member, first.value.span, depth + 1)?;
+                        if let Fact::Named(Head::Plain(path), mut elements) = field
+                            && path.as_slice() == ["Store"]
+                            && elements.len() == 1
+                        {
+                            output = Fact::Address(
+                                Some(Box::new(self.copy(life, e.span)?)),
+                                Box::new(elements.remove(0)),
+                            );
+                        }
                     }
                 }
                 output

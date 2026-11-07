@@ -312,7 +312,9 @@ fn signature_errors(
         stored::pure_inline(ty, left, limits, span)
     }
     let pure_result = pure_array(&f.return_type, f.span, limits, left)?;
-    if f.return_type.is_package_address() {
+    if f.return_type.is_package_address()
+        && !(f.return_type.is_shared_package_address() && f.life.is_some())
+    {
         errors.push(unsupported(f.span, "Store element windows are synchronous inputs; address results derived from element windows are not implemented"));
     }
     if f.return_type.is_shared_resource_head_address()
@@ -936,10 +938,12 @@ impl<'a, 'c> Builder<'a, 'c> {
                     .saturating_add(self.function.values.len()),
                 body.span,
             )?;
-            // A shared Copy leaf may return from an actual Store window. The
-            // shape alone grants no source: Analyze and Verify each check the
-            // returned root, then the caller keeps the manager loan live.
+            // Shared Copy leaves and shared nominal Package results with a
+            // declared return-life bound may leave a Store window. Analyze
+            // and Verify prove actual roots and preserve the manager loan.
             if !matches!(&self.function.return_type, Type::Address { mutable: false, inner } if inner.is_address_pointee())
+                && !(self.function.return_type.is_shared_package_address()
+                    && self.function.reference_return_bound.is_some())
                 && self
                 .function
                 .locals

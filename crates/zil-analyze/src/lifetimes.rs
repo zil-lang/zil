@@ -23,7 +23,8 @@ pub(super) fn headers(module: &TypedModule, budget: &mut Budget) -> CompileResul
             || f.environment.is_some()
             || f.foreign.is_some()
             || f.callable_contract.is_some()
-            || !matches!(&f.return_type,Type::Address{inner,..} if inner.is_address_pointee())
+            || !(matches!(&f.return_type,Type::Address{inner,..} if inner.is_address_pointee())
+                || matches!(&f.return_type,Type::Address{mutable:false,inner} if matches!(inner.as_ref(),Type::Package{..})))
         {
             return Err(error(
                 f,
@@ -39,7 +40,8 @@ pub(super) fn headers(module: &TypedModule, budget: &mut Budget) -> CompileResul
                 budget.type_work(&actual.ty, true, "life input address qualification")?;
             }
             if !actual.is_some_and(
-                |l| matches!(&l.ty,Type::Address{inner,..} if inner.is_address_pointee()),
+                |l| matches!(&l.ty,Type::Address{inner,..} if inner.is_address_pointee())
+                    || matches!(&l.ty,Type::Address{mutable:false,inner} if matches!(inner.as_ref(),Type::Package{..})),
             ) {
                 return Err(error(
                     f,
