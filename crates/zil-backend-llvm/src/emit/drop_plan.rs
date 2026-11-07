@@ -83,7 +83,16 @@ impl<'a> Budget<'a> {
             || self.nodes > self.limits.max_nodes
             || self.work > self.limits.max_analysis_steps
         {
-            return Err(limit());
+            let mut errors = limit();
+            errors[0].notes.push(format!(
+                "depth {depth}/{}, nodes {}/{}, work {}/{}",
+                self.limits.max_call_depth,
+                self.nodes,
+                self.limits.max_nodes,
+                self.work,
+                self.limits.max_analysis_steps
+            ));
+            return Err(errors);
         }
         Ok(())
     }
@@ -685,6 +694,7 @@ pub(super) fn functions(
     // Pay new local operations, complete layout copies, and their emission
     // bound before FunctionEmitter builds any new scratch/target instructions.
     for f in lir.functions {
+        let mut partial_locals = std::collections::BTreeSet::new();
         for block in &f.blocks {
             for instruction in &block.instructions {
                 budget.pay(0, 1)?;
@@ -703,12 +713,24 @@ pub(super) fn functions(
                     }
                     InstructionKind::TakeTupleField { local, .. }
                     | InstructionKind::TakeVariantField { local, .. } => {
-                        partial_places::prepay(
-                            &f.locals[local.0 as usize].ty,
-                            f,
-                            lir.resources,
-                            &mut budget,
+                        // FunctionEmitter constructs one recipe/flag vector per
+                        // local, even when several fields are taken from it.
+                        budget.pay(
+                            0,
+                            partial_locals
+                                .len()
+                                .checked_ilog2()
+                                .map_or(1, |n| n as usize + 2),
                         )?;
+                        if partial_locals.insert(*local) {
+                            partial_places::prepay(
+                                &f.locals[local.0 as usize].ty,
+                                *local,
+                                f,
+                                lir.resources,
+                                &mut budget,
+                            )?;
+                        }
                     }
                     InstructionKind::BorrowPlaceLocal { local, path, .. }
                     | InstructionKind::PlaceTagLocal { local, path } => {
@@ -952,6 +974,49 @@ mod owned_sum_drop_plan_tests {
                 result_mode: zil_ir::PassingMode::Infer,
             }],
         }
+    }
+    #[test]
+    fn partial_recipe_cost_tracks_its_local_and_keeps_a_hard_work_limit() {
+        let mut input = recipe_input();
+        let function = &mut input.functions[0];
+        function.blocks.push(zil_ir::BasicBlock {
+            id: zil_ir::BlockId(0),
+            instructions: vec![Instruction {
+                result: None,
+                kind: InstructionKind::StorageLive(LocalId(0)),
+                span: Span::default(),
+            }],
+            terminator: zil_ir::Terminator::Return(None),
+        });
+        let measure = |function: &TypedFunction, limit: usize| {
+            let limits = zil_base::Limits {
+                max_analysis_steps: limit,
+                ..zil_base::Limits::default()
+            };
+            let mut budget = Budget::new(&limits);
+            partial_places::prepay(&packet(), LocalId(0), function, &resources(), &mut budget)?;
+            Ok::<_, Vec<Diagnostic>>(budget.spent())
+        };
+        let baseline = measure(function, 10_000_000).unwrap();
+        for index in 0..1000 {
+            function.blocks[0].instructions.push(Instruction {
+                result: Some(ValueId(index)),
+                kind: InstructionKind::Constant(Constant::I32(0)),
+                span: Span::default(),
+            });
+        }
+        let actual = measure(function, 10_000_000).unwrap();
+        assert!(actual > baseline, "the input scan must still be charged");
+        assert!(
+            actual < baseline * 2,
+            "unrelated instructions must not expand this local's cleanup"
+        );
+        assert_eq!(measure(function, actual).unwrap(), actual);
+        assert_eq!(
+            measure(function, actual - 1).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        assert_eq!(measure(function, actual).unwrap(), actual);
     }
     #[test]
     fn drop_plan_keeps_variant_choice_above_owned_fields() {
