@@ -31,10 +31,10 @@ fn checked(value:Root)->Root {
 fn replace(target:&mut Root,n:u64) { *target=make(n) }
 fn result()->u64 {
     var root=checked(relay(make(18446744073709551610u64)))
-    let pair=root.child
-    let before=store_at(pair.numbers,0)
+    let initial_pair=root.child
+    let before=store_at(initial_pair.numbers,0)
     if *before!=18446744073709551610u64 { return 1u64 }
-    root.child=pair
+    root.child=initial_pair
     replace(&mut root,18446744073709551612u64)
     let serial=root.serial
     let pair=root.child
