@@ -520,7 +520,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
                 format!("mode={mode}"),
                 module,
                 plan,
-                Some([4794, 5208, 7061][mode as usize]),
+                Some([4771, 5173, 6884][mode as usize]),
             )
         })
         .collect();
@@ -530,7 +530,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
             format!("Store indirect={indirect}"),
             module,
             plan,
-            Some(if indirect { 19011 } else { 16219 }),
+            Some(if indirect { 18736 } else { 15983 }),
         ));
     }
     let mut observed = Vec::new();
@@ -579,9 +579,9 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
             minima.push(hi);
         }
         assert_eq!(minima[0], minima[1]);
-        // Original controls were measured against d3b7b29b. HRTB's actual
-        // closure capture-root preservation charges Store false/true +1/+2;
-        // these exact public candidates and N-1/fresh checks remain unchanged.
+        // Sparse active-loan lookup visits only nonempty fixed SSA rows and
+        // current local rows. The same raw and Wire candidates retain exact
+        // N-1 rejection and fresh N acceptance at these reduced work minima.
         if let Some(expected) = expected {
             observed.push((label.clone(), minima[0]));
             recorded.push((label, expected));

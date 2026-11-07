@@ -5,7 +5,7 @@ use std::{
     process::{Command, Stdio},
     sync::atomic::{AtomicU64, Ordering},
 };
-use zil_base::{Limits, ResultCategory};
+use zil_base::ResultCategory;
 use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_path};
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -201,10 +201,6 @@ fn dynamic_cycle_shared_target_deletion_and_ticket_history_execute() {
                     backend,
                     optimization,
                     output: Some(executable.clone()),
-                    limits: Limits {
-                        max_analysis_steps: 50_000_000,
-                        ..Limits::default()
-                    },
                     ..CompileOptions::default()
                 },
             );
@@ -289,10 +285,6 @@ fn allocation_failure_releases_prepared_graph_and_nodes() {
                     optimization,
                     clang: Some(wrapper),
                     output: Some(executable.clone()),
-                    limits: Limits {
-                        max_analysis_steps: 50_000_000,
-                        ..Limits::default()
-                    },
                     ..CompileOptions::default()
                 },
             );
