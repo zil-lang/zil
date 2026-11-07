@@ -206,7 +206,7 @@ fn direct_store_sum_capture_refill_distinguishes_empty_arm_from_empty_slot() {
         .retain(|i| !matches!(i.kind, InstructionKind::WriteCapture { .. }));
     rejected(
         missing,
-        "repeatable closure entry does not preserve every owned field",
+        "Fn/FnMut return leaves an unfilled direct Sum capture",
     );
 }
 
@@ -224,7 +224,7 @@ fn direct_store_sum_capture_rejects_copy_take_twice_and_live_refill() {
         2,
         ins(Some(second), InstructionKind::TakeCapture { index: 0 }),
     );
-    rejected(twice, "captured responsibility was already transferred");
+    rejected(twice, "direct Sum capture was already transferred");
 
     let mut live_write = direct_store_sum_capture();
     let entry = &mut live_write.functions[1];
@@ -291,6 +291,43 @@ fn direct_store_sum_capture_rejects_copy_take_twice_and_live_refill() {
         .unwrap();
     entry.blocks[0].instructions.insert(at + 1, second_write);
     rejected(spent_value, "refill requires its consumed empty slot");
+}
+
+#[test]
+fn direct_store_sum_capture_has_exact_fresh_raw_wire_budget() {
+    let module = direct_store_sum_capture();
+    let plan = resource_tests::plan(&module);
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    for wire in [false, true] {
+        let check = |steps| {
+            let limits = Limits {
+                max_analysis_steps: steps,
+                ..Limits::default()
+            };
+            if wire {
+                verify_module_bytes(&bytes, &module.target, &limits)
+            } else {
+                verify_module(module.clone(), plan.clone(), &module.target, &limits)
+            }
+        };
+        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+        check(high).unwrap();
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if check(mid).is_ok() {
+                high = mid;
+            } else {
+                low = mid + 1;
+            }
+        }
+        assert!(low > 0);
+        check(low).unwrap();
+        assert_eq!(
+            check(low - 1).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        check(low).unwrap();
+    }
 }
 
 fn read_candidate(kind: CallableKind) -> TypedModule {

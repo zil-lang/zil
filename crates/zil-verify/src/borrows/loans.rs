@@ -1367,6 +1367,11 @@ pub(super) fn check(
                             || matches!(&f.values[value.0 as usize], Type::Managed(payload)
                                 if matches!(payload.as_ref(), Type::OwnedStore { .. }))
                             || matches!(f.values[value.0 as usize], Type::Closure(_))
+                            || (budget.pod_stores
+                                && matches!(
+                                    f.values[value.0 as usize],
+                                    Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                                ))
                     }) =>
                 {
                     access.check(&empty, &[Root::Capture(*index)], true, budget)?;
