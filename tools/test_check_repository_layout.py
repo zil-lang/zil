@@ -156,8 +156,8 @@ class RepositoryLayoutTests(unittest.TestCase):
             "crates/compiler/tests/llvm_api208.rs", "crates/compiler/src/object_cache212.rs",
             "crates/compiler/tests/perf206_codegen.rs", "tests/fixtures/original235.zil",
             "tests/fixtures/02_original201.zil", "tools/run338.py",
-            "validation/native339.json", "tests/perf/modules/m512.zil",
-            "tests/perf/modules/m001.zil", "tools/sha999.py",
+            "validation/native339.json", "tests/perf/modules/m001.zil",
+            "tools/sha999.py",
         )
         for path in paths:
             self.write(path)
@@ -172,6 +172,7 @@ class RepositoryLayoutTests(unittest.TestCase):
             "crates/compiler/src/schema100_wire.rs", "crates/compiler/src/wire_v100.rs",
             "tools/llvm300/check.py", "tests/case344_record.zil",
             "tests/perf/modules/m0.zil", "tests/perf/modules/m511.zil",
+            "tests/perf/modules/m512.zil",
             "tests/cases/PLAN-T01-003.json", "tests/perf/chain-reverse-256.zil",
             "tests/fixtures/01_record.zil",
         ):
