@@ -2089,8 +2089,13 @@ impl Flow<'_> {
                             && (matches!(package_storage(ty), Type::Package { .. })
                                 || matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()));
                         if shared_owned && matches!(package_storage(ty), Type::Package { .. }) {
-                            if (budget.has_owned_store_packages()
-                                && product::has_owned_store(ty, budget)?)
+                            let address_owner = if let Some(Type::Address { inner, .. }) = result {
+                                budget.owned_store_package_type(inner)?
+                            } else {
+                                false
+                            };
+                            if budget.owned_store_package_type(ty)?
+                                || address_owner
                                 || matches!(ty, Type::BorrowedStorage { .. })
                                 || budget.ordinary_pod_store_type(ty)?
                             {
@@ -2303,9 +2308,16 @@ impl Flow<'_> {
                     ) =>
                 {
                     let ty = &f.locals[local.0 as usize].ty;
+                    let address_owner = if let Some(Type::Address { inner, .. }) =
+                        i.result.and_then(|value| f.values.get(value.0 as usize))
+                    {
+                        budget.owned_store_package_type(inner)?
+                    } else {
+                        false
+                    };
                     if matches!(ty, Type::BorrowedStorage { .. })
-                        || (budget.has_owned_store_packages()
-                            && product::has_owned_store(ty, budget)?)
+                        || budget.owned_store_package_type(ty)?
+                        || address_owner
                         || budget.ordinary_pod_store_type(ty)?
                     {
                         product::admit_owned(self.module, ty, budget)?;
