@@ -2624,7 +2624,10 @@ impl Flow<'_> {
                         .ok_or_else(|| error("capture index is absent"))?;
                     if matches!(
                         package_storage(ty),
-                        Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+                        Type::Managed(_)
+                            | Type::Package { .. }
+                            | Type::Closure(_)
+                            | Type::OwnedDyn { .. }
                     ) || (matches!(
                         ty,
                         Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
@@ -4048,6 +4051,12 @@ pub(super) fn check_module(
     budget: &mut Budget,
 ) -> CompileResult<()> {
     budget.spend(module.closures.len(), "resource closure presence")?;
+    for closure in &module.closures {
+        budget.spend(closure.captures.len(), "owned dyn capture admission")?;
+        if closure.captures.iter().any(|ty| matches!(ty, Type::OwnedDyn { .. }) || matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. }))) {
+            return Err(error("owned dyn closure capture is outside the closed owner profile"));
+        }
+    }
     if module.resources.is_empty() {
         // An absent raw table cannot bypass actual replacement obligations.
         // The paid preflight already inventoried these owning ticket sites.

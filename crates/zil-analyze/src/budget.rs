@@ -1914,6 +1914,10 @@ pub(super) fn preflight(
                     InstructionKind::DescribeAddress { .. } => {
                         budget.head_descriptions = true;
                     }
+                    InstructionKind::MakeDynOwned { .. }
+                    | InstructionKind::BorrowDynOwned { .. } => {
+                        budget.head_descriptions = true;
+                    }
                     InstructionKind::MutexCreate { .. }
                     | InstructionKind::MutexLock { .. }
                     | InstructionKind::MutexValue { .. }
