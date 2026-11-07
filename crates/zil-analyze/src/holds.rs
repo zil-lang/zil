@@ -1651,6 +1651,10 @@ fn infer_with_private(
     } else {
         Vec::new()
     };
+    // address_afters_inner returns no table when this function has no actual
+    // address-shaped place. Pattern operations still need their independent
+    // access check, with an empty set of live address windows.
+    let no_live_addresses = resources::Live::new();
     let capture_afters = if let Some(schedule) = &replacement_schedule {
         resources::reserved_address_afters(f, reachable, true, &schedule.uses, budget)?
     } else if budget.address_capture {
@@ -1809,6 +1813,11 @@ fn infer_with_private(
                     )?;
                 }
                 if pattern_windows {
+                    let live = if address_afters.is_empty() {
+                        &no_live_addresses
+                    } else {
+                        &address_afters[b][position]
+                    };
                     pattern_window_transition(
                         module,
                         f,
@@ -1819,7 +1828,7 @@ fn infer_with_private(
                             captures: capture_facts.as_ref(),
                             replacements: replacement_definitions.as_ref(),
                         },
-                        &address_afters[b][position],
+                        live,
                         budget,
                     )?;
                 }
