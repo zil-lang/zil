@@ -83,7 +83,16 @@ impl<'a> Budget<'a> {
             || self.nodes > self.limits.max_nodes
             || self.work > self.limits.max_analysis_steps
         {
-            return Err(limit());
+            let mut errors = limit();
+            errors[0].notes.push(format!(
+                "depth {depth}/{}, nodes {}/{}, work {}/{}",
+                self.limits.max_call_depth,
+                self.nodes,
+                self.limits.max_nodes,
+                self.work,
+                self.limits.max_analysis_steps
+            ));
+            return Err(errors);
         }
         Ok(())
     }
