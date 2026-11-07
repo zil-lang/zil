@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-"""Keep construction IDs out of new permanent paths and delivered task state.
+"""Keep construction IDs out of permanent paths, declarations, and delivery.
 
-Usage: python3 tools/check-repository-layout.py --base origin/main [--delivery]
-The base is a Git commit, not an allowlist: existing numbered paths remain visible
-in the audit, while every path added or renamed since that commit is checked.
+Use --full for the whole tree, or --base REF for an incremental development check.
 """
 
 import argparse
@@ -15,10 +13,11 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-GOAL_ID = re.compile(r"(?<![A-Za-z0-9])G[0-9]+(?:[._][0-9]+)+(?![0-9])", re.I)
+GOAL_ID = re.compile(r"(?<![A-Za-z0-9])G[0-9]+(?:[._][0-9]+)*(?![0-9])", re.I)
 IMPLEMENTATION_ID = re.compile(r"(?<![A-Za-z0-9])impl[0-9]+(?![0-9])", re.I)
+CHECKPOINT_ID = re.compile(r"(?<![A-Za-z0-9])cp[0-9]+(?![0-9])", re.I)
 NUMBERED_LABEL = re.compile(
-    r"(?<![A-Za-z0-9])(?:language|batch|implementation)[-_]?[0-9]+(?![0-9])", re.I
+    r"(?<![A-Za-z0-9])(?:language|batch|implementation|review|research|task)[-_]?[0-9]+(?![0-9])", re.I
 )
 NUMBERED_DIRECTORY = re.compile(r"[0-9]+")
 NUMBERED_PREFIX = re.compile(r"[0-9]+[-_]")
@@ -30,9 +29,20 @@ CODE_SUFFIXES = {".rs", ".zil", ".py", ".c", ".h", ".js", ".mjs", ".ts"}
 DECLARATION = re.compile(
     r"^\s*(?:(?:pub(?:\([^)]*\))?|async|unsafe|extern|export|default)\s+)*"
     r"(?:fn|struct|enum|trait|mod|const|static|def|class|function)\s+"
-    r"((?:impl[0-9]+_|g[0-9]+(?:_[0-9]+)+_)[A-Za-z0-9_]*)\b",
+    r"([A-Za-z_][A-Za-z0-9_]*)\b",
     re.I | re.M,
 )
+CONSTRUCTION_NAME = re.compile(
+    r"(?:^|_)(?:g|impl|cp|review|batch|task|research)[0-9]+(?:_[0-9]+)*(?:_|$)"
+    r"|^[a-z][a-z_]*[0-9]{3,}(?:_|$)"
+    r"|_[0-9]{3,}(?:_|$)", re.I
+)
+SEMANTIC_NUMBER = re.compile(
+    r"^(?:schema|wire|llvm|utf|sha|u|i|f|m|r|island)[0-9]+(?:_|$)"
+    r"|^(?:schema|wire)[_-]v?[0-9]+(?:_|$)"
+    r"|^(?:case|fixture)[_-]?[0-9]+_[a-z]", re.I
+)
+HASH_NUMBER = re.compile(r"(?:^|_)sha(?:256|512)(?:_|$)", re.I)
 
 
 def git(root, *args):
@@ -56,6 +66,8 @@ def path_problems(path):
         problems.append("goal ID")
     if any(IMPLEMENTATION_ID.search(part) for part in parts):
         problems.append("implementation ID")
+    if any(CHECKPOINT_ID.search(part) for part in parts):
+        problems.append("checkpoint ID")
     if any(NUMBERED_LABEL.search(part) for part in parts):
         problems.append("numbered construction label")
     if any(NUMBERED_DIRECTORY.fullmatch(part) for part in parts[:-1]):
@@ -82,23 +94,35 @@ def delivery_problems(path):
 
 
 def construction_declarations(text):
-    return set(DECLARATION.findall(text))
+    names = set()
+    for name in DECLARATION.findall(text):
+        if not CONSTRUCTION_NAME.search(name) or SEMANTIC_NUMBER.match(name):
+            continue
+        if HASH_NUMBER.search(name) and not CONSTRUCTION_NAME.search(HASH_NUMBER.sub("hash", name)):
+            continue
+        names.add(name)
+    return names
 
 
-def check(base, delivery=False, root=ROOT):
-    baseline = paths_from_nul(git(root, "ls-tree", "-r", "--name-only", "-z", base))
+def check(base=None, delivery=False, root=ROOT, full=False):
+    if full == (base is not None):
+        raise ValueError("select exactly one of full or base")
+    baseline = set() if full else paths_from_nul(
+        git(root, "ls-tree", "-r", "--name-only", "-z", base))
     listed = paths_from_nul(git(root, "ls-files", "--cached", "--others", "--exclude-standard", "-z"))
     current = {path for path in listed if (root / path).exists() or (root / path).is_symlink()}
     new = sorted(current - baseline)
     violations = [(path, issue) for path in new for issue in path_problems(path)]
-    legacy = [(path, issue) for path in sorted(current & baseline) for issue in path_problems(path)]
-    changed = paths_from_nul(git(root, "diff", "--name-only", "-z", base, "--")) | set(new)
+    legacy = [] if full else [(path, issue) for path in sorted(current & baseline)
+                              for issue in path_problems(path)]
+    changed = current if full else paths_from_nul(
+        git(root, "diff", "--name-only", "-z", base, "--")) | set(new)
     for path in sorted(changed & current):
         if Path(path).suffix not in CODE_SUFFIXES:
             continue
         source = (root / path).read_text(encoding="utf-8", errors="replace")
         old = ""
-        if path in baseline:
+        if not full and path in baseline:
             old = git(root, "show", f"{base}:{path}").decode("utf-8", "replace")
         for name in sorted(construction_declarations(source) - construction_declarations(old)):
             violations.append((path, f"construction ID declaration {name}"))
@@ -110,22 +134,27 @@ def check(base, delivery=False, root=ROOT):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base", required=True, help="baseline Git commit/ref")
+    selection = parser.add_mutually_exclusive_group(required=True)
+    selection.add_argument("--base", help="baseline Git commit/ref for incremental checks")
+    selection.add_argument("--full", action="store_true", help="check all tracked and untracked files")
     parser.add_argument("--delivery", action="store_true",
                         help="also reject task state and duplicate root status across all files")
     parser.add_argument("--audit-all", action="store_true",
                         help="print every legacy path (default prints counts and samples)")
     args = parser.parse_args(argv)
     try:
-        new, violations, legacy = check(args.base, args.delivery)
+        new, violations, legacy = check(args.base, args.delivery, full=args.full)
     except subprocess.CalledProcessError as exc:
         sys.stderr.write(exc.stderr.decode("utf-8", "replace"))
         return 2
     for path, issue in violations:
         print(f"FAIL {issue}: {path}")
     counts = Counter(issue for _, issue in legacy)
-    print(f"Checked {len(new)} new paths against {args.base}; legacy numbered paths: "
-          + ", ".join(f"{kind}={count}" for kind, count in sorted(counts.items())))
+    if args.full:
+        print(f"Checked {len(new)} paths and declarations across the full tree.")
+    else:
+        print(f"Checked {len(new)} new paths against {args.base}; legacy numbered paths: "
+              + ", ".join(f"{kind}={count}" for kind, count in sorted(counts.items())))
     printed = Counter()
     for path, issue in legacy:
         printed[issue] += 1

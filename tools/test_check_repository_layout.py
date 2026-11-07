@@ -1,10 +1,13 @@
-"""Integration checks for the repository layout gate's Git baseline behavior."""
+"""Integration checks for incremental and full repository layout gates."""
 
 import importlib.util
 import subprocess
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 
 SPEC = importlib.util.spec_from_file_location(
@@ -105,6 +108,51 @@ class RepositoryLayoutTests(unittest.TestCase):
             self.write(path)
         _, failures, _ = layout.check(base, root=self.root)
         self.assertEqual({path for path, _ in failures}, set(paths))
+
+    def test_full_rejects_numbered_paths_already_in_baseline(self):
+        self.baseline("crates/impl253/src/lib.rs", "tests/cp34_fingerprint.rs",
+                      "tools/batch336/probe.py")
+        checked, failures, legacy = layout.check(full=True, root=self.root)
+        self.assertEqual(len(checked), 3)
+        self.assertEqual(legacy, [])
+        self.assertEqual({path for path, _ in failures}, {
+            "crates/impl253/src/lib.rs", "tests/cp34_fingerprint.rs",
+            "tools/batch336/probe.py",
+        })
+
+    def test_full_accepts_protocol_width_case_and_fixture_numbers(self):
+        self.baseline("crates/schema-v40/src/wire_v34.rs", "tools/llvm23/check.py",
+                      "tests/case_344.rs", "tests/fixture01_valid_callback.rs",
+                      "examples/m0/main.zil")
+        source = self.root / "crates/schema-v40/src/wire_v34.rs"
+        source.write_text("fn schema40_decode() {}\nfn u64_roundtrip() {}\n", encoding="utf-8")
+        _, failures, _ = layout.check(full=True, root=self.root)
+        self.assertEqual(failures, [])
+
+    def test_full_scans_existing_production_declarations(self):
+        self.baseline("crates/compiler/src/lib.rs", "tools/check.py")
+        (self.root / "crates/compiler/src/lib.rs").write_text(
+            "pub fn impl243_layout() {}\nfn product237_budget() {}\n",
+            encoding="utf-8",
+        )
+        (self.root / "tools/check.py").write_text("def batch336_probe():\n    pass\n", encoding="utf-8")
+        _, failures, _ = layout.check(full=True, root=self.root)
+        self.assertEqual({issue for _, issue in failures}, {
+            "construction ID declaration impl243_layout",
+            "construction ID declaration product237_budget",
+            "construction ID declaration batch336_probe",
+        })
+
+    def test_full_delivery_rejects_existing_task_state(self):
+        self.baseline(".task/G10.7.5.1.md", "docs/guide.md")
+        _, failures, _ = layout.check(full=True, delivery=True, root=self.root)
+        self.assertIn((".task/G10.7.5.1.md", "task-state directory"), failures)
+
+    def test_full_cli_needs_no_baseline(self):
+        with patch.object(layout, "check", return_value=([], [], [])) as check:
+            with redirect_stdout(StringIO()):
+                self.assertEqual(layout.main(["--full", "--delivery"]), 0)
+        check.assert_called_once_with(None, True, full=True)
 
 
 if __name__ == "__main__":
