@@ -205,6 +205,9 @@ impl Budget {
             .ordinary_pod_store_roots
             .contains(&(ty as *const Type as usize)))
     }
+    pub(super) fn has_owned_store_packages(&self) -> bool {
+        !self.owned_store_package_roots.is_empty()
+    }
     fn owned_store_package_type(&mut self, ty: &Type) -> CompileResult<bool> {
         if self.owned_store_package_roots.is_empty() {
             return Ok(false);
