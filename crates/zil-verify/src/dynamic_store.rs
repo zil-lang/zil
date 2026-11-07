@@ -26,7 +26,10 @@ pub(super) fn direct_scalar(element: &Type) -> bool {
 }
 
 fn plain_element(element: &Type) -> bool {
-    matches!(element, Type::Record { .. }) || direct_scalar(element)
+    matches!(
+        element,
+        Type::Record { .. } | Type::Tuple(_) | Type::Array { .. }
+    ) || direct_scalar(element)
 }
 
 /// This is a separate admission from Copy and from the owning Package family.
@@ -145,6 +148,10 @@ fn pod_type_work(ty: &Type, budget: &mut Budget) -> Check<()> {
 }
 
 fn pod_name_work(element: &Type, budget: &mut Budget) -> Check<()> {
+    if matches!(element, Type::Tuple(_) | Type::Array { .. }) {
+        pod_type_work(element, budget)?;
+        return budget.spend(PREFIX.len().saturating_add(80));
+    }
     let name = if let Type::Record { name, .. } = element {
         name.as_str()
     } else if let Some(name) = scalar_name(element) {
@@ -940,6 +947,12 @@ fn layout(
 }
 
 pub(super) fn definition_name(element: &Type) -> String {
+    if matches!(element, Type::Tuple(_)) {
+        return format!("{PREFIX}tuple:{}>", element.fingerprint());
+    }
+    if matches!(element, Type::Array { .. }) {
+        return format!("{PREFIX}array:{}>", element.fingerprint());
+    }
     let name = match element {
         Type::Package { name, .. } | Type::Record { name, .. } => name.as_str(),
         scalar => scalar_name(scalar).expect("checked Store scalar element"),

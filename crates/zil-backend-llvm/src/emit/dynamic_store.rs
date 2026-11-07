@@ -7,6 +7,8 @@ pub(super) fn inline_protocol_element(ty: &Type) -> bool {
     matches!(
         ty,
         Type::Record { .. }
+            | Type::Tuple(_)
+            | Type::Array { .. }
             | Type::Bool
             | Type::U8
             | Type::U16
@@ -1501,6 +1503,41 @@ mod pod_tests {
             assert_eq!(plans[&0].stride, stride);
             assert!(plans[&0].push.is_none());
             assert!(plans[&0].pop.is_none());
+        }
+    }
+
+    #[test]
+    fn composite_protocols_use_actual_recursive_stride_and_exact_budget() {
+        for (element, stride) in [
+            (Type::Tuple(vec![Type::U8, Type::I64]), 16),
+            (
+                Type::Array {
+                    element: Box::new(Type::I32),
+                    length: 3,
+                },
+                12,
+            ),
+        ] {
+            let resources = [ResourceDefinition {
+                name: "checked composite Store".into(),
+                payload: Type::OwnedStore {
+                    element: Box::new(element),
+                },
+                teardown: None,
+            }];
+            let limits = Limits::default();
+            let mut remaining = limits.max_analysis_steps;
+            let planned = plan(&resources, &limits, &mut remaining).unwrap();
+            assert_eq!(planned[&0].stride, stride);
+            let cost = limits.max_analysis_steps - remaining;
+            for allowance in [cost, cost - 1, cost] {
+                let mut left = allowance;
+                let result = plan(&resources, &limits, &mut left);
+                assert_eq!(result.is_ok(), allowance == cost);
+                if let Err(errors) = result {
+                    assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
+                }
+            }
         }
     }
 
