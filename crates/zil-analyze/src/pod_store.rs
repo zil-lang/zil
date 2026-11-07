@@ -291,7 +291,19 @@ pub(super) fn instruction(
 mod composite_root_tests {
     use super::*;
     use zil_base::{Fingerprint, Limits, ModuleId, ResultCategory, SCHEMA_VERSION, TargetProfile};
-    use zil_ir::ResourceDefinition;
+    use zil_ir::{CandidatePlan, ResourceDefinition};
+
+    fn round_trip(module: &TypedModule, limits: &Limits) -> TypedModule {
+        let bytes = zil_ir::wire::encode_module_candidate(
+            module,
+            &CandidatePlan::empty_for(module),
+            limits,
+        )
+        .unwrap();
+        zil_ir::wire::decode_module_candidate(&bytes, limits)
+            .unwrap()
+            .0
+    }
 
     fn module(element: &Type) -> TypedModule {
         let name = match element {
@@ -333,43 +345,80 @@ mod composite_root_tests {
         for (element, other) in [(tuple.clone(), array.clone()), (array, tuple)] {
             let correct = module(&element);
             carrier(&correct, &element, &mut Budget::new(&limits)).unwrap();
+            carrier(
+                &round_trip(&correct, &limits),
+                &element,
+                &mut Budget::new(&limits),
+            )
+            .unwrap();
             let mut wrong = correct.clone();
             wrong.resources[0].payload = Type::OwnedStore {
                 element: Box::new(other),
             };
             assert!(carrier(&wrong, &element, &mut Budget::new(&limits)).is_err());
+            assert!(
+                carrier(
+                    &round_trip(&wrong, &limits),
+                    &element,
+                    &mut Budget::new(&limits)
+                )
+                .is_err()
+            );
             let mut wrong = correct.clone();
             wrong.resources[0].name.push('x');
             assert!(carrier(&wrong, &element, &mut Budget::new(&limits)).is_err());
+            assert!(
+                carrier(
+                    &round_trip(&wrong, &limits),
+                    &element,
+                    &mut Budget::new(&limits)
+                )
+                .is_err()
+            );
             let mut duplicate = correct.clone();
             duplicate.resources.push(duplicate.resources[0].clone());
             assert!(carrier(&duplicate, &element, &mut Budget::new(&limits)).is_err());
-            let check = |n| {
+            assert!(
                 carrier(
-                    &correct,
+                    &round_trip(&duplicate, &limits),
                     &element,
-                    &mut Budget::new(&Limits {
-                        max_analysis_steps: n,
-                        ..limits.clone()
-                    }),
+                    &mut Budget::new(&limits)
                 )
-            };
-            let (mut lo, mut hi) = (1, limits.max_analysis_steps);
-            check(hi).unwrap();
-            while lo < hi {
-                let mid = lo + (hi - lo) / 2;
-                if check(mid).is_ok() {
-                    hi = mid;
-                } else {
-                    lo = mid + 1;
-                }
-            }
-            check(lo).unwrap();
-            assert_eq!(
-                check(lo - 1).unwrap_err()[0].category,
-                ResultCategory::ResourceLimit
+                .is_err()
             );
-            check(lo).unwrap();
+            for wire in [false, true] {
+                let check = |n| {
+                    let input = if wire {
+                        round_trip(&correct, &limits)
+                    } else {
+                        correct.clone()
+                    };
+                    carrier(
+                        &input,
+                        &element,
+                        &mut Budget::new(&Limits {
+                            max_analysis_steps: n,
+                            ..limits.clone()
+                        }),
+                    )
+                };
+                let (mut lo, mut hi) = (1, limits.max_analysis_steps);
+                check(hi).unwrap();
+                while lo < hi {
+                    let mid = lo + (hi - lo) / 2;
+                    if check(mid).is_ok() {
+                        hi = mid;
+                    } else {
+                        lo = mid + 1;
+                    }
+                }
+                check(lo).unwrap();
+                assert_eq!(
+                    check(lo - 1).unwrap_err()[0].category,
+                    ResultCategory::ResourceLimit
+                );
+                check(lo).unwrap();
+            }
         }
     }
 }
