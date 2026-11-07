@@ -15,11 +15,17 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-GOAL_ID = re.compile(r"(?<![A-Za-z0-9])G[0-9]+(?:\.[0-9]+)+(?![0-9])")
+GOAL_ID = re.compile(r"(?<![A-Za-z0-9])G[0-9]+(?:[._][0-9]+)+(?![0-9])", re.I)
 IMPLEMENTATION_ID = re.compile(r"(?<![A-Za-z0-9])impl[0-9]+(?![0-9])", re.I)
+NUMBERED_LABEL = re.compile(
+    r"(?<![A-Za-z0-9])(?:language|batch|implementation)[-_]?[0-9]+(?![0-9])", re.I
+)
 NUMBERED_DIRECTORY = re.compile(r"[0-9]+")
+NUMBERED_PREFIX = re.compile(r"[0-9]+[-_]")
+NUMBERED_SUFFIX = re.compile(r"[-_][0-9]{3}$")
 RESERVED_STATE = {".task", "_zil_goal"}
 RESERVED_FILES = {"_zil_goal.md", "goal.md"}
+RESERVED_DATA = {"data/handoff.json", "data/construction-progress.json", "data/task-index.json"}
 CODE_SUFFIXES = {".rs", ".zil", ".py", ".c", ".h", ".js", ".mjs", ".ts"}
 DECLARATION = re.compile(
     r"^\s*(?:(?:pub(?:\([^)]*\))?|async|unsafe|extern|export|default)\s+)*"
@@ -43,13 +49,23 @@ def paths_from_nul(data):
 def path_problems(path):
     """Check only path components; semantic version and case IDs remain valid."""
     parts = path.split("/")
+    if parts[0] == ".task":
+        return []  # Process contracts live only on task branches; delivery rejects all of .task.
     problems = []
     if any(GOAL_ID.search(part) for part in parts):
         problems.append("goal ID")
     if any(IMPLEMENTATION_ID.search(part) for part in parts):
         problems.append("implementation ID")
+    if any(NUMBERED_LABEL.search(part) for part in parts):
+        problems.append("numbered construction label")
     if any(NUMBERED_DIRECTORY.fullmatch(part) for part in parts[:-1]):
         problems.append("number-only directory")
+    leaf = parts[-1]
+    stem = Path(leaf).stem
+    if stem.isdecimal() or NUMBERED_PREFIX.match(stem):
+        problems.append("numbered filename")
+    elif NUMBERED_SUFFIX.search(stem) and not re.fullmatch(r"case[-_]?[0-9]+", stem, re.I):
+        problems.append("numbered filename")
     return problems
 
 
@@ -60,6 +76,8 @@ def delivery_problems(path):
         problems.append("task-state directory")
     if path in RESERVED_FILES:
         problems.append("duplicate root task status")
+    if path in RESERVED_DATA:
+        problems.append("duplicate task-status data")
     return problems
 
 
