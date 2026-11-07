@@ -62,7 +62,7 @@ pub(crate) fn partition(llvm: &str, lir: &LirModule, entry: EntryPoint, count: u
         source_ids.push((function.span.file.0, id));
         let is_entry = match entry {
             EntryPoint::Main => function.name == "main",
-            EntryPoint::ReturnValue(id) => function.id == id,
+            EntryPoint::ReturnValue(id) | EntryPoint::Test(id) => function.id == id,
             EntryPoint::None => false,
         };
         if is_entry && let Some(&wrapper) = names.get("main") {

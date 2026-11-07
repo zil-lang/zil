@@ -3,11 +3,13 @@ mod qc;
 use std::env;
 use std::path::PathBuf;
 use std::process::{Command, ExitCode, Stdio};
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use zil_base::{Diagnostic, Phase, ResultCategory, TargetProfile, json_string};
 use zil_driver::{
     CancellationToken, CompileOptions, CompileReport, ExecutionProfile, FunctionMerging,
-    NativeBackend, Optimization, Stage, SyntaxLock, WindowsLinkOptions, compile_path,
+    NativeBackend, Optimization, ProjectManifest, Stage, SyntaxLock, WindowsLinkOptions,
+    compile_path, discover_tests,
 };
 
 // The executable owns the default policy; library callers choose explicitly.
@@ -58,8 +60,17 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
     let action = &args[0];
-    if !matches!(action.as_str(), "check" | "build" | "run") {
+    if !matches!(action.as_str(), "check" | "build" | "run" | "test" | "lock") {
         return usage("unknown command", json);
+    }
+    if action == "lock" {
+        if args.len() > 2 { return usage("zil lock takes at most one project path", json); }
+        let path = args.get(1).map_or_else(|| PathBuf::from("."), PathBuf::from);
+        return match ProjectManifest::open(&path, &CompileOptions::default().limits)
+            .and_then(|manifest| manifest.write_lock()) {
+            Ok(()) => { println!("{}", path.display()); ExitCode::SUCCESS },
+            Err(errors) => project_errors(&errors, json),
+        };
     }
     let mut options = CompileOptions {
         backend: DEFAULT_BACKEND,
@@ -71,12 +82,19 @@ fn main() -> ExitCode {
         ..CompileOptions::default()
     };
     let mut input = None;
+    let mut test_timeout = Duration::from_secs(5);
     let mut index = 1;
     while index < args.len() {
         match args[index].as_str() {
             "--json" => {}
             "--closed-executable" => options.closed_executable = true,
             "--incremental-o2" => options.incremental_o2 = true,
+            "--test-timeout-ms" => {
+                if action != "test" || index + 1 == args.len() { return usage("--test-timeout-ms needs a value on zil test", json); }
+                index += 1;
+                let Ok(millis @ 1..=3_600_000) = args[index].parse::<u64>() else { return usage("test timeout must be 1..=3600000 milliseconds", json); };
+                test_timeout = Duration::from_millis(millis);
+            }
             "-o"
             | "--output"
             | "--entry"
@@ -248,9 +266,27 @@ fn main() -> ExitCode {
             json,
         );
     }
-    let Some(input) = input else {
-        return usage("input file is required", json);
+    let input = match input {
+        Some(input) => input,
+        None if action == "test" => PathBuf::from("."),
+        None => return usage("input file is required", json),
     };
+    let input = if action == "test" || input.is_dir() || input.file_name().is_some_and(|name| name == "Zil.toml") {
+        let manifest = match ProjectManifest::open(&input, &options.limits) {
+            Ok(manifest) => manifest,
+            Err(errors) => return project_errors(&errors, json),
+        };
+        if let Err(errors) = manifest.check_lock() { return project_errors(&errors, json); }
+        options.build_inputs = manifest.fingerprint;
+        let entry = manifest.entry.clone();
+        options.project = Some(Arc::new(manifest));
+        entry
+    } else { input };
+    if action == "test" {
+        if options.entry.is_some() { return usage("zil test selects #[test] functions; --entry is invalid", json); }
+        if options.target.triple != TargetProfile::host_llvm().triple { return usage("zil test requires native target", json); }
+        return run_tests(&input, &options, test_timeout, json);
+    }
     let _temporary = if action == "run" && options.output.is_none() {
         let nonce = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -396,4 +432,70 @@ impl Drop for RunDirectory {
     fn drop(&mut self) {
         let _ = std::fs::remove_dir_all(&self.0);
     }
+}
+
+fn project_errors(errors: &[Diagnostic], json: bool) -> ExitCode {
+    if json {
+        println!("{{\"status\":\"SafeReject\",\"phase\":\"driver\",\"diagnostics\":[{}]}}", errors.iter().map(Diagnostic::to_json).collect::<Vec<_>>().join(","));
+    } else {
+        for error in errors { eprintln!("{error}"); }
+    }
+    ExitCode::from(1)
+}
+
+fn run_tests(root: &std::path::Path, options: &CompileOptions, timeout: Duration, json: bool) -> ExitCode {
+    let Some(manifest) = &options.project else { return usage("zil test requires Zil.toml", json); };
+    let mut sources = vec![root.to_path_buf()];
+    sources.extend(manifest.tests.iter().cloned());
+    let mut cases = Vec::new();
+    for source in &sources {
+        match discover_tests(source, options) {
+            Ok(names) => cases.extend(names.into_iter().map(|name| (source.clone(), name))),
+            Err(errors) => return project_errors(&errors, json),
+        }
+    }
+    if cases.is_empty() { return project_errors(&[Diagnostic::error(Phase::Driver, "E-TEST-EMPTY", None, "no #[test] functions selected")], json); }
+    let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
+    let directory = env::temp_dir().join(format!("zil-test-{}-{nonce}", std::process::id()));
+    if let Err(error) = std::fs::create_dir(&directory) { return runtime_infrastructure("E-TEST-DIRECTORY", &error.to_string(), json, None); }
+    let _temporary = RunDirectory(directory.clone());
+    let mut passed = 0usize;
+    let mut results = Vec::new();
+    for (index, (source, name)) in cases.iter().enumerate() {
+        let executable = directory.join(format!("test-{index}"));
+        let mut selected = options.clone();
+        selected.test_harness = true;
+        selected.entry = Some(name.clone());
+        selected.output = Some(executable.clone());
+        selected.stop_after = Stage::Build;
+        let report = compile_path(source, &selected);
+        let outcome = if report.status != ResultCategory::Success {
+            if !json { for diagnostic in &report.diagnostics { eprintln!("{source_name}::{name}: {diagnostic}", source_name=source.display()); } }
+            "compile-failed".to_owned()
+        } else if let Some(path) = report.artifacts.get("executable") {
+            let mut command = Command::new(path);
+            command.stdin(Stdio::null());
+            if json { command.stdout(Stdio::null()).stderr(Stdio::null()); }
+            match command.spawn() {
+                Err(error) => { if !json { eprintln!("{}::{name}: {error}", source.display()); } "spawn-failed".to_owned() },
+                Ok(mut child) => {
+                    let start = std::time::Instant::now();
+                    loop {
+                        match child.try_wait() {
+                            Ok(Some(status)) => break if status.success() { "pass".to_owned() } else { format!("exit:{}", status.code().map_or_else(|| "signal".to_owned(), |code| code.to_string())) },
+                            Ok(None) if start.elapsed() >= timeout => { let _ = child.kill(); let _ = child.wait(); break "timeout".to_owned(); },
+                            Ok(None) => std::thread::sleep(Duration::from_millis(10)),
+                            Err(error) => { let _ = child.kill(); let _ = child.wait(); break format!("wait-failed:{error}"); },
+                        }
+                    }
+                }
+            }
+        } else { "artifact-missing".to_owned() };
+        if outcome == "pass" { passed += 1; }
+        if !json { eprintln!("{} {}::{name}", if outcome == "pass" { "PASS" } else { "FAIL" }, source.display()); }
+        results.push(format!("{{\"source\":{},\"name\":{},\"outcome\":{}}}", json_string(&source.to_string_lossy()), json_string(name), json_string(&outcome)));
+    }
+    if json { println!("{{\"status\":{},\"passed\":{passed},\"total\":{},\"tests\":[{}]}}", json_string(if passed == cases.len() { "Pass" } else { "Fail" }), cases.len(), results.join(",")); }
+    else { eprintln!("{passed}/{} tests passed", cases.len()); }
+    if passed == cases.len() { ExitCode::SUCCESS } else { ExitCode::from(1) }
 }

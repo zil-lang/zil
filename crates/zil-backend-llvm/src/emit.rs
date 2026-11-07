@@ -1011,7 +1011,7 @@ fn entry_wrapper(
             }
             *mains[0]
         }
-        EntryPoint::ReturnValue(id) => *functions.get(&id).ok_or_else(|| {
+        EntryPoint::ReturnValue(id) | EntryPoint::Test(id) => *functions.get(&id).ok_or_else(|| {
             vec![Diagnostic::error(
                 Phase::Codegen,
                 "E-CODEGEN-ENTRY",
@@ -1070,7 +1070,7 @@ fn entry_wrapper(
         m::Event::Label("entry".into()),
     ]);
     match entry {
-        EntryPoint::Main => match &function.return_type {
+        EntryPoint::Main | EntryPoint::Test(_) => match &function.return_type {
             Type::Unit => text.append(m::Code::from(vec![
                 m::Event::Instruction(m::Inst::new(
                     None,
@@ -1104,6 +1104,39 @@ fn entry_wrapper(
                         m::Ty::Int(32),
                         m::local("entry.result".into()),
                     ))),
+                )),
+            ])),
+            Type::Bool if matches!(entry, EntryPoint::Test(_)) => text.append(m::Code::from(vec![
+                m::Event::Instruction(m::Inst::new(
+                    Some("entry.result".into()),
+                    m::Op::Call {
+                        result: m::Ty::Int(1),
+                        result_attrs: vec![],
+                        callee: m::global(symbol.to_string()),
+                        args: vec![],
+                        vararg: None,
+                    },
+                )),
+                m::Event::Instruction(m::Inst::new(
+                    Some("entry.failed".into()),
+                    m::Op::Cast {
+                        opcode: "zext".into(),
+                        arg: m::Arg::new(m::Ty::Int(1), m::local("entry.result".into())),
+                        to: m::Ty::Int(32),
+                    },
+                )),
+                m::Event::Instruction(m::Inst::new(
+                    Some("entry.status".into()),
+                    m::Op::Binary {
+                        opcode: "xor".into(),
+                        ty: m::Ty::Int(32),
+                        left: m::local("entry.failed".into()),
+                        right: m::Val::Int(1),
+                    },
+                )),
+                m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::Return(Some(m::Arg::new(m::Ty::Int(32), m::local("entry.status".into())))),
                 )),
             ])),
             Type::ErrorUnion { result, .. }
@@ -1177,7 +1210,7 @@ fn entry_wrapper(
             }
             _ => {
                 return unsupported(
-                    "native main must return i32, unit, E!i32, or E!unit",
+                    "native entry must return i32, unit, or a supported error union (tests also accept bool)",
                     Some(function.span),
                 );
             }

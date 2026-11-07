@@ -56,6 +56,8 @@ pub enum EntryPoint {
     None,
     Main,
     ReturnValue(FunctionId),
+    /// Run a verified zero-argument test and return its result as process status.
+    Test(FunctionId),
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

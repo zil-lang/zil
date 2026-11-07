@@ -9,10 +9,12 @@ pub use ct_artifact::SyntaxLock;
 mod ct_program;
 mod ct_selection;
 mod project;
+mod project_manifest;
+pub use project_manifest::ProjectManifest;
 mod semantic_cache;
 mod session;
 mod stable_source_identity;
-pub use project::{ProjectSources, compile_project};
+pub use project::{ProjectSources, compile_project, discover_tests};
 pub use session::CompilationSession;
 pub use zil_db::CancellationToken;
 
@@ -66,6 +68,10 @@ pub struct CompileOptions {
     pub emit_dir: Option<PathBuf>,
     pub output: Option<PathBuf>,
     pub entry: Option<String>,
+    /// Build a verified test entry whose return value becomes process status.
+    pub test_harness: bool,
+    /// Explicit local project graph. No ambient manifest is loaded by the driver.
+    pub project: Option<std::sync::Arc<ProjectManifest>>,
     pub cache_dir: Option<PathBuf>,
     /// Explicitly trusted local raw TypedProgram cache; never stores Verified.
     pub semantic_cache: Option<PathBuf>,
@@ -98,6 +104,8 @@ impl Default for CompileOptions {
             emit_dir: None,
             output: None,
             entry: None,
+            test_harness: false,
+            project: None,
             cache_dir: None,
             semantic_cache: None,
             object_cache: None,

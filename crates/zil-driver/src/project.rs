@@ -73,6 +73,35 @@ pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> Co
     CompilationSession::default().compile_project(project, options)
 }
 
+/// Discover test declarations from the original parsed root source. Every
+/// selected test is still compiled and verified through the ordinary pipeline.
+pub fn discover_tests(path: &Path, options: &CompileOptions) -> CompileResult<Vec<String>> {
+    let mut project = ProjectSources {
+        root: ModuleId(0),
+        modules: vec![SourceUnit::new(FileId(0), ModuleId(0), path.to_string_lossy(), "")],
+        paths: BTreeMap::new(),
+    };
+    load_sources(&mut project, path, options, &CompilationSession::default())?;
+    let parsed = zil_syntax::parse_with_limits(&project.modules[0], &options.limits);
+    if !parsed.diagnostics.is_empty() { return Err(parsed.diagnostics); }
+    let mut names = Vec::new();
+    let mut seen = BTreeSet::new();
+    for item in &parsed.module.items {
+        if !item.attributes.iter().any(|a| a.path.as_slice() == ["test"]) { continue; }
+        let ast::ItemKind::Function(function) = &item.kind else {
+            return Err(reject("E-TEST-SIGNATURE", Some(item.span), "test must be an ordinary function"));
+        };
+        if !function.params.is_empty() || !function.generics.is_empty() || matches!(function.body, ast::FunctionBody::Declaration) {
+            return Err(reject("E-TEST-SIGNATURE", Some(item.span), "test must be a defined zero-argument non-generic function"));
+        }
+        if !seen.insert(function.name.clone()) {
+            return Err(reject("E-TEST-DUPLICATE", Some(item.span), format!("duplicate test {}", function.name)));
+        }
+        names.push(function.name.clone());
+    }
+    Ok(names)
+}
+
 pub(super) fn artifact_candidate(source: &SourceUnit, parsed: &ParseResult) -> bool {
     let standard = parsed.module.items.iter().any(|item| {
         matches!(&item.kind,
@@ -911,7 +940,7 @@ fn take(remaining: &mut usize, count: usize, phase: Phase, message: &str) -> Com
 fn reject(code: &str, span: Option<Span>, message: impl Into<String>) -> Vec<Diagnostic> {
     vec![Diagnostic::error(Phase::Expand, code, span, message)]
 }
-fn valid_segment(segment: &str) -> bool {
+pub(super) fn valid_segment(segment: &str) -> bool {
     let mut chars = segment.chars();
     chars
         .next()
@@ -1236,7 +1265,7 @@ fn project_fingerprint(project: &ProjectSources) -> Fingerprint {
     Fingerprint::of(&bytes)
 }
 
-fn resolve_file_module(root: &Path, logical: &[String], span: Span) -> CompileResult<PathBuf> {
+pub(super) fn resolve_file_module(root: &Path, logical: &[String], span: Span) -> CompileResult<PathBuf> {
     let mut base = root.to_path_buf();
     for segment in logical {
         base.push(segment);
@@ -1358,6 +1387,12 @@ fn load_sources(
         .map_err(|e| vec![e])?;
     let root_path = std::fs::canonicalize(path)
         .map_err(|e| infra("E-SOURCE-READ", format!("{}: {e}", path.display())))?;
+    if let Some(manifest) = &options.project {
+        manifest.check_lock()?;
+        if !root_path.starts_with(manifest.path.parent().expect("canonical manifest parent")) {
+            return Err(reject("E-PROJECT-PATH", None, "entry is outside the project root"));
+        }
+    }
     let directory = root_path
         .parent()
         .ok_or_else(|| infra("E-SOURCE-READ", "entry must have a parent directory"))?;
@@ -1492,6 +1527,8 @@ fn load_sources(
             let embedded = stdlib::source(&import.path);
             let canonical = if embedded.is_some() {
                 PathBuf::from(format!("<{}>", import.path.join(".")))
+            } else if let Some(manifest) = &options.project {
+                manifest.resolve(Path::new(&project.modules[index].path), &import.path, item.span)?
             } else {
                 resolve_file_module(directory, &import.path, item.span)?
             };

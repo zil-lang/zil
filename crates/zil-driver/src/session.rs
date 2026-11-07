@@ -925,7 +925,7 @@ impl CompilationSession {
                 )]);
             }
             Some(EmitOptions {
-                entry: EntryPoint::ReturnValue(id),
+                entry: if options.test_harness { EntryPoint::Test(id) } else { EntryPoint::ReturnValue(id) },
             })
         } else {
             None
