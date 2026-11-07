@@ -1383,7 +1383,7 @@ fn tampered_lir_is_rejected_before_invoking_tools_or_creating_outputs() {
 }
 
 #[test]
-fn bytes083_native_unsigned_result_and_untrusted_byte_layout_are_independent() {
+fn native_unsigned_result_and_untrusted_byte_layout_are_independent() {
     let verified = checked_simple(returning(Constant::U8(255)));
     for optimization in [Optimization::O0, Optimization::O2] {
         returns(&verified, FunctionId(0), "255", optimization);
@@ -1891,7 +1891,7 @@ fn borrowed_lir_aliases_bind_length_and_the_current_capability() {
 }
 
 #[test]
-fn impl243_false_presence_cannot_authorize_mutated_raw_lir_new_opcode() {
+fn false_presence_cannot_authorize_mutated_raw_lir_new_opcode() {
     let verified = checked_simple(returning(Constant::I64(1024)));
     assert!(!verified.uses_owned_sum_extension());
     let mut changed = lir(&verified);

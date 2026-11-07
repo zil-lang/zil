@@ -610,6 +610,6 @@ fn whole_copy_result_request_work_is_exact_and_retryable() {
                 .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
         );
         assert_eq!(run_copy_result_helper(&module, work).unwrap(), work);
-        println!("G138 Analyze actual copy-result helper mode={mode} N={work}");
+        println!("Analyze actual copy-result helper mode={mode} N={work}");
     }
 }

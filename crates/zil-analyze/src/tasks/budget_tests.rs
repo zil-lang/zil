@@ -2,7 +2,7 @@
 //! a task or substitute for source/kernel/native semantic checks.
 use super::*;
 #[test]
-fn task343_classifier_many_blocks_and_low_remaining_are_prepaid() {
+fn classifier_many_blocks_and_low_remaining_are_prepaid() {
     for (blocks, instructions) in [(1, 8), (32, 128)] {
         let input = (0..blocks)
             .map(|b| BasicBlock {
@@ -49,7 +49,7 @@ fn task343_classifier_many_blocks_and_low_remaining_are_prepaid() {
     }
 }
 #[test]
-fn task343_carrier_repeated_prefix_and_name_comparisons_use_remaining_ledger() {
+fn carrier_repeated_prefix_and_name_comparisons_use_remaining_ledger() {
     let mut growth = vec![];
     for (rows, width) in [(8, 16), (32, 64)] {
         let empty = || zil_ir::RetainedLifeShape {

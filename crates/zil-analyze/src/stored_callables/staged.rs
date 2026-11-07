@@ -420,7 +420,7 @@ mod tests {
         ));
     }
     #[test]
-    fn g337_analyze_tail_origin_checks_whole_graph_and_unique_consumption() {
+    fn analyze_tail_origin_checks_whole_graph_and_unique_consumption() {
         let limits = Limits::default();
         let (m, mut f, kind) = model(true);
         tail_fixture::fork(&mut f);
@@ -451,7 +451,7 @@ mod tests {
         ));
     }
     #[test]
-    fn g338_analyze_actual_origin_dag_joins_and_path_retirement() {
+    fn analyze_actual_origin_dag_joins_and_path_retirement() {
         let limits = Limits::default();
         for drop_branch in [false, true] {
             let (m, mut f, _) = model(true);

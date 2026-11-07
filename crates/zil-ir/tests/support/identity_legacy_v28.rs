@@ -1,5 +1,5 @@
-// Schema30 Vec oracle migrated from archived, unchanged cp34_legacy_v29.rs.
-// Domain30 and four explicit local Enum encodings extend that historical oracle.
+// Schema28 Vec oracle migrated from the archived, unchanged identity_legacy_v27.rs.
+// Only the module identity domain and RegisterDefer opcode were added.
 // The suffix below the marker is independently frozen; do not update it.
 #![allow(dead_code)]
 use zil_base::{Fingerprint, Span};
@@ -30,7 +30,7 @@ fn cleanup_exit_tag(kind: CleanupExitKind) -> u8 {
 }
 // BEGIN FROZEN BASELINE ENCODER
 fn encode_module(module: &TypedModule) -> Vec<u8> {
-    let mut bytes = b"ZIL-TYPED-MODULE-V30\0".to_vec();
+    let mut bytes = b"ZIL-TYPED-MODULE-V28\0".to_vec();
     encode_u32(&mut bytes, module.schema_version);
     encode_u32(&mut bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -668,37 +668,6 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind) {
             encode_u32(b, value.0);
             encode_u32(b, *variant);
             encode_u32(b, *index);
-        }
-        InstructionKind::VariantTagLocal { local, path }
-        | InstructionKind::ReadVariantLocal { local, path } => {
-            b.push(if matches!(i, InstructionKind::VariantTagLocal { .. }) {
-                90
-            } else {
-                91
-            });
-            encode_u32(b, local.0);
-            encode_len(b, path.len());
-            for step in path {
-                encode_u32(b, step.variant);
-                encode_u32(b, step.index);
-            }
-        }
-        InstructionKind::UnpackVariant {
-            local,
-            variant,
-            fields,
-        } => {
-            b.push(92);
-            encode_u32(b, local.0);
-            encode_u32(b, *variant);
-            encode_len(b, fields.len());
-            for field in fields {
-                encode_u32(b, field.0);
-            }
-        }
-        InstructionKind::DropEnum { local } => {
-            b.push(93);
-            encode_u32(b, local.0);
         }
         InstructionKind::ExtractField { aggregate, index } => {
             b.push(14);

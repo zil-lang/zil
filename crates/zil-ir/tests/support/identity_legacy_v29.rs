@@ -1,5 +1,5 @@
-// Schema28 Vec oracle migrated from the archived, unchanged cp34_legacy_v27.rs.
-// Only the module identity domain and RegisterDefer opcode were added.
+// Schema29 Vec oracle migrated from the archived, unchanged identity_legacy_v28.rs.
+// Only the module identity domain changed in schema29.
 // The suffix below the marker is independently frozen; do not update it.
 #![allow(dead_code)]
 use zil_base::{Fingerprint, Span};
@@ -30,7 +30,7 @@ fn cleanup_exit_tag(kind: CleanupExitKind) -> u8 {
 }
 // BEGIN FROZEN BASELINE ENCODER
 fn encode_module(module: &TypedModule) -> Vec<u8> {
-    let mut bytes = b"ZIL-TYPED-MODULE-V28\0".to_vec();
+    let mut bytes = b"ZIL-TYPED-MODULE-V29\0".to_vec();
     encode_u32(&mut bytes, module.schema_version);
     encode_u32(&mut bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
