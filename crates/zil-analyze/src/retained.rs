@@ -93,6 +93,17 @@ pub(super) fn check_function(
         } else if dynamic_store::is_owned_carrier(ty) {
             dynamic_store::owned_capture(module, ty, budget)?;
             cleanup.push(index as u32);
+        } else if matches!(
+            ty,
+            Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+        ) && budget.ordinary_store_sum_capture(definition.id, ty)?
+        {
+            if !resources::sums::admit(module, ty, budget)? {
+                return Err(bad(
+                    "callable Sum capture lacks a complete ordinary Store leaf",
+                ));
+            }
+            cleanup.push(index as u32);
         } else if !ty.is_copy_value() {
             return Err(bad(
                 "callable result captures an external address or description",
