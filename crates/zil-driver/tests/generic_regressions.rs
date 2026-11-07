@@ -464,6 +464,66 @@ fn generic_mutex_owned_enum_payload_native_candidate() {
     check_mutex_native(&src, "owned-enum-payload");
 }
 #[test]
+fn generic_mutex_owned_array_payload_native_candidate() {
+    let src = source(
+        "package Payload{manages bytes:ByteBuffer;pub count:i32}fn run()->MutexCreateError!i32{let left=bytes_new();let right=bytes_new();let cell=mutex_create([Payload{bytes:give left,count:1},Payload{bytes:give right,count:2}])?;let guard=mutex_lock(cell);mutex_unlock(guard);return 0}fn main()->i32{match run(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
+    );
+    check_mutex_native(&src, "owned-array-payload");
+}
+#[test]
+fn generic_mutex_owned_array_raw_zero_length_rejects() {
+    use zil_ir::{InstructionKind, Type};
+    let src = source(
+        "package Payload{manages bytes:ByteBuffer;pub count:i32}fn run()->MutexCreateError!i32{let left=bytes_new();let right=bytes_new();let cell=mutex_create([Payload{bytes:give left,count:1},Payload{bytes:give right,count:2}])?;return 0}fn main()->i32{match run(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
+    );
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let mut raw = typed;
+    let mut changed = false;
+    for function in &mut raw.functions {
+        let input = function
+            .blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .find_map(|instruction| {
+                if let InstructionKind::MutexCreate { value } = instruction.kind {
+                    Some(value)
+                } else {
+                    None
+                }
+            });
+        if let Some(input) = input {
+            let Type::Array { length, .. } = &mut function.values[input.0 as usize] else {
+                panic!("mutex input is not the owning array")
+            };
+            *length = 0;
+            changed = true;
+        }
+    }
+    assert!(changed);
+    let mut forged = plan;
+    forged.module_fingerprint = raw.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &forged, &limits).unwrap();
+    for errors in [
+        zil_analyze::analyze(&raw, &limits).unwrap_err(),
+        zil_verify::verify_module(raw, forged, &target, &limits).unwrap_err(),
+        zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err(),
+    ] {
+        assert!(
+            matches!(
+                errors[0].category,
+                ResultCategory::SafeReject | ResultCategory::Unsupported
+            ),
+            "{errors:?}"
+        );
+    }
+}
+#[test]
 fn generic_mutex_guard_return_native_candidate() {
     let src = source(
         "fn lock(cell:Mutex<i32>)->MutexGuard<i32>{return mutex_lock(cell)}fn run()->MutexCreateError!i32{let cell=mutex_create(7)?;var guard=lock(cell);let value=mutex_value(&mut guard);*value=9;let answer=*value;mutex_unlock(guard);return answer-9}fn main()->i32{match run(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
@@ -483,6 +543,76 @@ fn generic_mutex_guard_forward_native_candidate() {
         "fn relay(guard:MutexGuard<i32>)->MutexGuard<i32>{return guard}fn run()->MutexCreateError!i32{let cell=mutex_create(7)?;var guard=relay(mutex_lock(cell));let value=mutex_value(&mut guard);*value=9;mutex_unlock(guard);return 0}fn main()->i32{match run(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
     );
     check_mutex_native(&src, "guard-forward");
+}
+#[test]
+fn generic_mutex_guard_two_input_helper_native_candidate() {
+    let src = source(
+        "fn choose(left:Mutex<i32>,right:Mutex<i32>,flag:bool)->MutexGuard<i32>{if flag{return mutex_lock(left)}return mutex_lock(right)}fn run()->MutexCreateError!i32{let left=mutex_create(1)?;let right=mutex_create(2)?;var guard=choose(left,right,true);let value=mutex_value(&mut guard);*value=3;mutex_unlock(guard);return 0}fn main()->i32{match run(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
+    );
+    check_mutex_native(&src, "guard-two-input");
+    let denied = source(
+        "fn choose(left:Mutex<i32>,right:Mutex<i32>,flag:bool)->MutexGuard<i32>{if flag{return mutex_lock(left)}return mutex_lock(right)}fn consume(give cell:Managed<Mutex<i32>>)->i32{return 0}fn run()->MutexCreateError!i32{let left=mutex_create(1)?;let right=mutex_create(2)?;let guard=choose(left,right,true);let result=consume(give right);mutex_unlock(guard);return result}fn main()->i32{match run(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
+    );
+    let report = compile_source(&denied, &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    let selected = source(
+        "fn left_only(left:Mutex<i32>,unused:Mutex<i32>)->MutexGuard<i32>{return mutex_lock(left)}fn consume(give cell:Managed<Mutex<i32>>)->i32{return 0}fn run()->MutexCreateError!i32{let left=mutex_create(1)?;let right=mutex_create(2)?;let guard=left_only(left,right);let result=consume(give right);mutex_unlock(guard);return result}fn main()->i32{match run(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
+    );
+    check_mutex_native(&selected, "guard-selected-head");
+}
+#[test]
+fn generic_mutex_guard_helper_raw_argument_swap_rejects() {
+    use zil_ir::InstructionKind;
+    let src = source(
+        "fn left_only(left:Mutex<i32>,unused:Mutex<i32>)->MutexGuard<i32>{return mutex_lock(left)}fn consume(give cell:Managed<Mutex<i32>>)->i32{return 0}fn run()->MutexCreateError!i32{let left=mutex_create(1)?;let right=mutex_create(2)?;let guard=left_only(left,right);let result=consume(give right);mutex_unlock(guard);return result}fn main()->i32{match run(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
+    );
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let helper = typed
+        .functions
+        .iter()
+        .find(|f| f.name == "left_only")
+        .unwrap()
+        .id;
+    let mut raw = typed;
+    let mut changed = false;
+    for instruction in raw
+        .functions
+        .iter_mut()
+        .flat_map(|f| &mut f.blocks)
+        .flat_map(|b| &mut b.instructions)
+    {
+        if let InstructionKind::Call {
+            function,
+            arguments,
+        } = &mut instruction.kind
+            && *function == helper
+        {
+            arguments.swap(0, 1);
+            changed = true;
+        }
+    }
+    assert!(changed);
+    let mut forged = plan;
+    forged.module_fingerprint = raw.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &forged, &limits).unwrap();
+    for errors in [
+        zil_analyze::analyze(&raw, &limits).unwrap_err(),
+        zil_verify::verify_module(raw, forged, &target, &limits).unwrap_err(),
+        zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err(),
+    ] {
+        assert_eq!(errors[0].category, ResultCategory::SafeReject, "{errors:?}");
+    }
 }
 #[test]
 fn generic_mutex_custom_drop_native_candidate() {
@@ -563,6 +693,33 @@ fn generic_mutex_allocation_failure_cleans_input_once() {
             actual.stdout, b"A",
             "input Drop must run once on allocator failure"
         );
+    }
+    let array = source(
+        "extern \"C\" fn putchar(code:i32)->i32 contract{effects(ffi)};extern \"C\" fn mallopt(param:i32,value:i32)->i32 contract{effects(ffi)};resource Token{code:i32}impl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}}package Payload{manages token:Token;count:i32}fn run()->MutexCreateError!i32{let a=Token{code:65};let b=Token{code:66};unsafe{mallopt(19777,1)};let cell=mutex_create([Payload{token:give a,count:1},Payload{token:give b,count:2}])?;return 2}fn main()->i32{match run(){.ok(_)=>{return 1},.err(_)=>{return 0}}}",
+    );
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let report = compile_source(
+            &array,
+            &CompileOptions {
+                backend: NativeBackend::Clang,
+                optimization,
+                stop_after: Stage::Build,
+                output: Some(dir.join(format!("array-{optimization:?}"))),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let actual = std::process::Command::new(&report.artifacts["executable"])
+            .env("LD_PRELOAD", &library)
+            .output()
+            .unwrap();
+        assert!(actual.status.success(), "{actual:?}");
+        assert_eq!(actual.stdout, b"AB", "array elements must each retire once");
     }
 }
 #[test]

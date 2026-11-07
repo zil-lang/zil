@@ -361,6 +361,8 @@ struct Budget {
     stored_borrows: bool,
     // Derived only from the existing paid raw-instruction inventory.
     stored_slot_updates: bool,
+    generic_mutex: bool,
+    guard_return_sources: Vec<BTreeSet<u32>>,
     // Eligibility only; pure reads and values still prove their actual shape.
     pure_nominal: bool,
     stored_context: bool,
@@ -401,6 +403,8 @@ impl Budget {
             head_descriptions: false,
             stored_borrows: false,
             stored_slot_updates: false,
+            generic_mutex: false,
+            guard_return_sources: Vec::new(),
             pure_nominal: false,
             stored_context: false,
         }
@@ -978,11 +982,12 @@ fn check_module(
         task_input_fingerprint = tasks::interface_fingerprint(program, fingerprint, &mut budget)?;
     }
     helpers::check_module(module, &graphs, limits, &mut budget)?;
-    if budget.stored_borrows && stored_partition.is_none() {
+    let guard_sources = if budget.stored_borrows && stored_partition.is_none() {
         for f in &module.functions {
             stored_flow::header(module, f, &mut budget)?;
         }
         stored_flow::check(module, &graphs, plan, &mut budget)?;
+        Vec::new()
     } else if let Some(mask) = stored_partition.as_deref() {
         for (index, f) in module.functions.iter().enumerate() {
             if mask[index] {
@@ -990,10 +995,11 @@ fn check_module(
             }
         }
         stored_flow::check_mixed(module, &graphs, plan, mask, &mut budget)?;
-        borrows::check_mixed(module, plan, &graphs, mask, &mut budget)?;
+        borrows::check_mixed(module, plan, &graphs, mask, &mut budget)?
     } else {
-        borrows::check_module(module, plan, &graphs, &mut budget)?;
-    }
+        borrows::check_module(module, plan, &graphs, &mut budget)?
+    };
+    budget.guard_return_sources = guard_sources;
     head_access::check(module, &graphs, &mut budget)?;
     resources::check_module(module, &graphs, &mut budget)?;
     registration::check_phase(module, &mut budget)?;
