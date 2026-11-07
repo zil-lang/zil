@@ -1421,14 +1421,25 @@ impl Resolver<'_> {
                     }
                     Type::Package { .. }
                         if packages::product::nested(&inner)
-                            || packages::product::supported(&inner) =>
+                            || packages::product::supported(&inner)
+                            || (packages::has_store_fields(&inner)
+                                && packages::product::owned_supported(&inner)) =>
                     {
-                        packages::product::validate(
-                            &inner,
-                            &mut self.remaining,
-                            self.depth_limit,
-                            span,
-                        )?;
+                        if packages::product::supported(&inner) {
+                            packages::product::validate(
+                                &inner,
+                                &mut self.remaining,
+                                self.depth_limit,
+                                span,
+                            )?;
+                        } else {
+                            packages::product::validate_owned(
+                                &inner,
+                                &mut self.remaining,
+                                self.depth_limit,
+                                span,
+                            )?;
+                        }
                         inner
                     }
                     Type::Package { .. } if self.store_element_shape(&inner, depth, span)? => inner,
