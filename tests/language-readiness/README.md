@@ -8,7 +8,7 @@
 
 当前十方面核查见 `validation/inputs/language-readiness/language-gaps-baseline.json`，基线为已合入main的
 `40fbcca6ef506f3cb8e1d40a4f8995c788627da0`：52源检查和9源的18次API O0/O2
-原生构建/执行分别记账。复跑入口为 `current334/README.md`。历史基线与实际观察
+原生构建/执行分别记账。复跑入口为 `language-gap-replay/README.md`。历史基线与实际观察
 仍见 `https://github.com/zil-lang/zil/blob/dd766f513bd8022e4d2c703f51a9343824150da8/docs/validation/language-readiness-baseline.json`。
 上一批本地受测候选为 `a57a668b68044e37e870d058684f9364307e04b1`，后续结果元数据经PR28合入远端main `0d7d74f7`；CI因账号支付/额度未启动，不能称为CI通过。322–328的有限life/trait/Direct线程与原a18修复已进入本基线，完整语言尚未完成。
 `controls` 保留既有源码到Verify正控；`pending` 是历史路径，不能仅按目录名判为当前缺口，也不注册为“必须拒绝”测试。
@@ -26,7 +26,7 @@
 316仅为`recovery/`中的25源历史能力核查，结果见`validation/inputs/language-readiness/recovery-capabilities.json`。
 334复跑相同字节时，life参数返回和具体泛型trait已成功，三份未声明life源已明确
 拒绝。有限life-only、具体泛型trait和Direct线程不代表一般life/trait、异步/Mutex
-或其余基础类型/模式已经完成。`current334/partial-copy-tuple.zil`保留已支持的
+或其余基础类型/模式已经完成。`language-gap-replay/partial-copy-tuple.zil`保留已支持的
 Copy tuple通配部分解构对照；新增usize/u64及类型/life混合源保留合法目标。
 大数组原a18已由324有限生产修复，两后端O0/O2限定机器复验通过；旧崩溃报告原样保留。一般巨型按值ABI尚未完成，具体边界见`codegen-pending/README.md`。
 

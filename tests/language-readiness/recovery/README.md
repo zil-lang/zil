@@ -3,7 +3,7 @@
 以下表格和`check.py`的硬编码基线均属于316在`7f039d16`的历史观察，不是当前
 main结论。334保持25份源原字节复跑，现为8 Success、7 Unsupported、10
 SafeReject；life参数返回及具体泛型trait已成功，三份未声明life源均明确拒绝。
-当前复跑使用`../current334/check.py`，精简结果见
+当前复跑使用`../language-gap-replay/replay-frozen-baseline.py`，精简结果见
 `validation/inputs/language-readiness/language-gaps-baseline.json`；不覆盖本目录的历史收据。
 
 本目录由316在现存主线重新建立；不继承无法恢复的301–312源码、公共表示或成绩。合同及后续阶段见[316说明](../../../changes/316-concurrency-lifetime-prerequisites.md)，逐源观察见[结果](../../../validation/inputs/language-readiness/recovery-capabilities.json)。

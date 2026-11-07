@@ -18,6 +18,20 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def locate_source(prior):
+    historical = prior["source"]
+    path = ROOT / historical
+    if path.is_file():
+        return historical, path
+    basename = Path(historical).name
+    matches = [candidate for directory in ("tests/language-readiness", "examples/mainline")
+               for candidate in (ROOT / directory).rglob(basename)
+               if sha(candidate.read_bytes()) == prior["sha256"]]
+    if len(matches) != 1:
+        raise RuntimeError(f"expected one byte-identical source for {historical}: {matches}")
+    return matches[0].relative_to(ROOT).as_posix(), matches[0]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--zil", required=True, type=Path)
@@ -41,8 +55,7 @@ def main():
     assert len(old["observations"]) == 52
     observations, changes, regressions, infrastructure = [], [], [], []
     for prior in old["observations"]:
-        source = prior["source"]
-        path = ROOT / source
+        source, path = locate_source(prior)
         assert ROOT in path.resolve().parents
         assert sha(path.read_bytes()) == prior["sha256"], source
         command = [str(binary), "check", source, "--json"]

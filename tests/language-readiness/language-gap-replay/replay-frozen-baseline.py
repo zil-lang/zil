@@ -21,7 +21,7 @@ NATIVE = [
     "tests/language-readiness/pending/mutable-product-helper-gap.zil",
     "tests/language-readiness/recovery/pending/life-parameter-return.zil",
     "tests/language-readiness/recovery/pending/trait-type-argument.zil",
-    "tests/language-readiness/current-capabilities/partial-copy-tuple.zil",
+    "tests/language-readiness/language-gap-replay/partial-copy-tuple.zil",
     "examples/mainline/concurrency/controls/life_trait.zil",
     "examples/mainline/concurrency/controls/parent_borrow.zil",
 ]
@@ -60,7 +60,7 @@ def main():
     original25 = {p.relative_to(ROOT).as_posix() for p in paths}
     assert len(original25) == 25
     paths.update(ROOT.glob("tests/language-readiness/pending/*.zil"))
-    paths.update(ROOT.glob("tests/language-readiness/current-capabilities/*.zil"))
+    paths.update(ROOT.glob("tests/language-readiness/language-gap-replay/*.zil"))
     for name in ["copy-pattern-control", "mutable-copy-record-helper-control",
                  "mutable-product-local-control", "mutable-store-helper-control"]:
         paths.add(ROOT / f"tests/language-readiness/controls/{name}.zil")
