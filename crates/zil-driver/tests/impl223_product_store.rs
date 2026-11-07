@@ -677,3 +677,6 @@ mod g933_consumers;
 
 #[path = "../../../tests/language-readiness/G9.3.4/consumers.rs"]
 mod g934_consumers;
+
+#[path = "../../../tests/language-readiness/G9.3.5/consumers.rs"]
+mod g935_consumers;
