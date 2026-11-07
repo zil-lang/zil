@@ -10,7 +10,7 @@
 
 父任务汇总完整范围，子任务记录具体交付，父子不重复计数；子项全完成不自动代表父项完成。需要独立派工、复核或验收的补充工作才新增任务编号，沿用父编号加一段；零散修正记在原任务进展中。编号同时用于分支与实施说明，不再另设勾稽编号。
 
-**当前主线：通用语言完整性与 Rust 竞争力优先。** G9.3.2 普通 POD 动态集合与原大值 O0 修复已由 [PR49 验收][e-pr49] 合入；G3.4.1 共享借入迭代、G9.3.1 普通 UTF8 入口已交付。G2.4.1 的普通 trait 逐调用共享 lending 已由 [PR50 验收][e-pr50] 合入；本批 G2.4.2、G9.3.3、G9.3.4 和 G10.6.1 已由 [PR51 验收][e-pr51] 合入，有限语言初稿可构建、运行并从远端恢复；当前 P0 为 Codex 认领的 G9.3.5（POD/标量 Store 普通拥有组合）与 G5.2.1（有限共享 dyn 实际派发）；[全文复核与分工][review-chat9]已保存。其余 dyn/显式存储、更广借用、状态协议和异步责任仍待分派。GPU/GUI 专用 G10.3.1、G9.5.1、G9.6.2 后置；ZUI 保持 GPUI/GPU 方向。实现与常规独审采用 sol high，疑难问题才交 Astra。
+**当前主线：通用语言完整性与 Rust 竞争力优先。** G9.3.2 普通 POD 动态集合与原大值 O0 修复已由 [PR49 验收][e-pr49] 合入；G3.4.1 共享借入迭代、G9.3.1 普通 UTF8 入口已交付。G2.4.1 的普通 trait 逐调用共享 lending 已由 [PR50 验收][e-pr50] 合入；本批 G2.4.2、G9.3.3、G9.3.4 和 G10.6.1 已由 [PR51 验收][e-pr51] 合入，有限语言初稿可构建、运行并从远端恢复；G9.3.5（POD/标量 Store 普通拥有组合）与 G5.2.1（有限共享 dyn 实际派发）已由 [PR52 验收][e-pr52] 合入；当前继续 G10.7 的文档与工程组织重构，[全文复核与分工][review-chat9]已保存。其余 dyn/显式存储、更广借用、状态协议和异步责任仍待分派。GPU/GUI 专用 G10.3.1、G9.5.1、G9.6.2 后置；ZUI 保持 GPUI/GPU 方向。实现与常规独审采用 sol high，疑难问题才交 Astra。
 
 ## G1 · 基础类型与模式
 
@@ -189,17 +189,17 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G5.2.1 | 两个 provider 的单共享 dyn 接收者与固定标量方法槽 | 进行中 | P0 | Codex · 本会话 | 全链已集成；真实输入、跨模块默认实现、u64 实参/完整返回、raw/Wire、预算/缓存八组通过；实际三 CGU 冷暖缓存、Verify 模块身份修复及十项私测通过，独审 scoped Pass。待与 Store 同批共同验收及合入，尚非已合入。 |
+| G5.2.1 | 两个 provider 的单共享 dyn 接收者与固定标量方法槽 | 已合入 | — | — | [PR52 验收][e-pr52]：实际运行时双 provider、跨模块默认包装、完整 u64 实参与返回、raw/Wire/预算/缓存及三 CGU 冷暖缓存通过；双后端 O0/O2 与共同门已验收。Unit Source、拥有/可变 dyn 和一般擦除存储仍不开放。 |
 
 <details>
 <summary>G5.2.1 · 子任务</summary>
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G5.2.1.1 | Source/coercion、Types 和真实 provider 合同 | 进行中 | P0 | dyn_source521 · sol high | 沿父冻结合同实施；独立分支、单一 Cargo 窗口，最终由 root 集成验收。 |
-| G5.2.1.2 | Analyze 实际 dyn 根与目标合同核验 | 进行中 | P0 | dyn_analyze521 · sol high | 沿父冻结合同实施；独立分支、单一 Cargo 窗口，最终由 root 集成验收。 |
-| G5.2.1.3 | Verify 独立 dyn 合同与 raw/Wire | 进行中 | P0 | dyn_verify521 · sol high | 已接真实共享 receiver、默认包装及受限直接调用链；共同复测中。 |
-| G5.2.1.4 | CT 保留真实 dyn inventory 与运行期表达式 | 进行中 | P0 | dyn_ct521 · sol high | 已集成；CT 不执行 dyn，不把未知合同默认置空，随父任务验收。 |
+| G5.2.1.1 | Source/coercion、Types 和真实 provider 合同 | 已合入 | — | — | [PR52 验收][e-pr52] 随父有限合同通过；源码、独立核、原生及共同门均已核回远端 main。 |
+| G5.2.1.2 | Analyze 实际 dyn 根与目标合同核验 | 已合入 | — | — | [PR52 验收][e-pr52] 随父有限合同通过；源码、独立核、原生及共同门均已核回远端 main。 |
+| G5.2.1.3 | Verify 独立 dyn 合同与 raw/Wire | 已合入 | — | — | [PR52 验收][e-pr52] 随父有限合同通过；源码、独立核、原生及共同门均已核回远端 main。 |
+| G5.2.1.4 | CT 保留真实 dyn inventory 与运行期表达式 | 已合入 | — | — | [PR52 验收][e-pr52] 随父有限合同通过；源码、独立核、原生及共同门均已核回远端 main。 |
 
 </details>
 
@@ -240,7 +240,7 @@
 | --- | --- | --- | --- | --- | --- |
 | G9.1 | 普通字符串/Unicode与事务编辑、Store插入移除、有限回调迭代/Option返回 | 已合入 | — | — | [已合入证据][e37]；完整库见 G9.3。 |
 | G9.2 | 整数布局、RGBA软件合成、IME preedit提交/取消及失败保留的普通库 | 已合入 | — | — | [实现证据][ui] / [独审][ui-review]；不覆盖 OS IME、字体及 GPU。 |
-| G9.3 | 完整字符串/集合与一般Iterator/lending组合 | 部分实现 | P1 | 待派 | G9.3.1 与 G3.4.1 已交付普通 UTF8 入口与共享借入迭代首片。G9.3.2/G9.3.3/G9.3.4 已交付普通 POD Record/九种标量动态集合与元素可变借用；G9.3.5 正在补齐新 Store 族的普通拥有组合；grapheme/格式化等仍待补，现有 StoreElement 不等于一般值容器。 |
+| G9.3 | 完整字符串/集合与一般Iterator/lending组合 | 部分实现 | P1 | 待派 | G9.3.1 与 G3.4.1 已交付普通 UTF8 入口与共享借入迭代首片。G9.3.2/G9.3.3/G9.3.4 已交付普通 POD Record/九种标量动态集合与元素可变借用；G9.3.5 已交付新 Store 族的有限普通拥有组合；grapheme/格式化等仍待补，现有 StoreElement 不等于一般值容器。 |
 | G9.4 | 真实平台窗口、事件循环及OS IME服务 | 部分实现 | P2 | 待派 | 已有旧 Win32 首窗/消息实验，本轮 Win64 Verify 通过；统一平台、OS IME 未接。窗口/事件层供 G9.5.1 复用，旧 GDI 不进入 ZUI 渲染路线；原生 Windows 仍待实际执行。 |
 | G9.5 | GPUI 式 GPU 场景/呈现、字体塑形与字形图集 | 待执行 | P2 | 待派 | 后续 G9.5.1 接 GPU 首帧；D3D11/DXGI/可选 DirectComposition 与 DirectWrite 为已核 GPUI Windows 参考。GPU ABI、设备完成、字体/atlas 与真实输入链路仍待实现。 |
 | G9.6 | GPUI 式 ZUI 应用、实体/组件、输入及资源关闭合流 | 待执行 | P2 | 待派 | G9.6.1 核查现状；G9.6.2 接首个 GPU 应用。第一帧不代表开放组件、文字/IME、可访问性、异步与完整 ZUI 已完成。 |
@@ -254,18 +254,18 @@
 | G9.3.2 | 普通 POD 动态集合与真实借入视图 | 已合入 | — | — | [PR49 验收][e-pr49]：普通 Record 的 std.store、reserve/push/pop/shared view 和大 Copy 协议；默认5124/0、参考5012/0、文本70/0及工程门通过。原262144字节源码默认栈 O0/O2通过；一般元素/可变片/拥有组合仍另缺。 |
 | G9.3.3 | 普通 POD 集合的可变元素借用：实际写入、helper 重借用与结构修改互斥 | 已合入 | — | — | [PR51 验收][e-pr51]：真实 std.store 可变元素与 helper 重借用、写后读回、失败保留、两核 raw/Wire 和双后端 O0/O2通过；保留整 Store 排他，不推断不同下标不交。 |
 | G9.3.4 | 标量动态序列：直接 Store<i32/u64/usize/bool/浮点等既有标量> 与真实 std.store | 已合入 | — | — | [PR51 验收][e-pr51]：bool/u8/u16/i32/i64/u64/usize/f32/f64 直接序列与真实 std.store、完整 u64 和双后端通过；Unit、一般拥有/捕获及 standalone Array/Tuple/Enum 仍排除。 |
-| G9.3.5 | POD/标量 Store 的普通拥有数据模型：字段、整值流、替换与自含捕获 | 进行中 | P0 | Codex · 本会话 | 候选 `498f0f5a1` 的默认共同门 5248/0，17 组 Source 和 68 次双后端 O0/O2 通过；Copy 伴随字段旧正例回归与旧 Store 准入断言已修复，首轮 5242/6 留存。参考配置、release/恢复与最终独审正在收口；尚未合入，源码已推送 task/G9.3.5。 |
+| G9.3.5 | POD/标量 Store 的普通拥有数据模型：字段、整值流、替换与自含捕获 | 已合入 | — | — | [PR52 验收][e-pr52]：精确源码 `498f0f5a1` 默认5248/0、参考5136/0、文本70/0；17 Source/68 原生、独审、release/10工程门和远端重建运行通过，远端 main `c2ae6edb9` 已核。仅本表有限拥有组合，首轮5242/6与历史缺件状态保留。 |
 
 <details>
 <summary>G9.3.5 · 子任务</summary>
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.5.1 | Source/Types 完整拥有组合及 Store 机器清理 | 进行中 | P0 | store_types935 · sol high | 沿父冻结合同实施；独立分支、单一 Cargo 窗口，最终由 root 集成验收。 |
-| G9.3.5.2 | Analyze 实际根、责任和捕获独立核验 | 进行中 | P0 | store_analyze935 · sol high | 沿父冻结合同实施；独立分支、单一 Cargo 窗口，最终由 root 集成验收。 |
-| G9.3.5.3 | Verify 独立责任、窗口与 raw/Wire | 进行中 | P0 | store_verify935 · sol high | 独立拥有组合和清理已集成；Source/raw/Wire 共同复测中。 |
-| G9.3.5.4 | 原样数据模型、捕获、失败分配及最近反例消费者 | 进行中 | P0 | store_consumers935 · sol high | 沿既有目标覆盖双后端 O0/O2；同字段、父壳移动和清理反例保留，随父任务验收。 |
-| G9.3.5.5 | 拥有 Tuple 模式的实际消费分类与 FnOnce 捕获 | 进行中 | P0 | capture_types_finish · sol high | 修复 Copy 伴随字段元组被误判只读的实际 Source 阻断；沿已有目标复核，不放宽 opaque 适配规则。 |
+| G9.3.5.1 | Source/Types 完整拥有组合及 Store 机器清理 | 已合入 | — | — | [PR52 验收][e-pr52] 随父有限合同通过；源码、独立核、原生及共同门均已核回远端 main。 |
+| G9.3.5.2 | Analyze 实际根、责任和捕获独立核验 | 已合入 | — | — | [PR52 验收][e-pr52] 随父有限合同通过；源码、独立核、原生及共同门均已核回远端 main。 |
+| G9.3.5.3 | Verify 独立责任、窗口与 raw/Wire | 已合入 | — | — | [PR52 验收][e-pr52] 随父有限合同通过；源码、独立核、原生及共同门均已核回远端 main。 |
+| G9.3.5.4 | 原样数据模型、捕获、失败分配及最近反例消费者 | 已合入 | — | — | [PR52 验收][e-pr52] 随父有限合同通过；源码、独立核、原生及共同门均已核回远端 main。 |
+| G9.3.5.5 | 拥有 Tuple 模式的实际消费分类与 FnOnce 捕获 | 已合入 | — | — | [PR52 验收][e-pr52] 随父有限合同通过；源码、独立核、原生及共同门均已核回远端 main。 |
 
 </details>
 
@@ -376,7 +376,7 @@
 
 </details>
 
-[design]: https://github.com/zil-lang/zil/blob/15b9e09d83aeea9be1cc9ea4b4bdd9f5a5f9fa71/_zil_design.md
+[design]: https://github.com/zil-lang/zil/blob/c2ae6edb94f56ac710b7a66a23db03c451193cc8/_zil_design.md
 [gates]: https://github.com/zil-lang/zil/blob/adbead51fc8916ac1cb1019702d906a19ebd3e98/validation/product-gates.json
 [c39]: https://github.com/zil-lang/zil/tree/c15b77847502d02acc83474bf7f9a8789186a3ac
 [c40]: https://github.com/zil-lang/zil/tree/7dfc6846194643e5295a7704a0b8ce99fa5176e4
@@ -419,3 +419,5 @@
 
 [task-g521]: https://github.com/zil-lang/zil/blob/b8048c021b6bd45ffb152d77812c547c96b54529/.task/G5.2.1.md
 [review-chat9]: https://github.com/zil-lang/zil/blob/f07b9a22c348ab6a9709d0be805cca114134582b/docs/reviews/CHAT9-REVIEW.md
+
+[e-pr52]: https://github.com/zil-lang/zil/blob/c2ae6edb94f56ac710b7a66a23db03c451193cc8/docs/validation/ordinary-ownership-and-shared-dispatch-acceptance.json
