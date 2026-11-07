@@ -475,13 +475,20 @@ pub(super) fn resolve_factory_result(
     module: ModuleId,
     name: &str,
     result: &Type,
+    storage_life: Option<&StorageLifeContract>,
     span: Span,
 ) -> R<()> {
     if state.helper_tables.is_empty() {
         return Ok(());
     }
-    if !matches!(result, Type::Closure(_)) {
+    if !matches!(result, Type::Closure(_)) && task_factories::result_task(result).is_none() {
         return Err(unsupported(span, "factory result identity is unresolved"));
+    }
+    if task_factories::result_task(result).is_some() {
+        state.snapshot_type(result, 1, 0, span)?;
+        if let Some(life) = storage_life {
+            borrowed_fp::charge_contract(life, |work| state.snapshot(work, span), 1)?;
+        }
     }
     state.snapshot(name.len().saturating_add(1), span)?;
     // instantiate_helper holds the only extra Rc in its local stack frame.
@@ -494,6 +501,10 @@ pub(super) fn resolve_factory_result(
         .and_then(|table| table.get_mut(name))
         .ok_or_else(|| unsupported(span, "factory signature is absent from helper lookup"))?;
     signature.result = result.clone();
+    if task_factories::result_task(result).is_some() {
+        signature.storage_life = storage_life.cloned();
+        if storage_life.is_some() { signature.life = None; }
+    }
     Ok(())
 }
 

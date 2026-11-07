@@ -53,6 +53,7 @@ mod registration;
 mod resource_effects;
 mod resources;
 mod retained;
+mod task_factories;
 mod scalar_expr_variants;
 mod scalar_shapes;
 mod scoped_thread;
@@ -485,7 +486,7 @@ pub fn check(
     for f in core
         .functions
         .iter()
-        .filter(|f| f.callable_return.is_some() && f.callable_parameters.is_empty())
+        .filter(|f| (f.callable_return.is_some() && f.callable_parameters.is_empty()) || task_factories::factory(f))
     {
         let id = signatures[&f.name]
             .concrete_id(f.span)
@@ -505,8 +506,15 @@ pub fn check(
                 && f.type_parameters.is_empty()
                 && f.state_parameters.is_empty())
                 && f.callable_return.is_none()
+                && !task_factories::factory(f)
         }));
     for f in ordered {
+        let resolved_task;
+        let f = if task_factories::factory(f) {
+            resolved_task = task_factories::prepare(f, &signatures, None, &mut closure_state, limits)
+                .map_err(|e| vec![e])?;
+            &resolved_task
+        } else { f };
         match Builder::new(
             f,
             signatures[&f.name]
@@ -524,16 +532,22 @@ pub fn check(
             b.finish(&f.body)
         }) {
             Ok(typed) => {
-                if f.callable_return.is_some() {
+                if f.callable_return.is_some() || task_factories::factory(f) {
                     signatures
                         .get_mut(&f.name)
                         .expect("declared factory")
                         .result = typed.return_type.clone();
+                    if task_factories::factory(f) {
+                        let signature = signatures.get_mut(&f.name).expect("declared Task factory");
+                        signature.storage_life = typed.storage_life.clone();
+                        if typed.storage_life.is_some() { signature.life = None; }
+                    }
                     helpers::resolve_factory_result(
                         &mut closure_state,
                         core.module_id,
                         &f.name,
                         &typed.return_type,
+                        typed.storage_life.as_ref(),
                         f.span,
                     )
                     .map_err(|e| vec![e])?;

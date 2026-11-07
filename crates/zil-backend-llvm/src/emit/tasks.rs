@@ -2161,7 +2161,7 @@ impl FunctionEmitter<'_> {
             )));
             return Ok(());
         }
-        if let InstructionKind::TaskCreate { worker, arguments } = &i.kind {
+        if let InstructionKind::TaskCreate { worker, arguments, .. } = &i.kind {
             let output = result(i)?;
             let ty = llvm_type(&self.function.values[output.0 as usize])?;
             let frame = self.temp();

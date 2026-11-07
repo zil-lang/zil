@@ -640,7 +640,9 @@ fn check_module(
     // Bound every aggregate shape before definitions, equality, cloning or
     // fingerprinting. Raw APIs receive no protection from a source producer.
     for (index, function) in module.functions.iter().enumerate() {
-        if function.storage_life.is_some() {
+        if function.storage_life.is_some()
+            && !tasks::borrowed_signature(module, function, &mut budget)?
+        {
             stored_flow::header(module, function, &mut budget)?;
             budget.stored_borrows = true;
         }

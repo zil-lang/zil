@@ -14,7 +14,7 @@ pub(super) fn dependencies(
     work: &mut usize,
     limits: &Limits,
 ) -> R<BTreeSet<FunctionId>> {
-    Ok(direct_dependencies(function, signatures, imports, work, limits)?.factories)
+    Ok(direct_dependencies(function, signatures, imports, work, limits, false)?.factories)
 }
 
 #[derive(Default)]
@@ -29,6 +29,7 @@ fn direct_dependencies(
     imports: Option<&program::Imports<'_>>,
     work: &mut usize,
     limits: &Limits,
+    include_tasks: bool,
 ) -> R<DirectDependencies> {
     spend(work, function.parameters.len(), function.span)?;
     for parameter in &function.parameters {
@@ -41,6 +42,7 @@ fn direct_dependencies(
         found: DirectDependencies::default(),
         work,
         limits,
+        include_tasks,
     };
     walk.block(&function.body, 0)?;
     Ok(walk.found)
@@ -60,7 +62,7 @@ pub(super) fn factory_dependencies(
     let DirectDependencies {
         mut factories,
         helpers,
-    } = direct_dependencies(function, signatures, imports, work, limits)?;
+    } = direct_dependencies(function, signatures, imports, work, limits, true)?;
     spend(work, helpers.len(), function.span)?;
     let mut pending = helpers.into_iter().collect::<Vec<_>>();
     let mut visited = BTreeSet::new();
@@ -87,7 +89,7 @@ pub(super) fn factory_dependencies(
             .get(&template.context.module)
             .ok_or_else(|| unsupported(span, "callable template dependency lookup is absent"))?;
         let reached =
-            direct_dependencies(&template.function, signatures, Some(&imports), work, limits)?;
+            direct_dependencies(&template.function, signatures, Some(&imports), work, limits, true)?;
         spend(
             work,
             reached
@@ -209,6 +211,8 @@ struct Dependencies<'a, 'b> {
     found: DirectDependencies,
     work: &'b mut usize,
     limits: &'a Limits,
+    // Task header ordering must not activate the earlier closure solver.
+    include_tasks: bool,
 }
 impl Dependencies<'_, '_> {
     fn node(&mut self, depth: usize, span: Span) -> R<()> {
@@ -428,7 +432,8 @@ impl Dependencies<'_, '_> {
             _ => None,
         };
         if let Some(signature) = signature {
-            if signature.callable_return.is_some() && signature.template.is_none() {
+            if (signature.callable_return.is_some() || (self.include_tasks && task_factories::signature_factory(signature)))
+                && signature.template.is_none() && !signature.foreign {
                 self.found
                     .factories
                     .insert(signature.concrete_id(expression.span)?);

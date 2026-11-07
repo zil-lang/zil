@@ -67,6 +67,8 @@ fn local_transfer(
         InstructionKind::TakeLocal { local }
         | InstructionKind::StorageLive(local)
         | InstructionKind::StorageDead(local)
+        | InstructionKind::DropManaged { local }
+        | InstructionKind::DropErrorUnion { local }
         | InstructionKind::DropClosure { local } => {
             state.remove(&local);
         }
@@ -296,6 +298,40 @@ fn reconstruct(
                                     join(&mut row, source, budget)?;
                                 }
                             }
+                            InstructionKind::TaskCreate {
+                                arguments,
+                                port_bindings,
+                                ..
+                            } if super::retained_task_value(&f.values[id]) => {
+                                for binding in port_bindings {
+                                    let StorageBase::Parameter(index) = binding.source.base else {
+                                        return Err(reject(
+                                            "E-VERIFY-TASK",
+                                            Some(instruction.span),
+                                            "task port source is not an input",
+                                        ));
+                                    };
+                                    let source =
+                                        arguments.get(index as usize).ok_or_else(|| {
+                                            reject(
+                                                "E-VERIFY-TASK",
+                                                Some(instruction.span),
+                                                "task port input absent",
+                                            )
+                                        })?;
+                                    join(&mut row, &flow.values[source.0 as usize], budget)?;
+                                }
+                            }
+                            InstructionKind::TakeErrorUnion {
+                                value,
+                                is_error: false,
+                            }
+                            | InstructionKind::MakeErrorUnion {
+                                value,
+                                is_error: false,
+                            } if super::retained_task_value(&f.values[id]) => {
+                                join(&mut row, &flow.values[value.0 as usize], budget)?;
+                            }
                             InstructionKind::Call { arguments, .. }
                             | InstructionKind::CallIndirect { arguments, .. }
                                 if matches!(f.values[id], Type::Address { .. }) =>
@@ -312,6 +348,19 @@ fn reconstruct(
                                             &flow.values[argument.0 as usize],
                                             budget,
                                         )?;
+                                    }
+                                }
+                            }
+                            InstructionKind::Call { arguments, .. }
+                                if super::retained_task_value(&f.values[id]) =>
+                            {
+                                for argument in arguments {
+                                    if overlaps(
+                                        &facts.values[id],
+                                        &facts.values[argument.0 as usize],
+                                        budget,
+                                    )? {
+                                        join(&mut row, &flow.values[argument.0 as usize], budget)?;
                                     }
                                 }
                             }
@@ -411,6 +460,7 @@ fn reconstruct(
 }
 fn active(
     flow: &Flow,
+    function: &TypedFunction,
     locals: &Locals,
     live: &[bool],
     v: usize,
@@ -426,6 +476,14 @@ fn active(
             join(&mut active, &flow.values[i], budget)?;
         } else if let Some(row) = locals.get(&LocalId((i - v) as u32)) {
             join(&mut active, row, budget)?;
+        }
+    }
+    // A retained frame owns its borrow until the actual owner is consumed or
+    // destroyed. Its SSA address operand may have died at TaskCreate.
+    for (local, loans) in locals {
+        budget.spend(1)?;
+        if super::retained_task_value(&function.locals[local.0 as usize].ty) {
+            join(&mut active, loans, budget)?;
         }
     }
     budget.spend(active.len())?;
@@ -910,7 +968,7 @@ pub(super) fn check(
             BTreeSet::new()
         };
         for (i, instruction) in block.instructions.iter().enumerate() {
-            let mut active = active(&flow, &locals, &after[i], v, budget)?;
+            let mut active = active(&flow, f, &locals, &after[i], v, budget)?;
             // Arguments and captured targets participate in the current call,
             // even if neither value is live after its final invocation.
             let empty = Loans::new();

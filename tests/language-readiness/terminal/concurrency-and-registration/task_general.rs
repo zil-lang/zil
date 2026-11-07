@@ -1,6 +1,8 @@
 //! General Task source consumers; scalar worker admission remains explicit.
 use super::*;
 const SOURCE: &str = include_str!("task-general-i32.zil");
+const SHARED_INPUT: &str =
+    include_str!("../../task-composition/verified-source-consumers/shared-input-retained-task.zil");
 #[path = "../../task-composition/verified-source-consumers/source_consumers.rs"]
 mod verified_source_consumers;
 fn closed_task_shape() -> zil_ir::RetainedLifeShape {
@@ -10,6 +12,286 @@ fn closed_task_shape() -> zil_ir::RetainedLifeShape {
         retained: vec![],
         nominal_arguments: vec![],
     }
+}
+#[test]
+fn shared_task_frame_retains_real_input_through_close() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let poll = SHARED_INPUT
+        .find("            match task_poll(&mut task)? {")
+        .unwrap();
+    let close = SHARED_INPUT
+        .find("    match task_poll_close(&mut task) {")
+        .unwrap();
+    let pc0 = format!("{}{}", &SHARED_INPUT[..poll], &SHARED_INPUT[close..]);
+    let second = SHARED_INPUT[poll + 1..]
+        .find("            match task_poll(&mut task)? {")
+        .unwrap()
+        + poll
+        + 1;
+    let cancel = format!(
+        "{}            task_request_cancel(&mut task);\n{}",
+        &SHARED_INPUT[..second],
+        &SHARED_INPUT[close..]
+    );
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            for (case, input, expected) in [
+                ("complete", SHARED_INPUT, b"PRCA".as_slice()),
+                ("pc0-close", pc0.as_str(), b"CA".as_slice()),
+                ("pending-cancel", cancel.as_str(), b"PCA".as_slice()),
+            ] {
+                let dir = std::env::temp_dir().join(format!(
+                    "shared-task-port-{}-{case}-{backend:?}-{optimization:?}",
+                    std::process::id()
+                ));
+                std::fs::create_dir_all(&dir).unwrap();
+                let report = compile_source(
+                    &source(input),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        output: Some(dir.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                let output = std::process::Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert_eq!(output.status.code(), Some(0), "{output:?}");
+                assert_eq!(output.stdout, expected);
+                std::fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+}
+#[test]
+fn shared_task_frame_rejects_input_writes_before_close() {
+    let before_poll = SHARED_INPUT.replace(
+        "            match task_poll(&mut task)? {",
+        "            value=43;\n            match task_poll(&mut task)? {",
+    );
+    let second = SHARED_INPUT
+        .find("            match task_poll(&mut task)? {")
+        .and_then(|first| {
+            SHARED_INPUT[first + 1..]
+                .find("            match task_poll(&mut task)? {")
+                .map(|next| first + 1 + next)
+        })
+        .unwrap();
+    let after_pending = format!(
+        "{}            value=43;\n{}",
+        &SHARED_INPUT[..second],
+        &SHARED_INPUT[second..]
+    );
+    let after_cancel = SHARED_INPUT.replace("            match task_poll_close(&mut task) {", "            task_request_cancel(&mut task);\n            value=43;\n            match task_poll_close(&mut task) {");
+    let after_ready = SHARED_INPUT.replace(
+        "            match task_poll_close(&mut task) {",
+        "            value=43;\n            match task_poll_close(&mut task) {",
+    );
+    let poll = SHARED_INPUT
+        .find("            match task_poll(&mut task)? {")
+        .unwrap();
+    let premature_destroy = format!(
+        "{}            task_finish_destroy(give task);\n{}",
+        &SHARED_INPUT[..poll],
+        &SHARED_INPUT[poll..]
+    );
+    for input in [
+        &before_poll,
+        &after_pending,
+        &after_ready,
+        &after_cancel,
+        &premature_destroy,
+    ] {
+        let report = compile_source(&source(input), &CompileOptions::default());
+        assert!(
+            matches!(
+                report.status,
+                ResultCategory::SafeReject | ResultCategory::Unsupported
+            ),
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
+    }
+}
+#[test]
+fn shared_task_raw_owner_keeps_input_borrow_after_last_ssa_use() {
+    use zil_ir::InstructionKind as I;
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let core = expand(SHARED_INPUT, &limits).unwrap().core;
+    let mut typed = zil_types::check(&core, &target, &limits).unwrap();
+    for f in typed.functions.iter().filter(|f| f.name == "main") {
+        for b in &f.blocks {
+            eprintln!("TASK BLOCK {:?} {:?}", b.id, b.terminator);
+            for i in &b.instructions {
+                if matches!(i.kind, I::PlaceTagLocal { .. } | I::TakeVariantField { .. } | I::Binary { .. } | I::Constant(_)) {
+                    eprintln!("TASK INST {:?} {:?}", i.result, i.kind);
+                }
+            }
+        }
+    }
+    zil_analyze::analyze(&typed, &limits).unwrap();
+    let main = typed
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let value = main.locals.iter().find(|l| l.name == "value").unwrap().id;
+    let initial_write = main
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find(|i| matches!(i.kind, I::Store { local, .. } if local == value))
+        .unwrap()
+        .clone();
+    let poll_block = main
+        .blocks
+        .iter_mut()
+        .find(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i.kind, I::TaskPoll { .. }))
+        })
+        .unwrap();
+    let poll_index = poll_block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, I::TaskPoll { .. }))
+        .unwrap();
+    poll_block.instructions.insert(poll_index, initial_write);
+    assert!(zil_analyze::analyze(&typed, &limits).is_err());
+}
+#[test]
+fn shared_task_retained_port_rejects_raw_and_wire_forgery() {
+    use zil_ir::InstructionKind as I;
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let core = expand(SHARED_INPUT, &limits).unwrap().core;
+    let good = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&good, &limits).unwrap();
+    zil_verify::verify_module(good.clone(), plan.clone(), &target, &limits).unwrap();
+    for case in 0..2 {
+        let mut bad = good.clone();
+        let factory = bad.functions.iter_mut().find(|f| f.name == "make").unwrap();
+        let local = factory
+            .locals
+            .iter()
+            .find(|l| l.name == "other")
+            .unwrap()
+            .id;
+        let other = factory
+            .blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .find_map(|i| {
+                matches!(i.kind, I::BorrowLocal { local: id } if id == local)
+                    .then_some(i.result)
+                    .flatten()
+            })
+            .unwrap();
+        let create = factory
+            .blocks
+            .iter_mut()
+            .flat_map(|b| &mut b.instructions)
+            .find(|i| matches!(i.kind, I::TaskCreate { .. }))
+            .unwrap();
+        let I::TaskCreate {
+            arguments,
+            port_bindings,
+            ..
+        } = &mut create.kind
+        else {
+            unreachable!()
+        };
+        if case == 0 {
+            port_bindings[0].port = 1;
+        } else {
+            arguments[0] = other;
+        }
+        assert!(zil_analyze::analyze(&bad, &limits).is_err());
+        let mut claim = plan.clone();
+        claim.module_fingerprint = bad.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&bad, &claim, &limits).unwrap();
+        for encoded in [false, true] {
+            let (typed, candidate) = if encoded {
+                zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap()
+            } else {
+                (bad.clone(), claim.clone())
+            };
+            assert!(
+                zil_verify::verify_module(typed, candidate, &target, &limits).is_err(),
+                "case={case} wire={encoded}"
+            );
+        }
+    }
+}
+#[test]
+fn shared_task_port_survives_cross_module_factory_return() {
+    use zil_driver::{NativeBackend, Optimization, ProjectSources, Stage};
+    let split = SHARED_INPUT.find("fn main").unwrap();
+    let provider = SHARED_INPUT[..split]
+        .replace("extern \"C\" fn putchar(code:i32)->i32;", "")
+        .replace("fn make<life a>", "pub fn make<life a>");
+    let consumer = format!(
+        "import provider\nextern \"C\" fn putchar(code:i32)->i32;\n{}",
+        SHARED_INPUT[split..].replace("make(&value)", "provider.make(&value)")
+    );
+    let project = ProjectSources {
+        root: zil_base::ModuleId(0),
+        modules: vec![
+            SourceUnit::new(
+                zil_base::FileId(0),
+                zil_base::ModuleId(0),
+                "main.zil",
+                consumer,
+            ),
+            SourceUnit::new(
+                zil_base::FileId(1),
+                zil_base::ModuleId(1),
+                "provider.zil",
+                provider,
+            ),
+        ],
+        paths: std::collections::BTreeMap::from([(vec!["provider".into()], zil_base::ModuleId(1))]),
+    };
+    let dir = std::env::temp_dir().join(format!("shared-task-cross-module-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let report = zil_driver::compile_project(
+        &project,
+        &CompileOptions {
+            backend: NativeBackend::Clang,
+            optimization: Optimization::O0,
+            stop_after: Stage::Build,
+            output: Some(dir.join("program")),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    let output = std::process::Command::new(&report.artifacts["executable"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert_eq!(output.stdout, b"PRCA");
+    std::fs::remove_dir_all(dir).unwrap();
 }
 #[test]
 fn general_task_native_ordinary_poll_and_once_ready() {
@@ -393,6 +675,7 @@ fn general_task_borrowed_initial_frame_is_not_erased_by_scalar_result() {
     creation.kind = zil_ir::InstructionKind::TaskCreate {
         worker: safe,
         arguments: vec![scalar],
+        port_bindings: vec![],
     };
     let mut claim = zil_analyze::analyze(&benign, &limits).unwrap();
     zil_verify::verify_module(benign, claim.clone(), &target, &limits).unwrap();

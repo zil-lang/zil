@@ -214,11 +214,19 @@ pub(super) fn reserve_enum_metadata(
             result,
             retained_life,
         } => {
-            if retained_life.binder_count != 0
-                || !retained_life.ports.is_empty()
-                || !retained_life.retained.is_empty()
-                || !retained_life.nominal_arguments.is_empty()
-            {
+            let closed = retained_life.binder_count == 0
+                && retained_life.ports.is_empty()
+                && retained_life.retained.is_empty()
+                && retained_life.nominal_arguments.is_empty();
+            let shared_i32 = retained_life.binder_count == 1
+                && retained_life.retained.is_empty()
+                && retained_life.nominal_arguments.is_empty()
+                && matches!(retained_life.ports.as_slice(), [zil_ir::RetainedBorrowPort {
+                    leaf: Type::Address { mutable: false, inner },
+                    mode: zil_ir::StoredBorrowMode::SharedAddress,
+                    binder: 0,
+                }] if inner.as_ref() == &Type::I32);
+            if !closed && !shared_i32 {
                 return unsupported(
                     "borrowed Task native frame mapping is not implemented",
                     None,

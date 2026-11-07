@@ -16,6 +16,18 @@ fn tracked_desc(ty: &Type, descriptor_origins: bool) -> bool {
     matches!(ty, Type::Desc(inner)
         if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. }))
 }
+fn retained_task_value(ty: &Type) -> bool {
+    match ty {
+        Type::Task { retained_life, .. } => !retained_life.ports.is_empty(),
+        Type::Managed(inner) | Type::Desc(inner) => {
+            matches!(inner.as_ref(), Type::Task { retained_life, .. } if !retained_life.ports.is_empty())
+        }
+        Type::ErrorUnion { result, .. } => {
+            matches!(result.as_ref(), Type::Managed(inner) if matches!(inner.as_ref(), Type::Task { retained_life, .. } if !retained_life.ports.is_empty()))
+        }
+        _ => false,
+    }
+}
 
 fn has_sources(
     module: &TypedModule,
@@ -24,10 +36,13 @@ fn has_sources(
     budget: &mut Budget,
 ) -> Check<bool> {
     if !descriptor_origins {
-        return Ok(closures::holds_addresses(module, ty) || tracked_desc(ty, false));
+        return Ok(closures::holds_addresses(module, ty)
+            || tracked_desc(ty, false)
+            || retained_task_value(ty));
     }
     match ty {
         Type::Address { .. } | Type::Desc(_) => Ok(true),
+        Type::Managed(_) | Type::ErrorUnion { .. } if retained_task_value(ty) => Ok(true),
         Type::Closure(id) => {
             let captures = &module.closures[id.0 as usize].captures;
             budget.spend(captures.len())?;
@@ -697,6 +712,42 @@ fn reconstruct(
                                 budget.spend(1)?;
                                 row.push(Root::Static);
                             }
+                            InstructionKind::TaskCreate {
+                                arguments,
+                                port_bindings,
+                                ..
+                            } if retained_task_value(&f.values[result.0 as usize]) => {
+                                for binding in port_bindings {
+                                    let zil_ir::StorageBase::Parameter(index) = binding.source.base
+                                    else {
+                                        return Err(reject(
+                                            "E-VERIFY-TASK",
+                                            Some(instruction.span),
+                                            "task retained port has no input",
+                                        ));
+                                    };
+                                    let source =
+                                        arguments.get(index as usize).ok_or_else(|| {
+                                            reject(
+                                                "E-VERIFY-TASK",
+                                                Some(instruction.span),
+                                                "task retained port input is absent",
+                                            )
+                                        })?;
+                                    roots_join(&mut row, &values[source.0 as usize], budget)?;
+                                }
+                            }
+                            InstructionKind::TakeErrorUnion {
+                                value,
+                                is_error: false,
+                            } if retained_task_value(&f.values[result.0 as usize]) => {
+                                roots_join(&mut row, &values[value.0 as usize], budget)?;
+                            }
+                            InstructionKind::MakeErrorUnion { value, .. }
+                                if retained_task_value(&f.values[result.0 as usize]) =>
+                            {
+                                roots_join(&mut row, &values[value.0 as usize], budget)?;
+                            }
                             InstructionKind::DescribeLocal { local }
                                 if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner)
                                 if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. })) =>
@@ -959,11 +1010,9 @@ fn reconstruct_module(
     let count = module.functions.len();
     budget.spend(count)?;
     let mut summaries = vec![Roots::new(); count];
-    if !module
-        .functions
-        .iter()
-        .any(|f| matches!(f.return_type, Type::Address { .. }))
-    {
+    if !module.functions.iter().any(|f| {
+        matches!(f.return_type, Type::Address { .. }) || retained_task_value(&f.return_type)
+    }) {
         return module
             .functions
             .iter()
@@ -998,6 +1047,7 @@ fn reconstruct_module(
                 };
                 if !instruction.result.is_some_and(|v| {
                     matches!(f.values.get(v.0 as usize), Some(Type::Address { .. }))
+                        || f.values.get(v.0 as usize).is_some_and(retained_task_value)
                 }) {
                     continue;
                 }
@@ -1038,11 +1088,38 @@ fn reconstruct_module(
                 budget,
             )?;
             let mut changed = false;
-            if matches!(function.return_type, Type::Address { .. }) {
+            if matches!(function.return_type, Type::Address { .. })
+                || retained_task_value(&function.return_type)
+            {
                 for (block, reachable) in function.blocks.iter().zip(&graphs[index].reachable) {
                     budget.spend(1)?;
                     if *reachable && let Terminator::Return(Some(value)) = block.terminator {
                         let roots = &facts.values[value.0 as usize];
+                        budget.spend(block.instructions.len())?;
+                        let explicit_error = roots.is_empty()
+                            && block
+                                .instructions
+                                .iter()
+                                .find(|i| i.result == Some(value))
+                                .is_some_and(|i| {
+                                    matches!(
+                                        i.kind,
+                                        InstructionKind::MakeErrorUnion { is_error: true, .. }
+                                    )
+                                });
+                        if retained_task_value(&function.return_type)
+                            && !explicit_error
+                            && (roots.is_empty()
+                                || roots
+                                    .iter()
+                                    .any(|root| !matches!(root.coarse(), HoldRoot::Parameter(0))))
+                        {
+                            return Err(reject(
+                                "E-VERIFY-TASK",
+                                Some(function.span),
+                                "borrowed Task return has no actual shared input root",
+                            ));
+                        }
                         budget.spend(roots.len())?;
                         let incoming: Vec<_> = roots
                             .iter()

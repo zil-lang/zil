@@ -1,5 +1,6 @@
 //! Producer checks reconstruct the scalar task profile and actual suspension.
 use super::*;
+mod borrowed_loans;
 mod drop_sync;
 mod owned;
 pub(super) use drop_sync::{
@@ -16,10 +17,11 @@ fn empty_context() -> zil_ir::RetainedLifeShape {
 }
 pub(super) fn require_closed_context(ty: &Type) -> CompileResult<()> {
     if let Type::Task { retained_life, .. } = ty
-        && (retained_life.binder_count != 0
-            || !retained_life.ports.is_empty()
-            || !retained_life.retained.is_empty()
-            || !retained_life.nominal_arguments.is_empty())
+        && *retained_life != empty_context()
+        && !(retained_life.binder_count == 1
+            && retained_life.retained.is_empty()
+            && retained_life.nominal_arguments.is_empty()
+            && matches!(retained_life.ports.as_slice(), [zil_ir::RetainedBorrowPort { leaf: Type::Address { mutable: false, inner }, mode: zil_ir::StoredBorrowMode::SharedAddress, binder: 0 }] if inner.as_ref() == &Type::I32))
     {
         return Err(vec![Diagnostic::unsupported(
             Phase::Analyze,
@@ -37,7 +39,50 @@ fn task_payload(ty: &Type) -> Option<&Type> {
         _ => None,
     }
 }
-fn task_create_type(result: &Type) -> Type {
+fn borrowed_result(ty: &Type) -> bool {
+    match ty {
+        Type::Task { retained_life, .. } => !retained_life.ports.is_empty(),
+        Type::Managed(inner) | Type::Desc(inner) => {
+            matches!(inner.as_ref(), Type::Task { retained_life, .. } if !retained_life.ports.is_empty())
+        }
+        Type::ErrorUnion { result, .. } => {
+            matches!(result.as_ref(), Type::Managed(inner) if matches!(inner.as_ref(), Type::Task { retained_life, .. } if !retained_life.ports.is_empty()))
+        }
+        _ => false,
+    }
+}
+pub(super) fn borrowed_signature(f: &TypedFunction, budget: &mut Budget) -> CompileResult<bool> {
+    if !borrowed_result(&f.return_type) {
+        return Ok(false);
+    }
+    let Some(contract) = &f.storage_life else {
+        return Ok(false);
+    };
+    budget.spend(
+        f.parameters.len().saturating_add(1),
+        "Task signature input inventory",
+    )?;
+    let [parameter] = f.parameters.as_slice() else {
+        return Err(fail(
+            f.span,
+            "borrowed Task signature requires its one actual source input",
+        ));
+    };
+    let input = f
+        .locals
+        .get(parameter.0 as usize)
+        .ok_or_else(|| fail(f.span, "borrowed Task signature input absent"))?;
+    super::signature_life::charge(contract, budget)?;
+    super::signature_life::function_relation(
+        std::slice::from_ref(&input.ty),
+        &f.return_type,
+        contract,
+        false,
+        &[],
+    )?;
+    Ok(true)
+}
+fn task_create_type(result: &Type, retained_life: zil_ir::RetainedLifeShape) -> Type {
     Type::ErrorUnion {
         error: Box::new(Type::Enum {
             name: "@std.task:v1:TaskCreateError".into(),
@@ -45,7 +90,7 @@ fn task_create_type(result: &Type) -> Type {
         }),
         result: Box::new(Type::Managed(Box::new(Type::Task {
             result: Box::new(result.clone()),
-            retained_life: empty_context(),
+            retained_life,
         }))),
     }
 }
@@ -345,6 +390,12 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
     }
     let mut suspend = vec![false; module.functions.len()];
     for (index, f) in module.functions.iter().enumerate() {
+        if borrowed_result(&f.return_type) && f.storage_life.is_none() {
+            return Err(fail(
+                f.span,
+                "borrowed Task return requires an actual retained input relation",
+            ));
+        }
         if f.call_kind == CallKind::Suspend {
             suspend[index] = true;
             worker(module, f.id, budget, f.span)?;
@@ -414,6 +465,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     InstructionKind::TaskCreate {
                         worker: id,
                         ref arguments,
+                        ref port_bindings,
                     } => {
                         worker(module, id, budget, i.span)?;
                         let target = &module.functions[id.0 as usize];
@@ -433,6 +485,44 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                                 return Err(fail(i.span, "task_create actual input type differs"));
                             }
                         }
+                        let retained_life = if target.parameters.len() == 1
+                            && matches!(&target.locals[target.parameters[0].0 as usize].ty, Type::Address { mutable: false, inner } if inner.as_ref() == &Type::I32)
+                        {
+                            let expected = zil_ir::RetainedPortBinding {
+                                port: 0,
+                                source: zil_ir::StoragePosition {
+                                    base: zil_ir::StorageBase::Parameter(0),
+                                    path: vec![],
+                                },
+                            };
+                            if port_bindings.as_slice() != [expected] {
+                                return Err(fail(
+                                    i.span,
+                                    "task retained port must bind its actual shared input",
+                                ));
+                            }
+                            zil_ir::RetainedLifeShape {
+                                binder_count: 1,
+                                ports: vec![zil_ir::RetainedBorrowPort {
+                                    leaf: Type::Address {
+                                        mutable: false,
+                                        inner: Box::new(Type::I32),
+                                    },
+                                    mode: zil_ir::StoredBorrowMode::SharedAddress,
+                                    binder: 0,
+                                }],
+                                retained: vec![],
+                                nominal_arguments: vec![],
+                            }
+                        } else {
+                            if !port_bindings.is_empty() {
+                                return Err(fail(
+                                    i.span,
+                                    "task retained port lacks an actual borrowed input",
+                                ));
+                            }
+                            empty_context()
+                        };
                         for _ in 0..4 {
                             budget.type_work(
                                 &target.return_type,
@@ -440,7 +530,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                                 "general task result identity",
                             )?;
                         }
-                        let output = task_create_type(&target.return_type);
+                        let output = task_create_type(&target.return_type, retained_life);
                         Some(output)
                     }
                     InstructionKind::TaskStart {
@@ -621,6 +711,9 @@ pub(super) fn loans(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     budget: &mut Budget,
 ) -> CompileResult<()> {
+    if budget.tasks {
+        borrowed_loans::check(module, plan, graphs, budget)?;
+    }
     use std::collections::BTreeMap;
     type Set = BTreeSet<usize>;
     type State = BTreeMap<LocalId, Set>;

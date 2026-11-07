@@ -137,6 +137,62 @@ pub(super) fn function_relation(
     span: Option<Span>,
     allow_callback: bool,
 ) -> Check<()> {
+    if let Type::ErrorUnion {
+        result: success, ..
+    } = result
+        && let Type::Managed(payload) = success.as_ref()
+        && let Type::Task { retained_life, .. } = payload.as_ref()
+        && !retained_life.ports.is_empty()
+    {
+        super::tasks::require_closed_context(payload, span)?;
+        let actual_input = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        };
+        let expected_bindings = [
+            StorageLifeBinding {
+                position: StoragePosition {
+                    base: StorageBase::Parameter(0),
+                    path: vec![],
+                },
+                binder: StorageBinder::Invocation(0),
+            },
+            StorageLifeBinding {
+                position: StoragePosition {
+                    base: StorageBase::Result,
+                    path: vec![
+                        ContractProjection::Place(PlaceProjection::ErrorArm(false)),
+                        ContractProjection::RetainedPort(0),
+                    ],
+                },
+                binder: StorageBinder::Invocation(0),
+            },
+        ];
+        let expected_class = SignatureLifeClassBinding {
+            position: SignatureLifeClass {
+                base: StorageBase::Result,
+                path: vec![
+                    LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)),
+                    LifeTypeProjection::Pointee,
+                ],
+                class: 0,
+            },
+            binder: StorageBinder::Invocation(0),
+        };
+        if parameters != [actual_input]
+            || c.fixed_binder_count != 0
+            || c.invocation_binder_count != 1
+            || c.bindings.as_slice() != expected_bindings
+            || c.classes.as_slice() != [expected_class]
+        {
+            return Err(reject(
+                "E-VERIFY-SIGNATURE-CLASS",
+                span,
+                "borrowed Task signature has no exact actual input port relation",
+            ));
+        }
+        return Ok(());
+    }
     relation_inner(
         parameters,
         result,
