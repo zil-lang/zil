@@ -942,7 +942,9 @@ impl<'a> Index<'a> {
                 let target = trait_instances::method_name_with(
                     &reference,
                     &method.name,
-                    !method.generics.is_empty(),
+                    !method.generics.is_empty()
+                        || trait_instances::head(actual)
+                            .is_some_and(super::super::super::static_traits::scalar_self),
                     budget,
                     span,
                 )?;

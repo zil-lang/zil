@@ -66,6 +66,9 @@ pub(crate) struct CallTarget {
     pub member: String,
     pub generic: bool,
     pub static_host: bool,
+    // A symbolic receiver retained only when this trait has actual scalar
+    // impls. Specialization chooses the exact trait-qualified scalar target.
+    pub scalar_host: Option<TypeRef>,
 }
 pub(crate) type CallTargets = BTreeMap<usize, CallTarget>;
 pub(crate) type Calls = BTreeMap<String, CallTargets>;
@@ -740,6 +743,11 @@ pub(crate) fn resolve_generic_calls(
                 member: target.member.clone(),
                 generic: true,
                 static_host: target.static_host,
+                scalar_host: target
+                    .scalar_host
+                    .as_ref()
+                    .map(|host| super::enums::substituted(host, substitutions, budget))
+                    .transpose()?,
             },
         );
     }
@@ -778,10 +786,16 @@ pub(crate) fn rewrite_calls_materialized(
             reference.key.arguments.push(type_key(&argument, budget)?);
             reference.arguments.push(argument);
         }
+        let scalar = if let Some(host) = &target.scalar_host {
+            let host = super::enums::substituted(host, host_actuals, budget)?;
+            head(&host).is_some_and(super::super::static_traits::scalar_self)
+        } else {
+            false
+        };
         let name = method_name_with(
             &reference,
             &target.member,
-            target.generic,
+            target.generic || scalar,
             budget,
             item.span,
         )?;

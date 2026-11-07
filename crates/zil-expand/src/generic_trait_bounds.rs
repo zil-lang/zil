@@ -34,6 +34,7 @@ pub(super) struct Index<'a> {
     nominals: BTreeMap<String, &'a Item>,
     instantiated_copy_shapes: BTreeMap<String, Item>,
     pub(super) recipes: Vec<&'a Item>,
+    scalar_traits: BTreeSet<&'a str>,
 }
 
 pub(super) fn plain(ty: &TypeRef) -> Option<&str> {
@@ -157,10 +158,24 @@ impl<'a> Index<'a> {
         let mut has_constants = false;
         let mut has_generic_methods = false;
         let mut nominals = BTreeMap::new();
+        let mut scalar_traits = BTreeSet::new();
         for item in &module.items {
             budget.node(item.span, 0)?;
             if matches!(item.kind, ItemKind::Aggregate(_) | ItemKind::Enum(_)) {
                 nominals.insert(name(item).expect("nominal name").to_owned(), item);
+            }
+            if let ItemKind::Impl(implementation) = &item.kind
+                && trait_instances::head(&implementation.target)
+                    .is_some_and(super::super::static_traits::scalar_self)
+                && let Some(name) = implementation
+                    .trait_type
+                    .as_ref()
+                    .and_then(trait_instances::head)
+            {
+                budget.text(name, item.span)?;
+                budget.node(item.span, 0)?;
+                scalar_traits.insert(name);
+                has_instances = true;
             }
             match &item.kind {
                 ItemKind::Impl(implementation)
@@ -231,6 +246,7 @@ impl<'a> Index<'a> {
             instance_count: 0,
             inherent_methods: BTreeSet::new(),
             recipes: Vec::new(),
+            scalar_traits,
         };
         if has_instances && validate {
             for (item, declaration) in index.declarations.values() {
@@ -1001,13 +1017,18 @@ impl<'a> Index<'a> {
                     }
                     let mut method =
                         trait_instances::signature(declaration, member, reference, budget)?;
-                    if !reference.arguments.is_empty() || !method.generics.is_empty() {
+                    let scalar = self.scalar_trait(&reference.key.name, budget, span)?;
+                    if scalar || !reference.arguments.is_empty() || !method.generics.is_empty() {
                         let generic = !method.generics.is_empty();
                         if reference.arguments.is_empty() && generic {
                             budget.item(member)?;
                         }
                         method.to_mut().name = trait_instances::method_name_with(
-                            reference, name, generic, budget, span,
+                            reference,
+                            name,
+                            generic || scalar,
+                            budget,
+                            span,
                         )?;
                     }
                     selected = Some(method);
@@ -1135,6 +1156,19 @@ impl<'a> Index<'a> {
         }
         Ok(reference.clone())
     }
+    pub(super) fn scalar_trait(&self, name: &str, budget: &mut Budget<'_>, span: Span) -> R<bool> {
+        if self.scalar_traits.is_empty() {
+            return Ok(false);
+        }
+        budget.identity_work(
+            self.scalar_traits
+                .len()
+                .saturating_mul(name.len().saturating_add(1)),
+            span,
+        )?;
+        Ok(self.scalar_traits.contains(name))
+    }
+
     pub(super) fn concrete_method(
         &self,
         host: &str,
@@ -1190,7 +1224,13 @@ impl<'a> Index<'a> {
                 let ItemKind::Function(method) = &member.kind else {
                     continue;
                 };
-                let target = trait_instances::method_name(&reference, &method.name, budget, span)?;
+                let target = trait_instances::method_name_with(
+                    &reference,
+                    &method.name,
+                    super::super::static_traits::scalar_self(host),
+                    budget,
+                    span,
+                )?;
                 if method.name != name && target != name {
                     continue;
                 }

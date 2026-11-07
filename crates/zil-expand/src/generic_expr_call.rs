@@ -17,7 +17,7 @@ struct CallArguments {
 impl Engine<'_> {
     fn expr_call_method(&mut self, e: &mut Expr, env: &mut Env, depth: usize) -> R<CallMethod> {
         self.method_call(e, env, depth)?;
-        let ExprKind::Call { callee, .. } = &mut e.kind else {
+        let ExprKind::Call { callee, arguments } = &mut e.kind else {
             unreachable!("call dispatch")
         };
         let mut trait_signature = None;
@@ -76,6 +76,74 @@ impl Engine<'_> {
                     self.budget.text(&target, callee.span)?;
                     member.clone_from(&target);
                     trait_signature = Some(signature);
+                }
+                if let Some(host) = trait_bounds::plain(projection_shape(&actual))
+                    .filter(|host| super::super::static_traits::scalar_self(host))
+                    && let Some(signature) = trait_signature.take()
+                {
+                    self.budget.text(member, callee.span)?;
+                    let target = member.clone();
+                    // The selected scalar has no nominal module owner.
+                    // Lower its exact trait target to an ordinary function
+                    // call now; project restoration uses the real provider.
+                    self.budget.text(host, callee.span)?;
+                    self.budget.text(".", callee.span)?;
+                    self.budget.text(&target, callee.span)?;
+                    self.budget.node(callee.span, depth + 1)?;
+                    self.budget
+                        .identity_work(arguments.len().saturating_add(1), e.span)?;
+                    let target = format!("{host}.{target}");
+                    let borrow = signature.params.first().and_then(|parameter| {
+                        match &grouped(&parameter.ty).kind {
+                            TypeKind::Reference { mutable, .. } => Some(if *mutable {
+                                UnaryOp::BorrowMut
+                            } else {
+                                UnaryOp::Borrow
+                            }),
+                            _ => None,
+                        }
+                    });
+                    let mut value = std::mem::replace(
+                        object,
+                        Box::new(Expr {
+                            span: object.span,
+                            kind: ExprKind::Name(String::new()),
+                        }),
+                    );
+                    if let Some(op) = borrow
+                        && !matches!(grouped(&actual).kind, TypeKind::Reference { .. })
+                    {
+                        self.budget.node(value.span, depth + 1)?;
+                        value = Box::new(Expr {
+                            span: value.span,
+                            kind: ExprKind::Unary { op, operand: value },
+                        });
+                    }
+                    arguments.insert(
+                        0,
+                        Argument {
+                            span: value.span,
+                            spread: false,
+                            value: *value,
+                        },
+                    );
+                    self.budget.function_snapshot(&signature)?;
+                    self.budget.text(&target, callee.span)?;
+                    self.budget.identity_work(
+                        self.signatures
+                            .len()
+                            .checked_ilog2()
+                            .map_or(1, |n| n as usize + 2)
+                            .saturating_mul(target.len().saturating_add(1)),
+                        callee.span,
+                    )?;
+                    self.signatures
+                        .insert(target.clone(), Cow::Owned(signature.clone()));
+                    callee.kind = ExprKind::Name(target);
+                    return Ok(CallMethod {
+                        signature: Some(signature),
+                        type_qualified: true,
+                    });
                 }
             }
         }

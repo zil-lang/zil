@@ -2213,6 +2213,7 @@ pub(super) fn resolve_type_method<'a>(
         {
             resolve_method(name, member, local, imports)
         }
+        Type::Enum { name, .. } => resolve_method(name, member, local, imports),
         Type::ByteBuffer => local
             .get(&format!("ByteBuffer.{member}"))
             .filter(|s| s.receiver.is_some() && !s.cleanup),
