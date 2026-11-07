@@ -429,7 +429,10 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
                 if !matches!(storage, Type::Package { .. })
                     || !matches!(child.as_ref(), Type::Package { .. })
                 {
-                    return Err(err("nested physical child requires owning Package"));
+                    if !retained::pure(t, b)? {
+                        return Err(err("nested physical child requires owning Package"));
+                    }
+                    continue;
                 }
                 physical(t, limits, b)?;
                 let boundary: Vec<_> = path
