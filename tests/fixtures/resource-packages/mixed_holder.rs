@@ -19,6 +19,11 @@ fn stdlib_store_head_path() -> std::path::PathBuf {
         .join("../../tests/fixtures/resource-packages/stdlib-owned-store-package-head.zil")
 }
 
+fn cross_module_holder_path() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/resource-packages/cross-module-holder/main.zil")
+}
+
 fn source(name: &str, program: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), name, program)
 }
@@ -204,6 +209,196 @@ fn slot_update_cannot_extend_a_distinct_parameter_lifetime() {
 }
 
 #[test]
+fn stored_exclusive_slot_does_not_leave_its_input_ssa_writable() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let source = source("mutable-package-slot-replacement.zil", SLOT_REPLACEMENT);
+    let syntax = zil_syntax::parse(&source).into_result().unwrap();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &source,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let mut raw = zil_types::check(&core, &target, &limits).unwrap();
+    let replace = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "replace")
+        .unwrap();
+    let block = &mut replace.blocks[0];
+    let store = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, zil_ir::InstructionKind::StoreStoredBorrow { .. }))
+        .unwrap();
+    let (address, span) = match &block.instructions[store] {
+        zil_ir::Instruction {
+            kind: zil_ir::InstructionKind::StoreStoredBorrow { value, .. },
+            span,
+            ..
+        } => (*value, *span),
+        _ => unreachable!(),
+    };
+    let literal = zil_ir::ValueId(replace.values.len() as u32);
+    replace.values.push(zil_ir::Type::I32);
+    block.instructions.insert(
+        store + 1,
+        zil_ir::Instruction {
+            result: Some(literal),
+            kind: zil_ir::InstructionKind::Constant(zil_ir::Constant::I32(7)),
+            span,
+        },
+    );
+    let mut candidate = zil_analyze::analyze(&raw, &limits).unwrap();
+    let replace = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "replace")
+        .unwrap();
+    replace.blocks[0].instructions.insert(
+        store + 2,
+        zil_ir::Instruction {
+            result: None,
+            kind: zil_ir::InstructionKind::WriteAddress {
+                address,
+                value: literal,
+            },
+            span,
+        },
+    );
+    candidate.module_fingerprint = raw.fingerprint();
+    let analyze_error = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(
+        analyze_error
+            .iter()
+            .any(|d| d.message.contains("simultaneously live access")),
+        "{analyze_error:?}"
+    );
+    let verify_error =
+        zil_verify::verify_module(raw.clone(), candidate.clone(), &target, &limits).unwrap_err();
+    assert!(
+        verify_error
+            .iter()
+            .any(|d| d.message.contains("live incompatible loan")),
+        "{verify_error:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &candidate, &limits).unwrap();
+    let wire_error = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert!(
+        wire_error
+            .iter()
+            .any(|d| d.message.contains("live incompatible loan")),
+        "{wire_error:?}"
+    );
+}
+
+#[test]
+fn helper_slot_write_does_not_leave_its_input_ssa_writable() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let source = source("mutable-package-slot-replacement.zil", SLOT_REPLACEMENT);
+    let syntax = zil_syntax::parse(&source).into_result().unwrap();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &source,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let mut raw = zil_types::check(&core, &target, &limits).unwrap();
+    let replace_id = raw
+        .functions
+        .iter()
+        .find(|f| f.name == "replace")
+        .unwrap()
+        .id;
+    let relay = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "relay")
+        .unwrap();
+    let block = &mut relay.blocks[0];
+    let call = block
+        .instructions
+        .iter()
+        .position(|i| matches!(&i.kind, zil_ir::InstructionKind::Call { function, .. } if *function == replace_id))
+        .unwrap();
+    let (address, span) = match &block.instructions[call] {
+        zil_ir::Instruction {
+            kind: zil_ir::InstructionKind::Call { arguments, .. },
+            span,
+            ..
+        } => (arguments[1], *span),
+        _ => unreachable!(),
+    };
+    let literal = zil_ir::ValueId(relay.values.len() as u32);
+    relay.values.push(zil_ir::Type::I32);
+    block.instructions.insert(
+        call + 1,
+        zil_ir::Instruction {
+            result: Some(literal),
+            kind: zil_ir::InstructionKind::Constant(zil_ir::Constant::I32(7)),
+            span,
+        },
+    );
+    let mut candidate = zil_analyze::analyze(&raw, &limits).unwrap();
+    let relay = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "relay")
+        .unwrap();
+    relay.blocks[0].instructions.insert(
+        call + 2,
+        zil_ir::Instruction {
+            result: None,
+            kind: zil_ir::InstructionKind::WriteAddress {
+                address,
+                value: literal,
+            },
+            span,
+        },
+    );
+    candidate.module_fingerprint = raw.fingerprint();
+    let analyze_error = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(
+        analyze_error
+            .iter()
+            .any(|d| d.message.contains("simultaneously live access")),
+        "{analyze_error:?}"
+    );
+    let verify_error =
+        zil_verify::verify_module(raw.clone(), candidate.clone(), &target, &limits).unwrap_err();
+    assert!(
+        verify_error
+            .iter()
+            .any(|d| d.message.contains("live incompatible loan")),
+        "{verify_error:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &candidate, &limits).unwrap();
+    let wire_error = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert!(
+        wire_error
+            .iter()
+            .any(|d| d.message.contains("live incompatible loan")),
+        "{wire_error:?}"
+    );
+}
+
+#[test]
 #[cfg(target_os = "linux")]
 fn mixed_package_native_both_optimizations() {
     for (name, program, expected) in [
@@ -323,6 +518,39 @@ fn stdlib_owned_store_head_verifies() {
         report.to_json()
     );
     assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn cross_module_holder_replaces_the_actual_exclusive_target() {
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let output = std::env::temp_dir().join(format!(
+            "zil-cross-module-holder-{}-{optimization:?}",
+            std::process::id()
+        ));
+        let report = compile_path(
+            &cross_module_holder_path(),
+            &CompileOptions {
+                stop_after: Stage::Build,
+                backend: NativeBackend::Clang,
+                optimization,
+                entry: Some("main".into()),
+                output: Some(output.clone()),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let run = std::process::Command::new(&report.artifacts["executable"])
+            .output()
+            .unwrap();
+        assert_eq!(run.status.code(), Some(0), "{run:?}");
+        std::fs::remove_file(output).unwrap();
+    }
 }
 
 #[test]
