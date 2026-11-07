@@ -112,13 +112,10 @@ impl<'a> Budget<'a> {
             self.metadata(interface.slots.len())?;
             for slot in &interface.slots {
                 self.metadata(slot.parameters.len().saturating_add(2))?;
-                if slot.receiver.mutable
-                    || !slot.result.is_b0_scalar()
-                    || !slot.parameters.iter().all(Type::is_b0_scalar)
-                {
+                if !slot.result.is_b0_scalar() || !slot.parameters.iter().all(Type::is_b0_scalar) {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Lower,
-                        "shared dyn lowering requires a shared receiver and scalar slots",
+                        "borrowed dyn lowering requires fixed scalar or Unit slots",
                         None,
                     )]);
                 }

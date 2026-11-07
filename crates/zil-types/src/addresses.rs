@@ -141,17 +141,14 @@ impl Builder<'_, '_> {
             if actual_inner.as_ref() == inner {
                 return Ok((
                     self.value(
-                        InstructionKind::ReborrowAddress {
-                            address,
-                            mutable: false,
-                        },
+                        InstructionKind::ReborrowAddress { address, mutable },
                         expected.clone(),
                         e.span,
                     )?,
                     expected.clone(),
                 ));
             }
-            return self.dyn_coerce(address, &actual_inner, *interface, e.span);
+            return self.dyn_coerce(address, &actual_inner, *interface, mutable, e.span);
         }
         self.same(inner, &actual_inner, e.span)?;
         Ok((

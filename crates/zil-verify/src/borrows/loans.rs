@@ -1533,6 +1533,7 @@ pub(super) fn check(
                             | InstructionKind::TaskRequestCancel { .. }
                             | InstructionKind::TaskPollClose { .. }
                             | InstructionKind::WriteAddress { .. }
+                            | InstructionKind::MakeDynBorrow { mutable: true, .. }
                             | InstructionKind::ReborrowAddress { mutable: true, .. }
                     );
                     access.check(
@@ -1636,7 +1637,10 @@ pub(super) fn check(
                         access.check(
                             &flow.values[callee.0 as usize],
                             &facts.values[callee.0 as usize],
-                            false,
+                            matches!(
+                                &f.values[callee.0 as usize],
+                                Type::Address { mutable: true, .. }
+                            ),
                             budget,
                         )?;
                     }

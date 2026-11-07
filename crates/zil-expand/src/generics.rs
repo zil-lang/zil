@@ -3383,8 +3383,7 @@ fn unify_argument(
                 "shared reference cannot grant exclusive access",
             ));
         }
-        if !wanted
-            && !available
+        if wanted == available
             && matches!(&expected.kind, TypeKind::Dyn { path, args, bindings } if path.len() == 1 && args.is_empty() && bindings.is_empty())
             && matches!(&actual.kind, TypeKind::Named { path, args } if path.len() == 1 && args.is_empty())
         {
