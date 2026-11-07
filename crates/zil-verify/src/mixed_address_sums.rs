@@ -69,9 +69,29 @@ pub(super) fn instruction(
     let (available, ty) = endpoint(f, address, path, budget)?;
     resources::charge_payload(ty, budget)?;
     if let InstructionKind::BorrowPlaceAddress { mutable, .. } = &i.kind {
+        // A direct owning Sum capture may expose one actual inline Store
+        // field through a shared address. The endpoint walk above proves the
+        // real field path; independently requalify the complete parent and
+        // its sealed Store definition before accepting the leaf.
+        let inline_store_field =
+            if budget.pod_stores && !*mutable && dynamic_store::inline_owner(ty) {
+                let Type::Address { inner, .. } = value_type(f, address, span)? else {
+                    return Err(invalid(span));
+                };
+                if dynamic_store::inline_sum_capture(inner, budget)? {
+                    let limits = budget.limits.clone();
+                    dynamic_store::check_owned_capture(module, inner, Some(&limits), budget)?;
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
         if path.is_empty()
             || (*mutable && !available)
             || (!ty.is_copy_value()
+                && !inline_store_field
                 && !matches!(
                     ty,
                     Type::Tuple(_)
@@ -83,6 +103,10 @@ pub(super) fn instruction(
             return Err(invalid(span));
         }
         match ty {
+            Type::Managed(_) if inline_store_field => {
+                let limits = budget.limits.clone();
+                dynamic_store::check_owned_capture(module, ty, Some(&limits), budget)?;
+            }
             Type::Package { .. } => packages::check_ordinary_type(module, ty, span, budget)?,
             Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. } => {
                 sums::check_type_for(module, ty, span, budget)?

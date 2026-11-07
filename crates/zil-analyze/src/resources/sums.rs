@@ -1036,7 +1036,7 @@ impl Plan {
             facts.values.insert(ValueId(v as u32), t);
         }
         if let Some(id) = f.environment
-            && budget.has_ordinary_store_sum_capture(id)
+            && budget.has_ordinary_store_sum_capture(id)?
         {
             let closure = module
                 .closures

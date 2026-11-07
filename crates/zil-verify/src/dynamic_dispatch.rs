@@ -23,7 +23,7 @@ fn receiver_position() -> StoragePosition {
     }
 }
 
-fn interface<'a>(module: &'a TypedModule, id: DynInterfaceId) -> Check<&'a DynInterface> {
+fn interface(module: &TypedModule, id: DynInterfaceId) -> Check<&DynInterface> {
     module
         .dyn_interfaces
         .iter()
@@ -31,7 +31,7 @@ fn interface<'a>(module: &'a TypedModule, id: DynInterfaceId) -> Check<&'a DynIn
         .ok_or_else(|| bad("dyn interface identity is absent", None))
 }
 
-fn table<'a>(module: &'a TypedModule, id: DynVtableId) -> Check<&'a DynVtable> {
+fn table(module: &TypedModule, id: DynVtableId) -> Check<&DynVtable> {
     module
         .dyn_vtables
         .iter()

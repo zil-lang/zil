@@ -222,14 +222,10 @@ pub(super) fn check_definitions(
                     None,
                 ));
             }
-            let inline_store_capture = budget.pod_stores
-                && matches!(
-                    ty,
-                    Type::Package { .. }
-                        | Type::Tuple(_)
-                        | Type::Enum { .. }
-                        | Type::ErrorUnion { .. }
-                )
+            let inline_store_capture = matches!(
+                ty,
+                Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+            ) && budget.inline_store_root(ty)?
                 && dynamic_store::owned_capture_store(ty, budget)?;
             if inline_store_capture
                 && matches!(
@@ -681,7 +677,9 @@ pub(super) fn self_contained(
             match ty {
                 Type::Closure(child) => pending.push(*child),
                 Type::Managed(_) | Type::Package { .. } => {}
-                ty if dynamic_store::inline_sum_capture(ty, budget)? => {
+                ty if budget.inline_store_root(ty)?
+                    && dynamic_store::inline_sum_capture(ty, budget)? =>
+                {
                     dynamic_store::check_owned_capture(module, ty, None, budget)?;
                 }
                 ty if ty.is_copy_value() => {}
@@ -706,7 +704,8 @@ pub(super) fn owned_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -
     let definition = definition(module, *id, None)?;
     budget.spend(definition.captures.len().saturating_add(1))?;
     for capture in &definition.captures {
-        if dynamic_store::inline_sum_capture(capture, budget)? {
+        if budget.inline_store_root(capture)? && dynamic_store::inline_sum_capture(capture, budget)?
+        {
             return Ok(true);
         }
     }
@@ -743,7 +742,8 @@ pub(super) fn check_resource_instruction(
                     "capture borrow requires an actual environment field",
                 ));
             };
-            let inline_sum = dynamic_store::inline_sum_capture(ty, budget)?;
+            let inline_sum =
+                budget.inline_store_root(ty)? && dynamic_store::inline_sum_capture(ty, budget)?;
             if !(ty.is_copy_value() || matches!(ty, Type::Closure(_)) || inline_sum) {
                 return Err(reject(
                     "E-VERIFY-CAPTURE",
@@ -787,7 +787,8 @@ pub(super) fn check_resource_instruction(
             };
             if matches!(instruction.kind, InstructionKind::TakeCapture { .. }) {
                 if !matches!(ty, Type::Managed(_) | Type::Closure(_))
-                    && !dynamic_store::inline_sum_capture(ty, budget)?
+                    && !(budget.inline_store_root(ty)?
+                        && dynamic_store::inline_sum_capture(ty, budget)?)
                 {
                     return Err(reject(
                         "E-VERIFY-CAPTURE",
@@ -797,6 +798,7 @@ pub(super) fn check_resource_instruction(
                 }
                 if definition.kind != CallableKind::FnOnce
                     && !(definition.kind == CallableKind::FnMut
+                        && budget.inline_store_root(ty)?
                         && dynamic_store::inline_sum_capture(ty, budget)?)
                 {
                     return Err(reject(

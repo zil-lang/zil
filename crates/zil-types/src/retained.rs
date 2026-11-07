@@ -611,19 +611,15 @@ impl Builder<'_, '_> {
             if matches!(&ty, Type::Managed(_) if resources::supported(&ty))
                 || packages::capture_supported(&ty)
                 || matches!(ty, Type::Closure(_))
-            {
-                cleanup.push(index as u32);
-            } else if moved
-                && !borrowed
-                && matches!(ty, Type::Package { .. })
-                && packages::has_store_fields(&ty)
-                && self.closures.ordinary_store_capture(&ty, span)?
-            {
-                cleanup.push(index as u32);
-            } else if moved
-                && !borrowed
-                && owned_shapes::sum(&ty)
-                && self.closures.ordinary_store_capture(&ty, span)?
+                || (moved
+                    && !borrowed
+                    && matches!(ty, Type::Package { .. })
+                    && packages::has_store_fields(&ty)
+                    && self.closures.ordinary_store_capture(&ty, span)?)
+                || (moved
+                    && !borrowed
+                    && owned_shapes::sum(&ty)
+                    && self.closures.ordinary_store_capture(&ty, span)?)
             {
                 cleanup.push(index as u32);
             } else if !ty.is_copy_value() {

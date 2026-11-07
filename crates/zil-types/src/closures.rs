@@ -344,6 +344,40 @@ impl Pending {
     }
 }
 
+fn tuple_pattern_takes_owner(
+    pattern: &CorePattern,
+    ty: &Type,
+    work: &mut usize,
+    depth: usize,
+    depth_limit: usize,
+) -> R<bool> {
+    if depth > depth_limit {
+        return Err(limit("owned Tuple pattern depth exceeded", pattern.span));
+    }
+    *work = work
+        .checked_sub(1)
+        .ok_or_else(|| limit("owned Tuple pattern budget exceeded", pattern.span))?;
+    match (&pattern.kind, ty) {
+        // UnpackTuple creates an owned hidden target for a discarded field;
+        // its cleanup also consumes the captured environment's owner.
+        (CorePatternKind::Name(_) | CorePatternKind::Wildcard, ty) => {
+            Ok(!ty.is_copy_value() && dynamic_store::contains_inline_carrier(ty))
+        }
+        (CorePatternKind::Tuple(patterns), Type::Tuple(fields))
+            if patterns.len() == fields.len() =>
+        {
+            let mut takes = false;
+            for (pattern, field) in patterns.iter().zip(fields) {
+                takes |= tuple_pattern_takes_owner(pattern, field, work, depth + 1, depth_limit)?;
+            }
+            Ok(takes)
+        }
+        // A reference binding keeps the child in its actual parent place.
+        (CorePatternKind::Reference { .. }, _) => Ok(false),
+        _ => Ok(false),
+    }
+}
+
 pub(super) struct Input<'a> {
     pub defer_action: bool,
     pub move_capture: bool,
@@ -2875,6 +2909,51 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     let value = variable.scalar(statement.span)?;
                     if self.pattern_needs_mutable(pattern, depth + 1)? {
                         self.mark_address_write(initializer, depth + 1)?;
+                    }
+                    // Classify each actual child: `ref` can coexist with a
+                    // by-value owner binding in the same Tuple pattern.
+                    if let CoreExprKind::Name(name) = &initializer.kind
+                        && self.lookup(name).is_none()
+                        && self.outer.get(name).is_some_and(|(_, ty)| {
+                            matches!(ty, Type::Tuple(_))
+                                && dynamic_store::contains_inline_carrier(ty)
+                        })
+                    {
+                        *self.work_left = self
+                            .work_left
+                            .checked_sub(
+                                self.captures
+                                    .len()
+                                    .saturating_mul(name.len().saturating_add(1)),
+                            )
+                            .ok_or_else(|| {
+                                limit(
+                                    "owned Tuple capture transfer budget exceeded",
+                                    initializer.span,
+                                )
+                            })?;
+                        if let Some(capture) = self.captures.iter_mut().find(|c| c.name == *name) {
+                            inference::charge_type_snapshot(
+                                &capture.ty,
+                                initializer.span,
+                                self.limits,
+                                self.work_left,
+                                2,
+                            )?;
+                            if owned_shapes::tuple(&capture.ty)
+                                && tuple_pattern_takes_owner(
+                                    pattern,
+                                    &capture.ty,
+                                    self.work_left,
+                                    0,
+                                    self.limits.max_call_depth,
+                                )?
+                            {
+                                capture.moved = true;
+                                capture.borrowed = false;
+                                capture.consumed = true;
+                            }
+                        }
                     }
                     for (name, variable, span) in self.graph.pattern_bind(pattern, value)? {
                         let value = self.pattern_local(variable, span)?;

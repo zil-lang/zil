@@ -134,7 +134,9 @@ pub(super) fn check_claim(
             owning_signature(module, f, input, budget)?;
         } else if matches!(local.ty, Type::Package { .. }) {
             packages::check_ordinary_type(module, &local.ty, Some(local.span), budget)?;
-        } else if dynamic_store::inline_sum_capture(&local.ty, budget)? {
+        } else if budget.inline_store_root(&local.ty)?
+            && dynamic_store::inline_sum_capture(&local.ty, budget)?
+        {
             dynamic_store::check_owned_capture(module, &local.ty, Some(limits), budget)?;
         } else if !(local.ty.is_copy_value() || matches!(local.ty, Type::Managed(_))) {
             return Err(unsupported(
@@ -151,9 +153,10 @@ pub(super) fn check_claim(
         budget.spend(f.parameters.len())?;
         for parameter in &f.parameters {
             let local = &f.locals[parameter.0 as usize];
-            if dynamic_store::is_carrier(&local.ty) {
-                dynamic_store::check_owned_capture(module, &local.ty, Some(limits), budget)?;
-            } else if dynamic_store::inline_sum_capture(&local.ty, budget)? {
+            if dynamic_store::is_carrier(&local.ty)
+                || (budget.inline_store_root(&local.ty)?
+                    && dynamic_store::inline_sum_capture(&local.ty, budget)?)
+            {
                 dynamic_store::check_owned_capture(module, &local.ty, Some(limits), budget)?;
             } else if matches!(local.ty, Type::Package { .. }) {
                 let work = closures::type_layout_work(&local.ty, budget)?;
@@ -166,7 +169,8 @@ pub(super) fn check_claim(
                     ));
                 }
                 if packages::has_store_fields(&local.ty)
-                    || (budget.pod_stores && dynamic_store::owned_capture_store(&local.ty, budget)?)
+                    || (budget.inline_store_root(&local.ty)?
+                        && dynamic_store::owned_capture_store(&local.ty, budget)?)
                 {
                     dynamic_store::check_owned_capture(module, &local.ty, Some(limits), budget)?;
                 }
@@ -182,7 +186,7 @@ pub(super) fn check_claim(
             cleanup.push(index as u32);
         } else if matches!(ty, Type::Managed(_)) {
             cleanup.push(index as u32);
-        } else if dynamic_store::inline_sum_capture(ty, budget)? {
+        } else if budget.inline_store_root(ty)? && dynamic_store::inline_sum_capture(ty, budget)? {
             dynamic_store::check_owned_capture(module, ty, Some(limits), budget)?;
             cleanup.push(index as u32);
         } else if let Type::Closure(id) = ty {
@@ -324,7 +328,9 @@ fn check_parameter_claim(
                 closures::self_contained(module, *child, budget)?;
                 cleanup.push(index as u32);
             }
-            ty if dynamic_store::inline_sum_capture(ty, budget)? => {
+            ty if budget.inline_store_root(ty)?
+                && dynamic_store::inline_sum_capture(ty, budget)? =>
+            {
                 dynamic_store::check_owned_capture(module, ty, None, budget)?;
                 cleanup.push(index as u32);
             }

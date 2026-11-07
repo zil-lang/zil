@@ -1167,8 +1167,15 @@ mod store_field_tests {
         let parent = LoanRoot::Local(LocalId(3));
         let first = LoanRoot::LocalStoreField(LocalId(3), 0);
         let second = LoanRoot::LocalStoreField(LocalId(3), 1);
-        assert!(!overlap(&[first.clone()], &[second], &mut budget).unwrap());
-        assert!(overlap(&[first.clone()], &[first], &mut budget).unwrap());
+        assert!(!overlap(std::slice::from_ref(&first), &[second], &mut budget).unwrap());
+        assert!(
+            overlap(
+                std::slice::from_ref(&first),
+                std::slice::from_ref(&first),
+                &mut budget
+            )
+            .unwrap()
+        );
         assert!(
             overlap(
                 &[parent],

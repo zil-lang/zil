@@ -8,6 +8,12 @@ mod allocation;
 fn ordinary_store_ownership_reaches_complete_native_values() {
     for (label, source, expected, imported) in [
         (
+            "ordinary-tuple-copy-companions",
+            include_str!("ordinary-tuple-copy-companions.zil"),
+            b"19\n".as_slice(),
+            false,
+        ),
+        (
             "ordinary-data-model",
             include_str!("ordinary-data-model.zil"),
             b"18446744073709551612\n".as_slice(),
@@ -206,17 +212,19 @@ fn ordinary_ownership_does_not_admit_a_nested_store_element() {
 #[test]
 fn ordinary_direct_sum_capture_source_rejects_lost_ownership() {
     let source = include_str!("ordinary-direct-shape-captures.zil");
-    for (label, from, to, code) in [
+    for (label, from, to, phase, code) in [
         (
             "shared-takes-owner",
             "let (ref values,tag)=pair",
             "let previous=pair\n        let (values,tag)=previous",
+            Phase::Analyze,
             "E-ANALYZE-IR",
         ),
         (
             "mutable-return-unfilled",
             "choice=Choice.Value(make(18446744073709551612u64))",
             "if false { choice=Choice.Value(make(18446744073709551612u64)) }",
+            Phase::Types,
             "E-UNINITIALIZED",
         ),
     ] {
@@ -233,12 +241,7 @@ fn ordinary_direct_sum_capture_source_rejects_lost_ownership() {
             "{label}: {}",
             report.to_json()
         );
-        assert_eq!(
-            report.phase,
-            Phase::Analyze,
-            "{label}: {}",
-            report.to_json()
-        );
+        assert_eq!(report.phase, phase, "{label}: {}", report.to_json());
         assert!(
             report.diagnostics.iter().any(|d| d.code == code),
             "{label}: {}",
@@ -260,7 +263,7 @@ fn ordinary_direct_sum_capture_source_rejects_lost_ownership() {
         "{}",
         report.to_json()
     );
-    assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
+    assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
     assert!(
         report
             .diagnostics
@@ -269,6 +272,81 @@ fn ordinary_direct_sum_capture_source_rejects_lost_ownership() {
         "{}",
         report.to_json()
     );
+}
+
+#[test]
+fn ordinary_tuple_destructure_consumes_its_actual_owned_capture() {
+    let (module, _) = candidate(include_str!("ordinary-tuple-copy-companions.zil"));
+    let definition = module
+        .closures
+        .iter()
+        .find(|definition| {
+            matches!(&definition.captures[..], [Type::Tuple(fields)]
+                if fields.len() == 3
+                    && matches!(&fields[0], Type::Managed(payload)
+                        if matches!(payload.as_ref(), Type::OwnedStore { element }
+                            if matches!(element.as_ref(), Type::U64)))
+                    && matches!(&fields[1], Type::Record { .. })
+                    && matches!(&fields[2], Type::Array { .. }))
+        })
+        .expect("Source captures its complete Store/Record/Array Tuple");
+    assert_eq!(definition.kind, zil_ir::CallableKind::FnOnce);
+    let entry = module
+        .functions
+        .iter()
+        .find(|function| {
+            function.id == definition.function && function.environment == Some(definition.id)
+        })
+        .expect("actual Source closure entry");
+    assert!(
+        entry
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .any(|instruction| matches!(instruction.kind, I::TakeCapture { index: 0 }))
+    );
+    assert!(
+        entry
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .any(|instruction| matches!(instruction.kind, I::UnpackTuple { .. }))
+    );
+}
+
+#[test]
+fn ordinary_tuple_capture_mode_follows_owning_child_binding() {
+    let source = include_str!("ordinary-tuple-copy-companions.zil");
+    let original = "let (values,marker,bytes)=packet";
+    assert_eq!(source.matches(original).count(), 1);
+    let shared = source
+        .replacen("impl FnOnce()->u64", "impl Fn()->u64", 1)
+        .replacen(original, "let (ref values,marker,bytes)=packet", 1);
+    let (module, _) = candidate(&shared);
+    assert!(module.closures.iter().any(|definition| {
+        definition.kind == zil_ir::CallableKind::Fn
+            && matches!(&definition.captures[..], [Type::Tuple(fields)] if fields.len() == 3)
+    }));
+
+    let mixed = source.replacen(original, "let (values,ref marker,bytes)=packet", 1);
+    let (module, _) = candidate(&mixed);
+    assert!(module.closures.iter().any(|definition| {
+        definition.kind == zil_ir::CallableKind::FnOnce
+            && matches!(&definition.captures[..], [Type::Tuple(fields)] if fields.len() == 3)
+    }));
+
+    let discarded = source
+        .replacen(original, "let (_,marker,bytes)=packet", 1)
+        .replacen(
+            "return *store_at(values,0)+marker.n+bytes[0]",
+            "return marker.n+bytes[0]",
+            1,
+        );
+    let (module, _) = candidate(&discarded);
+    assert!(module.closures.iter().any(|definition| {
+        definition.kind == zil_ir::CallableKind::FnOnce
+            && matches!(&definition.captures[..], [Type::Tuple(fields)] if fields.len() == 3)
+    }));
 }
 
 #[test]
@@ -516,6 +594,38 @@ fn ordinary_source_derived_two_sum_capture_debts_reject_raw_and_wire() {
 
     let mut shared_take = module.clone();
     shared_take.closures[definition_index].kind = zil_ir::CallableKind::Fn;
+    let closure = shared_take.closures[definition_index].id;
+    let mut claims = 0;
+    let mut calls = 0;
+    for function in &mut shared_take.functions {
+        if let Some(contract) = &mut function.callable_return_contract
+            && contract.closure == closure
+        {
+            assert_eq!(contract.kind, zil_ir::CallableKind::FnMut);
+            contract.kind = zil_ir::CallableKind::Fn;
+            claims += 1;
+        }
+        for instruction in function
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.instructions)
+        {
+            if let I::CallClosureMut { callee, arguments } = &instruction.kind
+                && function.locals[callee.0 as usize].ty == Type::Closure(closure)
+            {
+                instruction.kind = I::CallClosureShared {
+                    callee: *callee,
+                    arguments: arguments.clone(),
+                };
+                calls += 1;
+            }
+        }
+    }
+    assert_eq!(
+        claims, 1,
+        "actual Source factory has one returned environment claim"
+    );
+    assert_eq!(calls, 2, "actual Source invokes its environment twice");
     reject_direct_sum_capture_candidate(
         "ordinary-shared-takes-owned-sum",
         shared_take,

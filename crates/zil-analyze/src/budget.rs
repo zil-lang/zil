@@ -64,6 +64,7 @@ pub(super) struct Budget {
     // Exact owning inline-Store Sum capture roots found by the paid raw walk.
     // Empty on old Sum profiles, including owning ByteBuffer Enums.
     ordinary_store_sum_captures: Vec<BTreeSet<usize>>,
+    ordinary_store_sum_addresses: BTreeSet<usize>,
     ordinary_pod_store_roots: BTreeSet<usize>,
 }
 
@@ -113,14 +114,23 @@ impl Budget {
             scoped_helper_bodies: std::collections::BTreeMap::new(),
             sum_roots: BTreeSet::new(),
             ordinary_store_sum_captures: Vec::new(),
+            ordinary_store_sum_addresses: BTreeSet::new(),
             ordinary_pod_store_roots: BTreeSet::new(),
         }
     }
 
-    pub(super) fn has_ordinary_store_sum_capture(&self, id: zil_ir::ClosureId) -> bool {
-        self.ordinary_store_sum_captures
+    pub(super) fn has_ordinary_store_sum_capture(
+        &mut self,
+        id: zil_ir::ClosureId,
+    ) -> CompileResult<bool> {
+        if self.ordinary_store_sum_captures.is_empty() {
+            return Ok(false);
+        }
+        self.spend(1, "ordinary Sum capture closure lookup")?;
+        Ok(self
+            .ordinary_store_sum_captures
             .get(id.0 as usize)
-            .is_some_and(|roots| !roots.is_empty())
+            .is_some_and(|roots| !roots.is_empty()))
     }
 
     pub(super) fn ordinary_store_sum_capture(
@@ -137,6 +147,19 @@ impl Budget {
         }
         self.lookup(len, "actual ordinary Store Sum capture root")?;
         Ok(self.ordinary_store_sum_captures[id.0 as usize].contains(&(ty as *const Type as usize)))
+    }
+
+    pub(super) fn ordinary_store_sum_address(&mut self, ty: &Type) -> CompileResult<bool> {
+        if self.ordinary_store_sum_addresses.is_empty() {
+            return Ok(false);
+        }
+        self.lookup(
+            self.ordinary_store_sum_addresses.len(),
+            "actual ordinary Store Sum address root",
+        )?;
+        Ok(self
+            .ordinary_store_sum_addresses
+            .contains(&(ty as *const Type as usize)))
     }
 
     pub(super) fn sum_type(&mut self, ty: &Type) -> CompileResult<bool> {
@@ -1090,6 +1113,17 @@ pub(super) fn preflight(
         }
         if new_sum
             && new_ordinary_pod_store
+            && matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(),Type::Tuple(_)|Type::Enum{..}|Type::ErrorUnion{..}|Type::Package{..}))
+        {
+            budget.lookup(
+                budget.ordinary_store_sum_addresses.len(),
+                "ordinary Store Sum address insertion",
+            )?;
+            budget.spend(1, "ordinary Store Sum address root allocation")?;
+            budget.ordinary_store_sum_addresses.insert(root);
+        }
+        if new_sum
+            && new_ordinary_pod_store
             && let Some(owner) = capture_owner
             && matches!(
                 ty,
@@ -1522,7 +1556,7 @@ pub(super) fn preflight(
             return Err(bad("function references an absent environment"));
         }
         if let Some(id) = function.environment
-            && budget.has_ordinary_store_sum_capture(id)
+            && budget.has_ordinary_store_sum_capture(id)?
         {
             for ty in &module.closures[id.0 as usize].captures {
                 budget.input(1, "entry Sum capture membership")?;
