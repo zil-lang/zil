@@ -3601,6 +3601,7 @@ impl Resolver<'_> {
                 result,
                 binder_count,
                 ports,
+                retained,
             } => {
                 let result = self.generic_recipe(result, args, owner, depth + 1, span)?;
                 aggregate_templates::spend(
@@ -3608,6 +3609,10 @@ impl Resolver<'_> {
                     ports.len().saturating_add(*binder_count as usize),
                     span,
                 )?;
+                aggregate_templates::spend(&mut self.remaining, retained.len(), span)?;
+                for row in retained {
+                    aggregate_templates::spend(&mut self.remaining, row.path.len(), span)?;
+                }
                 let mut resolved = Vec::new();
                 let mut next = 0u32;
                 for port in ports {
@@ -3643,15 +3648,17 @@ impl Resolver<'_> {
                         "Task recipe retained class domain differs from actual ports",
                     ));
                 }
-                Ok(Type::Desc(Box::new(Type::Task {
+                let task = Type::Task {
                     result: Box::new(result),
                     retained_life: zil_ir::RetainedLifeShape {
                         binder_count: *binder_count,
                         ports: resolved,
-                        retained: vec![],
+                        retained: retained.clone(),
                         nominal_arguments: vec![],
                     },
-                })))
+                };
+                tasks::require_closed_context(&task, span)?;
+                Ok(Type::Desc(Box::new(task)))
             }
             CoreAggregateTypeRecipe::Registration { environment } => {
                 let environment = self.generic_recipe(environment, args, owner, depth + 1, span)?;

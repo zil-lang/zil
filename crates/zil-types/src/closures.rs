@@ -4124,7 +4124,23 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                             &signature.result,
                             tasks::borrowed_context_with_life(
                                 &signature.parameters,
-                                signature.life.as_ref(),
+                                signature
+                                    .life
+                                    .clone()
+                                    .or_else(|| {
+                                        matches!(
+                                            signature.result,
+                                            Type::Address { mutable: false, .. }
+                                        )
+                                        .then(|| {
+                                            signature.storage_life.as_ref().and_then(|life| {
+                                                life.to_flat(signature.parameters.len())
+                                            })
+                                        })
+                                        .flatten()
+                                    })
+                                    .as_ref(),
+                                &signature.result,
                             ),
                         )
                     },

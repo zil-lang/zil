@@ -316,6 +316,7 @@ pub(super) fn describe(out: &mut Value, base: HoldRoot, b: &mut Budget) -> Compi
     // Weak resource identity is not a stored pointer or a parent borrow loan.
     fee(b, 1)?;
     out.held.targets.insert(Target {
+        retained_port: None,
         base,
         stored: Vec::new(),
         place: Vec::new(),

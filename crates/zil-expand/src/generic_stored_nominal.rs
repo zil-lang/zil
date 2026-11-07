@@ -628,6 +628,17 @@ impl<'a> Engine<'a> {
             TypeKind::Named { path: name, args }
                 if name.as_slice() == ["Task"] && args.len() == 2 =>
             {
+                if let GenericArg::Type(result) = &args[0]
+                    && matches!(result.kind, TypeKind::Reference { mutable: false, .. })
+                {
+                    // Instantiate the actual sealed prelude declaration. Its
+                    // private role and full binder reference are authenticated
+                    // by stored_nominal; this spelling grants no Poll role.
+                    self.budget.ty(result)?;
+                    let mut actual = vec![GenericArg::Type(result.clone())];
+                    self.stored_nominal(options::TASK_POLL, &mut actual, result.span, depth + 1)?;
+                    self.budget.note_shared_enum_addresses();
+                }
                 let GenericArg::Type(context) = &args[1] else {
                     return Err(error(ty.span, "Task retained context must be a type"));
                 };
@@ -1493,6 +1504,62 @@ impl<'a> Engine<'a> {
             self.enqueue(instance, Some(origin))?;
         }
         Ok((generated, classes))
+    }
+
+    pub(super) fn task_poll_layout_hint(
+        &mut self,
+        payload: &TypeRef,
+        span: Span,
+        depth: usize,
+    ) -> R<Option<TypeRef>> {
+        let TypeKind::Reference {
+            mutable: false,
+            inner,
+            ..
+        } = &grouped(payload).kind
+        else {
+            return Ok(None);
+        };
+        self.budget.ty(inner)?;
+        let mut inner = *inner.clone();
+        self.ty(&mut inner, depth + 1)?;
+        let wanted = zil_ir::Type::Address {
+            mutable: false,
+            inner: Box::new(super::super::type_ref(&inner)),
+        };
+        for produced in &self.products.storage.instances {
+            self.budget.node(span, depth)?;
+            let declaration = &produced.declaration;
+            if !declaration.id.compiler
+                || declaration.id.module.0 != u32::MAX
+                || declaration.id.declaration.0 != 1
+                || declaration.kind != zil_ir::LifeNominalKind::Enum
+                || declaration.parameters != [zil_ir::LifeParameterKind::Type]
+                || declaration.identity.package != "@zil.builtin"
+                || declaration.identity.module_path != ["task"]
+                || declaration.identity.declaration_path != ["enum", "Poll"]
+                || !declaration.identity.generation_path.is_empty()
+            {
+                continue;
+            }
+            stored_types::pay_type(&produced.instance.ty, &mut self.budget, span, depth + 1)?;
+            if !matches!(produced.instance.arguments.as_slice(), [zil_ir::LifeNominalActual::Type(actual)] if actual == &wanted)
+            {
+                continue;
+            }
+            let zil_ir::Type::BorrowedStorage { storage, .. } = &produced.instance.ty else {
+                continue;
+            };
+            let zil_ir::Type::Enum { name, .. } = storage.as_ref() else {
+                continue;
+            };
+            self.budget.text(name, span)?;
+            return Ok(Some(named(name, span)));
+        }
+        Err(error(
+            span,
+            "shared Task poll has no actual sealed result instance",
+        ))
     }
 
     pub(super) fn closed_stored_actual(&mut self, ty: &TypeRef, depth: usize) -> R<()> {

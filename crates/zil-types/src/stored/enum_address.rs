@@ -33,10 +33,15 @@ pub(super) fn sum_value(ty: &Type) -> bool {
                 && (error.is_copy_value() || sum_value(error))
                 && (result.is_copy_value() || sum_value(result))
         }
-        Type::BorrowedStorage { life, .. } if candidate(ty) => life
-            .slots
-            .iter()
-            .all(|s| s.mode == StoredBorrowMode::SharedAddress),
+        Type::BorrowedStorage { storage, life } if candidate(ty) => {
+            let Type::Enum { variants, .. } = storage.as_ref() else {
+                return false;
+            };
+            variants.iter().all(|(_, fields)| fields.iter().all(|field| {
+                field.is_copy_value()
+                    || matches!(field, Type::Address { mutable: false, inner } if inner.is_address_pointee())
+            })) && life.slots.iter().all(|s| s.mode == StoredBorrowMode::SharedAddress)
+        }
         _ => false,
     }
 }

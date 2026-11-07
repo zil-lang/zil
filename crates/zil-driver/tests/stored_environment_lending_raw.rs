@@ -12,6 +12,465 @@ use zil_ir::{
 };
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 #[test]
+fn task_borrowed_result_source_preserves_the_result_class_and_worker_relation() {
+    let module = typed_stored(include_str!(
+        "../../../tests/fixtures/task-borrow-results/shared-input.zil"
+    ));
+    let worker = module
+        .functions
+        .iter()
+        .find(|f| f.name == "worker")
+        .unwrap();
+    assert!(worker.storage_life.is_some());
+    let mut count = 0;
+    for function in &module.functions {
+        for instruction in function.blocks.iter().flat_map(|b| &b.instructions) {
+            if let InstructionKind::TaskCreate { .. } = instruction.kind {
+                let result = &function.values[instruction.result.unwrap().0 as usize];
+                let Type::ErrorUnion { result, .. } = result else {
+                    panic!("TaskCreate error wrapper missing")
+                };
+                let Type::Managed(task) = result.as_ref() else {
+                    panic!("actual Task owner missing")
+                };
+                let Type::Task {
+                    result,
+                    retained_life,
+                } = task.as_ref()
+                else {
+                    panic!("Task missing")
+                };
+                assert!(matches!(
+                    result.as_ref(),
+                    Type::Address { mutable: false, .. }
+                ));
+                assert_eq!(retained_life.retained.len(), 1);
+                assert_eq!(
+                    retained_life.retained[0].path,
+                    [zil_ir::LifeTypeProjection::Result]
+                );
+                assert_eq!(retained_life.retained[0].class, 0);
+                assert_eq!(retained_life.retained[0].binder, 0);
+                count += 1;
+            }
+        }
+    }
+    assert_eq!(count, 1);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+}
+
+#[test]
+fn task_borrowed_result_checks_every_ordinary_owner_address_and_ready_hold() {
+    let module = typed_stored(include_str!(
+        "../../../tests/fixtures/task-borrow-results/shared-input.zil"
+    ));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let function = module.functions.iter().find(|f| f.name == "main").unwrap();
+    let mut selected = [None; 4];
+    for instruction in function.blocks.iter().flat_map(|b| &b.instructions) {
+        let Some(value) = instruction.result else {
+            continue;
+        };
+        let ty = &function.values[value.0 as usize];
+        let index = match (&instruction.kind, ty) {
+            (InstructionKind::BorrowLocal { local }, _)
+                if function.locals[local.0 as usize].name == "unrelated" =>
+            {
+                Some(0)
+            }
+            (_, Type::Managed(inner)) if matches!(inner.as_ref(), Type::Task { .. }) => Some(1),
+            (
+                _,
+                Type::Address {
+                    mutable: true,
+                    inner,
+                },
+            ) if matches!(inner.as_ref(), Type::Managed(task) if matches!(task.as_ref(), Type::Task { .. })) => {
+                Some(2)
+            }
+            (InstructionKind::ReadVariant { .. }, Type::Address { mutable: false, .. }) => Some(3),
+            _ => None,
+        };
+        if let Some(index) = index {
+            selected[index] = Some(value);
+        }
+    }
+    for (index, value) in selected.into_iter().enumerate() {
+        let value = value.expect("actual source fixture omitted a provenance consumer");
+        assert!(
+            !plan.functions[function.id.0 as usize].holds[value.0 as usize]
+                .roots
+                .is_empty()
+        );
+        for forge in [false, true] {
+            let mut candidate = plan.clone();
+            let roots =
+                &mut candidate.functions[function.id.0 as usize].holds[value.0 as usize].roots;
+            *roots = if forge {
+                vec![zil_ir::HoldRoot::Static]
+            } else {
+                vec![]
+            };
+            reject(
+                &format!("task-result-hold-{index}-{forge}"),
+                module.clone(),
+                candidate,
+                "E-VERIFY-STORED",
+            );
+        }
+    }
+}
+
+#[test]
+fn task_borrowed_result_rejects_frame_local_with_unchanged_result_metadata() {
+    let mut module = typed_stored(include_str!(
+        "../../../tests/fixtures/task-borrow-results/shared-input.zil"
+    ));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let worker = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "worker")
+        .unwrap();
+    let local = worker.locals.iter().find(|l| l.name == "local").unwrap().id;
+    let result = worker
+        .blocks
+        .iter()
+        .find_map(|b| match b.terminator {
+            zil_ir::Terminator::Return(Some(v)) => Some(v),
+            _ => None,
+        })
+        .unwrap();
+    let definition = worker
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| i.result == Some(result))
+        .unwrap();
+    assert!(matches!(definition.kind, InstructionKind::Load(_)));
+    definition.kind = InstructionKind::BorrowLocal { local };
+    let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.phase == Phase::Analyze && d.category == ResultCategory::SafeReject),
+        "{errors:?}"
+    );
+    reject("task-result-frame-local", module, plan, "E-VERIFY-STORED");
+}
+
+#[test]
+fn task_borrowed_result_rejects_erased_or_forged_result_mapping() {
+    let module = typed_stored(include_str!(
+        "../../../tests/fixtures/task-borrow-results/shared-input.zil"
+    ));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    for mutation in 0..5 {
+        let mut changed = module.clone();
+        let function = changed
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "start")
+            .unwrap();
+        let value = function
+            .blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .find_map(|i| {
+                matches!(i.kind, InstructionKind::TaskCreate { .. }).then(|| i.result.unwrap())
+            })
+            .unwrap();
+        let Type::ErrorUnion { result, .. } = &mut function.values[value.0 as usize] else {
+            panic!()
+        };
+        let Type::Managed(task) = result.as_mut() else {
+            panic!()
+        };
+        let Type::Task { retained_life, .. } = task.as_mut() else {
+            panic!()
+        };
+        match mutation {
+            0 => retained_life.retained.clear(),
+            1 => retained_life.retained[0].path.clear(),
+            2 => retained_life.retained[0].class = 1,
+            3 => retained_life.retained[0].binder = 1,
+            4 => retained_life.ports[0].mode = zil_ir::StoredBorrowMode::ExclusiveAddress,
+            _ => unreachable!(),
+        }
+        let errors = zil_analyze::analyze(&changed, &Limits::default()).unwrap_err();
+        let category = if mutation == 0 {
+            ResultCategory::Unsupported
+        } else {
+            ResultCategory::SafeReject
+        };
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.phase == Phase::Analyze && d.category == category),
+            "{mutation}: {errors:?}"
+        );
+        if mutation == 0 {
+            let mut candidate = plan.clone();
+            candidate.module_fingerprint = changed.fingerprint();
+            let bytes =
+                zil_ir::wire::encode_module_candidate(&changed, &candidate, &Limits::default())
+                    .unwrap();
+            for errors in [
+                zil_verify::verify_module(
+                    changed.clone(),
+                    candidate,
+                    &changed.target,
+                    &Limits::default(),
+                )
+                .unwrap_err(),
+                zil_verify::verify_module_bytes(&bytes, &changed.target, &Limits::default())
+                    .unwrap_err(),
+            ] {
+                assert!(
+                    errors
+                        .iter()
+                        .any(|d| d.phase == Phase::Verify && d.category == category),
+                    "{errors:?}"
+                );
+            }
+        } else {
+            reject(
+                &format!("task-result-mapping-{mutation}"),
+                changed,
+                plan.clone(),
+                "E-VERIFY-TASK-RESULT",
+            );
+        }
+    }
+}
+
+#[test]
+fn task_borrowed_result_direct_poll_needs_no_explicit_poll_header() {
+    let source = include_str!("../../../tests/fixtures/task-borrow-results/shared-input.zil");
+    let start = source.find("fn poll<").unwrap();
+    let end = source[start..].find("fn main()").unwrap() + start;
+    let source = format!("{}{}", &source[..start], &source[end..])
+        .replace("match poll(&mut task)", "match task_poll(&mut task)");
+    let module = typed_stored(&source);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+}
+
+#[test]
+fn task_borrowed_result_retains_the_actual_external_reborrow_chain() {
+    let module = typed_stored(include_str!(
+        "../../../tests/fixtures/task-borrow-results/reborrowed-input.zil"
+    ));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+    native_borrowed_enum(&zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "reborrowed-input.zil",
+            include_str!("../../../tests/fixtures/task-borrow-results/reborrowed-input.zil"),
+        )],
+        paths: Default::default(),
+    });
+}
+
+#[test]
+fn task_borrowed_result_helper_access_preserves_ports_and_requires_native_inventory() {
+    let source = include_str!("../../../tests/fixtures/task-borrow-results/helper-access.zil");
+    let valid = typed_stored(source);
+    let invalid = typed_stored(&source.replace(
+        "touch(&mut task,&mut unrelated)",
+        "touch(&mut task,&mut number)",
+    ));
+    for clear_resources in [false, true] {
+        let mut module = valid.clone();
+        if clear_resources {
+            module.resources.clear();
+        }
+        let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        if clear_resources {
+            reject(
+                "task-missing-native-inventory",
+                module,
+                plan.clone(),
+                "E-VERIFY-TASK",
+            );
+        } else {
+            zil_verify::verify_module(
+                module.clone(),
+                plan.clone(),
+                &module.target,
+                &Limits::default(),
+            )
+            .unwrap();
+            let bytes =
+                zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+            zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+        }
+        let mut bad = invalid.clone();
+        if clear_resources {
+            bad.resources.clear();
+        }
+        let errors = zil_analyze::analyze(&bad, &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.phase == Phase::Analyze && d.category == ResultCategory::SafeReject),
+            "{errors:?}"
+        );
+        reject(
+            &format!("task-port-alias-empty-inventory-{clear_resources}"),
+            bad,
+            plan,
+            if clear_resources {
+                "E-VERIFY-TASK"
+            } else {
+                "E-VERIFY-STORED"
+            },
+        );
+    }
+}
+
+#[test]
+fn task_borrowed_result_rejects_external_reborrow_write_before_ready_read() {
+    let mut module = typed_stored(include_str!(
+        "../../../tests/fixtures/task-borrow-results/reborrowed-input.zil"
+    ));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let main = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let block = main
+        .blocks
+        .iter_mut()
+        .find(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i.kind, InstructionKind::WriteAddress { .. }))
+        })
+        .unwrap();
+    let write = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::WriteAddress { .. }))
+        .unwrap();
+    let InstructionKind::WriteAddress { address, .. } = block.instructions[write].kind else {
+        unreachable!()
+    };
+    let start = block
+        .instructions
+        .iter()
+        .position(|i| i.result == Some(address))
+        .unwrap();
+    let read = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::ReadAddress { .. }))
+        .unwrap();
+    assert!(read < start && start < write);
+    let moved = block.instructions.drain(start..=write).collect::<Vec<_>>();
+    block.instructions.splice(read..read, moved);
+    let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.phase == Phase::Analyze && d.category == ResultCategory::SafeReject),
+        "{errors:?}"
+    );
+    reject("task-ready-parent-write", module, plan, "E-VERIFY-STORED");
+}
+
+#[test]
+fn task_borrowed_result_create_error_has_no_frame_and_cancel_releases_the_input() {
+    let source = include_str!("../../../tests/fixtures/task-borrow-results/create-branches.zil");
+    let module = typed_stored(source);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+    native_borrowed_enum(&zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "create-branches.zil",
+            source,
+        )],
+        paths: Default::default(),
+    });
+}
+
+#[test]
+fn task_borrowed_result_cross_module_factory_relay_and_poll_preserve_the_input() {
+    native_borrowed_enum(&zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![
+            SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "main.zil",
+                include_str!("../../../tests/fixtures/task-borrow-results/module-main.zil"),
+            ),
+            SourceUnit::new(
+                FileId(1),
+                ModuleId(1),
+                "api.zil",
+                include_str!("../../../tests/fixtures/task-borrow-results/module-api.zil"),
+            ),
+        ],
+        paths: std::collections::BTreeMap::from([(vec!["api".into()], ModuleId(1))]),
+    });
+}
+
+#[test]
+fn task_borrowed_result_native_outlives_the_destroyed_task() {
+    native_borrowed_enum(&zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "shared-input.zil",
+            include_str!("../../../tests/fixtures/task-borrow-results/shared-input.zil"),
+        )],
+        paths: Default::default(),
+    });
+}
+
+#[test]
 fn standard_poll_shared_payload_has_its_actual_sealed_declaration_and_source() {
     let module = typed_stored(include_str!(
         "../../../tests/fixtures/borrowed-enums/poll.zil"
