@@ -252,7 +252,7 @@ fn project_files(main: &'static str) -> [(&'static str, &'static str); 3] {
 }
 
 #[test]
-fn cross_module_mutable_provider_keeps_actual_receiver() {
+fn cross_module_mutable_default_and_value_providers_keep_actual_receiver() {
     let files = [
         ("main", include_str!("project/mutable-main.zil")),
         ("a", include_str!("project/mutable-a.zil")),

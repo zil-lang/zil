@@ -811,6 +811,7 @@ impl Catalog {
                                     if diagnostic.category
                                         == zil_base::ResultCategory::Unsupported =>
                                 {
+                                    eprintln!("DYN CROSS {:?}: {}", entry, diagnostic.message);
                                     proven = false
                                 }
                                 Err(diagnostic) => return Err(diagnostic),
