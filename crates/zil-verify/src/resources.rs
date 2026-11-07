@@ -483,7 +483,9 @@ impl Slots {
             budget.spend(closure.captures.len().saturating_mul(2))?;
             let mut inline_sum_owner = false;
             for ty in &closure.captures {
-                inline_sum_owner |= dynamic_store::inline_sum_capture(ty, budget)?;
+                if budget.inline_store_root(ty)? {
+                    inline_sum_owner |= dynamic_store::inline_sum_capture(ty, budget)?;
+                }
             }
             owned_closures.push(
                 closure.kind == CallableKind::FnOnce
@@ -506,17 +508,17 @@ impl Slots {
         let mut desc_count = 0usize;
         let sum_extension = budget.sums;
         let head_descriptions = budget.head_descriptions;
-        let pod_stores = budget.pod_stores;
+        let inline_store_addresses = budget.inline_store_addresses;
         // Only actual Sum addresses containing an inline Store need this
         // additional origin row. Leave old-only functions' slot inventory and
         // traversal unchanged.
-        let (local_sum_address, value_sum_address) = if pod_stores {
+        let (local_sum_address, value_sum_address) = if inline_store_addresses {
             budget.spend(f.locals.len().saturating_add(f.values.len()))?;
             let mut local = Vec::with_capacity(f.locals.len());
             let mut value = Vec::with_capacity(f.values.len());
             for declaration in &f.locals {
                 local.push(match &declaration.ty {
-                    Type::Address { inner, .. } => {
+                    Type::Address { inner, .. } if budget.inline_store_root(&declaration.ty)? => {
                         dynamic_store::inline_sum_capture(inner, budget)?
                     }
                     _ => false,
@@ -524,7 +526,7 @@ impl Slots {
             }
             for ty in &f.values {
                 value.push(match ty {
-                    Type::Address { inner, .. } => {
+                    Type::Address { inner, .. } if budget.inline_store_root(ty)? => {
                         dynamic_store::inline_sum_capture(inner, budget)?
                     }
                     _ => false,
@@ -671,7 +673,8 @@ impl Slots {
             .enumerate()
             .map(|(index, ty)| -> Check<Option<usize>> {
                 if matches!(ty, Type::Managed(_) | Type::Closure(_))
-                    || dynamic_store::inline_sum_capture(ty, budget)?
+                    || (budget.inline_store_root(ty)?
+                        && dynamic_store::inline_sum_capture(ty, budget)?)
                 {
                     let next = debt_count;
                     debt_count += 1;
@@ -1838,7 +1841,11 @@ impl Transfer<'_> {
                             self.module.closures[id.0 as usize].captures[*index as usize],
                             Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
                         )
-                    }) && dynamic_store::inline_sum_capture(
+                    }) && budget.inline_store_root(
+                        &self.module.closures
+                            [self.f.environment.expect("capture entry").0 as usize]
+                            .captures[*index as usize],
+                    )? && dynamic_store::inline_sum_capture(
                         &self.module.closures
                             [self.f.environment.expect("capture entry").0 as usize]
                             .captures[*index as usize],

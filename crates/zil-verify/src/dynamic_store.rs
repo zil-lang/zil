@@ -496,7 +496,7 @@ pub(super) fn check_owned_capture(
         }
     }
     match ty {
-        Type::Package { .. } => packages::check_capture_type(module, ty, None, budget),
+        Type::Package { .. } => packages::check_ordinary_type(module, ty, None, budget),
         _ => sums::check_type_for(module, ty, None, budget),
     }
 }

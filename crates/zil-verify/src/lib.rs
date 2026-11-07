@@ -322,6 +322,10 @@ struct Budget {
     // Derived from raw instructions; only avoids work in unaffected modules.
     static_utf8: bool,
     pod_stores: bool,
+    // Raw type roots that actually contain the new Store element family.
+    // This is a work gate only; each consumer still checks the complete type.
+    inline_store_roots: BTreeSet<usize>,
+    inline_store_addresses: bool,
     sums: bool,
     tasks: bool,
     // Independent paid raw-type inventory; this only enables a proof, not permission.
@@ -358,6 +362,8 @@ impl Budget {
             remaining: limits.max_analysis_steps,
             static_utf8: false,
             pod_stores: false,
+            inline_store_roots: BTreeSet::new(),
+            inline_store_addresses: false,
             sums: false,
             tasks: false,
             task_origin_roots: false,
@@ -391,6 +397,15 @@ impl Budget {
             .checked_sub(amount)
             .ok_or_else(|| limit("independent verification work budget exhausted"))?;
         Ok(())
+    }
+    fn inline_store_root(&mut self, ty: &Type) -> Check<bool> {
+        if self.inline_store_roots.is_empty() {
+            return Ok(false);
+        }
+        self.spend(self.inline_store_roots.len().saturating_add(1))?;
+        Ok(self
+            .inline_store_roots
+            .contains(&(ty as *const Type as usize)))
     }
     fn mark_private_slot(&mut self, function: usize) -> Check<()> {
         if self.private_slot_functions.is_none() {
@@ -1243,10 +1258,21 @@ fn check_type_shape(
     }
     // Unused local/SSA/signature/definition types receive the same independent
     // POD qualification, after the whole raw tree has passed the depth bound.
+    let inline_store_root = !pod_stores.is_empty()
+        && (matches!(
+            ty,
+            Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+        ) || matches!(ty, Type::Address { inner, .. }
+            if matches!(inner.as_ref(), Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. })));
     for element in pod_stores {
         dynamic_store::check_pod_element(element, target, None, budget)?;
         budget.pod_stores = true;
         budget.head_descriptions = true;
+    }
+    if inline_store_root {
+        budget.spend(budget.inline_store_roots.len().saturating_add(1))?;
+        budget.inline_store_roots.insert(ty as *const Type as usize);
+        budget.inline_store_addresses |= matches!(ty, Type::Address { .. });
     }
     // Fingerprint only after the complete raw type tree has been bounded.
     // This independently checks the sealed family key and payload shape.
@@ -1421,9 +1447,10 @@ fn check_function_signature_type(
         return Ok(());
     }
     match ty {
-        Type::Address { inner, .. } if budget.pod_stores
-            && matches!(inner.as_ref(), Type::Package { .. })
-            && dynamic_store::package_inline_store(inner, budget)? =>
+        Type::Address { inner, .. }
+            if budget.pod_stores
+                && matches!(inner.as_ref(), Type::Package { .. })
+                && dynamic_store::package_inline_store(inner, budget)? =>
         {
             packages::check_ordinary_type(module, inner, span, budget)
         }
@@ -1503,9 +1530,10 @@ fn check_local_type(
             span,
             "local closure type references an absent environment",
         )),
-        Type::Address { inner, .. } if budget.pod_stores
-            && matches!(inner.as_ref(), Type::Package { .. })
-            && dynamic_store::package_inline_store(inner, budget)? =>
+        Type::Address { inner, .. }
+            if budget.pod_stores
+                && matches!(inner.as_ref(), Type::Package { .. })
+                && dynamic_store::package_inline_store(inner, budget)? =>
         {
             packages::check_ordinary_type(module, inner, span, budget)
         }
@@ -2416,8 +2444,7 @@ fn check_instruction(
                 Type::Tuple(fields) => fields.get(*index as usize),
                 Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, ty)| ty),
                 Type::Package { fields, .. } => {
-                    if budget.pod_stores
-                        && dynamic_store::package_inline_store(projected, budget)?
+                    if budget.pod_stores && dynamic_store::package_inline_store(projected, budget)?
                     {
                         packages::check_ordinary_type(module, projected, span, budget)?;
                     } else if packages::shared_product_head(projected) {
@@ -3045,7 +3072,8 @@ fn check_instruction(
             if matches!(
                 ty,
                 Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
-            ) || dynamic_store::inline_sum_capture(ty, budget)?
+            ) || (budget.inline_store_root(ty)?
+                && dynamic_store::inline_sum_capture(ty, budget)?)
             {
                 return Err(reject(
                     "E-VERIFY-CAPTURE",
@@ -3068,7 +3096,8 @@ fn check_instruction(
                 .captures
                 .get(*index as usize)
                 .ok_or_else(|| reject("E-VERIFY-CAPTURE", span, "capture field is absent"))?;
-            let owned_sum = dynamic_store::inline_sum_capture(field, budget)?;
+            let owned_sum = budget.inline_store_root(field)?
+                && dynamic_store::inline_sum_capture(field, budget)?;
             if !matches!(definition.kind, CallableKind::FnMut | CallableKind::FnOnce)
                 || !(field.is_copy_value() || (definition.kind == CallableKind::FnMut && owned_sum))
                 || value_type(function, *value, span)? != field
