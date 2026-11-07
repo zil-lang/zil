@@ -1878,7 +1878,7 @@
   "shared_dyn_dispatch": {
     "proposal": "spec/shared-dyn-dispatch.md",
     "normative": "_zil_design.md §9.4",
-    "representation": "Existing Dyn declarations/interface/vtable, DynContract, shared Address<Dyn>, MakeDynBorrow and CallDynSlot; actual receiver pointer plus immutable static table pointer. No schema/Wire/ABI bump.",
+    "representation": "Existing Dyn declarations/interface/vtable, DynContract, borrowed Address<Dyn> (shared or exclusive), MakeDynBorrow and CallDynSlot; actual receiver pointer plus immutable static table pointer. No schema/Wire/ABI bump.",
     "consumers": [
       "Source and CT runtime inventory",
       "Types complete provider identity and body contract",
@@ -1886,7 +1886,7 @@
       "independent Verify actual contract and raw/Wire",
       "Lower/LLVM verified static table and indirect call"
     ],
-    "trust": "None remains unknown. Fixed scalar/shared finite profile only. Source identity is preserved by producers; raw IR safety is certified from actual complete executable contracts, not authenticated producer flags. Independent acceptance is required."
+    "trust": "None remains unknown. Fixed scalar/Unit, shared-read and exclusive scalar-field-write finite profile only. Source identity is preserved by producers; raw IR safety is certified from actual complete executable contracts, not authenticated producer flags. Independent acceptance is required."
   },
   "affine_mutex": {
     "source": "_zil_design.md §§8,11; spec/affine-mutex.md",

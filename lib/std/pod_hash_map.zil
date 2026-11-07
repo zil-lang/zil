@@ -1,5 +1,5 @@
 // Fixed-capacity open-addressed map for Copy, StoreElement keys and values.
-// Callers supply equality and hash functions that stay stable for stored keys.
+// Equal keys must have equal hashes. Equality and hash stay stable for stored keys.
 // Collisions use equality; signed hashes are normalized before probing.
 struct Entry<K:Copy,V:Copy> { key:K; value:V }
 pub package PodHashMap<K:Copy+StoreElement,V:Copy+StoreElement> { manages entries:Store<Entry<K,V>>; manages buckets:Store<i64>; limit:i64 }
@@ -53,7 +53,7 @@ pub fn with_capacity<K:Copy+StoreElement,V:Copy+StoreElement>(limit:i64)->Error!
     return PodHashMap::<K,V>{entries:give entries,buckets:give buckets,limit:limit}
 }
 pub fn len<K:Copy+StoreElement,V:Copy+StoreElement>(map:&PodHashMap<K,V>)->i64 {return store_len(map.entries)}
-// Dense insertion-order snapshot. Removal may move the last pair into a gap.
+// Dense-slot snapshot. Removal may move the last pair into a gap.
 pub fn at<K:Copy+StoreElement,V:Copy+StoreElement>(map:&PodHashMap<K,V>,index:i64)->Option<Pair<K,V>> {
     if index<0 || index>=store_len(map.entries) {return Option::<Pair<K,V>>.None()}
     let entry=*store_at(map.entries,index)

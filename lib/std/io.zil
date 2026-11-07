@@ -86,6 +86,7 @@ pub fn read_chunk(file:&File,buffer:&mut [u8;64])->Error!ReadResult {
 
 // Read to EOF with an explicit byte limit. A capacity or I/O error drops the
 // partial buffer; callers receive bytes only after a complete successful read.
+// Errors preserve the current file cursor; retrying does not restart the read.
 pub fn read_to_end(file:&File,byte_limit:i64)->Error!ByteBuffer contract {result(create)} {
     if byte_limit<0 {return Error.Capacity}
     let data=bytes_new()

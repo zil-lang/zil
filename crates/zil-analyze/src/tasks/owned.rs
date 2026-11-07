@@ -75,9 +75,12 @@ pub(super) fn borrowed_shape(
         if let Type::Address { mutable, inner } = ty
             && retained_pointee(inner)
         {
-            let source = f.storage_life.as_ref().and_then(|life|
-                super::super::signature_life::outer(life,
-                    zil_ir::StorageBase::Parameter(position as u32)));
+            let source = f.storage_life.as_ref().and_then(|life| {
+                super::super::signature_life::outer(
+                    life,
+                    zil_ir::StorageBase::Parameter(position as u32),
+                )
+            });
             let binder = if let Some(source) = source {
                 if let Some(existing) = classes.get(&source) {
                     *existing

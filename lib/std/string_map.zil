@@ -43,6 +43,8 @@ pub fn value_at(map:&StringMap,index:i64)->Option<i64> {
     if index<0 || index>=store_len(map.values) {return Option.None}
     return Option.Some(at_value(map.values,index))
 }
+// Allocation failure preserves entries and returns the key; earlier successful
+// reserve operations may already have increased one Store capacity.
 pub fn insert(map:&mut StringMap,key:string.String,value:i64)->InsertError!Put {
     let at=index(map.keys,&key)
     if at>=0 {

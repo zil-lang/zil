@@ -395,8 +395,10 @@ fn relation_inner(
                     self.binder(row.binder, self.inputs.is_none())?;
                 }
             } else if let Type::BorrowedStorage { storage, life } = target {
-                if (!matches!(storage.as_ref(), Type::Record { .. } | Type::Package { .. } | Type::Tuple(_))
-                    || !life.retained.is_empty())
+                if (!matches!(
+                    storage.as_ref(),
+                    Type::Record { .. } | Type::Package { .. } | Type::Tuple(_)
+                ) || !life.retained.is_empty())
                     && !pure_nominal_value(target)
                     && !super::stored_flow::option_address::signature(target)
                 {

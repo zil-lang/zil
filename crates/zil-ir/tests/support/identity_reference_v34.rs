@@ -1277,12 +1277,7 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
             b.push(255);
             encode_text(b, s);
         }
-        InstructionKind::MutexCreate { .. }
-        | InstructionKind::MutexLock { .. }
-        | InstructionKind::MutexValue { .. }
-        | InstructionKind::MutexUnlock { .. }
-        | InstructionKind::DropMutexGuard { .. }
-        | InstructionKind::SyncInteger { .. }
+        InstructionKind::SyncInteger { .. }
         | InstructionKind::SyncIntegerCompareExchange { .. } => {
             panic!("V34 identity reference cannot encode V45 operations")
         }

@@ -617,13 +617,17 @@ pub(super) fn hint_type(
         } => {
             if retained_life.ports.len() > limits.max_locals
                 || retained_life.retained.len() > limits.max_locals
-                || retained_life.nominal_arguments.len() > limits.max_locals {
+                || retained_life.nominal_arguments.len() > limits.max_locals
+            {
                 return Err(limit());
             }
-            *work = work.checked_sub((retained_life.binder_count as usize)
-                .saturating_add(retained_life.ports.len().saturating_mul(4))
-                .saturating_add(retained_life.retained.len().saturating_mul(4))
-                .saturating_add(retained_life.nominal_arguments.len().saturating_mul(6)))
+            *work = work
+                .checked_sub(
+                    (retained_life.binder_count as usize)
+                        .saturating_add(retained_life.ports.len().saturating_mul(4))
+                        .saturating_add(retained_life.retained.len().saturating_mul(4))
+                        .saturating_add(retained_life.nominal_arguments.len().saturating_mul(6)),
+                )
                 .ok_or_else(limit)?;
             for port in &retained_life.ports {
                 hint_type(&port.leaf, depth + 1, nodes, work, limits)?;
@@ -632,7 +636,8 @@ pub(super) fn hint_type(
                 *work = work.checked_sub(row.path.len()).ok_or_else(limit)?;
             }
             for row in &retained_life.nominal_arguments {
-                *work = work.checked_sub(row.path.len().saturating_add(3))
+                *work = work
+                    .checked_sub(row.path.len().saturating_add(3))
                     .ok_or_else(limit)?;
             }
             hint_type(result, depth + 1, nodes, work, limits)?;
