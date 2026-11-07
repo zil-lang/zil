@@ -1,0 +1,987 @@
+{
+  "evidence_level": "independent source-operation oracle; not compiler/native evidence",
+  "contract": "_zil_design.md \u00a716/16.7/18.2 at 1b8f0963d293b4d7354c2a865c13da7c170a0157",
+  "target": "x86_64 LLVM host, i32 size/alignment4; source i64 metadata conversion",
+  "original_source_manifest_sha256": "7773a1f348cef6a7cd9274c6d7447340236bea51b3bd1dcb866718ca2c3fa4d3",
+  "provider_lock_contract": "261 strict text version1; explicit CLI and identical in-memory bytes",
+  "positive": [
+    {
+      "name": "frozen_type_value",
+      "entry": "frozen_type_value_main.zil",
+      "input_hex": "",
+      "normal": {
+        "exit": 0,
+        "stdout": "",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0
+      },
+      "allocator": [],
+      "syntax_lock": null,
+      "generated_modules": [
+        {
+          "logical": "<root>",
+          "source": "project/frozen_type_value_main.zil",
+          "sha256": "3743300b6dca3a7f68ae01eda587fd526fd6dce4c59f0810f04bb52d1516805c"
+        }
+      ],
+      "handwritten_modules": [
+        {
+          "logical": "<root>",
+          "source": "handwritten/frozen_type_value_main.zil",
+          "sha256": "27a224ccf7322aa6e4dc8b0d23021aa5f753d6dcc28e3a91233a81fb0e2c0d6f"
+        }
+      ]
+    },
+    {
+      "name": "type_values",
+      "entry": "type_values_main.zil",
+      "input_hex": "",
+      "normal": {
+        "exit": 0,
+        "stdout": "",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0
+      },
+      "allocator": [],
+      "syntax_lock": null,
+      "generated_modules": [
+        {
+          "logical": "<root>",
+          "source": "project/type_values_main.zil",
+          "sha256": "baa3133fe4b4fab755e90ead469c19950d22dbaad70e0743c8ea21f403a39dfc"
+        },
+        {
+          "logical": "common.io",
+          "source": "project/common/io.zil",
+          "sha256": "38146569badbb78b031cb704278e6380b22c93d8d9e97f8df191574bb791a8e1"
+        },
+        {
+          "logical": "common.model",
+          "source": "project/common/model.zil",
+          "sha256": "934aa7863c511f26cb4055539e0cf8af06b912fec44be811a8e6c79ab374d18e"
+        },
+        {
+          "logical": "generators",
+          "source": "project/generators.zil",
+          "sha256": "78f0db3eb6d2f6854edb909c3e99df53c9b28ee966ea291823ac2be5d64b0981"
+        }
+      ],
+      "handwritten_modules": [
+        {
+          "logical": "<root>",
+          "source": "handwritten/type_values_main.zil",
+          "sha256": "9a6a70be9b59e1fad354880b433eff350e2f8f26dbb3b3706d31e371c79901af"
+        },
+        {
+          "logical": "common.model",
+          "source": "project/common/model.zil",
+          "sha256": "934aa7863c511f26cb4055539e0cf8af06b912fec44be811a8e6c79ab374d18e"
+        }
+      ]
+    },
+    {
+      "name": "four_categories",
+      "entry": "four_categories_main.zil",
+      "input_hex": "",
+      "normal": {
+        "exit": 0,
+        "stdout": "KKZ42",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0
+      },
+      "allocator": [],
+      "syntax_lock": null,
+      "generated_modules": [
+        {
+          "logical": "<root>",
+          "source": "project/four_categories_main.zil",
+          "sha256": "17d609be74cbc6dc41a7121daae9c5ffe1e16c6ef98f4ffbde8eed274dc09a9d"
+        },
+        {
+          "logical": "common.io",
+          "source": "project/common/io.zil",
+          "sha256": "38146569badbb78b031cb704278e6380b22c93d8d9e97f8df191574bb791a8e1"
+        },
+        {
+          "logical": "common.model",
+          "source": "project/common/model.zil",
+          "sha256": "934aa7863c511f26cb4055539e0cf8af06b912fec44be811a8e6c79ab374d18e"
+        },
+        {
+          "logical": "generators",
+          "source": "project/generators.zil",
+          "sha256": "78f0db3eb6d2f6854edb909c3e99df53c9b28ee966ea291823ac2be5d64b0981"
+        }
+      ],
+      "handwritten_modules": [
+        {
+          "logical": "<root>",
+          "source": "handwritten/four_categories_main.zil",
+          "sha256": "0011000a5a7bdd1aab43dbaff23cd75fb969e2beeb6ed951ef0ef45a23bad99b"
+        },
+        {
+          "logical": "common.io",
+          "source": "project/common/io.zil",
+          "sha256": "38146569badbb78b031cb704278e6380b22c93d8d9e97f8df191574bb791a8e1"
+        }
+      ]
+    },
+    {
+      "name": "providers_hygiene",
+      "entry": "providers_hygiene_main.zil",
+      "input_hex": "",
+      "normal": {
+        "exit": 0,
+        "stdout": "AAZ42",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0
+      },
+      "allocator": [],
+      "syntax_lock": "providers-five.lock",
+      "generated_modules": [
+        {
+          "logical": "<root>",
+          "source": "project/providers_hygiene_main.zil",
+          "sha256": "ae60abf6da7d1f5c993b921773aab7091d58cab58d61ba72f58a91afd1f7df61"
+        },
+        {
+          "logical": "common.io",
+          "source": "project/common/io.zil",
+          "sha256": "38146569badbb78b031cb704278e6380b22c93d8d9e97f8df191574bb791a8e1"
+        },
+        {
+          "logical": "providers.expressions",
+          "source": "project/providers/expressions.zil",
+          "sha256": "6380f7fe12aa685969871cbeefb2eb14ba26d5e613f7b301d648817b21d8508a"
+        },
+        {
+          "logical": "providers.items",
+          "source": "project/providers/items.zil",
+          "sha256": "299287c69c8b2cf849b116ad770051a1d4eb80318e8a6f19dcca22f263e481b2"
+        },
+        {
+          "logical": "providers.scaling",
+          "source": "project/providers/scaling.zil",
+          "sha256": "f1dee888edbe2ef54903c29d97605e17862816f88932df36c1d797d1247c7775"
+        },
+        {
+          "logical": "providers.statements",
+          "source": "project/providers/statements.zil",
+          "sha256": "e8489c65471accca8e620cca0f5b7af828afb31a893bc3995942fb51f5afb6b4"
+        },
+        {
+          "logical": "providers.support",
+          "source": "project/providers/support.zil",
+          "sha256": "35e260e335670aae2e3dfb95b50681e143c3e7e51da93d90a93578ac8927e9e0"
+        },
+        {
+          "logical": "providers.types",
+          "source": "project/providers/types.zil",
+          "sha256": "3d9868e0ea099b513bcb8c0a7ed141dab981b1716d33cb0fe7d7283084301363"
+        }
+      ],
+      "handwritten_modules": [
+        {
+          "logical": "<root>",
+          "source": "handwritten/providers_hygiene_main.zil",
+          "sha256": "c1860698fd2fb58dd822b6658ddd6be54304a04d6b2c80c0a46edccccc59c4ad"
+        },
+        {
+          "logical": "common.io",
+          "source": "project/common/io.zil",
+          "sha256": "38146569badbb78b031cb704278e6380b22c93d8d9e97f8df191574bb791a8e1"
+        },
+        {
+          "logical": "providers.support",
+          "source": "project/providers/support.zil",
+          "sha256": "35e260e335670aae2e3dfb95b50681e143c3e7e51da93d90a93578ac8927e9e0"
+        }
+      ]
+    },
+    {
+      "name": "generated_ownership",
+      "entry": "generated_ownership_main.zil",
+      "input_hex": "",
+      "normal": {
+        "exit": 0,
+        "stdout": "BAAP",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0
+      },
+      "allocator": [],
+      "syntax_lock": null,
+      "generated_modules": [
+        {
+          "logical": "<root>",
+          "source": "project/generated_ownership_main.zil",
+          "sha256": "df1fd685e910460c3a4c2b0e6c568eb0b4a9f9e170498c0bf6edba4ccdd20230"
+        },
+        {
+          "logical": "common.io",
+          "source": "project/common/io.zil",
+          "sha256": "38146569badbb78b031cb704278e6380b22c93d8d9e97f8df191574bb791a8e1"
+        },
+        {
+          "logical": "common.model",
+          "source": "project/common/model.zil",
+          "sha256": "934aa7863c511f26cb4055539e0cf8af06b912fec44be811a8e6c79ab374d18e"
+        },
+        {
+          "logical": "generators",
+          "source": "project/generators.zil",
+          "sha256": "78f0db3eb6d2f6854edb909c3e99df53c9b28ee966ea291823ac2be5d64b0981"
+        }
+      ],
+      "handwritten_modules": [
+        {
+          "logical": "<root>",
+          "source": "handwritten/generated_ownership_main.zil",
+          "sha256": "c78892452b34e87d567481b5d8d3dde6810f63649fb8ef44cd86611afba1a940"
+        },
+        {
+          "logical": "common.model",
+          "source": "project/common/model.zil",
+          "sha256": "934aa7863c511f26cb4055539e0cf8af06b912fec44be811a8e6c79ab374d18e"
+        }
+      ]
+    },
+    {
+      "name": "generated_allocation",
+      "entry": "generated_allocation_main.zil",
+      "input_hex": "",
+      "normal": {
+        "exit": 0,
+        "stdout": "F",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "allocator": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "F",
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "F",
+          "alloc_calls": 1,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 0
+        },
+        {
+          "fail_at": 2,
+          "exit": 0,
+          "stdout": "F",
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1
+        }
+      ],
+      "syntax_lock": null,
+      "generated_modules": [
+        {
+          "logical": "<root>",
+          "source": "project/generated_allocation_main.zil",
+          "sha256": "7b12be990cd30b115a9d728a63d040b83748e0b6b3135628c3debf7c2d67dda1"
+        },
+        {
+          "logical": "common.io",
+          "source": "project/common/io.zil",
+          "sha256": "38146569badbb78b031cb704278e6380b22c93d8d9e97f8df191574bb791a8e1"
+        },
+        {
+          "logical": "common.model",
+          "source": "project/common/model.zil",
+          "sha256": "934aa7863c511f26cb4055539e0cf8af06b912fec44be811a8e6c79ab374d18e"
+        },
+        {
+          "logical": "generators",
+          "source": "project/generators.zil",
+          "sha256": "78f0db3eb6d2f6854edb909c3e99df53c9b28ee966ea291823ac2be5d64b0981"
+        }
+      ],
+      "handwritten_modules": [
+        {
+          "logical": "<root>",
+          "source": "handwritten/generated_allocation_main.zil",
+          "sha256": "5f4a77d5fcc4c1e5d32ed17632f7bc437fefef471c481659318b376176e26de8"
+        },
+        {
+          "logical": "allocation",
+          "source": "handwritten/allocation.zil",
+          "sha256": "2a6a4719e9e7a18197640d89f2e7b1efbeaa6fd880115a759d104ecd057555f7"
+        },
+        {
+          "logical": "common.model",
+          "source": "project/common/model.zil",
+          "sha256": "934aa7863c511f26cb4055539e0cf8af06b912fec44be811a8e6c79ab374d18e"
+        }
+      ]
+    },
+    {
+      "name": "generated_early_error",
+      "entry": "generated_early_error_main.zil",
+      "input_hex": "",
+      "normal": {
+        "exit": 1,
+        "stdout": "F",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0
+      },
+      "allocator": [
+        {
+          "fail_at": 0,
+          "exit": 1,
+          "stdout": "F",
+          "alloc_calls": 0,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 0
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "F",
+          "alloc_calls": 0,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 0
+        }
+      ],
+      "syntax_lock": null,
+      "generated_modules": [
+        {
+          "logical": "<root>",
+          "source": "project/generated_early_error_main.zil",
+          "sha256": "b9ef13c67065b5a768212656f2d41b04b2bafeb5f2a46763057cc070216716a3"
+        },
+        {
+          "logical": "common.io",
+          "source": "project/common/io.zil",
+          "sha256": "38146569badbb78b031cb704278e6380b22c93d8d9e97f8df191574bb791a8e1"
+        },
+        {
+          "logical": "common.model",
+          "source": "project/common/model.zil",
+          "sha256": "934aa7863c511f26cb4055539e0cf8af06b912fec44be811a8e6c79ab374d18e"
+        },
+        {
+          "logical": "generators",
+          "source": "project/generators.zil",
+          "sha256": "78f0db3eb6d2f6854edb909c3e99df53c9b28ee966ea291823ac2be5d64b0981"
+        }
+      ],
+      "handwritten_modules": [
+        {
+          "logical": "<root>",
+          "source": "handwritten/generated_early_error_main.zil",
+          "sha256": "4fa92f3157e5a7291f142888ac67ded91888689d79c0b51d6f80a647c449d3f7"
+        },
+        {
+          "logical": "allocation",
+          "source": "handwritten/allocation.zil",
+          "sha256": "2a6a4719e9e7a18197640d89f2e7b1efbeaa6fd880115a759d104ecd057555f7"
+        },
+        {
+          "logical": "common.model",
+          "source": "project/common/model.zil",
+          "sha256": "934aa7863c511f26cb4055539e0cf8af06b912fec44be811a8e6c79ab374d18e"
+        }
+      ]
+    },
+    {
+      "name": "generated_impl",
+      "entry": "generated_impl_main.zil",
+      "input_hex": "",
+      "normal": {
+        "exit": 0,
+        "stdout": "T",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0
+      },
+      "allocator": [],
+      "syntax_lock": null,
+      "generated_modules": [
+        {
+          "logical": "<root>",
+          "source": "project/generated_impl_main.zil",
+          "sha256": "d29d49ce5956f584581662a5f9e6dd3bb190f837c7b59776a6bac90c26cfebfb"
+        },
+        {
+          "logical": "common.io",
+          "source": "project/common/io.zil",
+          "sha256": "38146569badbb78b031cb704278e6380b22c93d8d9e97f8df191574bb791a8e1"
+        },
+        {
+          "logical": "common.tracked",
+          "source": "project/common/tracked.zil",
+          "sha256": "611d95d6b89c2b4acca33e2fa25ce5536740df453257606e5f8e05b64c93c2a7"
+        },
+        {
+          "logical": "impl_generators",
+          "source": "project/impl_generators.zil",
+          "sha256": "6244b49d4820d3430c817781d4eefaae4f8f9883f1746c493ad8c639d7b3c095"
+        }
+      ],
+      "handwritten_modules": [
+        {
+          "logical": "<root>",
+          "source": "handwritten/generated_impl_main.zil",
+          "sha256": "d29d49ce5956f584581662a5f9e6dd3bb190f837c7b59776a6bac90c26cfebfb"
+        },
+        {
+          "logical": "common.io",
+          "source": "project/common/io.zil",
+          "sha256": "38146569badbb78b031cb704278e6380b22c93d8d9e97f8df191574bb791a8e1"
+        },
+        {
+          "logical": "common.tracked",
+          "source": "handwritten/common/tracked.zil",
+          "sha256": "3b8945305ffcf2a9662649133829e6e7aca8c3598553402ae9e96daa17aeecef"
+        }
+      ]
+    },
+    {
+      "name": "fresh_and_named",
+      "entry": "fresh_and_named_main.zil",
+      "input_hex": "",
+      "normal": {
+        "exit": 0,
+        "stdout": "KKZ",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0
+      },
+      "allocator": [],
+      "syntax_lock": "provider-named.lock",
+      "generated_modules": [
+        {
+          "logical": "<root>",
+          "source": "project/fresh_and_named_main.zil",
+          "sha256": "221bab3d1b5150f071cbc5d1b39f8b57177f0693443f7f485ef2f576370d0a8b"
+        },
+        {
+          "logical": "common.io",
+          "source": "project/common/io.zil",
+          "sha256": "38146569badbb78b031cb704278e6380b22c93d8d9e97f8df191574bb791a8e1"
+        },
+        {
+          "logical": "extra_generators",
+          "source": "project/extra_generators.zil",
+          "sha256": "7e15eb74d2eb593a53156d4b3e79115e8a25729f8e57a3cca9042e834ae42ff1"
+        },
+        {
+          "logical": "providers.expressions",
+          "source": "project/providers/expressions.zil",
+          "sha256": "6380f7fe12aa685969871cbeefb2eb14ba26d5e613f7b301d648817b21d8508a"
+        },
+        {
+          "logical": "providers.support",
+          "source": "project/providers/support.zil",
+          "sha256": "35e260e335670aae2e3dfb95b50681e143c3e7e51da93d90a93578ac8927e9e0"
+        }
+      ],
+      "handwritten_modules": [
+        {
+          "logical": "<root>",
+          "source": "handwritten/fresh_and_named_main.zil",
+          "sha256": "e65724f556c8e6cd9b333f88c2a0d7e3144c7abc26099bf77da4ea0da615ab87"
+        },
+        {
+          "logical": "common.io",
+          "source": "project/common/io.zil",
+          "sha256": "38146569badbb78b031cb704278e6380b22c93d8d9e97f8df191574bb791a8e1"
+        },
+        {
+          "logical": "providers.support",
+          "source": "project/providers/support.zil",
+          "sha256": "35e260e335670aae2e3dfb95b50681e143c3e7e51da93d90a93578ac8927e9e0"
+        }
+      ]
+    }
+  ],
+  "negative": [
+    {
+      "entry": "neg_duplicate_export_main.zil",
+      "required_result": "SafeReject",
+      "semantic_key": "duplicate-declaration",
+      "obligation": "export intent does not waive ordinary duplicate names",
+      "native_runs": 0,
+      "unrelated_Unsupported_is_not_Pass": true,
+      "modules": [
+        {
+          "logical": "<root>",
+          "source": "project/neg_duplicate_export_main.zil",
+          "sha256": "2f20dba2b650e59bf577a98933c77fb9b0f30b40107d28012c69347b7d648bdc"
+        },
+        {
+          "logical": "common.io",
+          "source": "project/common/io.zil",
+          "sha256": "38146569badbb78b031cb704278e6380b22c93d8d9e97f8df191574bb791a8e1"
+        },
+        {
+          "logical": "common.model",
+          "source": "project/common/model.zil",
+          "sha256": "934aa7863c511f26cb4055539e0cf8af06b912fec44be811a8e6c79ab374d18e"
+        },
+        {
+          "logical": "generators",
+          "source": "project/generators.zil",
+          "sha256": "78f0db3eb6d2f6854edb909c3e99df53c9b28ee966ea291823ac2be5d64b0981"
+        }
+      ],
+      "syntax_lock": null
+    },
+    {
+      "entry": "neg_duplicate_owned_input_main.zil",
+      "required_result": "SafeReject",
+      "semantic_key": "duplicate-owned-transfer",
+      "obligation": "syntax inserts give of same runtime Ticket twice; ordinary ownership proof must reject",
+      "native_runs": 0,
+      "unrelated_Unsupported_is_not_Pass": true,
+      "modules": [
+        {
+          "logical": "<root>",
+          "source": "project/neg_duplicate_owned_input_main.zil",
+          "sha256": "ecb79d9fdc4edc8028b936f78a319e7e508815f9bbb69b4debc00e5c91490499"
+        },
+        {
+          "logical": "common.io",
+          "source": "project/common/io.zil",
+          "sha256": "38146569badbb78b031cb704278e6380b22c93d8d9e97f8df191574bb791a8e1"
+        },
+        {
+          "logical": "common.model",
+          "source": "project/common/model.zil",
+          "sha256": "934aa7863c511f26cb4055539e0cf8af06b912fec44be811a8e6c79ab374d18e"
+        },
+        {
+          "logical": "generators",
+          "source": "project/generators.zil",
+          "sha256": "78f0db3eb6d2f6854edb909c3e99df53c9b28ee966ea291823ac2be5d64b0981"
+        }
+      ],
+      "syntax_lock": null
+    },
+    {
+      "entry": "neg_emit_expr_main.zil",
+      "required_result": "SafeReject",
+      "semantic_key": "syntax-category-mismatch",
+      "obligation": "Expr is not StmtList",
+      "native_runs": 0,
+      "unrelated_Unsupported_is_not_Pass": true,
+      "modules": [
+        {
+          "logical": "<root>",
+          "source": "project/neg_emit_expr_main.zil",
+          "sha256": "318175f6652ccc833890e41aea7bf15046af9507a4402dd2252e2956fbc53ffe"
+        }
+      ],
+      "syntax_lock": null
+    },
+    {
+      "entry": "neg_export_cannot_capture_main.zil",
+      "required_result": "SafeReject",
+      "semantic_key": "hygiene-no-callsite-authority",
+      "obligation": "Export intent cannot capture the caller private_local as an input binding.",
+      "native_runs": 0,
+      "unrelated_Unsupported_is_not_Pass": true,
+      "modules": [
+        {
+          "logical": "<root>",
+          "source": "project/neg_export_cannot_capture_main.zil",
+          "sha256": "9c6d47b7067d3b3b2b7ea8c058f4a8be4bb6e4f5ab8e98f11fff324b3262434b"
+        },
+        {
+          "logical": "common.io",
+          "source": "project/common/io.zil",
+          "sha256": "38146569badbb78b031cb704278e6380b22c93d8d9e97f8df191574bb791a8e1"
+        },
+        {
+          "logical": "extra_generators",
+          "source": "project/extra_generators.zil",
+          "sha256": "7e15eb74d2eb593a53156d4b3e79115e8a25729f8e57a3cca9042e834ae42ff1"
+        }
+      ],
+      "syntax_lock": null
+    },
+    {
+      "entry": "neg_frozen_emit_scalar_main.zil",
+      "required_result": "SafeReject",
+      "semantic_key": "syntax-category-mismatch",
+      "obligation": "scalar cannot be #emit list",
+      "native_runs": 0,
+      "unrelated_Unsupported_is_not_Pass": true,
+      "modules": [
+        {
+          "logical": "<root>",
+          "source": "project/neg_frozen_emit_scalar_main.zil",
+          "sha256": "5df8c2ffe8ba4b644536891a9744a3ec46ce294fc9799f59a47d98b9c12b08f7"
+        }
+      ],
+      "syntax_lock": null
+    },
+    {
+      "entry": "neg_ident_in_runtime_main.zil",
+      "required_result": "SafeReject",
+      "semantic_key": "ct-only-value-in-runtime",
+      "obligation": "A fresh Ident cannot cross an explicit runtime foreign ABI, including from unsafe code.",
+      "native_runs": 0,
+      "unrelated_Unsupported_is_not_Pass": true,
+      "modules": [
+        {
+          "logical": "<root>",
+          "source": "project/neg_ident_in_runtime_main.zil",
+          "sha256": "08d22b7060426e33257e6e5a14964d0dd8ce7a8e2323875f46d16e7a400165e5"
+        }
+      ],
+      "syntax_lock": null
+    },
+    {
+      "entry": "neg_item_emit_statements_main.zil",
+      "required_result": "SafeReject",
+      "semantic_key": "syntax-category-mismatch",
+      "obligation": "An item-list receiver cannot emit Syntax<StmtList>.",
+      "native_runs": 0,
+      "unrelated_Unsupported_is_not_Pass": true,
+      "modules": [
+        {
+          "logical": "<root>",
+          "source": "project/neg_item_emit_statements_main.zil",
+          "sha256": "5eb5250fe543d75738c07c725d638273fefa4275e96c872f59ceb13013b3ab48"
+        }
+      ],
+      "syntax_lock": null
+    },
+    {
+      "entry": "neg_late_import_main.zil",
+      "required_result": "SafeReject",
+      "semantic_key": "sealed-discovery-graph",
+      "obligation": "A late generated import cannot modify the sealed project discovery graph.",
+      "native_runs": 0,
+      "unrelated_Unsupported_is_not_Pass": true,
+      "modules": [
+        {
+          "logical": "<root>",
+          "source": "project/neg_late_import_main.zil",
+          "sha256": "db330b6b43ab8893052b7e20672c54c826087fa1d298a7af84435a24220c7870"
+        }
+      ],
+      "syntax_lock": null
+    },
+    {
+      "entry": "neg_layout_cycle_main.zil",
+      "required_result": "SafeReject",
+      "semantic_key": "stage-dependency-cycle",
+      "obligation": "self layout/type construction dependency cannot be retried into a fixed point",
+      "native_runs": 0,
+      "unrelated_Unsupported_is_not_Pass": true,
+      "modules": [
+        {
+          "logical": "<root>",
+          "source": "project/neg_layout_cycle_main.zil",
+          "sha256": "4053444f2c279b33def123185c8f8a94ead9c97b15101acfbdf82887a42b9b36"
+        }
+      ],
+      "syntax_lock": null
+    },
+    {
+      "entry": "neg_member_owner_main.zil",
+      "required_result": "SafeReject",
+      "semantic_key": "member-owner-mismatch",
+      "obligation": "FieldInfo from OtherPoint must not rebind to same-spelling Point.x",
+      "native_runs": 0,
+      "unrelated_Unsupported_is_not_Pass": true,
+      "modules": [
+        {
+          "logical": "<root>",
+          "source": "project/neg_member_owner_main.zil",
+          "sha256": "abde1f5ecf535b60c0234fcfcf049cac66aa7a3965e7a6b48ef8fa9bd294845c"
+        },
+        {
+          "logical": "common.io",
+          "source": "project/common/io.zil",
+          "sha256": "38146569badbb78b031cb704278e6380b22c93d8d9e97f8df191574bb791a8e1"
+        },
+        {
+          "logical": "common.model",
+          "source": "project/common/model.zil",
+          "sha256": "934aa7863c511f26cb4055539e0cf8af06b912fec44be811a8e6c79ab374d18e"
+        },
+        {
+          "logical": "generators",
+          "source": "project/generators.zil",
+          "sha256": "78f0db3eb6d2f6854edb909c3e99df53c9b28ee966ea291823ac2be5d64b0981"
+        }
+      ],
+      "syntax_lock": null
+    },
+    {
+      "entry": "neg_nominal_identity_main.zil",
+      "required_result": "SafeReject",
+      "semantic_key": "nominal-type-mismatch",
+      "obligation": "same fields do not merge two generated declarations",
+      "native_runs": 0,
+      "unrelated_Unsupported_is_not_Pass": true,
+      "modules": [
+        {
+          "logical": "<root>",
+          "source": "project/neg_nominal_identity_main.zil",
+          "sha256": "1a385a81f11c166c87c518c1c18cb9da2ba55441785efed24280eb59beba22b9"
+        },
+        {
+          "logical": "common.io",
+          "source": "project/common/io.zil",
+          "sha256": "38146569badbb78b031cb704278e6380b22c93d8d9e97f8df191574bb791a8e1"
+        },
+        {
+          "logical": "common.model",
+          "source": "project/common/model.zil",
+          "sha256": "934aa7863c511f26cb4055539e0cf8af06b912fec44be811a8e6c79ab374d18e"
+        },
+        {
+          "logical": "generators",
+          "source": "project/generators.zil",
+          "sha256": "78f0db3eb6d2f6854edb909c3e99df53c9b28ee966ea291823ac2be5d64b0981"
+        }
+      ],
+      "syntax_lock": null
+    },
+    {
+      "entry": "neg_private_reflection_main.zil",
+      "required_result": "SafeReject",
+      "semantic_key": "reflection-visibility",
+      "obligation": "Hidden really has private x; generator module is not its owner and cannot read the field. Missing-field errors must not count as this visibility rejection.",
+      "native_runs": 0,
+      "unrelated_Unsupported_is_not_Pass": true,
+      "modules": [
+        {
+          "logical": "<root>",
+          "source": "project/neg_private_reflection_main.zil",
+          "sha256": "22280950b575ef5b481fe67b8267c0044e6f2299dc461bfb273b28c78e5a8d70"
+        },
+        {
+          "logical": "common.io",
+          "source": "project/common/io.zil",
+          "sha256": "38146569badbb78b031cb704278e6380b22c93d8d9e97f8df191574bb791a8e1"
+        },
+        {
+          "logical": "common.model",
+          "source": "project/common/model.zil",
+          "sha256": "934aa7863c511f26cb4055539e0cf8af06b912fec44be811a8e6c79ab374d18e"
+        },
+        {
+          "logical": "generators",
+          "source": "project/generators.zil",
+          "sha256": "78f0db3eb6d2f6854edb909c3e99df53c9b28ee966ea291823ac2be5d64b0981"
+        }
+      ],
+      "syntax_lock": null
+    },
+    {
+      "entry": "neg_runtime_read_in_ct_main.zil",
+      "required_result": "SafeReject",
+      "semantic_key": "runtime-input-forbidden",
+      "obligation": "quoted runtime names are data; evaluating runtime Ticket in CT is forbidden",
+      "native_runs": 0,
+      "unrelated_Unsupported_is_not_Pass": true,
+      "modules": [
+        {
+          "logical": "<root>",
+          "source": "project/neg_runtime_read_in_ct_main.zil",
+          "sha256": "5b7becf4729a930431d29ee92cb0044a32d589c5889d5d14113c8cec5098daa3"
+        },
+        {
+          "logical": "common.model",
+          "source": "project/common/model.zil",
+          "sha256": "934aa7863c511f26cb4055539e0cf8af06b912fec44be811a8e6c79ab374d18e"
+        }
+      ],
+      "syntax_lock": null
+    },
+    {
+      "entry": "neg_splice_wrong_category_main.zil",
+      "required_result": "SafeReject",
+      "semantic_key": "syntax-category-mismatch",
+      "obligation": "Type Syntax is not Expr Syntax",
+      "native_runs": 0,
+      "unrelated_Unsupported_is_not_Pass": true,
+      "modules": [
+        {
+          "logical": "<root>",
+          "source": "project/neg_splice_wrong_category_main.zil",
+          "sha256": "5efd581853013ff90fd37556617025709f07d276779587882771131c216ba2fe"
+        }
+      ],
+      "syntax_lock": null
+    },
+    {
+      "entry": "neg_syntax_is_not_automatic_main.zil",
+      "required_result": "SafeReject",
+      "semantic_key": "ct-only-value-in-runtime",
+      "obligation": "Syntax result of #(...) does not auto splice",
+      "native_runs": 0,
+      "unrelated_Unsupported_is_not_Pass": true,
+      "modules": [
+        {
+          "logical": "<root>",
+          "source": "project/neg_syntax_is_not_automatic_main.zil",
+          "sha256": "4c3a5f72d485a9e8cbf7adfc9b103022ac0ad4e468d52fd0daa3f2c31e7af454"
+        },
+        {
+          "logical": "common.io",
+          "source": "project/common/io.zil",
+          "sha256": "38146569badbb78b031cb704278e6380b22c93d8d9e97f8df191574bb791a8e1"
+        },
+        {
+          "logical": "common.model",
+          "source": "project/common/model.zil",
+          "sha256": "934aa7863c511f26cb4055539e0cf8af06b912fec44be811a8e6c79ab374d18e"
+        },
+        {
+          "logical": "generators",
+          "source": "project/generators.zil",
+          "sha256": "78f0db3eb6d2f6854edb909c3e99df53c9b28ee966ea291823ac2be5d64b0981"
+        }
+      ],
+      "syntax_lock": null
+    },
+    {
+      "entry": "neg_type_in_runtime_main.zil",
+      "required_result": "SafeReject",
+      "semantic_key": "ct-only-value-in-runtime",
+      "obligation": "A Type value cannot cross an explicit runtime foreign ABI, including from unsafe code.",
+      "native_runs": 0,
+      "unrelated_Unsupported_is_not_Pass": true,
+      "modules": [
+        {
+          "logical": "<root>",
+          "source": "project/neg_type_in_runtime_main.zil",
+          "sha256": "61cfaf2f04ed1dcca4a3d91bf22177ea0e0c9a1a93b3f3dbe61d4f76d55508d0"
+        }
+      ],
+      "syntax_lock": null
+    },
+    {
+      "entry": "neg_type_requires_type_value_main.zil",
+      "required_result": "SafeReject",
+      "semantic_key": "ct-value-kind-mismatch",
+      "obligation": "Syntax<Type> is not Type for type-position #(...)",
+      "native_runs": 0,
+      "unrelated_Unsupported_is_not_Pass": true,
+      "modules": [
+        {
+          "logical": "<root>",
+          "source": "project/neg_type_requires_type_value_main.zil",
+          "sha256": "42ff4426e02f05cf83cc232899ba600bfbbb2514d00c3f8905d54ee6c5403e33"
+        }
+      ],
+      "syntax_lock": null
+    },
+    {
+      "entry": "neg_type_splice_expr_main.zil",
+      "required_result": "SafeReject",
+      "semantic_key": "syntax-category-mismatch",
+      "obligation": "A type splice requires Syntax<Type>, never Syntax<Expr>.",
+      "native_runs": 0,
+      "unrelated_Unsupported_is_not_Pass": true,
+      "modules": [
+        {
+          "logical": "<root>",
+          "source": "project/neg_type_splice_expr_main.zil",
+          "sha256": "31044900d6f73823f2070215828f7e0cdae6b5c4bebdd569cdac00d91b8ff273"
+        }
+      ],
+      "syntax_lock": null
+    },
+    {
+      "entry": "neg_unknown_provider_export_main.zil",
+      "required_result": "SafeReject",
+      "semantic_key": "unknown-provider-export",
+      "obligation": "no fallback/guess/import-order selection; preserve original tokens",
+      "native_runs": 0,
+      "unrelated_Unsupported_is_not_Pass": true,
+      "modules": [
+        {
+          "logical": "<root>",
+          "source": "project/neg_unknown_provider_export_main.zil",
+          "sha256": "a9866a343f71c7b030d51d773acbe7591087a5192d4572234ad1b515a884b093"
+        },
+        {
+          "logical": "common.io",
+          "source": "project/common/io.zil",
+          "sha256": "38146569badbb78b031cb704278e6380b22c93d8d9e97f8df191574bb791a8e1"
+        },
+        {
+          "logical": "providers.expressions",
+          "source": "project/providers/expressions.zil",
+          "sha256": "6380f7fe12aa685969871cbeefb2eb14ba26d5e613f7b301d648817b21d8508a"
+        },
+        {
+          "logical": "providers.support",
+          "source": "project/providers/support.zil",
+          "sha256": "35e260e335670aae2e3dfb95b50681e143c3e7e51da93d90a93578ac8927e9e0"
+        }
+      ],
+      "syntax_lock": "provider-named.lock"
+    }
+  ],
+  "source_allocation_counts": "predicted from source operations and existing ByteBuffer runtime; never claimed observed",
+  "observations": {
+    "parsed": 0,
+    "compiled": 0,
+    "native": 0
+  }
+}
