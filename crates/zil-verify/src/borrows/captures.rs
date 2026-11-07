@@ -70,7 +70,7 @@ impl Invocation<'_> {
                 "window separation has no independently grounded call source",
             )
         };
-        let root = if let Root::Window(origin, ..) = root {
+        let root = if let Root::Window(origin, ..) | Root::StoreElementWindow(origin, ..) = root {
             match origin {
                 HoldRoot::Static => Root::Static,
                 HoldRoot::Local(l) => Root::Local(l),
@@ -111,7 +111,11 @@ impl Invocation<'_> {
                 lookup(budget, slots.len())?;
                 slots.get(&capture)
             }
-            Root::Local(_) | Root::Field(..) | Root::Projection(..) | Root::Window(..) => {
+            Root::Local(_)
+            | Root::Field(..)
+            | Root::Projection(..)
+            | Root::Window(..)
+            | Root::StoreElementWindow(..) => {
                 return Err(ungrounded());
             }
         }
