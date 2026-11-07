@@ -701,6 +701,22 @@ fn interface_fingerprint(
     }
     *remaining = remaining.checked_sub(exports.len()).ok_or_else(exhausted)?;
     for export in exports {
+        if let Some(contract) = &functions[export.function.0 as usize].protocol_contract {
+            *remaining = remaining
+                .checked_sub(export.name.len().saturating_mul(2).saturating_add(128))
+                .ok_or_else(exhausted)?;
+            registration::charge_contract(contract, |work| {
+                *remaining = remaining
+                    .checked_sub(work.saturating_mul(64))
+                    .ok_or_else(|| exhausted().remove(0))?;
+                Ok(())
+            })
+            .map_err(|e| vec![e])?;
+            bytes.extend_from_slice(b"REGISTRATION-PHASE-1\0");
+            bytes.extend_from_slice(&(export.name.len() as u64).to_le_bytes());
+            bytes.extend_from_slice(export.name.as_bytes());
+            bytes.extend_from_slice(&protocol_contract_fingerprint(contract).0);
+        }
         if let Some(contract) = &functions[export.function.0 as usize].callable_contract {
             *remaining = remaining
                 .checked_sub(contract.roles.len())

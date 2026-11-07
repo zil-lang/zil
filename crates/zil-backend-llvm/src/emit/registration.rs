@@ -816,7 +816,10 @@ pub(super) fn reserve_function(
                 | InstructionKind::AsyncRegistrationValid { .. }
                 | InstructionKind::AsyncRegistrationRequestClose { .. }
                 | InstructionKind::AsyncRegistrationPollClose { .. }
-                | InstructionKind::AsyncRegistrationFinishDestroy { .. } => meter.spend(512)?,
+                | InstructionKind::AsyncRegistrationFinishDestroy { .. }
+                | InstructionKind::AsyncRegistrationFinishDestroyChecked { .. } => {
+                    meter.spend(512)?
+                }
                 _ => {}
             }
         }
@@ -837,6 +840,7 @@ mod tests {
             reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,
+            protocol_contract: None,
             id: FunctionId(0),
             name: "budget".into(),
             foreign: None,

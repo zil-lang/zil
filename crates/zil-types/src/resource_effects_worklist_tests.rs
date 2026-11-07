@@ -77,6 +77,7 @@ fn graph(edges: &[Vec<usize>], writers: usize) -> CoreModule {
                     name: format!("f{index}"),
                     callable_return: None,
                     state_parameters: Vec::new(),
+                    protocol_contract: None,
                     type_parameters: Vec::new(),
                     callable_parameters: Vec::new(),
                     foreign: None,

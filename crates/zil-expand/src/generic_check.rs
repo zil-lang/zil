@@ -4351,6 +4351,7 @@ impl Check<'_, '_, '_> {
                     | "async_registration_request_close"
                     | "async_registration_poll_close"
                     | "async_registration_finish_destroy"
+            | "async_registration_finish_destroy_checked"
             )
         }) {
             return (self.registration_call(name, arguments, state, e.span)).map(Some);

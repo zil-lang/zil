@@ -334,6 +334,8 @@ struct Budget {
     task_origin_roots: bool,
     registrations: bool,
     async_registrations: bool,
+    protocol_contracts: bool,
+    protocol_checked: bool,
     replacements: bool,
     task_workers: BTreeSet<FunctionId>,
     suspend_functions: BTreeSet<FunctionId>,
@@ -372,6 +374,8 @@ impl Budget {
             task_origin_roots: false,
             registrations: false,
             async_registrations: false,
+            protocol_contracts: false,
+            protocol_checked: false,
             replacements: false,
             task_workers: BTreeSet::new(),
             suspend_functions: BTreeSet::new(),
@@ -640,6 +644,7 @@ fn check_module(
     // Bound every aggregate shape before definitions, equality, cloning or
     // fingerprinting. Raw APIs receive no protection from a source producer.
     for (index, function) in module.functions.iter().enumerate() {
+        budget.protocol_contracts |= function.protocol_contract.is_some();
         if function.storage_life.is_some() {
             stored_flow::header(module, function, &mut budget)?;
             budget.stored_borrows = true;
@@ -939,6 +944,7 @@ fn check_module(
     }
     head_access::check(module, &graphs, &mut budget)?;
     resources::check_module(module, &graphs, &mut budget)?;
+    registration::check_phase(module, &mut budget)?;
     Ok(CheckedModule {
         fingerprint,
         uses_owned_sum_extension: budget.sums,
@@ -2060,7 +2066,8 @@ fn check_instruction(
         | InstructionKind::AsyncRegistrationValid { .. }
         | InstructionKind::AsyncRegistrationRequestClose { .. }
         | InstructionKind::AsyncRegistrationPollClose { .. }
-        | InstructionKind::AsyncRegistrationFinishDestroy { .. } => {
+        | InstructionKind::AsyncRegistrationFinishDestroy { .. }
+        | InstructionKind::AsyncRegistrationFinishDestroyChecked { .. } => {
             registration::instruction(module, function, instruction, budget)?
         }
         InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. } => {
@@ -3483,7 +3490,8 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         InstructionKind::AsyncRegistrationValid { registration }
         | InstructionKind::AsyncRegistrationRequestClose { registration }
         | InstructionKind::AsyncRegistrationPollClose { registration }
-        | InstructionKind::AsyncRegistrationFinishDestroy { registration } => {
+        | InstructionKind::AsyncRegistrationFinishDestroy { registration }
+        | InstructionKind::AsyncRegistrationFinishDestroyChecked { registration } => {
             ([Some(*registration), None], &[])
         }
         InstructionKind::MakeDynBorrow { source, .. } => ([Some(*source), None], &[]),

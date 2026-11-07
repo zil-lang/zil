@@ -61,6 +61,7 @@ fn function(
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
+        protocol_contract: None,
         id: FunctionId(id),
         name: format!("function{id}"),
         foreign: None,

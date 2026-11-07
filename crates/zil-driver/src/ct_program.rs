@@ -170,6 +170,7 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
             life: None,
             callable_return: None,
             state_parameters: Vec::new(),
+            protocol_contract: None,
             type_parameters: Vec::new(),
             callable_parameters: Vec::new(),
             result_mode: zil_ir::PassingMode::Infer,

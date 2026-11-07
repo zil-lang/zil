@@ -151,6 +151,9 @@ pub(super) fn validate_template(
     function: &CoreFunction,
     prepay: &mut impl FnMut(&Type, Span) -> R<()>,
 ) -> R<()> {
+    if registration::borrowed_template(function) {
+        return registration::validate_borrowed_template(function, prepay);
+    }
     if registration::template(function) {
         return registration::validate_template(function, prepay);
     }
@@ -518,6 +521,9 @@ pub(super) fn install(
             validate_template(function, &mut |ty, span| {
                 state.snapshot_type(ty, 2, 0, span)
             })?;
+            registration::definition::check(function, core, &context.imports, |work| {
+                state.snapshot(work, function.span)
+            })?;
             store_templates::validate_header(function)?;
             let (snapshot_work, store_shapes) = state.snapshot_helper(function, 2)?;
             // New State declaration bodies are constrained even when no
@@ -684,6 +690,27 @@ impl Builder<'_, '_> {
                 .iter()
                 .find(|bound| bound.index as usize == index)
             {
+                if registration::borrowed_environment(ty).is_some() {
+                    let (value, actual) = self.expr(argument, None)?;
+                    let Some(Type::Closure(closure)) = registration::borrowed_environment(&actual)
+                    else {
+                        return Err(error(
+                            "E-TYPE-MISMATCH",
+                            argument.span,
+                            "helper requires an exclusive actual registration carrier",
+                        ));
+                    };
+                    let closure = *closure;
+                    self.validate_bound(closure, bound, false, argument.span)?;
+                    environments.bind(
+                        bound.generic_index,
+                        closure,
+                        argument.span,
+                        self.closures,
+                    )?;
+                    staged.push(self.stage_argument(value, &actual, argument.span)?);
+                    continue;
+                }
                 let mode = if owned_state {
                     None
                 } else {
@@ -968,6 +995,7 @@ impl Builder<'_, '_> {
         let bounds = bounds_view.as_ref();
         let owned_state = callable_fields::template(&function);
         let owned_factory = owning_factory::template(&function);
+        let borrowed_registration = registration::borrowed_template(&function);
         let forward = forwarding::bound(&function).map(|bound| bound.index);
         if registration::template(&function) {
             for bound in bounds {
@@ -981,7 +1009,16 @@ impl Builder<'_, '_> {
         if forward.is_some() {
             function.return_type = Type::Closure(bindings.get(bounds[0].generic_index, span)?);
         }
-        if owned_state {
+        if borrowed_registration {
+            for bound in bounds {
+                callable_fields::specialize(
+                    &mut function,
+                    &bound.generic_name,
+                    bindings.get(bound.generic_index, span)?,
+                );
+            }
+            function.callable_parameters.clear();
+        } else if owned_state {
             if (template.function.state_parameters.is_empty()
                 && bounds
                     .iter()
@@ -1137,7 +1174,7 @@ impl Builder<'_, '_> {
             "@module{}:helper{}:env{}",
             template.context.module.0, function.id.0, label
         );
-        if !owned_state && !owned_factory {
+        if !owned_state && !owned_factory && !borrowed_registration {
             self.closures.snapshot(bounds.len(), span)?;
             let mut roles = Vec::new();
             for bound in bounds {

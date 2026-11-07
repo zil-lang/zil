@@ -273,6 +273,7 @@ fn lower_view_with_budget(
                 || ty.is_copy_value()
                 || ty.is_scalar_or_address()
                 || resource_type(ty, &module.resources)
+                || resource_head_address(ty)
                 || package_value_type(ty, &module.resources)
                 || error_type(ty, &module.resources)
                 || owned_array_type(ty, &module.resources)
@@ -356,6 +357,7 @@ fn clone_function(
         reference_return_bound,
         callable_return_contract,
         callable_contract,
+        protocol_contract,
         id,
         name,
         foreign,
@@ -404,6 +406,7 @@ fn clone_function(
         reference_return_bound: reference_return_bound.clone(),
         callable_return_contract: callable_return_contract.clone(),
         callable_contract: callable_contract.clone(),
+        protocol_contract: protocol_contract.clone(),
         id: *id,
         name: name.clone(),
         foreign: foreign.clone(),
@@ -713,6 +716,7 @@ mod tests {
                 reference_return_bound: None,
                 callable_return_contract: None,
                 callable_contract: None,
+                protocol_contract: None,
                 result_mode: zil_ir::PassingMode::Infer,
                 foreign: None,
                 id: FunctionId(0),
@@ -871,6 +875,7 @@ mod tests {
             reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,
+            protocol_contract: None,
             result_mode: zil_ir::PassingMode::Infer,
             foreign: None,
             id: FunctionId(1),

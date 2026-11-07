@@ -90,17 +90,28 @@ int32_t async_drain(void *token) {
     source.callback=NULL;source.context=NULL;
     return 1;
 }
-int32_t async_pump(void) {
-    if(!source.queued || !source.closing || allocations-frees!=2) return 1;
+static int32_t pump_with_live_frames(int expected) {
+    if(!source.queued || !source.closing || allocations-frees!=expected) return 1;
     struct event event=source;
     if(event.callback(event.context,101)!=(INT64_C(1)<<32)) return 2;
     rejected++;source.queued=0;pumped++;
     return 0;
 }
+int32_t async_pump(void) { return pump_with_live_frames(2); }
+int32_t registration_phase_pump(void) { return pump_with_live_frames(1); }
 int32_t async_complete(void) {
     if(getenv("ZIL_ASYNC_RESULT") && result_drops!=1) return 22;
     if(getenv("ZIL_ASYNC_NORMAL") && (seen_pending!=2 || seen_ready!=1)) return 21;
     if(drops!=1 || requests!=1 || polls!=2 || rejected!=4 || pumped!=1 || allocations!=2 || frees!=2 || source.context || source.callback) return 20;
     puts("queued late entry rejected; no-future before two frees");
+    return 0;
+}
+
+int32_t registration_phase_complete(void) {
+    if (requests!=1 || polls!=2 || pumped!=1 || rejected!=2 ||
+        seen_pending!=1 || seen_ready!=1 || drops!=1 ||
+        allocations!=frees || allocations!=1 || source.queued ||
+        source.context || source.callback) return 60;
+    puts("pending retried; ready drained; registration dropped once");
     return 0;
 }

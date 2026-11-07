@@ -78,7 +78,7 @@ fn async_registration_raw_operations_preserve_every_field_without_admission() {
             assert!(identities.insert(encoded));
         }
         let mut bad = writer.output;
-        bad[5] = 140;
+        bad[5] = 141;
         assert_eq!(
             Reader::new(&bad, &limits)
                 .unwrap()
@@ -472,6 +472,7 @@ fn module_candidate() -> (TypedModule, CandidatePlan) {
             reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,
+            protocol_contract: None,
             result_mode: PassingMode::Infer,
             foreign: None,
             environment: None,
@@ -536,6 +537,49 @@ fn module_and_candidate_roundtrip_and_every_partial_record_rejects() {
     assert_eq!(
         decode_module_candidate(&appended, &limits).unwrap_err()[0].code,
         "E-WIRE-TRAILING"
+    );
+}
+
+#[test]
+fn finite_protocol_relation_and_checked_finish_survive_wire_and_bind_identity() {
+    let limits = Limits::default();
+    let (mut module, mut plan) = module_candidate();
+    let original = module.fingerprint();
+    module.functions[0].protocol_contract = Some(FunctionProtocolContract {
+        protocol: ProtocolKind::AsyncRegistrationV1,
+        parameter: 0,
+        entry: vec![ProtocolState::Closing],
+        exits: vec![
+            ProtocolTransition {
+                input: ProtocolState::Closing,
+                exit: ProtocolExit::ErrorOk,
+                output: vec![ProtocolState::Closed],
+            },
+            ProtocolTransition {
+                input: ProtocolState::Closing,
+                exit: ProtocolExit::ErrorErr,
+                output: vec![ProtocolState::Closing],
+            },
+        ],
+    });
+    assert_ne!(module.fingerprint(), original);
+    let claimed = module.fingerprint();
+    plan.module_fingerprint = claimed;
+    let bytes = encode_module_candidate(&module, &plan, &limits).unwrap();
+    assert_eq!(
+        decode_module_candidate(&bytes, &limits).unwrap(),
+        (module.clone(), plan.clone())
+    );
+    module.functions[0].blocks[0].instructions[0].kind =
+        InstructionKind::AsyncRegistrationFinishDestroyChecked {
+            registration: ValueId(0),
+        };
+    assert_ne!(module.fingerprint(), claimed);
+    plan.module_fingerprint = module.fingerprint();
+    let bytes = encode_module_candidate(&module, &plan, &limits).unwrap();
+    assert_eq!(
+        decode_module_candidate(&bytes, &limits).unwrap(),
+        (module, plan)
     );
 }
 

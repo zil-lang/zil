@@ -1095,6 +1095,20 @@ impl<'a> Writer<'a> {
         if let Some(contract) = &function.callable_contract {
             self.callable_contract(contract)?;
         }
+        self.boolean(function.protocol_contract.is_some())?;
+        if let Some(contract) = &function.protocol_contract {
+            self.u8(match contract.protocol { ProtocolKind::AsyncRegistrationV1 => 0 })?;
+            self.u32(contract.parameter)?;
+            self.count(contract.entry.len(), self.limits.max_nodes)?;
+            for state in &contract.entry { self.u8(protocol_state_tag(*state))?; }
+            self.count(contract.exits.len(), self.limits.max_nodes)?;
+            for row in &contract.exits {
+                self.u8(protocol_state_tag(row.input))?;
+                self.u8(protocol_exit_tag(row.exit))?;
+                self.count(row.output.len(), self.limits.max_nodes)?;
+                for state in &row.output { self.u8(protocol_state_tag(*state))?; }
+            }
+        }
         self.u32(function.id.0)?;
         self.text(&function.name)?;
         self.boolean(function.foreign.is_some())?;
@@ -1621,6 +1635,10 @@ impl<'a> Writer<'a> {
             }
             InstructionKind::AsyncRegistrationFinishDestroy { registration } => {
                 self.u8(138)?;
+                self.u32(registration.0)?;
+            }
+            InstructionKind::AsyncRegistrationFinishDestroyChecked { registration } => {
+                self.u8(140)?;
                 self.u32(registration.0)?;
             }
             InstructionKind::ForeignFunctionRef { function } => {
@@ -3308,6 +3326,14 @@ impl<'a> Reader<'a> {
         Ok(CallableParameterContract { roles, traces })
     }
 
+    fn protocol_state(&mut self) -> WireResult<ProtocolState> {
+        match self.u8()? {
+            0 => Ok(ProtocolState::Open),
+            1 => Ok(ProtocolState::Closing),
+            2 => Ok(ProtocolState::Closed),
+            _ => Err(malformed("E-WIRE-TAG", "unknown protocol state")),
+        }
+    }
     fn function(&mut self) -> WireResult<TypedFunction> {
         let call_kind = match self.u8()? {
             0 => CallKind::Direct,
@@ -3343,6 +3369,30 @@ impl<'a> Reader<'a> {
         } else {
             None
         };
+        let protocol_contract = if self.boolean()? {
+            let protocol = match self.u8()? { 0 => ProtocolKind::AsyncRegistrationV1,
+                _ => return Err(malformed("E-WIRE-TAG", "unknown protocol kind")) };
+            let parameter = self.u32()?;
+            let count = self.count(self.limits.max_nodes, 1)?;
+            let mut entry = Vec::with_capacity(count);
+            for _ in 0..count { entry.push(self.protocol_state()?); }
+            let count = self.count(self.limits.max_nodes, 3)?;
+            let mut exits = Vec::with_capacity(count);
+            for _ in 0..count {
+                let input = self.protocol_state()?;
+                let exit = match self.u8()? {
+                    0 => ProtocolExit::Return, 1 => ProtocolExit::ErrorOk,
+                    2 => ProtocolExit::ErrorErr, 3 => ProtocolExit::PollPending,
+                    4 => ProtocolExit::PollReady,
+                    _ => return Err(malformed("E-WIRE-TAG", "unknown protocol exit")),
+                };
+                let count = self.count(self.limits.max_nodes, 1)?;
+                let mut output = Vec::with_capacity(count);
+                for _ in 0..count { output.push(self.protocol_state()?); }
+                exits.push(ProtocolTransition { input, exit, output });
+            }
+            Some(FunctionProtocolContract { protocol, parameter, entry, exits })
+        } else { None };
         let id = FunctionId(self.u32()?);
         let name = self.text()?;
         let foreign = if self.boolean()? {
@@ -3435,6 +3485,7 @@ impl<'a> Reader<'a> {
             reference_return_bound,
             callable_return_contract,
             callable_contract,
+            protocol_contract,
             result_mode,
             foreign,
             id,
@@ -4260,6 +4311,9 @@ impl<'a> Reader<'a> {
                 registration: ValueId(self.u32()?),
             },
             138 => InstructionKind::AsyncRegistrationFinishDestroy {
+                registration: ValueId(self.u32()?),
+            },
+            140 => InstructionKind::AsyncRegistrationFinishDestroyChecked {
                 registration: ValueId(self.u32()?),
             },
             255 => InstructionKind::Unsupported(self.text()?),

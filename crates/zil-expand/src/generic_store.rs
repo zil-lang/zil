@@ -129,6 +129,13 @@ pub(super) fn result_mode(function: &Function) -> R<zil_ir::PassingMode> {
     use zil_ir::PassingMode;
     let mut mode = PassingMode::Infer;
     for clause in &function.contract {
+        if matches!(clause.name.as_str(), "requires" | "provides")
+            && matches!(function.generics.as_slice(), [g] if matches!(function.params.as_slice(), [p] if callable::borrowed_registration(&p.ty, &g.name)))
+        {
+            // The resource contract parser checks the complete DSL later;
+            // this pass only determines the independent result passing mode.
+            continue;
+        }
         let selected = match clause.terms.as_slice() {
             [term]
                 if clause.name == "result"

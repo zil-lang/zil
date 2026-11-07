@@ -518,7 +518,8 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         InstructionKind::AsyncRegistrationValid { registration }
         | InstructionKind::AsyncRegistrationRequestClose { registration }
         | InstructionKind::AsyncRegistrationPollClose { registration }
-        | InstructionKind::AsyncRegistrationFinishDestroy { registration } => {
+        | InstructionKind::AsyncRegistrationFinishDestroy { registration }
+                    | InstructionKind::AsyncRegistrationFinishDestroyChecked { registration } => {
             (Some(*registration), None, &[])
         }
         InstructionKind::MakeDynBorrow { source, .. } => (Some(*source), None, &[]),
@@ -2874,6 +2875,7 @@ impl Flow<'_> {
                     produced = Some(fact);
                 }
                 InstructionKind::AsyncRegistrationFinishDestroy { registration: task }
+                | InstructionKind::AsyncRegistrationFinishDestroyChecked { registration: task }
                 | InstructionKind::RegistrationClose { registration: task }
                 | InstructionKind::TaskFinishDestroy { task } => {
                     self.consume(state, *task, check, budget)?;

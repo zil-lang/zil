@@ -335,6 +335,11 @@ pub(crate) fn registration_environment(ty: &TypeRef) -> Option<&TypeRef> {
     };
     Some(environment)
 }
+pub(crate) fn borrowed_registration(ty: &TypeRef, name: &str) -> bool {
+    matches!(&grouped(ty).kind, TypeKind::Reference { mutable: true, inner, .. }
+        if matches!(&grouped(inner).kind, TypeKind::Named { path, .. } if path.as_slice() == ["AsyncRegistration"])
+        && registration_environment(inner).is_some_and(|t| parameter_mode(t, name) == Some(None)))
+}
 pub(crate) fn closed_bound(ty: &TypeRef) -> bool {
     matches!(&grouped(ty).kind, TypeKind::Named{path,args} if path.as_slice()==["ClosedEnvironment"] && args.is_empty())
 }
@@ -739,7 +744,14 @@ fn template_with_state(
             if !refers(&input.ty, &parameter.name) && !is_state(&input.ty, &parameter.name, dual) {
                 continue;
             }
-            let mode = parameter_mode(&input.ty, &parameter.name);
+            let registration_input = borrowed_registration(&input.ty, &parameter.name);
+            if registration_input && (callables.len() != 1 || function.generics.len() != 1
+                || function.params.len() != 1 || !closed_environment
+                || kind != CallableKind::FnMut || life.is_some()
+                || !function.contract.iter().any(|c| c.name == "requires")) {
+                return Err(unsupported(input.span, "borrowed registration helper requires one closed FnMut binder, one exclusive carrier and an explicit state contract"));
+            }
+            let mode = if registration_input { Some(Some(true)) } else { parameter_mode(&input.ty, &parameter.name) };
             if owned_factory && (count != 0 || mode != Some(None) || input.give) {
                 return Err(unsupported(
                     input.span,

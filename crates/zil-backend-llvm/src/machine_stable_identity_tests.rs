@@ -43,6 +43,7 @@ fn fixture(order: &[String]) -> (Module, LirModule, Vec<(FunctionId, String)>) {
             reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,
+            protocol_contract: None,
             id,
             name: name.clone(),
             foreign: None,

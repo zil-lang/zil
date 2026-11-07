@@ -93,6 +93,7 @@ fn raw(read: bool) -> (TypedModule, CandidatePlan) {
             environment: None,
             foreign: None,
             callable_contract: None,
+            protocol_contract: None,
             callable_return_contract: None,
             locals: vec![LocalDecl {
                 id: LocalId(0),
