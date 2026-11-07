@@ -1082,7 +1082,7 @@ pub(super) fn check(
                 written: RefCell::new(Rows::new()),
                 store_calls: &store_calls,
             };
-            let (found, _) =
+            let (found, _, _) =
                 run_with_replacements(module, f, graph, &result, false, b, Some(&context))?;
             let rows = context.written.into_inner();
             changed |= result[f.id.0 as usize].merge(&found, b)?;
@@ -1096,6 +1096,7 @@ pub(super) fn check(
         }
     }
     let mut rows = Vec::with_capacity(module.functions.len());
+    let mut excluded_edges = BTreeMap::new();
     for (f, graph) in module.functions.iter().zip(graphs) {
         if f.foreign.is_some() {
             rows.push(Vec::new());
@@ -1109,7 +1110,13 @@ pub(super) fn check(
             written: RefCell::new(Rows::new()),
             store_calls: &store_calls,
         };
-        rows.push(run_with_replacements(module, f, graph, &result, true, b, Some(&context))?.1);
+        let (_, bridges, excluded) =
+            run_with_replacements(module, f, graph, &result, true, b, Some(&context))?;
+        rows.push(bridges);
+        if !excluded.is_empty() {
+            b.spend(excluded_edges.len().saturating_add(1))?;
+            excluded_edges.insert(f.id.0 as usize, excluded);
+        }
     }
     b.spend(effects.len())?;
     let mut replacement_writes = Vec::with_capacity(effects.len());
@@ -1157,6 +1164,7 @@ pub(super) fn check(
     }
     Ok(Proofs {
         rows,
+        excluded_edges,
         replacement_writes,
         replacement_targets,
         retirement_targets,
