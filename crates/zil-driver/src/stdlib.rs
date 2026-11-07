@@ -11,6 +11,7 @@ pub(super) fn source(path: &[String]) -> Option<&'static str> {
             "collections" => Some(include_str!("../../../lib/std/collections.zil")),
             "string_map" => Some(include_str!("../../../lib/std/string_map.zil")),
             "pod_hash_map" => Some(include_str!("../../../lib/std/pod_hash_map.zil")),
+            "i64_hash_map" => Some(include_str!("../../../lib/std/i64_hash_map.zil")),
             "ui_layout" => Some(include_str!("../../../lib/std/ui_layout.zil")),
             "ui_raster" => Some(include_str!("../../../lib/std/ui_raster.zil")),
             "ui_input" => Some(include_str!("../../../lib/std/ui_input.zil")),
