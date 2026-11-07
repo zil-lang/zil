@@ -10,7 +10,7 @@
 
 父任务汇总完整范围，子任务记录具体交付，父子不重复计数；子项全完成不自动代表父项完成。需要独立派工、复核或验收的补充工作才新增任务编号，沿用父编号加一段；零散修正记在原任务进展中。编号同时用于分支与实施说明，不再另设勾稽编号。
 
-**当前主线：通用语言完整性与 Rust 竞争力优先。** G9.3.2 普通 POD 动态集合与原大值 O0 修复已由 [PR49 验收][e-pr49] 合入；G3.4.1 共享借入迭代、G9.3.1 普通 UTF8 入口已交付。G2.4.1 的普通 trait 逐调用共享 lending 已由 [PR50 验收][e-pr50] 合入；本批 G2.4.2、G9.3.3、G9.3.4 和 G10.6.1 已由 [PR51 验收][e-pr51] 合入，有限语言初稿可构建、运行并从远端恢复；后续通用缺口为 dyn/显式存储、更广借用及异步责任。GPU/GUI 专用 G10.3.1、G9.5.1、G9.6.2 后置；ZUI 保持 GPUI/GPU 方向。实现与常规独审采用 sol high，疑难问题才交 Astra。
+**当前主线：通用语言完整性与 Rust 竞争力优先。** G9.3.2 普通 POD 动态集合与原大值 O0 修复已由 [PR49 验收][e-pr49] 合入；G3.4.1 共享借入迭代、G9.3.1 普通 UTF8 入口已交付。G2.4.1 的普通 trait 逐调用共享 lending 已由 [PR50 验收][e-pr50] 合入；本批 G2.4.2、G9.3.3、G9.3.4 和 G10.6.1 已由 [PR51 验收][e-pr51] 合入，有限语言初稿可构建、运行并从远端恢复；当前 P0 为 Codex 认领的 G9.3.5：POD/标量 Store 进入普通拥有数据模型。其余 dyn/显式存储、更广借用、状态协议和异步责任仍待分派。GPU/GUI 专用 G10.3.1、G9.5.1、G9.6.2 后置；ZUI 保持 GPUI/GPU 方向。实现与常规独审采用 sol high，疑难问题才交 Astra。
 
 ## G1 · 基础类型与模式
 
@@ -228,7 +228,7 @@
 | --- | --- | --- | --- | --- | --- |
 | G9.1 | 普通字符串/Unicode与事务编辑、Store插入移除、有限回调迭代/Option返回 | 已合入 | — | — | [已合入证据][e37]；完整库见 G9.3。 |
 | G9.2 | 整数布局、RGBA软件合成、IME preedit提交/取消及失败保留的普通库 | 已合入 | — | — | [实现证据][ui] / [独审][ui-review]；不覆盖 OS IME、字体及 GPU。 |
-| G9.3 | 完整字符串/集合与一般Iterator/lending组合 | 部分实现 | P1 | 待派 | G9.3.1 与 G3.4.1 已交付普通 UTF8 入口与共享借入迭代首片。G9.3.2/G9.3.3/G9.3.4 已交付普通 POD Record/九种标量动态集合与元素可变借用；grapheme/格式化等仍待补，现有 StoreElement 不等于一般值容器。 |
+| G9.3 | 完整字符串/集合与一般Iterator/lending组合 | 部分实现 | P1 | 待派 | G9.3.1 与 G3.4.1 已交付普通 UTF8 入口与共享借入迭代首片。G9.3.2/G9.3.3/G9.3.4 已交付普通 POD Record/九种标量动态集合与元素可变借用；G9.3.5 正在补齐新 Store 族的普通拥有组合；grapheme/格式化等仍待补，现有 StoreElement 不等于一般值容器。 |
 | G9.4 | 真实平台窗口、事件循环及OS IME服务 | 部分实现 | P2 | 待派 | 已有旧 Win32 首窗/消息实验，本轮 Win64 Verify 通过；统一平台、OS IME 未接。窗口/事件层供 G9.5.1 复用，旧 GDI 不进入 ZUI 渲染路线；原生 Windows 仍待实际执行。 |
 | G9.5 | GPUI 式 GPU 场景/呈现、字体塑形与字形图集 | 待执行 | P2 | 待派 | 后续 G9.5.1 接 GPU 首帧；D3D11/DXGI/可选 DirectComposition 与 DirectWrite 为已核 GPUI Windows 参考。GPU ABI、设备完成、字体/atlas 与真实输入链路仍待实现。 |
 | G9.6 | GPUI 式 ZUI 应用、实体/组件、输入及资源关闭合流 | 待执行 | P2 | 待派 | G9.6.1 核查现状；G9.6.2 接首个 GPU 应用。第一帧不代表开放组件、文字/IME、可访问性、异步与完整 ZUI 已完成。 |
@@ -242,6 +242,8 @@
 | G9.3.2 | 普通 POD 动态集合与真实借入视图 | 已合入 | — | — | [PR49 验收][e-pr49]：普通 Record 的 std.store、reserve/push/pop/shared view 和大 Copy 协议；默认5124/0、参考5012/0、文本70/0及工程门通过。原262144字节源码默认栈 O0/O2通过；一般元素/可变片/拥有组合仍另缺。 |
 | G9.3.3 | 普通 POD 集合的可变元素借用：实际写入、helper 重借用与结构修改互斥 | 已合入 | — | — | [PR51 验收][e-pr51]：真实 std.store 可变元素与 helper 重借用、写后读回、失败保留、两核 raw/Wire 和双后端 O0/O2通过；保留整 Store 排他，不推断不同下标不交。 |
 | G9.3.4 | 标量动态序列：直接 Store<i32/u64/usize/bool/浮点等既有标量> 与真实 std.store | 已合入 | — | — | [PR51 验收][e-pr51]：bool/u8/u16/i32/i64/u64/usize/f32/f64 直接序列与真实 std.store、完整 u64 和双后端通过；Unit、一般拥有/捕获及 standalone Array/Tuple/Enum 仍排除。 |
+
+| G9.3.5 | POD/标量 Store 的普通拥有数据模型：字段、整值流、替换与自含捕获 | 进行中 | P0 | Codex · 本会话 | [合同与基线][task-g935]已推送；真实 Source 复现新族字段在 Types Unsupported、旧族与独立标量通过。先接完整责任/清理链，尚未实现或验收；一般借用/dyn/状态协议/跨线程异步不在本单。 |
 
 <details>
 <summary>G9.3.3 · 子任务</summary>
@@ -376,3 +378,5 @@
 [e-pr50]: https://github.com/zil-lang/zil/blob/bb9d113455d3f940cfa2fe237347039f1e241007/docs/validation/G2.4.1-common-acceptance.json
 
 [e-pr51]: https://github.com/zil-lang/zil/blob/15b9e09d83aeea9be1cc9ea4b4bdd9f5a5f9fa71/docs/validation/G10.6.1-common-acceptance.json
+
+[task-g935]: https://github.com/zil-lang/zil/blob/7cd2745203f6388bd97823719e37c3f5eb2b60b3/.task/G9.3.5.md
