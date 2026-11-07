@@ -239,12 +239,27 @@ fn value<'a>(f: &'a TypedFunction, id: ValueId, budget: &mut Budget) -> CompileR
         .ok_or_else(|| bad("dyn operand is outside actual value table"))
 }
 
-fn body(f: &TypedFunction, receiver: &Type, budget: &mut Budget) -> CompileResult<()> {
+fn body(
+    module: &TypedModule,
+    f: &TypedFunction,
+    receiver: &Type,
+    result: &Type,
+    visiting: &mut BTreeSet<FunctionId>,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    budget.lookup(visiting.len(), WORK)?;
+    if visiting.len() >= budget.helper_depth || !visiting.insert(f.id) {
+        return Err(bad(
+            "dyn helper call chain is cyclic or exceeds finite depth",
+        ));
+    }
     if f.foreign.is_some()
         || f.environment.is_some()
         || f.call_kind != CallKind::Direct
         || f.parameters.is_empty()
         || f.blocks.is_empty()
+        || &f.return_type != result
+        || !scalar_mode(f.result_mode)
     {
         return Err(bad("dyn entry is not a finite ordinary body"));
     }
@@ -256,12 +271,14 @@ fn body(f: &TypedFunction, receiver: &Type, budget: &mut Budget) -> CompileResul
     {
         return Err(bad("dyn entry actual Self differs from table Self"));
     }
+    budget.spend(1, WORK)?;
     let mut queue = VecDeque::from([f.entry]);
     let mut seen = BTreeSet::new();
     let mut receiver_values = BTreeSet::new();
     let mut field_values = BTreeMap::new();
     let mut value_results = BTreeSet::new();
     let mut saw_return = false;
+    let mut called = false;
     while let Some(id) = queue.pop_front() {
         budget.lookup(seen.len(), WORK)?;
         if !seen.insert(id) {
@@ -338,6 +355,45 @@ fn body(f: &TypedFunction, receiver: &Type, budget: &mut Budget) -> CompileResul
                     }
                     value_results.insert(result);
                 }
+                InstructionKind::Call {
+                    function,
+                    arguments,
+                } => {
+                    budget.spend(arguments.len().saturating_add(1), WORK)?;
+                    if called
+                        || f.parameters.len() != 1
+                        || arguments.len() != 1
+                        || !receiver_values.contains(&arguments[0])
+                    {
+                        return Err(bad(
+                            "dyn helper call does not pass through the actual shared receiver",
+                        ));
+                    }
+                    called = true;
+                    let target = module
+                        .functions
+                        .get(function.0 as usize)
+                        .ok_or_else(|| bad("dyn helper actual FunctionId is absent"))?;
+                    let output = instruction
+                        .result
+                        .ok_or_else(|| bad("dyn helper call lacks scalar result"))?;
+                    if target.id != *function
+                        || target.parameters.len() != 1
+                        || target.return_type != f.return_type
+                        || target.result_mode != f.result_mode
+                        || value(f, output, budget)? != &target.return_type
+                        || !target.parameters.iter().all(|id| {
+                            target
+                                .locals
+                                .get(id.0 as usize)
+                                .is_some_and(|l| shared(&l.ty, receiver))
+                        })
+                    {
+                        return Err(bad("dyn helper actual entry signature differs"));
+                    }
+                    body(module, target, receiver, result, visiting, budget)?;
+                    value_results.insert(output);
+                }
                 InstructionKind::ScopeEnter { .. }
                 | InstructionKind::ScopeExit { .. }
                 | InstructionKind::StorageLive(_)
@@ -355,7 +411,10 @@ fn body(f: &TypedFunction, receiver: &Type, budget: &mut Budget) -> CompileResul
             {
                 saw_return = true
             }
-            Terminator::Jump(next) => queue.push_back(*next),
+            Terminator::Jump(next) => {
+                budget.spend(1, WORK)?;
+                queue.push_back(*next);
+            }
             _ => {
                 return Err(bad(
                     "dyn entry reachable exit is outside scalar read profile",
@@ -366,6 +425,7 @@ fn body(f: &TypedFunction, receiver: &Type, budget: &mut Budget) -> CompileResul
     if !saw_return {
         return Err(bad("dyn entry has no proven scalar receiver read return"));
     }
+    visiting.remove(&f.id);
     Ok(())
 }
 
@@ -458,7 +518,14 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             {
                 return Err(bad("dyn entry actual signature differs from selected slot"));
             }
-            body(f, &table.self_type, budget)?;
+            body(
+                module,
+                f,
+                &table.self_type,
+                &slot.result,
+                &mut BTreeSet::new(),
+                budget,
+            )?;
         }
     }
     for f in &module.functions {
@@ -895,6 +962,53 @@ mod tests {
         let mut m = fixture();
         m.dyn_vtables[0].entries[0].slot = 1;
         assert!(admitted(&m).is_err());
+    }
+
+    #[test]
+    fn wrapper_follows_actual_function_id_and_receiver_with_cycle_closed() {
+        let mut m = fixture();
+        let mut helper = m.functions[0].clone();
+        helper.id = FunctionId(2);
+        helper.name = "unrelated_safe_helper".into();
+        helper.blocks[0].instructions =
+            vec![inst(Some(2), InstructionKind::Constant(Constant::I32(9)))];
+        m.functions.push(helper);
+        m.functions[0].blocks[0].instructions = vec![
+            inst(Some(0), InstructionKind::Load(LocalId(0))),
+            inst(
+                Some(2),
+                InstructionKind::Call {
+                    function: FunctionId(2),
+                    arguments: vec![ValueId(0)],
+                },
+            ),
+        ];
+        admitted(&m).unwrap();
+
+        let mut wrong_receiver = m.clone();
+        if let InstructionKind::Call { arguments, .. } =
+            &mut wrong_receiver.functions[0].blocks[0].instructions[1].kind
+        {
+            arguments[0] = ValueId(1);
+        }
+        assert!(admitted(&wrong_receiver).is_err());
+
+        let mut cyclic = m.clone();
+        cyclic.functions[2].blocks[0].instructions = vec![
+            inst(Some(0), InstructionKind::Load(LocalId(0))),
+            inst(
+                Some(2),
+                InstructionKind::Call {
+                    function: FunctionId(0),
+                    arguments: vec![ValueId(0)],
+                },
+            ),
+        ];
+        assert!(admitted(&cyclic).is_err());
+
+        let mut unknown = m;
+        unknown.functions[2].call_kind = CallKind::Suspend;
+        assert!(admitted(&unknown).is_err());
     }
 
     #[test]
