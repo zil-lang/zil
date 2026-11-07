@@ -1154,7 +1154,11 @@ impl Engine<'_> {
                 }
             }
             PatternKind::RecordConstructor { path, fields } => {
-                self.record_enum_pattern(path, fields, ty, env, pattern.span, depth)?;
+                if path.len() == 1 {
+                    self.record_product_pattern(path, fields, ty, env, pattern.span, depth)?;
+                } else {
+                    self.record_enum_pattern(path, fields, ty, env, pattern.span, depth)?;
+                }
             }
             _ => {}
         }

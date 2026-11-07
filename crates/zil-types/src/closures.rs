@@ -2883,6 +2883,14 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 }
                 Ok(false)
             }
+            CorePatternKind::Record { fields, .. } => {
+                for (_, field) in fields {
+                    if self.pattern_needs_mutable(field, depth + 1)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
             _ => Ok(false),
         }
     }

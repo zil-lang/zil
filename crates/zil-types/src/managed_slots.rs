@@ -99,6 +99,11 @@ impl Rewriter<'_> {
                     self.pattern(x, names, depth + 1)?
                 }
             }
+            CorePatternKind::Record { fields, .. } => {
+                for (_, x) in fields {
+                    self.pattern(x, names, depth + 1)?;
+                }
+            }
             _ => {}
         }
         Ok(())
@@ -374,6 +379,11 @@ impl BindingScan {
             CorePatternKind::Tuple(xs) | CorePatternKind::Variant { fields: xs, .. } => {
                 for x in xs {
                     self.pattern(x, d + 1)?
+                }
+            }
+            CorePatternKind::Record { fields, .. } => {
+                for (_, x) in fields {
+                    self.pattern(x, d + 1)?;
                 }
             }
             _ => {}

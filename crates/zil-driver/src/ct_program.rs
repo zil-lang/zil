@@ -1034,6 +1034,13 @@ impl Collector<'_> {
                     self.pattern(field, depth + 1)?;
                 }
             }
+            CorePatternKind::Record { ty, fields } => {
+                self.ty(ty, depth + 1)?;
+                for (name, field) in fields {
+                    self.text(name)?;
+                    self.pattern(field, depth + 1)?;
+                }
+            }
             CorePatternKind::Name(name) | CorePatternKind::Integer(name) => self.text(name)?,
             _ => {}
         }

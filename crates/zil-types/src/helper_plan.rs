@@ -353,6 +353,11 @@ impl Walk<'_, '_> {
                     self.pattern(field, &Shape::Unknown, depth + 1)?;
                 }
             }
+            CorePatternKind::Record { fields, .. } => {
+                for (_, field) in fields {
+                    self.pattern(field, &Shape::Unknown, depth + 1)?;
+                }
+            }
             _ => {}
         }
         Ok(())

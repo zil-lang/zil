@@ -27,8 +27,14 @@ fn validate(pattern: &CorePattern, remaining: &mut usize, depth_limit: usize) ->
             CorePatternKind::Reference { pattern, .. } => {
                 visit(pattern, remaining, depth + 1, limit)
             }
-            CorePatternKind::Tuple(fields) => {
+            CorePatternKind::Tuple(fields) | CorePatternKind::Variant { fields, .. } => {
                 for field in fields {
+                    visit(field, remaining, depth + 1, limit)?;
+                }
+                Ok(())
+            }
+            CorePatternKind::Record { fields, .. } => {
+                for (_, field) in fields {
                     visit(field, remaining, depth + 1, limit)?;
                 }
                 Ok(())
@@ -89,7 +95,8 @@ impl Builder<'_, '_> {
         // This checks the complete value, including discarded fields, exact arity
         // at every tuple and duplicate names, using the existing paid pattern core.
         if !self.irrefutable_pattern(pattern, &ty)? {
-            return Err(unsupported(
+            return Err(error(
+                "E-PATTERN-REFUTABLE",
                 pattern.span,
                 "ordinary binding must be irrefutable",
             ));
@@ -103,8 +110,9 @@ impl Builder<'_, '_> {
             return self.owned_tuple_pattern(pattern, parent, &ty, mutable);
         }
         let mut bindings = Vec::new();
-        let unused_fail = self.current.expect("tuple binding in live block");
-        self.pattern_test(pattern, value, &ty, unused_fail, &mut bindings)?;
+        let impossible = self.block_id()?;
+        self.function.blocks[impossible.0 as usize].terminator = Terminator::Trap;
+        self.pattern_test(pattern, value, &ty, impossible, &mut bindings)?;
         for (name, value, ty, span) in bindings {
             let local = self.local(&name, ty, mutable, span)?;
             self.store(local, value, span)?;

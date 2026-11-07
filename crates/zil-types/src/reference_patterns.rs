@@ -8,6 +8,9 @@ pub(super) fn has_reference(p: &CorePattern) -> bool {
         CorePatternKind::Tuple(fields) | CorePatternKind::Variant { fields, .. } => {
             fields.iter().any(has_reference)
         }
+        CorePatternKind::Record { fields, .. } => {
+            fields.iter().any(|(_, field)| has_reference(field))
+        }
         _ => false,
     }
 }
@@ -17,6 +20,9 @@ fn needs_mutable(p: &CorePattern) -> bool {
         CorePatternKind::ErrorArm { pattern, .. } => needs_mutable(pattern),
         CorePatternKind::Tuple(fs) | CorePatternKind::Variant { fields: fs, .. } => {
             fs.iter().any(needs_mutable)
+        }
+        CorePatternKind::Record { fields, .. } => {
+            fields.iter().any(|(_, field)| needs_mutable(field))
         }
         _ => false,
     }
@@ -275,6 +281,41 @@ impl Builder<'_, '_> {
                 }
                 Ok(())
             }
+            CorePatternKind::Record {
+                ty: declared,
+                fields,
+            } => {
+                let ty = self.known_type(e).ok_or_else(|| {
+                    error(
+                        "E-PATTERN-TYPE",
+                        e.span,
+                        "record reference pattern needs a known place",
+                    )
+                })?;
+                self.closures.snapshot(
+                    fields
+                        .len()
+                        .saturating_mul(fields.len())
+                        .saturating_add(fields.iter().map(|(name, _)| name.len()).sum::<usize>()),
+                    p.span,
+                )?;
+                let ordered = enums::record_pattern_fields(declared, fields, &ty, p.span)?;
+                let Type::Record { fields: actual, .. } = stored::physical(&ty) else {
+                    unreachable!("checked record pattern")
+                };
+                for (index, (field, field_ty)) in ordered.into_iter().enumerate() {
+                    let child = CoreExpr {
+                        kind: CoreExprKind::Member {
+                            object: Box::new(e.clone()),
+                            member: actual[index].0.clone(),
+                            owner: None,
+                        },
+                        ..e.clone()
+                    };
+                    self.binding_place(field, &child, Some(field_ty), bindings)?;
+                }
+                Ok(())
+            }
             CorePatternKind::Name(_) | CorePatternKind::Wildcard => {
                 let (v, t) = if let Some((address, Type::Address { inner, .. })) =
                     self.inline_pattern_place(e, false)?
@@ -484,6 +525,50 @@ impl Builder<'_, '_> {
             .snapshot(path.len().saturating_add(1), p.span)?;
         match &p.kind {
             CorePatternKind::Tuple(_) if matches!(ty, Type::Tuple(_)) => {
+                if path.is_empty() {
+                    return self.reference_inline_local_test(
+                        p,
+                        root,
+                        &mut Vec::new(),
+                        ty,
+                        fail,
+                        bindings,
+                    );
+                }
+                let mutable = needs_mutable(p);
+                if mutable && !self.function.locals[root.0 as usize].mutable {
+                    return Err(error(
+                        "E-IMMUTABLE-ASSIGNMENT",
+                        p.span,
+                        "exclusive tuple pattern requires mutable storage",
+                    ));
+                }
+                let t = Type::Address {
+                    mutable,
+                    inner: Box::new(ty.clone()),
+                };
+                let address = self.value(
+                    InstructionKind::BorrowVariantLocal {
+                        local: root,
+                        path: path.clone(),
+                        mutable,
+                    },
+                    t,
+                    p.span,
+                )?;
+                self.reference_address_test(
+                    p,
+                    address,
+                    &mut Vec::new(),
+                    ty,
+                    mutable,
+                    fail,
+                    bindings,
+                )
+            }
+            CorePatternKind::Record { .. }
+                if matches!(ty, Type::Record { .. }) && ty.is_copy_value() =>
+            {
                 if path.is_empty() {
                     return self.reference_inline_local_test(
                         p,
@@ -804,6 +889,64 @@ impl Builder<'_, '_> {
                 }
                 Ok(())
             }
+            CorePatternKind::Record {
+                ty: declared,
+                fields,
+            } if ty.is_copy_value() => {
+                let ordered = enums::record_pattern_fields(declared, fields, ty, p.span)?;
+                let base = if path.is_empty() {
+                    address
+                } else {
+                    let mutable = needs_mutable(p);
+                    if mutable && !available {
+                        return Err(error(
+                            "E-ADDRESS-PERMISSION",
+                            p.span,
+                            "exclusive record pattern requires mutable input",
+                        ));
+                    }
+                    self.value(
+                        InstructionKind::BorrowVariantAddress {
+                            address,
+                            path: path.clone(),
+                            mutable,
+                        },
+                        Type::Address {
+                            mutable,
+                            inner: Box::new(ty.clone()),
+                        },
+                        p.span,
+                    )?
+                };
+                let writable = if path.is_empty() {
+                    available
+                } else {
+                    needs_mutable(p)
+                };
+                for (index, (field, field_ty)) in ordered.into_iter().enumerate() {
+                    let pointer = self.value(
+                        InstructionKind::AddressField {
+                            address: base,
+                            index: index as u32,
+                        },
+                        Type::Address {
+                            mutable: writable,
+                            inner: Box::new(field_ty.clone()),
+                        },
+                        field.span,
+                    )?;
+                    self.reference_address_test(
+                        field,
+                        pointer,
+                        &mut Vec::new(),
+                        field_ty,
+                        writable,
+                        fail,
+                        bindings,
+                    )?;
+                }
+                Ok(())
+            }
             CorePatternKind::Variant {
                 variant, fields, ..
             } => {
@@ -1080,6 +1223,18 @@ impl Builder<'_, '_> {
                 for (index, (field, t)) in fields.iter().zip(types).enumerate() {
                     path.push(index as u32);
                     self.reference_inline_local_test(field, root, path, t, fail, bindings)?;
+                    path.pop();
+                }
+                Ok(())
+            }
+            CorePatternKind::Record {
+                ty: declared,
+                fields,
+            } if ty.is_copy_value() => {
+                let ordered = enums::record_pattern_fields(declared, fields, ty, p.span)?;
+                for (index, (field, field_ty)) in ordered.into_iter().enumerate() {
+                    path.push(index as u32);
+                    self.reference_inline_local_test(field, root, path, field_ty, fail, bindings)?;
                     path.pop();
                 }
                 Ok(())

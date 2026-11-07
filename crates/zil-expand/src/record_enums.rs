@@ -188,10 +188,10 @@ impl<'a> Expander<'a> {
         fields: &[s::RecordPatternField],
         span: Span,
     ) -> Result<CorePatternKind, Diagnostic> {
-        if !self.named_match || path.len() != 2 {
+        if path.len() != 2 {
             return Err(Diagnostic::unsupported(
                 Phase::Expand,
-                "named enum patterns are supported only in qualified match arms",
+                "named enum patterns require a qualified variant",
                 Some(span),
             ));
         }

@@ -201,6 +201,70 @@ pub(super) fn validate(
 }
 
 impl Engine<'_> {
+    pub(super) fn record_product_pattern(
+        &mut self,
+        path: &mut [String],
+        supplied: &mut [RecordPatternField],
+        ty: Option<&TypeRef>,
+        env: &mut Env,
+        span: Span,
+        depth: usize,
+    ) -> R<()> {
+        let ty = ty.ok_or_else(|| error(span, "record pattern type cannot be inferred"))?;
+        let written = self.original_type(ty)?;
+        let TypeKind::Named { path: root, args } = &grouped(&written).kind else {
+            return Err(error(span, "record pattern requires a nominal record"));
+        };
+        let Some(Item {
+            kind: ItemKind::Aggregate(declaration),
+            ..
+        }) = self.nominals.get(&root.join(".")).copied()
+        else {
+            return Err(error(span, "record pattern requires a declared record"));
+        };
+        if declaration.kind != AggregateKind::Struct {
+            return Err(error(span, "record pattern requires an ordinary struct"));
+        }
+        if path[0] != declaration.name || declaration.generics.len() != args.len() {
+            return Err(error(span, "record pattern has a different nominal type"));
+        }
+        if supplied.len() != declaration.fields.len() {
+            return Err(error(span, "record pattern must name every field"));
+        }
+        let mut seen = BTreeSet::new();
+        for field in supplied.iter_mut() {
+            self.budget.node(field.span, depth + 1)?;
+            self.budget.text(&field.name, field.span)?;
+            if !seen.insert(field.name.clone())
+                || !declaration
+                    .fields
+                    .iter()
+                    .any(|candidate| candidate.name == field.name)
+            {
+                return Err(error(
+                    field.span,
+                    "duplicate or unknown record pattern field",
+                ));
+            }
+            let mut field_ty = self
+                .source_record_field(&written, &field.name)?
+                .ok_or_else(|| error(field.span, "unknown record pattern field"))?;
+            self.ty(&mut field_ty, depth + 1)?;
+            self.enum_pattern(&mut field.pattern, Some(&field_ty), env, depth + 1)?;
+        }
+        let TypeKind::Named { path: instance, .. } = &grouped(ty).kind else {
+            unreachable!()
+        };
+        if instance.len() != 1 {
+            return Err(error(
+                span,
+                "record pattern needs one concrete nominal instance",
+            ));
+        }
+        self.budget.text(&instance[0], span)?;
+        path[0] = instance[0].clone();
+        Ok(())
+    }
     pub(super) fn record_enum_expression(
         &mut self,
         expression: &mut Expr,

@@ -177,6 +177,58 @@ pub(super) fn pattern_variant<'a>(
     };
     Ok((index, &variants[index].1))
 }
+pub(super) fn record_pattern_fields<'a>(
+    declared: &Type,
+    supplied: &'a [(String, CorePattern)],
+    expected: &'a Type,
+    span: Span,
+) -> R<Vec<(&'a CorePattern, &'a Type)>> {
+    let Type::Record { fields, .. } = stored::physical(expected) else {
+        return Err(error(
+            "E-MATCH-TYPE",
+            span,
+            "record pattern requires a record",
+        ));
+    };
+    if declared != expected {
+        return Err(error(
+            "E-MATCH-TYPE",
+            span,
+            "record pattern has a different complete nominal type",
+        ));
+    }
+    if supplied.len() != fields.len() {
+        return Err(error(
+            "E-MATCH-ARITY",
+            span,
+            "record pattern must name every field",
+        ));
+    }
+    let mut ordered = vec![None; fields.len()];
+    for (name, pattern) in supplied {
+        let Some(index) = fields.iter().position(|(field, _)| field == name) else {
+            return Err(error(
+                "E-MATCH-FIELD",
+                pattern.span,
+                "unknown record pattern field",
+            ));
+        };
+        if ordered[index]
+            .replace((pattern, &fields[index].1))
+            .is_some()
+        {
+            return Err(error(
+                "E-MATCH-FIELD",
+                pattern.span,
+                "duplicate record pattern field",
+            ));
+        }
+    }
+    Ok(ordered
+        .into_iter()
+        .map(|field| field.expect("complete record fields"))
+        .collect())
+}
 
 /// Reified Core may name the exact existing nominal identity. The spelling is
 /// unavailable to source identifiers; it still resolves through this ordinary
@@ -532,6 +584,24 @@ impl Coverage<'_> {
                     .collect::<R<_>>()?;
                 Pattern::Constructor(Constructor::Tuple, fields)
             }
+            CorePatternKind::Record {
+                ty: declared,
+                fields,
+            } => {
+                self.spend(
+                    fields
+                        .len()
+                        .saturating_mul(fields.len())
+                        .saturating_add(fields.iter().map(|(name, _)| name.len()).sum::<usize>()),
+                    depth,
+                )?;
+                let ordered = record_pattern_fields(declared, fields, ty, raw.span)?;
+                let fields = ordered
+                    .into_iter()
+                    .map(|(pattern, field_ty)| self.pattern(pattern, field_ty, names, depth + 1))
+                    .collect::<R<_>>()?;
+                Pattern::Constructor(Constructor::Tuple, fields)
+            }
             CorePatternKind::Variant {
                 ty: declared,
                 variant,
@@ -644,7 +714,7 @@ impl Coverage<'_> {
         let constructors = match stored::physical(&types[0]) {
             Type::Unit => vec![Constructor::Unit],
             Type::Bool => vec![Constructor::Bool(false), Constructor::Bool(true)],
-            Type::Tuple(_) => vec![Constructor::Tuple],
+            Type::Tuple(_) | Type::Record { .. } => vec![Constructor::Tuple],
             Type::ErrorUnion { .. } => vec![Constructor::Variant(0), Constructor::Variant(1)],
             Type::Enum { variants, .. } => (0..variants.len())
                 .map(|i| Constructor::Variant(i as u32))
@@ -680,6 +750,9 @@ impl Coverage<'_> {
 fn constructor_fields(constructor: &Constructor, ty: &Type) -> Vec<Type> {
     match (constructor, stored::physical(ty)) {
         (Constructor::Tuple, Type::Tuple(fields)) => fields.clone(),
+        (Constructor::Tuple, Type::Record { fields, .. }) => {
+            fields.iter().map(|(_, ty)| ty.clone()).collect()
+        }
         (Constructor::Variant(index), Type::ErrorUnion { error, result }) => {
             vec![if *index == 1 { error } else { result }.as_ref().clone()]
         }
@@ -1051,6 +1124,36 @@ impl<'a, 'c> Builder<'a, 'c> {
                         )?;
                         self.pattern_test(field, projected, ty, fail, bindings)?;
                     }
+                }
+            }
+            CorePatternKind::Record {
+                ty: declared,
+                fields,
+            } => {
+                if !ty.is_copy_value() {
+                    return Err(unsupported(
+                        pattern.span,
+                        "owned record pattern requires place-based lowering",
+                    ));
+                }
+                self.closures.snapshot(
+                    fields
+                        .len()
+                        .saturating_mul(fields.len())
+                        .saturating_add(fields.iter().map(|(name, _)| name.len()).sum::<usize>()),
+                    pattern.span,
+                )?;
+                let ordered = record_pattern_fields(declared, fields, ty, pattern.span)?;
+                for (index, (field, field_ty)) in ordered.into_iter().enumerate() {
+                    let projected = self.value(
+                        InstructionKind::ExtractField {
+                            aggregate: value,
+                            index: index as u32,
+                        },
+                        field_ty.clone(),
+                        field.span,
+                    )?;
+                    self.pattern_test(field, projected, field_ty, fail, bindings)?;
                 }
             }
             CorePatternKind::Variant {

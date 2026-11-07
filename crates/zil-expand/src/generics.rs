@@ -2163,11 +2163,12 @@ impl<'a> Engine<'a> {
                     source_enum.as_ref().or(ty.as_ref()),
                     depth + 1,
                 )?;
-                bind(
-                    pattern,
-                    source_enum.or_else(|| ty.clone()).or(inferred),
-                    env,
-                );
+                let actual = source_enum.or_else(|| ty.clone()).or(inferred);
+                if matches!(pattern.kind, PatternKind::RecordConstructor { .. }) {
+                    self.enum_pattern(pattern, actual.as_ref(), env, depth + 1)?;
+                } else {
+                    bind(pattern, actual, env);
+                }
             }
             StmtKind::Return(Some(e)) => {
                 if self.source_enum_return_active

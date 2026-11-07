@@ -1057,6 +1057,12 @@ pub enum CorePatternKind {
     Name(String),
     Wildcard,
     Tuple(Vec<CorePattern>),
+    /// Named fields retain their labels and nominal source type until Types
+    /// checks the actual record layout. Core input is never authority alone.
+    Record {
+        ty: Type,
+        fields: Vec<(String, CorePattern)>,
+    },
     Reference {
         mutable: bool,
         pattern: Box<CorePattern>,
