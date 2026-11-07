@@ -47,11 +47,14 @@ fn wrap(
     result: &TypeRef,
     is_error: bool,
     budget: &mut Budget<'_>,
+    moved_sites: &mut BTreeMap<usize, usize>,
 ) -> R<()> {
     budget.const_expression(value)?;
     budget.ty(error)?;
     budget.ty(result)?;
     let span = value.span;
+    budget.lineage_bytes(std::mem::size_of::<(usize, usize)>(), span)?;
+    let old_site = value as *const Expr as usize;
     let payload = std::mem::replace(
         value,
         Expr {
@@ -83,12 +86,20 @@ fn wrap(
         },
         span,
     };
+    let ExprKind::Call { arguments, .. } = &value.kind else {
+        unreachable!()
+    };
+    moved_sites.insert(old_site, &arguments[0].value as *const Expr as usize);
     Ok(())
 }
 
-pub(super) fn apply(function: &mut Function, choices: &Choices, budget: &mut Budget<'_>) -> R<()> {
+pub(super) fn apply(
+    function: &mut Function,
+    choices: &Choices,
+    budget: &mut Budget<'_>,
+) -> R<BTreeMap<usize, usize>> {
     if choices.expression.is_none() && choices.statements.is_empty() {
-        return Ok(());
+        return Ok(BTreeMap::new());
     }
     // This feature-only walk follows every nested statement site, including
     // closure bodies and meta expressions. Prepay the complete current tree.
@@ -108,18 +119,31 @@ fn apply_body(
     choices: &Choices,
     return_pair: Option<(TypeRef, TypeRef)>,
     budget: &mut Budget<'_>,
-) -> R<()> {
+) -> R<BTreeMap<usize, usize>> {
     let mut next = 0;
+    let mut moved_sites = BTreeMap::new();
     match &mut function.body {
         FunctionBody::Expression(value) => {
             if let (Some(is_error), Some((error, result))) = (choices.expression, &return_pair) {
-                wrap(value, error, result, is_error, budget)?;
+                wrap(value, error, result, is_error, budget, &mut moved_sites)?;
             }
-            rewrite_expr(value, choices, &return_pair, &mut next, budget)?;
+            rewrite_expr(
+                value,
+                choices,
+                &return_pair,
+                &mut next,
+                budget,
+                &mut moved_sites,
+            )?;
         }
-        FunctionBody::Block(block) => {
-            rewrite_block(block, choices, &return_pair, &mut next, budget)?
-        }
+        FunctionBody::Block(block) => rewrite_block(
+            block,
+            choices,
+            &return_pair,
+            &mut next,
+            budget,
+            &mut moved_sites,
+        )?,
         FunctionBody::Declaration => {
             return Err(error(
                 function.span,
@@ -138,7 +162,7 @@ fn apply_body(
             "selected generic error arm lost its source site",
         ));
     }
-    Ok(())
+    Ok(moved_sites)
 }
 
 fn rewrite_block(
@@ -147,9 +171,10 @@ fn rewrite_block(
     return_pair: &Option<(TypeRef, TypeRef)>,
     next: &mut usize,
     budget: &mut Budget<'_>,
+    moved_sites: &mut BTreeMap<usize, usize>,
 ) -> R<()> {
     for statement in &mut block.statements {
-        rewrite_statement(statement, choices, return_pair, next, budget)?;
+        rewrite_statement(statement, choices, return_pair, next, budget, moved_sites)?;
     }
     Ok(())
 }
@@ -160,6 +185,7 @@ fn rewrite_statement(
     return_pair: &Option<(TypeRef, TypeRef)>,
     next: &mut usize,
     budget: &mut Budget<'_>,
+    moved_sites: &mut BTreeMap<usize, usize>,
 ) -> R<()> {
     let site = *next;
     *next += 1;
@@ -175,7 +201,7 @@ fn rewrite_statement(
                 let (error, result) = return_pair.as_ref().ok_or_else(|| {
                     error(statement.span, "selected error return lacks union type")
                 })?;
-                wrap(value, error, result, is_error, budget)?;
+                wrap(value, error, result, is_error, budget, moved_sites)?;
             }
             StmtKind::Binding {
                 ty: Some(ty),
@@ -188,7 +214,7 @@ fn rewrite_statement(
                         "selected error binding lacks union type",
                     ));
                 };
-                wrap(value, error, result, is_error, budget)?;
+                wrap(value, error, result, is_error, budget, moved_sites)?;
             }
             _ => {
                 return Err(error(
@@ -203,32 +229,32 @@ fn rewrite_statement(
         | StmtKind::Return(Some(value))
         | StmtKind::Expression(value)
         | StmtKind::Yield(value) => {
-            rewrite_expr(value, choices, return_pair, next, budget)?;
+            rewrite_expr(value, choices, return_pair, next, budget, moved_sites)?;
         }
         StmtKind::Assign { target, value, .. } => {
-            rewrite_expr(target, choices, return_pair, next, budget)?;
-            rewrite_expr(value, choices, return_pair, next, budget)?;
+            rewrite_expr(target, choices, return_pair, next, budget, moved_sites)?;
+            rewrite_expr(value, choices, return_pair, next, budget, moved_sites)?;
         }
         StmtKind::If {
             condition,
             then_body,
             else_body,
         } => {
-            rewrite_condition(condition, choices, return_pair, next, budget)?;
-            rewrite_block(then_body, choices, return_pair, next, budget)?;
+            rewrite_condition(condition, choices, return_pair, next, budget, moved_sites)?;
+            rewrite_block(then_body, choices, return_pair, next, budget, moved_sites)?;
             match else_body {
                 Some(ElseBranch::Block(body)) => {
-                    rewrite_block(body, choices, return_pair, next, budget)?
+                    rewrite_block(body, choices, return_pair, next, budget, moved_sites)?
                 }
                 Some(ElseBranch::If(statement)) => {
-                    rewrite_statement(statement, choices, return_pair, next, budget)?
+                    rewrite_statement(statement, choices, return_pair, next, budget, moved_sites)?
                 }
                 None => {}
             }
         }
         StmtKind::While { condition, body } => {
-            rewrite_condition(condition, choices, return_pair, next, budget)?;
-            rewrite_block(body, choices, return_pair, next, budget)?;
+            rewrite_condition(condition, choices, return_pair, next, budget, moved_sites)?;
+            rewrite_block(body, choices, return_pair, next, budget, moved_sites)?;
         }
         StmtKind::For { iterable, body, .. }
         | StmtKind::With {
@@ -236,16 +262,23 @@ fn rewrite_statement(
             body,
             ..
         } => {
-            rewrite_expr(iterable, choices, return_pair, next, budget)?;
-            rewrite_block(body, choices, return_pair, next, budget)?;
+            rewrite_expr(iterable, choices, return_pair, next, budget, moved_sites)?;
+            rewrite_block(body, choices, return_pair, next, budget, moved_sites)?;
         }
         StmtKind::Loop(body) | StmtKind::Unsafe(body) | StmtKind::Defer(body) => {
-            rewrite_block(body, choices, return_pair, next, budget)?
+            rewrite_block(body, choices, return_pair, next, budget, moved_sites)?
         }
         StmtKind::Match { value, arms } => {
-            rewrite_expr(value, choices, return_pair, next, budget)?;
+            rewrite_expr(value, choices, return_pair, next, budget, moved_sites)?;
             for arm in arms {
-                rewrite_arrow(&mut arm.body, choices, return_pair, next, budget)?;
+                rewrite_arrow(
+                    &mut arm.body,
+                    choices,
+                    return_pair,
+                    next,
+                    budget,
+                    moved_sites,
+                )?;
             }
         }
         StmtKind::Meta(MetaStatement::If {
@@ -253,18 +286,18 @@ fn rewrite_statement(
             then_body,
             else_body,
         }) => {
-            rewrite_expr(condition, choices, return_pair, next, budget)?;
-            rewrite_block(then_body, choices, return_pair, next, budget)?;
+            rewrite_expr(condition, choices, return_pair, next, budget, moved_sites)?;
+            rewrite_block(then_body, choices, return_pair, next, budget, moved_sites)?;
             if let Some(body) = else_body {
-                rewrite_block(body, choices, return_pair, next, budget)?;
+                rewrite_block(body, choices, return_pair, next, budget, moved_sites)?;
             }
         }
         StmtKind::Meta(MetaStatement::For { iterable, body, .. }) => {
-            rewrite_expr(iterable, choices, return_pair, next, budget)?;
-            rewrite_block(body, choices, return_pair, next, budget)?;
+            rewrite_expr(iterable, choices, return_pair, next, budget, moved_sites)?;
+            rewrite_block(body, choices, return_pair, next, budget, moved_sites)?;
         }
         StmtKind::Meta(MetaStatement::Emit(value)) => {
-            rewrite_expr(value, choices, return_pair, next, budget)?
+            rewrite_expr(value, choices, return_pair, next, budget, moved_sites)?
         }
         _ => {}
     }
@@ -276,10 +309,11 @@ fn rewrite_condition(
     return_pair: &Option<(TypeRef, TypeRef)>,
     next: &mut usize,
     budget: &mut Budget<'_>,
+    moved_sites: &mut BTreeMap<usize, usize>,
 ) -> R<()> {
     match condition {
         Condition::Expression(value) | Condition::Let { value, .. } => {
-            rewrite_expr(value, choices, return_pair, next, budget)
+            rewrite_expr(value, choices, return_pair, next, budget, moved_sites)
         }
     }
 }
@@ -290,10 +324,15 @@ fn rewrite_arrow(
     return_pair: &Option<(TypeRef, TypeRef)>,
     next: &mut usize,
     budget: &mut Budget<'_>,
+    moved_sites: &mut BTreeMap<usize, usize>,
 ) -> R<()> {
     match arrow {
-        ArrowBody::Block(body) => rewrite_block(body, choices, return_pair, next, budget),
-        ArrowBody::Expression(value) => rewrite_expr(value, choices, return_pair, next, budget),
+        ArrowBody::Block(body) => {
+            rewrite_block(body, choices, return_pair, next, budget, moved_sites)
+        }
+        ArrowBody::Expression(value) => {
+            rewrite_expr(value, choices, return_pair, next, budget, moved_sites)
+        }
     }
 }
 
@@ -303,6 +342,7 @@ fn rewrite_expr(
     return_pair: &Option<(TypeRef, TypeRef)>,
     next: &mut usize,
     budget: &mut Budget<'_>,
+    moved_sites: &mut BTreeMap<usize, usize>,
 ) -> R<()> {
     match &mut value.kind {
         ExprKind::Group(inner)
@@ -310,11 +350,11 @@ fn rewrite_expr(
         | ExprKind::MetaEval(inner)
         | ExprKind::MetaSplice(inner)
         | ExprKind::Unary { operand: inner, .. } => {
-            rewrite_expr(inner, choices, return_pair, next, budget)?
+            rewrite_expr(inner, choices, return_pair, next, budget, moved_sites)?
         }
         ExprKind::Tuple(items) | ExprKind::Array(items) => {
             for item in items {
-                rewrite_expr(item, choices, return_pair, next, budget)?;
+                rewrite_expr(item, choices, return_pair, next, budget, moved_sites)?;
             }
         }
         ExprKind::Binary { left, right, .. }
@@ -322,60 +362,78 @@ fn rewrite_expr(
             input: left,
             target: right,
         } => {
-            rewrite_expr(left, choices, return_pair, next, budget)?;
-            rewrite_expr(right, choices, return_pair, next, budget)?;
+            rewrite_expr(left, choices, return_pair, next, budget, moved_sites)?;
+            rewrite_expr(right, choices, return_pair, next, budget, moved_sites)?;
         }
         ExprKind::Member { object, .. } => {
-            rewrite_expr(object, choices, return_pair, next, budget)?
+            rewrite_expr(object, choices, return_pair, next, budget, moved_sites)?
         }
         ExprKind::TypeApply { callee, arguments } => {
-            rewrite_expr(callee, choices, return_pair, next, budget)?;
+            rewrite_expr(callee, choices, return_pair, next, budget, moved_sites)?;
             for argument in arguments {
                 if let GenericArg::Const(value) = argument {
-                    rewrite_expr(value, choices, return_pair, next, budget)?;
+                    rewrite_expr(value, choices, return_pair, next, budget, moved_sites)?;
                 }
             }
         }
         ExprKind::Call { callee, arguments } => {
-            rewrite_expr(callee, choices, return_pair, next, budget)?;
+            rewrite_expr(callee, choices, return_pair, next, budget, moved_sites)?;
             for argument in arguments {
-                rewrite_expr(&mut argument.value, choices, return_pair, next, budget)?;
+                rewrite_expr(
+                    &mut argument.value,
+                    choices,
+                    return_pair,
+                    next,
+                    budget,
+                    moved_sites,
+                )?;
             }
         }
         ExprKind::Index { object, index } => {
-            rewrite_expr(object, choices, return_pair, next, budget)?;
-            rewrite_expr(index, choices, return_pair, next, budget)?;
+            rewrite_expr(object, choices, return_pair, next, budget, moved_sites)?;
+            rewrite_expr(index, choices, return_pair, next, budget, moved_sites)?;
         }
         ExprKind::Slice { object, start, end } => {
-            rewrite_expr(object, choices, return_pair, next, budget)?;
+            rewrite_expr(object, choices, return_pair, next, budget, moved_sites)?;
             for part in [start, end].into_iter().flatten() {
-                rewrite_expr(part, choices, return_pair, next, budget)?;
+                rewrite_expr(part, choices, return_pair, next, budget, moved_sites)?;
             }
         }
         ExprKind::Record { ty, base, fields } => {
             for part in [ty, base].into_iter().flatten() {
-                rewrite_expr(part, choices, return_pair, next, budget)?;
+                rewrite_expr(part, choices, return_pair, next, budget, moved_sites)?;
             }
             for field in fields {
                 if let Some(part) = &mut field.value {
-                    rewrite_expr(part, choices, return_pair, next, budget)?;
+                    rewrite_expr(part, choices, return_pair, next, budget, moved_sites)?;
                 }
             }
         }
-        ExprKind::Closure { body, .. } => rewrite_arrow(body, choices, return_pair, next, budget)?,
+        ExprKind::Closure { body, .. } => {
+            rewrite_arrow(body, choices, return_pair, next, budget, moved_sites)?
+        }
         ExprKind::If {
             condition,
             then_value,
             else_value,
         } => {
             for part in [condition, then_value, else_value] {
-                rewrite_expr(part, choices, return_pair, next, budget)?;
+                rewrite_expr(part, choices, return_pair, next, budget, moved_sites)?;
             }
         }
-        ExprKind::MetaBlock(body) => rewrite_block(body, choices, return_pair, next, budget)?,
+        ExprKind::MetaBlock(body) => {
+            rewrite_block(body, choices, return_pair, next, budget, moved_sites)?
+        }
         ExprKind::Quote { template, .. } => {
             for hole in &mut template.holes {
-                rewrite_expr(&mut hole.value, choices, return_pair, next, budget)?;
+                rewrite_expr(
+                    &mut hole.value,
+                    choices,
+                    return_pair,
+                    next,
+                    budget,
+                    moved_sites,
+                )?;
             }
         }
         _ => {}

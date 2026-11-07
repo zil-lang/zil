@@ -218,6 +218,10 @@ fn local_implicit<E:Copy,T:Copy>(failure:E,success:T,fail:bool)->E!T{
  let value:E!T=success;return value
 }
 fn arrow_implicit<E:Copy,T:Copy>(success:T)->E!T => success
+trait Read{fn value(self:&Self)->i32;}
+struct Cell{n:i32}
+impl Read for Cell{fn value()->i32=>.n}
+fn trait_selected<E:Copy,T>(x:&T)->E!i32 where T:Read{return x.value()}
 
 fn good()->i32{match success(){.ok(value)=>{return value},.err(_)=>{return 0}}}
 fn bad()->i32{match failure(){.ok(_)=>{return 0},.err(value)=>{return value}}}
@@ -228,7 +232,8 @@ fn implicit_bad()->i32{match choose_implicit::<i32,i32>(7,42,true){.ok(_)=>{retu
 fn local_good()->i32{match local_implicit::<i32,i32>(7,42,false){.ok(value)=>{return value},.err(_)=>{return 0}}}
 fn local_bad()->i32{match local_implicit::<i32,i32>(7,42,true){.ok(_)=>{return 0},.err(value)=>{return value}}}
 fn arrow_good()->i32{match arrow_implicit::<i32,i32>(42){.ok(value)=>{return value},.err(_)=>{return 0}}}
-fn main()->i32{return good()+bad()+generic_good()+generic_bad()+implicit_good()+implicit_bad()+local_good()+local_bad()+arrow_good()-238}
+fn trait_good()->i32{let c=Cell{n:42};match trait_selected::<i32,Cell>(&c){.ok(value)=>{return value},.err(_)=>{return 0}}}
+fn main()->i32{return good()+bad()+generic_good()+generic_bad()+implicit_good()+implicit_bad()+local_good()+local_bad()+arrow_good()+trait_good()-280}
 "#;
     let temp = Temp::new();
     let input = temp.0.join("explicit-error-construction.zil");

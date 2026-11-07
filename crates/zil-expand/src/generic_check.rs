@@ -1087,6 +1087,8 @@ impl Check<'_, '_, '_> {
                     "selected generic error arm has no statement identity",
                 )
             })?;
+        self.budget
+            .lineage_bytes(std::mem::size_of::<(usize, (Span, bool))>(), statement.span)?;
         if self
             .selected_error_arms
             .statements

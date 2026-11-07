@@ -952,6 +952,10 @@ impl<'a> Engine<'a> {
                 )?;
                 if selected.expression.is_some() || !selected.statements.is_empty() {
                     engine.budget.text(&f.name, f.span)?;
+                    engine.budget.lineage_bytes(
+                        std::mem::size_of::<(String, error_injection::Choices)>(),
+                        f.span,
+                    )?;
                     engine.selected_error_arms.insert(f.name.clone(), selected);
                 }
             }
@@ -1565,7 +1569,10 @@ impl<'a> Engine<'a> {
         if let ItemKind::Function(function) = &mut instance.kind
             && let Some(selected) = self.selected_error_arms.get(&function.name)
         {
-            error_injection::apply(function, selected, &mut self.budget)?;
+            let moved = error_injection::apply(function, selected, &mut self.budget)?;
+            if let Some(anchors) = anchors.as_mut() {
+                anchors.relocate(&moved, &mut self.budget, span)?;
+            }
         }
         substitute_item(&mut instance, &substitution)?;
         self.runtime_materialize(

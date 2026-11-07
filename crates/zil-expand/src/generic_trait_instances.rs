@@ -666,6 +666,27 @@ pub(crate) fn expression_ids(
 pub(crate) struct CallAnchors {
     sites: BTreeMap<usize, CallTarget>,
 }
+impl CallAnchors {
+    pub(crate) fn relocate(
+        &mut self,
+        moved: &BTreeMap<usize, usize>,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<()> {
+        for (old, new) in moved {
+            budget.node(span, 0)?;
+            if let Some(target) = self.sites.remove(old)
+                && self.sites.insert(*new, target).is_some()
+            {
+                return Err(error(
+                    span,
+                    "selected error arm merged two captured call sites",
+                ));
+            }
+        }
+        Ok(())
+    }
+}
 pub(crate) fn anchor_resolved_calls(
     item: &Item,
     mut calls: CallTargets,
