@@ -1121,6 +1121,7 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
             || packages::owned_array_supported(ty)
             || stored::exclusive_value(ty)
             || stored::exclusive_address(ty)
+            || matches!(ty, Type::MutexGuard { .. })
     };
     if signature.type_parameter.is_none()
         && ((!admitted(&signature.result)

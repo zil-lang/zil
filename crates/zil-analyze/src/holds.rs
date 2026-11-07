@@ -3599,6 +3599,10 @@ fn infer_module_inner(
                                 };
                                 !matches!(&function.locals[local.0 as usize].ty,
                                 Type::Desc(inner) if matches!(inner.as_ref(), Type::Mutex { .. }))
+                                    && !matches!(
+                                        &function.locals[local.0 as usize].ty,
+                                        Type::MutexGuard { .. }
+                                    )
                             }))
                     {
                         return Err(bad("guard return has no actual mutex head input"));

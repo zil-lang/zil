@@ -708,6 +708,9 @@ pub(super) fn preflight(
     budget.input(module.resources.len(), "resource table")?;
     for resource in &module.resources {
         budget.input(resource.name.len().saturating_add(1), "resource metadata")?;
+        if resource.name.starts_with("@builtin:Mutex<") {
+            budget.generic_mutex = true;
+        }
     }
     // Carry the outermost Store element through the already paid type walk.
     // Only a real Closure occurrence allocates a new admission entry; old
