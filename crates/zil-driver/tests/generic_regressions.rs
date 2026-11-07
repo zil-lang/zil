@@ -109,6 +109,79 @@ fn generic_mutex_source_candidate_has_real_guard_operations() {
     .unwrap();
     assert!(zil_analyze::analyze(&typed, &Limits::default()).is_err());
 }
+#[test]
+fn generic_mutex_copy_native_candidate() {
+    let src = source(
+        "fn run()->MutexCreateError!i32{let cell=mutex_create(7)?;var guard=mutex_lock(cell);let value=mutex_value(&mut guard);*value=9;let answer=*value;mutex_unlock(guard);return answer}fn main()->i32{match run(){.ok(value)=>{return value-9},.err(_)=>{return 1}}}",
+    );
+    check_mutex_native(&src, "copy");
+}
+#[test]
+fn generic_mutex_owned_byte_payload_native_candidate() {
+    let src = source(
+        "fn run()->MutexCreateError!i32{let bytes=bytes_new();let cell=mutex_create(give bytes)?;let guard=mutex_lock(cell);mutex_unlock(guard);return 0}fn main()->i32{match run(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
+    );
+    check_mutex_native(&src, "owned-byte");
+}
+#[test]
+fn generic_mutex_package_payload_native_candidate() {
+    let src = source(
+        "package Payload{manages bytes:ByteBuffer;pub count:i32}fn run()->MutexCreateError!i32{let bytes=bytes_new();let cell=mutex_create(Payload{bytes:give bytes,count:7})?;var guard=mutex_lock(cell);let value=mutex_value(&mut guard);value.count+=1;let answer=value.count;mutex_unlock(guard);return answer-8}fn main()->i32{match run(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
+    );
+    check_mutex_native(&src, "package");
+}
+#[test]
+fn generic_mutex_guard_return_native_candidate() {
+    let src = source(
+        "fn lock(cell:Mutex<i32>)->MutexGuard<i32>{return mutex_lock(cell)}fn run()->MutexCreateError!i32{let cell=mutex_create(7)?;var guard=lock(cell);let value=mutex_value(&mut guard);*value=9;let answer=*value;mutex_unlock(guard);return answer-9}fn main()->i32{match run(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
+    );
+    check_mutex_native(&src, "helper-guard");
+}
+#[test]
+fn generic_mutex_implicit_guard_cleanup_native_candidate() {
+    let src = source(
+        "fn run()->MutexCreateError!i32{let cell=mutex_create(7)?;let guard=mutex_lock(cell);return 0}fn main()->i32{match run(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
+    );
+    check_mutex_native(&src, "implicit-guard");
+}
+fn check_mutex_native(src: &SourceUnit, name: &str) {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let output = std::env::temp_dir().join(format!(
+                "zil-mutex-{name}-{}-{backend:?}-{optimization:?}",
+                std::process::id()
+            ));
+            let report = compile_source(
+                src,
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    output: Some(output),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{name} {backend:?} {optimization:?}: {}",
+                report.to_json()
+            );
+            let actual = std::process::Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert!(
+                actual.status.success(),
+                "{name} {backend:?} {optimization:?}: {actual:?}"
+            );
+        }
+    }
+}
 fn expand(s: &str, limits: &Limits) -> zil_base::CompileResult<zil_expand::ExpandedModule> {
     let src = source(s);
     let ast = zil_syntax::parse(&src).into_result().unwrap();

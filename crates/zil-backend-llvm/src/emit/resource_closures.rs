@@ -458,7 +458,7 @@ impl FunctionEmitter<'_> {
 
     pub(super) fn owns_resource(&self, ty: &Type) -> bool {
         match ty {
-            Type::Managed(_) | Type::Package { .. } => true,
+            Type::Managed(_) | Type::Package { .. } | Type::MutexGuard { .. } => true,
             Type::ErrorUnion { .. } => errors::owned(ty),
             Type::Enum { .. } | Type::Tuple(_) => !ty.is_copy_value(),
             Type::Closure(id) => self.closures.get(id).is_some_and(|definition| {
