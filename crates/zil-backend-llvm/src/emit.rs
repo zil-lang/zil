@@ -1690,12 +1690,12 @@ impl FunctionEmitter<'_> {
                 path,
                 mode,
             } => self.stored_load(instruction, *storage, path, *mode)?,
-            InstructionKind::StoreStoredBorrow { .. } => {
-                return invalid(
-                    "E-CODEGEN-STORAGE",
-                    "stored-borrow instruction consumer is not yet implemented",
-                    Some(instruction.span),
-                );
+            InstructionKind::StoreStoredBorrow {
+                storage,
+                path,
+                value,
+            } => {
+                self.stored_store(instruction, *storage, path, *value)?;
             }
             InstructionKind::ReservePlaceLocal { .. }
             | InstructionKind::ReservePlaceAddress { .. }

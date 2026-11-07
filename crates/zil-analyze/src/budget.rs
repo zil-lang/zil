@@ -55,6 +55,7 @@ pub(super) struct Budget {
     pub(super) protocol_contracts: bool,
     pub(super) protocol_checked: bool,
     pub(super) stored_borrows: bool,
+    pub(super) stored_slot_updates: bool,
     // Empty for the established single-lane profiles. A mixed module has one
     // paid, actual-function partition; neither lane may infer the other lane.
     pub(super) composition_stored: Vec<bool>,
@@ -113,6 +114,7 @@ impl Budget {
             protocol_contracts: false,
             protocol_checked: false,
             stored_borrows: false,
+            stored_slot_updates: false,
             composition_stored: Vec::new(),
             pure_nominal: false,
             capture_relations: false,
@@ -1633,6 +1635,8 @@ pub(super) fn preflight(
                     }
                     InstructionKind::LoadStoredBorrow { .. }
                     | InstructionKind::StoreStoredBorrow { .. } => {
+                        budget.stored_slot_updates |=
+                            matches!(instruction.kind, InstructionKind::StoreStoredBorrow { .. });
                         super::stored_borrows::instruction(function, instruction, budget)?;
                     }
                     InstructionKind::RegistrationStart {

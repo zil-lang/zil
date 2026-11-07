@@ -44,6 +44,7 @@ struct Loan {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Summary {
     result: Vec<(Path, Vec<Source>)>,
+    external_after: Vec<(u32, Path, Vec<Source>)>,
     apart: Vec<(Source, Source)>,
     complete: bool,
     returned_variants: option_address::Variants,
@@ -683,6 +684,7 @@ pub(super) fn qualifications(
                                     | StoredBorrowLoad::Reborrow { mutable: true },
                                 ..
                             }
+                            | InstructionKind::StoreStoredBorrow { .. }
                     )
                 {
                     return Err(unsupported(
@@ -1739,7 +1741,45 @@ fn step(
             };
             add_loans(&mut out.address.loans, &parents, b)?;
         }
-        InstructionKind::LoadStoredBorrow { .. } | InstructionKind::StoreStoredBorrow { .. } => {
+        InstructionKind::StoreStoredBorrow {
+            storage,
+            path,
+            value,
+        } => {
+            let [root] = val(*storage)?.address.sources.as_slice() else {
+                return Err(err("replacement carrier requires one exact actual source"));
+            };
+            if !root.leaf.is_empty() || !root.inline.is_empty() {
+                return Err(err(
+                    "replacement carrier crosses an inline or target boundary",
+                ));
+            }
+            let new = copy_payload(val(*value)?, b)?.address;
+            if new.sources.is_empty() {
+                return Err(err("replacement value has no actual source"));
+            }
+            let holder = match root.base {
+                HoldRoot::Local(local) => state.locals.get_mut(local.0 as usize),
+                HoldRoot::Parameter(index) => state.external.get_mut(index as usize),
+                HoldRoot::Static | HoldRoot::Capture(_) => None,
+            }
+            .ok_or_else(|| err("replacement carrier location is absent"))?;
+            b.spend(amount(
+                holder.leaves.len().saturating_add(1),
+                path.len().saturating_add(1),
+            )?)?;
+            if let Some((_, leaf)) = holder
+                .leaves
+                .iter_mut()
+                .find(|(existing, _)| existing == path)
+            {
+                *leaf = new;
+            } else {
+                b.spend(path.len().saturating_add(1))?;
+                holder.leaves.push((path.clone(), new));
+            }
+        }
+        InstructionKind::LoadStoredBorrow { .. } => {
             return Err(unsupported(
                 "stored reborrow/take/replacement CFG is not yet implemented",
                 Some(i.span),
@@ -1802,6 +1842,63 @@ fn step(
                     || out.option_variants.mask() & 2 != 0
                 {
                     add_leaf(&mut out, path, &p, b)?;
+                }
+            }
+            let mut updates = Vec::new();
+            for (parameter, path, sources) in &summaries[function.0 as usize].external_after {
+                let index = *parameter as usize;
+                let local = *callee
+                    .parameters
+                    .get(index)
+                    .ok_or_else(|| err("external summary parameter is absent"))?;
+                if !matches!(&callee.locals[local.0 as usize].ty,
+                    Type::Address { mutable: true, inner } if qualified(inner).is_some())
+                {
+                    continue;
+                }
+                let actual = val(*arguments
+                    .get(index)
+                    .ok_or_else(|| err("external summary actual argument is absent"))?)?;
+                let [root] = actual.address.sources.as_slice() else {
+                    return Err(err("external update needs one exact actual carrier source"));
+                };
+                if !root.leaf.is_empty() || !root.inline.is_empty() {
+                    return Err(err("external update crosses a target or inline boundary"));
+                }
+                let mut permission = Permission::default();
+                for source in sources {
+                    join_permission(
+                        &mut permission,
+                        &instantiate(source, arguments, values, state, b)?,
+                        b,
+                    )?;
+                }
+                if permission.sources.is_empty() {
+                    return Err(err("external update has no grounded replacement source"));
+                }
+                b.spend(path.len().saturating_add(permission.sources.len()))?;
+                updates.push((root.clone(), path.clone(), permission));
+            }
+            for (root, path, permission) in updates {
+                let holder = match root.base {
+                    HoldRoot::Local(local) => state.locals.get_mut(local.0 as usize),
+                    HoldRoot::Parameter(index) => state.external.get_mut(index as usize),
+                    HoldRoot::Static | HoldRoot::Capture(_) => None,
+                }
+                .ok_or_else(|| err("updated caller carrier location is absent"))?;
+                b.spend(amount(
+                    holder.leaves.len().saturating_add(1),
+                    path.len().saturating_add(1),
+                )?)?;
+                if let Some((_, leaf)) = holder
+                    .leaves
+                    .iter_mut()
+                    .find(|(existing, _)| existing == &path)
+                {
+                    *leaf = permission;
+                } else {
+                    b.spend(path.len().saturating_add(1))?;
+                    holder.leaves.push((path, permission));
                 }
             }
         }
@@ -2413,6 +2510,29 @@ fn windows(
                     let p = select(&state, pointer(*storage)?, path, b)?;
                     access(&p, exclusive, &active, &solution.loans, requirements, b)?;
                 }
+                InstructionKind::StoreStoredBorrow { storage, path, .. } => {
+                    let base = pointer(*storage)?;
+                    b.spend(
+                        base.sources
+                            .len()
+                            .saturating_mul(path.len().saturating_add(1)),
+                    )?;
+                    let slot = Permission {
+                        sources: base
+                            .sources
+                            .iter()
+                            .map(|source| {
+                                let mut source = source.clone();
+                                source.inline.extend(path);
+                                source
+                            })
+                            .collect(),
+                        loans: base.loans.clone(),
+                    };
+                    access(&slot, true, &active, &solution.loans, requirements, b)?;
+                    let previous = select(&state, base, path, b)?;
+                    access(&previous, true, &active, &solution.loans, requirements, b)?;
+                }
                 InstructionKind::CallIndirect { arguments, .. }
                 | InstructionKind::CallClosure { arguments, .. }
                 | InstructionKind::CallClosureBorrowed { arguments, .. }
@@ -2576,8 +2696,17 @@ fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
         b.spend(s.none_values.len())?;
     }
     s.returned_variants.work(b)?;
-    b.spend(s.result.len().saturating_add(s.apart.len()))?;
+    b.spend(
+        s.result
+            .len()
+            .saturating_add(s.external_after.len())
+            .saturating_add(s.apart.len()),
+    )?;
     for (path, row) in &s.result {
+        b.spend(path.len())?;
+        source_work(row, b)?;
+    }
+    for (_, path, row) in &s.external_after {
         b.spend(path.len())?;
         source_work(row, b)?;
     }
@@ -2683,8 +2812,51 @@ fn summarize(
             }
         }
     }
-    for (block, reachable) in f.blocks.iter().zip(&g.reachable) {
+    for (bi, (block, reachable)) in f.blocks.iter().zip(&g.reachable).enumerate() {
         b.spend(1)?;
+        if *reachable && matches!(block.terminator, Terminator::Return(_)) {
+            for (position, payload) in solution.outputs[bi].external.iter().enumerate() {
+                let local = *f
+                    .parameters
+                    .get(position)
+                    .ok_or_else(|| err("external output exceeds actual parameter table"))?;
+                if !matches!(&f.locals[local.0 as usize].ty,
+                    Type::Address { mutable: true, inner } if qualified(inner).is_some())
+                {
+                    continue;
+                }
+                for (path, permission) in &payload.leaves {
+                    b.spend(
+                        path.len()
+                            .saturating_add(permission.sources.len())
+                            .saturating_add(1),
+                    )?;
+                    for source in &permission.sources {
+                        if !matches!(source.base, HoldRoot::Parameter(_) | HoldRoot::Static) {
+                            return Err(err("external slot update retains a callee-local target"));
+                        }
+                    }
+                    let key = (position as u32, path.clone());
+                    if let Some((_, _, row)) = summary
+                        .external_after
+                        .iter_mut()
+                        .find(|(p, existing, _)| *p == key.0 && *existing == key.1)
+                    {
+                        add_sources(row, &permission.sources, b)?;
+                    } else {
+                        b.spend(
+                            summary
+                                .external_after
+                                .len()
+                                .saturating_mul(path.len().saturating_add(1)),
+                        )?;
+                        summary
+                            .external_after
+                            .push((key.0, key.1, permission.sources.clone()));
+                    }
+                }
+            }
+        }
         if *reachable && let Terminator::Return(Some(id)) = block.terminator {
             let payload = &solution.values[id.0 as usize];
             summary
@@ -2858,6 +3030,47 @@ fn solve_check(
                 inactive.map(|rows| rows[index].as_slice()),
                 b,
             )?;
+            for block in &f.blocks {
+                for instruction in &block.instructions {
+                    let InstructionKind::Call { function, .. } = &instruction.kind else {
+                        continue;
+                    };
+                    let callee = module
+                        .functions
+                        .get(function.0 as usize)
+                        .ok_or_else(|| err("stored call target is absent"))?;
+                    let prior = summaries
+                        .get(function.0 as usize)
+                        .ok_or_else(|| err("stored call summary is absent"))?;
+                    if !prior.complete {
+                        summary.complete = false;
+                    }
+                    for (position, local) in callee.parameters.iter().enumerate() {
+                        if let Type::Address {
+                            mutable: true,
+                            inner,
+                        } = &callee.locals[local.0 as usize].ty
+                            && let Some((_, shape)) = qualified(inner)
+                        {
+                            for slot in &shape.slots {
+                                b.spend(
+                                    slot.path
+                                        .len()
+                                        .saturating_add(prior.external_after.len())
+                                        .saturating_add(1),
+                                )?;
+                                if !prior
+                                    .external_after
+                                    .iter()
+                                    .any(|(p, path, _)| *p == position as u32 && *path == slot.path)
+                                {
+                                    summary.complete = false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             observed_none |= !summary.none_values.is_empty();
             if summary.complete {
                 windows(

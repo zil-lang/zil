@@ -10,6 +10,9 @@ const OWNED_STORE_HEAD: &str = include_str!("owned-store-package-head.zil");
 const LOCAL_EXCLUSIVE_SLOT: &str = include_str!("local-exclusive-package-slot.zil");
 const WHOLE_TARGET_REPLACEMENT: &str = include_str!("whole-package-target-replacement.zil");
 const MULTI_LEAF_PACKAGE: &str = include_str!("multi-leaf-mixed-package.zil");
+const SLOT_REPLACEMENT: &str = include_str!("mutable-package-slot-replacement.zil");
+const LOCAL_SLOT_REPLACEMENT: &str = include_str!("local-package-slot-replacement.zil");
+const CONDITIONAL_SLOT_REPLACEMENT: &str = include_str!("conditional-package-slot-replacement.zil");
 
 fn stdlib_store_head_path() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -34,6 +37,8 @@ fn mixed_package_source_raw_and_wire() {
             WHOLE_TARGET_REPLACEMENT,
         ),
         ("multi-leaf-mixed-package.zil", MULTI_LEAF_PACKAGE),
+        ("mutable-package-slot-replacement.zil", SLOT_REPLACEMENT),
+        ("local-package-slot-replacement.zil", LOCAL_SLOT_REPLACEMENT),
     ] {
         let source = source(name, program);
         let report = compile_source(
@@ -101,6 +106,16 @@ fn mixed_package_native_both_optimizations() {
         (
             "multi-leaf-mixed-package.zil",
             MULTI_LEAF_PACKAGE,
+            b"0\n".as_slice(),
+        ),
+        (
+            "mutable-package-slot-replacement.zil",
+            SLOT_REPLACEMENT,
+            b"0\n".as_slice(),
+        ),
+        (
+            "local-package-slot-replacement.zil",
+            LOCAL_SLOT_REPLACEMENT,
             b"0\n".as_slice(),
         ),
     ] {
@@ -232,6 +247,64 @@ fn same_stored_leaf_and_same_exclusive_input_reject() {
     let aliased = MULTI_LEAF_PACKAGE.replace("make(&mut a,&mut b)", "make(&mut a,&mut a)");
     let report = compile_source(
         &source("aliased-multi-leaf-package.zil", &aliased),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    for (before, after) in [
+        (
+            "relay(&mut session,&mut next)",
+            "let old_child=session.pointer\n        relay(&mut session,&mut next)\n        *old_child=*old_child+1",
+        ),
+        (
+            "relay(&mut session,&mut next)",
+            "relay(&mut session,&mut old)",
+        ),
+    ] {
+        let changed = SLOT_REPLACEMENT.replace(before, after);
+        let report = compile_source(
+            &source("conflicting-package-slot-replacement.zil", &changed),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+    }
+    let live_child = LOCAL_SLOT_REPLACEMENT.replace(
+        "session.pointer=&mut next",
+        "let child=session.pointer\n        session.pointer=&mut next\n        *child=*child+1",
+    );
+    let report = compile_source(
+        &source("local-replacement-with-live-child.zil", &live_child),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    let report = compile_source(
+        &source(
+            "conditional-package-slot-replacement.zil",
+            CONDITIONAL_SLOT_REPLACEMENT,
+        ),
         &CompileOptions {
             stop_after: Stage::Verify,
             ..CompileOptions::default()

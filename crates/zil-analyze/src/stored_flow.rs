@@ -55,6 +55,7 @@ struct Loan {
 pub(super) struct Facts {
     pub values: Vec<Vec<Target>>,
     pub returned: BTreeMap<Path, Vec<Target>>,
+    external_after: BTreeMap<(u32, Path), Vec<Target>>,
     pub apart: BTreeSet<(Target, Target)>,
     complete: bool,
     returned_variants: option_address::Variants,
@@ -221,6 +222,7 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
         f.values
             .len()
             .saturating_add(f.returned.len())
+            .saturating_add(f.external_after.len())
             .saturating_add(f.apart.len()),
     )?;
     for row in &f.values {
@@ -235,6 +237,18 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
         }
     }
     for (path, row) in &f.returned {
+        fee(b, path.len().saturating_add(row.len()))?;
+        for root in row {
+            fee(
+                b,
+                root.stored
+                    .len()
+                    .saturating_add(root.place.len())
+                    .saturating_add(1),
+            )?;
+        }
+    }
+    for ((_, path), row) in &f.external_after {
         fee(b, path.len().saturating_add(row.len()))?;
         for root in row {
             fee(
@@ -1790,7 +1804,51 @@ fn transfer(
                 out.pointer.loans.insert(parent);
             }
         }
-        InstructionKind::LoadStoredBorrow { .. } | InstructionKind::StoreStoredBorrow { .. } => {
+        InstructionKind::StoreStoredBorrow {
+            storage,
+            path,
+            value,
+        } => {
+            let mut roots = get(*storage)?.pointer.targets.iter();
+            let root = roots
+                .next()
+                .ok_or_else(|| failure("replacement carrier has no actual root"))?;
+            if roots.next().is_some() || !root.stored.is_empty() || !root.place.is_empty() {
+                return Err(failure(
+                    "replacement carrier requires one exact inline root",
+                ));
+            }
+            let new = get(*value)?.pointer.clone();
+            if new.targets.is_empty() {
+                return Err(failure("replacement value has no actual target"));
+            }
+            fee(
+                b,
+                path.len()
+                    .saturating_add(new.targets.len())
+                    .saturating_add(new.loans.len()),
+            )?;
+            match root.base {
+                HoldRoot::Local(local) => {
+                    let holder = state
+                        .locals
+                        .get_mut(&local)
+                        .ok_or_else(|| failure("replacement local carrier is unavailable"))?;
+                    ordered(b, holder.slots.len(), path.len())?;
+                    holder.slots.insert(path.clone(), new);
+                }
+                HoldRoot::Parameter(_) | HoldRoot::Capture(_) => {
+                    let holder = state
+                        .external
+                        .get_mut(&root.base)
+                        .ok_or_else(|| failure("replacement external carrier is unavailable"))?;
+                    ordered(b, holder.len(), path.len())?;
+                    holder.insert(path.clone(), new);
+                }
+                HoldRoot::Static => return Err(failure("static text has no stored slot")),
+            }
+        }
+        InstructionKind::LoadStoredBorrow { .. } => {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
                 "stored reborrow/take/replacement CFG consumer is not yet implemented",
@@ -1852,6 +1910,67 @@ fn transfer(
                     ordered(b, out.slots.len(), path.len())?;
                     fee(b, path.len())?;
                     out.slots.insert(path.clone(), permission);
+                }
+            }
+            let mut updates = Vec::new();
+            for ((parameter, path), sources) in &summary.external_after {
+                let index = *parameter as usize;
+                let local = *callee
+                    .parameters
+                    .get(index)
+                    .ok_or_else(|| failure("external summary parameter is absent"))?;
+                if !matches!(&callee.locals[local.0 as usize].ty,
+                    Type::Address { mutable: true, inner } if carrier(inner).is_some())
+                {
+                    continue;
+                }
+                let actual = get(*arguments
+                    .get(index)
+                    .ok_or_else(|| failure("external summary actual argument is absent"))?)?;
+                let mut roots = actual.pointer.targets.iter();
+                let root = roots
+                    .next()
+                    .ok_or_else(|| failure("external update has no actual carrier root"))?;
+                if roots.next().is_some() || !root.stored.is_empty() || !root.place.is_empty() {
+                    return Err(failure(
+                        "external update needs one exact inline carrier root",
+                    ));
+                }
+                let mut permission = Permission::default();
+                for source in sources {
+                    union(
+                        &mut permission,
+                        &substitute(source, arguments, values, state, b)?,
+                        b,
+                    )?;
+                }
+                if permission.targets.is_empty() {
+                    return Err(failure(
+                        "external update has no grounded replacement target",
+                    ));
+                }
+                fee(b, path.len().saturating_add(permission.targets.len()))?;
+                updates.push((root.clone(), path.clone(), permission));
+            }
+            for (root, path, permission) in updates {
+                match root.base {
+                    HoldRoot::Local(local) => {
+                        let holder = state.locals.get_mut(&local).ok_or_else(|| {
+                            failure("updated caller local carrier is unavailable")
+                        })?;
+                        ordered(b, holder.slots.len(), path.len())?;
+                        holder.slots.insert(path, permission);
+                    }
+                    HoldRoot::Parameter(_) | HoldRoot::Capture(_) => {
+                        let holder = state.external.get_mut(&root.base).ok_or_else(|| {
+                            failure("updated caller external carrier is unavailable")
+                        })?;
+                        ordered(b, holder.len(), path.len())?;
+                        holder.insert(path, permission);
+                    }
+                    HoldRoot::Static => {
+                        return Err(failure("static text cannot receive a slot update"));
+                    }
                 }
             }
             if callee.foreign.is_some()
@@ -2585,6 +2704,28 @@ fn windows(
                     let actual = select(&state, pointer(*storage)?, path, b)?;
                     use_permission(&actual, exclusive, &current, loans, apart, b)?;
                 }
+                InstructionKind::StoreStoredBorrow { storage, path, .. } => {
+                    let mut slot = Permission {
+                        targets: BTreeSet::new(),
+                        loans: pointer(*storage)?.loans.clone(),
+                    };
+                    for root in &pointer(*storage)?.targets {
+                        fee(
+                            b,
+                            root.stored
+                                .len()
+                                .saturating_add(root.place.len())
+                                .saturating_add(path.len()),
+                        )?;
+                        let mut target = root.clone();
+                        target.place.extend(path);
+                        ordered(b, slot.targets.len(), target.place.len())?;
+                        slot.targets.insert(target);
+                    }
+                    use_permission(&slot, true, &current, loans, apart, b)?;
+                    let previous = select(&state, pointer(*storage)?, path, b)?;
+                    use_permission(&previous, true, &current, loans, apart, b)?;
+                }
                 InstructionKind::WriteAddress { address, .. }
                 | InstructionKind::ReborrowAddress {
                     address,
@@ -2873,6 +3014,7 @@ fn derive_cfg(
             let mut actual = Facts {
                 values: Vec::with_capacity(values.len()),
                 returned: BTreeMap::new(),
+                external_after: BTreeMap::new(),
                 apart: BTreeSet::new(),
                 complete: false,
                 returned_variants: option_address::Variants::default(),
@@ -2888,8 +3030,44 @@ fn derive_cfg(
                 fee(b, root.len())?;
                 actual.values.push(root.into_iter().collect());
             }
-            for (block, live) in f.blocks.iter().zip(reachable) {
+            for (bi, (block, live)) in f.blocks.iter().zip(reachable).enumerate() {
                 fee(b, 1)?;
+                if b.stored_slot_updates
+                    && *live
+                    && matches!(block.terminator, Terminator::Return(_))
+                {
+                    for (base, slots) in &outputs[bi].external {
+                        let HoldRoot::Parameter(index) = base else {
+                            continue;
+                        };
+                        for (path, permission) in slots {
+                            ordered(b, actual.external_after.len(), path.len())?;
+                            let row = actual
+                                .external_after
+                                .entry((*index, path.clone()))
+                                .or_default();
+                            for target in &permission.targets {
+                                fee(
+                                    b,
+                                    target
+                                        .stored
+                                        .len()
+                                        .saturating_add(target.place.len())
+                                        .saturating_add(1),
+                                )?;
+                                if !matches!(target.base, HoldRoot::Parameter(_) | HoldRoot::Static)
+                                {
+                                    return Err(failure(
+                                        "stored external update retains an activation-local target",
+                                    ));
+                                }
+                                if !row.contains(target) {
+                                    row.push(target.clone());
+                                }
+                            }
+                        }
+                    }
+                }
                 if *live && let Terminator::Return(Some(id)) = block.terminator {
                     let value = &values[id.0 as usize];
                     actual.returned_variants.join(&value.option_variants, b)?;
@@ -2980,6 +3158,43 @@ fn derive_cfg(
                     return Err(failure(
                         "cyclic stored/target loan ancestry has no actual finite authority",
                     ));
+                }
+            }
+            if b.stored_slot_updates {
+                for block in &f.blocks {
+                    for instruction in &block.instructions {
+                        let InstructionKind::Call { function, .. } = &instruction.kind else {
+                            continue;
+                        };
+                        let callee = module
+                            .functions
+                            .get(function.0 as usize)
+                            .ok_or_else(|| failure("stored call target is absent"))?;
+                        let summary = summaries
+                            .get(function.0 as usize)
+                            .ok_or_else(|| failure("stored call summary is absent"))?;
+                        if !summary.complete {
+                            grounded = false;
+                        }
+                        for (position, local) in callee.parameters.iter().enumerate() {
+                            if let Type::Address {
+                                mutable: true,
+                                inner,
+                            } = &callee.locals[local.0 as usize].ty
+                                && let Some((_, shape)) = carrier(inner)
+                            {
+                                for slot in &shape.slots {
+                                    fee(b, slot.path.len().saturating_add(1))?;
+                                    if !summary
+                                        .external_after
+                                        .contains_key(&(position as u32, slot.path.clone()))
+                                    {
+                                        grounded = false;
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
             actual.complete = grounded;
@@ -3287,6 +3502,7 @@ fn actual_instructions(
                                 | StoredBorrowLoad::Reborrow { mutable: true },
                             ..
                         }
+                        | InstructionKind::StoreStoredBorrow { .. }
                 )
             {
                 return Err(vec![Diagnostic::unsupported(

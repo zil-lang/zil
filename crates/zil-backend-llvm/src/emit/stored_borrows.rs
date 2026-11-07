@@ -684,6 +684,100 @@ pub(super) fn reserve_emission(
 }
 
 impl FunctionEmitter<'_> {
+    pub(super) fn stored_store(
+        &mut self,
+        i: &Instruction,
+        storage: ValueId,
+        path: &[PlaceProjection],
+        value: ValueId,
+    ) -> CompileResult<()> {
+        let Type::Address {
+            mutable: true,
+            inner,
+        } = self.value_type(storage)?
+        else {
+            return invalid(
+                "E-CODEGEN-STORAGE",
+                "stored replacement lacks a mutable carrier",
+                Some(i.span),
+            );
+        };
+        let Type::BorrowedStorage {
+            storage: physical, ..
+        } = inner.as_ref()
+        else {
+            return invalid(
+                "E-CODEGEN-STORAGE",
+                "stored replacement lacks its qualified physical type",
+                Some(i.span),
+            );
+        };
+        if path.is_empty() {
+            return invalid(
+                "E-CODEGEN-STORAGE",
+                "stored replacement has an empty path",
+                Some(i.span),
+            );
+        }
+        let mut current = physical.as_ref();
+        let mut indices = vec![m::Arg::new(m::Ty::Int(32), m::Val::Int(0))];
+        for part in path {
+            let PlaceProjection::Field(index) = part else {
+                return unsupported(
+                    "stored replacement requires an actual inline field path",
+                    Some(i.span),
+                );
+            };
+            current = match current {
+                Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                    fields.get(*index as usize).map(|(_, ty)| ty)
+                }
+                Type::Tuple(fields) => fields.get(*index as usize),
+                _ => None,
+            }
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    Phase::Codegen,
+                    "E-CODEGEN-STORAGE",
+                    Some(i.span),
+                    "stored replacement crosses a non-inline field",
+                )]
+            })?;
+            indices.push(m::Arg::new(m::Ty::Int(32), m::Val::Int(i128::from(*index))));
+        }
+        if !matches!(current, Type::Address { mutable: true, .. })
+            || self.value_type(value)? != current
+            || i.result.is_some()
+        {
+            return invalid(
+                "E-CODEGEN-STORAGE",
+                "stored replacement value differs from its actual exclusive leaf",
+                Some(i.span),
+            );
+        }
+        let root_type = llvm_type(physical)?;
+        let leaf_type = llvm_type(current)?;
+        let align = alignment(current, self.closures)?;
+        let slot = self.temp();
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name(slot.clone())),
+            m::Op::Gep {
+                ty: root_type,
+                ptr: m::local(format!("v.{}", storage.0)),
+                indices,
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new(leaf_type, m::local(format!("v.{}", value.0))),
+                ptr: m::val(slot),
+                align,
+            },
+        )));
+        Ok(())
+    }
+
     pub(super) fn stored_load(
         &mut self,
         i: &Instruction,
