@@ -1,6 +1,6 @@
 # ZIL 语言初稿开发预览
 
-状态：**有限 profile 已验收，实验性开发预览**。最近一次语言共同验收绑定源码 `498f0f5a1e7595e12e5303750ef7686b1a7dc41b`，Rust 1.99.1、LLVM 23.1.4、Linux x86_64：默认 5248/0、参考 5136/0、文本 70/0，双配置严格检查、原生消费者及远端源码恢复构建通过。精确范围见[验收结果](https://github.com/zil-lang/zil/blob/28b3e37bb4d8a1fe8b146c72cf891fc99de32440/validation/results/ownership-and-dispatch/ordinary-ownership-and-shared-dispatch-acceptance.json)。后续文档整理不作为语言重测，也不表示完整语言、B0、ZUI 或 Rust 产品目标达成。
+状态：**有限 profile，实验性开发预览**。受支持环境为 Rust 1.99.1、LLVM 23.1.4、Linux x86_64。精确受测源码、独审、实际执行计数及恢复范围见[联合验收记录](https://github.com/zil-lang/zil/blob/goal/records/native-language-composition.json)。本页列出有限能力与边界；完整语言、B0、ZUI 和 Rust 产品目标分别验收。
 
 当前有限拥有组合包括普通 POD/九种标量 Store 进入 Package、Tuple、Enum、ErrorUnion，以及自包含 Fn/FnMut/FnOnce 捕获；共享借入 dyn 支持两个 Copy struct 提供者的固定标量方法槽。具体限制与其它支持能力如下。
 
@@ -15,6 +15,8 @@
 | trait 与借入迭代 | 现有普通泛型 trait、关联 Item、共享逐调用 lending；类型限定的静态关联函数及符号泛型宿主已通过绑定源码的验收 | 普通 trait lending 已接受收据；静态关联函数 具体/符号宿主源码、独立两核及机器结果 | 一般关联投影、资源宿主 lending 不随该历史片开放；该验收仅有限共享借入 dyn |
 | 普通程序组合 | 选定真实跨模块程序中的集合更新、错误传播、明确资源责任与短借用 | 固定源文件/输入/完整 stdout、退出状态、失败清理、合法及最近反例；精确提交与 O0/O2 结果见共同收据 | 只晋升该组合实际覆盖的行为；其他长期借用形状按真实阻塞另行实现 |
 | 可变借入存储 | 单直接可变地址字段的名义 Record holder；跨模块构造、helper 子重借与实际写入 | 真实 Source、独立 raw/Wire 反例、Clang/LLVM API O0/O2；借用目标和载体父链分别核验 | 不含混合拥有 Package、槽替换/取走、多可变叶或可变捕获；旧共享多叶行为保留 |
+| 借入 Task | 单共享 `&i32` 输入、`Task<i32>` 结果；创建即保存真实指针，工厂及跨模块返回保留隐藏关系 | Source、独立两核 raw/Wire、PC0/挂起/取消/原生执行及最近反例 | 保守保持借用至成功 Destroy 或同步 Drop；不开放借入 Task 作为函数输入、其它结果族、捕获/聚合运输、可变 port、线程迁移或外部 ABI |
+| 登记对象状态合同 | 单借入 `AsyncRegistration<F>` helper 的逐结果三态合同、跨模块调用、真实 Pending 重试和静态 checked finish | 未用定义期检查、独立两核来源/旧结果/预算反例、真实外部队列和双后端 O0/O2 | 模板定义期仅直线真实原语/别名/返回；一般用户协议、多角色/投影及跨线程关闭未开放；旧运行时受检 finish 保留 |
 | 交付与质量 | Source→Types→Analyze→独立 Verify→机器产物的有限 profile；CLI 区分 Success、SafeReject、Unsupported、ResourceLimit、InfraError | 源码和摘要绑定绑定源码的共同收据；完整默认/参考回归、两后端原生、失败清理及冷恢复分别记录，全部通过，冷恢复边界单独记录 | 零命中、Unsupported、超时、工具失败与旧提交收据均非本次 Pass；正式 B0 和产品门维持原状态 |
 
 ## 快速开始
