@@ -4243,7 +4243,50 @@ impl Check<'_, '_, '_> {
             self.tick(projected.span)?;
             projected = inner;
         }
-        if matches!(projected.kind, ExprKind::Member { .. }) && !self.place(projected, state)?.1 {
+        if !matches!(projected.kind, ExprKind::Member { .. }) {
+            return Ok(());
+        }
+        // A let-bound owning Package still supplies management descriptions
+        // for its Store payload. Binding mutability does not describe the
+        // authority of a reference to its inline header. Keep every actual
+        // shared reference on the projection path read-only, including aliases
+        // and explicit dereferences; the ordinary alias proof follows below.
+        let mut cursor = projected;
+        let mut complete = true;
+        loop {
+            self.tick(cursor.span)?;
+            let parent = match &cursor.kind {
+                ExprKind::Group(inner) => inner.as_ref(),
+                ExprKind::Member { object, .. }
+                | ExprKind::Index { object, .. }
+                | ExprKind::Slice { object, .. } => object.as_ref(),
+                ExprKind::Unary {
+                    op: UnaryOp::Borrow,
+                    ..
+                } => {
+                    return Err(error(
+                        target.span,
+                        "shared Package reference cannot write its Store field",
+                    ));
+                }
+                ExprKind::Unary { operand, .. } => operand.as_ref(),
+                _ => break,
+            };
+            match self.value_hint(parent, state, 0, false)? {
+                Some(ty)
+                    if matches!(group(&ty).kind, TypeKind::Reference { mutable: false, .. }) =>
+                {
+                    return Err(error(
+                        target.span,
+                        "shared Package reference cannot write its Store field",
+                    ));
+                }
+                Some(_) => {}
+                None => complete = false,
+            }
+            cursor = parent;
+        }
+        if !complete && !self.place(projected, state)?.1 {
             return Err(error(
                 target.span,
                 "shared Package reference cannot write its Store field",
