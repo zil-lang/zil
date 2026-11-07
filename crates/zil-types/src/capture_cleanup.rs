@@ -39,6 +39,7 @@ impl Builder<'_, '_> {
         if !can_reach[self.function.entry.0 as usize] {
             return Err(unsupported(span, "owning Sum capture exit is unreachable"));
         }
+        self.closures.snapshot(self.function.locals.len(), span)?;
         let mut owning = Vec::with_capacity(self.function.locals.len());
         for local in &self.function.locals {
             self.closures.snapshot_type(&local.ty, 1, 0, span)?;
@@ -52,6 +53,10 @@ impl Builder<'_, '_> {
         let mut work = std::collections::VecDeque::from([self.function.entry.0 as usize]);
         let mut final_age = None;
         while let Some(block) = work.pop_front() {
+            self.closures.snapshot(
+                states[block].as_ref().expect("queued CFG state").len(),
+                span,
+            )?;
             let mut age = states[block].as_ref().expect("queued CFG state").clone();
             let instructions = &self.function.blocks[block].instructions;
             self.closures
@@ -76,9 +81,11 @@ impl Builder<'_, '_> {
                     _ => add,
                 };
                 if let Some(local) = remove {
+                    self.closures.snapshot(age.len(), span)?;
                     age.retain(|item| *item != local);
                 }
                 if let Some(local) = add {
+                    self.closures.snapshot(age.len().saturating_add(1), span)?;
                     age.push(local);
                 }
             }
@@ -103,10 +110,16 @@ impl Builder<'_, '_> {
                 self.closures.snapshot(age.len().saturating_add(1), span)?;
                 match &states[next] {
                     None => {
+                        self.closures.snapshot(age.len(), span)?;
                         states[next] = Some(age.clone());
                         work.push_back(next);
                     }
-                    Some(previous) if previous == &age => {}
+                    Some(previous)
+                        if {
+                            self.closures
+                                .snapshot(previous.len().saturating_add(age.len()), span)?;
+                            previous == &age
+                        } => {}
                     Some(_) => {
                         return Err(unsupported(
                             span,
@@ -161,6 +174,8 @@ impl Builder<'_, '_> {
         }
         let age = self.capture_cleanup_age(span)?;
         let mut order = ordinary;
+        self.closures
+            .snapshot(owners.len().saturating_add(order.len()), span)?;
         let owner_set: std::collections::BTreeSet<_> = owners.iter().copied().collect();
         let mut ordered: std::collections::BTreeSet<_> = order.iter().copied().collect();
         for local in age.into_iter().rev() {
@@ -178,6 +193,7 @@ impl Builder<'_, '_> {
                 order.push(local);
             }
         }
+        self.closures.snapshot(self.scopes.len(), span)?;
         let mut remaining = vec![0usize; self.scopes.len()];
         for &index in scope_of.values() {
             remaining[index] += 1;
