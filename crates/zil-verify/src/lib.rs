@@ -1790,7 +1790,8 @@ fn check_reference_return_bound(f: &TypedFunction, budget: &mut Budget) -> Check
         || f.environment.is_some()
         || f.foreign.is_some()
         || f.callable_contract.is_some()
-        || !matches!(&f.return_type,Type::Address{inner,..} if inner.is_address_pointee())
+        || !(matches!(&f.return_type,Type::Address{inner,..} if inner.is_address_pointee())
+            || matches!(&f.return_type,Type::Address{mutable:false,inner} if matches!(inner.as_ref(),Type::Package{..})))
     {
         return Err(fail());
     }
@@ -1805,7 +1806,9 @@ fn check_reference_return_bound(f: &TypedFunction, budget: &mut Budget) -> Check
             .and_then(|id| f.locals.get(id.0 as usize))
             .ok_or_else(fail)?;
         resources::charge_payload(&parameter.ty, budget)?;
-        if !matches!(&parameter.ty,Type::Address{inner,..} if inner.is_address_pointee()) {
+        if !matches!(&parameter.ty,Type::Address{inner,..} if inner.is_address_pointee())
+            && !matches!(&parameter.ty,Type::Address{mutable:false,inner} if matches!(inner.as_ref(),Type::Package{..}))
+        {
             return Err(fail());
         }
         previous = Some(position);
@@ -1882,10 +1885,10 @@ fn check_function(
                 }
             }
         }
-        // The shared Copy leaf path still needs its actual parameter origin
-        // and transitive caller loan below; this header check only admits its
-        // shape. Mutable and non-Copy returns retain the Store boundary.
-        if !matches!(&function.return_type, Type::Address { mutable: false, inner } if inner.is_address_pointee())
+        // A shared Copy leaf or nominal Package result still needs its actual
+        // return origin and transitive manager loan. This admits shape only;
+        // the independent resource and borrow checks establish authority.
+        if !matches!(&function.return_type, Type::Address { mutable: false, inner } if inner.is_address_pointee() || matches!(inner.as_ref(), Type::Package { .. }))
             && (function.return_type.is_package_address()
             || store_parent_address
             || function
