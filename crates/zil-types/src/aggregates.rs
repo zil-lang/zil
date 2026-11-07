@@ -1680,7 +1680,10 @@ impl Resolver<'_> {
     fn expr(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
         self.charge(depth, e.span)?;
         match &mut e.kind {
-            CoreExprKind::Unary { operand, .. }
+            CoreExprKind::MakeDynBorrow {
+                source: operand, ..
+            }
+            | CoreExprKind::Unary { operand, .. }
             | CoreExprKind::CompileTime(operand)
             | CoreExprKind::Try(operand) => self.expr(operand, depth + 1),
             CoreExprKind::Binary { left, right, .. } => self.expr_pair(left, right, depth + 1),
@@ -1694,7 +1697,9 @@ impl Resolver<'_> {
             CoreExprKind::Record { .. } => self.expr_variant_record(e, depth),
             CoreExprKind::RecordUpdate { .. } => self.expr_variant_recordupdate(e, depth),
             CoreExprKind::TypeApply { .. } => self.expr_variant_typeapply(e, depth),
-            CoreExprKind::Call { .. } => self.expr_variant_call(e, depth),
+            CoreExprKind::Call { .. } | CoreExprKind::CallDynSlot { .. } => {
+                self.expr_variant_call(e, depth)
+            }
             CoreExprKind::Slice { .. } => self.expr_variant_slice(e, depth),
             CoreExprKind::Member { .. } => self.expr_variant_member(e, depth),
             CoreExprKind::Sequence { .. } => self.expr_variant_sequence(e, depth),
@@ -1786,7 +1791,10 @@ impl Resolver<'_> {
     #[inline(never)]
     fn expr_variant_call(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
         match &mut e.kind {
-            CoreExprKind::Call { callee, arguments } => {
+            CoreExprKind::Call { callee, arguments }
+            | CoreExprKind::CallDynSlot {
+                callee, arguments, ..
+            } => {
                 self.expr(callee, depth + 1)?;
                 for e in arguments {
                     self.expr(e, depth + 1)?;
