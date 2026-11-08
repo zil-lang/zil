@@ -1478,156 +1478,161 @@ impl Check<'_, '_, '_> {
                 for arg in arguments {
                     actuals.push(self.expr(&arg.value, scope, env, None, depth + 1)?);
                 }
-                let (root, explicit) = match &callee.kind {
-                    ExprKind::Name(name) => (Some(name.as_str()), None),
-                    ExprKind::TypeApply { callee, arguments } => (
-                        if let ExprKind::Name(name) = &callee.kind {
-                            Some(name.as_str())
-                        } else {
-                            None
-                        },
-                        Some(arguments),
-                    ),
-                    _ => (None, None),
-                };
-                let mut output = Fact::Unknown;
-                if root.is_none()
-                    && let Some(variant) = self.variant_call_result(
-                        callee,
-                        &actuals,
-                        wanted,
-                        scope,
-                        e.span,
-                        depth + 1,
-                    )?
-                {
-                    return Ok(variant);
-                }
-                if root.is_none()
-                    && let Some(result) =
-                        self.nominal_method_result(callee, &actuals, scope, env, e.span, depth + 1)?
-                {
-                    return Ok(result);
-                }
-                if root.is_none()
-                    && let Some(member) =
-                        self.member_call_result(callee, arguments.len(), scope, e.span, depth + 1)?
-                {
-                    return Ok(member);
-                }
-                if let Some(name) = root {
-                    self.lookup(env.len(), name.len(), e.span)?;
-                }
-                let shadowed = root.is_some_and(|name| env.contains_key(name));
-                let mut declared_function = false;
-                if let Some(name) = root.filter(|_| !shadowed) {
-                    for owner in 0..self.functions.len() {
-                        self.pay(e.span, 1)?;
-                        if !self.standalone[owner] {
-                            continue;
-                        }
-                        let f = self.functions[owner];
-                        self.budget.text(name, e.span)?;
-                        self.budget.text(&f.name, e.span)?;
-                        if f.name != name {
-                            continue;
-                        }
-                        declared_function = true;
-                        let definition = Scope {
-                            owner,
-                            parameters: &f.generics,
-                            host: self.hosts[owner],
-                            impl_target: self.impl_targets.get(&owner).copied(),
-                        };
-                        let mut map = Substitutions::new();
-                        if let Some(args) = explicit {
-                            if f.generics
-                                .iter()
-                                .any(|p| !matches!(p.kind, GenericParamKind::Type(_)))
-                                && args.len() == f.generics.len()
-                            {
-                                for (ordinal, (formal, arg)) in
-                                    f.generics.iter().zip(args).enumerate()
-                                {
-                                    let fact = self.full_free_actual(
-                                        formal,
-                                        arg,
-                                        scope,
-                                        e.span,
-                                        depth + 1,
-                                    )?;
-                                    self.lookup(map.len(), 2, e.span)?;
-                                    map.insert(Binder(owner, ordinal), fact);
-                                }
-                            } else {
-                                // Keep the old short and all-Type path's work
-                                // and ordinal behavior unchanged.
-                                for ((ordinal, _), arg) in f
-                                    .generics
-                                    .iter()
-                                    .enumerate()
-                                    .filter(|(_, p)| !matches!(p.kind, GenericParamKind::Lifetime))
-                                    .zip(args)
-                                {
-                                    if let GenericArg::Type(t) = arg {
-                                        let fact = self.ty(t, scope, depth + 1)?;
-                                        self.lookup(map.len(), 2, e.span)?;
-                                        map.insert(Binder(owner, ordinal), fact);
-                                    }
-                                }
-                            }
-                        }
-                        let result = f
-                            .return_type
-                            .as_ref()
-                            .map(|t| self.ty(t, &definition, depth + 1))
-                            .transpose()?;
-                        let mut formals = Vec::new();
-                        let mut invariant = false;
-                        for p in &f.params {
-                            let f = self.ty(&p.ty, &definition, depth + 1)?;
-                            self.work(&f, e.span)?;
-                            invariant |= f.has_class();
-                            formals.push(f);
-                        }
-                        for (formal, actual) in formals.iter().zip(&actuals) {
-                            self.infer(formal, actual, &mut map, e.span, invariant)?;
-                        }
-                        if let Some(result) = result {
-                            output = self.substitute(&result, &map, e.span)?;
-                        }
-                        break;
-                    }
-                }
-                if matches!(output, Fact::Unknown)
-                    && root == Some("store_at")
-                    && !declared_function
-                    && !shadowed
-                    && let [first, _] = arguments.as_slice()
-                    && let ExprKind::Member { object, member } = &first.value.kind
-                {
-                    // A Store element window inherits the source class of the
-                    // actual borrowed manager field. A local Store or a named
-                    // value without an address source acquires no class here.
-                    let owner = self.expr(object, scope, env, None, depth + 1)?;
-                    if let Fact::Address(Some(life), _) = &owner {
-                        let field = self.field(&owner, member, first.value.span, depth + 1)?;
-                        if let Fact::Named(Head::Plain(path), mut elements) = field
-                            && path.as_slice() == ["Store"]
-                            && elements.len() == 1
-                        {
-                            output = Fact::Address(
-                                Some(Box::new(self.copy(life, e.span)?)),
-                                Box::new(elements.remove(0)),
-                            );
-                        }
-                    }
-                }
-                output
+                self.finish_call(e, scope, env, wanted, depth, &actuals)?
             }
             _ => unreachable!("source fact expression dispatcher"),
         };
         Ok(actual)
+    }
+
+    // Call classification and substitution run after every actual expression.
+    // Keep their temporary facts out of the frame retained by nested calls.
+    #[inline(never)]
+    fn finish_call(
+        &mut self,
+        e: &Expr,
+        scope: &Scope<'_>,
+        env: &mut Facts,
+        wanted: Option<&Fact>,
+        depth: usize,
+        actuals: &[Fact],
+    ) -> R<Fact> {
+        let ExprKind::Call { callee, arguments } = &e.kind else {
+            unreachable!("source fact call dispatcher")
+        };
+        let (root, explicit) = match &callee.kind {
+            ExprKind::Name(name) => (Some(name.as_str()), None),
+            ExprKind::TypeApply { callee, arguments } => (
+                if let ExprKind::Name(name) = &callee.kind {
+                    Some(name.as_str())
+                } else {
+                    None
+                },
+                Some(arguments),
+            ),
+            _ => (None, None),
+        };
+        let mut output = Fact::Unknown;
+        if root.is_none()
+            && let Some(variant) =
+                self.variant_call_result(callee, actuals, wanted, scope, e.span, depth + 1)?
+        {
+            return Ok(variant);
+        }
+        if root.is_none()
+            && let Some(result) =
+                self.nominal_method_result(callee, actuals, scope, env, e.span, depth + 1)?
+        {
+            return Ok(result);
+        }
+        if root.is_none()
+            && let Some(member) =
+                self.member_call_result(callee, arguments.len(), scope, e.span, depth + 1)?
+        {
+            return Ok(member);
+        }
+        if let Some(name) = root {
+            self.lookup(env.len(), name.len(), e.span)?;
+        }
+        let shadowed = root.is_some_and(|name| env.contains_key(name));
+        let mut declared_function = false;
+        if let Some(name) = root.filter(|_| !shadowed) {
+            for owner in 0..self.functions.len() {
+                self.pay(e.span, 1)?;
+                if !self.standalone[owner] {
+                    continue;
+                }
+                let f = self.functions[owner];
+                self.budget.text(name, e.span)?;
+                self.budget.text(&f.name, e.span)?;
+                if f.name != name {
+                    continue;
+                }
+                declared_function = true;
+                let definition = Scope {
+                    owner,
+                    parameters: &f.generics,
+                    host: self.hosts[owner],
+                    impl_target: self.impl_targets.get(&owner).copied(),
+                };
+                let mut map = Substitutions::new();
+                if let Some(args) = explicit {
+                    if f.generics
+                        .iter()
+                        .any(|p| !matches!(p.kind, GenericParamKind::Type(_)))
+                        && args.len() == f.generics.len()
+                    {
+                        for (ordinal, (formal, arg)) in f.generics.iter().zip(args).enumerate() {
+                            let fact =
+                                self.full_free_actual(formal, arg, scope, e.span, depth + 1)?;
+                            self.lookup(map.len(), 2, e.span)?;
+                            map.insert(Binder(owner, ordinal), fact);
+                        }
+                    } else {
+                        // Keep the old short and all-Type path's work
+                        // and ordinal behavior unchanged.
+                        for ((ordinal, _), arg) in f
+                            .generics
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, p)| !matches!(p.kind, GenericParamKind::Lifetime))
+                            .zip(args)
+                        {
+                            if let GenericArg::Type(t) = arg {
+                                let fact = self.ty(t, scope, depth + 1)?;
+                                self.lookup(map.len(), 2, e.span)?;
+                                map.insert(Binder(owner, ordinal), fact);
+                            }
+                        }
+                    }
+                }
+                let result = f
+                    .return_type
+                    .as_ref()
+                    .map(|t| self.ty(t, &definition, depth + 1))
+                    .transpose()?;
+                let mut formals = Vec::new();
+                let mut invariant = false;
+                for p in &f.params {
+                    let f = self.ty(&p.ty, &definition, depth + 1)?;
+                    self.work(&f, e.span)?;
+                    invariant |= f.has_class();
+                    formals.push(f);
+                }
+                for (formal, actual) in formals.iter().zip(actuals) {
+                    self.infer(formal, actual, &mut map, e.span, invariant)?;
+                }
+                if let Some(result) = result {
+                    output = self.substitute(&result, &map, e.span)?;
+                }
+                break;
+            }
+        }
+        if matches!(output, Fact::Unknown)
+            && root == Some("store_at")
+            && !declared_function
+            && !shadowed
+            && let [first, _] = arguments.as_slice()
+            && let ExprKind::Member { object, member } = &first.value.kind
+        {
+            // A Store element window inherits the source class of the
+            // actual borrowed manager field. A local Store or a named
+            // value without an address source acquires no class here.
+            let owner = self.expr(object, scope, env, None, depth + 1)?;
+            if let Fact::Address(Some(life), _) = &owner {
+                let field = self.field(&owner, member, first.value.span, depth + 1)?;
+                if let Fact::Named(Head::Plain(path), mut elements) = field
+                    && path.as_slice() == ["Store"]
+                    && elements.len() == 1
+                {
+                    output = Fact::Address(
+                        Some(Box::new(self.copy(life, e.span)?)),
+                        Box::new(elements.remove(0)),
+                    );
+                }
+            }
+        }
+        Ok(output)
     }
 
     fn variant_call_result(
