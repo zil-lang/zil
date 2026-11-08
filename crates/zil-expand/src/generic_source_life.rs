@@ -1845,41 +1845,41 @@ impl Check<'_, '_, '_> {
         let GenericParamKind::Type(bounds) = &parameter.kind else {
             return Ok(None);
         };
-        let [bound] = bounds.as_slice() else {
-            return Err(unsupported(
-                span,
-                "nominal lending class forwarding requires one direct trait bound",
-            ));
-        };
-        let TypeKind::Named { path, args } = &bound.kind else {
-            return Ok(None);
-        };
-        let [trait_name] = path.as_slice() else {
-            return Ok(None);
-        };
-        if !args.is_empty() {
-            return Ok(None);
+        if bounds.len() > 1 {
+            self.budget.identity_work(bounds.len() - 1, span)?;
         }
         let mut selected = None;
-        for source in &self.trait_sources {
-            self.budget.node(span, depth)?;
-            self.budget.text(trait_name, span)?;
-            self.budget.text(&source.declaration.name, span)?;
-            if source.declaration.name != *trait_name {
-                continue;
+        for bound in bounds {
+            let TypeKind::Named { path, args } = &bound.kind else {
+                return Ok(None);
+            };
+            let [trait_name] = path.as_slice() else {
+                return Ok(None);
+            };
+            if !args.is_empty() {
+                return Ok(None);
             }
-            if !source.declaration.generics.is_empty() || !source.declaration.bounds.is_empty() {
-                return Err(unsupported(
-                    span,
-                    "nominal lending class forwarding requires an ordinary nongeneric trait",
-                ));
-            }
-            for owner in source.first_function..source.end_function {
+            for source in &self.trait_sources {
                 self.budget.node(span, depth)?;
-                self.budget.text(name, span)?;
-                self.budget.text(&self.functions[owner].name, span)?;
-                if self.functions[owner].name == *name && selected.replace(owner).is_some() {
-                    return Err(error(span, "nominal lending method class is ambiguous"));
+                self.budget.text(trait_name, span)?;
+                self.budget.text(&source.declaration.name, span)?;
+                if source.declaration.name != *trait_name {
+                    continue;
+                }
+                if !source.declaration.generics.is_empty() || !source.declaration.bounds.is_empty()
+                {
+                    return Err(unsupported(
+                        span,
+                        "nominal lending class forwarding requires an ordinary nongeneric trait",
+                    ));
+                }
+                for owner in source.first_function..source.end_function {
+                    self.budget.node(span, depth)?;
+                    self.budget.text(name, span)?;
+                    self.budget.text(&self.functions[owner].name, span)?;
+                    if self.functions[owner].name == *name && selected.replace(owner).is_some() {
+                        return Err(error(span, "nominal lending method class is ambiguous"));
+                    }
                 }
             }
         }
@@ -1889,6 +1889,12 @@ impl Check<'_, '_, '_> {
         let method = self.functions[owner];
         self.budget
             .identity_work(method.generics.len(), method.span)?;
+        // A companion bound can provide an ordinary scalar method. It has no
+        // declared source-class relation to instantiate in this pass; the
+        // complete generic body checker still verifies the actual signature.
+        if method.generics.is_empty() {
+            return Ok(None);
+        }
         if !crate::lifetimes::only_life(method) || method.params.len() != actuals.len() + 1 {
             return Err(unsupported(
                 span,
