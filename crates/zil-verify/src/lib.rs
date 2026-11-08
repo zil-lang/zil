@@ -1284,6 +1284,9 @@ fn check_type_shape(
         ) {
             native_values::target(target, None)?;
         }
+        if stored_flow::shared_array_value(ty) {
+            budget.stored_borrows = true;
+        }
         match ty {
             Type::BorrowedStorage { storage, .. } => {
                 if !budget.stored_context {
@@ -1665,6 +1668,11 @@ fn check_function_signature_type(
         stored_flow::enum_address::ordinary(module, ty, budget)?;
         return Ok(());
     }
+    if stored_flow::shared_array_shape(ty, budget)?
+        || matches!(ty, Type::Address { inner, .. } if stored_flow::shared_array_shape(inner, budget)?)
+    {
+        return Ok(());
+    }
     if stored_flow::pure_inline(module, ty, budget)? {
         return Ok(());
     }
@@ -1741,6 +1749,11 @@ fn check_local_type(
         && stored_flow::enum_address::signature(ty)
     {
         stored_flow::enum_address::ordinary(module, ty, budget)?;
+        return Ok(false);
+    }
+    if stored_flow::shared_array_shape(ty, budget)?
+        || matches!(ty, Type::Address { inner, .. } if stored_flow::shared_array_shape(inner, budget)?)
+    {
         return Ok(false);
     }
     if stored_flow::pure_inline(module, ty, budget)? {
@@ -2635,6 +2648,8 @@ fn check_instruction(
             } else if matches!(inner, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }))
             {
                 resources::check_type_for(module, inner, span, budget)?;
+            } else if stored_flow::shared_array_shape(inner, budget)? {
+                // Element pointer permissions remain in the stored ledger.
             } else {
                 check_type(inner, span)?;
             }
@@ -2810,6 +2825,8 @@ fn check_instruction(
                 sums::check_type_for(module, field, span, budget)?;
             } else if matches!(field, Type::Package { .. }) {
                 packages::check_shared_product_type(module, field, span, budget)?;
+            } else if stored_flow::shared_array_shape(field, budget)? {
+                // Actual bounded array slot permissions are proved separately.
             } else if matches!(field, Type::Managed(_))
                 && resources::head_address(&Type::Address {
                     mutable: *mutable,
@@ -2904,6 +2921,7 @@ fn check_instruction(
         InstructionKind::ReadAddress { address } => match value_type(function, *address, span)? {
             Type::Address { inner, .. }
                 if inner.is_copy_value()
+                    || stored_flow::shared_array_shape(inner, budget)?
                     || stored_flow::pure_read(module, inner, budget)?
                     || stored_flow::pure_inline(module, inner, budget)? =>
             {
@@ -3178,7 +3196,9 @@ fn check_instruction(
                     "Copy aggregate construction cannot create an owning array",
                 ));
             }
-            check_type(ty, span)?;
+            if !stored_flow::shared_array_shape(ty, budget)? {
+                check_type(ty, span)?;
+            }
             let physical = match ty {
                 Type::BorrowedStorage { storage, .. } => storage.as_ref(),
                 other => other,

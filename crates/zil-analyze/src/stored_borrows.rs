@@ -20,6 +20,18 @@ fn selected<'a>(
     let Type::Address { mutable, inner } = operand(f, id)? else {
         return Err(fail("base is not an actual storage Address"));
     };
+    if super::stored_flow::shared_array_shape(inner, budget)? {
+        let Type::Array { element, length } = inner.as_ref() else {
+            unreachable!()
+        };
+        if !matches!(path, [PlaceProjection::Field(index)] if *index < *length) {
+            return Err(fail(
+                "array slot path is not an actual bounded constant element",
+            ));
+        }
+        // This profile reads shared slots; no slot take/store permission.
+        return Ok((false, element.as_ref()));
+    }
     let Type::BorrowedStorage { storage, life } = inner.as_ref() else {
         return Err(fail("base does not address a qualified stored carrier"));
     };
@@ -47,6 +59,7 @@ fn selected<'a>(
                     fields.get(*index as usize).map(|(_, ty)| ty)
                 }
                 Type::Tuple(fields) => fields.get(*index as usize),
+                Type::Array { element, length } if *index < *length => Some(element.as_ref()),
                 _ => None,
             },
             PlaceProjection::Variant(step) => match ty {

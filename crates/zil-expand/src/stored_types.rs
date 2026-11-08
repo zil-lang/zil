@@ -973,6 +973,49 @@ impl Shape<'_, '_> {
                 {
                     original_element = Some(element.as_ref());
                 }
+                if matches!(element.kind, s::TypeKind::Reference { mutable: false, .. }) {
+                    self.budget.const_expression(length)?;
+                    let s::ExprKind::Literal(s::Literal::Integer(text)) = &length.kind else {
+                        return Err(invalid(
+                            source.span,
+                            "stored array length needs normalized constant",
+                        ));
+                    };
+                    let count = text
+                        .replace('_', "")
+                        .parse::<u32>()
+                        .map_err(|_| invalid(source.span, "stored array length invalid"))?;
+                    if count == 0 {
+                        return Err(Diagnostic::unsupported(
+                            Phase::Expand,
+                            "physical borrowed arrays require a nonzero fixed length",
+                            Some(source.span),
+                        ));
+                    }
+                    spend(
+                        self.budget,
+                        source.span,
+                        (count as usize).saturating_mul(
+                            path.len().saturating_add(type_path.len()).saturating_add(4),
+                        ),
+                    )?;
+                    let mut actual = None;
+                    for index in 0..count {
+                        path.push(PlaceProjection::Field(index));
+                        type_path.push(LifeTypeProjection::Place(PlaceProjection::Field(index)));
+                        let child =
+                            self.field(element, original_element, path, type_path, depth + 1)?;
+                        path.pop();
+                        type_path.pop();
+                        if actual.is_none() {
+                            actual = Some(child);
+                        }
+                    }
+                    return Ok(Type::Array {
+                        element: Box::new(actual.expect("nonzero array")),
+                        length: count,
+                    });
+                }
                 type_path.push(LifeTypeProjection::Element);
                 let child = self.field(element, original_element, path, type_path, depth + 1)?;
                 type_path.pop();

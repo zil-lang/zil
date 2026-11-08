@@ -20,6 +20,18 @@ fn leaf<'a>(
             "stored borrow requires an actual storage Address",
         ));
     };
+    if super::stored_flow::shared_array_shape(inner, budget)? {
+        let Type::Array { element, length } = inner.as_ref() else {
+            unreachable!()
+        };
+        if !matches!(path, [PlaceProjection::Field(index)] if *index < *length) {
+            return Err(bad(
+                span,
+                "array slot does not select an actual bounded constant element",
+            ));
+        }
+        return Ok((false, element.as_ref(), StoredBorrowMode::SharedAddress));
+    }
     let Type::BorrowedStorage { storage, life } = inner.as_ref() else {
         return Err(bad(
             span,
@@ -49,6 +61,11 @@ fn leaf<'a>(
         budget.spend(1)?;
         ty = match (ty, step) {
             (Type::Tuple(fields), PlaceProjection::Field(index)) => fields.get(*index as usize),
+            (Type::Array { element, length }, PlaceProjection::Field(index))
+                if *index < *length =>
+            {
+                Some(element.as_ref())
+            }
             (
                 Type::Record { fields, .. } | Type::Package { fields, .. },
                 PlaceProjection::Field(index),

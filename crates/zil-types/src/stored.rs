@@ -564,13 +564,34 @@ pub(crate) fn shared_record_child(ty: &Type, left: &mut usize, span: Span) -> R<
     }))
 }
 
+/// Builder dispatch only; actual pointee/slot and source proof is paid below.
+pub(super) fn shared_array_value(ty: &Type) -> bool {
+    matches!(ty, Type::Array { element, length } if *length > 0
+        && matches!(element.as_ref(), Type::Address { mutable: false, .. }))
+}
+
+pub(super) fn shared_array_shape(ty: &Type, left: &mut usize, limit: usize, span: Span) -> R<bool> {
+    if !shared_array_value(ty) {
+        return Ok(false);
+    }
+    let Type::Array { element, .. } = ty else {
+        unreachable!()
+    };
+    let Type::Address { inner, .. } = element.as_ref() else {
+        unreachable!()
+    };
+    closed_copy(inner, left, 0, limit, span)
+}
+
 pub(super) fn shared_value(ty: &Type) -> bool {
     // Builder only receives Resolver output. Its paid shape check admits this
     // shared finite profile and binds it to the actual nominal inventory.
     // Do not recursively repeat that qualification without debiting work at
     // every expression lookup. This private dispatch tag grants no raw Copy
     // capability; both kernels reconstruct the actual targets independently.
-    matches!(ty, Type::BorrowedStorage { .. }) || enum_address::sum_value(ty)
+    matches!(ty, Type::BorrowedStorage { .. })
+        || enum_address::sum_value(ty)
+        || shared_array_value(ty)
 }
 
 /// Builder sees only Resolver output whose complete nominal inventory was
@@ -842,7 +863,20 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
                         }
                     }
                 }
-                Type::Array { element, .. } => {
+                Type::Array { element, length } => {
+                    if shared_array_shape(ty, self.left, self.limit, self.span)? {
+                        fee(
+                            self.left,
+                            (*length as usize).saturating_mul(path.len().saturating_add(2)),
+                            self.span,
+                        )?;
+                        for index in 0..*length {
+                            path.push(PlaceProjection::Field(index));
+                            self.ty(element, path, depth + 1)?;
+                            path.pop();
+                        }
+                        return Ok(());
+                    }
                     if !retained::pure(ty, self.span, self.left)? {
                         return Err(unsupported(
                             self.span,

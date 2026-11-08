@@ -833,15 +833,22 @@ impl FunctionEmitter<'_> {
                 Some(i.span),
             );
         };
-        let Type::BorrowedStorage {
-            storage: physical, ..
-        } = inner.as_ref()
-        else {
-            return invalid(
-                "E-CODEGEN-STORAGE",
-                "stored base lacks its actual qualified type",
-                Some(i.span),
-            );
+        let physical = match inner.as_ref() {
+            Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+            Type::Array { element, length }
+                if *length > 0
+                    && matches!(element.as_ref(), Type::Address { mutable: false, .. })
+                    && mode == StoredBorrowLoad::CopyShared =>
+            {
+                inner.as_ref()
+            }
+            _ => {
+                return invalid(
+                    "E-CODEGEN-STORAGE",
+                    "stored base lacks its actual physical type",
+                    Some(i.span),
+                );
+            }
         };
         if path.is_empty() {
             return invalid(
@@ -850,7 +857,7 @@ impl FunctionEmitter<'_> {
                 Some(i.span),
             );
         }
-        let mut current = physical.as_ref();
+        let mut current = physical;
         let mut indices = vec![m::Arg::new(m::Ty::Int(32), m::Val::Int(0))];
         for part in path {
             let PlaceProjection::Field(index) = part else {
@@ -864,6 +871,7 @@ impl FunctionEmitter<'_> {
                     fields.get(*index as usize).map(|(_, t)| t)
                 }
                 Type::Tuple(fs) => fs.get(*index as usize),
+                Type::Array { element, length } if *index < *length => Some(element.as_ref()),
                 _ => None,
             }
             .ok_or_else(|| {

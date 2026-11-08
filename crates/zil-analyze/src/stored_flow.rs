@@ -56,6 +56,9 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> CompileRe
         .collect();
     while let Some(ty) = pending.pop() {
         fee(b, 1)?;
+        if shared_array_value(ty) {
+            return Ok(true);
+        }
         match ty {
             // Their actual capture/retained declarations can carry targets
             // outside this type spelling. Keep their functions in the proof.
@@ -180,6 +183,30 @@ pub(crate) fn shared_record_child(ty: &Type, b: &mut Budget) -> CompileResult<bo
         };
         scalar(field) || matches!(field, Type::Address { mutable: false, inner } if scalar(inner))
     }))
+}
+
+pub(crate) fn shared_array_value(ty: &Type) -> bool {
+    matches!(ty, Type::Array { element, length } if *length > 0
+        && matches!(element.as_ref(), Type::Address { mutable: false, .. }))
+}
+
+pub(crate) fn shared_array_shape(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    if !shared_array_value(ty) {
+        return Ok(false);
+    }
+    let Type::Array { element, .. } = ty else {
+        unreachable!()
+    };
+    let Type::Address { inner, .. } = element.as_ref() else {
+        unreachable!()
+    };
+    b.type_work(inner, false, "shared array actual pointee")?;
+    if !inner.is_address_pointee() {
+        return Err(failure(
+            "shared array actual pointee is outside its finite profile",
+        ));
+    }
+    Ok(true)
 }
 
 type ActualStoredSlot = (
@@ -635,6 +662,9 @@ fn slot<'a>(ty: &'a Type, path: &[PlaceProjection], b: &mut Budget) -> CompileRe
                 PlaceProjection::Field(i),
             ) => fields.get(*i as usize).map(|(_, t)| t),
             (Type::Tuple(fields), PlaceProjection::Field(i)) => fields.get(*i as usize),
+            (Type::Array { element, length }, PlaceProjection::Field(i)) if *i < *length => {
+                Some(element.as_ref())
+            }
             (Type::Enum { variants, .. }, PlaceProjection::Variant(p)) => variants
                 .get(p.variant as usize)
                 .and_then(|(_, fs)| fs.get(p.index as usize)),
@@ -1053,6 +1083,23 @@ fn binding(
         StorageBase::Capture(_) => None,
     }
     .ok_or_else(|| failure("stored relation base is absent"))?;
+    let array = if let Type::Address { inner, .. } = ty {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    if shared_array_shape(array, b)? {
+        let Type::Array { length, .. } = array else {
+            unreachable!()
+        };
+        if !matches!(path, [PlaceProjection::Field(index)] if *index < *length) {
+            return Err(failure("array relation has no actual bounded element"));
+        }
+        fee(b, c.bindings.len().saturating_mul(2))?;
+        return c.bindings.iter().find(|row| row.position.base == base
+            && matches!(row.position.path.as_slice(), [ContractProjection::Place(step)] if *step == path[0]))
+            .map(|row| row.binder).ok_or_else(|| failure("array element lacks its actual signature binding"));
+    }
     let mut boundary = ty;
     let mut leaf_path = path;
     let mut class_path = Vec::new();
@@ -1201,6 +1248,8 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             if f.environment.is_none()
                 && (carrier(ty).is_some()
                     || pointed_carrier(ty).is_some()
+                    || shared_array_value(ty)
+                    || matches!(ty, Type::Address { inner, .. } if shared_array_value(inner))
                     || super::stored_callables::fixed_value(module, ty))
             {
                 return Err(failure("stored signature requires complete class relation"));
@@ -1521,7 +1570,19 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                     }
                 }
             }
-            Type::Array { element, .. } => {
+            Type::Array { element, length } => {
+                if shared_array_shape(ty, b)? {
+                    fee(
+                        b,
+                        (*length as usize).saturating_mul(path.len().saturating_add(2)),
+                    )?;
+                    for index in 0..*length {
+                        path.push(PlaceProjection::Field(index));
+                        walk(element, path, out, b, owning)?;
+                        path.pop();
+                    }
+                    return Ok(());
+                }
                 if !retained::pure(ty, b)? {
                     return Err(failure(
                         "stored Array contains an address or ownership leaf",
@@ -1834,6 +1895,51 @@ fn seed_value(
                     loans: Loans::from([id]),
                 },
             );
+        }
+    }
+    let array = if let Type::Address { inner, .. } = ty {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    if shared_array_shape(array, b)? {
+        let Type::Array { length, .. } = array else {
+            unreachable!()
+        };
+        fee(b, (*length as usize).saturating_mul(8))?;
+        for index in 0..*length {
+            let path = vec![PlaceProjection::Field(index)];
+            let source = Target {
+                retained_port: None,
+                base,
+                stored: path.clone(),
+                place: Vec::new(),
+                heap_element: None,
+            };
+            let id = loans.len();
+            loans.push(Loan {
+                targets: Targets::from([source.clone()]),
+                parents: Loans::new(),
+                mutable: false,
+            });
+            ordered(b, value.slots.len(), 1)?;
+            value.slots.insert(
+                path,
+                Permission {
+                    targets: Targets::from([source]),
+                    loans: Loans::from([id]),
+                },
+            );
+        }
+        if matches!(ty, Type::Address { .. }) {
+            ordered(b, state.external.len(), 0)?;
+            let mut copy = BTreeMap::new();
+            for (path, permission) in &value.slots {
+                ordered(b, copy.len(), path.len())?;
+                fee(b, path.len())?;
+                union(copy.entry(path.clone()).or_default(), permission, b)?;
+            }
+            state.external.insert(base, copy);
         }
     }
     let qualified = carrier(ty).or_else(|| pointed_carrier(ty));
@@ -2498,6 +2604,23 @@ fn transfer(
                 f,
                 i.result.ok_or_else(|| failure("aggregate lacks result"))?,
             )?;
+            if shared_array_shape(ty, b)? {
+                let Type::Array { length, .. } = ty else {
+                    unreachable!()
+                };
+                if fields.len() != *length as usize {
+                    return Err(failure("shared array constructor omits an actual element"));
+                }
+                fee(b, fields.len().saturating_mul(2))?;
+                for (index, field) in fields.iter().enumerate() {
+                    let mut permission = Permission::default();
+                    union(&mut permission, &get(*field)?.pointer, b)?;
+                    ordered(b, out.slots.len(), 1)?;
+                    out.slots
+                        .insert(vec![PlaceProjection::Field(index as u32)], permission);
+                }
+                return Ok(out);
+            }
             let Some((storage, life)) = carrier(ty) else {
                 return Ok(out);
             };
@@ -3034,6 +3157,18 @@ fn transfer(
             let Type::Address { inner, .. } = value_type(f, *address)? else {
                 return Err(failure("read transfer lacks an actual Address"));
             };
+            if shared_array_shape(inner, b)? {
+                let Type::Array { length, .. } = inner.as_ref() else {
+                    unreachable!()
+                };
+                fee(b, (*length as usize).saturating_mul(2))?;
+                for index in 0..*length {
+                    let path = vec![PlaceProjection::Field(index)];
+                    let permission = select(state, &get(*address)?.pointer, &path, b)?;
+                    ordered(b, out.slots.len(), 1)?;
+                    out.slots.insert(path, permission);
+                }
+            }
             if carrier(inner).is_some() && !pure_read(module, inner, b)? {
                 return Err(failure(
                     "read transfer cannot erase actual borrowed/owned leaves",
@@ -4241,6 +4376,22 @@ fn derive_cfg(
                         }
                     }
                 }
+                if shared_array_shape(ty, b)? {
+                    let Type::Array { length, .. } = ty else {
+                        unreachable!()
+                    };
+                    fee(b, *length as usize)?;
+                    for index in 0..*length {
+                        ordered(b, value.slots.len(), 1)?;
+                        if value
+                            .slots
+                            .get(&vec![PlaceProjection::Field(index)])
+                            .is_none_or(|p| p.targets.is_empty())
+                        {
+                            grounded = false;
+                        }
+                    }
+                }
                 if let Some((_, life)) = carrier(ty) {
                     if enum_address::ordinary(module, ty, b)? {
                         if !value.enum_variants.grounded(ty, b)? {
@@ -4487,6 +4638,8 @@ pub(super) fn infer(
                 || pointed_carrier(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
                 || ty.is_copy_value()
+                || shared_array_shape(ty, b)?
+                || matches!(ty, Type::Address { inner, .. } if shared_array_shape(inner, b)?)
                 || b.stored_owned_fixed && owned::data(ty, b)?
                 || b.store_option_results
                     && matches!(
@@ -5119,6 +5272,7 @@ fn actual_instructions(
                             if matches!(storage.as_ref(), Type::Package { .. }))
                             && physical(child, b)?)
                         && !(shared_record_child(child, b)? && physical(child, b)?)
+                        && !shared_array_shape(child, b)?
                         && !matches!(child, Type::Managed(payload)
                             if module.resources.iter().any(|definition| definition.payload == **payload))
                         && !(b.store_option_results && matches!(child, Type::Package { .. }))
@@ -5179,6 +5333,7 @@ fn actual_instructions(
                     };
                     b.type_work(inner, true, "stored actual ordinary read payload")?;
                     if !inner.is_copy_value()
+                        && !shared_array_shape(inner, b)?
                         && !pure_read(module, inner, b)?
                         && !pure_inline(module, inner, b)?
                     {

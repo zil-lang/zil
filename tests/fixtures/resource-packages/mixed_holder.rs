@@ -2728,3 +2728,6 @@ fn same_stored_leaf_and_same_exclusive_input_reject() {
 
 #[path = "borrowed_record.rs"]
 mod borrowed_record;
+
+#[path = "shared_address_array.rs"]
+mod shared_address_array;
