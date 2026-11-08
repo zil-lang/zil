@@ -316,12 +316,14 @@ pub(super) fn transfer(
             }
             out.creation_complete = Some(all_inputs);
             if matches!(target.return_type, Type::Address { mutable: false, .. }) {
-                let [row] = port_bindings.as_slice() else {
-                    return Err(err("Task borrowed result lacks one exact input port"));
-                };
-                let StorageBase::Parameter(index) = row.source.base else {
-                    return Err(err("Task borrowed result source is not a parameter"));
-                };
+                resources::charge_payload(vt(f, produced)?, b)?;
+                b.spend(port_bindings.len())?;
+                let mut allowed = Vec::new();
+                for row in port_bindings {
+                    if super::super::tasks::result_port(vt(f, produced)?, row.port) {
+                        allowed.push(row.source.base);
+                    }
+                }
                 let summary = &summaries[target.id.0 as usize];
                 let mut present = false;
                 for (path, sources) in &summary.result {
@@ -332,10 +334,11 @@ pub(super) fn transfer(
                                 source
                                     .leaf
                                     .len()
+                                    .saturating_add(allowed.len())
                                     .saturating_add(source.inline.len())
                                     .saturating_add(1),
                             )?;
-                            if source.base != HoldRoot::Parameter(index)
+                            if !allowed.iter().any(|base| matches!(base, StorageBase::Parameter(index) if source.base == HoldRoot::Parameter(*index)))
                                 || source.retained_port.is_some()
                                 || !source.leaf.is_empty()
                                 || !source.inline.is_empty()
@@ -388,7 +391,15 @@ pub(super) fn transfer(
             if task_type(vt(f, *task)?)
                 .is_some_and(|(result, _)| matches!(result, Type::Address { mutable: false, .. }))
             {
-                let p = select(get(*task)?, &[], 0, b)?;
+                let (_, context) = task_type(vt(f, *task)?).unwrap();
+                resources::charge_payload(vt(f, *task)?, b)?;
+                b.spend(context.ports.len())?;
+                let mut p = Permission::default();
+                for port in 0..context.ports.len() {
+                    if super::super::tasks::result_port(vt(f, *task)?, port as u32) {
+                        join_permission(&mut p, &select(get(*task)?, &[], port as u32, b)?, b)?;
+                    }
+                }
                 add_leaf(
                     &mut out,
                     &[

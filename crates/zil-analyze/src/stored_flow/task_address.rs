@@ -311,14 +311,14 @@ pub(super) fn transfer(
             }
             out.creation_complete = Some(complete);
             if matches!(worker.return_type, Type::Address { mutable: false, .. }) {
-                let [binding] = port_bindings.as_slice() else {
-                    return Err(failure(
-                        "shared Task result requires one actual port binding",
-                    ));
-                };
-                let StorageBase::Parameter(index) = binding.source.base else {
-                    return Err(failure("shared Task result source is not a parameter"));
-                };
+                b.type_work(value_type(f, result)?, false, "Task result port selection")?;
+                fee(b, port_bindings.len())?;
+                let mut allowed = Vec::new();
+                for row in port_bindings {
+                    if super::super::tasks::result_port(value_type(f, result)?, row.port) {
+                        allowed.push(row.source.base);
+                    }
+                }
                 let summary = &summaries[worker.id.0 as usize];
                 let sources = summary.returned.get(&Vec::new());
                 if let Some(sources) = sources {
@@ -328,10 +328,11 @@ pub(super) fn transfer(
                             source
                                 .stored
                                 .len()
+                                .saturating_add(allowed.len())
                                 .saturating_add(source.place.len())
                                 .saturating_add(1),
                         )?;
-                        if source.base != HoldRoot::Parameter(index)
+                        if !allowed.iter().any(|base| matches!(base, StorageBase::Parameter(index) if source.base == HoldRoot::Parameter(*index)))
                             || source.retained_port.is_some()
                             || !source.stored.is_empty()
                             || !source.place.is_empty()
@@ -390,7 +391,23 @@ pub(super) fn transfer(
         }
         InstructionKind::TaskPoll { task } if shape(value_type(f, *task)?).is_some() => {
             if shared_result(value_type(f, *task)?) {
-                let permission = select(get(*task)?, &[], 0, b)?;
+                let context = shape(value_type(f, *task)?).unwrap();
+                b.type_work(
+                    value_type(f, *task)?,
+                    false,
+                    "TaskPoll result port selection",
+                )?;
+                fee(b, context.ports.len())?;
+                let mut permission = Permission::default();
+                for port in 0..context.ports.len() {
+                    if super::super::tasks::result_port(value_type(f, *task)?, port as u32) {
+                        union(
+                            &mut permission,
+                            &select(get(*task)?, &[], port as u32, b)?,
+                            b,
+                        )?;
+                    }
+                }
                 let path = vec![
                     PlaceProjection::ErrorArm(false),
                     PlaceProjection::Variant(zil_ir::VariantProjection {

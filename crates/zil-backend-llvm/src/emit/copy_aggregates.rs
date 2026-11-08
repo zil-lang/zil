@@ -233,6 +233,11 @@ pub(super) fn reserve_enum_metadata(
             result,
             retained_life,
         } => {
+            // Reserve complete leaf walks before selecting possible result ports.
+            for row in &retained_life.ports {
+                reserve_enum_metadata(&row.leaf, work, depth + 1, limits)?;
+            }
+            reserve_enum_metadata(result, work, depth + 1, limits)?;
             let closed = retained_life.binder_count == 0
                 && retained_life.ports.is_empty()
                 && retained_life.retained.is_empty()
@@ -243,15 +248,20 @@ pub(super) fn reserve_enum_metadata(
                 *work = work
                     .checked_sub(retained_life.retained.len())
                     .ok_or_else(exhausted)?;
+                *work = work
+                    .checked_sub(retained_life.ports.len().saturating_mul(2))
+                    .ok_or_else(exhausted)?;
                 for row in &retained_life.retained {
                     *work = work.checked_sub(row.path.len()).ok_or_else(exhausted)?;
                 }
                 matches!(result.as_ref(), Type::Address { mutable: false, inner } if task_port_pointee(inner))
-                    && retained_life.binder_count == 1
+                    && retained_life.binder_count > 0
                     && matches!(retained_life.retained.as_slice(), [row]
-                        if row.path == [zil_ir::LifeTypeProjection::Result] && row.class == 0 && row.binder == 0)
-                    && matches!(retained_life.ports.as_slice(), [port]
-                        if port.mode == zil_ir::StoredBorrowMode::SharedAddress && port.binder == 0 && port.leaf == **result)
+                        if row.path == [zil_ir::LifeTypeProjection::Result] && row.class == 0
+                        && row.binder < retained_life.binder_count
+                        && retained_life.ports.iter().any(|port| port.binder == row.binder && port.leaf == **result)
+                        && retained_life.ports.iter().filter(|port| port.binder == row.binder).all(|port|
+                            port.mode == zil_ir::StoredBorrowMode::SharedAddress))
             };
             let mut next = 0;
             let mapped = retained_life.binder_count > 0
@@ -281,10 +291,6 @@ pub(super) fn reserve_enum_metadata(
                     None,
                 );
             }
-            for row in &retained_life.ports {
-                reserve_enum_metadata(&row.leaf, work, depth + 1, limits)?;
-            }
-            reserve_enum_metadata(result, work, depth + 1, limits)?;
         }
         Type::Array { element, .. }
         | Type::Slice { element }

@@ -31,44 +31,39 @@ pub(super) fn require_closed_context(ty: &Type) -> CompileResult<()> {
                 None,
             )]);
         }
-        if matches!(result.as_ref(), Type::Address { mutable: false, inner } if owned::retained_pointee(inner))
-            && retained_life.binder_count == 1
-            && retained_life.nominal_arguments.is_empty()
-            && matches!(retained_life.retained.as_slice(), [row] if row.path == [zil_ir::LifeTypeProjection::Result] && row.class == 0 && row.binder == 0)
-            && matches!(retained_life.ports.as_slice(), [port] if port.mode == zil_ir::StoredBorrowMode::SharedAddress && port.binder == 0 && port.leaf == **result)
+        let relation = matches!(retained_life.retained.as_slice(), [row]
+            if row.path == [zil_ir::LifeTypeProjection::Result] && row.class == 0
+            && row.binder < retained_life.binder_count
+            && retained_life.ports.iter().any(|port| port.binder == row.binder && port.leaf == **result)
+            && retained_life.ports.iter().filter(|port| port.binder == row.binder).all(|port|
+                port.mode == zil_ir::StoredBorrowMode::SharedAddress));
+        if !matches!(result.as_ref(), Type::Address { mutable: false, inner } if owned::retained_pointee(inner))
+            || !relation
+            || !retained_life.nominal_arguments.is_empty()
         {
-            return Ok(());
+            return Err(fail(
+                zil_base::Span::default(),
+                "shared Task result requires its complete actual shared input context",
+            ));
         }
-        return Err(fail(
-            zil_base::Span::default(),
-            "shared Task result requires its complete actual single shared input context",
-        ));
     }
     let mut next = 0;
-    if let Type::Task {
-        result,
-        retained_life,
-    } = ty
+    if let Type::Task { result, retained_life } = ty
         && *retained_life != empty_context()
-        && !(owned::retained_result(result)
+        && !((owned::retained_result(result)
+            || matches!(result.as_ref(), Type::Address { mutable: false, inner } if owned::retained_pointee(inner)))
             && retained_life.binder_count > 0
-            && retained_life.retained.is_empty()
             && retained_life.nominal_arguments.is_empty()
             && !retained_life.ports.is_empty()
             && retained_life.ports.iter().all(|port| {
                 let dense = if port.binder == next { next += 1; true } else { port.binder < next };
-                dense
-                    && matches!(&port.leaf, Type::Address { mutable, inner }
-                        if owned::retained_pointee(inner)
-                            && port.mode == if *mutable { zil_ir::StoredBorrowMode::ExclusiveAddress } else { zil_ir::StoredBorrowMode::SharedAddress })
-            })
-            && next == retained_life.binder_count)
+                dense && matches!(&port.leaf, Type::Address { mutable, inner }
+                    if owned::retained_pointee(inner)
+                    && port.mode == if *mutable { zil_ir::StoredBorrowMode::ExclusiveAddress } else { zil_ir::StoredBorrowMode::SharedAddress })
+            }) && next == retained_life.binder_count)
     {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Analyze,
-            "borrowed Task retained classes require actual implemented frame port mappings",
-            None,
-        )]);
+        return Err(vec![Diagnostic::unsupported(Phase::Analyze,
+            "borrowed Task retained classes require actual implemented frame port mappings", None)]);
     }
     Ok(())
 }
@@ -79,6 +74,42 @@ pub(super) fn task_payload(ty: &Type) -> Option<&Type> {
         Type::TaskI32 | Type::Task { .. } => Some(ty),
         _ => None,
     }
+}
+// The context is independently admitted above. This projection selects classes,
+// never pointee similarity or a constructor parameter ordinal.
+pub(super) fn result_binder(ty: &Type) -> Option<u32> {
+    if let Type::ErrorUnion { result, .. } = ty {
+        return result_binder(result);
+    }
+    let Type::Task {
+        result,
+        retained_life,
+    } = task_payload(ty)?
+    else {
+        return None;
+    };
+    if !matches!(result.as_ref(), Type::Address { mutable: false, .. }) {
+        return None;
+    }
+    match retained_life.retained.as_slice() {
+        [row] if row.path == [zil_ir::LifeTypeProjection::Result] && row.class == 0 => {
+            Some(row.binder)
+        }
+        _ => None,
+    }
+}
+pub(super) fn result_port(ty: &Type, port: u32) -> bool {
+    if let Type::ErrorUnion { result, .. } = ty {
+        return result_port(result, port);
+    }
+    let Some(binder) = result_binder(ty) else {
+        return false;
+    };
+    // Full leaf equality only excludes impossible whole-input sources after the
+    // declared result class is selected; it never establishes a life relation.
+    matches!(task_payload(ty), Some(Type::Task { result, retained_life })
+        if retained_life.ports.get(port as usize).is_some_and(|p|
+            p.binder == binder && p.mode == zil_ir::StoredBorrowMode::SharedAddress && p.leaf == **result))
 }
 fn borrowed_result(ty: &Type) -> bool {
     match ty {

@@ -355,6 +355,82 @@ pub(super) fn prepare(
             limits,
             returned: None,
         };
+        // A rich Task return cannot always be projected to the old flat life
+        // contract. Recover only the actual address-input classes from the full
+        // signature; the complete inferred contract is still compared below.
+        if let Some(life) = &function.storage_life {
+            scan.pay(
+                life.bindings
+                    .len()
+                    .saturating_add(life.classes.len())
+                    .saturating_add(function.parameters.len()),
+                function.span,
+            )?;
+            for row in &life.bindings {
+                scan.pay(row.position.path.len(), function.span)?;
+            }
+            for row in &life.classes {
+                scan.pay(row.position.path.len(), function.span)?;
+            }
+            let mut classes = BTreeMap::new();
+            let mut port = 0;
+            for (index, parameter) in function.parameters.iter().enumerate() {
+                scan.pay(
+                    inference::type_snapshot_work(&parameter.ty, parameter.span, limits)?,
+                    parameter.span,
+                )?;
+                if !retained_input(&parameter.ty) {
+                    continue;
+                }
+                scan.pay(
+                    life.bindings
+                        .len()
+                        .saturating_add(classes.len())
+                        .saturating_add(1),
+                    parameter.span,
+                )?;
+                let mut rows = life.bindings.iter().filter(|row| {
+                    row.position.base == zil_ir::StorageBase::Parameter(index as u32)
+                        && row.position.path.is_empty()
+                });
+                let source = match (rows.next(), rows.next()) {
+                    (Some(row), None) => match row.binder {
+                        zil_ir::StorageBinder::Invocation(class)
+                            if class < life.invocation_binder_count =>
+                        {
+                            class
+                        }
+                        _ => {
+                            return Err(unsupported(
+                                parameter.span,
+                                "Task factory input requires its actual invocation class",
+                            ));
+                        }
+                    },
+                    _ => {
+                        return Err(unsupported(
+                            parameter.span,
+                            "Task factory input requires one complete declared class",
+                        ));
+                    }
+                };
+                if function
+                    .life
+                    .as_ref()
+                    .is_some_and(|old| old.parameter_lives.get(index) != Some(&Some(source)))
+                {
+                    return Err(unsupported(
+                        parameter.span,
+                        "Task factory flat and full input classes differ",
+                    ));
+                }
+                let next = classes.len() as u32;
+                let binder = *classes.entry(source).or_insert(next);
+                context.ports[port].binder = binder;
+                port += 1;
+            }
+            context.binder_count = classes.len() as u32;
+        }
         let mut locals = BTreeMap::new();
         for parameter in &function.parameters {
             scan.pay(parameter.name.len() + 1, parameter.span)?;

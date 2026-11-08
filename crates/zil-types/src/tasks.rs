@@ -172,15 +172,19 @@ fn check_context(ty: &Type, span: Span, allow_named: bool) -> R<()> {
         if shared || !retained_life.retained.is_empty() {
             let valid = shared
                 && retained_result_with_named(result, allow_named)
-                && retained_life.binder_count == 1
+                && retained_life.binder_count > 0
                 && retained_life.nominal_arguments.is_empty()
-                && matches!(retained_life.retained.as_slice(), [r] if r.path==[zil_ir::LifeTypeProjection::Result] && r.class==0 && r.binder==0)
-                && matches!(retained_life.ports.as_slice(), [port] if port.mode==zil_ir::StoredBorrowMode::SharedAddress && port.binder==0 && port.leaf==**result);
+                && matches!(retained_life.retained.as_slice(), [r]
+                    if r.path == [zil_ir::LifeTypeProjection::Result] && r.class == 0
+                    && r.binder < retained_life.binder_count
+                    && retained_life.ports.iter().any(|p| p.binder == r.binder && p.leaf == **result)
+                    && retained_life.ports.iter().filter(|p| p.binder == r.binder).all(|p|
+                        p.mode == zil_ir::StoredBorrowMode::SharedAddress));
             if !valid {
                 return Err(error(
                     "E-TASK-RESULT-CONTEXT",
                     span,
-                    "Task shared result requires its actual single shared input class and complete Result mapping",
+                    "Task shared result requires its actual shared input class and complete Result mapping",
                 ));
             }
         }

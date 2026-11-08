@@ -1289,7 +1289,7 @@ fn general_task_retained_context_cannot_enter_closed_frame_profile() {
             "E-UNSUPPORTED"
         };
         let message = if case == 2 {
-            "complete actual single shared input context"
+            "complete actual shared input context"
         } else {
             "borrowed Task"
         };
@@ -1316,7 +1316,7 @@ fn general_task_retained_context_cannot_enter_closed_frame_profile() {
                 code
             };
             let message = if case == 2 {
-                "exact single shared retained input context"
+                "exact shared retained input context"
             } else {
                 message
             };
