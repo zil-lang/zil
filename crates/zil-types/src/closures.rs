@@ -1229,9 +1229,32 @@ pub(super) fn owned_signature_head(ty: &Type) -> bool {
     )
 }
 
+/// A synchronous input loan is independent from the returned owned debt.
+/// The result must remain closed data; this is not a lending signature.
+pub(super) fn borrowed_owned_parameter(ty: &Type) -> bool {
+    match ty {
+        Type::Address { inner, .. } => {
+            owned_signature_value(inner)
+                || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())
+        }
+        _ => owned_signature_value(ty),
+    }
+}
+
+pub(super) fn borrowed_owned_signature(parameters: &[Type], result: &Type) -> bool {
+    owned_signature_head(result)
+        && !result.is_copy_value()
+        && owned_signature_value(result)
+        && parameters
+            .iter()
+            .any(|ty| matches!(ty, Type::Address { .. }))
+        && parameters.iter().all(borrowed_owned_parameter)
+}
+
 pub(super) fn value_signature(parameters: &[Type], result: &Type) -> bool {
     supported_signature(parameters, result)
         || (parameters.iter().all(owned_signature_value) && owned_signature_value(result))
+        || borrowed_owned_signature(parameters, result)
 }
 pub(super) const UNIT: u16 = 1;
 pub(super) const BOOL: u16 = 2;
@@ -1702,6 +1725,7 @@ impl Graph {
                 || packages::ordinary(ty)
                 || packages::owned_array_supported(ty)
                 || lending::supported_result(ty)
+                || ty.is_package_address()
                 || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee() || owned_shapes::tuple(inner) || owned_shapes::enumeration(inner) || errors::owned(inner))
                 // This is only a pointee constraint node for a shared head.
                 // It does not make a Managed value Copy or grant a capture.
@@ -2360,10 +2384,18 @@ impl Inference {
             self.graph.default_literals();
             self.graph.solve()?;
         }
+        let mut package_input = false;
         let parameters = self
             .parameters
             .iter()
-            .map(|p| self.graph.ty(*p))
+            .map(|p| {
+                let ty = self.graph.ty(*p)?;
+                // Piggyback on the already charged parameter materialization.
+                // The new graph shape does not extend the old Copy-result
+                // Package-address profile; that path remains Types-rejected.
+                package_input |= ty.as_ref().is_some_and(Type::is_package_address);
+                Ok(ty)
+            })
             .collect::<R<Vec<_>>>()?
             .into_iter()
             .collect::<Option<Vec<_>>>();
@@ -2371,6 +2403,12 @@ impl Inference {
             "E-CLOSURE-INFERENCE", span,
             "closure parameter or result type is not uniquely constrained; annotate it or supply a uniquely typed call",
         ))?;
+        if package_input && signature.1.is_copy_value() {
+            return Err(unsupported(
+                span,
+                "closure value requires a finite Copy type",
+            ));
+        }
         let old = supported_signature(&signature.0, &signature.1);
         if let Some(life) = life {
             self.graph
@@ -2392,10 +2430,20 @@ impl Inference {
                 self.graph.reserve_type(ty, 0, span)?;
             }
         }
+        if !old
+            && signature
+                .0
+                .iter()
+                .any(|ty| matches!(ty, Type::Address { .. }))
+        {
+            for ty in signature.0.iter().chain(std::iter::once(&signature.1)) {
+                self.graph.reserve_type(ty, 0, span)?;
+            }
+        }
         if !old && !value_signature(&signature.0, &signature.1) {
             return Err(unsupported(
                 span,
-                "closure signatures require finite Copy or one-layer Copy/slice-address arguments; address arguments require a Copy result",
+                "closure signatures require finite Copy, closed owned data, or synchronous borrowed inputs with a closed owned result",
             ));
         }
         Ok(signature)
