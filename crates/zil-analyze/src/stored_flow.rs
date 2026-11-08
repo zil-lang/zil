@@ -3357,6 +3357,7 @@ fn transfer(
         }
         _ if pure_copy::ordinary_owned_union(f, i, b)? => {}
         _ if pure_copy::ordinary_package_borrow(f, i, b)? => {}
+        _ if pure_copy::ordinary_package_read(f, i, b)? => {}
         _ if task_transfer.is_some() => {
             out = task_transfer.unwrap();
         }
@@ -3993,6 +3994,22 @@ fn windows(
                             }
                         }
                     }
+                }
+                InstructionKind::ReadPackageField { local, index }
+                    if pure_copy::ordinary_package_read(f, i, b)? =>
+                {
+                    fee(b, 1)?;
+                    let actual = Permission {
+                        targets: BTreeSet::from([Target {
+                            retained_port: None,
+                            base: HoldRoot::Local(*local),
+                            stored: Vec::new(),
+                            place: vec![PlaceProjection::Field(*index)],
+                            heap_element: None,
+                        }]),
+                        loans: Loans::new(),
+                    };
+                    use_permission(&actual, false, &current, loans, apart, b)?;
                 }
                 InstructionKind::TakePackageField { local, index }
                 | InstructionKind::DropPackageField { local, index }
@@ -4940,6 +4957,7 @@ pub(super) fn infer(
     };
     super::stored_callables::definitions(module, b)?;
     let mut foreign_symbols = BTreeSet::new();
+    let mut ordinary_package_reads = false;
     for f in &module.functions {
         if !b.composition_stored.is_empty() && !b.composition_stored[f.id.0 as usize] {
             continue;
@@ -5039,7 +5057,7 @@ pub(super) fn infer(
             )]);
         }
         if f.foreign.is_none() {
-            actual_instructions(module, f, &graphs[f.id.0 as usize], b)?;
+            ordinary_package_reads |= actual_instructions(module, f, &graphs[f.id.0 as usize], b)?;
         }
         super::class_flow::check(module, f, &graphs[f.id.0 as usize].1, b)?;
     }
@@ -5071,7 +5089,7 @@ pub(super) fn infer(
             .iter()
             .any(|d| d.kind == CallableKind::FnOnce)
         || b.stored_owned_fixed
-        || (b.qualified_package_returns || b.byte_queries)
+        || (b.qualified_package_returns || b.byte_queries || ordinary_package_reads)
             && b.composition_stored.is_empty()
             && !b.task_borrowed_results
             && !b.store_option_results
@@ -5180,7 +5198,7 @@ fn actual_instructions(
     f: &TypedFunction,
     graph: &(Vec<Vec<usize>>, Vec<bool>),
     b: &mut Budget,
-) -> CompileResult<()> {
+) -> CompileResult<bool> {
     // A stored exclusive leaf moves with its complete SSA carrier. Two copies
     // retaining the same loan ID otherwise appear to be one permission.
     fn consumed(kind: &InstructionKind) -> (Option<ValueId>, &[ValueId]) {
@@ -5363,6 +5381,7 @@ fn actual_instructions(
             }
         }
     }
+    let mut ordinary_package_reads = false;
     let mut scalar_ffi = false;
     let (preds, reachable) = graph;
     fee(b, f.values.len())?;
@@ -5371,6 +5390,8 @@ fn actual_instructions(
         for i in &block.instructions {
             fee(b, 1)?;
             let byte_query = byte_queries::instruction(module, f, i, b)?;
+            let package_read = pure_copy::ordinary_package_read(f, i, b)?;
+            ordinary_package_reads |= package_read;
             let enum_operation = enum_address::instruction(module, f, i, b)?;
             let owned_operation = (b.stored_owned_fixed
                 || matches!(i.kind, InstructionKind::ReadDesc { .. })
@@ -5383,6 +5404,7 @@ fn actual_instructions(
                 && !owned_operation
                 && !enum_operation
                 && !byte_query
+                && !package_read
                 && !(b.task_borrowed_results && task_address::operation(&i.kind))
                 && !(b.store_option_results
                     && matches!(
@@ -5955,7 +5977,7 @@ fn actual_instructions(
             }
         }
     }
-    Ok(())
+    Ok(ordinary_package_reads)
 }
 
 #[cfg(test)]

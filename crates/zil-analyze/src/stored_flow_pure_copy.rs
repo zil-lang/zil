@@ -221,6 +221,47 @@ pub(super) fn ordinary_package_borrow(
     Ok(true)
 }
 
+// An ordinary owner can be observed without carrying any stored target into
+// its Copy result. Qualified parent shells keep their separate transfer path.
+pub(super) fn ordinary_package_read(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::ReadPackageField { local, index } = i.kind else {
+        return Ok(false);
+    };
+    let parent = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| failure("ordinary Package read local is absent"))?
+        .ty;
+    let Type::Package { fields, .. } = parent else {
+        return Ok(false);
+    };
+    let field = &fields
+        .get(index as usize)
+        .ok_or_else(|| failure("ordinary Package read field is absent"))?
+        .1;
+    b.type_work(field, true, "ordinary Package Copy observation")?;
+    if !field.is_copy_value() || !pure(field, b, 0)? {
+        return Err(failure(
+            "ordinary Package read requires a complete pure Copy field",
+        ));
+    }
+    let output = value_type(
+        f,
+        i.result
+            .ok_or_else(|| failure("ordinary Package read lacks result"))?,
+    )?;
+    if output != field {
+        return Err(failure(
+            "ordinary Package read result differs from its actual field",
+        ));
+    }
+    Ok(true)
+}
+
 fn pure(ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<bool> {
     fee(b, 1)?;
     if depth > b.partial_depth {
