@@ -944,6 +944,7 @@ fn array_outer_scope_and_whole_reference_snapshot_costs_grow_before_cloning() {
         );
         boundaries.push(n);
     }
+    assert_eq!(boundaries, vec![1426, 4572]);
     assert!(boundaries[1] > boundaries[0]);
     println!("Array auxiliary Types snapshot boundaries: {boundaries:?}");
 }
