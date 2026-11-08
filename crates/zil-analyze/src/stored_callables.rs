@@ -81,11 +81,60 @@ pub(super) fn life_result(d: &ClosureDefinition) -> &Type {
     if lending(d) { &Type::Unit } else { &d.result }
 }
 
+// A scheduling tag, never qualification. definitions() rechecks the complete
+// actual inputs, result, captures and entry before this ledger uses the value.
+fn borrowed_owned_candidate(d: &ClosureDefinition) -> bool {
+    d.storage_life.is_none()
+        && d.lending_captures.is_empty()
+        && d.kind != CallableKind::FunctionPointer
+        && matches!(
+            d.result,
+            Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+        )
+}
+
+fn borrowed_owned_definition(
+    module: &TypedModule,
+    d: &ClosureDefinition,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    b.type_work(&d.result, true, "stored callback actual owned result")?;
+    b.spend(
+        d.parameters.len(),
+        "stored callback actual borrowed input inventory",
+    )?;
+    if d.result.is_copy_value()
+        || !d
+            .parameters
+            .iter()
+            .any(|ty| matches!(ty, Type::Address { .. }))
+    {
+        return Err(bad(
+            "stored owning callback requires an actual borrowed input and closed owned result",
+        ));
+    }
+    super::owned_callbacks::data(module, &d.result, b)?;
+    for ty in &d.parameters {
+        super::owned_callbacks::input(module, ty, b)?;
+    }
+    if module
+        .functions
+        .get(d.function.0 as usize)
+        .is_some_and(|entry| entry.reference_return_bound.is_some())
+    {
+        return Err(bad(
+            "stored owning callback cannot claim a borrowed result bound",
+        ));
+    }
+    super::owned_callbacks::signature(module, d, b)
+}
+
 pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
-    module
-        .closures
-        .get(id.0 as usize)
-        .is_some_and(|d| (d.lending_captures.is_empty() && scalar(&d.result)) || lending(d))
+    module.closures.get(id.0 as usize).is_some_and(|d| {
+        (d.lending_captures.is_empty() && scalar(&d.result))
+            || lending(d)
+            || borrowed_owned_candidate(d)
+    })
 }
 pub(super) fn fixed_value(module: &TypedModule, t: &Type) -> bool {
     let t = if let Type::Address { inner, .. } = t {
@@ -128,7 +177,9 @@ pub(super) fn owned_capture(t: &Type, b: &mut Budget) -> CompileResult<bool> {
 pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
     b.spend(module.closures.len(), "qualified callback inventory")?;
     for d in &module.closures {
-        if !b.composition_stored.is_empty()
+        let borrowed_owned = borrowed_owned_candidate(d);
+        if !borrowed_owned
+            && !b.composition_stored.is_empty()
             && !b
                 .composition_stored
                 .get(d.function.0 as usize)
@@ -152,6 +203,9 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
                 "qualified callbacks require finite scalar/shared capture environments and scalar results",
                 None,
             )]);
+        }
+        if borrowed_owned {
+            borrowed_owned_definition(module, d, b)?;
         }
         super::borrowed_fp::signature_work(&d.parameters, &d.result, b)?;
         let f = module

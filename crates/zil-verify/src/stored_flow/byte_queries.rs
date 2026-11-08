@@ -39,17 +39,77 @@ fn outside() -> Diagnostic {
         None,
     )
 }
+// A zero-input ordinary entry may call a stored scalar body only after
+// that body's independently solved query effect is proved complete and empty.
+pub(super) struct PendingEdge {
+    caller: usize,
+    block: usize,
+    instruction: usize,
+    callee: usize,
+}
+
+fn zero_input_scalar(
+    module: &TypedModule,
+    caller: usize,
+    callee: usize,
+    b: &mut Budget,
+) -> Check<bool> {
+    b.spend(8)?;
+    let from = module.functions.get(caller).ok_or_else(outside)?;
+    let to = module.functions.get(callee).ok_or_else(outside)?;
+    Ok(from.call_kind == CallKind::Direct
+        && from.environment.is_none()
+        && from.foreign.is_none()
+        && from.callable_contract.is_none()
+        && from.callable_return_contract.is_none()
+        && to.call_kind == CallKind::Direct
+        && to.environment.is_none()
+        && to.foreign.is_none()
+        && to.callable_contract.is_none()
+        && to.callable_return_contract.is_none()
+        && to.parameters.is_empty()
+        && to.return_type.is_b0_scalar()
+        && to.result_mode == PassingMode::Infer)
+}
+fn matches_edge(module: &TypedModule, edge: &PendingEdge, b: &mut Budget) -> Check<bool> {
+    b.spend(4)?;
+    if !zero_input_scalar(module, edge.caller, edge.callee, b)? {
+        return Ok(false);
+    }
+    let caller = module.functions.get(edge.caller).ok_or_else(outside)?;
+    let operation = caller
+        .blocks
+        .get(edge.block)
+        .and_then(|block| block.instructions.get(edge.instruction))
+        .ok_or_else(outside)?;
+    let InstructionKind::Call {
+        function,
+        arguments,
+    } = &operation.kind
+    else {
+        return Ok(false);
+    };
+    let target = &module.functions[edge.callee];
+    Ok(function.0 as usize == edge.callee
+        && arguments.is_empty()
+        && (operation
+            .result
+            .and_then(|value| caller.values.get(value.0 as usize))
+            == Some(&target.return_type)
+            || (operation.result.is_none() && target.return_type == Type::Unit)))
+}
 pub(super) fn inventory(
     module: &TypedModule,
     graphs: &[FunctionGraph],
     mask: Option<&[bool]>,
     b: &mut Budget,
-) -> Check<()> {
+) -> Check<Vec<PendingEdge>> {
     if !b.byte_queries {
-        return Ok(());
+        return Ok(Vec::new());
     }
     b.spend(module.functions.len())?;
     let mut queries = vec![false; module.functions.len()];
+    let mut pending = Vec::new();
     loop {
         let mut progressed = false;
         b.spend(module.functions.len())?;
@@ -79,17 +139,35 @@ pub(super) fn inventory(
         b.spend(module.functions.len())?;
         for (caller, function) in module.functions.iter().enumerate() {
             b.spend(function.blocks.len())?;
-            for (block, live) in function.blocks.iter().zip(&graphs[caller].reachable) {
+            for (block_index, (block, live)) in function
+                .blocks
+                .iter()
+                .zip(&graphs[caller].reachable)
+                .enumerate()
+            {
                 if !live {
                     continue;
                 }
                 b.spend(block.instructions.len())?;
-                for instruction in &block.instructions {
+                for (instruction_index, instruction) in block.instructions.iter().enumerate() {
                     if let InstructionKind::Call { function, .. } = instruction.kind
                         && queries[function.0 as usize]
                         && covered(caller) != covered(function.0 as usize)
                     {
-                        return Err(outside());
+                        let edge = PendingEdge {
+                            caller,
+                            block: block_index,
+                            instruction: instruction_index,
+                            callee: function.0 as usize,
+                        };
+                        if covered(caller)
+                            || !covered(function.0 as usize)
+                            || !matches_edge(module, &edge, b)?
+                        {
+                            return Err(outside());
+                        }
+                        b.spend(4)?;
+                        pending.push(edge);
                     }
                 }
             }
@@ -163,7 +241,7 @@ pub(super) fn inventory(
         }
     }
     b.byte_query_functions = queries;
-    Ok(())
+    Ok(pending)
 }
 fn clone_alternative(p: &Permission, b: &mut Budget) -> Check<Permission> {
     permission_work(p, b)?;
@@ -482,6 +560,23 @@ impl Flow {
             initial,
             exits: (0..f.blocks.len()).map(|_| Point::default()).collect(),
         };
+        // In this new domain a DAG has final predecessor point states before
+        // each instruction. Cycles retain the complete original fixed point,
+        // including every fresh execution's full grant revocation.
+        if b.ordinary_error_places
+            && b.store_option_results
+            && let Some(order) = super::acyclic_order(graph, b)?
+        {
+            for block in order {
+                let mut point = flow.input(f, block, graph, b)?;
+                b.spend(f.blocks[block].instructions.len())?;
+                for operation in &f.blocks[block].instructions {
+                    advance(module, f, operation, actual, summaries, &mut point, b)?;
+                }
+                flow.exits[block] = point;
+            }
+            return Ok(Some(flow));
+        }
         loop {
             b.spend(flow.exits.len())?;
             let mut next = Vec::new();
@@ -689,4 +784,34 @@ pub(super) fn signature_presence(module: &TypedModule, b: &mut Budget) -> Check<
     }
     b.byte_query_presence_checked = true;
     Ok(false)
+}
+
+pub(super) fn certify_edges(
+    module: &TypedModule,
+    pending: &[PendingEdge],
+    summaries: &[Summary],
+    solved: &[Option<Solution>],
+    mask: Option<&[bool]>,
+    b: &mut Budget,
+) -> Check<()> {
+    if pending.is_empty() {
+        return Ok(());
+    }
+    b.spend(pending.len())?;
+    let rows = mask.ok_or_else(outside)?;
+    for edge in pending {
+        b.spend(5)?;
+        if rows.get(edge.caller).copied() != Some(false)
+            || rows.get(edge.callee).copied() != Some(true)
+            || solved.get(edge.callee).is_none_or(Option::is_none)
+            || !matches_edge(module, edge, b)?
+        {
+            return Err(outside());
+        }
+        let proof = summaries.get(edge.callee).ok_or_else(outside)?;
+        if !proof.complete || !proof.byte_covered || !proof.byte_reads.is_empty() {
+            return Err(outside());
+        }
+    }
+    Ok(())
 }
