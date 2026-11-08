@@ -1158,3 +1158,83 @@ fn main(){}
         }
     }
 }
+
+#[test]
+fn explicit_generic_store_results_require_actual_success_ownership_and_freshness() {
+    let text = r#"
+fn fresh<T:StoreElement>()->bool!Store<T> contract{result(create)}{return error_ok::<bool,Store<T>>(store_new())}
+fn passed<T:StoreElement>(give items:Store<T>)->bool!Store<T> contract{result(give)}{return error_ok::<bool,Store<T>>(give items)}
+fn failed<T:StoreElement>()->bool!Store<T> contract{result(create)}{return error_err::<bool,Store<T>>(true)}
+fn attempt()->bool!i32{let items=fresh::<i32>()?;store_reserve(items,1);store_push(items,7);let moved=passed(give items)?;match failed::<i32>(){.ok(_)=>{return 19},.err(_)=>{return i32(store_len(moved))}}}
+fn result()->i32{match attempt(){.ok(n)=>{return n},.err(_)=>{return 19}}}
+fn main(){}
+"#;
+    let input = SourceUnit::new(FileId(0), ModuleId(0), "generic-store-raw.zil", text);
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &syntax).unwrap();
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let raw = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    let temp = Temp::new();
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let report = compile_source(
+                &SourceUnit::new(FileId(0), ModuleId(0), "explicit-generic-store.zil", text),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    entry: Some("result".into()),
+                    backend,
+                    optimization,
+                    output: Some(
+                        temp.0
+                            .join(format!("generic-store-{backend:?}-{optimization:?}")),
+                    ),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let codegen = report.native_codegen.as_ref().unwrap();
+            assert_eq!(codegen.backend, backend);
+            assert!(codegen.fallback.is_none());
+            run(&report.artifacts["executable"], b"", 0, "1\n");
+        }
+    }
+    for text in [
+        "fn bad<T:StoreElement>(items:Store<T>)->bool!Store<T> contract{result(give)}{return error_ok::<bool,Store<T>>(items)}fn main(){}",
+        "fn bad<T:StoreElement>(give items:Store<T>)->bool!Store<T> contract{result(create)}{return error_ok::<bool,Store<T>>(give items)}fn main(){}",
+        "fn bad<T:StoreElement>()->bool!Store<T> contract{result(create)}{let items:Store<T>=store_new();let desc=items;return error_ok::<bool,Store<T>>(desc)}fn main(){}",
+    ] {
+        let report = compile_source(
+            &SourceUnit::new(FileId(0), ModuleId(0), "invalid-tagged-store.zil", text),
+            &CompileOptions::default(),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|e| e.phase == Phase::Expand && e.code == "E-GENERIC-ARGUMENT"),
+            "{}",
+            report.to_json()
+        );
+    }
+}
