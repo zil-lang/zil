@@ -1241,7 +1241,7 @@ fn ordinary_error_places_execute_the_original_byte_and_package_consumers() {
             ));
             fs::create_dir_all(&dir).unwrap();
             fs::write(dir.join("source.zil"), &source).unwrap();
-            let report = compile_source(
+            let report = zil_driver::compile_source(
                 &SourceUnit::new(FileId(0), ModuleId(0), "ordinary-error-place.zil", &source),
                 &CompileOptions {
                     backend,
