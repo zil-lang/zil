@@ -4,15 +4,20 @@ use super::*;
 const REFILL: &str = include_str!("refill.zil");
 const CALLER_DESCRIPTOR: &str = include_str!("caller-descriptor.zil");
 const RECORD_REFILL: &str = include_str!("record-refill.zil");
+const RHS_ONCE: &str = include_str!("rhs-once.zil");
+const TWO_INPUTS: &str = include_str!("two-inputs.zil");
 
-fn raw_source(program: &str) -> zil_ir::TypedModule {
+fn core_source(program: &str) -> zil_ir::CoreModule {
     let input = source(program);
     let ast = zil_syntax::parse(&input).into_result().unwrap();
-    let core = zil_expand::expand_with_map_limits(&input, &ast, &Limits::default())
+    zil_expand::expand_with_map_limits(&input, &ast, &Limits::default())
         .unwrap()
-        .core;
+        .core
+}
+
+fn raw_source(program: &str) -> zil_ir::TypedModule {
     zil_types::check(
-        &core,
+        &core_source(program),
         &zil_base::TargetProfile::host_llvm(),
         &Limits::default(),
     )
@@ -63,6 +68,28 @@ fn borrowed_store_field_explicit_dereference_keeps_the_same_actual_receiver() {
         report.to_json()
     );
     assert_eq!(report.verification_runs, 1);
+    let direct = raw_source(REFILL);
+    let explicit = raw_source(&program);
+    let operations = |module: &zil_ir::TypedModule| {
+        let function = module
+            .functions
+            .iter()
+            .find(|f| f.locals.iter().any(|l| l.name == "next"))
+            .unwrap();
+        function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .filter_map(|i| match &i.kind {
+                kind @ zil_ir::InstructionKind::ReservePlaceAddress { .. }
+                | kind @ zil_ir::InstructionKind::CommitPlaceReplace { .. } => Some(kind.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    let direct = operations(&direct);
+    assert_eq!(direct.len(), 2);
+    assert_eq!(direct, operations(&explicit));
 }
 
 #[test]
@@ -190,9 +217,16 @@ fn helper_replacement_retires_the_callers_old_store_descriptor_and_element_borro
     );
     assert_ne!(old_descriptor, CALLER_DESCRIPTOR);
     assert_ne!(old_element, REFILL);
+    let self_give = REFILL.replacen(
+        "refill(&mut holder,give replacement)",
+        "refill(&mut holder,give holder.items)",
+        1,
+    );
+    assert_ne!(self_give, REFILL);
     for (label, program) in [
         ("caller old descriptor", old_descriptor),
         ("caller old element", old_element),
+        ("caller moves the borrowed destination field", self_give),
     ] {
         let report = compile_source(
             &source(&program),
@@ -208,6 +242,229 @@ fn helper_replacement_retires_the_callers_old_store_descriptor_and_element_borro
             "{label}: {}",
             report.to_json()
         );
+    }
+}
+
+#[test]
+fn raw_and_wire_reject_reusing_a_consumed_store_input_and_a_shared_parent() {
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    for kind in ["duplicate input", "shared parent"] {
+        let mut raw = raw_source(if kind == "duplicate input" {
+            TWO_INPUTS
+        } else {
+            REFILL
+        });
+        let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
+        zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+        let mut edits = 0;
+        if kind == "duplicate input" {
+            let f = raw
+                .functions
+                .iter_mut()
+                .find(|f| f.locals.iter().any(|l| l.name == "last"))
+                .unwrap();
+            let mut first = None;
+            for block in &mut f.blocks {
+                for instruction in &mut block.instructions {
+                    if let zil_ir::InstructionKind::CommitPlaceReplace { value, .. } =
+                        &mut instruction.kind
+                    {
+                        if let Some(old) = first {
+                            assert_ne!(*value, old);
+                            *value = old;
+                            edits += 1;
+                        } else {
+                            first = Some(*value)
+                        }
+                    }
+                }
+            }
+            assert_eq!(edits, 1);
+        } else {
+            let package = raw
+                .functions
+                .iter()
+                .find_map(|f| {
+                    f.locals.iter().find_map(|l| match &l.ty {
+                        zil_ir::Type::Address { inner, .. }
+                            if matches!(inner.as_ref(), zil_ir::Type::Package { .. }) =>
+                        {
+                            Some(inner.as_ref().clone())
+                        }
+                        _ => None,
+                    })
+                })
+                .unwrap();
+            for f in &mut raw.functions {
+                for ty in f
+                    .values
+                    .iter_mut()
+                    .chain(f.locals.iter_mut().map(|l| &mut l.ty))
+                {
+                    if let zil_ir::Type::Address { mutable, inner } = ty
+                        && inner.as_ref() == &package
+                    {
+                        *mutable = false;
+                        edits += 1;
+                    }
+                }
+                for block in &mut f.blocks {
+                    for instruction in &mut block.instructions {
+                        if let zil_ir::InstructionKind::BorrowLocalMut { local } = instruction.kind
+                            && f.locals[local.0 as usize].ty == package
+                        {
+                            instruction.kind = zil_ir::InstructionKind::BorrowLocal { local };
+                            edits += 1;
+                        }
+                    }
+                }
+            }
+            assert!(edits >= 3);
+        }
+        plan.module_fingerprint = raw.fingerprint();
+        let analyzed = zil_analyze::analyze(&raw, &limits).unwrap_err();
+        let verified =
+            zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap_err();
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        let decoded = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+        for (entry, errors) in [
+            ("Analyze", analyzed),
+            ("Verify", verified),
+            ("Wire", decoded),
+        ] {
+            println!("{kind} {entry}: {errors:?}");
+            assert!(
+                errors
+                    .iter()
+                    .all(|d| d.category == ResultCategory::SafeReject),
+                "{kind}/{entry}: {errors:?}"
+            );
+            assert!(
+                !errors.iter().any(|d| d.message.contains("fingerprint")),
+                "{kind}/{entry}: {errors:?}"
+            );
+            assert!(
+                errors.iter().any(|d| {
+                    if kind == "duplicate input" {
+                        d.message.contains("replacement RHS") && d.message.contains("consumed")
+                    } else {
+                        d.message.contains("mutable parent")
+                            || d.message.contains("exclusive permission")
+                    }
+                }),
+                "{kind}/{entry}: {errors:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn named_and_explicit_store_field_replacement_have_exact_fresh_and_warm_budgets() {
+    let explicit = REFILL.replacen("holder.items=give next", "(*holder).items=give next", 1);
+    for (label, program) in [("named", REFILL), ("explicit", explicit.as_str())] {
+        let input = source(program);
+        let mut low = 1;
+        let mut high = Limits::default().max_analysis_steps;
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let report = compile_source(
+                &input,
+                &CompileOptions {
+                    stop_after: Stage::Verify,
+                    limits: Limits {
+                        max_analysis_steps: mid,
+                        ..Limits::default()
+                    },
+                    ..CompileOptions::default()
+                },
+            );
+            match report.status {
+                ResultCategory::Success => {
+                    assert_eq!(report.verification_runs, 1);
+                    high = mid;
+                }
+                ResultCategory::ResourceLimit => low = mid + 1,
+                _ => panic!("{label}: {}", report.to_json()),
+            }
+        }
+        let mut warm = zil_driver::CompilationSession::default();
+        for (n, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            let options = CompileOptions {
+                stop_after: Stage::Verify,
+                limits: Limits {
+                    max_analysis_steps: n,
+                    ..Limits::default()
+                },
+                ..CompileOptions::default()
+            };
+            for report in [
+                warm.compile_source(&input, &options),
+                compile_source(&input, &options),
+            ] {
+                assert_eq!(report.status, expected, "{label}: {}", report.to_json());
+                if expected == ResultCategory::Success {
+                    assert_eq!(report.verification_runs, 1);
+                }
+            }
+        }
+        assert_eq!(low, 53_444, "{label} Source budget changed");
+        println!("borrowed Store {label}: N={low}, N-1=ResourceLimit, fresh/warm/retry=Pass");
+        let core = core_source(program);
+        let target = zil_base::TargetProfile::host_llvm();
+        let mut low = 1;
+        let mut high = Limits::default().max_analysis_steps;
+        while low < high {
+            let mid = low + (high - low) / 2;
+            match zil_types::check(
+                &core,
+                &target,
+                &Limits {
+                    max_analysis_steps: mid,
+                    ..Limits::default()
+                },
+            ) {
+                Ok(_) => high = mid,
+                Err(errors)
+                    if errors
+                        .iter()
+                        .all(|e| e.category == ResultCategory::ResourceLimit) =>
+                {
+                    low = mid + 1
+                }
+                Err(errors) => panic!("{label} Types: {errors:?}"),
+            }
+        }
+        for n in [low, low - 1, low] {
+            let result = zil_types::check(
+                &core,
+                &target,
+                &Limits {
+                    max_analysis_steps: n,
+                    ..Limits::default()
+                },
+            );
+            if n == low {
+                result.unwrap();
+            } else {
+                assert!(
+                    result
+                        .unwrap_err()
+                        .iter()
+                        .all(|e| e.category == ResultCategory::ResourceLimit)
+                );
+            }
+        }
+        assert_eq!(
+            low,
+            if label == "named" { 2_805 } else { 3_141 },
+            "{label} Types budget changed"
+        );
+        println!("borrowed Store {label} Types: N={low}, N-1=ResourceLimit, retry=Pass");
     }
 }
 
@@ -330,7 +587,11 @@ fn borrowed_store_field_native_transfer_reads_new_payload_and_frees_both_instanc
             continue;
         }
         for optimization in [Optimization::O0, Optimization::O2] {
-            for (label, program) in [("scalar", REFILL), ("record", RECORD_REFILL)] {
+            for (label, program, stdout) in [
+                ("scalar", REFILL, &b""[..]),
+                ("record", RECORD_REFILL, &b""[..]),
+                ("rhs-once", RHS_ONCE, &b"X"[..]),
+            ] {
                 let dir = root.join(format!("{backend:?}-{optimization:?}-{label}"));
                 fs::create_dir_all(&dir).unwrap();
                 let report = compile_source(
@@ -362,7 +623,7 @@ fn borrowed_store_field_native_transfer_reads_new_payload_and_frees_both_instanc
                     Some(0),
                     "{backend:?}/{optimization:?}: {output:?}"
                 );
-                assert!(output.stdout.is_empty(), "{output:?}");
+                assert_eq!(output.stdout, stdout, "{output:?}");
                 let audit = String::from_utf8(output.stderr).unwrap();
                 for field in [
                     "\"allocated\":2",
@@ -380,5 +641,5 @@ fn borrowed_store_field_native_transfer_reads_new_payload_and_frees_both_instanc
             }
         }
     }
-    assert_eq!(runs, 4 + 4 * usize::from(cfg!(feature = "llvm-api")));
+    assert_eq!(runs, 6 + 6 * usize::from(cfg!(feature = "llvm-api")));
 }

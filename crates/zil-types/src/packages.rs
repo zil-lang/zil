@@ -526,6 +526,33 @@ impl Builder<'_, '_> {
         if self.owned_array_assign(target, rhs)? {
             return Ok(true);
         }
+        // An explicit dereference of a named Package address is a referent
+        // place, never a copied local shell. Classify without evaluating it;
+        // the ordinary assignment dispatcher then invokes assign_address and
+        // its complete owning endpoint planner exactly once.
+        if let CoreExprKind::Member { object, .. } = &target.kind
+            && let CoreExprKind::Unary {
+                op: UnaryOp::Dereference,
+                operand,
+            } = &object.kind
+            && let CoreExprKind::Name(name) = &operand.kind
+        {
+            let levels = self.function.locals.len().saturating_add(1).ilog2() as usize + 1;
+            self.closures.snapshot(
+                self.scopes
+                    .len()
+                    .saturating_mul(levels)
+                    .saturating_mul(12)
+                    .saturating_mul(name.len().saturating_add(1)),
+                target.span,
+            )?;
+            if let Some(local) = self.lookup(name)
+                && matches!(&self.function.locals[local.0 as usize].ty,
+                    Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Package { .. }))
+            {
+                return Ok(false);
+            }
+        }
         let Some((local, index, ty)) = self.package_place(target)? else {
             return Ok(false);
         };
