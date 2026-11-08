@@ -3,6 +3,8 @@
 use super::*;
 use std::sync::Arc;
 mod partial_places;
+#[cfg(test)]
+mod tag_forgetting_tests;
 
 pub(crate) fn owned(ty: &Type) -> bool {
     match ty {
@@ -367,6 +369,9 @@ impl Tree {
         match (&self.node, ty) {
             (Node::Copy | Node::Leaf(_), _) => Ok(true),
             (Node::Product(children), Type::Tuple(fields)) => {
+                if children.len() != fields.len() {
+                    return Ok(false);
+                }
                 for (child, ty) in children.iter().zip(fields) {
                     if !child.tags_unknown(ty, budget)? {
                         return Ok(false);
@@ -375,6 +380,9 @@ impl Tree {
                 Ok(true)
             }
             (Node::Product(children), Type::Package { fields, .. }) => {
+                if children.len() != fields.len() {
+                    return Ok(false);
+                }
                 for (child, (_, ty)) in children.iter().zip(fields) {
                     if !child.tags_unknown(ty, budget)? {
                         return Ok(false);
