@@ -49,6 +49,7 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
     let mut pending = vec![ty];
     while let Some(ty) = pending.pop() {
         budget.spend(2)?;
+        tasks::charge_result_context(ty, budget)?;
         tasks::require_closed_context(ty, None)?;
         match ty {
             Type::BorrowedStorage { storage, life } => {

@@ -525,6 +525,7 @@ pub(super) fn type_work(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<()>
             return Err(limit("stored type depth exceeds verification limit"));
         }
         match t {
+            Type::Task { .. } => super::tasks::charge_result_context(t, b)?,
             Type::BorrowedStorage { storage, life } => {
                 b.spend(
                     life.slots

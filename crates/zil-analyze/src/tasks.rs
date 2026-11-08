@@ -1,7 +1,11 @@
 //! Producer checks reconstruct the scalar task profile and actual suspension.
 use super::*;
 mod borrowed_loans;
+mod context_work;
 mod drop_sync;
+pub(super) use context_work::{
+    context as charge_result_context, selection as charge_result_selection,
+};
 mod owned;
 mod port_origins;
 pub(super) use drop_sync::{
@@ -24,6 +28,12 @@ pub(super) fn require_closed_context(ty: &Type) -> CompileResult<()> {
         && (matches!(result.as_ref(), Type::Address { mutable: false, .. })
             || !retained_life.retained.is_empty())
     {
+        if !matches!(result.as_ref(), Type::Address { mutable: false, .. }) {
+            return Err(fail(
+                zil_base::Span::default(),
+                "shared Task result requires its complete actual shared input context",
+            ));
+        }
         if retained_life.retained.is_empty() {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
@@ -188,6 +198,12 @@ pub(super) fn borrowed_signature(f: &TypedFunction, budget: &mut Budget) -> Comp
     let mut parameters = Vec::new();
     for parameter in &f.parameters {
         budget.spend(1, "borrowed Task signature input")?;
+        let ty = &f
+            .locals
+            .get(parameter.0 as usize)
+            .ok_or_else(|| fail(f.span, "borrowed Task signature input absent"))?
+            .ty;
+        budget.type_work(ty, false, "Task signature complete input clone")?;
         parameters.push(
             f.locals
                 .get(parameter.0 as usize)
@@ -196,6 +212,7 @@ pub(super) fn borrowed_signature(f: &TypedFunction, budget: &mut Budget) -> Comp
                 .clone(),
         );
     }
+    charge_result_selection(&f.return_type, budget)?;
     super::signature_life::charge(contract, budget)?;
     super::signature_life::function_relation(&parameters, &f.return_type, contract, false, &[])?;
     Ok(true)
@@ -521,8 +538,13 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             let mut inputs = Vec::new();
             for parameter in &f.parameters {
                 budget.spend(1, "Task input signature")?;
+                charge_result_selection(&f.locals[parameter.0 as usize].ty, budget)?;
                 inputs.push(f.locals[parameter.0 as usize].ty.clone());
             }
+            for ty in &inputs {
+                charge_result_selection(ty, budget)?;
+            }
+            charge_result_selection(&f.return_type, budget)?;
             super::signature_life::charge(contract, budget)?;
             super::signature_life::function_relation(
                 &inputs,

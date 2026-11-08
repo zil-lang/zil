@@ -707,23 +707,26 @@ fn check_module(
         if let Some(contract) = &function.storage_life {
             if function.call_kind == CallKind::Suspend {
                 budget.spend(function.parameters.len())?;
-                let parameters = function
-                    .parameters
-                    .iter()
-                    .map(|id| {
-                        function
-                            .locals
-                            .get(id.0 as usize)
-                            .map(|local| local.ty.clone())
-                            .ok_or_else(|| {
-                                reject(
-                                    "E-VERIFY-TASK",
-                                    Some(function.span),
-                                    "Suspend signature input absent",
-                                )
-                            })
-                    })
-                    .collect::<Check<Vec<_>>>()?;
+                let mut parameters = Vec::new();
+                for id in &function.parameters {
+                    let ty = &function
+                        .locals
+                        .get(id.0 as usize)
+                        .ok_or_else(|| {
+                            reject(
+                                "E-VERIFY-TASK",
+                                Some(function.span),
+                                "Suspend signature input absent",
+                            )
+                        })?
+                        .ty;
+                    tasks::charge_result_selection(ty, &mut budget)?;
+                    parameters.push(ty.clone());
+                }
+                for ty in &parameters {
+                    tasks::charge_result_selection(ty, &mut budget)?;
+                }
+                tasks::charge_result_selection(&function.return_type, &mut budget)?;
                 signature_life::charge(contract, &mut budget)?;
                 signature_life::function_relation(
                     module,
@@ -1156,6 +1159,7 @@ fn check_anonymous_sum(ty: &Type, limits: &Limits, budget: &mut Budget) -> Check
         pending.push((&fields[0], 0usize));
     }
     while let Some((ty, depth)) = pending.pop() {
+        tasks::charge_result_context(ty, budget)?;
         tasks::require_closed_context(ty, None)?;
         budget.spend(1)?;
         identity_work = identity_work.saturating_add(1);
@@ -1248,6 +1252,7 @@ fn check_type_shape(
         budget.task_origin_roots |= matches!(ty, Type::Task { .. });
         budget.borrowed_task_ports |=
             matches!(ty, Type::Task { retained_life, .. } if !retained_life.ports.is_empty());
+        tasks::charge_result_context(ty, budget)?;
         tasks::require_closed_context(ty, None)?;
         budget.task_borrowed_results |= matches!(ty, Type::Task { result, .. } if matches!(result.as_ref(), Type::Address { mutable: false, .. }));
         budget.store_option_results |= matches!(ty, Type::BorrowedStorage { storage, .. }

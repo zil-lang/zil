@@ -239,6 +239,7 @@ impl Equations {
                 b.spend(1, "actual Task semantic class")?;
                 match ty {
                     Type::Task { retained_life, .. } => {
+                        super::tasks::charge_result_context(ty, b)?;
                         super::tasks::require_closed_context(ty)?;
                         for class in 0..retained_life.binder_count {
                             keys.push((cp.clone(), class));
@@ -721,11 +722,7 @@ fn check_with(
                         && !values[task.0 as usize].task_ports.is_empty()
                     {
                         let input = &values[task.0 as usize];
-                        b.type_work(
-                            &f.values[task.0 as usize],
-                            false,
-                            "TaskPoll full port class selection",
-                        )?;
+                        super::tasks::charge_result_selection(&f.values[task.0 as usize], b)?;
                         let port = input
                             .task_ports
                             .iter()

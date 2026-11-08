@@ -232,6 +232,7 @@ impl Equations {
                 b.spend(1)?;
                 match ty {
                     Type::Task { retained_life, .. } => {
+                        super::tasks::charge_result_context(ty, b)?;
                         super::tasks::require_closed_context(ty, None)?;
                         for class in 0..retained_life.binder_count {
                             keys.push((cp.clone(), class));
@@ -766,7 +767,7 @@ fn check_with(
                             && !values[task.0 as usize].task_ports.is_empty()
                         {
                             let input = &values[task.0 as usize];
-                            resources::charge_payload(&f.values[task.0 as usize], b)?;
+                            super::tasks::charge_result_selection(&f.values[task.0 as usize], b)?;
                             let port = input
                                 .task_ports
                                 .iter()

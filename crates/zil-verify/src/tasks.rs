@@ -1,6 +1,10 @@
 //! Independent scalar task ABI admission. No producer call-mode flag is trusted.
 use super::*;
+mod context_work;
 mod drop_sync;
+pub(super) use context_work::{
+    context as charge_result_context, selection as charge_result_selection,
+};
 mod owned;
 pub(super) use drop_sync::{
     needs_proof as needs_synchronous_proof, require as require_synchronous_drop,
@@ -23,6 +27,13 @@ pub(super) fn require_closed_context(ty: &Type, span: Option<Span>) -> Check<()>
     {
         let address_result = matches!(result.as_ref(), Type::Address { mutable: false, .. });
         if address_result || !retained_life.retained.is_empty() {
+            if !address_result {
+                return Err(reject(
+                    "E-VERIFY-TASK-RESULT",
+                    span,
+                    "shared Task result has no exact shared retained input context",
+                ));
+            }
             if retained_life.retained.is_empty() {
                 return Err(unsupported(
                     "borrowed Task retained classes require actual implemented frame port mappings",
@@ -314,6 +325,18 @@ pub(super) fn borrowed_signature(
     let mut parameters = Vec::new();
     for parameter in &f.parameters {
         budget.spend(1)?;
+        let ty = &f
+            .locals
+            .get(parameter.0 as usize)
+            .ok_or_else(|| {
+                reject(
+                    "E-VERIFY-TASK",
+                    Some(f.span),
+                    "borrowed Task signature input absent",
+                )
+            })?
+            .ty;
+        resources::charge_payload(ty, budget)?;
         parameters.push(
             f.locals
                 .get(parameter.0 as usize)
@@ -328,6 +351,7 @@ pub(super) fn borrowed_signature(
                 .clone(),
         );
     }
+    charge_result_selection(&f.return_type, budget)?;
     super::signature_life::charge(contract, budget)?;
     super::signature_life::function_relation(
         module,
@@ -413,6 +437,7 @@ pub(super) fn carrier(
             "task carrier requires actual owning or descriptor payload",
         ));
     };
+    charge_result_context(payload, budget)?;
     require_closed_context(payload, span)?;
     resources::charge_payload(payload, budget)?;
     if let Type::Task { result, .. } = payload.as_ref()
@@ -855,6 +880,7 @@ pub(super) fn module(module: &TypedModule, budget: &mut Budget) -> Check<()> {
             let mut inputs = Vec::new();
             for parameter in &f.parameters {
                 budget.spend(1)?;
+                charge_result_selection(&f.locals[parameter.0 as usize].ty, budget)?;
                 inputs.push(
                     f.locals
                         .get(parameter.0 as usize)
@@ -865,6 +891,10 @@ pub(super) fn module(module: &TypedModule, budget: &mut Budget) -> Check<()> {
                         .clone(),
                 );
             }
+            for ty in &inputs {
+                charge_result_selection(ty, budget)?;
+            }
+            charge_result_selection(&f.return_type, budget)?;
             super::signature_life::charge(contract, budget)?;
             super::signature_life::function_relation(
                 module,
