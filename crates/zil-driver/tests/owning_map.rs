@@ -251,7 +251,7 @@ fn conditional_task_map_analyze_work_preserves_tags_and_live_inputs() {
     let report = compile_project(
         &project(source),
         &CompileOptions {
-            stop_after: Stage::Analyze,
+            stop_after: Stage::Verify,
             ..CompileOptions::default()
         },
     );
@@ -263,16 +263,11 @@ fn conditional_task_map_analyze_work_preserves_tags_and_live_inputs() {
         "{}",
         report.to_json()
     );
-    assert_eq!(report.verification_runs, 0);
+    assert_eq!(report.verification_runs, 1);
     let module = raw_task_map_lending(source);
     let limits = Limits::default();
     let plan = zil_analyze::analyze(&module, &limits).unwrap();
-    // The independent verifier still uses its old work schedule in this
-    // Analyze-only increment; neither its authority nor its checks change.
-    let verify_limits = Limits {
-        max_analysis_steps: 100_000_000,
-        ..limits.clone()
-    };
+    let verify_limits = limits.clone();
     let target = TargetProfile::host_llvm();
     zil_verify::verify_module(module.clone(), plan.clone(), &target, &verify_limits).unwrap();
     let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &verify_limits).unwrap();
@@ -404,10 +399,6 @@ fn task_map_native(source: &str, label: &str) {
                     clang: Some(wrapper),
                     output: Some(out.join("normal")),
                     emit_dir: Some(out.join("phases")),
-                    limits: Limits {
-                        max_analysis_steps: 100_000_000,
-                        ..Limits::default()
-                    },
                     ..CompileOptions::default()
                 },
             );
@@ -528,7 +519,6 @@ fn task_map_lending_keeps_each_live_source_window() {
         let out = directory(label);
         fs::write(out.join("main.zil"), &bad).unwrap();
         let report = compile_project(&project(&bad), &CompileOptions {
-            limits: Limits { max_analysis_steps: 100_000_000, ..Limits::default() },
             ..CompileOptions::default()
         });
         fs::write(out.join("compile.json"), report.to_json()).unwrap();
@@ -544,10 +534,7 @@ fn temporary_task_match_requires_one_real_hidden_owner_and_live_input() {
     );
     let module = raw_task_map_lending(source);
     let target = TargetProfile::host_llvm();
-    let limits = Limits {
-        max_analysis_steps: 100_000_000,
-        ..Limits::default()
-    };
+    let limits = Limits::default();
     let plan = zil_analyze::analyze(&module, &limits).unwrap();
     let attempt = module
         .functions
@@ -698,10 +685,7 @@ fn raw_task_map_lending(source: &str) -> zil_ir::TypedModule {
                 .collect()
         })
         .collect();
-    let limits = Limits {
-        max_analysis_steps: 100_000_000,
-        ..Limits::default()
-    };
+    let limits = Limits::default();
     let modules = zil_expand::expand_program_with_limits_target(
         &project.modules,
         &syntax,
@@ -732,10 +716,7 @@ fn mixed_task_map_raw_wire_and_exact_verifier_work_are_independent() {
         "../../../tests/fixtures/task-borrow-results/owning-map-lending.zil"
     ));
     let target = TargetProfile::host_llvm();
-    let limits = Limits {
-        max_analysis_steps: 100_000_000,
-        ..Limits::default()
-    };
+    let limits = Limits::default();
     let plan = zil_analyze::analyze(&module, &limits).unwrap();
     zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
     let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
@@ -790,6 +771,33 @@ fn mixed_task_map_raw_wire_and_exact_verifier_work_are_independent() {
         )
         .err()
         .unwrap();
+        assert!(
+            errors
+                .iter()
+                .all(|e| e.category == ResultCategory::ResourceLimit)
+        );
+    }
+    for _ in 0..2 {
+        zil_verify::verify_module_bytes(
+            &wire,
+            &target,
+            &Limits {
+                max_analysis_steps: upper,
+                ..limits.clone()
+            },
+        )
+        .unwrap();
+        let errors = zil_verify::verify_module_bytes(
+            &wire,
+            &target,
+            &Limits {
+                max_analysis_steps: lower,
+                ..limits.clone()
+            },
+        )
+        .err()
+        .unwrap();
+        assert!(!errors.is_empty());
         assert!(
             errors
                 .iter()
@@ -1376,6 +1384,151 @@ fn optional_store_some_blocks_mutation_and_owner_retirement_until_last_use() {
                     || d.message.contains("actual stored target/parent loan")),
             "{operation}: {}",
             report.to_json()
+        );
+    }
+}
+
+#[test]
+fn mixed_task_store_cfgs_preserve_all_predecessors_cycles_and_dead_block_checks() {
+    let original =
+        include_str!("../../../tests/fixtures/task-borrow-results/owning-map-lending.zil");
+    // Keep the algorithm control small enough to reach Verify under the same
+    // default request; the full stdlib Map fixture is tested separately above.
+    let mut compact = original
+        .replace("import std.owning_map\n", "")
+        .replace("import std.owning_entries\n", "");
+    compact = compact
+        .lines()
+        .filter(|line| {
+            !line.starts_with("package Key") && !line.starts_with("impl owning_map.KeyEq")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let begin = compact.find("   var map=owning_map.new").unwrap();
+    let end = compact[begin..]
+        .find("   match task_poll(&mut owner)")
+        .unwrap()
+        + begin;
+    compact.replace_range(begin..end, "   let items:Store<Value>=store_new()\n   if !store_reserve(items,1){return 11}\n   store_push(items,Value{ticket:Ticket{code:66},number:42})\n   let map=LocalMap{items:give items}\n   let found=lookup(&map)\n   let observed=inspect(found)\n   if observed!=42{return 12}\n");
+    compact.push_str("\npackage LocalMap{manages items:Store<Value>}\nfn lookup<life a>(map:&'a LocalMap)->Option<&'a Value>{if store_len(map.items)==0{return Option::<&'a Value>.None()}return Option::<&'a Value>.Some(store_at(map.items,0))}\n");
+    for diamond in [true, false] {
+        let replacement = if diamond {
+            "let spare=43\n let input=if *parent==42 {&*parent}else{&spare}"
+        } else {
+            "var rounds=0\n while rounds<2 {rounds+=1}\n let input=&*parent"
+        };
+        let text = compact.replace("let input=&*parent", replacement);
+        let report = compile_project(&project(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "diamond={diamond}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        let module = raw_task_map_lending(&text);
+        let limits = Limits::default();
+        let plan = zil_analyze::analyze(&module, &limits).unwrap();
+        zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits).unwrap();
+        let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+        zil_verify::verify_module_bytes(&wire, &module.target, &limits).unwrap();
+        if diamond {
+            let attempt = module
+                .functions
+                .iter()
+                .find(|f| f.locals.iter().any(|l| l.name == "spare"))
+                .unwrap();
+            let spare = attempt
+                .locals
+                .iter()
+                .position(|l| l.name == "spare")
+                .unwrap();
+            assert!(plan.functions[attempt.id.0 as usize].holds.iter().any(|h| {
+                h.roots.contains(&zil_ir::HoldRoot::Parameter(0))
+                    && h.roots
+                        .contains(&zil_ir::HoldRoot::Local(zil_ir::LocalId(spare as u32)))
+            }));
+        }
+        let mut baseline = module.clone();
+        let f = baseline
+            .functions
+            .iter_mut()
+            .find(|f| {
+                f.blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .any(|i| matches!(i.kind, InstructionKind::TaskPoll { .. }))
+            })
+            .unwrap();
+        let fi = f.id.0 as usize;
+        let dead_id = zil_ir::BlockId(f.blocks.len() as u32);
+        let first = f.values.len() as u32;
+        f.values.extend([Type::I32, Type::I32, Type::I32]);
+        f.blocks.push(zil_ir::BasicBlock {
+            id: dead_id,
+            instructions: vec![
+                zil_ir::Instruction {
+                    result: Some(zil_ir::ValueId(first)),
+                    kind: InstructionKind::Constant(zil_ir::Constant::I32(1)),
+                    span: f.span,
+                },
+                zil_ir::Instruction {
+                    result: Some(zil_ir::ValueId(first + 1)),
+                    kind: InstructionKind::Constant(zil_ir::Constant::I32(2)),
+                    span: f.span,
+                },
+                zil_ir::Instruction {
+                    result: Some(zil_ir::ValueId(first + 2)),
+                    kind: InstructionKind::Binary {
+                        op: zil_ir::BinaryOp::Add,
+                        left: zil_ir::ValueId(first),
+                        right: zil_ir::ValueId(first + 1),
+                    },
+                    span: f.span,
+                },
+            ],
+            terminator: zil_ir::Terminator::Trap,
+        });
+        let mut candidate = plan;
+        candidate.functions[fi].blocks.push(zil_ir::BlockPlan {
+            block: dead_id,
+            initialized_in: vec![],
+            initialized_out: vec![],
+        });
+        candidate.functions[fi]
+            .holds
+            .extend((first..first + 3).map(|value| zil_ir::ValueHold {
+                value: zil_ir::ValueId(value),
+                roots: vec![],
+            }));
+        candidate.module_fingerprint = baseline.fingerprint();
+        zil_verify::verify_module(baseline.clone(), candidate.clone(), &module.target, &limits)
+            .unwrap();
+        let valid_wire =
+            zil_ir::wire::encode_module_candidate(&baseline, &candidate, &limits).unwrap();
+        zil_verify::verify_module_bytes(&valid_wire, &module.target, &limits).unwrap();
+        let mut bad = baseline;
+        let InstructionKind::Binary { right, .. } =
+            &mut bad.functions[fi].blocks[dead_id.0 as usize].instructions[2].kind
+        else {
+            unreachable!()
+        };
+        *right = zil_ir::ValueId(u32::MAX);
+        candidate.module_fingerprint = bad.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&bad, &candidate, &limits).unwrap();
+        for result in [
+            zil_verify::verify_module(bad, candidate, &module.target, &limits),
+            zil_verify::verify_module_bytes(&wire, &module.target, &limits),
+        ] {
+            let errors = result.err().unwrap();
+            assert!(
+                errors.iter().any(|e| e.code == "E-VERIFY-STORED"
+                    && e.message == "stored target proof: operand outside actual value table"),
+                "{errors:?}"
+            );
+        }
+        eprintln!(
+            "mixed DAG control diamond={diamond}: default Source/raw/Wire pass; dead invalid operand raw/Wire reject"
         );
     }
 }
