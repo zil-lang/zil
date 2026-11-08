@@ -228,13 +228,15 @@ fn generic_error_union_contexts_have_exact_prepaid_boundaries() {
     let mut recorded = Vec::new();
     // Full type-position lifetime validation and the callable source-life query
     // both consume the same work budget; the latter adds one unit per source.
-    // The fixed-class leaf walk contributes no work or node charge.
+    // The fixed-class leaf walk contributes no work or node charge. The
+    // binding case now prepays retained definition-selected tag sites
+    // (historically 1276/496); argument/independent costs remain unchanged.
     for (name, text, steps, nodes) in [
         (
             "binding",
             include_str!("../../../tests/generic-error-enum/pending/unique-binding-value.zil"),
-            1276,
-            496,
+            1428,
+            516,
         ),
         (
             "argument",
@@ -349,7 +351,9 @@ fn generic_enum_error_context_prepays_new_work() {
     let expected = zil_expand::expand(&source, &parsed).unwrap();
     // Full-AST lifetime validation and the callable source-life query consume
     // the same budget without resetting the remaining work or node allowance.
-    for (work, amount) in [(true, 978), (false, 412)] {
+    // Definition-selected tags add prepaid AST choice and source-site work
+    // to the historical 978/412 boundary; N-1 still fails in the same phase.
+    for (work, amount) in [(true, 1148), (false, 427)] {
         recorded.push(amount);
         let amount = budget_boundary::minimum(work, |limits| {
             zil_expand::expand_with_map_limits(&source, &parsed, limits)

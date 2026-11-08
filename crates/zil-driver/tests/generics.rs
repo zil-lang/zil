@@ -1168,44 +1168,38 @@ fn copy_record_bound_expand_budget_is_exact_and_fresh() {
 }
 
 #[test]
-fn generic_error_union_templates_defer_potential_equality_to_actual_instances() {
-    for (definition, call, phase, code) in [
+fn generic_error_union_templates_keep_definition_selected_tags_when_arguments_equal() {
+    for (definition, call) in [
         (
             "fn run<U:Copy>(w:U)->U!i32{let n:i32=7;return n}",
             "run(INPUT)",
-            Phase::Types,
-            "E-ERROR-INJECTION-AMBIGUOUS",
         ),
-        (
-            "fn run<U:Copy>(w:U)->U!i32=>7;",
-            "run(INPUT)",
-            Phase::Types,
-            "E-ERROR-INJECTION-AMBIGUOUS",
-        ),
+        ("fn run<U:Copy>(w:U)->U!i32=>7;", "run(INPUT)"),
         (
             "fn run<U:Copy>(w:U)->U!i32{let n:U!i32=7;return n}",
             "run(INPUT)",
-            Phase::Types,
-            "E-ERROR-INJECTION-AMBIGUOUS",
         ),
         (
             "fn sink<T:Copy>(v:T!i32,w:T)->i32{return 0}fn run<U:Copy>(w:U)->i32{return sink(7,w)}",
             "run(INPUT)",
-            Phase::Expand,
-            "E-GENERIC-ARGUMENT",
         ),
         (
             "fn sink<T:Copy>(w:T,v:T!i32)->i32{return 0}fn run<U:Copy>(w:U)->i32{return sink(w,7)}",
             "run(INPUT)",
-            Phase::Expand,
-            "E-GENERIC-ARGUMENT",
         ),
     ] {
+        // Keep the original unused and distinct-actual controls. An instance
+        // in which U becomes i32 retains the unique tag selected in the
+        // generic definition; it does not repeat implicit injection selection.
         for text in [
             format!("{definition}fn main(){{}}"),
             format!(
                 "{definition}fn main()->i32{{{};return 0}}",
                 call.replace("INPUT", "true")
+            ),
+            format!(
+                "{definition}fn main()->i32{{{};return 0}}",
+                call.replace("INPUT", "0")
             ),
         ] {
             let report = compile_source(&source(&text), &CompileOptions::default());
@@ -1217,19 +1211,67 @@ fn generic_error_union_templates_defer_potential_equality_to_actual_instances() 
             );
             assert_eq!(report.verification_runs, 1);
         }
-        let text = format!(
-            "{definition}fn main()->i32{{{};return 0}}",
-            call.replace("INPUT", "0")
-        );
-        let report = compile_source(&source(&text), &CompileOptions::default());
+    }
+    // Observe the actual branch in all five original expression positions.
+    // An accidentally reselected error arm returns 19 rather than the full 7.
+    for definition in [
+        "fn run<U:Copy>(w:U)->U!i32{let n:i32=7;return n}fn result()->i32{match run(0){.ok(n)=>{return n},.err(_)=>{return 19}}}",
+        "fn run<U:Copy>(w:U)->U!i32=>7;fn result()->i32{match run(0){.ok(n)=>{return n},.err(_)=>{return 19}}}",
+        "fn run<U:Copy>(w:U)->U!i32{let n:U!i32=7;return n}fn result()->i32{match run(0){.ok(n)=>{return n},.err(_)=>{return 19}}}",
+        "fn sink<T:Copy>(v:T!i32,w:T)->i32{match v{.ok(n)=>{return n},.err(_)=>{return 19}}}fn run<U:Copy>(w:U)->i32{return sink(7,w)}fn result()->i32{return run(0)}",
+        "fn sink<T:Copy>(w:T,v:T!i32)->i32{match v{.ok(n)=>{return n},.err(_)=>{return 19}}}fn run<U:Copy>(w:U)->i32{return sink(w,7)}fn result()->i32{return run(0)}",
+    ] {
+        use zil_driver::{NativeBackend, Optimization};
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let out = std::env::temp_dir().join(format!(
+                    "zil-generic-selected-tag-{}-{}",
+                    std::process::id(),
+                    NEXT.fetch_add(1, Ordering::Relaxed)
+                ));
+                fs::create_dir(&out).unwrap();
+                let text = format!("{definition}fn main()->i32{{return result()}}");
+                let report = compile_source(
+                    &source(&text),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        output: Some(out.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert_eq!(codegen.backend, backend);
+                assert!(codegen.fallback.is_none());
+                run(Path::new(&report.artifacts["executable"]), 7);
+                fs::remove_dir_all(out).unwrap();
+            }
+        }
+    }
+    // A formal T!T has no unique definition-time arm. Concrete equality also
+    // stays ambiguous when no retained generic choice exists.
+    for text in [
+        "fn run<T:Copy>(w:T)->T!T{return w}fn main(){}",
+        "fn main()->i32!i32{return 7}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
         assert_eq!(
             report.status,
             ResultCategory::SafeReject,
             "{}",
             report.to_json()
         );
-        assert_eq!(report.phase, phase, "{}", report.to_json());
-        assert_eq!(report.diagnostics[0].code, code, "{}", report.to_json());
         assert_eq!(report.verification_runs, 0);
     }
 }

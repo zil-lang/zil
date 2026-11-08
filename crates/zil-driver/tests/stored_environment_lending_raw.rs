@@ -999,6 +999,13 @@ fn task_borrowed_result_actual_exclusive_alias_moves_cannot_be_duplicated() {
     let source = include_str!("../../../tests/fixtures/task-borrow-results/local-parent-move.zil");
     let module = typed_stored(source);
     let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
     let function = module
         .functions
         .iter()
@@ -1072,7 +1079,9 @@ fn task_borrowed_result_actual_exclusive_alias_moves_cannot_be_duplicated() {
             invalid,
             candidate,
             if duplicate_store {
-                "E-VERIFY-MOVE"
+                // Actual stored affine consumption now rejects the second
+                // SSA transfer before the generic move ledger is reached.
+                "E-VERIFY-STORED"
             } else {
                 "E-VERIFY-INITIALIZATION"
             },
