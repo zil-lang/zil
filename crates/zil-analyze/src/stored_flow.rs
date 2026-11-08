@@ -212,7 +212,10 @@ fn pointer_anchors(
             out.insert(TaskLoanAnchor::Value(ValueId(id as u32)));
         } else if !loan.parents.is_empty() {
             fee(b, loan.parents.len())?;
-            pending.extend(&loan.parents);
+            for parent in &loan.parents {
+                ordered(b, pending.len(), 0)?;
+                pending.insert(*parent);
+            }
         } else if id >= f.values.len() {
             for source in &loan.targets {
                 fee(b, target_width(source))?;
@@ -256,7 +259,7 @@ fn ordered(b: &mut Budget, n: usize, width: usize) -> CompileResult<()> {
     )
 }
 /// Every owned Target path participates in cloning and derived equality/order.
-fn target_width(target: &Target) -> usize {
+pub(super) fn target_width(target: &Target) -> usize {
     target
         .stored
         .len()
@@ -424,6 +427,21 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
         fee(b, f.pointer_values.len())?;
         for row in &f.pointer_values {
             fee(b, row.len())?;
+        }
+        if b.store_option_results {
+            fee(b, f.pointer_parents.len())?;
+            for row in &f.pointer_parents {
+                fee(b, row.len())?;
+                for anchor in row {
+                    fee(
+                        b,
+                        match anchor {
+                            TaskLoanAnchor::Value(_) => 1,
+                            TaskLoanAnchor::Input(target) => target_width(target),
+                        },
+                    )?;
+                }
+            }
         }
         for (path, row) in &f.returned_task_ports {
             fee(b, path.len())?;
