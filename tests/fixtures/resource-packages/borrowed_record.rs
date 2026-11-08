@@ -145,6 +145,9 @@ fn qualified_record_native_cleanup_on_normal_and_error_exit() {
         .join("../../tools/language/composed-store-closures/allocator_probe.c");
     let quote = |p: &std::path::Path| format!("'{}'", p.to_string_lossy().replace('\'', "'\"'\"'"));
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
         for optimization in [Optimization::O0, Optimization::O2] {
             for (label, program, stdout, allocations) in [
                 ("normal", NORMAL, b"R".as_slice(), 1),
