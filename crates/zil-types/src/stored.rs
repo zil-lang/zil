@@ -512,40 +512,56 @@ fn closed_copy(ty: &Type, left: &mut usize, depth: usize, limit: usize, span: Sp
     })
 }
 
-/// A complete inline Record contributes addresses, never an owning leaf.
-/// Physical coverage and class mappings are authenticated by the shape pass.
-pub(crate) fn shared_record_child(ty: &Type) -> bool {
+/// Constant dispatch for Resolver products: this performs no row scan and
+/// grants no qualification. The paid shape pass authenticates every child.
+pub(crate) fn shared_record_child_candidate(ty: &Type) -> bool {
+    matches!(ty, Type::BorrowedStorage { storage, life }
+        if matches!(storage.as_ref(), Type::Record { .. })
+            && !life.slots.is_empty() && life.retained.is_empty())
+}
+
+/// Check the finite child profile after reserving its actual row scan.
+pub(crate) fn shared_record_child(ty: &Type, left: &mut usize, span: Span) -> R<bool> {
     let Type::BorrowedStorage { storage, life } = ty else {
-        return false;
+        return Ok(false);
     };
     let Type::Record { fields, .. } = storage.as_ref() else {
-        return false;
+        return Ok(false);
     };
-    !life.slots.is_empty()
-        && life.retained.is_empty()
-        && life.slots.iter().all(|slot| {
-            slot.mode == StoredBorrowMode::SharedAddress
-                && matches!(slot.path.as_slice(), [PlaceProjection::Field(_)])
-        })
-        && fields.iter().all(|(_, field)| {
-            let scalar = |ty: &Type| {
-                matches!(
-                    ty,
-                    Type::Unit
-                        | Type::Bool
-                        | Type::I32
-                        | Type::I64
-                        | Type::U64
-                        | Type::Usize
-                        | Type::U8
-                        | Type::U16
-                        | Type::F32
-                        | Type::F64
-                )
-            };
-            scalar(field)
-                || matches!(field, Type::Address { mutable: false, inner } if scalar(inner))
-        })
+    if life.slots.is_empty() || !life.retained.is_empty() {
+        return Ok(false);
+    }
+    // Each slot checks mode and one path selector; each field checks at most
+    // scalar, Address and scalar pointee tags. No recursive Copy walk occurs.
+    fee(
+        left,
+        life.slots
+            .len()
+            .saturating_mul(2)
+            .saturating_add(fields.len().saturating_mul(3)),
+        span,
+    )?;
+    Ok(life.slots.iter().all(|slot| {
+        slot.mode == StoredBorrowMode::SharedAddress
+            && matches!(slot.path.as_slice(), [PlaceProjection::Field(_)])
+    }) && fields.iter().all(|(_, field)| {
+        let scalar = |ty: &Type| {
+            matches!(
+                ty,
+                Type::Unit
+                    | Type::Bool
+                    | Type::I32
+                    | Type::I64
+                    | Type::U64
+                    | Type::Usize
+                    | Type::U8
+                    | Type::U16
+                    | Type::F32
+                    | Type::F64
+            )
+        };
+        scalar(field) || matches!(field, Type::Address { mutable: false, inner } if scalar(inner))
+    }))
 }
 
 pub(super) fn shared_value(ty: &Type) -> bool {
@@ -839,7 +855,7 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
                 Type::BorrowedStorage { storage, life } => {
                     if !self.owning
                         || (!matches!(storage.as_ref(), Type::Package { .. })
-                            && !shared_record_child(ty))
+                            && !shared_record_child(ty, self.left, self.span)?)
                     {
                         if !retained::pure(ty, self.span, self.left)? {
                             return Err(unsupported(

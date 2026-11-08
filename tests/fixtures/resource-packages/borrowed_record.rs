@@ -2,6 +2,7 @@
 use super::*;
 
 const NORMAL: &str = include_str!("owned-package-borrowed-record.zil");
+const GETTER: &str = include_str!("qualified-record-getter.zil");
 const MAPPING: &str = include_str!("qualified-record-class-mapping.zil");
 const FAILURE: &str = include_str!("owned-package-borrowed-record-failure.zil");
 
@@ -13,6 +14,7 @@ fn qualified_record_source_raw_and_wire() {
         ("record-normal", NORMAL),
         ("record-failure", FAILURE),
         ("record-mapping", MAPPING),
+        ("record-getter", GETTER),
     ] {
         let report = compile_source(
             &source(name, program),
@@ -148,6 +150,7 @@ fn qualified_record_native_cleanup_on_normal_and_error_exit() {
                 ("normal", NORMAL, b"R".as_slice(), 1),
                 ("error", FAILURE, b"F".as_slice(), 1),
                 ("mapping", MAPPING, b"".as_slice(), 0),
+                ("getter", GETTER, b"".as_slice(), 0),
             ] {
                 let dir = std::env::temp_dir().join(format!(
                     "zil-borrowed-record-{}-{backend:?}-{optimization:?}-{label}",
@@ -310,4 +313,189 @@ fn qualified_record_raw_and_wire_reject_an_in_range_child_class_swap() {
     assert!(zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).is_err());
     let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
     assert!(zil_verify::verify_module_bytes(&wire, &target, &limits).is_err());
+}
+
+fn getter_model(width: usize, depth: usize) -> String {
+    let fields = (0..width)
+        .map(|i| format!("p{i}:&'a i32"))
+        .collect::<Vec<_>>()
+        .join(";");
+    let values = (0..width)
+        .map(|i| format!("p{i}:pointer"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let mut program = format!(
+        "struct Refs<life a>{{{fields}}}package Job<life a>{{manages bytes:ByteBuffer;refs:Refs<'a>}}"
+    );
+    let mut carrier = "Job".to_string();
+    let mut value = format!("Job::<'a>{{bytes:give bytes,refs:Refs::<'a>{{{values}}}}}");
+    let mut path = "job".to_string();
+    for level in 0..depth {
+        let next = format!("Layer{level}");
+        program.push_str(&format!("package {next}<life a>{{inner:{carrier}<'a>}}"));
+        value = format!("{next}::<'a>{{inner:{value}}}");
+        carrier = next;
+        path.push_str(".inner");
+    }
+    program.push_str(&format!("fn make<life a>(pointer:&'a i32)->{carrier}<'a>{{var bytes=bytes_new();return {value}}}fn read<life a>(job:&{carrier}<'a>)->i32{{let child=&{path}.refs;return *child.p0}}fn main()->i32{{let n=7;let job=make(&n);return read(&job)-7}}"));
+    program
+}
+
+fn budget_category<T>(result: Result<T, Vec<zil_base::Diagnostic>>) -> ResultCategory {
+    match result {
+        Ok(_) => ResultCategory::Success,
+        Err(errors)
+            if errors
+                .iter()
+                .all(|e| e.category == ResultCategory::ResourceLimit) =>
+        {
+            ResultCategory::ResourceLimit
+        }
+        Err(errors) => panic!("unexpected budget failure: {errors:?}"),
+    }
+}
+
+fn exact_record_budget(label: &str, mut run: impl FnMut(usize) -> ResultCategory) -> usize {
+    let mut low = 1;
+    let mut high = Limits::default().max_analysis_steps;
+    assert_eq!(
+        run(high),
+        ResultCategory::Success,
+        "{label}: default budget"
+    );
+    while low < high {
+        let middle = low + (high - low) / 2;
+        match run(middle) {
+            ResultCategory::Success => high = middle,
+            ResultCategory::ResourceLimit => low = middle + 1,
+            other => panic!("{label}: unexpected {other:?}"),
+        }
+    }
+    for _ in 0..2 {
+        assert_eq!(run(low), ResultCategory::Success, "{label}: N/fresh");
+        assert_eq!(
+            run(low - 1),
+            ResultCategory::ResourceLimit,
+            "{label}: N-1/fresh"
+        );
+        assert_eq!(run(low), ResultCategory::Success, "{label}: retry");
+    }
+    println!("{label}: N={low}, N-1=ResourceLimit, fresh/retry=Pass");
+    low
+}
+
+#[test]
+fn qualified_record_getter_width_and_depth_budgets_are_exact_and_fresh() {
+    let default = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let mut boundaries = Vec::new();
+    for (width, depth) in [(1, 0), (8, 0), (1, 2), (8, 2)] {
+        let program = getter_model(width, depth);
+        let input = source("record-getter-budget", &program);
+        let syntax = zil_syntax::parse(&input).into_result().unwrap();
+        let core = zil_expand::expand_with_map_limits_target_context(
+            &input,
+            &syntax,
+            &default,
+            &target,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: input.module_id,
+                aliases: &Default::default(),
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .core;
+        let raw = zil_types::check(&core, &target, &default).unwrap();
+        let plan = zil_analyze::analyze(&raw, &default).unwrap();
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &default).unwrap();
+        let limits = |n| Limits {
+            max_analysis_steps: n,
+            ..default.clone()
+        };
+        let types = exact_record_budget(
+            &format!("Record getter Types width={width} depth={depth}"),
+            |n| budget_category(zil_types::check(&core, &target, &limits(n))),
+        );
+        let analyze = exact_record_budget(
+            &format!("Record getter Analyze width={width} depth={depth}"),
+            |n| budget_category(zil_analyze::analyze(&raw, &limits(n))),
+        );
+        let verify = exact_record_budget(
+            &format!("Record getter Verify width={width} depth={depth}"),
+            |n| {
+                budget_category(zil_verify::verify_module(
+                    raw.clone(),
+                    plan.clone(),
+                    &target,
+                    &limits(n),
+                ))
+            },
+        );
+        let decoded = exact_record_budget(
+            &format!("Record getter Wire width={width} depth={depth}"),
+            |n| budget_category(zil_verify::verify_module_bytes(&wire, &target, &limits(n))),
+        );
+        let whole = exact_record_budget(
+            &format!("Record getter Source width={width} depth={depth}"),
+            |n| {
+                compile_source(
+                    &input,
+                    &CompileOptions {
+                        stop_after: Stage::Verify,
+                        limits: limits(n),
+                        ..CompileOptions::default()
+                    },
+                )
+                .status
+            },
+        );
+        let mut session = zil_driver::CompilationSession::default();
+        for (n, status) in [
+            (whole, ResultCategory::Success),
+            (whole - 1, ResultCategory::ResourceLimit),
+            (whole, ResultCategory::Success),
+        ] {
+            let options = CompileOptions {
+                stop_after: Stage::Verify,
+                limits: limits(n),
+                ..CompileOptions::default()
+            };
+            assert_eq!(session.compile_source(&input, &options).status, status);
+            assert_eq!(
+                zil_driver::CompilationSession::default()
+                    .compile_source(&input, &options)
+                    .status,
+                status
+            );
+            assert_eq!(session.active_query_count(), 0);
+        }
+        boundaries.push([types, analyze, verify, decoded, whole]);
+    }
+    // Fixed complete-consumer boundaries catch a missing scan or snapshot
+    // charge as well as an increase; N-1 is checked independently above.
+    assert_eq!(
+        boundaries,
+        vec![
+            [3220, 32911, 45276, 45276, 45276],
+            [6111, 97665, 142372, 142372, 142372],
+            [19476, 159886, 195052, 195052, 195052],
+            [37767, 415174, 542990, 542990, 542990],
+        ]
+    );
+    for kernel in 0..5 {
+        assert!(
+            boundaries[1][kernel] > boundaries[0][kernel],
+            "wide Record must cost more: {boundaries:?}"
+        );
+        assert!(
+            boundaries[2][kernel] > boundaries[0][kernel],
+            "deep getter must cost more: {boundaries:?}"
+        );
+        assert!(
+            boundaries[3][kernel] > boundaries[1][kernel]
+                && boundaries[3][kernel] > boundaries[2][kernel],
+            "wide deep getter must retain both costs: {boundaries:?}"
+        );
+    }
 }

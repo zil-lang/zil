@@ -141,38 +141,45 @@ type Path = Vec<PlaceProjection>;
 
 /// A complete inline Record contributes addresses, never an owning leaf.
 /// Physical coverage and class mappings are authenticated by the shape pass.
-pub(crate) fn shared_record_child(ty: &Type) -> bool {
+pub(crate) fn shared_record_child(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     let Type::BorrowedStorage { storage, life } = ty else {
-        return false;
+        return Ok(false);
     };
     let Type::Record { fields, .. } = storage.as_ref() else {
-        return false;
+        return Ok(false);
     };
-    !life.slots.is_empty()
-        && life.retained.is_empty()
-        && life.slots.iter().all(|slot| {
-            slot.mode == StoredBorrowMode::SharedAddress
-                && matches!(slot.path.as_slice(), [PlaceProjection::Field(_)])
-        })
-        && fields.iter().all(|(_, field)| {
-            let scalar = |ty: &Type| {
-                matches!(
-                    ty,
-                    Type::Unit
-                        | Type::Bool
-                        | Type::I32
-                        | Type::I64
-                        | Type::U64
-                        | Type::Usize
-                        | Type::U8
-                        | Type::U16
-                        | Type::F32
-                        | Type::F64
-                )
-            };
-            scalar(field)
-                || matches!(field, Type::Address { mutable: false, inner } if scalar(inner))
-        })
+    if life.slots.is_empty() || !life.retained.is_empty() {
+        return Ok(false);
+    }
+    // Pay for the bounded tag checks before either complete row scan.
+    fee(
+        b,
+        life.slots
+            .len()
+            .saturating_mul(2)
+            .saturating_add(fields.len().saturating_mul(3)),
+    )?;
+    Ok(life.slots.iter().all(|slot| {
+        slot.mode == StoredBorrowMode::SharedAddress
+            && matches!(slot.path.as_slice(), [PlaceProjection::Field(_)])
+    }) && fields.iter().all(|(_, field)| {
+        let scalar = |ty: &Type| {
+            matches!(
+                ty,
+                Type::Unit
+                    | Type::Bool
+                    | Type::I32
+                    | Type::I64
+                    | Type::U64
+                    | Type::Usize
+                    | Type::U8
+                    | Type::U16
+                    | Type::F32
+                    | Type::F64
+            )
+        };
+        scalar(field) || matches!(field, Type::Address { mutable: false, inner } if scalar(inner))
+    }))
 }
 
 type ActualStoredSlot = (
@@ -1525,7 +1532,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
             Type::BorrowedStorage { storage, life } => {
                 if !owning
                     || (!matches!(storage.as_ref(), Type::Package { .. })
-                        && !shared_record_child(ty))
+                        && !shared_record_child(ty, b)?)
                 {
                     if !retained::pure(ty, b)? {
                         return Err(failure("nested physical child requires an owning Package"));
@@ -5098,7 +5105,7 @@ fn actual_instructions(
                         failure("actual field is absent or crosses non-inline storage")
                     })?;
                     b.type_work(child, true, "stored actual ordinary inline projection")?;
-                    if *mutable && shared_record_child(child) {
+                    if *mutable && shared_record_child(child, b)? {
                         return Err(vec![Diagnostic::unsupported(
                             Phase::Analyze,
                             "exclusive nested Record windows require their slot consumer",
@@ -5111,7 +5118,7 @@ fn actual_instructions(
                         && !(matches!(child, Type::BorrowedStorage { storage, .. }
                             if matches!(storage.as_ref(), Type::Package { .. }))
                             && physical(child, b)?)
-                        && !(shared_record_child(child) && physical(child, b)?)
+                        && !(shared_record_child(child, b)? && physical(child, b)?)
                         && !matches!(child, Type::Managed(payload)
                             if module.resources.iter().any(|definition| definition.payload == **payload))
                         && !(b.store_option_results && matches!(child, Type::Package { .. }))

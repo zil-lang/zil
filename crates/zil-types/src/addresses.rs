@@ -360,7 +360,7 @@ impl Builder<'_, '_> {
         let work = inference::type_snapshot_work(&field, span, self.limits)?;
         self.closures.snapshot(work.saturating_mul(2), span)?;
         if !mutable
-            && stored::shared_record_child(&field)
+            && stored::shared_record_child(&field, &mut self.match_work_left, span)?
             && matches!(&self.function.locals[local.0 as usize].ty,
                 Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
         {
@@ -641,8 +641,15 @@ impl Builder<'_, '_> {
                 {
                     self.closures.snapshot_type(field, 1, 0, e.span)?;
                 }
-                let (index, field) = aggregates::field(&inner, member, e.span)?;
-                if mutable && stored::shared_record_child(&field) {
+                let (index, selected) = aggregates::field_ref(&inner, member, e.span)?;
+                let record_child =
+                    stored::shared_record_child(selected, &mut self.match_work_left, e.span)?;
+                if record_child {
+                    // This clone is distinct from the Address result clone.
+                    self.closures.snapshot_type(selected, 1, 0, e.span)?;
+                }
+                let field = selected.clone();
+                if mutable && record_child {
                     return Err(unsupported(
                         e.span,
                         "exclusive nested Record windows require their slot consumer",
@@ -672,7 +679,9 @@ impl Builder<'_, '_> {
                     mutable,
                     inner: Box::new(field),
                 };
-                if let Type::Address { inner, .. } = &ty
+                if record_child {
+                    self.closures.snapshot_type(&ty, 1, 0, e.span)?;
+                } else if let Type::Address { inner, .. } = &ty
                     && !inner.is_copy_value()
                     && stored::pure_inline(inner, &mut self.match_work_left, self.limits, e.span)?
                 {
