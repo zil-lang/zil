@@ -7,6 +7,7 @@ mod byte_queries;
 pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
+mod owned_byte_views;
 mod retained;
 mod task_address;
 use std::collections::BTreeMap;
@@ -3345,6 +3346,9 @@ fn transfer(
             fee(b, description.loans.len())?;
             out.pointer.loans.extend(&description.loans);
         }
+        InstructionKind::ByteBufferBorrow { mutable: false, .. } => {
+            out.pointer = owned_byte_views::transfer(module, f, i, b)?;
+        }
         InstructionKind::ByteBufferNew
         | InstructionKind::ByteBufferLen { .. }
         | InstructionKind::ByteBufferCapacity { .. }
@@ -3509,7 +3513,8 @@ fn transfer(
                 | InstructionKind::CallClosureBorrowed { .. }
                 | InstructionKind::CallClosureShared { .. }
                 | InstructionKind::CallClosureMut { .. }
-        ) || ordinary_error_borrow(f, i, b)?)
+        ) || ordinary_error_borrow(f, i, b)?
+            || owned_byte_views::instruction(module, f, i, b)?)
         && matches!(value_type(f, result)?, Type::Address { .. })
     {
         let id = result.0 as usize;
@@ -3920,6 +3925,7 @@ fn windows(
             }
         }
     }
+    let owned_byte_sites = owned_byte_views::Sites::collect(f, b)?;
     let byte_flow =
         byte_queries::Flow::solve(module, f, preds, reachable, entry, values, summaries, b)?;
     let live_out = liveness(module, f, preds, reachable, b)?;
@@ -3989,6 +3995,7 @@ fn windows(
             if let Some(v) = i.result {
                 current.remove(&(v.0 as usize));
             }
+            owned_byte_sites.check(module, f, i, &state, values, &current, loans, apart, b)?;
             match &i.kind {
                 InstructionKind::MakeAggregate { fields }
                 | InstructionKind::MakePackage { fields }
@@ -5035,7 +5042,13 @@ pub(super) fn infer(
     byte_queries::authenticate(module, b)?;
     // Raw paid inventories classify new owning holders and Fixed captures.
     // Preserve the established Fixed profile without rescanning either table.
-    b.stored_owned_fixed = if !b.task_borrowed_results
+    let owned_byte_profile = !b.task_borrowed_results
+        && !b.store_option_results
+        && b.composition_stored.is_empty()
+        && (!b.stored_packages || b.stored_fixed_owner)
+        && owned_byte_views::profile(module, b)?;
+    b.stored_owned_fixed = if !owned_byte_profile
+        && !b.task_borrowed_results
         && !b.store_option_results
         && b.composition_stored.is_empty()
         && (!b.stored_packages || b.stored_fixed_owner)
@@ -5093,6 +5106,7 @@ pub(super) fn infer(
             .chain(std::iter::once(&f.return_type))
         {
             b.type_work(ty, true, "stored ordinary executable value profile")?;
+            let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
             let mixed_resource = if b.stored_packages {
                 fee(b, module.resources.len())?;
                 matches!(ty, Type::Managed(payload) | Type::Desc(payload)
@@ -5103,7 +5117,8 @@ pub(super) fn infer(
             } else {
                 false
             };
-            if !(super::stored_callables::value(module, ty)
+            if !(byte_value
+                || super::stored_callables::value(module, ty)
                 || b.task_borrowed_results && task_address::admitted_value(ty)
                 || carrier(ty).is_some()
                 || pointed_carrier(ty).is_some()
@@ -5481,7 +5496,8 @@ fn actual_instructions(
             let byte_query = byte_queries::instruction(module, f, i, b)?;
             let package_read = pure_copy::ordinary_package_read(f, i, b)?;
             let error_borrow = ordinary_error_borrow(f, i, b)?;
-            ordinary_observations |= package_read || error_borrow;
+            let byte_view = owned_byte_views::instruction(module, f, i, b)?;
+            ordinary_observations |= package_read || error_borrow || byte_view;
             let enum_operation = enum_address::instruction(module, f, i, b)?;
             let owned_operation = (b.stored_owned_fixed
                 || matches!(i.kind, InstructionKind::ReadDesc { .. })
@@ -5496,6 +5512,7 @@ fn actual_instructions(
                 && !byte_query
                 && !package_read
                 && !error_borrow
+                && !byte_view
                 && !(b.task_borrowed_results && task_address::operation(&i.kind))
                 && !(b.store_option_results
                     && matches!(

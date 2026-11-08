@@ -148,6 +148,104 @@ pub(super) fn transfer(
     })
 }
 
+/// Select only the new pure-stored ByteBuffer family. This is scheduling;
+/// executable sources and every ownership epoch are checked independently.
+pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> CompileResult<bool> {
+    fee(b, module.functions.len())?;
+    let mut actual = false;
+    for f in &module.functions {
+        fee(b, f.blocks.len())?;
+        for block in &f.blocks {
+            fee(b, block.instructions.len())?;
+            for i in &block.instructions {
+                actual |= instruction(module, f, i, b)?;
+            }
+        }
+    }
+    if !actual {
+        return Ok(false);
+    }
+    if module.resources.len() != 1 {
+        return Err(closed(Span::default()));
+    }
+    // Each actual head above independently authenticated this sole definition.
+    fee(b, module.closures.len())?;
+    for closure in &module.closures {
+        fee(b, closure.captures.len())?;
+        for capture in &closure.captures {
+            if value(capture, b)? {
+                return Err(closed(Span::default()));
+            }
+        }
+    }
+    Ok(true)
+}
+
+pub(super) fn value(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    fee(b, 3)?;
+    if matches!(ty, Type::Managed(inner) | Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
+    {
+        return Ok(true);
+    }
+    if let Type::Package { fields, .. } = ty {
+        fee(b, fields.len())?;
+        let mut owns = false;
+        let mut complete = true;
+        for (_, field) in fields {
+            if matches!(field, Type::Managed(inner) if inner.as_ref() == &Type::ByteBuffer) {
+                owns = true;
+            } else {
+                complete &= retained::closed_copy(field, b)?;
+            }
+        }
+        if owns && complete {
+            return Ok(true);
+        }
+    }
+    // No Address/qualification/Sum/container wrapping turns a new owning byte
+    // leaf into this finite direct family. Other values keep their old checks.
+    b.type_work(ty, true, "stored byte owner nesting inventory")?;
+    let mut pending = vec![ty];
+    while let Some(current) = pending.pop() {
+        fee(b, 1)?;
+        match current {
+            Type::ByteBuffer => return Err(closed(Span::default())),
+            Type::Managed(child)
+            | Type::Desc(child)
+            | Type::Address { inner: child, .. }
+            | Type::Array { element: child, .. }
+            | Type::Slice { element: child }
+            | Type::OwnedStore { element: child }
+            | Type::Opaque { hidden: child, .. }
+            | Type::BorrowedStorage { storage: child, .. } => {
+                fee(b, 1)?;
+                pending.push(child);
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                fee(b, fields.len())?;
+                pending.extend(fields.iter().map(|(_, child)| child));
+            }
+            Type::Tuple(fields) => {
+                fee(b, fields.len())?;
+                pending.extend(fields);
+            }
+            Type::Enum { variants, .. } => {
+                fee(b, variants.len())?;
+                for (_, fields) in variants {
+                    fee(b, fields.len())?;
+                    pending.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                fee(b, 2)?;
+                pending.extend([error.as_ref(), result.as_ref()]);
+            }
+            _ => {}
+        }
+    }
+    Ok(false)
+}
+
 pub(super) struct Sites {
     ids: BTreeSet<usize>,
 }
@@ -191,6 +289,7 @@ impl Sites {
         module: &TypedModule,
         f: &TypedFunction,
         i: &Instruction,
+        state: &State,
         values: &[Value],
         active: &Loans,
         loans: &[Loan],
@@ -199,6 +298,37 @@ impl Sites {
     ) -> CompileResult<()> {
         if self.ids.is_empty() {
             return Ok(());
+        }
+        // A callee may mutate a captured/explicit Desc without receiving the
+        // view itself. No public replacement/payload effect is assumed here.
+        if matches!(
+            i.kind,
+            InstructionKind::Call { .. }
+                | InstructionKind::ForeignCall { .. }
+                | InstructionKind::CallIndirect { .. }
+                | InstructionKind::CallDynSlot { .. }
+                | InstructionKind::CallClosure { .. }
+                | InstructionKind::CallClosureBorrowed { .. }
+                | InstructionKind::CallClosureShared { .. }
+                | InstructionKind::CallClosureMut { .. }
+                | InstructionKind::CallClosureOnce { .. }
+                | InstructionKind::MakeClosure { .. }
+                | InstructionKind::WithForeignCallback { .. }
+                | InstructionKind::WithScopedThread { .. }
+                | InstructionKind::WithSyncCell { .. }
+        ) && self.active(active, b)?
+        {
+            return Err(closed(i.span));
+        }
+        if let InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } =
+            i.kind
+        {
+            ordered(b, state.locals.len(), 0)?;
+            if let Some(value) = state.locals.get(&local)
+                && self.carried(&value.pointer, loans, b)?
+            {
+                return Err(closed(i.span));
+            }
         }
         let access = match i.kind {
             InstructionKind::ByteBufferBorrow {
@@ -254,9 +384,11 @@ impl Sites {
                 InstructionKind::AddressIndex { .. }
                     | InstructionKind::AddressSlice { .. }
                     | InstructionKind::ReborrowAddress { mutable: false, .. }
-                    | InstructionKind::ReadAddress { .. }
                     | InstructionKind::SliceLength { .. }
-            ) || matches!(i.kind, InstructionKind::Store { local, .. }
+            ) || matches!(i.kind, InstructionKind::ReadAddress { address }
+                    if matches!(value_type(f, address)?, Type::Address { mutable: false, inner } if inner.as_ref() == &Type::U8)
+                        && i.result.is_some_and(|id| f.values.get(id.0 as usize) == Some(&Type::U8)))
+                || matches!(i.kind, InstructionKind::Store { local, .. }
                     if matches!(&f.locals[local.0 as usize].ty, Type::Address { mutable: false, inner }
                         if inner.as_ref() == &Type::U8 || matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8)));
             if !allowed {

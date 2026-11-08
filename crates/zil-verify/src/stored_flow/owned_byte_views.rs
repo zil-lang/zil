@@ -142,6 +142,100 @@ pub(super) fn transfer(
     })
 }
 
+pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> Check<bool> {
+    b.spend(module.functions.len())?;
+    let mut seen = false;
+    for function in &module.functions {
+        b.spend(function.blocks.len())?;
+        for block in &function.blocks {
+            b.spend(block.instructions.len())?;
+            for operation in &block.instructions {
+                seen |= instruction(module, function, operation, b)?;
+            }
+        }
+    }
+    if !seen {
+        return Ok(false);
+    }
+    if module.resources.len() != 1 {
+        return Err(unavailable(Span::default()));
+    }
+    b.spend(module.closures.len())?;
+    for definition in &module.closures {
+        b.spend(definition.captures.len())?;
+        for capture in &definition.captures {
+            if value(capture, b)? {
+                return Err(unavailable(Span::default()));
+            }
+        }
+    }
+    Ok(true)
+}
+
+pub(super) fn value(ty: &Type, b: &mut Budget) -> Check<bool> {
+    b.spend(3)?;
+    let direct = matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer);
+    if direct {
+        return Ok(true);
+    }
+    if let Type::Package { fields, .. } = ty {
+        b.spend(fields.len())?;
+        let mut count = 0;
+        let mut closed = true;
+        for (_, child) in fields {
+            match child {
+                Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer => count += 1,
+                _ => closed &= retained::closed_copy(child, b)?,
+            }
+        }
+        if count != 0 && closed {
+            return Ok(true);
+        }
+    }
+    type_work(ty, &b.limits.clone(), b)?;
+    b.spend(1)?;
+    let mut todo = vec![ty];
+    while let Some(ty) = todo.pop() {
+        b.spend(1)?;
+        match ty {
+            Type::ByteBuffer => return Err(unavailable(Span::default())),
+            Type::Address { inner, .. }
+            | Type::Managed(inner)
+            | Type::Desc(inner)
+            | Type::Opaque { hidden: inner, .. }
+            | Type::Array { element: inner, .. }
+            | Type::Slice { element: inner }
+            | Type::OwnedStore { element: inner }
+            | Type::BorrowedStorage { storage: inner, .. } => {
+                b.spend(1)?;
+                todo.push(inner);
+            }
+            Type::ErrorUnion { error, result } => {
+                b.spend(2)?;
+                todo.push(error);
+                todo.push(result);
+            }
+            Type::Tuple(children) => {
+                b.spend(children.len())?;
+                todo.extend(children);
+            }
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                b.spend(fields.len())?;
+                todo.extend(fields.iter().map(|(_, child)| child));
+            }
+            Type::Enum { variants, .. } => {
+                b.spend(variants.len())?;
+                for (_, children) in variants {
+                    b.spend(children.len())?;
+                    todo.extend(children);
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(false)
+}
+
 pub(super) struct Sites {
     values: Vec<usize>,
 }
@@ -179,6 +273,7 @@ impl Sites {
         module: &TypedModule,
         f: &TypedFunction,
         i: &Instruction,
+        state: &Frame,
         values: &[Payload],
         live: &[usize],
         loans: &[Loan],
@@ -187,6 +282,35 @@ impl Sites {
     ) -> Check<()> {
         if self.values.is_empty() {
             return Ok(());
+        }
+        if matches!(
+            i.kind,
+            InstructionKind::Call { .. }
+                | InstructionKind::ForeignCall { .. }
+                | InstructionKind::CallIndirect { .. }
+                | InstructionKind::CallDynSlot { .. }
+                | InstructionKind::CallClosure { .. }
+                | InstructionKind::CallClosureBorrowed { .. }
+                | InstructionKind::CallClosureShared { .. }
+                | InstructionKind::CallClosureMut { .. }
+                | InstructionKind::CallClosureOnce { .. }
+                | InstructionKind::MakeClosure { .. }
+                | InstructionKind::WithForeignCallback { .. }
+                | InstructionKind::WithScopedThread { .. }
+                | InstructionKind::WithSyncCell { .. }
+        ) && self.active(live, b)?
+        {
+            return Err(unavailable(i.span));
+        }
+        if let InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } =
+            i.kind
+        {
+            b.spend(1)?;
+            if let Some(value) = state.locals.get(local.0 as usize)
+                && self.carried(&value.address, loans, b)?
+            {
+                return Err(unavailable(i.span));
+            }
         }
         let byte_access = match i.kind {
             InstructionKind::ByteBufferBorrow {
@@ -249,9 +373,11 @@ impl Sites {
                     InstructionKind::AddressIndex { .. }
                         | InstructionKind::AddressSlice { .. }
                         | InstructionKind::ReborrowAddress { mutable: false, .. }
-                        | InstructionKind::ReadAddress { .. }
                         | InstructionKind::SliceLength { .. }
                 )
+                && !matches!(i.kind, InstructionKind::ReadAddress { address }
+                    if matches!(vt(f, address)?, Type::Address { mutable: false, inner } if inner.as_ref() == &Type::U8)
+                        && i.result.is_some_and(|id| f.values.get(id.0 as usize) == Some(&Type::U8)))
             {
                 return Err(unavailable(i.span));
             }
