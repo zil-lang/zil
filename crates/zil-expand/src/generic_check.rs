@@ -3116,8 +3116,12 @@ impl Check<'_, '_, '_> {
             && !variables.is_empty()
         {
             let result = substituted_type(result, &substitutions, self.budget)?;
-            if !self.traits.has_associated
-                || !trait_bounds::associated::contains(&result, self.budget)?
+            // As for a direct generic call, a whole ErrorUnion context cannot
+            // constrain a payload result before the real method arguments bind
+            // its variables. The outer argument check selects a unique arm.
+            if let Some(expected) = stores::call_context(&result, expected)
+                && (!self.traits.has_associated
+                    || !trait_bounds::associated::contains(&result, self.budget)?)
             {
                 unify(
                     &result,
