@@ -927,8 +927,7 @@ fn pattern_window_transition(
         }
         if overlaps(&roots, held, b)? {
             if let Some(parent) = parent
-                && if matches!(ty, Type::Address { .. }) && local_parents.is_some() {
-                    let (facts, state) = local_parents.unwrap();
+                && if let (Type::Address { .. }, Some((facts, state))) = (ty, local_parents) {
                     local_parents::delegated(parent, *active, state, facts, b)?
                 } else if let Some(captures) = captures {
                     captured_lending::delegated(f, parent, *active, captures, b)?
