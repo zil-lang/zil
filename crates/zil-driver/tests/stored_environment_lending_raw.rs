@@ -1174,6 +1174,9 @@ fn native_task_result_allocation_failure(text: &str) {
         zil_driver::NativeBackend::Clang,
         zil_driver::NativeBackend::LlvmApi,
     ] {
+        if backend == zil_driver::NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
         for optimization in [zil_driver::Optimization::O0, zil_driver::Optimization::O2] {
             let label = format!("{backend:?}-{optimization:?}");
             let executable = directory.join(&label);
@@ -2022,6 +2025,9 @@ fn native_borrowed_enum(project: &zil_driver::ProjectSources) {
             zil_driver::NativeBackend::Clang,
             zil_driver::NativeBackend::LlvmApi,
         ] {
+            if backend == zil_driver::NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
             let directory = std::env::temp_dir().join(format!(
                 "borrowed-enum-{}-{}",
                 std::process::id(),
