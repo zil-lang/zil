@@ -127,7 +127,8 @@ fn dynamic_indices_are_supported_while_exclusive_and_empty_arrays_remain_closed(
             1,
         )
         .replacen("batch.items[1]", "batch.items[index]", 1)
-        .replacen("select(&batch)", "select(&batch,1)", 1);
+        .replacen("select(&batch)", "select(&batch,1)", 1)
+        .replacen("first=11", "", 1);
     let exclusive = HELPER
         .replace("&'a i32", "&'a mut i32")
         .replace("&first", "&mut first")
