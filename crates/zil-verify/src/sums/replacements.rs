@@ -257,6 +257,17 @@ fn package_helper(
     parameter: Option<u32>,
     b: &mut Budget,
 ) -> Check<bool> {
+    package_helper_with_store_input(module, f, endpoint, parameter, None, b)
+}
+
+fn package_helper_with_store_input(
+    module: &TypedModule,
+    f: &TypedFunction,
+    endpoint: &Type,
+    parameter: Option<u32>,
+    store_input: Option<&Type>,
+    b: &mut Budget,
+) -> Check<bool> {
     if f.foreign.is_some()
         || f.callable_contract.is_some()
         || f.callable_return_contract.is_some()
@@ -300,6 +311,24 @@ fn package_helper(
             Type::Desc(payload) | Type::Managed(payload)
                 if matches!(payload.as_ref(), Type::OwnedStore { element } if element.as_ref() == endpoint)
                     && matches!(endpoint, Type::Package { .. }) => {}
+            Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }) => {
+                let Some(expected) = store_input else {
+                    return Ok(false);
+                };
+                // This exception belongs only to an actual direct mutable
+                // Package Store field. It grants no whole-helper admission.
+                if f.environment.is_some() || f.call_kind != zil_ir::CallKind::Direct {
+                    return Ok(false);
+                }
+                resources::charge_payload(ty, b)?;
+                resources::charge_payload(expected, b)?;
+                if ty != expected {
+                    return Ok(false);
+                }
+                // Element identity and the sealed owning Store resource are
+                // reconstructed from this raw module, independently of Analyze.
+                resources::check_type_for(module, ty, None, b)?;
+            }
             _ => return Ok(false),
         }
     }
@@ -557,7 +586,9 @@ pub(crate) fn at_type<'a>(
             && package_owners(owner_root, b)?.is_some()
             && match target.base {
                 actual::Base::Local(local) => !f.parameters.contains(&local),
-                actual::Base::Input(p) => package_helper(module, f, owner_root, Some(p), b)?,
+                actual::Base::Input(p) => {
+                    package_helper_with_store_input(module, f, owner_root, Some(p), Some(ty), b)?
+                }
                 actual::Base::Environment(_) => package_helper(module, f, owner_root, None, b)?,
                 actual::Base::InputCapture(p, c) => {
                     f.foreign.is_none()
