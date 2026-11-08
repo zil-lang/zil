@@ -989,11 +989,9 @@ fn check_function(
                             let work = anchors.iter().fold(anchors.len(), |n, a| {
                                 n.saturating_add(match a {
                                     stored_flow::TaskLoanAnchor::Value(_) => 1,
-                                    stored_flow::TaskLoanAnchor::Input(t) => t
-                                        .stored
-                                        .len()
-                                        .saturating_add(t.place.len())
-                                        .saturating_add(1),
+                                    stored_flow::TaskLoanAnchor::Input(t) => {
+                                        stored_flow::target_width(t)
+                                    }
                                 })
                             });
                             fee(b, work)?;
