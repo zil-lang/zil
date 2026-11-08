@@ -188,11 +188,7 @@ fn actual_dag_budget_boundaries_and_old_tail_fees() {
                 // through reborrows, including downstream snapshots/liveness.
                 let window_delta = if phase == 0 { 528 } else { 526 };
                 let prior = known[phase] + physical_delta + nominal_delta + retained_delta;
-                assert_eq!(
-                    low,
-                    prior + window_delta,
-                    "{label}/{phase}"
-                );
+                assert_eq!(low, prior + window_delta, "{label}/{phase}");
                 assert!(
                     check(prior)
                         .unwrap_err()
