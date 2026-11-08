@@ -859,3 +859,84 @@ fn closed_copy(ty: &Type, b: &mut Budget) -> Check<bool> {
     }
     Ok(true)
 }
+
+pub(super) fn copy_elements(
+    e: &mut Equations,
+    a: &Ports,
+    z: &Ports,
+    flow: Option<&Flow>,
+    b: &mut Budget,
+) -> Check<()> {
+    let Some(flow) = flow else {
+        return e.copy_elements(a, z, b);
+    };
+    if a.array_elements.is_empty() && z.array_elements.is_empty() {
+        return Ok(());
+    }
+    b.spend(
+        a.array_elements
+            .len()
+            .saturating_add(z.array_elements.len()),
+    )?;
+    if a.array_elements.len() != z.array_elements.len() {
+        return Err(bad("array address upper arity differs"));
+    }
+    for (a, z) in a.array_elements.iter().zip(&z.array_elements) {
+        flow.transport(*a, *z, e, b)?;
+    }
+    Ok(())
+}
+pub(super) fn copy(
+    e: &mut Equations,
+    a: &Ports,
+    z: &Ports,
+    flow: Option<&Flow>,
+    b: &mut Budget,
+) -> Check<()> {
+    let Some(flow) = flow else {
+        return e.copy(a, z, b);
+    };
+    copy_elements(e, a, z, Some(flow), b)?;
+    b.spend(
+        a.classes
+            .len()
+            .saturating_add(z.classes.len())
+            .saturating_add(1),
+    )?;
+    if a.classes.len() != z.classes.len() {
+        return Err(bad("class port arity differs from actual value"));
+    }
+    if let (Some(a), Some(z)) = (a.outer, z.outer) {
+        flow.transport(a, z, e, b)?;
+    }
+    for (a, z) in a.classes.iter().zip(&z.classes) {
+        e.equal(*a, *z, b)?;
+    }
+    Ok(())
+}
+pub(super) fn transport(
+    e: &mut Equations,
+    to: usize,
+    from: usize,
+    flow: Option<&Flow>,
+    b: &mut Budget,
+) -> Check<()> {
+    if let Some(flow) = flow {
+        flow.transport(to, from, e, b)
+    } else {
+        e.equal(to, from, b)
+    }
+}
+pub(super) fn binding(
+    e: &mut Equations,
+    actual: usize,
+    expected: usize,
+    flow: Option<&Flow>,
+    b: &mut Budget,
+) -> Check<()> {
+    if let Some(flow) = flow {
+        flow.bind(actual, expected, e, b)
+    } else {
+        e.equal(actual, expected, b)
+    }
+}
