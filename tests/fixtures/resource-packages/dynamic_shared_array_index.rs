@@ -310,3 +310,148 @@ fn native_object_and_index_evaluate_once_in_order_and_bounds_trap() {
         "dynamic Array: {runs} ordered once-only native successes and {traps} actual bounds traps"
     );
 }
+
+#[test]
+fn changing_a_valid_dynamic_index_preserves_the_same_conservative_proof() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let mut raw = typed_source("dynamic-valid-index-change", WINDOW, &target, &limits);
+    let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    let f = raw.functions.iter_mut().find(|f| f.name == "main").unwrap();
+    let call = f
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find(
+            |i| matches!(&i.kind,zil_ir::InstructionKind::Call{arguments,..}if arguments.len()==2),
+        )
+        .unwrap();
+    let zil_ir::InstructionKind::Call { arguments, .. } = &call.kind else {
+        unreachable!()
+    };
+    let index = arguments[1];
+    let source = f
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| i.result == Some(index))
+        .unwrap();
+    assert!(matches!(
+        source.kind,
+        zil_ir::InstructionKind::Constant(zil_ir::Constant::I32(1))
+    ));
+    source.kind = zil_ir::InstructionKind::Constant(zil_ir::Constant::I32(0));
+    plan.module_fingerprint = raw.fingerprint();
+    zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    println!(
+        "valid dynamic 1->0: Analyze and unchanged conservative candidate Verify/Wire Success"
+    );
+}
+
+#[test]
+fn dynamic_snapshot_and_alternative_budgets_are_exact_and_fresh() {
+    let default = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let mut boundaries = Vec::new();
+    for (qualified, length, width, depth) in [
+        (false, 2, 1, 0),
+        (false, 8, 1, 0),
+        (false, 2, 8, 0),
+        (false, 2, 1, 3),
+        (true, 2, 1, 0),
+        (true, 8, 1, 0),
+        (true, 2, 8, 0),
+        (true, 2, 1, 3),
+    ] {
+        let program = array_budget_model(length, width, depth, qualified);
+        let program = program
+            .replace(
+                &format!("let pointer=items[{}]", length - 1),
+                &format!("let index={};let pointer=items[index]", length - 1),
+            )
+            .replace(
+                &format!("let pointer=window[{}]", length - 1),
+                &format!("let index={};let pointer=window[index]", length - 1),
+            );
+        let input = source("dynamic-array-budget", &program);
+        let syntax = zil_syntax::parse(&input).into_result().unwrap();
+        let core = zil_expand::expand_with_map_limits_target_context(
+            &input,
+            &syntax,
+            &default,
+            &target,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: input.module_id,
+                aliases: &Default::default(),
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .core;
+        let raw = zil_types::check(&core, &target, &default).unwrap();
+        let plan = zil_analyze::analyze(&raw, &default).unwrap();
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &default).unwrap();
+        let at = |n| Limits {
+            max_analysis_steps: n,
+            ..default.clone()
+        };
+        let label =
+            format!("dynamic Array qualified={qualified} len={length} width={width} depth={depth}");
+        let types = exact_array_budget(&format!("{label} Types"), |n| {
+            array_budget_category(zil_types::check(&core, &target, &at(n)))
+        });
+        let analyze = exact_array_budget(&format!("{label} Analyze"), |n| {
+            array_budget_category(zil_analyze::analyze(&raw, &at(n)))
+        });
+        let verify = exact_array_budget(&format!("{label} Verify"), |n| {
+            array_budget_category(zil_verify::verify_module(
+                raw.clone(),
+                plan.clone(),
+                &target,
+                &at(n),
+            ))
+        });
+        let decoded = exact_array_budget(&format!("{label} Wire"), |n| {
+            array_budget_category(zil_verify::verify_module_bytes(&wire, &target, &at(n)))
+        });
+        let whole = exact_array_budget(&format!("{label} Source"), |n| {
+            compile_source(
+                &input,
+                &CompileOptions {
+                    stop_after: Stage::Verify,
+                    limits: at(n),
+                    ..CompileOptions::default()
+                },
+            )
+            .status
+        });
+        let mut session = zil_driver::CompilationSession::default();
+        for (n, expected) in [
+            (whole, ResultCategory::Success),
+            (whole - 1, ResultCategory::ResourceLimit),
+            (whole, ResultCategory::Success),
+        ] {
+            let report = session.compile_source(
+                &input,
+                &CompileOptions {
+                    stop_after: Stage::Verify,
+                    limits: at(n),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(report.status, expected, "{label}: {}", report.to_json());
+        }
+        boundaries.push([types, analyze, verify, decoded, whole]);
+    }
+    for base in [0, 4] {
+        for change in [1, 2, 3] {
+            for stage in 0..5 {
+                assert!(boundaries[base + change][stage] > boundaries[base][stage]);
+            }
+        }
+    }
+    println!("dynamic Array complete boundaries: {boundaries:?}");
+}
