@@ -210,39 +210,369 @@ fn backends() -> Vec<NativeBackend> {
     values
 }
 
+#[cfg(unix)]
 #[test]
 fn borrowed_task_and_owning_map_share_one_lending_and_cleanup_cfg() {
+    use std::os::unix::fs::PermissionsExt;
     let source = include_str!("../../../tests/fixtures/task-borrow-results/owning-map-lending.zil");
-    let out = directory("borrowed-task-lending");
-    let report = compile_project(
-        &project(source),
-        &CompileOptions {
-            emit_dir: Some(out.join("phases")),
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    let shim = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tools/language/task-map-lending/allocator_probe.c");
+    let quote =
+        |path: &std::path::Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
+    for backend in backends() {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let out = directory("borrowed-task-lending");
+            let object = out.join("actual-api.o");
+            let wrapper = out.join("capture-clang.sh");
+            fs::write(&wrapper, format!("#!/bin/sh\nset -eu\nfor arg in \"$@\"; do case \"$arg\" in *.o|*.obj) cp -- \"$arg\" {} ;; esac; done\nexec {} \"$@\"\n", quote(&object), quote(&clang))).unwrap();
+            fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+            let report = compile_project(
+                &project(source),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    clang: Some(wrapper),
+                    output: Some(out.join("normal")),
+                    emit_dir: Some(out.join("phases")),
+                    limits: Limits {
+                        max_analysis_steps: 100_000_000,
+                        ..Limits::default()
+                    },
+                    ..CompileOptions::default()
+                },
+            );
+            fs::write(out.join("compile.json"), report.to_json()).unwrap();
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let codegen = report.native_codegen.as_ref().unwrap();
+            assert_eq!(codegen.backend, backend);
+            assert!(codegen.fallback.is_none());
+            let normal = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            fs::write(out.join("normal.stdout"), &normal.stdout).unwrap();
+            fs::write(out.join("normal.stderr"), &normal.stderr).unwrap();
+            assert_eq!(
+                normal.status.code(),
+                Some(0),
+                "{backend:?}/{optimization:?}: {normal:?}"
+            );
+            assert_eq!(normal.stdout, b"ABDEC");
+            assert!(normal.stderr.is_empty());
+            let input = if backend == NativeBackend::LlvmApi {
+                assert!(object.is_file());
+                object
+            } else {
+                out.join("phases/llvm.ll")
+            };
+            let probe = out.join("probe");
+            let linked = Command::new(&clang)
+                .arg(if optimization == Optimization::O0 {
+                    "-O0"
+                } else {
+                    "-O2"
+                })
+                .arg(input)
+                .arg(&shim)
+                .args([
+                    "-Wl,--wrap=calloc",
+                    "-Wl,--wrap=realloc",
+                    "-Wl,--wrap=free",
+                    "-o",
+                ])
+                .arg(&probe)
+                .output()
+                .unwrap();
+            assert!(
+                linked.status.success(),
+                "{}",
+                String::from_utf8_lossy(&linked.stderr)
+            );
+            for (fail, exit, stdout, allocations, failures) in [
+                (0, 0, "ABDEC", 2, 0),
+                (1, 11, "AB", 1, 1),
+                (2, 13, "DECAB", 2, 1),
+            ] {
+                let run = Command::new(&probe)
+                    .env("ZIL_TEST_FAIL_AT", fail.to_string())
+                    .output()
+                    .unwrap();
+                fs::write(out.join(format!("fail-{fail}.stdout")), &run.stdout).unwrap();
+                fs::write(out.join(format!("fail-{fail}.stderr")), &run.stderr).unwrap();
+                assert_eq!(
+                    run.status.code(),
+                    Some(exit),
+                    "{backend:?}/{optimization:?}/fail={fail}: {run:?}"
+                );
+                assert_eq!(
+                    run.stdout,
+                    stdout.as_bytes(),
+                    "{backend:?}/{optimization:?}/fail={fail}: {run:?}"
+                );
+                let stats = String::from_utf8(run.stderr).unwrap();
+                assert!(stats.contains("\"live\":0"), "{stats}");
+                assert!(
+                    stats.contains(&format!("\"allocated\":{allocations}")),
+                    "{stats}"
+                );
+                assert!(
+                    stats.contains(&format!("\"frees\":{allocations}")),
+                    "{stats}"
+                );
+                assert!(
+                    stats.contains(&format!("\"failures\":{failures}")),
+                    "{stats}"
+                );
+            }
+            let failed_task = Command::new(&probe)
+                .env("ZIL_TEST_FAIL_TASK_ALLOC", "1")
+                .output()
+                .unwrap();
+            fs::write(out.join("failed-task.stdout"), &failed_task.stdout).unwrap();
+            fs::write(out.join("failed-task.stderr"), &failed_task.stderr).unwrap();
+            assert_eq!(failed_task.status.code(), Some(0), "{failed_task:?}");
+            assert!(failed_task.stdout.is_empty());
+            assert_eq!(
+                String::from_utf8(failed_task.stderr).unwrap(),
+                "{\"alloc_calls\":0,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n"
+            );
+        }
+    }
+}
+
+#[test]
+fn task_map_lending_keeps_each_live_source_window() {
+    let source = include_str!("../../../tests/fixtures/task-borrow-results/owning-map-lending.zil");
+    for (label, bad) in [
+        ("pending-input-write", source.replace("   var map=", "   *parent=9\n   var map=")),
+        ("ready-input-write", source.replace("      let observed=*pointer", "      *parent=9\n      let observed=*pointer")),
+        ("live-option-owner-move", source.replace("   let observed=inspect(found)", "   let retired_early=map\n   let observed=inspect(found)")),
+        ("live-option-insert", source.replace("   let observed=inspect(found)", "   let inserted=owning_map.insert_or_replace::<Key,Value>(&mut map,owning_entries.Entry::<Key,Value>{key:Key{ticket:Ticket{code:88},id:9},value:Value{ticket:Ticket{code:89},number:4}})\n   let observed=inspect(found)")),
+    ] {
+        assert_ne!(bad, source, "{label}");
+        let out = directory(label);
+        fs::write(out.join("main.zil"), &bad).unwrap();
+        let report = compile_project(&project(&bad), &CompileOptions {
+            limits: Limits { max_analysis_steps: 100_000_000, ..Limits::default() },
             ..CompileOptions::default()
+        });
+        fs::write(out.join("compile.json"), report.to_json()).unwrap();
+        assert_eq!(report.status, ResultCategory::SafeReject, "{label}: {}", report.to_json());
+        assert_eq!(report.phase, Phase::Analyze, "{label}: {}", report.to_json());
+    }
+}
+
+fn raw_task_map_lending() -> zil_ir::TypedModule {
+    let source = include_str!("../../../tests/fixtures/task-borrow-results/owning-map-lending.zil");
+    let project = project(source);
+    let parsed: Vec<_> = project
+        .modules
+        .iter()
+        .map(|unit| zil_syntax::parse(unit).into_result().unwrap())
+        .collect();
+    let syntax: Vec<_> = parsed.iter().collect();
+    let imports: Vec<Vec<_>> = syntax
+        .iter()
+        .map(|module| {
+            module
+                .items
+                .iter()
+                .filter_map(|item| {
+                    let zil_syntax::ast::ItemKind::Import(import) = &item.kind else {
+                        return None;
+                    };
+                    Some(zil_ir::CoreImport {
+                        alias: import
+                            .alias
+                            .clone()
+                            .unwrap_or_else(|| import.path.last().unwrap().clone()),
+                        module: project.paths[&import.path],
+                        span: item.span,
+                    })
+                })
+                .collect()
+        })
+        .collect();
+    let limits = Limits {
+        max_analysis_steps: 100_000_000,
+        ..Limits::default()
+    };
+    let modules = zil_expand::expand_program_with_limits_target(
+        &project.modules,
+        &syntax,
+        &imports,
+        &limits,
+        &TargetProfile::host_llvm(),
+    )
+    .unwrap()
+    .into_iter()
+    .map(|(module, _)| module)
+    .collect();
+    zil_types::check_program(
+        &zil_ir::CoreProgram {
+            root: project.root,
+            source_fingerprint: zil_base::Fingerprint::of(source.as_bytes()),
+            modules,
         },
-    );
-    fs::write(out.join("compile.json"), report.to_json()).unwrap();
-    eprintln!("borrowed-task-result: {}", report.to_json());
-    let control = compile_project(
-        &project(include_str!(
-            "../../../tests/fixtures/optional-store-address/owning-map-cleanup.zil"
-        )),
-        &CompileOptions::default(),
-    );
-    assert_eq!(
-        control.status,
-        ResultCategory::Success,
-        "original map: {}",
-        control.to_json()
-    );
-    assert_eq!(control.verification_runs, 1);
-    assert_eq!(
-        report.status,
-        ResultCategory::Success,
-        "{}",
-        report.to_json()
-    );
-    assert_eq!(report.verification_runs, 1);
+        &TargetProfile::host_llvm(),
+        &limits,
+    )
+    .unwrap()
+    .module
+}
+
+#[test]
+fn mixed_task_map_raw_wire_and_exact_verifier_work_are_independent() {
+    let module = raw_task_map_lending();
+    let target = TargetProfile::host_llvm();
+    let limits = Limits {
+        max_analysis_steps: 100_000_000,
+        ..Limits::default()
+    };
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    let mut lower = 0;
+    let mut upper = limits.max_analysis_steps;
+    while lower + 1 < upper {
+        let middle = lower + (upper - lower) / 2;
+        let bounded = Limits {
+            max_analysis_steps: middle,
+            ..limits.clone()
+        };
+        match zil_verify::verify_module(module.clone(), plan.clone(), &target, &bounded) {
+            Ok(_) => upper = middle,
+            Err(errors) => {
+                assert!(
+                    errors
+                        .iter()
+                        .all(|e| e.category == ResultCategory::ResourceLimit),
+                    "{errors:?}"
+                );
+                lower = middle;
+            }
+        }
+    }
+    let out = directory("mixed-source-proof");
+    fs::write(
+        out.join("verifier-work.json"),
+        format!("{{\"N\":{upper},\"N_minus_one\":{lower}}}\n"),
+    )
+    .unwrap();
+    eprintln!("mixed verifier exact work N={upper}");
+    for _ in 0..2 {
+        zil_verify::verify_module(
+            module.clone(),
+            plan.clone(),
+            &target,
+            &Limits {
+                max_analysis_steps: upper,
+                ..limits.clone()
+            },
+        )
+        .unwrap();
+        let errors = zil_verify::verify_module(
+            module.clone(),
+            plan.clone(),
+            &target,
+            &Limits {
+                max_analysis_steps: lower,
+                ..limits.clone()
+            },
+        )
+        .err()
+        .unwrap();
+        assert!(
+            errors
+                .iter()
+                .all(|e| e.category == ResultCategory::ResourceLimit)
+        );
+    }
+    let attempt = module
+        .functions
+        .iter()
+        .find(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.kind, InstructionKind::TaskPoll { .. }))
+        })
+        .unwrap();
+    let exported = attempt
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| {
+            let result = i.result?;
+            (matches!(i.kind, InstructionKind::ReadVariant { .. })
+                && matches!(attempt.values[result.0 as usize], Type::Address { .. }))
+            .then_some(result)
+        })
+        .unwrap();
+    let owner = attempt.locals.iter().position(|l| matches!(&l.ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::Task { .. }))).unwrap();
+    let mut frame_claim = plan.clone();
+    let claim = &mut frame_claim.functions[attempt.id.0 as usize].holds[exported.0 as usize];
+    assert_eq!(claim.roots, vec![zil_ir::HoldRoot::Parameter(0)]);
+    claim.roots = vec![zil_ir::HoldRoot::Local(zil_ir::LocalId(owner as u32))];
+    let frame_wire = zil_ir::wire::encode_module_candidate(&module, &frame_claim, &limits).unwrap();
+    for result in [
+        zil_verify::verify_module(module.clone(), frame_claim, &target, &limits),
+        zil_verify::verify_module_bytes(&frame_wire, &target, &limits),
+    ] {
+        let errors = result
+            .err()
+            .expect("Ready external source cannot be forged into its frame");
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.phase == Phase::Verify && e.code == "E-VERIFY-HOLD"),
+            "{errors:?}"
+        );
+    }
+    let mut forged = plan;
+    let helper = module
+        .functions
+        .iter()
+        .find(|f| matches!(&f.return_type, Type::ErrorUnion { error, .. } if matches!(error.as_ref(), Type::Package { .. }))
+            && f.blocks.iter().flat_map(|b| &b.instructions).any(|i| matches!(i.kind, InstructionKind::BorrowPackageField { .. })))
+        .unwrap();
+    let value = helper
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match i.kind {
+            InstructionKind::BorrowPackageField { .. } => i.result,
+            _ => None,
+        })
+        .unwrap();
+    let claim = &mut forged.functions[helper.id.0 as usize].holds[value.0 as usize];
+    assert!(!claim.roots.is_empty());
+    claim.roots.clear();
+    let forged_wire = zil_ir::wire::encode_module_candidate(&module, &forged, &limits).unwrap();
+    for result in [
+        zil_verify::verify_module(module, forged, &target, &limits),
+        zil_verify::verify_module_bytes(&forged_wire, &target, &limits),
+    ] {
+        let errors = result
+            .err()
+            .expect("skipped ordinary helper is independently checked");
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.phase == Phase::Verify && e.code == "E-VERIFY-HOLD"),
+            "{errors:?}"
+        );
+    }
 }
 
 #[test]
