@@ -6409,8 +6409,7 @@ impl Check<'_, '_, '_> {
                             }
                             StoreSlots::Borrowed(slots) => {
                                 for slot in slots {
-                                    self.replace_store_origin(state, slot, target.span)?;
-                                    state.fresh_stores.remove(&slot);
+                                    self.replace_borrowed_store_origin(state, slot, target.span)?;
                                 }
                             }
                         }
