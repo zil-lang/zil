@@ -528,6 +528,7 @@ impl Flow {
         }
         Ok(point)
     }
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn advance(
         &self,
         module: &TypedModule,

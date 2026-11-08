@@ -3807,6 +3807,7 @@ fn check_call(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn windows(
     module: &TypedModule,
     f: &TypedFunction,

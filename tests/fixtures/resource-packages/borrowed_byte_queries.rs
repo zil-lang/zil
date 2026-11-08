@@ -245,6 +245,49 @@ fn owner_liveness_program() -> String {
 fn actual_parameter_selection_and_finished_windows_preserve_weak_semantics() {
     let selected = selected_query_program();
     assert_success("query-only-param1", &selected);
+    let changed_body = selected.replace("return bytes_len(right)", "return bytes_len(left)");
+    let mut session = zil_driver::CompilationSession::default();
+    for program in [
+        &selected,
+        &changed_body,
+        &selected,
+        &changed_body,
+        &selected,
+    ] {
+        for report in [
+            session.compile_source(
+                &source("current-query-body", program),
+                &CompileOptions::default(),
+            ),
+            report_for("current-query-body", program),
+        ] {
+            if program == &selected {
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+            } else {
+                assert_eq!(
+                    report.status,
+                    ResultCategory::SafeReject,
+                    "{}",
+                    report.to_json()
+                );
+                assert!(
+                    report
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.message.contains("actual stored target/parent loan")
+                            || d.message.contains("live incompatible loan")),
+                    "{}",
+                    report.to_json()
+                );
+            }
+        }
+    }
     assert_loan(
         "query-param1-redirected",
         &selected.replace(
@@ -748,7 +791,7 @@ fn byte_companion_requires_its_own_reachable_query_and_exact_input_kind() {
                 == "Byte query requires a complete Direct actual description/read proof"),
         "{errors:?}"
     );
-    for mode in 0..5 {
+    for mode in 0..6 {
         let mut changed = raw.clone();
         let f = changed
             .functions
@@ -776,7 +819,14 @@ fn byte_companion_requires_its_own_reachable_query_and_exact_input_kind() {
                 let p = f.parameters[0];
                 f.locals[p.0 as usize].ty = Type::Desc(Box::new(Type::I32));
             }
-            _ => f.return_type = Type::Desc(Box::new(Type::ByteBuffer)),
+            4 => f.return_type = Type::Desc(Box::new(Type::ByteBuffer)),
+            _ => {
+                let p = f.parameters[0];
+                f.locals[p.0 as usize].ty = Type::Address {
+                    mutable: false,
+                    inner: Box::new(Type::Desc(Box::new(Type::ByteBuffer))),
+                };
+            }
         }
         let mut plan = original.clone();
         plan.module_fingerprint = changed.fingerprint();
@@ -941,6 +991,174 @@ fn descriptor_delegation_does_not_come_from_a_future_loop_iteration() {
         assert_success(
             &format!("outer-loop-description-{label}"),
             &format!("{helpers}{}", outer.replace("QUERY", query)),
+        );
+    }
+}
+
+#[test]
+fn byte_query_effects_cannot_cross_an_unproved_solver_partition() {
+    let ordinary = include_str!("byte-query-controls/ordinary-query-with-stored-neighbor.zil");
+    let helper = "fn scalar_query(input:i32)->i32{let bytes=bytes_new();let copy=bytes;let observed=i64(0);return input+i32(observed)}";
+    let control = format!(
+        "{helper}{}",
+        ordinary.replace(
+            "return *refs.pointer}",
+            "return scalar_query(*refs.pointer)}"
+        )
+    );
+    assert_success("scalar-seam-without-query", &control);
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let mut raw = typed_source("scalar-seam-without-query", &control, &target, &limits);
+    let mut candidate = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), candidate.clone(), &target, &limits).unwrap();
+    let f = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "scalar_query")
+        .unwrap();
+    let buffer = f.locals.iter().find(|l| l.name == "bytes").unwrap().id;
+    let observed = f.locals.iter().find(|l| l.name == "observed").unwrap().id;
+    let descriptor = f
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match i.kind {
+            InstructionKind::DescribeLocal { local } if local == buffer => i.result,
+            _ => None,
+        })
+        .unwrap();
+    let value = f
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match i.kind {
+            InstructionKind::Store { local, value } if local == observed => Some(value),
+            _ => None,
+        })
+        .unwrap();
+    f.blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| i.result == Some(value))
+        .unwrap()
+        .kind = InstructionKind::ByteBufferLen { buffer: descriptor };
+    candidate.module_fingerprint = raw.fingerprint();
+    let a = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    let v =
+        zil_verify::verify_module(raw.clone(), candidate.clone(), &target, &limits).unwrap_err();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &candidate, &limits).unwrap();
+    let w = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    for errors in [a, v, w] {
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.category == ResultCategory::Unsupported
+                    && d.message
+                        == "Byte query requires a complete Direct actual description/read proof"),
+            "{errors:?}"
+        );
+    }
+    let changed = control.replace("let observed=i64(0)", "let observed=bytes_len(copy)");
+    let report = report_for("scalar-seam-actual-query", &changed);
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message
+                == "Byte query requires a complete Direct actual description/read proof"),
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn metadata_queries_do_not_grant_shared_heads_mutation_authority() {
+    let program = format!(
+        "{}fn main()->i32{{let value=7;let job=make(&value);let window=&job;let byte=65u8;let old=window.bytes;let permitted=false;let observed=bytes_len(old);if observed==0 && *window.refs.pointer==7{{return 0}}return 1}}",
+        metadata_prefix()
+    );
+    assert_success("read-only-head-control", &program);
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let mut raw = typed_source("read-only-head-control", &program, &target, &limits);
+    let mut candidate = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), candidate.clone(), &target, &limits).unwrap();
+    let f = raw.functions.iter_mut().find(|f| f.name == "main").unwrap();
+    let local = |name: &str| f.locals.iter().find(|l| l.name == name).unwrap().id;
+    let assigned = |name: &str| {
+        let local = local(name);
+        f.blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .find_map(|i| match i.kind {
+                InstructionKind::Store { local: l, value } if l == local => Some(value),
+                _ => None,
+            })
+            .unwrap()
+    };
+    let byte = assigned("byte");
+    let descriptor = assigned("old");
+    let result = assigned("permitted");
+    f.blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| i.result == Some(result))
+        .unwrap()
+        .kind = InstructionKind::ByteBufferPush {
+        buffer: descriptor,
+        value: byte,
+    };
+    candidate.module_fingerprint = raw.fingerprint();
+    let errors =
+        zil_verify::verify_module(raw.clone(), candidate.clone(), &target, &limits).unwrap_err();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &candidate, &limits).unwrap();
+    let decoded = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    for errors in [errors, decoded] {
+        assert!(
+            errors.iter().any(|d| d.code == "E-VERIFY-HEAD-PERMISSION"),
+            "{errors:?}"
+        );
+    }
+    for (label, changed) in [
+        (
+            "direct-shared-write",
+            program.replace("let permitted=false", "let permitted=bytes_push(old,byte)"),
+        ),
+        (
+            "rich-companion-shared-write",
+            separated_formals_program().replace(
+                "let observed=bytes_len(buffer)",
+                "bytes_push(buffer,65u8);let observed=bytes_len(buffer)",
+            ),
+        ),
+    ] {
+        let report = report_for(label, &changed);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(
+            report.phase,
+            zil_base::Phase::Verify,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-VERIFY-HEAD-PERMISSION"),
+            "{}",
+            report.to_json()
         );
     }
 }
