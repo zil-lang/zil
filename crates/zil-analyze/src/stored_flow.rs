@@ -131,12 +131,12 @@ pub(super) fn package_return_input(
     b: &mut Budget,
 ) -> CompileResult<u32> {
     let count = b.package_return_calls.as_ref().map_or(0, BTreeMap::len);
+    ordered(b, count, 2)?;
     let found = b
         .package_return_calls
         .as_ref()
         .and_then(|rows| rows.get(&(function, value)))
         .copied();
-    ordered(b, count, 2)?;
     found.ok_or_else(|| {
         vec![Diagnostic::unsupported(
             Phase::Analyze,
