@@ -86,8 +86,8 @@ Sol high负责实现，疑难交Astra。本批已合入main@53e3e092d：借入Pa
 | G2.4.8 | 普通拥有Package的独占trait接收者及跨module泛型调用 | 已合入 | — | — | `e9f530337`独审并合；Unit/scalar可变方法、真实拥有负载、158回归/四配置失败清理与raw实际receiver/provider反例通过。 已由main@222e550af本批有限范围验收。 |
 | G2.4.9 | 导出life泛型get实例化诊断 | 无需改动 | — | — | 已证为include_str嵌入旧stdlib的CLI与接口改名不一致；最终源重建后正确。零生产修改，空分支已保全并删除，编号不复用。 |
 | G2.4.10 | 普通拥有Item的trait lending iterator | 已合入 | — | — | main@0e770a26e；普通`Store<Item>`拥有Item的trait lending与跨模块消费者已交付；165/0专项、四配置及allocfail、精确预算通过，非GAT/dyn或广泛ByteOption。 |
-| G2.4.11 | 拥有Package实例trait方法返回普通拥有值及错误结果 | 进行中 | P0 | sol high · owning_iterator | 基线main@53e3e092d；跨模块Duplicate/可失败拥有返回、定义期义务及一次清理；首增量c4cb99b70已备份，尚未验收。 |
-| G2.4.12 | lending helper的额外泛参与多个无歧义bound | 进行中 | P0 | sol high · lending_generic_composition | 同一普通API转发关联Item，保provider身份、来源及歧义/未用定义拒绝；不扩GAT/blanket。 |
+| G2.4.11 | 拥有Package实例trait方法返回普通拥有值及错误结果 | 待复核 | P0 | sol high · owning_iterator | 基线main@53e3e092d；跨模块Duplicate/可失败拥有返回、定义期义务及一次清理；冻结fc20fce58：专项172/0、Expand30/0及40原生/分配失败通过；Sol独审中，临时method match推导边界保留。 |
+| G2.4.12 | lending helper的额外泛参与多个无歧义bound | 待集成 | P0 | sol high · lending_generic_composition | 87e0d028f已获Sol精审接受；291/0、4配置原生及新旧精确费用通过；root候选fbf69d299待共同门，不扩GAT/blanket。 |
 
 <details>
 <summary>G2.4.10 · 子任务</summary>
@@ -179,7 +179,7 @@ Sol high负责实现，疑难交Astra。本批已合入main@53e3e092d：借入Pa
 | G3.4.16 | 拥有Package含共享地址数组及普通helper返回的组合 | 已合入 | — | — | main@c1504aac7；实际Package字段常量ordinal、两life非identity映射、whole/selected loan和Managed cleanup已验收。70专项/旧23/104默认栈/20新预算/API20与无API10native通过；大Package ABI未验，512默认Source仅Analyze ResourceLimit。 |
 | G3.4.17 | 固定共享地址数组的运行时下标与真实借入来源 | 进行中 | P0 | sol high · borrowed_record；Astra审 | 有限合同已审定，合同/探针及安全前置56c48d6ca已备份；安全修另列G3.4.19，动态生产继续实施。采用Array SSA+ExtractIndex；每root/每slot完整再联合，实际bounds，快照早于index副作用；不同rigid上界兼容性实测待收，不冒称life meet/O1。 |
 | G3.4.18 | Byte查询与拥有Package地址数组的共同来源/资源验收 | 已合入 | — | — | main@53e3e092d；保主线bounded Array resolver和全部16准入；同一程序Byte len/cap与Array叶读取四native及唯一target写冲突控制通过，97条旧N、3capture阈值及104默认栈保持。 |
-| G3.4.19 | 整共享地址数组读取逐实际根核初始化 | 待集成 | P0 | root · Sol实现／Astra独审 | 旧raw合流可用完整root掩盖另一root的Take缺口；修复56c48d6ca独审接受，7专项/12预算/4原生通过。当前main合流候选057308f16，联合门待跑；不等于动态下标完成。 |
+| G3.4.19 | 整共享地址数组读取逐实际根核初始化 | 已合入 | — | — | main@b07b85dd4；精确源码057308f16相关API四目标690/0、snapshot/Byte组92/0、全目标strict/fmt及结构3979通过；含4配置snapshot原生。新增全量/冷恢复未跑，不等于动态下标完成。 |
 
 </details>
 
@@ -520,7 +520,7 @@ Sol high负责实现，疑难交Astra。本批已合入main@53e3e092d：借入Pa
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G10.3.1 | GPU 平台 ABI 路线、实际消费者与 CPU/GPU 完成合同 | 待排期 | P2 | 待派 | 通用语言批次之后；已有 out-handle/固定 POD 签名通过 Verify。先具名 changes/独审并接真实 native adapter；若选纯 ZIL COM 再补外部方法/指针能力，不全面放宽 c_handle。 |
-| G10.3.2 | 正常规模共享地址数组的独立两核分析成本 | 进行中 | P0 | sol high · array_analysis_cost | 512 Source基线在Analyze ancestry耗尽预算、Verify=0；优化实际代表查找/合并工作，不提高Limits。大型拥有Package snapshot/ABI仍单独未验收。 |
+| G10.3.2 | 正常规模共享地址数组的独立两核分析成本 | 进行中 | P0 | sol high · array_analysis_cost | 512裸Array带初始化安全修已Source/raw/Wire及4原生通过；独立等价类/实际叶索引不提高Limits，精确预算/独审收口中。大型Package仍预算受限、snapshot/ABI未验收。 |
 
 </details>
 
