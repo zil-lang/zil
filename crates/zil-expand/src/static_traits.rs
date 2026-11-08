@@ -105,15 +105,12 @@ fn project_package_method(method: &s::Function) -> bool {
             .iter()
             .skip(1)
             .all(|p| shared_self(p) || (!p.give && plain_name(&p.ty).is_some_and(scalar_self)))
-        && method
-            .return_type
-            .as_ref()
-            .is_none_or(|ty| {
-                plain_name(ty).is_some_and(scalar_self)
-                    || plain_name(ty) == Some("Self")
-                    || matches!(&ty.kind, s::TypeKind::Error { error, result }
+        && method.return_type.as_ref().is_none_or(|ty| {
+            plain_name(ty).is_some_and(scalar_self)
+                || plain_name(ty) == Some("Self")
+                || matches!(&ty.kind, s::TypeKind::Error { error, result }
                         if plain_name(error).is_some() && plain_name(result) == Some("Self"))
-            })
+        })
 }
 
 impl<'a> Expander<'a> {
@@ -562,7 +559,12 @@ impl<'a> Expander<'a> {
                             // The new error-result branch inspects its two
                             // immediate children, before ordinary Types checks
                             // their complete actual shapes and ownership.
-                            .saturating_add(usize::from(matches!(method.return_type.as_ref().map(|ty| &ty.kind), Some(s::TypeKind::Error { .. }))) * 2),
+                            .saturating_add(
+                                usize::from(matches!(
+                                    method.return_type.as_ref().map(|ty| &ty.kind),
+                                    Some(s::TypeKind::Error { .. })
+                                )) * 2,
+                            ),
                         _ => 1,
                     })
                 });
