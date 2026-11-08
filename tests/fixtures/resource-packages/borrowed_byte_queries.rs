@@ -1289,9 +1289,9 @@ fn byte_query_repeated_inventory_charges_empty_unreachable_blocks() {
         boundaries.push([analyze, verify, decoded]);
     }
     for rows in boundaries.windows(2) {
-        for kernel in 0..3 {
+        for (before, after) in rows[0].iter().zip(&rows[1]) {
             assert!(
-                rows[1][kernel] > rows[0][kernel],
+                after > before,
                 "actual empty-block inventory: {boundaries:?}"
             );
         }
