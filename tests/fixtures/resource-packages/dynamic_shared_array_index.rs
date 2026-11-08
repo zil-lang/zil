@@ -760,6 +760,33 @@ fn unknown_legacy_upper_sources_cannot_be_masked_by_a_known_branch() {
             },
         );
         println!("unknown-upper branch probe {label}: {}", report.to_json());
+        if label == "rich wrapper unknown" && report.status == ResultCategory::Success {
+            let limits = Limits::default();
+            let target = TargetProfile::host_llvm();
+            let raw = typed_source(label, &program, &target, &limits);
+            let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+            zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+            let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+            zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+            let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../out/runs/dynamic-shared-array/unknown-upper-reproducer");
+            std::fs::create_dir_all(&dir).unwrap();
+            for (name, bytes) in [
+                ("source.zil", program.as_bytes().to_vec()),
+                ("raw.txt", format!("{raw:#?}").into_bytes()),
+                ("candidate.txt", format!("{plan:#?}").into_bytes()),
+                ("accepted.wire", wire),
+            ] {
+                let path = dir.join(name);
+                if !path.exists() {
+                    std::fs::write(path, bytes).unwrap();
+                }
+            }
+            println!(
+                "saved original accepted rich-wrapper raw/candidate/Wire at {}",
+                dir.display()
+            );
+        }
         reports.push((label, report));
     }
     for (label, report) in reports {
