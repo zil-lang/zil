@@ -7,6 +7,15 @@ mod leaf_rows;
 #[path = "stored_flow_pure_copy.rs"]
 mod pure_copy;
 
+// Class grounding may recognize only this independently authenticated origin.
+pub(super) fn ordinary_error_borrow(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
+    pure_copy::ordinary_error_borrow(f, i, b)
+}
+
 pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> Check<bool> {
     // A plain address-returning helper can project the caller's actual stored
     // pointee even when its own signature contains no qualified carrier.
@@ -1215,6 +1224,8 @@ pub(super) fn qualifications(
                     && !pure_copy::operation(&i.kind)
                     && !pure_copy::ordinary_owned_union(f, i, b)?
                     && !pure_copy::ordinary_package_borrow(f, i, b)?
+                    && !pure_copy::ordinary_package_read(f, i, b)?
+                    && !ordinary_error_borrow(f, i, b)?
                     && !matches!(
                         &i.kind,
                         InstructionKind::StaticUtf8 { .. }
@@ -2492,6 +2503,18 @@ fn step(
             clear_local_holes(state, *local, b)?;
             state.locals[local.0 as usize] = copy_payload(val(*value)?, b)?
         }
+        InstructionKind::BorrowPlaceLocal { local, path, .. }
+            if ordinary_error_borrow(f, i, b)? =>
+        {
+            b.spend(path.len().saturating_add(1))?;
+            out.address.sources.push(Source {
+                retained_port: None,
+                base: HoldRoot::Local(*local),
+                leaf: Vec::new(),
+                inline: path.clone(),
+                heap_element: None,
+            });
+        }
         InstructionKind::TakePackageField { local, index } => {
             let holder = state
                 .locals
@@ -3145,6 +3168,7 @@ fn step(
         }
         _ if pure_copy::ordinary_owned_union(f, i, b)? => {}
         _ if pure_copy::ordinary_package_borrow(f, i, b)? => {}
+        _ if pure_copy::ordinary_package_read(f, i, b)? => {}
         _ if task_transfer.is_some() => {
             out = task_transfer.clone().unwrap();
         }
@@ -3246,7 +3270,7 @@ fn step(
         }
     }
     if let Some(id) = i.result
-        && matches!(
+        && (matches!(
             i.kind,
             InstructionKind::BorrowLocal { .. }
                 | InstructionKind::BorrowLocalMut { .. }
@@ -3263,7 +3287,7 @@ fn step(
                 | InstructionKind::CallClosureBorrowed { .. }
                 | InstructionKind::CallClosureShared { .. }
                 | InstructionKind::CallClosureMut { .. }
-        )
+        ) || ordinary_error_borrow(f, i, b)?)
         && matches!(vt(f, id)?, Type::Address { .. })
     {
         let row = &mut loans[id.0 as usize];
@@ -3517,6 +3541,7 @@ fn reverse(
         | InstructionKind::StorageLive(local)
         | InstructionKind::StorageDead(local) => live[f.values.len() + local.0 as usize] = false,
         InstructionKind::Load(local)
+        | InstructionKind::BorrowPlaceLocal { local, .. }
         | InstructionKind::BorrowLocal { local }
         | InstructionKind::BorrowLocalMut { local } => {
             live[f.values.len() + local.0 as usize] = true
@@ -3802,6 +3827,17 @@ fn windows(
     byte_reads: &mut Vec<Source>,
     b: &mut Budget,
 ) -> Check<()> {
+    // A module marker only schedules this actual per-function inventory.
+    let mut ordinary_error_places = false;
+    if b.ordinary_error_places {
+        b.spend(f.blocks.len())?;
+        for block in &f.blocks {
+            b.spend(block.instructions.len())?;
+            for instruction in &block.instructions {
+                ordinary_error_places |= ordinary_error_borrow(f, instruction, b)?;
+            }
+        }
+    }
     let byte_flow = byte_queries::Flow::solve(
         module,
         f,
@@ -3923,6 +3959,66 @@ fn windows(
                             }
                         }
                     }
+                }
+                InstructionKind::BorrowPlaceLocal { local, path, .. }
+                    if ordinary_error_borrow(f, i, b)? =>
+                {
+                    b.spend(path.len().saturating_add(1))?;
+                    let actual = Permission {
+                        sources: vec![Source {
+                            retained_port: None,
+                            base: HoldRoot::Local(*local),
+                            leaf: Vec::new(),
+                            inline: path.clone(),
+                            heap_element: None,
+                        }],
+                        loans: Vec::new(),
+                    };
+                    access(&actual, false, &active, &solution.loans, requirements, b)?;
+                }
+                InstructionKind::TakeVariantField { local, path } if ordinary_error_places => {
+                    b.spend(path.len().saturating_add(1))?;
+                    let actual = Permission {
+                        sources: vec![Source {
+                            retained_port: None,
+                            base: HoldRoot::Local(*local),
+                            leaf: Vec::new(),
+                            inline: path.clone(),
+                            heap_element: None,
+                        }],
+                        loans: Vec::new(),
+                    };
+                    access(&actual, true, &active, &solution.loans, requirements, b)?;
+                }
+                InstructionKind::DropErrorUnion { local } if ordinary_error_places => {
+                    b.spend(1)?;
+                    let actual = Permission {
+                        sources: vec![Source {
+                            retained_port: None,
+                            base: HoldRoot::Local(*local),
+                            leaf: Vec::new(),
+                            inline: Vec::new(),
+                            heap_element: None,
+                        }],
+                        loans: Vec::new(),
+                    };
+                    access(&actual, true, &active, &solution.loans, requirements, b)?;
+                }
+                InstructionKind::ReadPackageField { local, index }
+                    if pure_copy::ordinary_package_read(f, i, b)? =>
+                {
+                    b.spend(2)?;
+                    let actual = Permission {
+                        sources: vec![Source {
+                            retained_port: None,
+                            base: HoldRoot::Local(*local),
+                            leaf: Vec::new(),
+                            inline: vec![PlaceProjection::Field(*index)],
+                            heap_element: None,
+                        }],
+                        loans: Vec::new(),
+                    };
+                    access(&actual, false, &active, &solution.loans, requirements, b)?;
                 }
                 InstructionKind::TakePackageField { local, index }
                 | InstructionKind::DropPackageField { local, index }
@@ -4904,7 +5000,7 @@ fn solve_check(
     mask: Option<&[bool]>,
     b: &mut Budget,
 ) -> Check<()> {
-    byte_queries::inventory(module, graphs, mask, b)?;
+    let pending_byte_edges = byte_queries::inventory(module, graphs, mask, b)?;
     b.spend(module.functions.len().saturating_mul(2))?;
     let mut observed_none = false;
     let mut summaries = vec![Summary::default(); module.functions.len()];
@@ -5266,6 +5362,7 @@ fn solve_check(
             }
         }
     }
+    byte_queries::certify_edges(module, &pending_byte_edges, &summaries, &solved, mask, b)?;
     if let Some(checked) = checked_task_sources {
         b.task_stored_sources = Some(checked);
     }
