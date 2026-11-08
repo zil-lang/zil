@@ -162,18 +162,20 @@ impl Builder<'_, '_> {
                     ..
                 }
         ) {
-            e.clone()
+            std::borrow::Cow::Borrowed(e)
         } else {
             let (v, t) = self.transfer_expr(e, expected)?;
             let name = format!("$pattern340${}", self.function.locals.len());
             let local = self.local(&name, t, true, e.span)?;
             self.store(local, v, e.span)?;
-            CoreExpr {
+            std::borrow::Cow::Owned(CoreExpr {
+                id: e.id,
                 kind: CoreExprKind::Name(name),
-                ..e.clone()
-            }
+                span: e.span,
+            })
         };
-        let ty = self.known_type(&place).ok_or_else(|| {
+        let known = self.known_type_checked(&place)?;
+        let ty = known.ok_or_else(|| {
             error(
                 "E-PATTERN-TYPE",
                 place.span,
@@ -247,7 +249,7 @@ impl Builder<'_, '_> {
                 self.pattern_test(pattern, value, &ty, fail, bindings)
             }
             CorePatternKind::Tuple(fields) => {
-                let ty = self.known_type(e).ok_or_else(|| {
+                let ty = self.known_type_checked(e)?.ok_or_else(|| {
                     error(
                         "E-PATTERN-TYPE",
                         e.span,
@@ -269,13 +271,15 @@ impl Builder<'_, '_> {
                     ));
                 }
                 for (index, (p, ty)) in fields.iter().zip(types).enumerate() {
+                    self.closures.array_expression_snapshot(e)?;
                     let child = CoreExpr {
                         kind: CoreExprKind::Member {
                             object: Box::new(e.clone()),
                             member: index.to_string(),
                             owner: None,
                         },
-                        ..e.clone()
+                        id: e.id,
+                        span: e.span,
                     };
                     self.binding_place(p, &child, Some(ty), bindings)?;
                 }
@@ -285,7 +289,7 @@ impl Builder<'_, '_> {
                 ty: declared,
                 fields,
             } => {
-                let ty = self.known_type(e).ok_or_else(|| {
+                let ty = self.known_type_checked(e)?.ok_or_else(|| {
                     error(
                         "E-PATTERN-TYPE",
                         e.span,
@@ -306,13 +310,15 @@ impl Builder<'_, '_> {
                     unreachable!("checked record pattern")
                 };
                 for (index, (field, field_ty)) in ordered.into_iter().enumerate() {
+                    self.closures.array_expression_snapshot(e)?;
                     let child = CoreExpr {
                         kind: CoreExprKind::Member {
                             object: Box::new(e.clone()),
                             member: actual[index].0.clone(),
                             owner: None,
                         },
-                        ..e.clone()
+                        id: e.id,
+                        span: e.span,
                     };
                     self.binding_place(field, &child, Some(field_ty), bindings)?;
                 }
@@ -339,9 +345,9 @@ impl Builder<'_, '_> {
             )),
         }
     }
-    pub(super) fn condition_uses_place(&self, p: &CorePattern, e: &CoreExpr) -> bool {
-        has_reference(p)
-            || matches!(self.known_type(e), Some(ref t) if owned_shapes::enumeration(t) || matches!(t,Type::ErrorUnion{..} | Type::Package{..}))
+    pub(super) fn condition_uses_place(&mut self, p: &CorePattern, e: &CoreExpr) -> R<bool> {
+        Ok(has_reference(p)
+            || matches!(self.known_type_checked(e)?, Some(ref t) if owned_shapes::enumeration(t) || matches!(t,Type::ErrorUnion{..} | Type::Package{..}))
             || matches!(
                 &e.kind,
                 CoreExprKind::Unary {
@@ -349,9 +355,9 @@ impl Builder<'_, '_> {
                     ..
                 }
             ) && matches!(
-                self.known_type(e),
+                self.known_type_checked(e)?,
                 Some(Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. })
-            )
+            ))
     }
     pub(super) fn reference_condition(
         &mut self,
@@ -365,7 +371,7 @@ impl Builder<'_, '_> {
                 op: UnaryOp::Dereference,
                 ..
             }
-        ) && self.known_type(e).as_ref().is_some_and(|ty| {
+        ) && self.known_type_checked(e)?.as_ref().is_some_and(|ty| {
             owned_shapes::sum(ty) || matches!(ty, Type::ErrorUnion { .. } | Type::Package { .. })
         }) {
             return self.partial_pattern_condition(p, e, fail);
@@ -425,10 +431,13 @@ impl Builder<'_, '_> {
             let local = self
                 .lookup(name)
                 .ok_or_else(|| error("E-UNKNOWN-NAME", e.span, "unknown condition place"))?;
+            self.closures
+                .array_snapshot(&self.function.locals[local.0 as usize].ty, 1, e.span)?;
             (local, self.function.locals[local.0 as usize].ty.clone())
         } else {
             let (v, t) = self.transfer_expr(e, None)?;
             let name = format!("$condition340${}", self.function.locals.len());
+            self.closures.array_snapshot(&t, 1, e.span)?;
             let local = self.local(&name, t.clone(), true, e.span)?;
             self.store(local, v, e.span)?;
             (local, t)
@@ -466,10 +475,13 @@ impl Builder<'_, '_> {
             let local = self
                 .lookup(name)
                 .ok_or_else(|| error("E-UNKNOWN-NAME", e.span, "unknown match place"))?;
+            self.closures
+                .array_snapshot(&self.function.locals[local.0 as usize].ty, 1, e.span)?;
             (local, self.function.locals[local.0 as usize].ty.clone())
         } else {
             let (v, t) = self.transfer_expr(e, None)?;
             let name = format!("$match340${}", self.function.locals.len());
+            self.closures.array_snapshot(&t, 1, e.span)?;
             let local = self.local(&name, t.clone(), true, e.span)?;
             self.store(local, v, e.span)?;
             (local, t)
@@ -628,6 +640,7 @@ impl Builder<'_, '_> {
                         "exclusive pattern requires a mutable place",
                     ));
                 }
+                self.closures.array_snapshot(ty, 1, p.span)?;
                 let t = Type::Address {
                     mutable: *mutable,
                     inner: Box::new(ty.clone()),
@@ -645,6 +658,7 @@ impl Builder<'_, '_> {
                         mutable: *mutable,
                     }
                 };
+                self.closures.array_snapshot(&t, 1, p.span)?;
                 let v = self.value(kind, t.clone(), p.span)?;
                 self.pattern_test(pattern, v, &t, fail, bindings)
             }
@@ -985,6 +999,7 @@ impl Builder<'_, '_> {
                         "shared input cannot grant an exclusive pattern",
                     ));
                 }
+                self.closures.array_snapshot(ty, 1, p.span)?;
                 let t = Type::Address {
                     mutable: *mutable,
                     inner: Box::new(ty.clone()),
@@ -1001,6 +1016,7 @@ impl Builder<'_, '_> {
                         mutable: *mutable,
                     }
                 };
+                self.closures.array_snapshot(&t, 1, p.span)?;
                 let v = self.value(kind, t.clone(), p.span)?;
                 self.pattern_test(pattern, v, &t, fail, bindings)
             }
@@ -1149,6 +1165,7 @@ impl Builder<'_, '_> {
                         "shared input cannot grant an exclusive pattern",
                     ));
                 }
+                self.closures.array_snapshot(ty, 1, p.span)?;
                 let t = Type::Address {
                     mutable: *mutable,
                     inner: Box::new(ty.clone()),
@@ -1165,6 +1182,7 @@ impl Builder<'_, '_> {
                         mutable: *mutable,
                     }
                 };
+                self.closures.array_snapshot(&t, 1, p.span)?;
                 let v = self.value(kind, t.clone(), p.span)?;
                 self.pattern_test(pattern, v, &t, fail, bindings)
             }
@@ -1247,6 +1265,7 @@ impl Builder<'_, '_> {
                         "exclusive field pattern requires mutable storage",
                     ));
                 }
+                self.closures.array_snapshot(ty, 1, p.span)?;
                 let t = Type::Address {
                     mutable: *mutable,
                     inner: Box::new(ty.clone()),

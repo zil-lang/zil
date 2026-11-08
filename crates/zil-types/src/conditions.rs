@@ -18,7 +18,7 @@ impl Builder<'_, '_> {
         else_body: Option<&CoreBlock>,
         span: Span,
     ) -> R<()> {
-        if self.condition_uses_place(pattern, expression) {
+        if self.condition_uses_place(pattern, expression)? {
             return self.reference_if_let(pattern, expression, then_body, else_body, span);
         }
         let (value, ty) = self.expr(expression, None)?;
@@ -63,7 +63,7 @@ impl Builder<'_, '_> {
         body: &CoreBlock,
         span: Span,
     ) -> R<()> {
-        if self.condition_uses_place(pattern, expression) {
+        if self.condition_uses_place(pattern, expression)? {
             return self.reference_while_let(pattern, expression, body, span);
         }
         let head = self.block_id()?;

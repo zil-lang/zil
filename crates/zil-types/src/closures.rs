@@ -580,6 +580,12 @@ impl State {
         self.array_billing |= arrays;
         Ok((declarations, instances))
     }
+    pub(super) fn array_expression_snapshot(&mut self, actual: &CoreExpr) -> R<()> {
+        if self.array_billing {
+            inference::charge_expression_snapshot(actual, &self.limits, &mut self.work_left)?;
+        }
+        Ok(())
+    }
     pub(super) fn array_snapshot(&mut self, actual: &Type, copies: usize, span: Span) -> R<()> {
         self.array_billing |= stored::shared_array_related(actual);
         if self.array_billing {

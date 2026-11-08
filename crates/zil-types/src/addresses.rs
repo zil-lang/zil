@@ -857,7 +857,7 @@ impl Builder<'_, '_> {
         object: &CoreExpr,
         mutable: bool,
     ) -> R<(ValueId, Type)> {
-        if self.known_address(object) || dynamic_store::borrow_expression(object) {
+        if self.known_address_checked(object)? || dynamic_store::borrow_expression(object) {
             self.expr(object, None)
         } else {
             self.address_place(object, mutable)

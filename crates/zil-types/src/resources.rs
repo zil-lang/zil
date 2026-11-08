@@ -281,7 +281,7 @@ impl Builder<'_, '_> {
             return Ok(false);
         };
         if !matches!(
-            self.known_type(object),
+            self.known_type_checked(object)?,
             Some(Type::Managed(_) | Type::Desc(_))
         ) {
             return Ok(false);

@@ -159,6 +159,26 @@ pub(super) fn type_snapshot_work(ty: &Type, span: Span, limits: &Limits) -> R<us
     Ok(limits.max_analysis_steps - budget.work)
 }
 
+/// Reserve the exact owned Core expression before retaining a pattern place.
+pub(super) fn charge_expression_snapshot(
+    e: &CoreExpr,
+    limits: &Limits,
+    remaining: &mut usize,
+) -> R<()> {
+    let mut budget = Budget::new(limits);
+    budget.work = budget.work.min(*remaining);
+    let before = budget.work;
+    let result = expression_has_closure(e, 0, &mut budget);
+    *remaining = remaining.checked_sub(before - budget.work).ok_or_else(|| {
+        Diagnostic::limit(
+            Phase::Types,
+            "expression snapshot caller allowance exceeded",
+            Some(e.span),
+        )
+    })?;
+    result.map(|_| ())
+}
+
 /// Borrow only the caller's currently remaining allowance. Charge successful
 /// visits even when planning stops early; a failed planner cannot refund work.
 pub(super) fn charge_type_snapshot(

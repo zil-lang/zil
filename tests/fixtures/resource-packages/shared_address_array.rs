@@ -792,3 +792,28 @@ fn array_billing_mode_is_consistent_across_scalar_reuse_and_function_order() {
         std::fs::remove_dir_all(dir).unwrap();
     }
 }
+
+#[test]
+fn ordinary_array_assignment_and_if_results_keep_actual_elements() {
+    let program = "fn relay<life a>(items:[&'a i32;2],flag:bool)->[&'a i32;2]{var copied=items;copied=if flag{items}else{items};return copied}fn main()->i32{let first=7;let second=9;let values=relay([&first,&second],first==7);return *values[1]-9}";
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let report = compile_source(
+        &source("array-ordinary-assignment", program),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let raw = typed_source("array-ordinary-assignment", program, &target, &limits);
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+}

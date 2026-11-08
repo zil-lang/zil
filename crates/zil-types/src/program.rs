@@ -149,7 +149,7 @@ pub(super) fn check_resolved_program_with_reuse(
             limits,
             offset,
             Some(&exports),
-            closure_state.array_billing,
+            &mut closure_state.array_billing,
         )?;
         signatures_by_module.insert(core.module_id, table);
     }
