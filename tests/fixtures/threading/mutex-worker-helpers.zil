@@ -21,7 +21,8 @@ fn run(cell:Mutex<i32>)->i32{
     if !created{return 90}
     var guard=mutex_lock(cell)
     let value=mutex_value(&mut guard)
-    return *value-2+child+parent
+    if *value==2 && child==0 && parent==0{return 0}
+    return 92
 }
 fn entry()->MutexCreateError!i32{
     let cell=mutex_create(0)?
