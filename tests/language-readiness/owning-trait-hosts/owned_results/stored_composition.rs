@@ -736,6 +736,52 @@ fn stored_borrowed_callbacks_keep_environment_modes_and_actual_loans() {
 }
 
 #[test]
+fn stored_borrowed_callbacks_have_exact_fresh_kernel_work() {
+    let module = typed(&flat(&borrowed_callback_kernel_model()));
+    let expected = control(&module);
+    for phase in [Phase::Analyze, Phase::Verify] {
+        let run = |steps| {
+            let limits = Limits {
+                max_analysis_steps: steps,
+                ..Limits::default()
+            };
+            if phase == Phase::Analyze {
+                zil_analyze::analyze(&module, &limits).map(|plan| assert_eq!(plan, expected))
+            } else {
+                zil_verify::verify_module(module.clone(), expected.clone(), &module.target, &limits)
+                    .map(|_| ())
+            }
+        };
+        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+        run(high).unwrap();
+        while low + 1 < high {
+            let middle = low + (high - low) / 2;
+            match run(middle) {
+                Ok(()) => high = middle,
+                Err(errors) => {
+                    assert!(
+                        errors.iter().all(
+                            |d| d.phase == phase && d.category == ResultCategory::ResourceLimit
+                        ),
+                        "{errors:?}"
+                    );
+                    low = middle;
+                }
+            }
+        }
+        run(high).unwrap();
+        assert!(
+            run(high - 1)
+                .unwrap_err()
+                .iter()
+                .all(|d| d.phase == phase && d.category == ResultCategory::ResourceLimit)
+        );
+        run(high).unwrap();
+        eprintln!("stored borrowed callback {phase:?} N={high}; N-1/fresh agree");
+    }
+}
+
+#[test]
 fn ordinary_package_fields_complete_project_has_exact_fresh_analysis_work() {
     let input = project(&files());
     let run = |steps| {
