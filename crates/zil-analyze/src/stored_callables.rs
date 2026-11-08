@@ -93,6 +93,49 @@ fn borrowed_owned_candidate(d: &ClosureDefinition) -> bool {
         )
 }
 
+fn closed_callback_data(ty: &Type, b: &mut Budget) -> CompileResult<()> {
+    b.type_work(ty, false, "stored callback closed target-free data")?;
+    fn closed(ty: &Type) -> bool {
+        match ty {
+            Type::Address { .. }
+            | Type::Desc(_)
+            | Type::BorrowedStorage { .. }
+            | Type::Closure(_)
+            | Type::Opaque { .. }
+            | Type::TaskI32
+            | Type::Task { .. }
+            | Type::Registration { .. }
+            | Type::AsyncRegistration { .. } => false,
+            Type::Managed(inner)
+            | Type::OwnedStore { element: inner }
+            | Type::Array { element: inner, .. }
+            | Type::Slice { element: inner } => closed(inner),
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                fields.iter().all(|(_, child)| closed(child))
+            }
+            Type::Tuple(fields) => fields.iter().all(closed),
+            Type::Enum { variants, .. } => {
+                variants.iter().all(|(_, fields)| fields.iter().all(closed))
+            }
+            Type::ErrorUnion { error, result } => closed(error) && closed(result),
+            Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }
+            | Type::ForeignCallback { parameters, result } => {
+                parameters.iter().all(closed) && closed(result)
+            }
+            _ => true,
+        }
+    }
+    if !closed(ty) {
+        return Err(bad(
+            "stored owning callback data contains a target-bearing or callable environment dependency",
+        ));
+    }
+    Ok(())
+}
+
 fn borrowed_owned_definition(
     module: &TypedModule,
     d: &ClosureDefinition,
@@ -113,8 +156,15 @@ fn borrowed_owned_definition(
             "stored owning callback requires an actual borrowed input and closed owned result",
         ));
     }
+    closed_callback_data(&d.result, b)?;
     super::owned_callbacks::data(module, &d.result, b)?;
     for ty in &d.parameters {
+        let pointee = if let Type::Address { inner, .. } = ty {
+            inner.as_ref()
+        } else {
+            ty
+        };
+        closed_callback_data(pointee, b)?;
         super::owned_callbacks::input(module, ty, b)?;
     }
     if module
