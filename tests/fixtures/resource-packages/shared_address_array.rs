@@ -522,23 +522,29 @@ fn array_slots_and_actual_pointee_snapshot_budgets_are_exact_and_fresh() {
         }
         boundaries.push([types, analyze, verify, decoded, whole]);
     }
-    println!("array complete boundaries: {boundaries:?}");
+
     assert_eq!(
         boundaries,
         vec![
-            [1061, 24467, 28955, 28955, 28955],
-            [1265, 73097, 85658, 85658, 85658],
-            [2286, 48378, 55527, 55527, 55527],
-            [2741, 49940, 58022, 58022, 58022],
+            [1638, 24787, 29335, 29335, 29335],
+            [2250, 73489, 86110, 86110, 86110],
+            [3990, 49818, 57237, 57237, 57237],
+            [5886, 50740, 58972, 58972, 58972],
+            [3396, 40233, 53885, 53885, 53885],
+            [4554, 89149, 125858, 125858, 125858],
+            [6098, 69191, 91202, 91202, 91202],
+            [8442, 75237, 100190, 100190, 100190],
         ]
     );
     println!("array complete boundaries: {boundaries:?}");
     for kernel in 0..5 {
-        for i in 1..4 {
-            assert!(
-                boundaries[i][kernel] > boundaries[0][kernel],
-                "Array actual slots/pointee width/depth must cost more: {boundaries:?}"
-            );
+        for base in [0, 4] {
+            for i in 1..4 {
+                assert!(
+                    boundaries[base + i][kernel] > boundaries[base][kernel],
+                    "Array actual slots/pointee width/depth must cost more: {boundaries:?}"
+                );
+            }
         }
     }
 }
@@ -634,5 +640,155 @@ fn raw_and_wire_independently_reject_writing_a_live_array_window_source() {
                 .any(|d| d.message.contains("live incompatible loan")),
             "{expression}: {decoded:?}"
         );
+    }
+}
+
+#[test]
+fn raw_and_wire_reject_nonclosed_array_element_pointees() {
+    let target = TargetProfile::host_llvm();
+    let limits = Limits::default();
+    let original = typed_source("array-finite-leaf", HELPER, &target, &limits);
+    let plan = zil_analyze::analyze(&original, &limits).unwrap();
+    for pointee in [
+        Type::Slice {
+            element: Box::new(Type::I32),
+        },
+        Type::FunctionPointer {
+            parameters: vec![Type::I32],
+            result: Box::new(Type::I32),
+        },
+    ] {
+        let mut raw = original.clone();
+        let main = raw.functions.iter_mut().find(|f| f.name == "main").unwrap();
+        main.locals.push(zil_ir::LocalDecl {
+            id: zil_ir::LocalId(main.locals.len() as u32),
+            name: "unsupported_element_profile".into(),
+            ty: Type::Array {
+                element: Box::new(Type::Address {
+                    mutable: false,
+                    inner: Box::new(pointee),
+                }),
+                length: 2,
+            },
+            mutable: false,
+            span: main.span,
+        });
+        let mut candidate = plan.clone();
+        candidate.module_fingerprint = raw.fingerprint();
+        let errors = zil_analyze::analyze(&raw, &limits).unwrap_err();
+        assert!(
+            errors.iter().any(|d| d
+                .message
+                .contains("shared array actual pointee is outside its finite profile")),
+            "{errors:?}"
+        );
+        let errors = zil_verify::verify_module(raw.clone(), candidate.clone(), &target, &limits)
+            .unwrap_err();
+        assert!(
+            errors.iter().any(|d| d
+                .message
+                .contains("shared array actual pointee is outside its finite profile")),
+            "{errors:?}"
+        );
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &candidate, &limits).unwrap();
+        let errors = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+        assert!(
+            errors.iter().any(|d| d
+                .message
+                .contains("shared array actual pointee is outside its finite profile")),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn array_billing_mode_is_consistent_across_scalar_reuse_and_function_order() {
+    let scalar_before = "fn before(x:i32)->i32{if x<10{return x+1}else{return x*2}}";
+    let scalar_after = "fn after(x:i32)->i32{if x<10{return x+2}else{return x*3}}";
+    let array =
+        "fn array_value()->i32{let n=7;let items=[&n,&n];let window=&items;return *window[1]}";
+    let scalar = "fn array_value()->i32{if true{return 7}else{return 0}}";
+    for (label, first, middle, last, expected_reuse) in [
+        ("scalar", scalar_before, scalar, scalar_after, 3),
+        ("array-middle", scalar_before, array, scalar_after, 1),
+        ("array-first", array, scalar_before, scalar_after, 0),
+    ] {
+        let dir =
+            std::env::temp_dir().join(format!("zil-array-reuse-{}-{label}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("main.zil");
+        let make_project = |literal| {
+            let text = format!(
+                "{first}{middle}{last}fn main()->i32{{if true{{return before(1)+array_value()+after(1)-{literal}}}else{{return 0}}}}"
+            );
+            std::fs::write(&path, &text).unwrap();
+            zil_driver::ProjectSources {
+                root: ModuleId(0),
+                modules: vec![SourceUnit::new(
+                    FileId(0),
+                    ModuleId(0),
+                    path.to_string_lossy(),
+                    text,
+                )],
+                paths: Default::default(),
+            }
+        };
+        let initial = make_project(12);
+        let changed = make_project(13);
+        let options = CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        };
+        let mut session = zil_driver::CompilationSession::default();
+        assert_eq!(
+            session.compile_project(&initial, &options).status,
+            ResultCategory::Success
+        );
+        let warm = session.compile_project(&changed, &options);
+        assert_eq!(warm.status, ResultCategory::Success, "{}", warm.to_json());
+        let stats = session.function_type_stats();
+        assert_eq!(stats.reused_functions, expected_reuse, "{label}: {stats:?}");
+        let fresh = zil_driver::CompilationSession::default().compile_project(&changed, &options);
+        assert_eq!(warm.status, fresh.status);
+        assert_eq!(warm.diagnostics, fresh.diagnostics);
+        assert_eq!(warm.scalar_interfaces, fresh.scalar_interfaces);
+        let n = exact_array_budget(&format!("Array billing project {label}"), |n| {
+            zil_driver::CompilationSession::default()
+                .compile_project(
+                    &changed,
+                    &CompileOptions {
+                        limits: Limits {
+                            max_analysis_steps: n,
+                            ..Limits::default()
+                        },
+                        ..options.clone()
+                    },
+                )
+                .status
+        });
+        assert_eq!(n, if label == "scalar" { 1543 } else { 16587 });
+        let mut warm = zil_driver::CompilationSession::default();
+        for (limit, status) in [
+            (n, ResultCategory::Success),
+            (n - 1, ResultCategory::ResourceLimit),
+            (n, ResultCategory::Success),
+        ] {
+            let report = warm.compile_project(
+                &changed,
+                &CompileOptions {
+                    limits: Limits {
+                        max_analysis_steps: limit,
+                        ..Limits::default()
+                    },
+                    ..options.clone()
+                },
+            );
+            assert_eq!(report.status, status, "{label}: {}", report.to_json());
+            assert_eq!(warm.active_query_count(), 0);
+        }
+        println!(
+            "{label}: actual scalar function reuse {stats:?}, exact N={n}, cold/warm/fresh agree"
+        );
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

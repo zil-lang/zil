@@ -422,6 +422,14 @@ pub(super) fn check_resolved_program_with_reuse(
                 )
                 .map_err(|e| vec![e])?;
             }
+            closure_state
+                .array_snapshot(&typed.return_type, 1, f.span)
+                .map_err(|e| vec![e])?;
+            for parameter in &f.parameters {
+                closure_state
+                    .array_snapshot(&parameter.ty, 1, parameter.span)
+                    .map_err(|e| vec![e])?;
+            }
             let export = ScalarFunction {
                 storage_life: typed.storage_life.clone(),
                 reference_return_bound: typed.reference_return_bound.clone(),
@@ -436,6 +444,14 @@ pub(super) fn check_resolved_program_with_reuse(
                 result: typed.return_type.clone(),
             };
             if core.module_id == program.root && f.foreign.is_none() {
+                closure_state
+                    .array_snapshot(&export.result, 1, f.span)
+                    .map_err(|e| vec![e])?;
+                for (_, ty) in &export.parameters {
+                    closure_state
+                        .array_snapshot(ty, 1, f.span)
+                        .map_err(|e| vec![e])?;
+                }
                 root_functions.push(export.clone());
             }
             if signature.public {
