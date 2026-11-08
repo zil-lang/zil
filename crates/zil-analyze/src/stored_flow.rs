@@ -3998,7 +3998,7 @@ fn windows(
                 InstructionKind::ReadPackageField { local, index }
                     if pure_copy::ordinary_package_read(f, i, b)? =>
                 {
-                    fee(b, 1)?;
+                    fee(b, 2)?;
                     let actual = Permission {
                         targets: BTreeSet::from([Target {
                             retained_port: None,
