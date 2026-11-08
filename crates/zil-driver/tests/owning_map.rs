@@ -211,6 +211,41 @@ fn backends() -> Vec<NativeBackend> {
 }
 
 #[test]
+fn borrowed_task_and_owning_map_share_one_lending_and_cleanup_cfg() {
+    let source = include_str!("../../../tests/fixtures/task-borrow-results/owning-map-lending.zil");
+    let out = directory("borrowed-task-lending");
+    let report = compile_project(
+        &project(source),
+        &CompileOptions {
+            emit_dir: Some(out.join("phases")),
+            ..CompileOptions::default()
+        },
+    );
+    fs::write(out.join("compile.json"), report.to_json()).unwrap();
+    eprintln!("borrowed-task-result: {}", report.to_json());
+    let control = compile_project(
+        &project(include_str!(
+            "../../../tests/fixtures/optional-store-address/owning-map-cleanup.zil"
+        )),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        control.status,
+        ResultCategory::Success,
+        "original map: {}",
+        control.to_json()
+    );
+    assert_eq!(control.verification_runs, 1);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
 fn actual_owned_key_and_value_replace_and_take_across_modules() {
     let source = project(CONSUMER);
     for backend in backends() {
