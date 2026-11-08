@@ -117,7 +117,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                     || !self.impl_scope
                         && (copy_life(f)
                             || store_element_life(f)
-                            || nominal_life(f)
+                            || nominal_life(f, self.budget).map_err(|e| vec![e])?
                             || callable_life(f));
                 for p in &f.generics {
                     if matches!(p.kind, s::GenericParamKind::Lifetime) {
@@ -461,43 +461,73 @@ pub(super) fn store_element_life(function: &s::Function) -> bool {
 /// Ordinary nominal bounds do not imply Copy. A mixed helper may forward a
 /// shared result under its own life binders; definition and instance checking
 /// still establish the nominal premises and actual return sources.
-pub(super) fn nominal_life(function: &s::Function) -> bool {
+pub(super) fn nominal_life(
+    function: &s::Function,
+    budget: &mut generics::Budget<'_>,
+) -> Result<bool, Diagnostic> {
+    nominal_life_charged(function, |work, span| budget.identity_work(work, span))
+}
+
+fn nominal_life_charged(
+    function: &s::Function,
+    mut charge: impl FnMut(usize, Span) -> Result<(), Diagnostic>,
+) -> Result<bool, Diagnostic> {
     let mut types = 0;
     let mut lives = 0;
     for parameter in &function.generics {
+        charge(1, parameter.span)?;
         match &parameter.kind {
             s::GenericParamKind::Lifetime => lives += 1,
-            s::GenericParamKind::Type(bounds)
-                if bounds.len() == 1
-                    && bounds.iter().all(|bound| {
-                        matches!(&bound.kind,
-                    s::TypeKind::Named { path, args } if !path.is_empty() && args.is_empty()
-                    && !path.iter().any(|name| matches!(name.as_str(),
-                        "Copy" | "StoreElement" | "Fn" | "FnMut" | "FnOnce" | "ThreadCallable")))
-                    }) =>
-            {
-                types += 1
+            s::GenericParamKind::Type(bounds) => {
+                charge(bounds.len(), parameter.span)?;
+                let [bound] = bounds.as_slice() else {
+                    return Ok(false);
+                };
+                let s::TypeKind::Named { path, args } = &bound.kind else {
+                    return Ok(false);
+                };
+                if path.is_empty() || !args.is_empty() {
+                    return Ok(false);
+                }
+                for name in path {
+                    charge(name.len().saturating_add(1), bound.span)?;
+                    if matches!(
+                        name.as_str(),
+                        "Copy" | "StoreElement" | "Fn" | "FnMut" | "FnOnce" | "ThreadCallable"
+                    ) {
+                        return Ok(false);
+                    }
+                }
+                types += 1;
             }
-            _ => return false,
+            _ => return Ok(false),
         }
     }
+    if types != 1 || lives == 0 {
+        return Ok(false);
+    }
     let Some(result) = &function.return_type else {
-        return false;
+        return Ok(false);
     };
+    charge(1, result.span)?;
     let payload = match &result.kind {
         s::TypeKind::Reference { .. } => result,
-        s::TypeKind::Named { path, args }
-            if path.as_slice() == ["Option"]
-                || path.as_slice() == [crate::generics::options::TEMPLATE] =>
-        {
+        s::TypeKind::Named { path, args } => {
+            let [name] = path.as_slice() else {
+                return Ok(false);
+            };
+            charge(name.len().saturating_add(1), result.span)?;
+            if name != "Option" && name != crate::generics::options::TEMPLATE {
+                return Ok(false);
+            }
             let [s::GenericArg::Type(payload)] = args.as_slice() else {
-                return false;
+                return Ok(false);
             };
             payload
         }
-        _ => return false,
+        _ => return Ok(false),
     };
-    types == 1
+    Ok(types == 1
         && lives > 0
         && matches!(
             payload.kind,
@@ -506,7 +536,7 @@ pub(super) fn nominal_life(function: &s::Function) -> bool {
                 lifetime: Some(_),
                 ..
             }
-        )
+        ))
 }
 
 /// This spelling is created only by the method lift; source identifiers cannot
@@ -576,7 +606,7 @@ pub(super) fn contract(
     let provider_life = lending_provider_life(function);
     let mutable_life = only_life(function)
         || copy_life(function)
-        || nominal_life(function)
+        || nominal_life_charged(function, |work, span| spend(remaining, work, span))?
         || callable_life(function);
     if !mutable_life || (!function.where_clause.is_empty() && !provider_life) {
         return Err(Diagnostic::unsupported(

@@ -75,7 +75,9 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     let mut parameter_names = BTreeSet::new();
     let variables = type_parameters(function).map(|p| p.name.clone()).collect();
     let callable = callable::template(function, budget)?;
-    let nominal_classes = source_life::qualified_signature(function, nominals, budget)?;
+    let nominal_lending = super::super::lifetimes::nominal_life(function, budget)?;
+    let nominal_classes =
+        source_life::qualified_signature(function, nominals, budget, nominal_lending)?;
     let class_scope = role_check::Scope::new(
         source_definition.unwrap_or(function),
         // A computed CT nominal retains its original definition's full life
@@ -199,7 +201,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     if (function.name.starts_with("$generic_method_")
         && super::super::lifetimes::only_life(function))
         || super::super::lifetimes::copy_life(function)
-        || super::super::lifetimes::nominal_life(function)
+        || nominal_lending
         || check.class_scope.active
     {
         let mut remaining = check.budget.remaining_limits();
@@ -280,9 +282,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
                                         TypeKind::Reference { .. }
                                     )
                             });
-                            if !local
-                                || (!receiver && !super::super::lifetimes::nominal_life(function))
-                            {
+                            if !local || (!receiver && !nominal_lending) {
                                 None
                             } else {
                                 let mut found = None;

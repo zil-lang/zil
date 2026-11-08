@@ -820,7 +820,7 @@ impl<'a> Engine<'a> {
                                 engine.budget.identity_work(f.generics.len(), f.span)?;
                                 if super::lifetimes::copy_life(f)
                                     || super::lifetimes::store_element_life(f)
-                                    || super::lifetimes::nominal_life(f)
+                                    || super::lifetimes::nominal_life(f, &mut engine.budget)?
                                 {
                                     true
                                 } else if engine

@@ -1087,3 +1087,70 @@ fn owning_item_direct_lending_provider_preserves_store_element_source() {
     );
     assert_eq!(report.verification_runs, 1);
 }
+
+#[test]
+fn owning_item_lending_definition_work_is_prepaid_across_many_lives_and_calls() {
+    let lives = (0..12)
+        .map(|n| format!("life spare{n},"))
+        .collect::<String>();
+    let calls = "cursor.next();".repeat(6);
+    let library = format!(
+        "{OWNING_LENDING_LIBRARY}\npub fn repeated<life a,{lives}I:protocol.LendingIterator>(cursor:&'a mut I)->Option<&'a I.Item>{{{calls}return cursor.next()}}"
+    );
+    let files = project(&[
+        ("main", OWNING_LENDING_MAIN),
+        ("protocol", OWNING_LENDING_PROTOCOL),
+        ("model", OWNING_LENDING_MODEL),
+        ("library", &library),
+    ]);
+    for nodes in [false, true] {
+        let options = |n| {
+            let mut options = CompileOptions {
+                stop_after: Stage::Core,
+                ..CompileOptions::default()
+            };
+            if nodes {
+                options.limits.max_nodes = n
+            } else {
+                options.limits.max_analysis_steps = n
+            }
+            options
+        };
+        let mut low = 1;
+        let mut high = if nodes {
+            Limits::default().max_nodes
+        } else {
+            Limits::default().max_analysis_steps
+        };
+        assert_eq!(
+            compile_project(&files, &options(high)).status,
+            ResultCategory::Success
+        );
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let report = compile_project(&files, &options(mid));
+            match report.status {
+                ResultCategory::Success => high = mid,
+                ResultCategory::ResourceLimit => low = mid + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        let mut session = zil_driver::CompilationSession::default();
+        for (n, status) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                session.compile_project(&files, &options(n)),
+                compile_project(&files, &options(n)),
+            ] {
+                assert_eq!(report.status, status, "{}", report.to_json());
+            }
+            assert_eq!(session.active_query_count(), 0);
+        }
+        eprintln!(
+            "owning lending definition nodes={nodes} N={low}; N-1/cold/warm/fresh agree (13 lives,7 calls)"
+        );
+    }
+}

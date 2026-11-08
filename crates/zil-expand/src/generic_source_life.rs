@@ -44,11 +44,12 @@ pub(super) fn qualified_signature(
     function: &Function,
     nominals: &BTreeMap<String, &Item>,
     budget: &mut Budget<'_>,
+    nominal_lending: bool,
 ) -> R<bool> {
     if !budget.has_stored_lifetimes() {
         return Ok(false);
     }
-    if super::super::lifetimes::nominal_life(function) {
+    if nominal_lending {
         return Ok(true);
     }
     if !super::super::lifetimes::copy_life(function) {
@@ -159,6 +160,7 @@ struct Check<'a, 'b, 'l> {
     impl_targets: BTreeMap<usize, &'a TypeRef>,
     standalone: Vec<bool>,
     trait_sources: Vec<TraitSource<'a>>,
+    nominal_lending: Vec<bool>,
     borrow_ids: BTreeMap<usize, u32>,
     fact_depth: usize,
     budget: &'b mut Budget<'l>,
@@ -1808,7 +1810,7 @@ impl Check<'_, '_, '_> {
         span: Span,
         depth: usize,
     ) -> R<Option<Fact>> {
-        if !crate::lifetimes::nominal_life(self.functions[caller.owner]) {
+        if !self.nominal_lending[caller.owner] {
             return Ok(None);
         }
         let ExprKind::Member {
@@ -1880,6 +1882,8 @@ impl Check<'_, '_, '_> {
             return Ok(None);
         };
         let method = self.functions[owner];
+        self.budget
+            .identity_work(method.generics.len(), method.span)?;
         if !crate::lifetimes::only_life(method) || method.params.len() != actuals.len() + 1 {
             return Err(unsupported(
                 span,
@@ -2313,6 +2317,8 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
         standalone: Vec<bool>,
         trait_sources: Vec<TraitSource<'a>>,
         nominal_lending: bool,
+        top_profiles: Vec<bool>,
+        function_profiles: Vec<bool>,
     }
     fn inventory<'a>(
         items: &'a [Item],
@@ -2323,11 +2329,15 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
         budget: &mut Budget<'_>,
         depth: usize,
     ) -> R<()> {
-        for item in items {
+        for (ordinal, item) in items.iter().enumerate() {
             budget.node(item.span, depth)?;
             match &item.kind {
                 ItemKind::Function(f) => {
-                    budget.identity_work(3, item.span)?;
+                    budget.identity_work(4, item.span)?;
+                    budget.lineage_bytes(std::mem::size_of::<bool>(), item.span)?;
+                    found
+                        .function_profiles
+                        .push(top && found.top_profiles[ordinal]);
                     if let Some(target) = impl_target {
                         budget
                             .identity_work(found.impl_targets.len().saturating_add(1), item.span)?;
@@ -2402,6 +2412,23 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
         }
         Ok(())
     }
+    // Cache one paid profile per actual top-level item before trait inventory.
+    // The later function vector preserves its original owners and ordinals;
+    // repeated method calls query only the corresponding private bool.
+    let mut top_profiles = Vec::new();
+    let mut nominal_lending = false;
+    for item in &module.items {
+        budget.node(item.span, 0)?;
+        budget.identity_work(1, item.span)?;
+        let profile = if let ItemKind::Function(function) = &item.kind {
+            crate::lifetimes::nominal_life(function, budget)?
+        } else {
+            false
+        };
+        budget.lineage_bytes(std::mem::size_of::<bool>(), item.span)?;
+        top_profiles.push(profile);
+        nominal_lending |= profile;
+    }
     let mut found = Inventory {
         functions: Vec::new(),
         records: Vec::new(),
@@ -2410,9 +2437,9 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
         impl_targets: BTreeMap::new(),
         standalone: Vec::new(),
         trait_sources: Vec::new(),
-        nominal_lending: module.items.iter().any(
-            |item| matches!(&item.kind,ItemKind::Function(f) if crate::lifetimes::nominal_life(f)),
-        ),
+        nominal_lending,
+        top_profiles,
+        function_profiles: Vec::new(),
     };
     inventory(&module.items, &mut found, None, None, true, budget, 0)?;
     let mut check = Check {
@@ -2423,6 +2450,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
         impl_targets: found.impl_targets,
         standalone: found.standalone,
         trait_sources: found.trait_sources,
+        nominal_lending: found.function_profiles,
         borrow_ids: BTreeMap::new(),
         fact_depth: 0,
         budget,
@@ -2535,6 +2563,7 @@ mod local_class_tests {
             impl_targets: BTreeMap::new(),
             standalone: vec![],
             trait_sources: vec![],
+            nominal_lending: vec![],
             borrow_ids: BTreeMap::new(),
             fact_depth: 0,
             budget: &mut budget,
