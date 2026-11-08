@@ -1,10 +1,10 @@
 {
   "kind": "coordination-only; no acceptance claim",
-  "source": "74cd76ccc075eb6017f66f05a9bdf40c2ade6e04",
+  "source": "86223cbff4663d306193bddbcc8e2b3d10c87882",
   "source_branch": "task/G10.6.3",
-  "main": "c1504aac768478df2e8b8fa99bb409ca2a507e22",
+  "main": "53e3e092d45a19dcdcd01e88d2cc25e4f7670793",
   "strict_clippy": {
-    "source": "74cd76ccc075eb6017f66f05a9bdf40c2ade6e04",
+    "source": "86223cbff4663d306193bddbcc8e2b3d10c87882",
     "name": "strict",
     "command": [
       "cargo",
@@ -22,43 +22,43 @@
     "exit_code": 0,
     "passed": 0,
     "failed": 0,
-    "log": "/workspace/.zil-env/release-foundations/package-array-final-checks/strict.log",
-    "sha256": "63ae691bb40a53ad03e3761667a3bf00d66231fcf35c26cb413812ee3d8b6471"
+    "log": "/workspace/.zil-env/release-foundations/byte-query-final-checks/strict.log",
+    "sha256": "cd07ccf436f6e44ba79efacd9ba5600e97968c908b98afbd5c8f567c0255330c"
   },
   "default": {
     "single_full_green_run": true,
-    "source": "74cd76ccc075eb6017f66f05a9bdf40c2ade6e04",
-    "passed": 5645,
+    "source": "86223cbff4663d306193bddbcc8e2b3d10c87882",
+    "passed": 5659,
     "failed": 0,
     "batches": 53,
     "groups": 431,
     "integration_target_names": 394,
     "result": {
-      "path": "/workspace/.zil-env/release-foundations/package-array-common-default/default-result.json",
-      "sha256": "ad8ea2f8f455534f0fc171321020ab47186ba85fff96b2c0e6413922c68c9fac"
+      "path": "/workspace/.zil-env/release-foundations/byte-query-common-default/default-result.json",
+      "sha256": "c512955d5b8b06819dfb1c9764b59642e9d6e316738363b1722f70cdab12dd97"
     },
     "batch_manifest": {
-      "path": "/workspace/.zil-env/release-foundations/package-array-common-default/default-batches.json",
-      "sha256": "60b75d56944cca1474e7287d2003a663fc789fffa37b9dccec289383491518d3"
+      "path": "/workspace/.zil-env/release-foundations/byte-query-common-default/default-batches.json",
+      "sha256": "1c87c3f133439d7a506da59c492fc5011fec56bdd47b638c32dba4cb67b13bcf"
     },
     "command_inventory": {
-      "path": "/workspace/.zil-env/release-foundations/package-array-common-default/default-inventory.json",
-      "sha256": "05e8864326fec48de6098178bed363efc72cdfec58a81a49d1c18de6c212b966"
+      "path": "/workspace/.zil-env/release-foundations/byte-query-common-default/default-inventory.json",
+      "sha256": "07518ea17513eccb8098ed973385da8b8eaf4a929e422384c7f084d96b123aa8"
     }
   },
   "source_backup": {
-    "archive": "ed10d2b4e25e21872f917cb9f86e236978652a2f",
+    "archive": "fb48016720ea901503888544d8694c171856c538",
     "stable_source_snapshot": true,
-    "verified_tips": 190,
+    "verified_tips": 193,
     "remote_verified": true,
-    "receipt": "/workspace/.zil-env/release-foundations/archive-twenty-first-source-checkpoint.json"
+    "receipt": "/workspace/.zil-env/release-foundations/archive-twenty-second-source-checkpoint.json"
   },
   "not_accepted": [
     "functional1.0",
     "formal product gates",
-    "actual ByteBuffer query through stored Package windows",
     "dynamic shared-address Array indexing",
-    "large owning-Package snapshot/native ABI"
+    "large owning-Package snapshot/native ABI",
+    "broader captures/indirect Byte query/descriptor output"
   ],
   "focused": {
     "status": "Pass",
@@ -120,15 +120,14 @@
   },
   "pending_common_gates": [],
   "next_implementation": [
-    "G3.4.15 byte-query actual read and Descriptor companion proof",
     "G3.4.17 runtime shared-address Array indexing"
   ],
-  "delivery_validation_revision": "74cd76ccc075eb6017f66f05a9bdf40c2ade6e04",
-  "delivery_record": "https://github.com/zil-lang/zil/blob/c1504aac768478df2e8b8fa99bb409ca2a507e22/validation/native-language-composition.json",
+  "delivery_validation_revision": "86223cbff4663d306193bddbcc8e2b3d10c87882",
+  "delivery_record": "https://github.com/zil-lang/zil/blob/53e3e092d45a19dcdcd01e88d2cc25e4f7670793/validation/native-language-composition.json",
   "reference": {
     "scope": "Four related workspace targets with all defaults disabled; not a new full reference workspace run",
     "result": {
-      "source": "74cd76ccc075eb6017f66f05a9bdf40c2ade6e04",
+      "source": "86223cbff4663d306193bddbcc8e2b3d10c87882",
       "name": "reference-related",
       "command": [
         "cargo",
@@ -148,18 +147,18 @@
         "stored_environment_lending_raw"
       ],
       "exit_code": 0,
-      "passed": 668,
+      "passed": 682,
       "failed": 0,
-      "log": "/workspace/.zil-env/release-foundations/package-array-final-checks/reference-related.log",
-      "sha256": "85dec154066fcc5ecdef814ac6e4023dca915f97149f457f023a8647bd774773"
+      "log": "/workspace/.zil-env/release-foundations/byte-query-final-checks/reference-related.log",
+      "sha256": "06bf7ffa100d5604e223940ce1b2292bbd42eb4028557b29f6a810a794b9da61"
     }
   },
   "cold_recovery": {
-    "source": "74cd76ccc075eb6017f66f05a9bdf40c2ade6e04",
+    "source": "86223cbff4663d306193bddbcc8e2b3d10c87882",
     "status": "Pass",
-    "ordinary_programs": 2,
-    "builds": 8,
-    "executions": 8,
+    "ordinary_programs": 4,
+    "builds": 16,
+    "executions": 16,
     "configurations": [
       "clang/O0",
       "clang/O2",
@@ -170,17 +169,21 @@
     "backend_fallback": false,
     "verify_runs_per_build": 1,
     "exact_stdout_stderr_exit": true,
-    "fixture_paths": [
-      "tests/fixtures/resource-packages/owned-package-shared-address-array.zil",
-      "tests/fixtures/resource-packages/owned-package-shared-array-class-mapping.zil"
-    ],
+    "safe_rejects": 3,
+    "negative_native_executions": 0,
+    "negative_diagnostic": "Actual stored target/parent loan overlap in Analyze; not Unsupported",
     "receipt": {
-      "path": "/workspace/.zil-env/release-foundations/package-array-cold/final-receipt.json",
-      "sha256": "8f33c7b69fbc18311471f20fe82abb7069b8b9c0518746021948521155131f32"
+      "path": "/workspace/.zil-env/release-foundations/byte-query-cold/final-receipt.json",
+      "sha256": "21a20c27ac93d96e5efa719f5f9449c050bdca307a30d97b80875debfc449988"
     },
     "summary": {
-      "path": "/workspace/.zil-env/release-foundations/package-array-cold/summary.json",
-      "sha256": "7edec15419af17d90053e31fcc909a9eb61519e2064dbfab87dffdc39e4b1f59"
+      "path": "/workspace/.zil-env/release-foundations/byte-query-cold/summary.json",
+      "sha256": "02116d1b198831c94bdcb012476293143b8dc494e59d74afd33825a20a7caa22"
+    },
+    "external_consumer": {
+      "delivered_path": "tests/fixtures/resource-packages/package-array-byte-query.zil",
+      "sha256": "28f87084d752566d1d65636572fb9c897bac8a2fdecac962606c571330db34ef",
+      "provenance": "Tested as explicitly external ordinary Source against exact cold compiler; identical bytes delivered here."
     }
   },
   "lookahead_board_audit": {
@@ -379,19 +382,21 @@
   ],
   "active_composition_failures": [],
   "delivered_children": [
-    "G3.4.16"
+    "G3.4.15",
+    "G3.4.18"
   ],
   "retired_remote_task_branches": {
-    "count": 1,
+    "count": 2,
     "refs": [
-      "refs/heads/task/G3.4.16"
+      "refs/heads/task/G3.4.15",
+      "refs/heads/task/G3.4.18"
     ],
-    "receipt": "/workspace/.zil-env/release-foundations/package-array-task-retirement.json"
+    "receipt": "/workspace/.zil-env/release-foundations/byte-query-task-retirement.json"
   },
   "active_source_checkpoints": {
-    "G3.4.15": {
-      "source": "a5051ec906f04b291b71074cc4c885c48a9f583e",
-      "status": "staged implementation accepted for new signature gate; full matrix and final review pending"
+    "G3.4.17": {
+      "source": "90bd5a14eecb58b940ea5cb6719439532d3c5b36",
+      "status": "contract and initialization/Source probes only; production implementation pending"
     }
   },
   "historical_deliveries": [
@@ -404,6 +409,11 @@
       "main": "62e9c85dded84b436a19dc2bcfc3c471b482af63",
       "source": "c2650475107f44e3110757041acf89d7dbb19a0c",
       "record": "https://github.com/zil-lang/zil/blob/62e9c85dded84b436a19dc2bcfc3c471b482af63/validation/native-language-composition.json"
+    },
+    {
+      "main": "c1504aac768478df2e8b8fa99bb409ca2a507e22",
+      "source": "74cd76ccc075eb6017f66f05a9bdf40c2ade6e04",
+      "record": "https://github.com/zil-lang/zil/blob/c1504aac768478df2e8b8fa99bb409ca2a507e22/validation/native-language-composition.json"
     }
   ]
 }
