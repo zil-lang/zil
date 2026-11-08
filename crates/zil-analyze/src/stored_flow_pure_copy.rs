@@ -463,40 +463,6 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Compi
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn inactive_and_nested_payloads_never_hide_address_roots() {
-        let limits = Limits::default();
-        let address = Type::Address {
-            mutable: false,
-            inner: Box::new(Type::I32),
-        };
-        let inactive = Type::Enum {
-            name: "InactiveAddress".into(),
-            variants: vec![
-                ("Empty".into(), vec![]),
-                ("Hidden".into(), vec![address.clone()]),
-            ],
-        };
-        let nested = Type::Record {
-            name: "NestedAddress".into(),
-            fields: vec![(
-                "payload".into(),
-                Type::Tuple(vec![Type::Array {
-                    element: Box::new(address),
-                    length: 2,
-                }]),
-            )],
-        };
-        for ty in [inactive, nested, Type::ForeignHandle] {
-            assert!(!pure(&ty, &mut Budget::new(&limits), 0).unwrap());
-        }
-    }
-}
-
 fn ordinary_union_shape(union: &Type, b: &mut Budget) -> CompileResult<bool> {
     let Type::ErrorUnion { error, result } = union else {
         return Ok(false);
@@ -606,4 +572,38 @@ pub(super) fn ordinary_error_borrow(
     }
     b.ordinary_error_places = true;
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inactive_and_nested_payloads_never_hide_address_roots() {
+        let limits = Limits::default();
+        let address = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        };
+        let inactive = Type::Enum {
+            name: "InactiveAddress".into(),
+            variants: vec![
+                ("Empty".into(), vec![]),
+                ("Hidden".into(), vec![address.clone()]),
+            ],
+        };
+        let nested = Type::Record {
+            name: "NestedAddress".into(),
+            fields: vec![(
+                "payload".into(),
+                Type::Tuple(vec![Type::Array {
+                    element: Box::new(address),
+                    length: 2,
+                }]),
+            )],
+        };
+        for ty in [inactive, nested, Type::ForeignHandle] {
+            assert!(!pure(&ty, &mut Budget::new(&limits), 0).unwrap());
+        }
+    }
 }

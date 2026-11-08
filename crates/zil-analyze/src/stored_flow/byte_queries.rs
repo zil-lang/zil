@@ -199,13 +199,11 @@ pub(super) fn inventory(
         for &(caller, callee) in &edges {
             if marked[callee]
                 && covered(&b.composition_stored, caller) != covered(&b.composition_stored, callee)
-            {
-                if covered(&b.composition_stored, caller)
+                && (covered(&b.composition_stored, caller)
                     || !covered(&b.composition_stored, callee)
-                    || !zero_input_scalar(module, caller, callee, b)?
-                {
-                    return Err(closed());
-                }
+                    || !zero_input_scalar(module, caller, callee, b)?)
+            {
+                return Err(closed());
             }
         }
     }

@@ -328,3 +328,198 @@ fn ordinary_package_fields_have_exact_fresh_analysis_and_verification_work() {
         eprintln!("ordinary Package Copy observation {phase:?} N={high}; N-1/fresh agree");
     }
 }
+
+fn error_place_program() -> String {
+    let providers = MODEL.split("pub fn run()->i32").next().unwrap();
+    let body = r#"pub fn run()->i32{
+ let items:Store<Item>=store_new();if !store_reserve(items,1){return 1}
+ let bytes=bytes_new();if !bytes_reserve(bytes,1)||!bytes_push(bytes,65u8){return 2}
+ store_push(items,Item{data:give bytes,tag:20});var cursor=Cursor{items:give items,index:0};
+ match library.next_tagged(&mut cursor,7){
+  Option.None()=>{return 3},
+  Option.Some(original)=>{let outcome:protocol.Error!Item=original.try_duplicate(true);
+   match outcome{.ok(owner)=>{return 4},.err(error)=>{match error{
+    protocol.Error.Allocation()=>{return 5},protocol.Error.Requested()=>{return i32(original.tag-20)}
+   }}}
+  }
+ }
+}"#;
+    flat(&format!("{providers}{body}"))
+}
+
+#[test]
+fn ordinary_error_places_keep_real_tag_initialization_and_live_loans() {
+    let module = typed(&error_place_program());
+    let plan = control(&module);
+    let caller = module
+        .functions
+        .iter()
+        .position(|f| f.name == "main")
+        .unwrap();
+    let (block, borrow, local, pointer) = module.functions[caller]
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(block, b)| {
+            b.instructions
+                .iter()
+                .enumerate()
+                .find_map(|(index, i)| match &i.kind {
+                    InstructionKind::BorrowPlaceLocal {
+                        local,
+                        path,
+                        mutable: false,
+                    } if matches!(path.as_slice(), [zil_ir::PlaceProjection::ErrorArm(true)]) => {
+                        Some((block, index, *local, i.result.unwrap()))
+                    }
+                    _ => None,
+                })
+        })
+        .unwrap();
+    for attack in [
+        "drop-before-read",
+        "take-before-read",
+        "wrong-tag",
+        "missing-initialization",
+    ] {
+        let mut raw = module.clone();
+        let function = &mut raw.functions[caller];
+        match attack {
+            "drop-before-read" => {
+                let instructions = &mut function.blocks[block].instructions;
+                let read = instructions.iter().position(|i| matches!(i.kind, InstructionKind::ReadAddress { address } if address==pointer)).unwrap();
+                let drop = instructions.iter().position(|i| matches!(i.kind, InstructionKind::DropErrorUnion { local: l } if l==local)).unwrap();
+                assert!(borrow < read && read < drop);
+                instructions.swap(read, drop);
+            }
+            "take-before-read" => {
+                let instructions = &mut function.blocks[block].instructions;
+                let read = instructions.iter().position(|i| matches!(i.kind, InstructionKind::ReadAddress { address } if address==pointer)).unwrap();
+                let ty = function.values[instructions[read].result.unwrap().0 as usize].clone();
+                let later = instructions
+                    .iter()
+                    .enumerate()
+                    .skip(read + 1)
+                    .find_map(|(index, i)| {
+                        if matches!(i.kind, InstructionKind::Load(_))
+                            && i.result
+                                .is_some_and(|v| function.values[v.0 as usize] == ty)
+                        {
+                            Some(index)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap();
+                instructions[read].kind = InstructionKind::TakeVariantField {
+                    local,
+                    path: vec![zil_ir::PlaceProjection::ErrorArm(true)],
+                };
+                instructions[later].kind = InstructionKind::ReadAddress { address: pointer };
+            }
+            "wrong-tag" => {
+                let tags = function.blocks.iter().flat_map(|b| &b.instructions).filter_map(|i|
+                    if matches!(&i.kind,InstructionKind::PlaceTagLocal {local:l,path} if *l==local && path.is_empty()) {i.result} else {None}
+                ).collect::<Vec<_>>();
+                let conditions = function
+                    .blocks
+                    .iter()
+                    .filter_map(|b| {
+                        if let zil_ir::Terminator::Branch { condition, .. } = b.terminator {
+                            Some(condition)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                let mut literals = function
+                    .blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .filter_map(|i| {
+                        if !i.result.is_some_and(|v| conditions.contains(&v)) {
+                            return None;
+                        }
+                        if let InstructionKind::Binary { left, right, .. } = i.kind {
+                            if tags.contains(&left) {
+                                return Some(right);
+                            }
+                            if tags.contains(&right) {
+                                return Some(left);
+                            }
+                        }
+                        None
+                    })
+                    .collect::<Vec<_>>();
+                literals.sort_unstable();
+                literals.dedup();
+                let mut changed = 0;
+                for i in function.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+                    if i.result.is_some_and(|v| literals.contains(&v))
+                        && let InstructionKind::Constant(zil_ir::Constant::I32(value)) = &mut i.kind
+                        && (*value == 0 || *value == 1)
+                    {
+                        *value = 1 - *value;
+                        changed += 1;
+                    }
+                }
+                assert_eq!(
+                    changed, 2,
+                    "both real arm guards must change; making just one case unreachable is legal"
+                );
+            }
+            "missing-initialization" => {
+                let mut changed = 0;
+                for block in &mut function.blocks {
+                    block.instructions.retain(|i| {
+                        let remove =
+                            matches!(i.kind, InstructionKind::Store { local:l, .. } if l==local);
+                        changed += usize::from(remove);
+                        !remove
+                    });
+                }
+                assert!(changed > 0);
+            }
+            _ => unreachable!(),
+        }
+        let mut claim = plan.clone();
+        if attack == "missing-initialization" {
+            // Recompute exactly the removed incoming initialization fact;
+            // stale public claims cannot count as the safety rejection.
+            for block in &mut claim.functions[caller].blocks {
+                block.initialized_in.retain(|l| *l != local);
+                block.initialized_out.retain(|l| *l != local);
+            }
+        }
+        claim.module_fingerprint = raw.fingerprint();
+        let a = rejected(
+            zil_analyze::analyze(&raw, &Limits::default()),
+            &format!("{attack}/Analyze"),
+        );
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &claim, &Limits::default()).unwrap();
+        for errors in [
+            rejected(
+                zil_verify::verify_module(raw.clone(), claim, &raw.target, &Limits::default()),
+                &format!("{attack}/Verify"),
+            ),
+            rejected(
+                zil_verify::verify_module_bytes(&wire, &raw.target, &Limits::default()),
+                &format!("{attack}/Wire"),
+            ),
+        ] {
+            if attack == "drop-before-read" || attack == "take-before-read" {
+                assert!(
+                    a.iter()
+                        .any(|d| d.message.contains("actual stored target/parent loan")),
+                    "{a:?}"
+                );
+                assert!(
+                    errors
+                        .iter()
+                        .any(|d| d.message.contains("live incompatible loan")),
+                    "{errors:?}"
+                );
+            }
+        }
+    }
+}
