@@ -215,6 +215,48 @@ pub(super) fn ordinary_package_borrow(
     Ok(true)
 }
 
+// The independent raw checker authenticates the actual ordinary owner and
+// child before the stored ledger leaves this scalar/Copy observation empty.
+pub(super) fn ordinary_package_read(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
+    let InstructionKind::ReadPackageField { local, index } = i.kind else {
+        return Ok(false);
+    };
+    let parent = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| err("ordinary Package read local is absent"))?
+        .ty;
+    let Type::Package { fields, .. } = parent else {
+        return Ok(false);
+    };
+    let field = &fields
+        .get(index as usize)
+        .ok_or_else(|| err("ordinary Package read field is absent"))?
+        .1;
+    resources::charge_payload(field, b)?;
+    if !field.is_copy_value() {
+        return Err(err(
+            "ordinary Package read requires a complete pure Copy field",
+        ));
+    }
+    ordinary(field, b, 0)?;
+    let output = vt(
+        f,
+        i.result
+            .ok_or_else(|| err("ordinary Package read lacks result"))?,
+    )?;
+    if output != field {
+        return Err(err(
+            "ordinary Package read result differs from its actual field",
+        ));
+    }
+    Ok(true)
+}
+
 fn ordinary(ty: &Type, b: &mut Budget, depth: usize) -> Check<()> {
     b.spend(1)?;
     if depth > b.limits.max_call_depth {

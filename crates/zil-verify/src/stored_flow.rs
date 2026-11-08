@@ -1215,6 +1215,7 @@ pub(super) fn qualifications(
                     && !pure_copy::operation(&i.kind)
                     && !pure_copy::ordinary_owned_union(f, i, b)?
                     && !pure_copy::ordinary_package_borrow(f, i, b)?
+                    && !pure_copy::ordinary_package_read(f, i, b)?
                     && !matches!(
                         &i.kind,
                         InstructionKind::StaticUtf8 { .. }
@@ -3145,6 +3146,7 @@ fn step(
         }
         _ if pure_copy::ordinary_owned_union(f, i, b)? => {}
         _ if pure_copy::ordinary_package_borrow(f, i, b)? => {}
+        _ if pure_copy::ordinary_package_read(f, i, b)? => {}
         _ if task_transfer.is_some() => {
             out = task_transfer.clone().unwrap();
         }
@@ -3923,6 +3925,22 @@ fn windows(
                             }
                         }
                     }
+                }
+                InstructionKind::ReadPackageField { local, index }
+                    if pure_copy::ordinary_package_read(f, i, b)? =>
+                {
+                    b.spend(1)?;
+                    let actual = Permission {
+                        sources: vec![Source {
+                            retained_port: None,
+                            base: HoldRoot::Local(*local),
+                            leaf: Vec::new(),
+                            inline: vec![PlaceProjection::Field(*index)],
+                            heap_element: None,
+                        }],
+                        loans: Vec::new(),
+                    };
+                    access(&actual, false, &active, &solution.loans, requirements, b)?;
                 }
                 InstructionKind::TakePackageField { local, index }
                 | InstructionKind::DropPackageField { local, index }
