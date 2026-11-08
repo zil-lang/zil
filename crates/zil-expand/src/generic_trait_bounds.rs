@@ -634,6 +634,22 @@ impl<'a> Index<'a> {
             let BoundSubject::Type(subject) = &clause.subject else {
                 return Err(unsupported(clause.span, "method where subject"));
             };
+            let normalized;
+            let subject = if matches!(&grouped(subject).kind, TypeKind::Named { path, .. } if path.len() == 2)
+                && associated::parts(subject).is_none()
+            {
+                let names = self.projection_names(bounds, budget, clause.span)?;
+                budget.substituted_type(subject, &names)?;
+                let mut value = subject.clone();
+                Substitution {
+                    substitutions: &names,
+                }
+                .ty(&mut value);
+                normalized = value;
+                &normalized
+            } else {
+                subject
+            };
             self.add_subject_bounds(subject, &clause.bounds, bounds, variables, budget)?;
             if let Some(name) = plain(subject).filter(|name| variables.contains(*name)) {
                 let key = subject_key(subject, budget)?;

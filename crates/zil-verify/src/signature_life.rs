@@ -490,10 +490,12 @@ fn relation_inner(
             }
             t if pointee => {
                 if !(t.is_address_pointee()
-                    // The actual Store source/loan remains a separate proof.
+                    // Input Package shape permits either receiver mode. The
+                    // actual Store source, parent loan and access authority
+                    // still require the independent body checks.
                     || !output
                         && matches!(base, StorageBase::Parameter(_))
-                        && matches!(ty, Type::Address { mutable: false, .. })
+                        && matches!(ty, Type::Address { .. })
                         && matches!(t, Type::Package { .. })
                     || allow_callback && matches!(t, Type::Closure(_)))
                 {

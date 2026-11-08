@@ -79,6 +79,21 @@ fn exclusive_self(parameter: &s::Param) -> bool {
         )
 }
 
+fn project_package_lending_method(method: &s::Function) -> bool {
+    !method.generics.is_empty()
+        && method.params.len() == 1
+        && method
+            .generics
+            .iter()
+            .all(|p| matches!(p.kind, s::GenericParamKind::Lifetime))
+        && method.where_clause.is_empty()
+        && method.contract.is_empty()
+        && method
+            .params
+            .first()
+            .is_some_and(|p| p.name == "self" && (shared_self(p) || exclusive_self(p)))
+}
+
 fn project_package_method(method: &s::Function) -> bool {
     finite_method(method)
         && method
@@ -534,7 +549,11 @@ impl<'a> Expander<'a> {
             {
                 let signature_work = declaration.members.iter().fold(1usize, |cost, member| {
                     cost.saturating_add(match &member.kind {
-                        s::ItemKind::Function(method) => method.params.len().saturating_add(1),
+                        s::ItemKind::Function(method) => method
+                            .params
+                            .len()
+                            .saturating_add(method.generics.len())
+                            .saturating_add(1),
                         _ => 1,
                     })
                 });
@@ -550,7 +569,11 @@ impl<'a> Expander<'a> {
                 if !declaration.generics.is_empty()
                     || !declaration.bounds.is_empty()
                     || declaration.members.iter().any(|member| match &member.kind {
-                        s::ItemKind::Function(method) => !project_package_method(method),
+                        s::ItemKind::Function(method) => {
+                            !project_package_method(method)
+                                && !project_package_lending_method(method)
+                        }
+                        s::ItemKind::TypeAlias(_) => false,
                         _ => true,
                     })
                 {

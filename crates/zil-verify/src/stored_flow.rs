@@ -2304,6 +2304,12 @@ fn step(
                             (Type::Tuple(fields), PlaceProjection::Field(index)) => fields
                                 .get(*index as usize)
                                 .ok_or_else(|| err("stored tuple field is absent"))?,
+                            (Type::Enum { variants, .. }, PlaceProjection::Variant(selector)) => {
+                                variants
+                                    .get(selector.variant as usize)
+                                    .and_then(|(_, fields)| fields.get(selector.index as usize))
+                                    .ok_or_else(|| err("stored variant payload is absent"))?
+                            }
                             _ => {
                                 return Err(unsupported(
                                     "ByteBuffer relocation needs projected stored byte target invalidation",
@@ -4729,6 +4735,126 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
         ));
+    }
+    #[test]
+    fn optional_byte_addresses_reject_relocation_in_actual_transfer() {
+        let module = fixture::module();
+        let mut function = module.functions[0].clone();
+        let selector = PlaceProjection::Variant(zil_ir::VariantProjection {
+            variant: 1,
+            index: 0,
+        });
+        let qualified = |inner| Type::BorrowedStorage {
+            storage: Box::new(Type::Enum {
+                name: "OptionalAddress".into(),
+                variants: vec![
+                    ("None".into(), vec![]),
+                    (
+                        "Some".into(),
+                        vec![Type::Address {
+                            mutable: false,
+                            inner: Box::new(inner),
+                        }],
+                    ),
+                ],
+            }),
+            life: StorageLifeShape {
+                binder_count: 1,
+                slots: vec![zil_ir::StorageLifeSlot {
+                    path: vec![selector],
+                    binder: 0,
+                    mode: StoredBorrowMode::SharedAddress,
+                }],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+        };
+        let values = vec![Payload::default(); 4];
+        let sites = WriteSites::new();
+        for reserve in [false, true] {
+            for byte in [false, true] {
+                let pointee = if byte {
+                    Type::U8
+                } else {
+                    Type::Package {
+                        name: "Item".into(),
+                        fields: vec![("data".into(), Type::Managed(Box::new(Type::ByteBuffer)))],
+                    }
+                };
+                function.locals.clear();
+                function.values = vec![
+                    Type::Desc(Box::new(Type::ByteBuffer)),
+                    if reserve { Type::I64 } else { Type::U8 },
+                    Type::Bool,
+                    qualified(pointee),
+                ];
+                let kind = if reserve {
+                    InstructionKind::ByteBufferReserve {
+                        buffer: ValueId(0),
+                        capacity: ValueId(1),
+                    }
+                } else {
+                    InstructionKind::ByteBufferPush {
+                        buffer: ValueId(0),
+                        value: ValueId(1),
+                    }
+                };
+                let instruction = fixture::instruction(Some(2), kind);
+                let limits = Limits::default();
+                let mut budget = Budget::new(&limits);
+                let result = step(
+                    &module,
+                    &function,
+                    &instruction,
+                    &mut Frame::default(),
+                    &values,
+                    &[],
+                    &sites,
+                    &mut [],
+                    &mut budget,
+                );
+                if byte {
+                    let error = result.unwrap_err();
+                    assert_eq!(error.category, zil_base::ResultCategory::Unsupported);
+                    assert!(error.message.contains(
+                        "ByteBuffer relocation needs projected stored byte target invalidation"
+                    ));
+                } else {
+                    result.unwrap();
+                }
+            }
+        }
+        // The same transfer must reject a forged payload selector before it
+        // could classify the path as a harmless non-byte address.
+        function.values[3] = qualified(Type::I64);
+        let Type::BorrowedStorage { life, .. } = &mut function.values[3] else {
+            unreachable!()
+        };
+        life.slots[0].path = vec![PlaceProjection::Variant(zil_ir::VariantProjection {
+            variant: 1,
+            index: u32::MAX,
+        })];
+        let limits = Limits::default();
+        let error = step(
+            &module,
+            &function,
+            &fixture::instruction(
+                Some(2),
+                InstructionKind::ByteBufferReserve {
+                    buffer: ValueId(0),
+                    capacity: ValueId(1),
+                },
+            ),
+            &mut Frame::default(),
+            &values,
+            &[],
+            &sites,
+            &mut [],
+            &mut Budget::new(&limits),
+        )
+        .unwrap_err();
+        assert_eq!(error.category, zil_base::ResultCategory::SafeReject);
+        assert!(error.message.contains("stored variant payload is absent"));
     }
     // These fixtures have one straight-line block. The candidate supplies only
     // root identities; all paths, loans and environment class bindings remain

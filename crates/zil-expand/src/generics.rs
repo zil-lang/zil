@@ -90,7 +90,7 @@ mod helper_graph;
 #[path = "generic_inherent.rs"]
 mod inherent;
 #[path = "generic_options.rs"]
-mod options;
+pub(super) mod options;
 #[path = "generic_origins.rs"]
 pub(super) mod origins;
 #[path = "generic_products.rs"]
@@ -820,6 +820,7 @@ impl<'a> Engine<'a> {
                                 engine.budget.identity_work(f.generics.len(), f.span)?;
                                 if super::lifetimes::copy_life(f)
                                     || super::lifetimes::store_element_life(f)
+                                    || super::lifetimes::nominal_life(f)
                                 {
                                     true
                                 } else if engine
@@ -909,6 +910,13 @@ impl<'a> Engine<'a> {
                     ));
                 }
                 if !f.where_clause.is_empty()
+                    && !f.where_clause.iter().all(|clause| {
+                        clause.lifetime_bound.is_none()
+                            && matches!(&clause.subject, BoundSubject::Type(subject)
+                                if trait_bounds::associated::parts(subject).is_some())
+                            && !clause.bounds.is_empty()
+                            && clause.bounds.iter().all(copy::is_bound)
+                    })
                     && !engine
                         .budget
                         .context

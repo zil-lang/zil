@@ -232,11 +232,10 @@ pub(super) fn store_option_root(
             )
         })?
         .ty;
-    if let Type::Address {
-        mutable: false,
-        inner,
-    } = ty
-    {
+    // The actual manager may arrive through either address mode. This only
+    // exposes its header shape; the receiver loan and permissions are checked
+    // independently before a returned Store window can escape.
+    if let Type::Address { inner, .. } = ty {
         ty = inner;
     }
     let (header_start, header_end) = mixed_interval(ty, &source.inline, false, budget)?;

@@ -36,17 +36,28 @@ fn nominal_bound<'a>(
                 _ => {}
             }
         }
-        *index = Some(
-            if module
-                .items
-                .iter()
-                .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
-            {
-                trait_bounds::Index::declarations_only(module, budget)?
-            } else {
-                trait_bounds::Index::new(module, budget)?
-            },
-        );
+        let mut declarations_only = module
+            .items
+            .iter()
+            .any(|item| matches!(&item.kind, ItemKind::Trait(t) if !t.generics.is_empty()));
+        // An associated declaration still contains symbolic Self projections
+        // here. Charge the new member inventory before selecting the deferred
+        // implementation check; the ordinary trait index checks it later.
+        if !declarations_only {
+            for item in &module.items {
+                if let ItemKind::Trait(declaration) = &item.kind {
+                    for member in &declaration.members {
+                        budget.node(member.span, 0)?;
+                        declarations_only |= matches!(member.kind, ItemKind::TypeAlias(_));
+                    }
+                }
+            }
+        }
+        *index = Some(if declarations_only {
+            trait_bounds::Index::declarations_only(module, budget)?
+        } else {
+            trait_bounds::Index::new(module, budget)?
+        });
     }
     index
         .as_ref()
@@ -115,6 +126,7 @@ pub(super) fn normalize(module: &Module, budget: &mut Budget<'_>) -> R<Module> {
                 }
             }
         }
+        let mut projected = Vec::new();
         for clause in std::mem::take(&mut function.where_clause) {
             budget.node(clause.span, 0)?;
             if clause.lifetime_bound.is_some() {
@@ -136,6 +148,27 @@ pub(super) fn normalize(module: &Module, budget: &mut Budget<'_>) -> R<Module> {
                     "where Copy requires a direct type parameter subject",
                 ));
             };
+            if let [host, _member] = path.as_slice()
+                && args.is_empty()
+                && !clause.bounds.is_empty()
+                && clause.bounds.iter().all(copy::is_bound)
+            {
+                let mut declared = false;
+                for parameter in &function.generics {
+                    budget.node(parameter.span, 0)?;
+                    budget.text(&parameter.name, parameter.span)?;
+                    budget.text(host, subject.span)?;
+                    declared |= parameter.name == *host;
+                }
+                if !declared {
+                    return Err(error(
+                        subject.span,
+                        "projected Copy subject requires a declared type parameter",
+                    ));
+                }
+                projected.push(clause);
+                continue;
+            }
             let [name] = path.as_slice() else {
                 return Err(unsupported(
                     subject.span,
@@ -223,6 +256,7 @@ pub(super) fn normalize(module: &Module, budget: &mut Budget<'_>) -> R<Module> {
                 }
             }
         }
+        function.where_clause = projected;
     }
     Ok(output)
 }

@@ -801,13 +801,42 @@ impl<'a> Engine<'a> {
                                 GenericArg::Const(value) => self.budget.const_expression(value)?,
                             }
                         }
-                        self.source_enum_return = Some(TypeRef {
+                        let mut source = TypeRef {
                             span: ty.span,
                             kind: TypeKind::Named {
                                 path: name.clone(),
                                 args: args.clone(),
                             },
-                        });
+                        };
+                        // Keep the source life spelling while resolving the
+                        // actual Item equation before the header erases names.
+                        // A body context must not retain an opaque concrete
+                        // projection after its provider already returned Item.
+                        if name.as_slice() == [super::options::TEMPLATE]
+                            && let [GenericArg::Type(payload)] = args.as_slice()
+                            && let TypeKind::Reference { inner, .. } = &payload.kind
+                            && trait_bounds::associated::parts(inner).is_some()
+                        {
+                            source = self.traits.normalize_associated(
+                                &source,
+                                &trait_bounds::Bounds::new(),
+                                &BTreeSet::new(),
+                                &mut self.budget,
+                            )?;
+                            let TypeKind::Named {
+                                args: normalized, ..
+                            } = &source.kind
+                            else {
+                                unreachable!("normalization preserves the Option application")
+                            };
+                            for argument in normalized {
+                                if let GenericArg::Type(actual) = argument {
+                                    self.budget.ty(actual)?;
+                                }
+                            }
+                            *args = normalized.clone();
+                        }
+                        self.source_enum_return = Some(source);
                     }
                 }
                 let (generated, classes) =

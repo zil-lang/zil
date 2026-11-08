@@ -461,6 +461,14 @@ fn mutable_files() -> [(&'static str, &'static str); 4] {
 #[test]
 #[cfg(target_os = "linux")]
 fn owning_package_mutable_trait_crosses_plain_and_generic_helpers_with_exact_cleanup() {
+    owning_trait_native_cleanup(
+        &mutable_files(),
+        &[(None, 0, b"1:1:1\n"), (Some("1"), 1, b"1:0:0\n")],
+    );
+}
+
+#[cfg(target_os = "linux")]
+fn owning_trait_native_cleanup(files: &[(&str, &str)], cases: &[(Option<&str>, i32, &[u8])]) {
     use std::{
         os::unix::fs::PermissionsExt,
         path::{Path, PathBuf},
@@ -489,7 +497,7 @@ fn owning_package_mutable_trait_crosses_plain_and_generic_helpers_with_exact_cle
         }
         for optimization in [Optimization::O0, Optimization::O2] {
             let report = compile_project(
-                &project(&mutable_files()),
+                &project(files),
                 &CompileOptions {
                     backend,
                     optimization,
@@ -508,10 +516,7 @@ fn owning_package_mutable_trait_crosses_plain_and_generic_helpers_with_exact_cle
             assert_eq!(report.verification_runs, 1);
             assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
             assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
-            for (failure, exit, stdout) in [
-                (None, 0, b"1:1:1\n".as_slice()),
-                (Some("1"), 1, b"1:0:0\n".as_slice()),
-            ] {
+            for &(failure, exit, stdout) in cases {
                 let mut command = Command::new(&report.artifacts["executable"]);
                 command.env_remove("ZIL_POD_ALLOC_FAIL_AT");
                 if let Some(at) = failure {
@@ -528,6 +533,10 @@ fn owning_package_mutable_trait_crosses_plain_and_generic_helpers_with_exact_cle
                     "{backend:?}/{optimization:?} fail={failure:?}"
                 );
                 assert!(output.stderr.is_empty(), "{output:?}");
+                eprintln!(
+                    "native {backend:?}/{optimization:?} failure={failure:?}: exit={exit}, stdout={:?}",
+                    String::from_utf8_lossy(&output.stdout)
+                );
             }
         }
     }
@@ -849,4 +858,232 @@ fn owning_package_mutable_trait_raw_and_wire_rebuild_actual_receiver_identity_an
             );
         }
     }
+}
+
+const OWNING_LENDING_PROTOCOL: &str = include_str!("lending/protocol.zil");
+const OWNING_LENDING_MODEL: &str = include_str!("lending/model.zil");
+const OWNING_LENDING_LIBRARY: &str = include_str!("lending/library.zil");
+const OWNING_LENDING_MAIN: &str = include_str!("lending/main.zil");
+fn owning_lending_files() -> [(&'static str, &'static str); 4] {
+    [
+        ("main", OWNING_LENDING_MAIN),
+        ("protocol", OWNING_LENDING_PROTOCOL),
+        ("model", OWNING_LENDING_MODEL),
+        ("library", OWNING_LENDING_LIBRARY),
+    ]
+}
+#[test]
+fn owning_item_lending_iterator_preserves_store_element_source() {
+    let report = compile_project(
+        &project(&owning_lending_files()),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn owning_item_lending_iterator_native_values_and_exact_cleanup() {
+    owning_trait_native_cleanup(
+        &owning_lending_files(),
+        &[
+            (None, 0, b"3:3:3\n"),
+            (Some("1"), 1, b"1:0:0\n"),
+            (Some("2"), 5, b"2:1:1\n"),
+            (Some("3"), 6, b"3:2:2\n"),
+        ],
+    );
+}
+
+#[test]
+fn owning_item_lending_iterator_rejects_live_next_mutation_movement_and_bad_sources() {
+    let baseline = compile_project(
+        &project(&owning_lending_files()),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        baseline.status,
+        ResultCategory::Success,
+        "{}",
+        baseline.to_json()
+    );
+    let hold = "let held=library.next(&mut cursor)";
+    let inspect = "match held {Option.Some(value)=>{total+=value.value},Option.None()=>{return 9}}";
+    let first = "match library.next(&mut cursor) {Option.Some(value)=>{total+=value.value;if byte(value)!=65u8{return 7}},Option.None()=>{return 2}}";
+    assert!(OWNING_LENDING_MODEL.contains(first));
+    for action in [
+        "library.next(&mut cursor)",
+        "store_reserve(cursor.items,3)",
+        "let moved=cursor",
+        "destroy(give cursor)",
+    ] {
+        let model = format!(
+            "{}\nfn destroy(give cursor:Cursor){{}}",
+            OWNING_LENDING_MODEL.replace(first, &format!("{hold};{action};{inspect}"))
+        );
+        let report = compile_project(
+            &project(&[
+                ("main", OWNING_LENDING_MAIN),
+                ("protocol", OWNING_LENDING_PROTOCOL),
+                ("model", &model),
+                ("library", OWNING_LENDING_LIBRARY),
+            ]),
+            &CompileOptions::default(),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{action}: {}",
+            report.to_json()
+        );
+    }
+    for model in [
+        OWNING_LENDING_MODEL.replace("type Item=Item;", "type Item=i64;"),
+        OWNING_LENDING_MODEL.replace(
+            "return Option::<&'a Item>.Some(store_at(self.items,index))",
+            "let local=Item{data:bytes_new(),value:8};return Option::<&'a Item>.Some(&local)",
+        ),
+    ] {
+        let report = compile_project(
+            &project(&[
+                ("main", OWNING_LENDING_MAIN),
+                ("protocol", OWNING_LENDING_PROTOCOL),
+                ("model", &model),
+                ("library", OWNING_LENDING_LIBRARY),
+            ]),
+            &CompileOptions::default(),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+    }
+    let model = OWNING_LENDING_MODEL
+        .replace("import protocol", "import other")
+        .replace(
+            "impl protocol.LendingIterator",
+            "impl other.LendingIterator",
+        );
+    let report = compile_project(
+        &project(&[
+            ("main", OWNING_LENDING_MAIN),
+            ("protocol", OWNING_LENDING_PROTOCOL),
+            ("other", OWNING_LENDING_PROTOCOL),
+            ("model", &model),
+            ("library", OWNING_LENDING_LIBRARY),
+        ]),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[path = "lending/verify.rs"]
+mod owning_lending_verify;
+
+#[test]
+fn owning_item_lending_iterator_checks_unused_generic_life_and_copy_obligations() {
+    let control = compile_project(
+        &project(&owning_lending_files()),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        control.status,
+        ResultCategory::Success,
+        "{}",
+        control.to_json()
+    );
+    for body in [
+        "pub fn wrong<life a,life b,I:protocol.LendingIterator>(first:&'a mut I,second:&'b mut I)->Option<&'a I.Item>{return second.next()}",
+        "pub fn duplicate<I:protocol.LendingIterator>(value:I.Item)->(I.Item,I.Item){return (value,value)}",
+        "pub fn unbound<I>(cursor:&mut I){cursor.next()}",
+    ] {
+        let library = format!("{OWNING_LENDING_LIBRARY}\n{body}");
+        let report = compile_project(
+            &project(&[
+                ("main", OWNING_LENDING_MAIN),
+                ("protocol", OWNING_LENDING_PROTOCOL),
+                ("model", OWNING_LENDING_MODEL),
+                ("library", &library),
+            ]),
+            &CompileOptions::default(),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{body}: {}",
+            report.to_json()
+        );
+    }
+    let model = OWNING_LENDING_MODEL
+        .replace("<life a>", "<life yielded>")
+        .replace("&'a", "&'yielded");
+    let report = compile_project(
+        &project(&[
+            ("main", OWNING_LENDING_MAIN),
+            ("protocol", OWNING_LENDING_PROTOCOL),
+            ("model", &model),
+            ("library", OWNING_LENDING_LIBRARY),
+        ]),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let model = OWNING_LENDING_MODEL.replace(
+        "library.next(&mut cursor)",
+        "protocol.next_copy(&mut cursor)",
+    );
+    let report = compile_project(
+        &project(&[
+            ("main", OWNING_LENDING_MAIN),
+            ("protocol", include_str!("../../../lib/std/iter.zil")),
+            ("model", &model),
+            ("library", OWNING_LENDING_LIBRARY),
+        ]),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "next_copy must retain Copy: {}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn owning_item_direct_lending_provider_preserves_store_element_source() {
+    let model = OWNING_LENDING_MODEL
+        .replace("import library", "")
+        .replace("library.next(&mut cursor)", "cursor.next()");
+    let report = compile_project(
+        &project(&[
+            ("main", OWNING_LENDING_MAIN),
+            ("protocol", OWNING_LENDING_PROTOCOL),
+            ("model", &model),
+        ]),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
 }
