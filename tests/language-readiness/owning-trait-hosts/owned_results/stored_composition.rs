@@ -366,6 +366,177 @@ fn ordinary_owned_pipeline_keeps_callbacks_and_error_paths() {
 }
 
 #[test]
+fn ordinary_owned_pipeline_borrowed_inputs_reach_analysis() {
+    let files = [
+        ("main", include_str!("../owned_pipeline/main.zil")),
+        ("model", include_str!("../owned_pipeline/model.zil")),
+        ("protocol", include_str!("../owned_pipeline/protocol.zil")),
+        ("library", include_str!("../owned_pipeline/library.zil")),
+    ];
+    let report = compile_project(
+        &project(&files),
+        &CompileOptions {
+            stop_after: Stage::Analyze,
+            ..CompileOptions::default()
+        },
+    );
+    eprintln!("complete owning callback analysis: {}", report.to_json());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Analyze);
+    assert_eq!(report.verification_runs, 0);
+}
+
+fn borrowed_callback_kernel_model() -> String {
+    let body = kernel_model()
+        .replace("let copy:Item", "var copy:Item")
+        .replace(
+            "let exclusive=&mut spare;let observed=copy.tag;",
+            "let shared=&copy;var calls:i64=0;var handler=move(item:&mut Item)->Reply=>{calls+=1;return Reply{data:bytes_new(),tag:item.tag+calls}};let reply=apply(&mut handler,&mut spare);let observed=shared.tag;",
+        )
+        .replace("exclusive.tag", "spare.tag");
+    format!(
+        "fn apply<F:FnMut(&mut Item)->Reply>(handler:&mut F,item:&mut Item)->Reply{{return handler(item)}}{body}"
+    )
+}
+
+#[test]
+fn stored_borrowed_callbacks_keep_environment_modes_and_actual_loans() {
+    use zil_ir::{CallableKind, HoldRoot, InstructionKind, LocalId, Type};
+    let source = flat(&borrowed_callback_kernel_model());
+    let module = typed(&source);
+    let dir =
+        std::env::temp_dir().join(format!("zil-stored-callback-kernel-{}", std::process::id()));
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("source.zil"), &source).unwrap();
+    fs::write(dir.join("typed.txt"), format!("{module:#?}")).unwrap();
+    eprintln!("stored callback raw control: {}", dir.display());
+    let plan = control(&module);
+    for attack in [
+        "fn-write",
+        "captured-stored-source",
+        "retarget-input-loan",
+        "fabricated-empty-contract",
+    ] {
+        let mut raw = module.clone();
+        if attack == "fabricated-empty-contract" {
+            let empty = zil_ir::StorageLifeContract {
+                fixed_binder_count: 0,
+                invocation_binder_count: 0,
+                bindings: vec![],
+                classes: vec![],
+            };
+            let entry = raw.closures[0].function.0 as usize;
+            raw.closures[0].storage_life = Some(empty.clone());
+            raw.functions[entry].storage_life = Some(empty);
+        }
+        let function = raw.functions.iter_mut().find(|f| f.name == "main").unwrap();
+        let function_id = function.id.0 as usize;
+        let copy = LocalId(
+            function
+                .locals
+                .iter()
+                .position(|local| local.name == "copy")
+                .unwrap() as u32,
+        );
+        let spare = LocalId(
+            function
+                .locals
+                .iter()
+                .position(|local| local.name == "spare")
+                .unwrap() as u32,
+        );
+        if attack == "fn-write" {
+            raw.closures[0].kind = CallableKind::Fn;
+        } else if attack == "captured-stored-source" {
+            let shared = function
+                .blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .find_map(|i| {
+                    matches!(i.kind, InstructionKind::BorrowLocal { local } if local == copy)
+                        .then_some(i.result)
+                        .flatten()
+                })
+                .unwrap();
+            assert!(
+                matches!(&function.values[shared.0 as usize], Type::Address { mutable: false, inner } if matches!(inner.as_ref(), Type::Package { .. }))
+            );
+            raw.closures[0]
+                .captures
+                .push(function.values[shared.0 as usize].clone());
+            let mut changed = 0;
+            for i in function.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+                if let InstructionKind::MakeClosure { captures, .. } = &mut i.kind {
+                    captures.push(shared);
+                    changed += 1;
+                }
+            }
+            assert_eq!(changed, 1);
+        } else if attack == "retarget-input-loan" {
+            let mut changed = 0;
+            for i in function.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+                if let InstructionKind::BorrowLocalMut { local } = &mut i.kind
+                    && *local == spare
+                {
+                    *local = copy;
+                    changed += 1;
+                }
+            }
+            assert_eq!(changed, 1);
+        }
+        let analyzed = rejected(zil_analyze::analyze(&raw, &Limits::default()), attack);
+        if attack == "retarget-input-loan" {
+            assert!(
+                analyzed.iter().any(|d| d.message.contains(
+                    "simultaneously live access overlaps an actual stored target/parent loan"
+                )),
+                "{analyzed:?}"
+            );
+        }
+        let mut claimed = plan.clone();
+        if attack == "retarget-input-loan" {
+            // Retarget the candidate roots truthfully, so independent Verify
+            // must reject the actual loan rather than an old Hold claim.
+            for row in &mut claimed.functions[function_id].holds {
+                for root in &mut row.roots {
+                    if *root == HoldRoot::Local(spare) {
+                        *root = HoldRoot::Local(copy);
+                    }
+                }
+                row.roots.sort_unstable();
+                row.roots.dedup();
+            }
+        }
+        claimed.module_fingerprint = raw.fingerprint();
+        let bytes =
+            zil_ir::wire::encode_module_candidate(&raw, &claimed, &Limits::default()).unwrap();
+        let verified = rejected(
+            zil_verify::verify_module(raw.clone(), claimed, &raw.target, &Limits::default()),
+            attack,
+        );
+        let decoded = rejected(
+            zil_verify::verify_module_bytes(&bytes, &raw.target, &Limits::default()),
+            attack,
+        );
+        if attack == "retarget-input-loan" {
+            for errors in [&verified, &decoded] {
+                assert!(
+                    errors.iter().any(|d| d.code == "E-VERIFY-STORED"
+                        && d.message
+                            .contains("actual target intersects a live incompatible loan")),
+                    "{errors:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn ordinary_package_fields_complete_project_has_exact_fresh_analysis_work() {
     let input = project(&files());
     let run = |steps| {
