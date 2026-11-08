@@ -364,3 +364,58 @@ fn ordinary_owned_pipeline_keeps_callbacks_and_error_paths() {
     );
     assert_eq!(report.verification_runs, 1);
 }
+
+#[test]
+fn ordinary_package_fields_complete_project_has_exact_fresh_analysis_work() {
+    let input = project(&files());
+    let run = |steps| {
+        compile_project(
+            &input,
+            &CompileOptions {
+                stop_after: Stage::Analyze,
+                limits: Limits {
+                    max_analysis_steps: steps,
+                    ..Limits::default()
+                },
+                ..CompileOptions::default()
+            },
+        )
+    };
+    let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+    let initial = run(high);
+    assert_eq!(
+        initial.status,
+        ResultCategory::Success,
+        "{}",
+        initial.to_json()
+    );
+    let fingerprint = initial.input_fingerprint;
+    while low + 1 < high {
+        let middle = low + (high - low) / 2;
+        let report = run(middle);
+        assert_eq!(report.input_fingerprint, fingerprint);
+        match report.status {
+            ResultCategory::Success => high = middle,
+            ResultCategory::ResourceLimit => low = middle,
+            _ => panic!("{}", report.to_json()),
+        }
+    }
+    for steps in [high, high - 1, high] {
+        let report = run(steps);
+        assert_eq!(report.input_fingerprint, fingerprint);
+        assert_eq!(
+            report.status,
+            if steps == high {
+                ResultCategory::Success
+            } else {
+                ResultCategory::ResourceLimit
+            },
+            "{}",
+            report.to_json()
+        );
+        if steps != high {
+            assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
+        }
+    }
+    eprintln!("ordinary Package four-module analysis N={high}; N-1/fresh agree");
+}

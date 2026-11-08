@@ -3,6 +3,8 @@
 use super::*;
 use std::sync::Arc;
 mod partial_places;
+#[cfg(test)]
+mod tag_forgetting_tests;
 
 pub(crate) fn owned(ty: &Type) -> bool {
     match ty {
@@ -276,7 +278,11 @@ impl Tree {
         ty: &Type,
         budget: &mut Budget,
     ) -> CompileResult<()> {
-        let mixed = budget.task_borrowed_results && budget.store_option_results;
+        // The ordinary owning-error/borrowed-Option composition is found by
+        // independent paid raw-type and actual error-place walks. It only
+        // schedules this equivalent tag operation; it supplies no tag fact.
+        let mixed = budget.store_option_results
+            && (budget.task_borrowed_results || budget.ordinary_error_places);
         if budget.pod_stores || mixed {
             budget.spend(1, "Sum terminal tag classification")?;
             // Actual private facts already represent ordinary Record payloads
@@ -312,6 +318,14 @@ impl Tree {
             }
         };
         if copy_sum {
+            if budget.store_option_results && budget.ordinary_error_places {
+                // A full set of alternatives without nested tag refinement
+                // already is the result of forgetting. Retain the exact tree,
+                // including every moved marker, instead of reconstructing it.
+                if self.tags_unknown(ty, budget)? {
+                    return Ok(());
+                }
+            }
             let old = self.copied(budget)?;
             let mut unknown = Self::unknown(ty, budget)?;
             unknown.preserve_missing(&old, budget)?;
@@ -349,6 +363,72 @@ impl Tree {
             _ => {}
         }
         Ok(())
+    }
+    fn tags_unknown(&self, ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
+        budget.spend(1, "Sum existing unknown tag shape")?;
+        match (&self.node, ty) {
+            (Node::Copy | Node::Leaf(_), _) => Ok(true),
+            (Node::Product(children), Type::Tuple(fields)) => {
+                if children.len() != fields.len() {
+                    return Ok(false);
+                }
+                for (child, ty) in children.iter().zip(fields) {
+                    if !child.tags_unknown(ty, budget)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            (Node::Product(children), Type::Package { fields, .. }) => {
+                if children.len() != fields.len() {
+                    return Ok(false);
+                }
+                for (child, (_, ty)) in children.iter().zip(fields) {
+                    if !child.tags_unknown(ty, budget)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            (Node::Sum(choices), Type::Enum { variants, .. }) => {
+                if choices.len() != variants.len() {
+                    return Ok(false);
+                }
+                for ((tag, children), (index, (_, fields))) in
+                    choices.iter().zip(variants.iter().enumerate())
+                {
+                    budget.spend(1, "Sum existing alternative identity")?;
+                    if *tag as usize != index || children.len() != fields.len() {
+                        return Ok(false);
+                    }
+                    for (child, ty) in children.iter().zip(fields) {
+                        if !child.tags_unknown(ty, budget)? {
+                            return Ok(false);
+                        }
+                    }
+                }
+                Ok(true)
+            }
+            (Node::Sum(choices), Type::ErrorUnion { error, result }) => {
+                if choices.len() != 2 {
+                    return Ok(false);
+                }
+                for ((tag, children), (index, ty)) in choices
+                    .iter()
+                    .zip([result.as_ref(), error.as_ref()].into_iter().enumerate())
+                {
+                    budget.spend(1, "Sum existing union alternative identity")?;
+                    if *tag as usize != index
+                        || children.len() != 1
+                        || !children[0].tags_unknown(ty, budget)?
+                    {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
     }
     fn forget_copy_endpoint(
         self: &mut Arc<Self>,
@@ -539,6 +619,28 @@ impl Tree {
     }
 }
 
+fn join_tables<K: Ord>(
+    target: &mut BTreeMap<K, Arc<Tree>>,
+    incoming: &BTreeMap<K, Arc<Tree>>,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    budget.spend(1, "Sum sorted inventory size comparison")?;
+    if target.len() != incoming.len() {
+        return Err(error("Sum joined state inventory differs"));
+    }
+    budget.spend(target.len(), "Sum sorted target inventory walk")?;
+    budget.spend(incoming.len(), "Sum sorted incoming inventory walk")?;
+    let mut changed = false;
+    for ((key, tree), (other_key, other_tree)) in target.iter_mut().zip(incoming) {
+        budget.spend(1, "Sum sorted inventory key comparison")?;
+        if key != other_key {
+            return Err(error("Sum joined state key differs"));
+        }
+        changed |= tree.merge(other_tree, budget)?;
+    }
+    Ok(changed)
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct Facts {
     locals: BTreeMap<LocalId, Arc<Tree>>,
@@ -596,29 +698,40 @@ impl Facts {
         if let (Some(a), Some(b)) = (&mut self.partial, &other.partial) {
             change |= a.join(b, budget)?;
         }
-        for (k, t) in &other.locals {
-            budget.lookup(self.locals.len(), "Sum local join")?;
-            change |= self
-                .locals
-                .get_mut(k)
-                .ok_or_else(|| error("Sum local missing"))?
-                .merge(t, budget)?;
-        }
-        for (k, t) in &other.values {
-            budget.lookup(self.values.len(), "Sum value join")?;
-            change |= self
-                .values
-                .get_mut(k)
-                .ok_or_else(|| error("Sum value missing"))?
-                .merge(t, budget)?;
-        }
-        for (k, t) in &other.captures {
-            budget.lookup(self.captures.len(), "Sum capture join")?;
-            change |= self
-                .captures
-                .get_mut(k)
-                .ok_or_else(|| error("Sum capture missing"))?
-                .merge(t, budget)?;
+        if budget.store_option_results && budget.ordinary_error_places {
+            // Both states start from this function's complete immutable local,
+            // SSA and capture inventories. Walk corresponding sorted entries
+            // together rather than searching the same keys at every CFG edge.
+            // Check the complete keys as well: inventory equality is never an
+            // unchecked prerequisite for publishing any incoming fact.
+            change |= join_tables(&mut self.locals, &other.locals, budget)?;
+            change |= join_tables(&mut self.values, &other.values, budget)?;
+            change |= join_tables(&mut self.captures, &other.captures, budget)?;
+        } else {
+            for (k, t) in &other.locals {
+                budget.lookup(self.locals.len(), "Sum local join")?;
+                change |= self
+                    .locals
+                    .get_mut(k)
+                    .ok_or_else(|| error("Sum local missing"))?
+                    .merge(t, budget)?;
+            }
+            for (k, t) in &other.values {
+                budget.lookup(self.values.len(), "Sum value join")?;
+                change |= self
+                    .values
+                    .get_mut(k)
+                    .ok_or_else(|| error("Sum value missing"))?
+                    .merge(t, budget)?;
+            }
+            for (k, t) in &other.captures {
+                budget.lookup(self.captures.len(), "Sum capture join")?;
+                change |= self
+                    .captures
+                    .get_mut(k)
+                    .ok_or_else(|| error("Sum capture missing"))?
+                    .merge(t, budget)?;
+            }
         }
         budget.spend(
             self.valid.len() + other.valid.len(),
@@ -1026,41 +1139,43 @@ impl Plan {
             }
         }
         let partial = partial || (address_tag && address_replacement);
-        let tagged_locals =
-            if partial && budget.task_borrowed_results && budget.store_option_results {
-                budget.spend(
-                    f.locals.len().saturating_mul(2).saturating_add(1),
-                    "mixed tag local index allocation",
-                )?;
-                let mut tagged = Vec::with_capacity(f.locals.len());
-                for local in &f.locals {
-                    budget.spend(1, "mixed tag local classification")?;
-                    let mut pending = vec![&local.ty];
-                    while let Some(ty) = pending.pop() {
-                        budget.spend(1, "mixed tag tree node classification")?;
-                        match ty {
-                            Type::Enum { .. } | Type::ErrorUnion { .. } => {
-                                tagged.push(local.id);
-                                break;
-                            }
-                            Type::Tuple(fields) => {
-                                budget.spend(fields.len(), "mixed tag Tuple child inventory")?;
-                                pending.extend(fields);
-                            }
-                            Type::Package { fields, .. } => {
-                                budget.spend(fields.len(), "mixed tag Package child inventory")?;
-                                pending.extend(fields.iter().map(|(_, child)| child));
-                            }
-                            // Tree::unknown makes every other form Copy or Leaf;
-                            // neither stores tag knowledge or mutable route state.
-                            _ => {}
+        let tagged_locals = if partial
+            && budget.store_option_results
+            && (budget.task_borrowed_results || budget.ordinary_error_places)
+        {
+            budget.spend(
+                f.locals.len().saturating_mul(2).saturating_add(1),
+                "mixed tag local index allocation",
+            )?;
+            let mut tagged = Vec::with_capacity(f.locals.len());
+            for local in &f.locals {
+                budget.spend(1, "mixed tag local classification")?;
+                let mut pending = vec![&local.ty];
+                while let Some(ty) = pending.pop() {
+                    budget.spend(1, "mixed tag tree node classification")?;
+                    match ty {
+                        Type::Enum { .. } | Type::ErrorUnion { .. } => {
+                            tagged.push(local.id);
+                            break;
                         }
+                        Type::Tuple(fields) => {
+                            budget.spend(fields.len(), "mixed tag Tuple child inventory")?;
+                            pending.extend(fields);
+                        }
+                        Type::Package { fields, .. } => {
+                            budget.spend(fields.len(), "mixed tag Package child inventory")?;
+                            pending.extend(fields.iter().map(|(_, child)| child));
+                        }
+                        // Tree::unknown makes every other form Copy or Leaf;
+                        // neither stores tag knowledge or mutable route state.
+                        _ => {}
                     }
                 }
-                Some(tagged)
-            } else {
-                None
-            };
+            }
+            Some(tagged)
+        } else {
+            None
+        };
         Ok(Some(Self {
             tagged_locals,
             partial: if partial {
