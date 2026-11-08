@@ -1396,7 +1396,7 @@ impl Resolver<'_> {
                     || (stored_instance.is_some()
                         && d.kind == AggregateKind::Package
                         && !f.manages
-                        && stored::shared_record_child(&ty))
+                        && stored::shared_record_child(&ty, &mut self.remaining, f.span)?)
                     || (d.kind == AggregateKind::Package
                         && !f.manages
                         && d.name.starts_with("$generic_")
@@ -2282,6 +2282,10 @@ fn error_constructor_descriptor(span: Span) -> Diagnostic {
 }
 
 pub(super) fn field(ty: &Type, name: &str, span: Span) -> R<(u32, Type)> {
+    field_ref(ty, name, span).map(|(index, field)| (index, field.clone()))
+}
+
+pub(super) fn field_ref<'a>(ty: &'a Type, name: &str, span: Span) -> R<(u32, &'a Type)> {
     // Address<Managed<R>> projects the actual inline payload, not a copied
     // head or a descriptor. Other callers still decide the access operation.
     let ty = match ty {
@@ -2308,7 +2312,7 @@ pub(super) fn field(ty: &Type, name: &str, span: Span) -> R<(u32, Type)> {
         }
     };
     selected
-        .map(|(i, t)| (i as u32, t.clone()))
+        .map(|(i, t)| (i as u32, t))
         .ok_or_else(|| error("E-UNKNOWN-FIELD", span, format!("unknown field {name}")))
 }
 /// Look up an exact nominal owner's method, never a global same-name method.

@@ -26,7 +26,7 @@ fn scan(
     match ty {
         Type::BorrowedStorage { storage, life } => {
             if !matches!(storage.as_ref(), Type::Package { .. })
-                && !shared_record_child(ty)
+                && !shared_record_child(ty, b)?
                 && !pure(ty, b)?
             {
                 return Err(err(
