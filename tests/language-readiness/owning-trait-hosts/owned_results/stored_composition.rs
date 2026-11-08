@@ -849,3 +849,167 @@ fn ordinary_package_fields_complete_project_has_exact_fresh_analysis_work() {
     }
     eprintln!("ordinary Package four-module analysis N={high}; N-1/fresh agree");
 }
+
+#[test]
+#[cfg(target_os = "linux")]
+fn ordinary_owned_pipeline_executes_callbacks_and_allocation_cleanup_paths() {
+    owning_trait_native_cleanup(
+        &pipeline_files(),
+        &[
+            (None, 0, b"11:11:11\n"),
+            (Some("1"), 1, b"1:0:0\n"),
+            (Some("2"), 2, b"2:1:1\n"),
+            (Some("3"), 3, b"3:2:2\n"),
+            (Some("4"), 10, b"4:3:3\n"),
+            (Some("5"), 14, b"5:4:4\n"),
+            (Some("6"), 15, b"6:5:5\n"),
+            (Some("7"), 30, b"7:6:6\n"),
+            (Some("8"), 20, b"8:7:7\n"),
+            (Some("9"), 24, b"9:8:8\n"),
+            (Some("10"), 25, b"10:9:9\n"),
+            (Some("11"), 40, b"11:10:10\n"),
+        ],
+    );
+}
+
+#[test]
+fn ordinary_error_places_have_exact_fresh_independent_resource_work() {
+    let module = typed(&error_place_program());
+    let plan = control(&module);
+    for phase in [Phase::Analyze, Phase::Verify] {
+        let run = |steps| {
+            let limits = Limits {
+                max_analysis_steps: steps,
+                ..Limits::default()
+            };
+            if phase == Phase::Analyze {
+                zil_analyze::analyze(&module, &limits).map(|actual| assert_eq!(actual, plan))
+            } else {
+                zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits)
+                    .map(|_| ())
+            }
+        };
+        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+        run(high).unwrap();
+        while low + 1 < high {
+            let middle = low + (high - low) / 2;
+            match run(middle) {
+                Ok(()) => high = middle,
+                Err(errors) => {
+                    assert!(
+                        errors
+                            .iter()
+                            .all(|d| d.category == ResultCategory::ResourceLimit)
+                    );
+                    low = middle;
+                }
+            }
+        }
+        run(high).unwrap();
+        assert!(
+            run(high - 1)
+                .unwrap_err()
+                .iter()
+                .all(|d| d.phase == phase && d.category == ResultCategory::ResourceLimit)
+        );
+        run(high).unwrap();
+        eprintln!("ordinary Error/Option resource {phase:?} N={high}; N-1/fresh agree");
+    }
+}
+
+#[test]
+fn ordinary_error_places_keep_byte_query_generations_in_real_loops() {
+    let base = error_place_program();
+    let fresh = "var copy:Item=original.duplicate();var iteration=0;var sum=i64(0);while iteration<2{let exclusive=&mut copy;let description=exclusive.data;sum=sum+bytes_len(description)+exclusive.tag;iteration=iteration+1}return i32(sum+original.tag-62)";
+    let outside = "var copy:Item=original.duplicate();let exclusive=&mut copy;let description=exclusive.data;var iteration=0;var sum=i64(0);while iteration<2{sum=sum+bytes_len(description)+exclusive.tag;iteration=iteration+1}return i32(sum+original.tag-62)";
+    let stale = "var copy:Item=original.duplicate();var current=&copy;var iteration=0;var sum=i64(0);while iteration<2{let description=current.data;let exclusive=&mut copy;let amount:i64=bytes_len(description);sum=sum+amount;current=&*exclusive;iteration=iteration+1}return i32(sum+original.tag-22)";
+    for (name, body, valid) in [
+        ("fresh-in-loop", fresh, true),
+        ("parent-outside-loop", outside, true),
+        (
+            "stale-control",
+            &stale.replace("bytes_len(description)", "1"),
+            true,
+        ),
+        ("stale-query", stale, false),
+    ] {
+        let source = base.replace("return i32(original.tag-20)", body);
+        let module = typed(&source);
+        if valid {
+            control(&module);
+        } else {
+            let a = rejected(zil_analyze::analyze(&module, &Limits::default()), name);
+            assert!(
+                a.iter()
+                    .any(|d| d.message.contains("actual stored target/parent loan")),
+                "{a:?}"
+            );
+        }
+    }
+    // The lawful scalar control supplies the candidate. Only the actual loop
+    // scalar operation is changed to a query; no origin or loan claim is added.
+    let source = base.replace(
+        "return i32(original.tag-20)",
+        &stale.replace("bytes_len(description)", "1"),
+    );
+    let mut module = typed(&source);
+    let mut claim = control(&module);
+    let function = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let stored_value = |name: &str| {
+        let local = function.locals.iter().find(|l| l.name == name).unwrap().id;
+        function
+            .blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .find_map(|i| match i.kind {
+                InstructionKind::Store { local: l, value } if l == local => Some(value),
+                _ => None,
+            })
+            .unwrap()
+    };
+    let buffer = stored_value("description");
+    let result = stored_value("amount");
+    let operation = function
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| i.result == Some(result))
+        .unwrap();
+    assert!(matches!(
+        operation.kind,
+        InstructionKind::Constant(zil_ir::Constant::I64(1))
+    ));
+    operation.kind = InstructionKind::ByteBufferLen { buffer };
+    claim.module_fingerprint = module.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &claim, &Limits::default()).unwrap();
+    let a = rejected(
+        zil_analyze::analyze(&module, &Limits::default()),
+        "stale-loop/raw Analyze",
+    );
+    assert!(
+        a.iter()
+            .any(|d| d.message.contains("actual stored target/parent loan")),
+        "{a:?}"
+    );
+    for errors in [
+        rejected(
+            zil_verify::verify_module(module.clone(), claim, &module.target, &Limits::default()),
+            "stale-loop/raw Verify",
+        ),
+        rejected(
+            zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()),
+            "stale-loop/fresh Wire",
+        ),
+    ] {
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("live incompatible loan")),
+            "{errors:?}"
+        );
+    }
+}
