@@ -444,8 +444,8 @@ fn dynamic_snapshot_and_alternative_budgets_are_exact_and_fresh() {
     }
     for base in [0, 4] {
         for change in [1, 2, 3] {
-            for stage in 0..5 {
-                assert!(boundaries[base + change][stage] > boundaries[base][stage]);
+            for (changed, original) in boundaries[base + change].iter().zip(&boundaries[base]) {
+                assert!(changed > original);
             }
         }
     }
@@ -936,8 +936,8 @@ fn rich_call_completeness_costs_grow_with_actual_input_and_output_ports() {
         );
         boundaries.push([a, v, w]);
     }
-    for phase in 0..3 {
-        assert!(boundaries[1][phase] > boundaries[0][phase]);
+    for (larger, smaller) in boundaries[1].iter().zip(&boundaries[0]) {
+        assert!(larger > smaller);
     }
     assert_eq!(boundaries, [[26829, 30552, 30552], [84551, 104625, 104625]]);
     println!("rich-call complete input/output requirement boundaries: {boundaries:?}");
