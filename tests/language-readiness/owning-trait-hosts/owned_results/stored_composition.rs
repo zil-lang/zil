@@ -328,3 +328,21 @@ fn ordinary_package_fields_have_exact_fresh_analysis_and_verification_work() {
         eprintln!("ordinary Package Copy observation {phase:?} N={high}; N-1/fresh agree");
     }
 }
+
+#[test]
+fn ordinary_owned_pipeline_keeps_callbacks_and_error_paths() {
+    let files = [
+        ("main", include_str!("../owned_pipeline/main.zil")),
+        ("model", include_str!("../owned_pipeline/model.zil")),
+        ("protocol", include_str!("../owned_pipeline/protocol.zil")),
+        ("library", include_str!("../owned_pipeline/library.zil")),
+    ];
+    let report = compile_project(&project(&files), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
