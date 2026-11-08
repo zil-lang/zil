@@ -4556,7 +4556,7 @@ fn derive_cfg(
     inactive: Option<&[BTreeSet<ValueId>]>,
     b: &mut Budget,
 ) -> CompileResult<Vec<Facts>> {
-    byte_queries::inventory(module, graphs, b)?;
+    let pending_byte_edges = byte_queries::inventory(module, graphs, b)?;
     let mut observed_none = false;
     fee(b, module.functions.len())?;
     let mut summaries = vec![Facts::default(); module.functions.len()];
@@ -5012,6 +5012,7 @@ fn derive_cfg(
             }
         }
     }
+    byte_queries::certify_edges(module, &pending_byte_edges, &summaries, b)?;
     Ok(summaries)
 }
 

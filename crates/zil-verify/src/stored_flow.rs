@@ -5000,7 +5000,7 @@ fn solve_check(
     mask: Option<&[bool]>,
     b: &mut Budget,
 ) -> Check<()> {
-    byte_queries::inventory(module, graphs, mask, b)?;
+    let pending_byte_edges = byte_queries::inventory(module, graphs, mask, b)?;
     b.spend(module.functions.len().saturating_mul(2))?;
     let mut observed_none = false;
     let mut summaries = vec![Summary::default(); module.functions.len()];
@@ -5362,6 +5362,7 @@ fn solve_check(
             }
         }
     }
+    byte_queries::certify_edges(module, &pending_byte_edges, &summaries, &solved, mask, b)?;
     if let Some(checked) = checked_task_sources {
         b.task_stored_sources = Some(checked);
     }
