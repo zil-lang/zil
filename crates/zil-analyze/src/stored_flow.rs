@@ -26,8 +26,7 @@ pub(super) fn shared_enum_observation(
         return Ok(false);
     }
     Ok(enum_address::types(module, f, instruction, budget)?.is_some()
-        || budget.store_option_results
-            && option_address::types(module, f, instruction, budget)?.is_some())
+        || option_address::types(module, f, instruction, budget)?.is_some())
 }
 
 
