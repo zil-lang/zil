@@ -2579,6 +2579,11 @@ fn step(
                             (Type::Tuple(fields), PlaceProjection::Field(index)) => fields
                                 .get(*index as usize)
                                 .ok_or_else(|| err("stored tuple field is absent"))?,
+                            (Type::Array { element, length }, PlaceProjection::Field(index))
+                                if *index < *length =>
+                            {
+                                element.as_ref()
+                            }
                             (Type::Enum { variants, .. }, PlaceProjection::Variant(selector)) => {
                                 variants
                                     .get(selector.variant as usize)
