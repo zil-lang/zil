@@ -4,6 +4,7 @@ const BATCH: &str = include_str!("fixed-shared-address-array.zil");
 const MAPPING: &str = include_str!("fixed-shared-address-array-mapping.zil");
 const WINDOW: &str = include_str!("fixed-shared-address-array-window.zil");
 const HELPER: &str = include_str!("fixed-shared-address-array-helper.zil");
+const LARGE: &str = include_str!("fixed-shared-address-array-512.zil");
 
 #[test]
 fn source_raw_and_wire_preserve_each_array_element() {
@@ -184,6 +185,7 @@ fn native_array_ordinals_and_shared_copies_match_both_backends() {
                 ("helper", HELPER),
                 ("mapping", MAPPING),
                 ("window", WINDOW),
+                ("512-elements", LARGE),
             ] {
                 let dir = std::env::temp_dir().join(format!(
                     "zil-address-array-{}-{backend:?}-{optimization:?}-{label}",
@@ -208,6 +210,12 @@ fn native_array_ordinals_and_shared_copies_match_both_backends() {
                     report.to_json()
                 );
                 assert_eq!(report.verification_runs, 1);
+                if label == "512-elements" {
+                    println!(
+                        "512-element native {backend:?}/{optimization:?}: {}",
+                        report.to_json()
+                    );
+                }
                 let codegen = report.native_codegen.as_ref().unwrap();
                 assert_eq!(codegen.backend, backend);
                 assert!(codegen.fallback.is_none());
@@ -221,12 +229,20 @@ fn native_array_ordinals_and_shared_copies_match_both_backends() {
                     output.stdout.is_empty() && output.stderr.is_empty(),
                     "{output:?}"
                 );
+                if label == "512-elements" {
+                    println!(
+                        "512-element execution {backend:?}/{optimization:?}: exit={:?}, stdout={:?}, stderr={:?}",
+                        output.status.code(),
+                        output.stdout,
+                        output.stderr
+                    );
+                }
                 runs += 1;
                 std::fs::remove_dir_all(dir).unwrap();
             }
         }
     }
-    assert_eq!(runs, 8 + 8 * usize::from(cfg!(feature = "llvm-api")));
+    assert_eq!(runs, 10 + 10 * usize::from(cfg!(feature = "llvm-api")));
     println!("fixed shared address Array native executions: {runs}");
 }
 
@@ -530,20 +546,36 @@ fn array_slots_and_actual_pointee_snapshot_budgets_are_exact_and_fresh() {
         boundaries.push([types, analyze, verify, decoded, whole]);
     }
 
-    // Qualified Record views now retain real leaves across Reborrow/AddressField.
-    // Their per-leaf clone/select/union fees compose with the Array ordinal fees.
-    // Bare Array and all Types boundaries remain unchanged.
+    // Balanced Analyze ancestry and Verify component membership replace the
+    // arena-bound ancestry fee and whole-table representative rewrites. Each
+    // table allocation and actual merge is prepaid; Types work is unchanged.
+    let previous = [
+        [1702, 24787, 29335, 29335, 29335],
+        [2326, 73489, 86110, 86110, 86110],
+        [4229, 49818, 57237, 57237, 57237],
+        [6250, 50740, 58972, 58972, 58972],
+        [3576, 41829, 55685, 55685, 55685],
+        [4788, 97685, 136826, 136826, 136826],
+        [6481, 70787, 93002, 93002, 93002],
+        [8988, 76833, 101990, 101990, 101990],
+    ];
+    for (before, after) in previous.iter().zip(&boundaries) {
+        assert_eq!(before[0], after[0]);
+        for kernel in 1..5 {
+            assert!(after[kernel] < before[kernel]);
+        }
+    }
     assert_eq!(
         boundaries,
         vec![
-            [1702, 24787, 29335, 29335, 29335],
-            [2326, 73489, 86110, 86110, 86110],
-            [4229, 49818, 57237, 57237, 57237],
-            [6250, 50740, 58972, 58972, 58972],
-            [3576, 41829, 55685, 55685, 55685],
-            [4788, 97685, 136826, 136826, 136826],
-            [6481, 70787, 93002, 93002, 93002],
-            [8988, 76833, 101990, 101990, 101990],
+            [1702, 22401, 27357, 27357, 27357],
+            [2326, 50265, 64126, 64126, 64126],
+            [4229, 47432, 55259, 55259, 55259],
+            [6250, 48219, 56877, 56877, 56877],
+            [3576, 40845, 54917, 54917, 54917],
+            [4788, 91115, 130856, 130856, 130856],
+            [6481, 69803, 92234, 92234, 92234],
+            [8988, 75594, 101001, 101001, 101001],
         ]
     );
     println!("array complete boundaries: {boundaries:?}");
@@ -560,15 +592,12 @@ fn array_slots_and_actual_pointee_snapshot_budgets_are_exact_and_fresh() {
 }
 
 #[test]
-fn large_array_growth_keeps_the_unchanged_default_resource_boundary() {
-    let elements = std::iter::repeat_n("pointer", 512)
-        .collect::<Vec<_>>()
-        .join(",");
-    let program = format!(
-        "fn main()->i32{{let value=7;let pointer=&value;let original=[{elements}];let copied=original;let selected=copied[511];return *selected-7}}"
-    );
+fn ordinary_512_element_array_completes_source_raw_and_wire_verification() {
+    let program = LARGE;
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
     let report = compile_source(
-        &source("array-default-growth", &program),
+        &source("array-default-growth", program),
         &CompileOptions {
             stop_after: Stage::Verify,
             ..CompileOptions::default()
@@ -576,17 +605,32 @@ fn large_array_growth_keeps_the_unchanged_default_resource_boundary() {
     );
     assert_eq!(
         report.status,
-        ResultCategory::ResourceLimit,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .all(|d| d.category == ResultCategory::ResourceLimit)
-    );
-    println!("512-slot Source growth: unchanged default ResourceLimit, no executable emitted");
+    assert_eq!(report.verification_runs, 1);
+    let raw = typed_source("array-default-growth", program, &target, &limits);
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    let exact = exact_array_budget("512-element Source", |n| {
+        compile_source(
+            &source("array-default-growth", program),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                limits: Limits {
+                    max_analysis_steps: n,
+                    ..limits.clone()
+                },
+                ..CompileOptions::default()
+            },
+        )
+        .status
+    });
+    assert_eq!(exact, 4_170_159);
+    println!("512-slot Source/raw/Wire: independent Verify complete within default limits");
 }
 
 #[test]
@@ -776,7 +820,9 @@ fn array_billing_mode_is_consistent_across_scalar_reuse_and_function_order() {
                 )
                 .status
         });
-        assert_eq!(n, if label == "scalar" { 1543 } else { 16587 });
+        // Scalar work is unchanged. Array equations now traverse balanced
+        // actual components; their previous complete-request N was 16587.
+        assert_eq!(n, if label == "scalar" { 1543 } else { 15926 });
         let mut warm = zil_driver::CompilationSession::default();
         for (limit, status) in [
             (n, ResultCategory::Success),

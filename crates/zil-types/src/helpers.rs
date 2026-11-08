@@ -216,34 +216,57 @@ pub(super) fn validate_template(
             && !function.return_type.is_copy_value()
             && !invocation_result
             && !lending::supported_result(&function.return_type));
+    let borrowed_owned = owned_data
+        && bounds.len() == 1
+        && bounds[0]
+            .parameters
+            .iter()
+            .any(|ty| matches!(ty, Type::Address { .. }));
     if owned_data {
         if bounds.len() != 1
             || !function.type_parameters.is_empty()
-            || bounds[0].kind != CallableKind::FnOnce
-            || parameter_mode(
-                &function
-                    .parameters
-                    .get(bounds[0].index as usize)
-                    .ok_or_else(reject)?
-                    .ty,
-                &bounds[0].generic_name,
-            ) != Some(None)
-            || !matches!(
-                function.parameters[bounds[0].index as usize].mode,
-                PassingMode::Infer | PassingMode::Move
-            )
+            || (!borrowed_owned && bounds[0].kind != CallableKind::FnOnce)
+            || (!borrowed_owned
+                && parameter_mode(
+                    &function
+                        .parameters
+                        .get(bounds[0].index as usize)
+                        .ok_or_else(reject)?
+                        .ty,
+                    &bounds[0].generic_name,
+                ) != Some(None))
+            || (!borrowed_owned
+                && !matches!(
+                    function.parameters[bounds[0].index as usize].mode,
+                    PassingMode::Infer | PassingMode::Move
+                ))
             || function.result_mode != PassingMode::Infer
         {
             return Err(reject());
         }
-        for ty in bounds[0]
-            .parameters
-            .iter()
-            .chain(std::iter::once(&bounds[0].result))
-            .chain(std::iter::once(&function.return_type))
-        {
+        for ty in &bounds[0].parameters {
+            prepay(ty, function.span)?;
+            if !(closures::owned_signature_value(ty)
+                || (borrowed_owned && closures::borrowed_owned_parameter(ty)))
+            {
+                return Err(reject());
+            }
+        }
+        for ty in [&bounds[0].result, &function.return_type] {
             prepay(ty, function.span)?;
             if !closures::owned_signature_value(ty) {
+                return Err(reject());
+            }
+        }
+        if borrowed_owned {
+            for ty in bounds[0]
+                .parameters
+                .iter()
+                .chain(std::iter::once(&bounds[0].result))
+            {
+                prepay(ty, function.span)?;
+            }
+            if !closures::borrowed_owned_signature(&bounds[0].parameters, &bounds[0].result) {
                 return Err(reject());
             }
         }
@@ -253,8 +276,15 @@ pub(super) fn validate_template(
                 if !matches!(
                     parameter.mode,
                     PassingMode::Infer | PassingMode::Copy | PassingMode::Move
-                ) || (parameter.mode == PassingMode::Copy && !parameter.ty.is_copy_value())
-                    || !closures::owned_signature_value(&parameter.ty)
+                ) && !(borrowed_owned
+                    && matches!(
+                        (&parameter.ty, parameter.mode),
+                        (Type::Address { mutable: false, .. }, PassingMode::Borrow)
+                            | (Type::Address { mutable: true, .. }, PassingMode::BorrowMut)
+                    ))
+                    || (parameter.mode == PassingMode::Copy && !parameter.ty.is_copy_value())
+                    || !(closures::owned_signature_value(&parameter.ty)
+                        || (borrowed_owned && closures::borrowed_owned_parameter(&parameter.ty)))
                 {
                     return Err(reject());
                 }
@@ -387,6 +417,12 @@ pub(super) fn validate_template(
     }
     for (index, p) in function.parameters.iter().enumerate() {
         if bounds.iter().any(|bound| bound.index as usize == index) {
+            continue;
+        }
+        if borrowed_owned {
+            // Complete data/address eligibility and actual passing modes were
+            // prepaid and checked above; the legacy gate restricts slice
+            // arguments to Copy results and is not this profile's contract.
             continue;
         }
         let old = p.ty.is_copy_value()

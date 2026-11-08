@@ -1,5 +1,5 @@
-//! Non-author source review of signature admission, environment modes and
-//! separately closed profiles. This does not stand in for native execution.
+//! Source signature admission, environment modes and separately closed
+//! profiles. Native execution and independent raw/Wire attacks are separate.
 use std::{fs, path::PathBuf};
 use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, TargetProfile};
 use zil_driver::{CompileOptions, Stage, compile_source};
@@ -69,12 +69,8 @@ fn unused_public_single_once_definitions_check_the_complete_owned_signature() {
 }
 
 #[test]
-fn owning_data_does_not_open_address_borrowed_multi_f_or_capture_profiles() {
+fn owning_data_does_not_open_unrelated_helper_or_capture_profiles() {
     let cases = [
-        (
-            "address-mixed",
-            "fn main(){let f=(event:Event,p:&i32)->Event=>{return event}}",
-        ),
         (
             "borrowed-public",
             "fn dispatch<F:Fn(Event)->Event>(f:&F,event:Event)->Event{return f(event)}fn main(){}",
@@ -121,7 +117,6 @@ fn owning_data_does_not_open_address_borrowed_multi_f_or_capture_profiles() {
         );
         assert_eq!(report.verification_runs, 0);
         let (phase, reason) = match label {
-            "address-mixed" => (Phase::Types, "address arguments require a Copy result"),
             "borrowed-public" => (Phase::Types, "finite nonescaping callable roles"),
             // Final frontend preserves the legacy multi-F Expand route and
             // checks the new owning profile in Types, including unused Core.
@@ -142,5 +137,249 @@ fn owning_data_does_not_open_address_borrowed_multi_f_or_capture_profiles() {
             report.to_json()
         );
         assert!(!report.artifacts.contains_key("executable"));
+    }
+}
+
+#[test]
+fn borrowed_input_owned_result_calls_keep_environment_modes_and_input_usable() {
+    for (setup, closure, invoke, kind) in [
+        (
+            "",
+            "let f=(item:&Event)->Event=>{return Event{r:R{n:3},n:item.n+1}}",
+            "let reply=f(&item)",
+            CallableKind::Fn,
+        ),
+        (
+            "var count=0;",
+            "var f=move(item:&Event)->Event=>{count+=1;return Event{r:R{n:3},n:item.n+count}}",
+            "let first=f(&item);let reply=f(&item)",
+            CallableKind::FnMut,
+        ),
+        (
+            "let held=R{n:9};",
+            "let f=move(item:&Event)->Event=>{let token=give held;return Event{r:give token,n:item.n+1}}",
+            "let reply=f(&item)",
+            CallableKind::FnOnce,
+        ),
+    ] {
+        let source = format!(
+            "{DATA}fn main()->i32{{let item=Event{{r:R{{n:1}},n:7}};{setup}{closure};{invoke};return reply.n-item.n-1}}"
+        );
+        let module = typed(&source);
+        assert_eq!(module.closures[0].kind, kind);
+        let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        zil_verify::verify_module(
+            module.clone(),
+            plan.clone(),
+            &module.target,
+            &Limits::default(),
+        )
+        .unwrap();
+        let bytes =
+            zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+        zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+    }
+}
+
+#[test]
+fn borrowed_input_owned_result_public_helpers_check_unused_definitions() {
+    for header in [
+        "fn dispatch<F:Fn(&Event)->Event>(f:&F,item:&Event)->Event{return f(item)}",
+        "fn dispatch<F:FnMut(&Event)->Event>(f:&mut F,item:&Event)->Event{return f(item)}",
+        "fn dispatch<F:FnOnce(&Event)->Event>(f:F,item:&Event)->Event{return f(item)}",
+    ] {
+        typed(&format!("{DATA}{header}fn main(){{}}"));
+    }
+    let source = format!(
+        "{DATA}fn dispatch<F:FnMut(&Event)->Event>(f:&mut F,item:&Event)->Event{{return f(item)}}fn main()->i32{{let item=Event{{r:R{{n:1}},n:7}};var count=0;var f=move(item:&Event)->Event=>{{count+=1;return Event{{r:R{{n:3}},n:item.n+count}}}};let a=dispatch(&mut f,&item);let b=dispatch(&mut f,&item);return a.n+b.n-item.n*2-3}}"
+    );
+    let module = typed(&source);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(module.clone(), plan, &module.target, &Limits::default()).unwrap();
+}
+
+#[test]
+fn borrowed_input_owned_result_crosses_actual_model_and_helper_modules() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/callbacks/borrowed-input-owned-result/main.zil");
+    let report = zil_driver::compile_path(
+        &path,
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn owned_and_borrowed_inputs_each_retain_their_own_responsibility() {
+    let source = format!(
+        "{DATA}fn main()->i32{{let n=7;let f=(event:Event,p:&i32)->Event=>{{return event}};let reply=f(Event{{r:R{{n:3}},n:2}},&n);return reply.n+n-9}}"
+    );
+    let module = typed(&source);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(module.clone(), plan, &module.target, &Limits::default()).unwrap();
+}
+
+#[test]
+fn borrowed_input_owned_callbacks_keep_actual_input_and_result_authority_separate() {
+    for (label, tail) in [
+        (
+            "move-input-leaf",
+            "fn main(){let item=Event{r:R{n:1},n:2};let f=(item:&Event)->Event=>{return Event{r:give item.r,n:item.n}};let reply=f(&item)}",
+        ),
+        (
+            "mutable-through-shared",
+            "fn main(){let item=Event{r:R{n:1},n:2};let f=(item:&Event)->Event=>{item.n=3;return Event{r:R{n:4},n:item.n}};let reply=f(&item)}",
+        ),
+        (
+            "private-create",
+            "fn extract()->R contract{result(create)}{let item=Event{r:R{n:1},n:2};let f=(item:&Event)->Event=>{return Event{r:R{n:3},n:item.n}};let reply=f(&item);return give reply.r}fn main(){}",
+        ),
+        (
+            "unused-once-twice",
+            "fn bad<F:FnOnce(&Event)->Event>(f:F,item:&Event)->Event{let first=f(item);return f(item)}fn main(){}",
+        ),
+        (
+            "unused-shared-mut",
+            "fn bad<F:FnMut(&Event)->Event>(f:&F,item:&Event)->Event{return f(item)}fn main(){}",
+        ),
+    ] {
+        let source = format!("{DATA}{tail}");
+        let report = compile_source(
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "borrowed_input_callback_reject.zil",
+                source,
+            ),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        let expected = if label == "move-input-leaf" {
+            // Giving a field through a borrowed Package has no owner place;
+            // preserve the existing precise unsupported operation boundary.
+            assert!(report.diagnostics.iter().any(|d| {
+                d.phase == Phase::Types
+                    && d.message
+                        .contains("give requires a managed local or direct Managed package field")
+            }));
+            ResultCategory::Unsupported
+        } else {
+            ResultCategory::SafeReject
+        };
+        assert_eq!(report.status, expected, "{label}: {}", report.to_json());
+        assert_eq!(report.verification_runs, 0, "{label}");
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+}
+
+#[test]
+fn mixed_callback_cannot_move_an_owner_while_passing_its_live_internal_alias() {
+    let source = format!(
+        "{DATA}fn main(){{let event=Event{{r:R{{n:3}},n:2}};let view=&event;let f=(owned:Event,borrowed:&Event)->Event=>{{let n=borrowed.n;return owned}};let reply=f(event,view)}}"
+    );
+    let report = compile_source(
+        &SourceUnit::new(FileId(0), ModuleId(0), "mixed_input_alias.zil", source),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report.diagnostics.iter().any(|d| d.phase == Phase::Analyze),
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 0);
+}
+
+#[test]
+fn borrowed_owned_callback_new_work_has_exact_and_fresh_budget_boundaries() {
+    let source = "package Reply{manages bytes:ByteBuffer;n:i32}fn dispatch<F:FnMut(&i32)->Reply>(f:&mut F,n:&i32)->Reply{return f(n)}fn main()->i32{var count=0;var f=move(n:&i32)->Reply=>{count+=1;return Reply{bytes:bytes_new(),n:*n+count}};let n=7;let reply=dispatch(&mut f,&n);return reply.n-8}";
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "borrowed_owned_budget.zil", source);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &syntax).unwrap();
+    let defaults = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let module = zil_types::check(&core, &target, &defaults).unwrap();
+    let plan = zil_analyze::analyze(&module, &defaults).unwrap();
+    for phase in [Phase::Types, Phase::Analyze, Phase::Verify] {
+        let run =
+            |n| {
+                let limits = Limits {
+                    max_analysis_steps: n,
+                    ..defaults.clone()
+                };
+                match phase {
+                    Phase::Types => zil_types::check(&core, &target, &limits)
+                        .map(|actual| assert_eq!(actual, module)),
+                    Phase::Analyze => zil_analyze::analyze(&module, &limits)
+                        .map(|actual| assert_eq!(actual, plan)),
+                    Phase::Verify => {
+                        zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits)
+                            .map(|actual| {
+                                assert_eq!(actual.module(), &module);
+                                assert_eq!(actual.plan(), &plan);
+                            })
+                    }
+                    _ => unreachable!(),
+                }
+            };
+        let (mut low, mut high) = (0, defaults.max_analysis_steps);
+        run(high).unwrap();
+        while high - low > 1 {
+            let mid = low + (high - low) / 2;
+            match run(mid) {
+                Ok(()) => high = mid,
+                Err(errors) => {
+                    assert!(
+                        errors
+                            .iter()
+                            .all(|d| d.category == ResultCategory::ResourceLimit),
+                        "{phase:?}: {errors:?}"
+                    );
+                    low = mid;
+                }
+            }
+        }
+        run(high).unwrap();
+        assert!(
+            run(high - 1)
+                .unwrap_err()
+                .iter()
+                .all(|d| d.category == ResultCategory::ResourceLimit)
+        );
+        run(high).unwrap();
+        println!(
+            "borrowed input owned result {phase:?}: N={high}, N-1 ResourceLimit, fresh N equal"
+        );
+    }
+}
+
+#[test]
+fn borrowed_slice_inputs_and_copy_slice_results_keep_their_separate_profiles() {
+    for source in [
+        format!("{DATA}fn dispatch<F:Fn(&[i32])->Event>(f:&F,s:&[i32])->Event{{return f(s)}}fn main()->i32{{let values=[7,9];let f=(s:&[i32])->Event=>{{return Event{{r:R{{n:3}},n:s[0]+s[1]}}}};let reply=dispatch(&f,&values[..]);return reply.n-16}}"),
+        "fn main()->i32{let values=[7,9];let f=(s:&[i32])->i32=>{return s[0]+s[1]};return f(&values[..])-16}".into(),
+    ] {
+        let module=typed(&source);
+        let plan=zil_analyze::analyze(&module,&Limits::default()).unwrap();
+        zil_verify::verify_module(module.clone(),plan,&module.target,&Limits::default()).unwrap();
     }
 }

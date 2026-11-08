@@ -724,7 +724,9 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 && !function.locals[p.0 as usize].ty.is_package_address()
                 && !matches!(&function.locals[p.0 as usize].ty,
                     Type::Address { inner, .. } if inner.is_copy_value()
-                        || ((function.return_type.is_copy_value() || claim.roles.iter().any(|r|r.life.is_some()))
+                        || ((function.return_type.is_copy_value()
+                            || matches!(function.return_type, Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. })
+                            || claim.roles.iter().any(|r|r.life.is_some()))
                             && matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())))
                 && !matches!(&function.locals[p.0 as usize].ty, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
                 && !matches!(
@@ -757,9 +759,31 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 )?;
                 budget.owned_callback_helpers.insert(function.id);
             } else if owned_data {
+                let borrowed_input_result =
+                    if borrowed.is_some() || role.kind != CallableKind::FnOnce {
+                        budget.spend(
+                            definition.parameters.len(),
+                            "borrowed-input owning helper signature",
+                        )?;
+                        budget.type_work(
+                            &definition.result,
+                            true,
+                            "borrowed-input owning helper result",
+                        )?;
+                        matches!(
+                            definition.result,
+                            Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+                        ) && !definition.result.is_copy_value()
+                            && definition
+                                .parameters
+                                .iter()
+                                .any(|ty| matches!(ty, Type::Address { .. }))
+                    } else {
+                        false
+                    };
                 if candidates.len() != 1
-                    || borrowed.is_some()
-                    || role.kind != CallableKind::FnOnce
+                    || (!borrowed_input_result
+                        && (borrowed.is_some() || role.kind != CallableKind::FnOnce))
                     || function.result_mode != PassingMode::Infer
                 {
                     return Err(bad(
@@ -778,11 +802,32 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 )?;
                 for parameter in &function.parameters {
                     if parameter != local {
-                        super::owned_callbacks::data(
-                            module,
-                            &function.locals[parameter.0 as usize].ty,
-                            budget,
-                        )?;
+                        let ty = &function.locals[parameter.0 as usize].ty;
+                        if matches!(ty, Type::Address { .. }) {
+                            budget
+                                .spend(definition.parameters.len(), "owned helper input profile")?;
+                            budget.type_work(
+                                &definition.result,
+                                true,
+                                "owned helper input result profile",
+                            )?;
+                            if !matches!(
+                                definition.result,
+                                Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+                            ) || definition.result.is_copy_value()
+                                || !definition
+                                    .parameters
+                                    .iter()
+                                    .any(|ty| matches!(ty, Type::Address { .. }))
+                            {
+                                return Err(bad(
+                                    "borrowed helper companions require a borrowed-input owned-result callback",
+                                ));
+                            }
+                            super::owned_callbacks::input(module, ty, budget)?;
+                        } else {
+                            super::owned_callbacks::data(module, ty, budget)?;
+                        }
                     }
                 }
             }

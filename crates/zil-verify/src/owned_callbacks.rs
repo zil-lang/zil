@@ -88,6 +88,21 @@ pub(super) fn value(
     }
 }
 
+pub(super) fn input(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<()> {
+    let Type::Address { inner, .. } = ty else {
+        return Err(unsupported(
+            "borrowed callback input must be an actual address",
+            None,
+        ));
+    };
+    resources::charge_payload(ty, budget)?;
+    if root(inner) {
+        value(module, inner, None, budget)
+    } else {
+        slices::check_pointee(inner, None)
+    }
+}
+
 pub(super) fn signature(
     module: &TypedModule,
     definition: &ClosureDefinition,
@@ -98,20 +113,30 @@ pub(super) fn signature(
         return Ok(false);
     }
     budget.spend(definition.parameters.len().saturating_add(1))?;
-    for ty in definition
-        .parameters
-        .iter()
-        .chain(std::iter::once(&definition.result))
-    {
-        if root(ty) {
+    for ty in &definition.parameters {
+        if let Type::Address { .. } = ty {
+            resources::charge_payload(&definition.result, budget)?;
+            if !root(&definition.result) {
+                return Err(unsupported(
+                    "borrowed inputs in an owning callback require a closed owned result",
+                    None,
+                ));
+            }
+            // Independently inspect the complete actual pointee. The ordinary
+            // call/borrow checker still reconstructs its active input window.
+            input(module, ty, budget)?;
+        } else if root(ty) {
             value(module, ty, None, budget)?;
         } else {
-            // A new owning signature does not acquire address, description,
-            // opaque environment, array or lending permissions from an old
-            // Copy/address callback profile.
             resources::charge_payload(ty, budget)?;
             check_type(ty, None)?;
         }
+    }
+    if root(&definition.result) {
+        value(module, &definition.result, None, budget)?;
+    } else {
+        resources::charge_payload(&definition.result, budget)?;
+        check_type(&definition.result, None)?;
     }
     if !definition.lending_captures.is_empty() {
         return Err(unsupported(

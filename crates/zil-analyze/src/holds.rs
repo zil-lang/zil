@@ -700,6 +700,7 @@ fn capture_transition(
 
 // Actual pattern projections carry their own fresh window. The parent address
 // delegates authority; sibling windows still require real disjoint intervals.
+#[derive(Clone, Copy)]
 struct PatternFacts<'a> {
     values: &'a [Roots],
     state: &'a State,
@@ -891,16 +892,111 @@ fn pattern_window_transition(
     live: &resources::Live,
     b: &mut Budget,
 ) -> CompileResult<()> {
+    if let Some((roots, exclusive, parent)) =
+        pattern_access(f, i, facts.values, facts.replacements, b)?
+    {
+        pattern_window_access(module, f, i, facts, (&roots, exclusive, parent), live, b)?;
+    }
+    if b.borrowed_callback_inputs {
+        let arguments = match &i.kind {
+            InstructionKind::Call { arguments, .. }
+            | InstructionKind::CallClosure { arguments, .. }
+            | InstructionKind::CallClosureOnce { arguments, .. }
+            | InstructionKind::CallClosureShared { arguments, .. }
+            | InstructionKind::CallClosureMut { arguments, .. }
+            | InstructionKind::CallClosureBorrowed { arguments, .. } => arguments.as_slice(),
+            _ => &[],
+        };
+        if !arguments.is_empty() {
+            b.product(
+                arguments.len(),
+                arguments.len(),
+                1,
+                "borrowed callback simultaneous input pairs",
+            )?;
+            for (index, left) in arguments.iter().enumerate() {
+                let Type::Address {
+                    mutable: left_mutable,
+                    inner,
+                } = &f.values[left.0 as usize]
+                else {
+                    continue;
+                };
+                if matches!(inner.as_ref(), Type::Closure(_)) {
+                    continue;
+                }
+                for right in &arguments[..index] {
+                    let Type::Address {
+                        mutable: right_mutable,
+                        inner,
+                    } = &f.values[right.0 as usize]
+                    else {
+                        continue;
+                    };
+                    if !matches!(inner.as_ref(), Type::Closure(_))
+                        && (*left_mutable || *right_mutable)
+                        && overlaps(
+                            &facts.values[left.0 as usize],
+                            &facts.values[right.0 as usize],
+                            b,
+                        )?
+                    {
+                        return Err(window_conflict(
+                            i,
+                            "callback input arguments overlap exclusive address authority",
+                        ));
+                    }
+                }
+            }
+            b.spend(live.len(), "borrowed callback active call window copy")?;
+            let mut current = live.clone();
+            for value in arguments {
+                b.spend(1, "borrowed callback current input window")?;
+                if matches!(&f.values[value.0 as usize], Type::Address { inner, .. } if !matches!(inner.as_ref(), Type::Closure(_)))
+                {
+                    b.lookup(current.len(), "borrowed callback current input insertion")?;
+                    current.insert(resources::Place::Value(*value));
+                }
+            }
+            for value in arguments {
+                b.spend(1, "borrowed callback actual input access")?;
+                if let Type::Address { mutable, inner } = &f.values[value.0 as usize]
+                    && !matches!(inner.as_ref(), Type::Closure(_))
+                {
+                    pattern_window_access(
+                        module,
+                        f,
+                        i,
+                        facts,
+                        (&facts.values[value.0 as usize], *mutable, Some(*value)),
+                        &current,
+                        b,
+                    )?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn pattern_window_access(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    facts: PatternFacts<'_>,
+    access: (&Roots, bool, Option<ValueId>),
+    live: &resources::Live,
+    b: &mut Budget,
+) -> CompileResult<()> {
     let PatternFacts {
         values,
         state,
         captures,
         local_parents,
-        replacements,
+        ..
     } = facts;
-    let Some((roots, exclusive, parent)) = pattern_access(f, i, values, replacements, b)? else {
-        return Ok(());
-    };
+    let (roots, exclusive, parent) = access;
     let empty = Roots::new();
     for active in live {
         b.spend(1, "pattern live actual window")?;
@@ -925,7 +1021,7 @@ fn pattern_window_transition(
         if !exclusive && !mutable {
             continue;
         }
-        if overlaps(&roots, held, b)? {
+        if overlaps(roots, held, b)? {
             if let Some(parent) = parent
                 && if let (Type::Address { .. }, Some((facts, state))) = (ty, local_parents) {
                     local_parents::delegated(parent, *active, state, facts, b)?
@@ -1625,8 +1721,10 @@ fn infer_with_private(
         budget.spend(v, "dyn actual address window classification")?;
         f.values.iter().any(|ty| matches!(ty, Type::Address { mutable: false, inner } if matches!(inner.as_ref(), Type::Dyn { .. })))
     };
-    let mut pattern_windows =
-        budget.owning_address_captures || replacement_schedule.is_some() || dyn_windows;
+    let mut pattern_windows = budget.owning_address_captures
+        || replacement_schedule.is_some()
+        || dyn_windows
+        || (budget.borrowed_callback_inputs && callback_windows);
     if budget.addressed_sums {
         budget.spend(f.blocks.len(), "pattern window function scan")?;
         for block in &f.blocks {

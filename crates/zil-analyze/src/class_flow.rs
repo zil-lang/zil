@@ -86,10 +86,14 @@ fn pure_class_keys(
 }
 struct Equations {
     parent: Vec<usize>,
+    // Shared address arrays introduce one variable per ordinal. Balance their
+    // equations and charge actual ancestry instead of the whole arena bound.
+    sizes: Option<Vec<usize>>,
     rigid: Vec<Option<usize>>,
     next_rigid: usize,
     grounded: Option<Vec<bool>>,
 }
+
 impl Equations {
     fn fresh(&mut self, rigid: bool, b: &mut Budget) -> CompileResult<usize> {
         b.spend(
@@ -97,6 +101,10 @@ impl Equations {
             "class variable allocation",
         )?;
         let i = self.parent.len();
+        if let Some(sizes) = &mut self.sizes {
+            b.spend(1, "array class component allocation")?;
+            sizes.push(1);
+        }
         self.parent.push(i);
         if let Some(grounded) = &mut self.grounded {
             grounded.push(rigid);
@@ -111,6 +119,16 @@ impl Equations {
         Ok(i)
     }
     fn root(&self, mut i: usize, b: &mut Budget) -> CompileResult<usize> {
+        if self.sizes.is_some() {
+            loop {
+                b.spend(1, "actual array class ancestry")?;
+                let parent = self.parent[i];
+                if parent == i {
+                    return Ok(i);
+                }
+                i = parent;
+            }
+        }
         b.spend(
             self.parent.len().saturating_add(1),
             "class variable ancestry",
@@ -121,8 +139,8 @@ impl Equations {
         Ok(i)
     }
     fn equal(&mut self, a: usize, z: usize, b: &mut Budget) -> CompileResult<()> {
-        let a = self.root(a, b)?;
-        let z = self.root(z, b)?;
+        let mut a = self.root(a, b)?;
+        let mut z = self.root(z, b)?;
         if a == z {
             return Ok(());
         }
@@ -132,6 +150,13 @@ impl Equations {
             return Err(bad(
                 "actual retained classes do not satisfy this invocation relation",
             ));
+        }
+        if let Some(sizes) = &mut self.sizes {
+            b.spend(3, "array class component merge")?;
+            if sizes[a] < sizes[z] {
+                std::mem::swap(&mut a, &mut z);
+            }
+            sizes[a] += sizes[z];
         }
         if let Some(grounded) = &mut self.grounded {
             b.spend(1, "actual class grounding propagation")?;
@@ -180,6 +205,24 @@ impl Equations {
         };
         let mut array_elements = Vec::new();
         if super::stored_flow::shared_array_value(ty) {
+            if self.sizes.is_none() {
+                b.spend(self.parent.len(), "array class component table")?;
+                let mut sizes = vec![0; self.parent.len()];
+                for i in 0..self.parent.len() {
+                    let mut root = i;
+                    loop {
+                        b.spend(1, "array class component inventory")?;
+                        let parent = self.parent[root];
+                        if root == parent {
+                            break;
+                        }
+                        root = parent;
+                    }
+                    b.spend(1, "array class component size")?;
+                    sizes[root] += 1;
+                }
+                self.sizes = Some(sizes);
+            }
             let Type::Array { length, .. } = ty else {
                 unreachable!()
             };
@@ -651,6 +694,7 @@ fn check_with(
 ) -> CompileResult<()> {
     let mut e = Equations {
         parent: Vec::new(),
+        sizes: None,
         rigid: Vec::new(),
         next_rigid: 0,
         grounded: b.capture_relations.then(Vec::new),
@@ -1419,4 +1463,39 @@ pub(super) fn pointer_types(
         _ => {}
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod equation_tests {
+    use super::*;
+
+    #[test]
+    fn balanced_components_preserve_rigid_conflicts_and_actual_grounding() {
+        let mut b = Budget::new(&Limits::default());
+        let mut e = Equations {
+            parent: Vec::new(),
+            sizes: Some(Vec::new()),
+            rigid: Vec::new(),
+            next_rigid: 0,
+            grounded: Some(Vec::new()),
+        };
+        let a = e.fresh(false, &mut b).unwrap();
+        let z = e.fresh(false, &mut b).unwrap();
+        e.equal(a, z, &mut b).unwrap();
+        let rigid = e.fresh(true, &mut b).unwrap();
+        // The grounded rigid singleton loses the representative to a larger
+        // flexible component; both properties must follow the real equality.
+        e.equal(rigid, a, &mut b).unwrap();
+        e.retain(z, &mut b).unwrap();
+        let other = e.fresh(true, &mut b).unwrap();
+        assert!(e.equal(z, other, &mut b).is_err());
+
+        let x = e.fresh(false, &mut b).unwrap();
+        let y = e.fresh(false, &mut b).unwrap();
+        e.equal(x, y, &mut b).unwrap();
+        assert!(e.retain(y, &mut b).is_err());
+        e.address_origin(y, &mut b).unwrap();
+        e.retain(y, &mut b).unwrap();
+        assert!(e.equal(x, a, &mut b).is_err());
+    }
 }
