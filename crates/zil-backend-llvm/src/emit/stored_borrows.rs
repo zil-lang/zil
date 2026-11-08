@@ -1127,15 +1127,61 @@ mod tests {
                 .is_some(),
             "ReadAddress result retains the existing large snapshot"
         );
-        let bad = Type::Address {
+        let shared_array_root = Type::Address {
             inner: Box::new(Type::Array {
                 element: Box::new(root),
                 length: 2,
             }),
             mutable: false,
         };
-        assert!(!pure_storage_address(&bad));
-        assert!(llvm_type(&bad).is_err());
+        // The fixed shared-address Array has its own post-Verify pointer
+        // representation; it still is not pure storage or a value snapshot.
+        assert!(!pure_storage_address(&shared_array_root));
+        assert!(shared_address_array_address(&shared_array_root));
+        assert_eq!(llvm_type(&shared_array_root).unwrap(), m::Ty::Ptr);
+        assert_eq!(alignment(&shared_array_root, &BTreeMap::new()).unwrap(), 8);
+        assert!(
+            copy_aggregates::classify(&shared_array_root, &mut work, &Limits::default())
+                .unwrap()
+                .is_none()
+        );
+        let address_array = |element, length| Type::Address {
+            inner: Box::new(Type::Array {
+                element: Box::new(element),
+                length,
+            }),
+            mutable: false,
+        };
+        for bad in [
+            address_array(
+                Type::Address {
+                    mutable: true,
+                    inner: Box::new(Type::I32),
+                },
+                2,
+            ),
+            address_array(
+                Type::Address {
+                    mutable: false,
+                    inner: Box::new(Type::Slice {
+                        element: Box::new(Type::I32),
+                    }),
+                },
+                2,
+            ),
+            address_array(
+                Type::Address {
+                    mutable: false,
+                    inner: Box::new(Type::I32),
+                },
+                0,
+            ),
+        ] {
+            assert!(!shared_address_array_address(&bad));
+            assert!(!pure_storage_address(&bad));
+            assert!(llvm_type(&bad).is_err());
+            assert!(alignment(&bad, &BTreeMap::new()).is_err());
+        }
     }
 
     #[test]
