@@ -117,6 +117,15 @@ fn borrowed_owned_definition(
     for ty in &d.parameters {
         super::owned_callbacks::input(module, ty, b)?;
     }
+    if module
+        .functions
+        .get(d.function.0 as usize)
+        .is_some_and(|entry| entry.reference_return_bound.is_some())
+    {
+        return Err(bad(
+            "stored owning callback cannot claim a borrowed result bound",
+        ));
+    }
     super::owned_callbacks::signature(module, d, b)
 }
 

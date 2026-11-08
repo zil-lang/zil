@@ -128,6 +128,10 @@ pub(super) fn owned_entry(
         || f.foreign.is_some()
         || f.call_kind != CallKind::Direct
         || f.storage_life.is_some()
+        || f.callable_contract.is_some()
+        || f.callable_return_contract.is_some()
+        || f.reference_return_bound.is_some()
+        || f.result_mode != PassingMode::Infer
         || f.parameters.len() != d.parameters.len()
         || f.return_type != d.result
     {
