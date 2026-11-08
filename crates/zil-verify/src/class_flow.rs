@@ -88,8 +88,10 @@ fn pure_class_keys(
     Ok(())
 }
 // Verify uses explicit representative substitution, not Analyze's parent arena.
+// Array equations keep member lists so only the smaller component is rewritten.
 struct Equations {
     representative: Vec<usize>,
+    members: Option<Vec<Vec<usize>>>,
     rigid: Vec<Option<usize>>,
     grounded: Option<Vec<bool>>,
     next_rigid: usize,
@@ -98,6 +100,10 @@ impl Equations {
     fn fresh(&mut self, rigid: bool, b: &mut Budget) -> Check<usize> {
         b.spend(3)?;
         let id = self.representative.len();
+        if let Some(members) = &mut self.members {
+            b.spend(2)?;
+            members.push(vec![id]);
+        }
         self.representative.push(id);
         if let Some(grounded) = &mut self.grounded {
             b.spend(1)?;
@@ -113,14 +119,16 @@ impl Equations {
         Ok(id)
     }
     fn equal(&mut self, a: usize, z: usize, b: &mut Budget) -> Check<()> {
-        b.spend(
+        b.spend(if self.members.is_some() {
+            3
+        } else {
             self.representative
                 .len()
                 .saturating_mul(2)
-                .saturating_add(1),
-        )?;
-        let a = self.representative[a];
-        let z = self.representative[z];
+                .saturating_add(1)
+        })?;
+        let mut a = self.representative[a];
+        let mut z = self.representative[z];
         if a == z {
             return Ok(());
         }
@@ -129,9 +137,21 @@ impl Equations {
                 "actual retained class equality is not universally valid",
             ));
         }
-        for row in &mut self.representative {
-            if *row == z {
-                *row = a;
+        if let Some(members) = &mut self.members {
+            b.spend(2)?;
+            if members[a].len() < members[z].len() {
+                std::mem::swap(&mut a, &mut z);
+            }
+            b.spend(members[z].len().saturating_mul(3).saturating_add(1))?;
+            for member in std::mem::take(&mut members[z]) {
+                self.representative[member] = a;
+                members[a].push(member);
+            }
+        } else {
+            for row in &mut self.representative {
+                if *row == z {
+                    *row = a;
+                }
             }
         }
         self.rigid[a] = self.rigid[a].or(self.rigid[z]);
@@ -173,6 +193,14 @@ impl Equations {
         }
         let mut array_elements = Vec::new();
         if super::stored_flow::shared_array_value(ty) {
+            if self.members.is_none() {
+                b.spend(self.representative.len().saturating_mul(3))?;
+                let mut members = vec![Vec::new(); self.representative.len()];
+                for (variable, representative) in self.representative.iter().enumerate() {
+                    members[*representative].push(variable);
+                }
+                self.members = Some(members);
+            }
             let Type::Array { length, .. } = ty else {
                 unreachable!()
             };
@@ -630,6 +658,7 @@ fn check_with(
 ) -> Check<()> {
     let mut e = Equations {
         representative: Vec::new(),
+        members: None,
         rigid: Vec::new(),
         grounded: None,
         next_rigid: 0,
