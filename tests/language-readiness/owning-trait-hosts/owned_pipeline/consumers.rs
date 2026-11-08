@@ -34,16 +34,18 @@ fn owning_pipeline_observes_values_and_once_cleanup_on_every_allocation_exit() {
     owning_trait_native_cleanup(
         &files(MODEL),
         &[
-            (None, 0, b"9:9:9\n"),
+            (None, 0, b"11:11:11\n"),
             (Some("1"), 1, b"1:0:0\n"),
             (Some("2"), 2, b"2:1:1\n"),
             (Some("3"), 3, b"3:2:2\n"),
             (Some("4"), 10, b"4:3:3\n"),
             (Some("5"), 14, b"5:4:4\n"),
             (Some("6"), 15, b"6:5:5\n"),
-            (Some("7"), 20, b"7:6:6\n"),
-            (Some("8"), 24, b"8:7:7\n"),
-            (Some("9"), 25, b"9:8:8\n"),
+            (Some("7"), 30, b"7:6:6\n"),
+            (Some("8"), 20, b"8:7:7\n"),
+            (Some("9"), 24, b"9:8:8\n"),
+            (Some("10"), 25, b"10:9:9\n"),
+            (Some("11"), 40, b"11:10:10\n"),
         ],
     );
 }
