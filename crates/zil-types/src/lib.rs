@@ -109,6 +109,7 @@ fn signatures(
     limits: &Limits,
     offset: usize,
     exports: Option<&std::collections::BTreeSet<zil_base::NodeId>>,
+    array_billing: bool,
 ) -> CompileResult<BTreeMap<String, Signature>> {
     let mut errors = Vec::new();
     if core.schema_version != SCHEMA_VERSION {
@@ -246,6 +247,24 @@ fn signatures(
         }
         if f.type_parameters.is_empty() {
             signature_errors(f, &mut errors, limits, &mut foreign_work).map_err(|e| vec![e])?;
+        }
+        if array_billing {
+            inference::charge_type_snapshot(&f.return_type, f.span, limits, &mut foreign_work, 1)
+                .map_err(|e| vec![e])?;
+            for parameter in &f.parameters {
+                inference::charge_type_snapshot(
+                    &parameter.ty,
+                    parameter.span,
+                    limits,
+                    &mut foreign_work,
+                    1,
+                )
+                .map_err(|e| vec![e])?;
+            }
+            if let Some(receiver) = &f.receiver {
+                inference::charge_type_snapshot(&receiver.ty, f.span, limits, &mut foreign_work, 1)
+                    .map_err(|e| vec![e])?;
+            }
         }
         if signatures
             .insert(
@@ -438,7 +457,20 @@ pub fn check(
     // lexical receiver diagnostics before unsupported signature admission.
     let inferred = aggregates::resolve(infer_source_closures(core, limits)?, limits)?;
     let core = &inferred;
-    let mut signatures = signatures(core, limits, 0, None)?;
+    let concrete_count = core
+        .functions
+        .iter()
+        .filter(|f| {
+            f.callable_parameters.is_empty()
+                && f.type_parameters.is_empty()
+                && f.state_parameters.is_empty()
+        })
+        .count();
+    let mut closure_state = closures::State::new(concrete_count, limits);
+    let (life_declarations, life_instances) = closure_state
+        .copy_stored_inventory(core)
+        .map_err(|e| vec![e])?;
+    let mut signatures = signatures(core, limits, 0, None, closure_state.array_billing)?;
     let dyn_vtables = dyn_dispatch::inventory(core, &signatures, limits).map_err(|e| vec![e])?;
     if !core.dyn_declarations.is_empty() && core.dyn_interfaces.is_empty() {
         return Err(vec![unsupported(
@@ -462,16 +494,6 @@ pub fn check(
     let enum_types = enums::definitions(core, limits, &mut enum_work).map_err(|e| vec![e])?;
     let mut errors = Vec::new();
     let mut functions = Vec::new();
-    let concrete_count = core
-        .functions
-        .iter()
-        .filter(|f| {
-            f.callable_parameters.is_empty()
-                && f.type_parameters.is_empty()
-                && f.state_parameters.is_empty()
-        })
-        .count();
-    let mut closure_state = closures::State::new(concrete_count, limits);
     closure_state
         .install_source_contexts(core, &signatures)
         .map_err(|e| vec![e])?;
@@ -607,8 +629,6 @@ pub fn check(
         )
         .map_err(|e| vec![e])?;
     }
-    let (life_declarations, life_instances) =
-        stored::copy_inventory(core, &mut remaining, limits).map_err(|e| vec![e])?;
     let mut module = TypedModule {
         life_declarations,
         life_instances,
@@ -717,6 +737,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         if let Some(contract) = &storage_life {
             borrowed_fp::charge_contract(contract, |work| closures.snapshot(work, f.span), 1)?;
         }
+        closures.array_snapshot(&f.return_type, 1, f.span)?;
         let first_closure = closures.pending.len();
         let helper_bounds = closures.source_helper_bounds(f)?;
         let mut b = Self {
@@ -811,6 +832,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             )?;
         }
         for p in &f.parameters {
+            b.closures.array_snapshot(&p.ty, 1, p.span)?;
             let local = b.declare_local(&p.name, p.ty.clone(), false, p.span, false)?;
             b.function.parameters.push(local)
         }
@@ -2156,7 +2178,9 @@ impl<'a, 'c> Builder<'a, 'c> {
             self.emit(call, None, span)?;
             self.constant(Constant::Unit, span)?
         } else {
+            self.closures.array_snapshot(&signature.result, 1, span)?;
             let id = self.value(call, signature.result.clone(), span)?;
+            self.closures.array_snapshot(&signature.result, 1, span)?;
             (id, signature.result.clone())
         };
         if let Some(expected) = expected {

@@ -56,9 +56,7 @@ impl Builder<'_, '_> {
                     return Ok(value);
                 }
                 let actual = &self.function.locals[local.0 as usize].ty;
-                if stored::shared_array_related(actual) {
-                    self.closures.snapshot_type(actual, 1, 0, e.span)?;
-                }
+                self.closures.array_snapshot(actual, 1, e.span)?;
                 let ty = self.function.locals[local.0 as usize].ty.clone();
                 if let Type::Managed(payload) = ty {
                     let desc = Type::Desc(payload);
@@ -84,9 +82,7 @@ impl Builder<'_, '_> {
                 } else {
                     InstructionKind::Load(local)
                 };
-                if stored::shared_array_related(&ty) {
-                    self.closures.snapshot_type(&ty, 1, 0, e.span)?;
-                }
+                self.closures.array_snapshot(&ty, 1, e.span)?;
                 let value = self.value(kind, ty.clone(), e.span)?;
                 if let Some(inner) = self.borrowed_captures.get(&local).cloned() {
                     (

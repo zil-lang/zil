@@ -130,11 +130,27 @@ pub(super) fn check_resolved_program_with_reuse(
     // the entire bounded input graph. Unsupported aggregate/trait headers must
     // not conceal a receiver error in this module or a later dependency.
     names::check_modules(program.modules.iter().map(|m| &m.core), limits).map_err(|e| vec![e])?;
+    let mut closure_state = closures::State::new(count, limits);
+    let mut life_declarations = Vec::new();
+    let mut life_instances = Vec::new();
+    for source in &program.modules {
+        let (declarations, instances) = closure_state
+            .copy_stored_inventory(&source.core)
+            .map_err(|e| vec![e])?;
+        life_declarations.extend(declarations);
+        life_instances.extend(instances);
+    }
     let mut signatures_by_module = BTreeMap::new();
     let mut has_source_contexts = false;
     for (core, exports, offset) in header_inputs {
         has_source_contexts |= !core.closure_life_contexts.is_empty();
-        let table = signatures(core, limits, offset, Some(&exports))?;
+        let table = signatures(
+            core,
+            limits,
+            offset,
+            Some(&exports),
+            closure_state.array_billing,
+        )?;
         signatures_by_module.insert(core.module_id, table);
     }
     let (dyn_declarations, dyn_interfaces, dyn_vtables) =
@@ -142,7 +158,6 @@ pub(super) fn check_resolved_program_with_reuse(
             .map_err(|e| vec![e])?;
     // Reserve the complete ordinary-function range before any local closure
     // gets an identity. Generated environment entries never enter interfaces.
-    let mut closure_state = closures::State::new(count, limits);
     if has_source_contexts {
         closure_state
             .snapshot(program.modules.len(), Span::default())
@@ -388,6 +403,7 @@ pub(super) fn check_resolved_program_with_reuse(
                         &typed,
                         accounting_before,
                         closure_state.accounting(),
+                        closure_state.array_billing,
                     );
                 }
                 typed
@@ -509,14 +525,6 @@ pub(super) fn check_resolved_program_with_reuse(
         &mut remaining,
     )
     .map_err(|e| vec![e])?;
-    let mut life_declarations = Vec::new();
-    let mut life_instances = Vec::new();
-    for source in &program.modules {
-        let (declarations, instances) =
-            stored::copy_inventory(&source.core, &mut remaining, limits).map_err(|e| vec![e])?;
-        life_declarations.extend(declarations);
-        life_instances.extend(instances);
-    }
     let mut module = TypedModule {
         life_declarations,
         life_instances,

@@ -330,7 +330,7 @@ pub(crate) fn shared_array_shape(ty: &Type, b: &mut Budget) -> CompileResult<boo
         unreachable!()
     };
     b.type_work(inner, false, "shared array actual pointee")?;
-    if !inner.is_address_pointee() {
+    if !retained::closed_copy(inner, b)? {
         return Err(failure(
             "shared array actual pointee is outside its finite profile",
         ));

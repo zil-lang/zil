@@ -191,9 +191,7 @@ impl Builder<'_, '_> {
                 ));
             }
             let actual = &self.function.locals[local.0 as usize].ty;
-            if stored::shared_array_related(actual) {
-                self.closures.snapshot_type(actual, 1, 0, e.span)?;
-            }
+            self.closures.array_snapshot(actual, 1, e.span)?;
             let ty = self.function.locals[local.0 as usize].ty.clone();
             // A hygienic Sequence only preserves the value already evaluated
             // for a pipeline/spread. A fresh or explicitly given owner must
@@ -209,9 +207,7 @@ impl Builder<'_, '_> {
                 if let Some(expected) = expected {
                     self.same(&ty, expected, e.span)?;
                 }
-                if stored::shared_array_related(&ty) {
-                    self.closures.snapshot_type(&ty, 1, 0, e.span)?;
-                }
+                self.closures.array_snapshot(&ty, 1, e.span)?;
                 return Ok((
                     self.value(InstructionKind::TakeLocal { local }, ty.clone(), e.span)?,
                     ty,
@@ -318,6 +314,7 @@ impl Builder<'_, '_> {
             return self.dyn_coerce(address, &actual_inner, *interface, mutable, e.span);
         }
         self.same(inner, &actual_inner, e.span)?;
+        self.closures.array_snapshot(expected, 2, e.span)?;
         Ok((
             self.value(
                 InstructionKind::ReborrowAddress { address, mutable },
@@ -347,6 +344,7 @@ impl Builder<'_, '_> {
             ));
         }
         let ty = Type::Address { mutable, inner };
+        self.closures.array_snapshot(&ty, 1, e.span)?;
         Ok((
             self.value(
                 InstructionKind::ReborrowAddress { address, mutable },
@@ -450,7 +448,8 @@ impl Builder<'_, '_> {
                     && matches!(actual, Type::Array { .. })
                     && !actual.is_copy_value()
                     && stored::pure_inline(actual, &mut self.match_work_left, self.limits, e.span)?;
-                let address_array = stored::shared_array_related(actual);
+                let address_array =
+                    self.closures.array_billing || stored::shared_array_related(actual);
                 if pure_array || address_array {
                     self.closures.snapshot_type(actual, 1, 0, e.span)?;
                     if address_array {

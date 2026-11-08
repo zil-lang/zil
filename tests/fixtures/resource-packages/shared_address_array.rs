@@ -370,7 +370,7 @@ fn raw_and_wire_reject_forged_ordinals_and_missing_element_bindings() {
     );
 }
 
-fn array_budget_model(length: usize, width: usize, depth: usize) -> String {
+fn array_budget_model(length: usize, width: usize, depth: usize, qualified: bool) -> String {
     let fields = (0..width)
         .map(|i| format!("v{i}:i32"))
         .collect::<Vec<_>>()
@@ -393,7 +393,11 @@ fn array_budget_model(length: usize, width: usize, depth: usize) -> String {
     let elements = std::iter::repeat_n("pointer", length)
         .collect::<Vec<_>>()
         .join(",");
-    text.push_str(&format!("fn make<life a>(pointer:&'a {ty})->[&'a {ty};{length}]{{return [{elements}]}}fn relay<life a>(items:[&'a {ty};{length}])->[&'a {ty};{length}]{{let copied=items;return copied}}fn read<life a>(items:&[&'a {ty};{length}])->i32{{let pointer=items[{}];return {access}.v0}}fn main()->i32{{let value={value};let items=relay(make(&value));let window=&items;let copied=window;return read(copied)-7}}",length-1));
+    if qualified {
+        text.push_str(&format!("struct Batch<life a>{{items:[&'a {ty};{length}]}}fn make<life a>(pointer:&'a {ty})->Batch<'a>{{return Batch::<'a>{{items:[{elements}]}}}}fn relay<life a>(items:Batch<'a>)->Batch<'a>{{let copied=items;return copied}}fn read<life a>(items:&Batch<'a>)->i32{{let window=&items.items;let pointer=window[{}];return {access}.v0}}fn main()->i32{{let value={value};let items=relay(make(&value));let window=&items;let copied=window;return read(copied)-7}}",length-1));
+    } else {
+        text.push_str(&format!("fn make<life a>(pointer:&'a {ty})->[&'a {ty};{length}]{{return [{elements}]}}fn relay<life a>(items:[&'a {ty};{length}])->[&'a {ty};{length}]{{let copied=items;return copied}}fn read<life a>(items:&[&'a {ty};{length}])->i32{{let pointer=items[{}];return {access}.v0}}fn main()->i32{{let value={value};let items=relay(make(&value));let window=&items;let copied=window;return read(copied)-7}}",length-1));
+    }
     text
 }
 
@@ -434,8 +438,17 @@ fn array_slots_and_actual_pointee_snapshot_budgets_are_exact_and_fresh() {
     let default = Limits::default();
     let target = TargetProfile::host_llvm();
     let mut boundaries = Vec::new();
-    for (length, width, depth) in [(2, 1, 0), (8, 1, 0), (2, 8, 0), (2, 1, 3)] {
-        let program = array_budget_model(length, width, depth);
+    for (qualified, length, width, depth) in [
+        (false, 2, 1, 0),
+        (false, 8, 1, 0),
+        (false, 2, 8, 0),
+        (false, 2, 1, 3),
+        (true, 2, 1, 0),
+        (true, 8, 1, 0),
+        (true, 2, 8, 0),
+        (true, 2, 1, 3),
+    ] {
+        let program = array_budget_model(length, width, depth, qualified);
         let input = source("array-budget", &program);
         let syntax = zil_syntax::parse(&input).into_result().unwrap();
         let core = zil_expand::expand_with_map_limits_target_context(
@@ -458,7 +471,7 @@ fn array_slots_and_actual_pointee_snapshot_budgets_are_exact_and_fresh() {
             max_analysis_steps: n,
             ..default.clone()
         };
-        let label = format!("Array len={length} width={width} depth={depth}");
+        let label = format!("Array qualified={qualified} len={length} width={width} depth={depth}");
         let types = exact_array_budget(&format!("{label} Types"), |n| {
             array_budget_category(zil_types::check(&core, &target, &limits(n)))
         });
@@ -509,6 +522,7 @@ fn array_slots_and_actual_pointee_snapshot_budgets_are_exact_and_fresh() {
         }
         boundaries.push([types, analyze, verify, decoded, whole]);
     }
+    println!("array complete boundaries: {boundaries:?}");
     assert_eq!(
         boundaries,
         vec![
