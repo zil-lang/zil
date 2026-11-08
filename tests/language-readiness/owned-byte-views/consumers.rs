@@ -1,7 +1,7 @@
 //! Actual owned ByteBuffer payload views beside stored address loans.
 use super::*;
 use zil_base::TargetProfile;
-use zil_ir::{CandidatePlan, InstructionKind, TypedModule};
+use zil_ir::{CandidatePlan, TypedModule};
 
 const LOCAL: &str = include_str!("local-field.zil");
 
@@ -12,9 +12,19 @@ fn source(text: &str) -> SourceUnit {
 fn typed(text: &str) -> TypedModule {
     let input = source(text);
     let syntax = zil_syntax::parse(&input).into_result().unwrap();
-    let core = zil_expand::expand_with_map_limits(&input, &syntax, &Limits::default())
-        .unwrap()
-        .core;
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &input,
+        &syntax,
+        &Limits::default(),
+        &TargetProfile::host_llvm(),
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: input.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()
 }
 
@@ -42,23 +52,9 @@ fn actual_owned_byte_view_reads_the_payload_and_ends_before_relocation() {
 }
 
 #[test]
-fn actual_owned_byte_view_survives_index_and_shared_reborrow() {
-    let module = typed(LOCAL);
-    let main = module.functions.iter().find(|f| f.name == "main").unwrap();
-    assert!(
-        main.blocks
-            .iter()
-            .flat_map(|b| &b.instructions)
-            .any(|i| matches!(
-                i.kind,
-                InstructionKind::ByteBufferBorrow { mutable: false, .. }
-            ))
-    );
-    assert!(
-        main.blocks
-            .iter()
-            .flat_map(|b| &b.instructions)
-            .any(|i| matches!(i.kind, InstructionKind::AddressIndex { .. }))
-    );
-    control(&module);
+fn actual_owned_local_bytebuffer_uses_its_own_head_with_stored_loans() {
+    let source = LOCAL
+        .replace("    var reply=Reply{data:give data,tag:20}\n", "")
+        .replace("reply.data", "data");
+    control(&typed(&source));
 }

@@ -7,7 +7,7 @@ mod byte_queries;
 pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
-mod owned_byte_views;
+pub(super) mod owned_byte_views;
 mod retained;
 mod task_address;
 use std::collections::BTreeMap;
@@ -3319,6 +3319,13 @@ fn transfer(
             state.locals.remove(local);
             clear_local_holes(state, *local, b)?;
         }
+        InstructionKind::DropPackage { local }
+            if owned_byte_views::drop_package(module, f, *local, b)? =>
+        {
+            ordered(b, state.locals.len(), 0)?;
+            state.locals.remove(local);
+            clear_local_holes(state, *local, b)?;
+        }
         InstructionKind::DescribeAddress { address } if b.store_option_results => {
             // A weak description carries an actual header origin, but grants
             // no element permission until the checked Store borrow.
@@ -5497,6 +5504,7 @@ fn actual_instructions(
             let package_read = pure_copy::ordinary_package_read(f, i, b)?;
             let error_borrow = ordinary_error_borrow(f, i, b)?;
             let byte_view = owned_byte_views::instruction(module, f, i, b)?;
+            let byte_description = owned_byte_views::description_instruction(module, f, i, b)?;
             ordinary_observations |= package_read || error_borrow || byte_view;
             let enum_operation = enum_address::instruction(module, f, i, b)?;
             let owned_operation = (b.stored_owned_fixed
@@ -5513,6 +5521,7 @@ fn actual_instructions(
                 && !package_read
                 && !error_borrow
                 && !byte_view
+                && !byte_description
                 && !(b.task_borrowed_results && task_address::operation(&i.kind))
                 && !(b.store_option_results
                     && matches!(

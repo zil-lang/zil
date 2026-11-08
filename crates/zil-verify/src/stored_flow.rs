@@ -4,7 +4,7 @@ use super::*;
 mod array_snapshot;
 mod byte_queries;
 mod leaf_rows;
-mod owned_byte_views;
+pub(super) mod owned_byte_views;
 #[path = "stored_flow_pure_copy.rs"]
 mod pure_copy;
 
@@ -1212,12 +1212,14 @@ pub(super) fn qualifications(
                     && !b.store_option_results
                     && super::stored_owned::instruction(f, &i.kind))
                     || scalar_owner_operation)
+                    && !owned_byte_views::owner_instruction(module, f, i, b)?
                     && !(b.task_borrowed_results && task_address::owner_instruction(f, &i.kind));
                 if !super::class_flow::pointer_instruction(f, i)
                     && !super::stored_callables::instruction(module, f, i)
                     && !owned_operation
                     && !enum_operation
                     && !owned_byte_views::instruction(module, f, i, b)?
+                    && !owned_byte_views::description_instruction(module, f, i, b)?
                     && byte_queries::query(&i.kind).is_none()
                     && !(b.task_borrowed_results && task_address::operation(&i.kind))
                     && !(b.store_option_results

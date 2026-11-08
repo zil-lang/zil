@@ -11,6 +11,123 @@ fn closed(span: Span) -> Vec<Diagnostic> {
     )]
 }
 
+#[derive(Clone, Copy)]
+struct Head {
+    local: LocalId,
+    field: Option<u32>,
+}
+/// Immutable IR structure only; no live/initialized/epoch or permission result.
+pub(crate) struct Heads {
+    rows: Vec<Vec<Option<Head>>>,
+}
+impl Heads {
+    fn new(module: &TypedModule, b: &mut Budget) -> CompileResult<Self> {
+        fee(b, module.resources.len().saturating_add(1))?;
+        let mut canonical = 0;
+        for resource in &module.resources {
+            fee(b, resource.name.len().saturating_add(19))?;
+            if resource.payload == Type::ByteBuffer || resource.name == "@builtin:ByteBuffer" {
+                if resource.payload != Type::ByteBuffer
+                    || resource.name != "@builtin:ByteBuffer"
+                    || resource.teardown.is_some()
+                {
+                    return Err(failure(
+                        "byte view requires the canonical sealed ByteBuffer resource",
+                    ));
+                }
+                canonical += 1;
+            }
+        }
+        if canonical != 1 || !module.target.is_supported_x64_llvm() {
+            return Err(failure(
+                "byte view requires one canonical sealed ByteBuffer resource",
+            ));
+        }
+        fee(b, module.functions.len())?;
+        let mut rows = Vec::with_capacity(module.functions.len());
+        for f in &module.functions {
+            fee(
+                b,
+                f.values
+                    .len()
+                    .saturating_mul(3)
+                    .saturating_add(f.blocks.len()),
+            )?;
+            let mut row = vec![None; f.values.len()];
+            let mut seen = vec![false; f.values.len()];
+            for block in &f.blocks {
+                fee(b, block.instructions.len())?;
+                for i in &block.instructions {
+                    let Some(result) = i.result else {
+                        continue;
+                    };
+                    let present = seen
+                        .get_mut(result.0 as usize)
+                        .ok_or_else(|| failure("byte source SSA is outside actual values"))?;
+                    if *present {
+                        return Err(failure("byte source SSA has duplicate producers"));
+                    }
+                    *present = true;
+                    if !matches!(value_type(f, result)?, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
+                    {
+                        continue;
+                    }
+                    let (local, field) = match i.kind {
+                        InstructionKind::DescribeLocal { local } => (local, None),
+                        InstructionKind::DescribePackageField { local, index } => {
+                            (local, Some(index))
+                        }
+                        _ => continue,
+                    };
+                    fee(b, f.parameters.len().saturating_add(4))?;
+                    if f.parameters.contains(&local) {
+                        continue;
+                    }
+                    let ty = &f
+                        .locals
+                        .get(local.0 as usize)
+                        .ok_or_else(|| failure("byte owner local is absent"))?
+                        .ty;
+                    let ty = if let Some(index) = field {
+                        let Type::Package { fields, .. } = ty else {
+                            continue;
+                        };
+                        &fields
+                            .get(index as usize)
+                            .ok_or_else(|| failure("byte owner field is absent"))?
+                            .1
+                    } else {
+                        ty
+                    };
+                    if matches!(ty, Type::Managed(inner) if inner.as_ref() == &Type::ByteBuffer) {
+                        row[result.0 as usize] = Some(Head { local, field });
+                    }
+                }
+            }
+            rows.push(row);
+        }
+        Ok(Self { rows })
+    }
+}
+fn selected(
+    module: &TypedModule,
+    f: &TypedFunction,
+    buffer: ValueId,
+    b: &mut Budget,
+) -> CompileResult<Option<Head>> {
+    if b.owned_byte_heads.is_none() {
+        let heads = Heads::new(module, b)?;
+        b.owned_byte_heads = Some(heads);
+    }
+    fee(b, 1)?;
+    Ok(b.owned_byte_heads
+        .as_ref()
+        .and_then(|heads| heads.rows.get(f.id.0 as usize))
+        .and_then(|row| row.get(buffer.0 as usize))
+        .copied()
+        .flatten())
+}
+
 fn head(
     module: &TypedModule,
     f: &TypedFunction,
@@ -18,79 +135,11 @@ fn head(
     span: Span,
     b: &mut Budget,
 ) -> CompileResult<Target> {
-    fee(b, 3)?;
+    fee(b, 4)?;
     if !matches!(value_type(f, buffer)?, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer) {
         return Err(failure("byte view operand is not actual Desc<ByteBuffer>"));
     }
-    fee(b, f.blocks.len())?;
-    let mut owner = None;
-    for block in &f.blocks {
-        fee(b, block.instructions.len())?;
-        for producer in &block.instructions {
-            if producer.result != Some(buffer) {
-                continue;
-            }
-            if owner.is_some() {
-                return Err(failure(
-                    "byte description has duplicate actual SSA producers",
-                ));
-            }
-            owner = match producer.kind {
-                InstructionKind::DescribeLocal { local } => Some((local, None)),
-                InstructionKind::DescribePackageField { local, index } => {
-                    Some((local, Some(index)))
-                }
-                _ => return Err(closed(span)),
-            };
-        }
-    }
-    let (local, field) = owner.ok_or_else(|| closed(span))?;
-    fee(b, f.parameters.len().saturating_add(4))?;
-    if f.parameters.contains(&local) {
-        return Err(closed(span));
-    }
-    let actual = &f
-        .locals
-        .get(local.0 as usize)
-        .ok_or_else(|| failure("byte owner local is absent"))?
-        .ty;
-    let actual = if let Some(index) = field {
-        let Type::Package { fields, .. } = actual else {
-            return Err(closed(span));
-        };
-        &fields
-            .get(index as usize)
-            .ok_or_else(|| failure("byte owner field is absent"))?
-            .1
-    } else {
-        actual
-    };
-    if !matches!(actual, Type::Managed(inner) if inner.as_ref() == &Type::ByteBuffer) {
-        return Err(failure(
-            "byte payload edge lacks the actual Managed<ByteBuffer> owner",
-        ));
-    }
-    fee(b, module.resources.len().saturating_add(1))?;
-    let mut canonical = 0;
-    for resource in &module.resources {
-        fee(b, resource.name.len().saturating_add(19))?;
-        if resource.payload == Type::ByteBuffer || resource.name == "@builtin:ByteBuffer" {
-            if resource.payload != Type::ByteBuffer
-                || resource.name != "@builtin:ByteBuffer"
-                || resource.teardown.is_some()
-            {
-                return Err(failure(
-                    "byte view requires the canonical sealed ByteBuffer resource",
-                ));
-            }
-            canonical += 1;
-        }
-    }
-    if canonical != 1 || !module.target.is_supported_x64_llvm() {
-        return Err(failure(
-            "byte view requires one canonical sealed ByteBuffer resource",
-        ));
-    }
+    let Head { local, field } = selected(module, f, buffer, b)?.ok_or_else(|| closed(span))?;
     fee(b, 1)?;
     Ok(Target {
         retained_port: None,
@@ -99,6 +148,28 @@ fn head(
         place: field.map_or_else(Vec::new, |index| vec![PlaceProjection::Field(index)]),
         heap_element: None,
     })
+}
+
+pub(super) fn description_instruction(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !b.shared_byte_borrow {
+        return Ok(false);
+    }
+    if !matches!(i.kind, InstructionKind::DescribePackageField { .. }) {
+        return Ok(false);
+    }
+    let Some(result) = i.result else {
+        return Ok(false);
+    };
+    fee(b, 3)?;
+    if !matches!(value_type(f, result)?, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer) {
+        return Ok(false);
+    }
+    Ok(selected(module, f, result, b)?.is_some())
 }
 
 pub(super) fn instruction(
@@ -151,6 +222,9 @@ pub(super) fn transfer(
 /// Select only the new pure-stored ByteBuffer family. This is scheduling;
 /// executable sources and every ownership epoch are checked independently.
 pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> CompileResult<bool> {
+    if !b.shared_byte_borrow {
+        return Ok(false);
+    }
     fee(b, module.functions.len())?;
     let mut actual = false;
     for f in &module.functions {
@@ -181,26 +255,54 @@ pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> CompileResult<boo
     Ok(true)
 }
 
+fn plain_package(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    let Type::Package { fields, .. } = ty else {
+        return Ok(false);
+    };
+    fee(b, fields.len())?;
+    let mut owns = false;
+    let mut closed = true;
+    for (_, child) in fields {
+        if matches!(child, Type::Managed(inner) if inner.as_ref() == &Type::ByteBuffer) {
+            owns = true;
+        } else {
+            closed &= retained::closed_copy(child, b)?;
+        }
+    }
+    Ok(owns && closed)
+}
+
+pub(super) fn drop_package(
+    module: &TypedModule,
+    f: &TypedFunction,
+    local: LocalId,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !b.shared_byte_borrow {
+        return Ok(false);
+    }
+    let ty = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| failure("byte package cleanup local is absent"))?
+        .ty;
+    if !plain_package(ty, b)? {
+        return Ok(false);
+    }
+    if b.owned_byte_heads.is_none() {
+        b.owned_byte_heads = Some(Heads::new(module, b)?);
+    }
+    Ok(true)
+}
+
 pub(super) fn value(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     fee(b, 3)?;
     if matches!(ty, Type::Managed(inner) | Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
     {
         return Ok(true);
     }
-    if let Type::Package { fields, .. } = ty {
-        fee(b, fields.len())?;
-        let mut owns = false;
-        let mut complete = true;
-        for (_, field) in fields {
-            if matches!(field, Type::Managed(inner) if inner.as_ref() == &Type::ByteBuffer) {
-                owns = true;
-            } else {
-                complete &= retained::closed_copy(field, b)?;
-            }
-        }
-        if owns && complete {
-            return Ok(true);
-        }
+    if plain_package(ty, b)? {
+        return Ok(true);
     }
     // No Address/qualification/Sum/container wrapping turns a new owning byte
     // leaf into this finite direct family. Other values keep their old checks.
@@ -240,6 +342,15 @@ pub(super) fn value(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                 fee(b, 2)?;
                 pending.extend([error.as_ref(), result.as_ref()]);
             }
+            Type::FunctionPointer { parameters, result }
+            | Type::ForeignCallback { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            } => {
+                fee(b, parameters.len().saturating_add(1))?;
+                pending.extend(parameters);
+                pending.push(result);
+            }
             _ => {}
         }
     }
@@ -251,6 +362,11 @@ pub(super) struct Sites {
 }
 impl Sites {
     pub(super) fn collect(f: &TypedFunction, b: &mut Budget) -> CompileResult<Self> {
+        if !b.shared_byte_borrow {
+            return Ok(Self {
+                ids: BTreeSet::new(),
+            });
+        }
         fee(b, f.blocks.len())?;
         let mut ids = BTreeSet::new();
         for block in &f.blocks {

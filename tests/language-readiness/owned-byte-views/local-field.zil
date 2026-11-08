@@ -1,8 +1,9 @@
 struct ReadHold<life a> { at:&'a i32 }
+fn hold<life a>(at:&'a i32)->ReadHold<'a> { return ReadHold::<'a>{at:at} }
 package Reply { manages data:ByteBuffer; tag:i64 }
 fn main()->i32 {
     let number=7
-    let held=ReadHold{at:&number}
+    let held=hold(&number)
     let data=bytes_new()
     if !bytes_reserve(data,1) {return 1}
     if !bytes_push(data,66u8) {return 2}

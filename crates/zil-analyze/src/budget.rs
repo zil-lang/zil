@@ -75,6 +75,9 @@ pub(super) struct Budget {
     // Presence from actual Direct Call types; only schedules the private proof.
     pub(super) qualified_package_returns: bool,
     pub(super) byte_queries: bool,
+    // Presence schedules the new proof only; Heads contains immutable IR structure.
+    pub(super) shared_byte_borrow: bool,
+    pub(super) owned_byte_heads: Option<crate::stored_flow::owned_byte_views::Heads>,
     pub(super) byte_query_presence_checked: bool,
     pub(super) byte_query_functions: Vec<bool>,
     pub(super) package_return_calls: Option<BTreeMap<(zil_ir::FunctionId, zil_ir::ValueId), u32>>,
@@ -165,6 +168,8 @@ impl Budget {
             store_option_results: false,
             qualified_package_returns: false,
             byte_queries: false,
+            shared_byte_borrow: false,
+            owned_byte_heads: None,
             byte_query_presence_checked: false,
             byte_query_functions: Vec::new(),
             package_return_calls: None,
@@ -1883,6 +1888,10 @@ pub(super) fn preflight(
                     instruction.kind,
                     InstructionKind::ByteBufferLen { .. }
                         | InstructionKind::ByteBufferCapacity { .. }
+                );
+                budget.shared_byte_borrow |= matches!(
+                    instruction.kind,
+                    InstructionKind::ByteBufferBorrow { mutable: false, .. }
                 );
                 match &instruction.kind {
                     InstructionKind::AsyncRegistrationStart {
