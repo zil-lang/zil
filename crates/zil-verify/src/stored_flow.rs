@@ -2799,7 +2799,8 @@ fn step(
             if carrier_reborrow {
                 b.spend(val(*address)?.leaves.len())?;
             }
-            if fixed_environment(module, vt(f, *address)?) || carrier_reborrow
+            if fixed_environment(module, vt(f, *address)?)
+                || carrier_reborrow
                 || matches!(i.kind, InstructionKind::ReborrowAddress { .. })
                     && matches!(vt(f, *address)?, Type::Address { inner, .. }
                         if shared_array_shape(inner, b)?)

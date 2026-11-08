@@ -187,6 +187,13 @@ impl Builder<'_, '_> {
         };
         Ok(result)
     }
+    // Keep fallible hint temporaries out of the recursive binary-check frame.
+    fn binary_operand_hint(&mut self, left: &CoreExpr, right: &CoreExpr) -> R<Option<Type>> {
+        match self.known_type_checked(left)? {
+            Some(ty) => Ok(Some(ty)),
+            None => self.known_type_checked(right),
+        }
+    }
     pub(super) fn scalar_expr_binary(
         &mut self,
         e: &CoreExpr,
@@ -205,10 +212,7 @@ impl Builder<'_, '_> {
                     | BinaryOp::Greater
                     | BinaryOp::GreaterEqual
             );
-            let operand_hint = match self.known_type_checked(left)? {
-                Some(ty) => Some(ty),
-                None => self.known_type_checked(right)?,
-            };
+            let operand_hint = self.binary_operand_hint(left, right)?;
             let numeric_expected = if comparison {
                 operand_hint.as_ref()
             } else {

@@ -523,6 +523,9 @@ fn array_slots_and_actual_pointee_snapshot_budgets_are_exact_and_fresh() {
         boundaries.push([types, analyze, verify, decoded, whole]);
     }
 
+    // Qualified Record views now retain real leaves across Reborrow/AddressField.
+    // Their per-leaf clone/select/union fees compose with the Array ordinal fees.
+    // Bare Array and all Types boundaries remain unchanged.
     assert_eq!(
         boundaries,
         vec![
@@ -530,10 +533,10 @@ fn array_slots_and_actual_pointee_snapshot_budgets_are_exact_and_fresh() {
             [2326, 73489, 86110, 86110, 86110],
             [4229, 49818, 57237, 57237, 57237],
             [6250, 50740, 58972, 58972, 58972],
-            [3576, 40233, 53885, 53885, 53885],
-            [4788, 89149, 125858, 125858, 125858],
-            [6481, 69191, 91202, 91202, 91202],
-            [8988, 75237, 100190, 100190, 100190],
+            [3576, 41829, 55685, 55685, 55685],
+            [4788, 97685, 136826, 136826, 136826],
+            [6481, 70787, 93002, 93002, 93002],
+            [8988, 76833, 101990, 101990, 101990],
         ]
     );
     println!("array complete boundaries: {boundaries:?}");
@@ -976,5 +979,35 @@ fn array_closure_inference_keeps_its_existing_boundary() {
             "{}",
             report.to_json()
         );
+    }
+}
+
+#[test]
+fn owning_package_array_identity_remains_an_explicit_combination_boundary() {
+    let definitions = "package Job<life b>{manages bytes:ByteBuffer;items:[&'b i32;2]}fn make<life b>(first:&'b i32,second:&'b i32)->Job<'b>{var bytes=bytes_new();return Job::<'b>{bytes:give bytes,items:[first,second]}}fn identity<life a,life b>(input:&'a Job<'b>)->&'a Job<'b>{return input}";
+    for (label, write) in [
+        ("no-write", ""),
+        ("selected-source-write", "second=11;"),
+        ("unselected-source-write", "first=11;"),
+    ] {
+        let program = format!(
+            "{definitions}fn main()->i32{{var first=7;var second=9;let job=make(&first,&second);let window=identity(&job);let pointer=window.items[1];{write}return *pointer-9}}"
+        );
+        let report = compile_source(
+            &source(label, &program),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        println!("cross-domain {label}: {}", report.to_json());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{label}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
+        assert!(report.diagnostics.iter().any(|d| d.phase == zil_base::Phase::Analyze && d.message == "pure Copy operation result contains an address, capability or nonordinary payload"), "{}", report.to_json());
     }
 }
