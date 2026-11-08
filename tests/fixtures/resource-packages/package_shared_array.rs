@@ -275,3 +275,318 @@ fn raw_wire_reject_actual_source_writes_and_same_upper_ordinal_substitution() {
         );
     }
 }
+
+#[test]
+fn raw_wire_reject_missing_element_rows_sources_and_metadata_only_elements() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let original = typed_source("package-array-layout", PACKAGE_ARRAY, &target, &limits);
+    let candidate = zil_analyze::analyze(&original, &limits).unwrap();
+    for mode in [
+        "missing slot",
+        "missing constructor source",
+        "metadata Element",
+    ] {
+        let mut raw = original.clone();
+        let make = raw.functions.iter_mut().find(|f| f.name == "make").unwrap();
+        match mode {
+            "missing slot" => {
+                let Type::BorrowedStorage { life, .. } = &mut make.return_type else {
+                    panic!("qualified Package")
+                };
+                assert_eq!(life.slots.len(), 2);
+                life.slots.pop();
+            }
+            "missing constructor source" => {
+                let constructor = make
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, zil_ir::InstructionKind::MakeAggregate { .. }))
+                    .unwrap();
+                let zil_ir::InstructionKind::MakeAggregate { fields } = &mut constructor.kind
+                else {
+                    unreachable!()
+                };
+                assert_eq!(fields.len(), 2);
+                fields.pop();
+            }
+            _ => make.storage_life.as_mut().unwrap().classes.push(
+                zil_ir::SignatureLifeClassBinding {
+                    position: zil_ir::SignatureLifeClass {
+                        base: zil_ir::StorageBase::Result,
+                        path: vec![zil_ir::LifeTypeProjection::Element],
+                        class: 0,
+                    },
+                    binder: zil_ir::StorageBinder::Invocation(0),
+                },
+            ),
+        }
+        let mut plan = candidate.clone();
+        plan.module_fingerprint = raw.fingerprint();
+        assert!(
+            zil_analyze::analyze(&raw, &limits).is_err(),
+            "{mode}: Analyze"
+        );
+        assert!(
+            zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).is_err(),
+            "{mode}: Verify"
+        );
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        assert!(
+            zil_verify::verify_module_bytes(&wire, &target, &limits).is_err(),
+            "{mode}: Wire"
+        );
+    }
+}
+
+#[test]
+fn raw_wire_rederive_the_whole_package_call_input_and_its_array_sources() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let program = PACKAGE_ARRAY
+        .replacen("var first=7", "var ignored=3;var first=7", 1)
+        .replacen(
+            "let job=relay",
+            "let decoy=make(&ignored,&ignored);let unused=&decoy;let job=relay",
+            1,
+        )
+        .replacen("first=11", "ignored=11;first=11", 1);
+    let mut raw = typed_source("package-array-actual-input", &program, &target, &limits);
+    let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let identity = raw
+        .functions
+        .iter()
+        .find(|f| f.name == "identity")
+        .unwrap()
+        .id;
+    let main = raw.functions.iter_mut().find(|f| f.name == "main").unwrap();
+    let decoy = main.locals.iter().find(|l| l.name == "decoy").unwrap().id;
+    let address = main
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| {
+            matches!(i.kind,zil_ir::InstructionKind::BorrowLocal{local} if local==decoy)
+                .then_some(i.result)
+                .flatten()
+        })
+        .unwrap();
+    let mut changed = 0;
+    for i in main.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+        if let zil_ir::InstructionKind::Call {
+            function,
+            arguments,
+        } = &mut i.kind
+            && *function == identity
+        {
+            assert_eq!(arguments.len(), 1);
+            arguments[0] = address;
+            changed += 1;
+        }
+    }
+    assert_eq!(changed, 1);
+    plan.module_fingerprint = raw.fingerprint();
+    let analyzed = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(
+        analyzed
+            .iter()
+            .any(|d| d.message.contains("actual stored target/parent loan")),
+        "{analyzed:?}"
+    );
+    let verified =
+        zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap_err();
+    assert!(
+        verified
+            .iter()
+            .any(|d| d.message.contains("live incompatible loan")),
+        "{verified:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    assert!(
+        zil_verify::verify_module_bytes(&wire, &target, &limits)
+            .unwrap_err()
+            .iter()
+            .any(|d| d.message.contains("live incompatible loan"))
+    );
+}
+
+fn package_budget_model(length: usize, width: usize, depth: usize) -> String {
+    super::array_budget_model(length, width, depth, true)
+        .replacen(
+            "struct Batch<life a>{items:",
+            "package Batch<life a>{manages bytes:ByteBuffer;items:",
+            1,
+        )
+        .replacen(
+            "return Batch::<'a>{items:",
+            "var bytes=bytes_new();return Batch::<'a>{bytes:give bytes,items:",
+            1,
+        )
+}
+
+#[test]
+fn package_array_slots_pointee_and_parent_snapshot_budgets_are_exact_and_fresh() {
+    let default = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let mut boundaries = Vec::new();
+    for (length, width, depth) in [(2, 1, 0), (8, 1, 0), (2, 8, 0), (2, 1, 3)] {
+        let program = package_budget_model(length, width, depth);
+        let input = source("package-array-budget", &program);
+        let syntax = zil_syntax::parse(&input).into_result().unwrap();
+        let core = zil_expand::expand_with_map_limits_target_context(
+            &input,
+            &syntax,
+            &default,
+            &target,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: input.module_id,
+                aliases: &Default::default(),
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .core;
+        let raw = zil_types::check(&core, &target, &default).unwrap();
+        let plan = zil_analyze::analyze(&raw, &default).unwrap();
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &default).unwrap();
+        let limits = |n| Limits {
+            max_analysis_steps: n,
+            ..default.clone()
+        };
+        let label = format!("Package Array len={length} width={width} depth={depth}");
+        let types = super::exact_array_budget(&format!("{label} Types"), |n| {
+            super::array_budget_category(zil_types::check(&core, &target, &limits(n)))
+        });
+        let analyze = super::exact_array_budget(&format!("{label} Analyze"), |n| {
+            super::array_budget_category(zil_analyze::analyze(&raw, &limits(n)))
+        });
+        let verify = super::exact_array_budget(&format!("{label} Verify"), |n| {
+            super::array_budget_category(zil_verify::verify_module(
+                raw.clone(),
+                plan.clone(),
+                &target,
+                &limits(n),
+            ))
+        });
+        let decoded = super::exact_array_budget(&format!("{label} Wire"), |n| {
+            super::array_budget_category(zil_verify::verify_module_bytes(
+                &wire,
+                &target,
+                &limits(n),
+            ))
+        });
+        let whole = super::exact_array_budget(&format!("{label} Source"), |n| {
+            compile_source(
+                &input,
+                &CompileOptions {
+                    stop_after: Stage::Verify,
+                    limits: limits(n),
+                    ..CompileOptions::default()
+                },
+            )
+            .status
+        });
+        let mut session = zil_driver::CompilationSession::default();
+        for (n, expected) in [
+            (whole, ResultCategory::Success),
+            (whole - 1, ResultCategory::ResourceLimit),
+            (whole, ResultCategory::Success),
+        ] {
+            let options = CompileOptions {
+                stop_after: Stage::Verify,
+                limits: limits(n),
+                ..CompileOptions::default()
+            };
+            assert_eq!(session.compile_source(&input, &options).status, expected);
+            assert_eq!(
+                zil_driver::CompilationSession::default()
+                    .compile_source(&input, &options)
+                    .status,
+                expected
+            );
+            assert_eq!(session.active_query_count(), 0);
+        }
+        assert_eq!(verify, decoded);
+        boundaries.push([types, analyze, verify, decoded, whole]);
+    }
+    assert_eq!(
+        boundaries,
+        vec![
+            [4018, 50794, 71998, 71998, 71998],
+            [5206, 111074, 160717, 160717, 160717],
+            [7021, 81557, 113032, 113032, 113032],
+            [9484, 87685, 122380, 122380, 122380],
+        ]
+    );
+    for kernel in 0..5 {
+        for row in 1..4 {
+            assert!(
+                boundaries[row][kernel] > boundaries[0][kernel],
+                "actual slots/width/depth require more work: {boundaries:?}"
+            );
+        }
+    }
+    println!("Package Array complete boundaries: {boundaries:?}");
+}
+
+#[test]
+fn byte_array_elements_keep_the_existing_relocation_rejection_in_both_kernels() {
+    let target = TargetProfile::host_llvm();
+    let limits = Limits::default();
+    for operation in [
+        "bytes_reserve(bytes,1)",
+        "bytes_push(bytes,65u8)",
+        "bytes_truncate(bytes,0)",
+    ] {
+        let model = |pointee: &str| {
+            format!(
+                "package Job<life b>{{manages bytes:ByteBuffer;items:[&'b {pointee};2]}}fn make<life b>(first:&'b {pointee},second:&'b {pointee})->Job<'b>{{var bytes=bytes_new();{operation};return Job::<'b>{{bytes:give bytes,items:[first,second]}}}}fn main()->i32{{return 0}}"
+            )
+        };
+        let valid = typed_source("package-array-relocation", &model("i32"), &target, &limits);
+        let mut plan = zil_analyze::analyze(&valid, &limits).unwrap();
+        zil_verify::verify_module(valid, plan.clone(), &target, &limits).unwrap();
+        let program = model("u8");
+        let report = compile_source(
+            &source("package-array-relocation", &program),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{operation}: {}",
+            report.to_json()
+        );
+        assert!(
+            report.diagnostics.iter().any(|d| d
+                .message
+                .contains("ByteBuffer relocation needs projected stored byte target invalidation")),
+            "{}",
+            report.to_json()
+        );
+        let raw = typed_source("package-array-relocation", &program, &target, &limits);
+        plan.module_fingerprint = raw.fingerprint();
+        let verify =
+            zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap_err();
+        assert!(
+            verify.iter().any(|d| d
+                .message
+                .contains("ByteBuffer relocation needs projected stored byte target invalidation")),
+            "{operation}: {verify:?}"
+        );
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        assert!(
+            zil_verify::verify_module_bytes(&wire, &target, &limits)
+                .unwrap_err()
+                .iter()
+                .any(|d| d.message.contains(
+                    "ByteBuffer relocation needs projected stored byte target invalidation"
+                ))
+        );
+    }
+}
