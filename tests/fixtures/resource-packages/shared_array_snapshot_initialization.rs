@@ -591,3 +591,122 @@ fn one_cfg_incoming_hole_cannot_be_hidden_by_the_same_complete_root() {
     );
     println!("same root one CFG incoming hole: Analyze/Verify/Wire actual vacancy rejection");
 }
+
+#[test]
+fn whole_snapshot_initialization_costs_grow_with_actual_roots_and_slots() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let mut boundaries = Vec::new();
+    for (roots, length) in [(1, 2), (1, 8), (2, 2), (2, 8)] {
+        let items = vec!["first"; length].join(",");
+        let selected = if roots == 1 {
+            "&left"
+        } else {
+            "if flag{&left}else{&right}"
+        };
+        let program = format!(
+            "package Job<life a>{{manages bytes:ByteBuffer;items:[&'a i32;{length}]}}fn make<life a>(first:&'a i32)->Job<'a>{{var bytes=bytes_new();return Job::<'a>{{bytes:give bytes,items:[{items}]}}}}fn read<life a>(first:&'a i32,second:&'a i32,flag:bool)->i32{{var left=make(first);var right=make(second);let selected={selected};let snapshot=selected.items;return *snapshot[0]}}fn main()->i32{{let first=7;let second=9;return read(&first,&second,true)-7}}"
+        );
+        let raw = typed_source("snapshot-initialization-budget", &program, &target, &limits);
+        let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        let at = |n| Limits {
+            max_analysis_steps: n,
+            ..limits.clone()
+        };
+        let label = format!("whole Array initialization roots={roots} slots={length}");
+        let analyze = exact_array_budget(&format!("{label} Analyze"), |n| {
+            array_budget_category(zil_analyze::analyze(&raw, &at(n)))
+        });
+        let verify = exact_array_budget(&format!("{label} Verify"), |n| {
+            array_budget_category(zil_verify::verify_module(
+                raw.clone(),
+                plan.clone(),
+                &target,
+                &at(n),
+            ))
+        });
+        let decoded = exact_array_budget(&format!("{label} Wire"), |n| {
+            array_budget_category(zil_verify::verify_module_bytes(&wire, &target, &at(n)))
+        });
+        assert_eq!(verify, decoded);
+        boundaries.push([analyze, verify, decoded]);
+    }
+    assert!(boundaries[1][0] > boundaries[0][0]);
+    assert!(boundaries[1][1] > boundaries[0][1]);
+    assert!(boundaries[2][0] > boundaries[0][0]);
+    assert!(boundaries[2][1] > boundaries[0][1]);
+    assert!(boundaries[3][0] > boundaries[2][0]);
+    assert!(boundaries[3][1] > boundaries[2][1]);
+    assert_eq!(
+        boundaries,
+        vec![
+            [31697, 44433, 44433],
+            [67795, 99702, 99702],
+            [47566, 71365, 71365],
+            [104426, 174010, 174010],
+        ]
+    );
+    println!("whole Array initialization exact boundaries: {boundaries:?}");
+}
+
+#[test]
+fn a_complete_array_snapshot_survives_its_original_package_cleanup() {
+    let definitions = PARTIAL_SNAPSHOT.split("fn main").next().unwrap();
+    let program = format!(
+        "{definitions}fn snapshot<life a>(first:&'a i32,second:&'a i32)->[&'a i32;2]{{let job=make(first,second);let selected=&job;return selected.items}}fn main()->i32{{let first=7;let second=9;let items=snapshot(&first,&second);return *items[1]-9}}"
+    );
+    accept_snapshot_protocol(
+        "snapshot survives its original manager",
+        typed_source(
+            "snapshot-owner-cleanup",
+            &program,
+            &TargetProfile::host_llvm(),
+            &Limits::default(),
+        ),
+    );
+    let mut runs = 0;
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = std::env::temp_dir().join(format!(
+                "zil-initialized-array-snapshot-{}-{backend:?}-{optimization:?}",
+                std::process::id()
+            ));
+            std::fs::create_dir_all(&dir).unwrap();
+            let executable = dir.join("program");
+            let report = compile_source(
+                &source("snapshot-owner-cleanup", &program),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(executable.clone()),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let codegen = report.native_codegen.as_ref().unwrap();
+            assert_eq!(codegen.backend, backend);
+            assert!(codegen.fallback.is_none());
+            let output = std::process::Command::new(&executable).output().unwrap();
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            assert!(
+                output.stdout.is_empty() && output.stderr.is_empty(),
+                "{output:?}"
+            );
+            std::fs::remove_dir_all(dir).unwrap();
+            runs += 1;
+        }
+    }
+    assert_eq!(runs, 2 + 2 * usize::from(cfg!(feature = "llvm-api")));
+    println!("snapshot after original Package cleanup: {runs} native executions");
+}
