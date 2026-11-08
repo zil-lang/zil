@@ -1027,5 +1027,5 @@ fn owning_package_array_identity_preserves_its_selected_source() {
 #[path = "package_shared_array.rs"]
 mod package_shared_array;
 
-#[path = "dynamic_shared_array_index.rs"]
-mod dynamic_shared_array_index;
+#[path = "shared_array_snapshot_initialization.rs"]
+mod shared_array_snapshot_initialization;

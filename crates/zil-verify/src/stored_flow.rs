@@ -71,6 +71,7 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> Check<boo
     Ok(false)
 }
 
+mod array_snapshot;
 pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
@@ -3920,8 +3921,23 @@ fn windows(
                         b,
                     )?;
                 }
-                InstructionKind::ReadAddress { address }
-                | InstructionKind::SliceLength { address }
+                InstructionKind::ReadAddress { address } => {
+                    if let Type::Address { inner, .. } = vt(f, *address)?
+                        && shared_array_value(inner)
+                        && let Type::Array { length, .. } = inner.as_ref()
+                    {
+                        array_snapshot::check(&state, pointer(*address)?, *length, b)?;
+                    }
+                    access(
+                        pointer(*address)?,
+                        false,
+                        &active,
+                        &solution.loans,
+                        requirements,
+                        b,
+                    )?;
+                }
+                InstructionKind::SliceLength { address }
                 | InstructionKind::ReborrowAddress {
                     address,
                     mutable: false,

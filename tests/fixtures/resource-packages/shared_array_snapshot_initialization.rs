@@ -1,4 +1,4 @@
-//! Dynamic selection must preserve all real leaves, including initialization.
+//! Whole shared-array snapshots require every actual root to be initialized.
 use super::*;
 
 const PARTIAL_SNAPSHOT: &str = "package Job<life a>{manages bytes:ByteBuffer;items:[&'a i32;2]}fn make<life a>(first:&'a i32,second:&'a i32)->Job<'a>{var bytes=bytes_new();return Job::<'a>{bytes:give bytes,items:[first,second]}}fn main()->i32{var first=7;var second=9;var job=make(&first,&second);let window=&job;let unused=window.items[0];let snapshot=window.items;return *snapshot[1]-9}";
@@ -347,9 +347,16 @@ fn complete_other_root_cannot_mask_a_taken_array_leaf() {
 }
 
 fn local_roots_snapshot(refill_before: bool) -> zil_ir::TypedModule {
+    local_snapshot_body(
+        "let initial=&left;let unused=initial.items[0];let selected=if flag{&left}else{&right};let snapshot=selected.items;return *snapshot[1]",
+        refill_before,
+    )
+}
+
+fn local_snapshot_body(body: &str, refill_before: bool) -> zil_ir::TypedModule {
     let definitions = PARTIAL_SNAPSHOT.split("fn main").next().unwrap();
     let program = format!(
-        "{definitions}fn read<life a>(first:&'a i32,second:&'a i32,flag:bool)->i32{{var left=make(first,first);var right=make(second,second);let initial=&left;let unused=initial.items[0];let selected=if flag{{&left}}else{{&right}};let snapshot=selected.items;return *snapshot[1]}}fn main()->i32{{let first=7;let second=9;return read(&first,&second,true)-7}}"
+        "{definitions}fn read<life a>(first:&'a i32,second:&'a i32,flag:bool)->i32{{var left=make(first,first);var right=make(second,second);{body}}}fn main()->i32{{let first=7;let second=9;return read(&first,&second,true)-7}}"
     );
     let mut raw = typed_source(
         "array-snapshot-two-local-roots",
@@ -474,42 +481,113 @@ fn complete_local_parent_cannot_mask_a_vacant_snapshot_candidate() {
     zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
     println!("local roots: take/refill before snapshot A/V/W Success");
     let bad = local_roots_snapshot(false);
-    let analyzed = zil_analyze::analyze(&bad, &limits);
-    match &analyzed {
-        Ok(fresh) => {
-            println!("local roots: one hole plus complete other parent Analyze Success");
-            let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../../out/runs/dynamic-shared-array/old-initialization-reproducer");
-            std::fs::create_dir_all(&dir).unwrap();
-            std::fs::write(dir.join("bad-raw.txt"), format!("{bad:#?}")).unwrap();
-            std::fs::write(dir.join("fresh-candidate.txt"), format!("{fresh:#?}")).unwrap();
-            std::fs::write(
-                dir.join("bad-module-candidate.wire"),
-                zil_ir::wire::encode_module_candidate(&bad, fresh, &limits).unwrap(),
-            )
-            .unwrap();
-            println!(
-                "saved original initialization reproducer artifacts at {}",
-                dir.display()
-            );
-            println!(
-                "fresh candidate Verify {:?}",
-                zil_verify::verify_module(bad.clone(), fresh.clone(), &target, &limits)
-                    .as_ref()
-                    .map(|_| "Success")
-            );
-            let wire = zil_ir::wire::encode_module_candidate(&bad, fresh, &limits).unwrap();
-            println!(
-                "fresh candidate Wire {:?}",
-                zil_verify::verify_module_bytes(&wire, &target, &limits)
-                    .as_ref()
-                    .map(|_| "Success")
-            );
-        }
-        Err(errors) => println!("local roots bad snapshot Analyze {errors:?}"),
-    }
+    let analyzed = zil_analyze::analyze(&bad, &limits).unwrap_err();
     assert!(
-        analyzed.is_err(),
-        "initialized alternative root must not hide an actually vacant source slot"
+        analyzed
+            .iter()
+            .any(|d| d.message.contains("Array snapshot reads a vacant slot")),
+        "{analyzed:?}"
     );
+    println!("local roots bad snapshot Analyze {analyzed:?}");
+    let mut prior = good_plan;
+    prior.module_fingerprint = bad.fingerprint();
+    let verified =
+        zil_verify::verify_module(bad.clone(), prior.clone(), &target, &limits).unwrap_err();
+    assert!(
+        verified
+            .iter()
+            .any(|d| d.message.contains("Array snapshot reads a vacant slot")),
+        "{verified:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&bad, &prior, &limits).unwrap();
+    let decoded = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert!(
+        decoded
+            .iter()
+            .any(|d| d.message.contains("Array snapshot reads a vacant slot")),
+        "{decoded:?}"
+    );
+    let saved=std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../out/runs/dynamic-shared-array/old-initialization-reproducer/bad-module-candidate.wire");
+    if saved.exists() {
+        let original = std::fs::read(saved).unwrap();
+        let errors = zil_verify::verify_module_bytes(&original, &target, &limits).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("Array snapshot reads a vacant slot")),
+            "{errors:?}"
+        );
+        println!(
+            "previously accepted original Wire/fresh candidate now rejected by actual vacancy"
+        );
+    }
+}
+
+fn accept_snapshot_protocol(label: &str, raw: zil_ir::TypedModule) {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap_or_else(|e| panic!("{label}: {e:?}"));
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits)
+        .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits)
+        .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+    println!("{label}: Analyze/Verify/Wire Success");
+}
+
+#[test]
+fn a_hole_does_not_block_other_roots_or_direct_initialized_leaves() {
+    for (label, body) in [
+        (
+            "read complete right while left has hole",
+            "let initial=&left;let unused=initial.items[0];let selected=&right;let snapshot=selected.items;return *snapshot[1]",
+        ),
+        (
+            "copy initialized left leaf without whole snapshot",
+            "let initial=&left;let unused=initial.items[0];let selected=&left;return *selected.items[1]",
+        ),
+        (
+            "take after complete snapshot",
+            "let selected=&left;let snapshot=selected.items;let initial=&left;let unused=initial.items[0];return *snapshot[1]",
+        ),
+    ] {
+        accept_snapshot_protocol(label, local_snapshot_body(body, false));
+    }
+}
+
+#[test]
+fn one_cfg_incoming_hole_cannot_be_hidden_by_the_same_complete_root() {
+    let body = "if flag{let initial=&left;let unused=initial.items[0]};let selected=&left;let snapshot=selected.items;return *snapshot[1]";
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let good = local_snapshot_body(body, true);
+    let plan = zil_analyze::analyze(&good, &limits).expect("conditional Take/Refill legal control");
+    accept_snapshot_protocol("same root conditional Take/Refill", good);
+    let bad = local_snapshot_body(body, false);
+    let errors = zil_analyze::analyze(&bad, &limits).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.message.contains("Array snapshot reads a vacant slot")),
+        "{errors:?}"
+    );
+    let mut prior = plan;
+    prior.module_fingerprint = bad.fingerprint();
+    let errors =
+        zil_verify::verify_module(bad.clone(), prior.clone(), &target, &limits).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.message.contains("Array snapshot reads a vacant slot")),
+        "{errors:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&bad, &prior, &limits).unwrap();
+    let errors = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.message.contains("Array snapshot reads a vacant slot")),
+        "{errors:?}"
+    );
+    println!("same root one CFG incoming hole: Analyze/Verify/Wire actual vacancy rejection");
 }
