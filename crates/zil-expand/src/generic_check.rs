@@ -1102,6 +1102,7 @@ impl Check<'_, '_, '_> {
         }
         Ok(())
     }
+    #[inline(never)]
     fn selected_error_argument(
         &mut self,
         expression: &Expr,
@@ -5256,35 +5257,46 @@ impl Check<'_, '_, '_> {
                     index,
                 )?
             };
-            if matches!(group(&hint).kind, TypeKind::Error { .. })
-                && !context_unresolved(&parameter.ty, variables, found, self.budget)?
-            {
-                if let Some(is_error) = role_check::same_return_selected(
-                    &actual,
-                    &hint,
-                    argument.span,
-                    self.class_scope,
-                    self.budget,
-                )? {
-                    self.selected_error_argument(&argument.value, &hint, is_error)?;
-                }
-            } else if !context_argument(
+            self.match_static_argument(
                 &parameter.ty,
-                &actual,
+                argument,
+                (&actual, &hint),
                 variables,
                 found,
                 e.span,
+            )?;
+        }
+        Ok(())
+    }
+
+    // Recursive argument evaluation has completed before reserving the
+    // ErrorUnion-selection and full-type matching temporaries. Ordinary deep
+    // calls must not keep this unrelated storage on every source nesting edge.
+    #[inline(never)]
+    fn match_static_argument(
+        &mut self,
+        parameter: &TypeRef,
+        argument: &Argument,
+        types: (&TypeRef, &TypeRef),
+        variables: &BTreeSet<String>,
+        found: &mut BTreeMap<String, TypeRef>,
+        span: Span,
+    ) -> R<()> {
+        let (actual, hint) = types;
+        if matches!(group(hint).kind, TypeKind::Error { .. })
+            && !context_unresolved(parameter, variables, found, self.budget)?
+        {
+            if let Some(is_error) = role_check::same_return_selected(
+                actual,
+                hint,
+                argument.span,
+                self.class_scope,
                 self.budget,
             )? {
-                unify(
-                    &parameter.ty,
-                    &actual,
-                    variables,
-                    found,
-                    e.span,
-                    self.budget,
-                )?;
+                self.selected_error_argument(&argument.value, hint, is_error)?;
             }
+        } else if !context_argument(parameter, actual, variables, found, span, self.budget)? {
+            unify(parameter, actual, variables, found, span, self.budget)?;
         }
         Ok(())
     }
