@@ -1169,6 +1169,16 @@ fn copy_record_bound_expand_budget_is_exact_and_fresh() {
 
 #[test]
 fn generic_error_union_templates_keep_definition_selected_tags_when_arguments_equal() {
+    let fixture = include_str!("../../../tests/fixtures/error-union-calls/definition-selected.zil");
+    let report = compile_source(&source(fixture), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+
     for (definition, call) in [
         (
             "fn run<U:Copy>(w:U)->U!i32{let n:i32=7;return n}",
