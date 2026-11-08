@@ -30,6 +30,62 @@ fn direct_main() -> String {
     )
 }
 
+const UNUSED_LENDING: &str =
+    "pub trait UnusedLending{type Item;fn next<life a>(self:&'a mut Self)->Option<&'a Self.Item>;}";
+
+#[test]
+fn unrelated_life_trait_preserves_concrete_owned_provider_bodies() {
+    let protocol = format!("{PROTOCOL}\n{UNUSED_LENDING}");
+    for main in [MAIN, "fn main(){}"] {
+        let report = compile_project(
+            &project(&[
+                ("main", main),
+                ("protocol", &protocol),
+                ("library", LIBRARY),
+                ("model", MODEL),
+            ]),
+            &CompileOptions::default(),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+}
+
+#[test]
+fn unrelated_life_trait_keeps_unused_provider_permissions_and_ownership() {
+    let protocol = format!("{PROTOCOL}\n{UNUSED_LENDING}");
+    for model in [
+        MODEL.replace("let bytes=bytes_new()", "self.tag=0;let bytes=bytes_new()"),
+        MODEL.replace(
+            "return Item{data:give bytes,tag:self.tag+1}",
+            "return Item{data:self.data,tag:self.tag+1}",
+        ),
+    ] {
+        let report = compile_project(
+            &project(&[
+                ("main", "fn main(){}"),
+                ("protocol", &protocol),
+                ("library", LIBRARY),
+                ("model", &model),
+            ]),
+            &CompileOptions::default(),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
+        eprintln!("unused concrete owned provider: {}", report.to_json());
+    }
+}
+
 #[test]
 fn owning_trait_results_reach_concrete_and_symbolic_consumers() {
     for main in [MAIN.to_owned(), direct_main()] {

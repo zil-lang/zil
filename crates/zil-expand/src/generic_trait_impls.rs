@@ -473,6 +473,21 @@ impl<'a> Engine<'a> {
                         "impl result differs from trait declaration",
                     ));
                 }
+                // An unrelated generic method must not route an ordinary
+                // concrete provider through the symbolic body subset. Its
+                // complete original member is retained by `specialize` and
+                // checked as an ordinary Core function, including unused
+                // bodies. All owner, premise and signature checks above still
+                // apply; genuinely symbolic methods keep definition checking.
+                if implementation.generics.is_empty()
+                    && implementation.where_clause.is_empty()
+                    && trait_bounds::plain(&implementation.target).is_some()
+                    && declaration.generics.is_empty()
+                    && method.generics.is_empty()
+                    && method.where_clause.is_empty()
+                {
+                    continue;
+                }
                 // Every method receives its own declared-bound checking scope.
                 // Prepay the repeated binder and bound-map copies before growth.
                 for parameter in &parameters {
