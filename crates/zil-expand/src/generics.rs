@@ -958,7 +958,7 @@ impl<'a> Engine<'a> {
                     &mut engine.budget,
                     &mut engine.trait_calls,
                 )?;
-                if selected.expression.is_some() || !selected.statements.is_empty() {
+                if !selected.is_empty() {
                     engine.budget.text(&f.name, f.span)?;
                     engine.budget.lineage_bytes(
                         std::mem::size_of::<(String, error_injection::Choices)>(),
@@ -1512,6 +1512,13 @@ impl<'a> Engine<'a> {
         // can change surrounding syntax. Pending processing consumes these
         // anchors directly; it never recounts calls in materialized output.
         let runtime_calls = self.runtime_call_anchors(&instance)?;
+        let error_arguments = if let ItemKind::Function(function) = &instance.kind
+            && let Some(selected) = self.selected_error_arms.get(&function.name)
+        {
+            error_injection::anchor_arguments(function, selected, &mut self.budget)?
+        } else {
+            error_injection::ArgumentAnchors::default()
+        };
         let mut anchors = None;
         let static_direct = if let ItemKind::Function(function) = &item.kind {
             self.trait_calls.get(&function.name).is_some_and(|calls| {
@@ -1577,7 +1584,12 @@ impl<'a> Engine<'a> {
         if let ItemKind::Function(function) = &mut instance.kind
             && let Some(selected) = self.selected_error_arms.get(&function.name)
         {
-            let moved = error_injection::apply(function, selected, &mut self.budget)?;
+            let moved = error_injection::apply_with_arguments(
+                function,
+                selected,
+                error_arguments,
+                &mut self.budget,
+            )?;
             if let Some(anchors) = anchors.as_mut() {
                 anchors.relocate(&moved, &mut self.budget, span)?;
             }
