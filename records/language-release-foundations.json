@@ -50,7 +50,25 @@
       "scope": "That target passed; same command later failed the separate generics target, which was corrected and separately rerun."
     }
   },
-  "active_composition_failures": [],
+  "active_composition_failures": [
+    {
+      "kind": "real safety regression",
+      "scope": "existing qualified Record reborrow and child/parent field windows",
+      "released_main_affected": true,
+      "main_case": "bare &refs permits write to actual held n then pointer use",
+      "new_combined_cases": [
+        "&refs",
+        "&job.refs",
+        "&job"
+      ],
+      "main_probe": "/workspace/record-window-review/out/runs/accepted-main222-20261108/summary.json",
+      "frozen_probe": "/workspace/record-window-review/out/runs/frozen61ad-20261108/summary.json",
+      "task": "G3.4.11.1",
+      "implementation": "sol high",
+      "review": "Astra xhigh",
+      "status": "fix and independent semantic verification in progress"
+    }
+  ],
   "historical_default_runs": [
     {
       "source": "1b462001c6e74548196e72f62ab6074eb4296913",
@@ -90,8 +108,9 @@
   },
   "pending_common_gates": [],
   "next_implementation": [
-    "accept combined G2.4.10/G3.4.11/G8.6.5 and stack regression fix after common gates",
-    "finish G3.4.12 shared address arrays"
+    "fix and independently verify real Record window regression before integration delivery",
+    "finish Array complete snapshot billing, warm cache mode and raw thin-leaf rejection",
+    "correct reference native helper backend selection"
   ],
   "delivery_validation_revision": "e5400cfba036a46ca70677ca411abcd863466edf",
   "delivery_record": "https://github.com/zil-lang/zil/blob/222e550af2daa08812b210cf3b5c726831b15bec/validation/native-language-composition.json",
@@ -128,7 +147,7 @@
     "summary": "/workspace/.zil-env/release-foundations/accepted-source-cold-final/summary.json"
   },
   "next_combined_source": {
-    "source": "61ad58b684709b9dc9edb7ac36c062a197ca7754",
+    "source": "4b30ef3ad8f0c6b7cd5b8c7f13c25534b771ace2",
     "base_main": "222e550af2daa08812b210cf3b5c726831b15bec",
     "children": [
       "G2.4.10",
@@ -136,7 +155,7 @@
       "G8.6.5",
       "G10.6.6.1"
     ],
-    "status": "Default common regression in progress with five preserved Expand generics failures; not accepted",
+    "status": "Blocked by real Record window borrow regression; not accepted",
     "prior_combined_source": "50e77fdf274bcd172aacb794aa6b3157605a6977",
     "prior_focused": {
       "passed": 798,
@@ -213,6 +232,27 @@
       "original_loader_failure_preserved": true,
       "attempted_native_builds_including_rejected_loader_case": 45,
       "root_rechecked_stream_hashes": 194
+    },
+    "default_full_original": {
+      "source": "61ad58b684709b9dc9edb7ac36c062a197ca7754",
+      "passed": 5595,
+      "failed": 13,
+      "status": "Fail"
+    },
+    "default_after_test_only_correction": {
+      "covered_passed": 5609,
+      "covered_failed": 0,
+      "single_full_run": false,
+      "affected_retested": 80,
+      "record": "/workspace/.zil-env/release-foundations/library-composition-focus/default-coverage.json"
+    },
+    "reference_full": {
+      "source": "4b30ef3ad8f0c6b7cd5b8c7f13c25534b771ace2",
+      "passed": 5496,
+      "failed": 1,
+      "status": "Fail",
+      "reason": "One native test attempts unavailable LLVM API in reference build. Independent production Record regression is not covered by these passing tests.",
+      "result": "/workspace/.zil-env/release-foundations/library-composition-common-reference/reference-result.json"
     }
   },
   "lookahead_board_audit": {

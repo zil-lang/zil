@@ -14,7 +14,7 @@
 
 本阶段先补普通数据模型、泛型库、模式、同步与标准库，再收动态抽象、图/外部生命周期和完整程序。必需能力全部进入P0；有普通合法程序仍被临时白名单或未实现组合阻挡，就保留缺口，不能靠缩小子项关闭父项。运行/编译成本和安全产品门保持原要求，功能就绪与正式发布分别验收。
 
-Sol high负责实现，疑难交Astra；本批已交付远端main@222e550af。受测compiler源码263f11默认5582/0、text70/0、独立冷恢复32/32；reference原全量5455/15只因旧helper调用未启用API，测试6行修复后受影响64项在两配置均过，完整修复覆盖5470项，未重写原Fail或冒称单轮全绿。交付仅增加该test-only修复及精简验收记录，compiler/lib输入逐字相同。[不可变验收快照](https://github.com/zil-lang/zil/blob/222e550af2daa08812b210cf3b5c726831b15bec/validation/native-language-composition.json)。本次不宣称功能1.0/B0/成本门；下批G2.4.10/G3.4.11/G8.6.5已专项/精审接受并合入施工树；合流新栈回归已由Sol定位修复、Astra精审，`61ad58b68`正在全默认共同验收。G3.4.12共享地址数组继续Sol high实施。
+Sol high负责实现，疑难交Astra；本批已交付远端main@222e550af。受测compiler源码263f11默认5582/0、text70/0、独立冷恢复32/32；reference原全量5455/15只因旧helper调用未启用API，测试6行修复后受影响64项在两配置均过，完整修复覆盖5470项，未重写原Fail或冒称单轮全绿。交付仅增加该test-only修复及精简验收记录，compiler/lib输入逐字相同。[不可变验收快照](https://github.com/zil-lang/zil/blob/222e550af2daa08812b210cf3b5c726831b15bec/validation/native-language-composition.json)。本次不宣称功能1.0/B0/成本门；下批施工树`4b30ef3ad`已保全到远端。栈修复和旧断言兼容已复验；新发现的Record窗口借用漏洞阻断交付，其中裸Record在已发布main也可复现，G3.4.11.1正由Sol high修、Astra xhigh审。G3.4.12 Array预算/缓存与薄叶资格继续独立施工，未接受。
 
 ## G1 · 基础类型与模式
 
@@ -91,7 +91,7 @@ Sol high负责实现，疑难交Astra；本批已交付远端main@222e550af。�
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G2.4.10.1 | 拥有Item lending与旧定义期义务/精确费用控制兼容 | 进行中 | P0 | sol high · owning_iterator；Astra审定 | `61ad58b68`共同门Expand generics出现5Fail：4组旧work差异、1旧无Copy声明拒绝失效；原完整Fail保留。逐项核真实费用和签名/Copy使用边界，不能盲改N或删负例；独立树修，root冻结源不改。 |
+| G2.4.10.1 | 拥有Item lending与旧定义期义务/精确费用控制兼容 | 进行中 | P0 | sol high · owning_iterator；Astra审定 | `c749edd21`获Astra精确接受并合入施工树`4b30ef3ad`；只改7测试文件，6目标80/0及strict通过。原13Fail保留，新增费用逐次归因、合法Item共享声明与实际Copy/局部/错life拒例分开，production字节未变。 |
 
 </details>
 
@@ -168,8 +168,17 @@ Sol high负责实现，疑难交Astra；本批已交付远端main@222e550af。�
 | G3.4.8 | Store实际manager借入叶/字段返回、一般life及Option借出组合 | 已合入 | — | — | `f3b600238`精确独审接受并合：真实Map get/inspect/identity/field helper、Some投影前强pin、两核真实heap来源，24机器及长heap N/N−1通过；已保留旧ce5构造/消费规则， 已由main@222e550af本批有限范围验收。 |
 | G3.4.9 | 独占constructor实际loan site与现有写槽组合 | 已合入 | — | — | `a19ee3339`已独审并合；constructor只激活自己的site排程，不扩大slot updates权限；原三误拒恢复、cross112/stored33/mixed28专项通过。 已由main@222e550af本批有限范围验收。 |
 | G3.4.10 | 借入结果Task与拥有Map/Option在同一普通CFG中的真实组合 | 已合入 | — | — | `c5/c8/e042/e6`及独立`a030/10dd`已由main@222e550af本批验收：标准let/临时match/双来源if真实default、16native与失败cleanup/rawWire通过；先前默认耗尽与Copy Poll兼容首次失败保留。 |
-| G3.4.11 | 拥有Package嵌入含真实借入叶的qualified Record | 实现待验 | P0 | sol high · borrowed_record | `d6be16708`已推送并获非作者精审接受，已合施工树`61ad58b68`待共同验收；36holder/23旧预算、20组新N控制、16native与strict通过，实际映射/父loan和两clone先费；不含独占/嵌套Record。 |
-| G3.4.12 | 固定共享地址数组的普通函数与存储消费者 | 进行中 | P0 | sol high · borrowed_record | WIP`603f4eca2`已推送：Batch与bare Array构造/复制/helper/constindex各Source/raw/Wire通过。Sol预审发现新Type clone及VecN构建前费待补，正修；多life/来源反例、四native与N控制尚未齐，不接受阶段提交。 |
+| G3.4.11 | 拥有Package嵌入含真实借入叶的qualified Record | 实现待验 | P0 | sol high · borrowed_record | 原`d6be16708`专项曾通过；新近邻实证发现&refs、&job.refs及&job窗口的实际叶传播缺口，其中裸Record影响main。暂停本批接受，G3.4.11.1独立修复；旧通过记录保留为历史范围。 |
+| G3.4.12 | 固定共享地址数组的普通函数与存储消费者 | 进行中 | P0 | sol high · borrowed_record | `e557008be`仅Array三处活窗窄修获Astra审定；完整候选被预算/胖叶资格复核阻塞。后续WIP`7f10e76a5`已推送，补qualified Batch逐clone费用及cache mode；40组新N/旧Record原N/16native已过，暖缓存与raw薄叶控制继续验。 |
+
+</details>
+
+<details>
+<summary>G3.4.11 · 子任务</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G3.4.11.1 | qualified Record及父Package窗口保留真实借入叶，独立两核拒冲突写入 | 进行中 | P0 | sol high · integration_audit；Astra xhigh审 | `task/G3.4.11.1`从4b独立修；裸&refs在main同源码冷CLI实证错误Verify Success，&job.refs/&job在新批同样失效。修Reborrow/真实字段投影的叶与parent传播，保实际来源/资格/前费；合法分离、identity及raw/Wire真实Store反例验证中。另修同fixture参考构建误跑未启用API的harness选择。 |
 
 </details>
 
@@ -468,7 +477,7 @@ Sol high负责实现，疑难交Astra；本批已交付远端main@222e550af。�
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G10.6.6.1 | 普通trait/lending合流后source life深调用保持默认线程栈 | 实现待验 | P0 | sol high · integration_audit；Astra精审 | `50e77fdf2`原深调用depth124复现溢出；精确修复`1ea0ceb06`递归帧13880→1832B，原104请求通过，Astra精审接受。仅求值后分类抽helper，来源/费用/顺序及stack/limits/断言不变；已合`61ad58b68`待共同门。 |
+| G10.6.6.1 | 普通trait/lending合流后source life深调用保持默认线程栈 | 实现待验 | P0 | sol high · integration_audit；Astra精审 | `1ea0ceb06`已合施工树：递归帧13880→1832B，原104请求/375回归及strict通过，Astra精确接受；栈、Limits和断言不变，当前交付阻点已转为Record窗口。 |
 
 </details>
 
