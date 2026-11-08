@@ -2,6 +2,7 @@
 //! This pass does not use a candidate, source label, or nominal name as a root.
 use super::*;
 
+mod byte_queries;
 pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
@@ -436,6 +437,8 @@ pub(super) struct Facts {
     pub returned: BTreeMap<Path, Vec<Target>>,
     returned_task_ports: BTreeMap<Vec<zil_ir::ContractProjection>, Vec<Target>>,
     package_return_calls: BTreeMap<ValueId, u32>,
+    byte_reads: Vec<Target>,
+    byte_covered: bool,
     external_after: BTreeMap<(u32, Path), Vec<Target>>,
     pub apart: BTreeSet<(Target, Target)>,
     complete: bool,
@@ -602,6 +605,10 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
 }
 
 fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
+    if b.byte_queries {
+        byte_queries::work(&f.byte_reads, b)?;
+        fee(b, 1)?;
+    }
     if !f.package_return_calls.is_empty() {
         fee(
             b,
@@ -3290,6 +3297,8 @@ fn transfer(
             out.pointer.loans.extend(&description.loans);
         }
         InstructionKind::ByteBufferNew
+        | InstructionKind::ByteBufferLen { .. }
+        | InstructionKind::ByteBufferCapacity { .. }
         | InstructionKind::DescribeAddress { .. }
         | InstructionKind::DropManaged { .. } => {
             // The resource proof owns these effects. None creates a stored
@@ -3812,8 +3821,10 @@ fn windows(
     loans: &mut [Loan],
     summaries: &[Facts],
     apart: &mut BTreeSet<(Target, Target)>,
+    byte_reads: &mut Vec<Target>,
     b: &mut Budget,
 ) -> CompileResult<()> {
+    let byte_flow = byte_queries::Flow::solve(f, preds, reachable, values, b)?;
     let live_out = liveness(module, f, preds, reachable, b)?;
     for (bi, block) in f.blocks.iter().enumerate() {
         fee(b, 1)?;
@@ -3861,6 +3872,12 @@ fn windows(
                     .map(|v| &v.pointer)
                     .ok_or_else(|| failure("access operand outside values"))
             };
+            if let Some(flow) = &byte_flow {
+                for permission in flow.reads(module, i, values, &state, summaries, b)? {
+                    use_permission(&permission, false, &current, loans, apart, b)?;
+                    byte_queries::record(byte_reads, &permission, b)?;
+                }
+            }
             match &i.kind {
                 InstructionKind::MakeAggregate { fields }
                 | InstructionKind::MakePackage { fields }
@@ -4279,6 +4296,34 @@ fn windows(
                         }
                     }
                     for (left, right) in &summaries[function.0 as usize].apart {
+                        let weak = |source: &Target| match source.base {
+                            HoldRoot::Parameter(position) => callee
+                                .parameters
+                                .get(position as usize)
+                                .is_some_and(|local| {
+                                    byte_queries::description(&callee.locals[local.0 as usize].ty)
+                                }),
+                            _ => false,
+                        };
+                        if b.byte_queries && (weak(left) || weak(right)) {
+                            let flow = byte_flow.as_ref().ok_or_else(|| {
+                                failure("Byte separation has no covered origin flow")
+                            })?;
+                            let left =
+                                flow.substitute(left, callee, arguments, values, &state, b)?;
+                            let right =
+                                flow.substitute(right, callee, arguments, values, &state, b)?;
+                            for a in &left {
+                                for z in &right {
+                                    for x in &a.targets {
+                                        for y in &z.targets {
+                                            separate(x, y, apart, b)?;
+                                        }
+                                    }
+                                }
+                            }
+                            continue;
+                        }
                         let left = substitute(left, arguments, values, &state, b)?;
                         let right = substitute(right, arguments, values, &state, b)?;
                         if left.targets.is_empty() || right.targets.is_empty() {
@@ -4318,6 +4363,7 @@ fn derive_cfg(
     inactive: Option<&[BTreeSet<ValueId>]>,
     b: &mut Budget,
 ) -> CompileResult<Vec<Facts>> {
+    byte_queries::inventory(module, graphs, b)?;
     let mut observed_none = false;
     fee(b, module.functions.len())?;
     let mut summaries = vec![Facts::default(); module.functions.len()];
@@ -4411,6 +4457,8 @@ fn derive_cfg(
                 returned: BTreeMap::new(),
                 returned_task_ports: BTreeMap::new(),
                 package_return_calls,
+                byte_reads: Vec::new(),
+                byte_covered: false,
                 external_after: BTreeMap::new(),
                 apart: BTreeSet::new(),
                 complete: false,
@@ -4685,6 +4733,7 @@ fn derive_cfg(
             }
             actual.complete = grounded;
             if grounded {
+                actual.byte_covered = b.byte_queries;
                 windows(
                     module,
                     f,
@@ -4697,6 +4746,7 @@ fn derive_cfg(
                     &mut loans,
                     &summaries,
                     &mut actual.apart,
+                    &mut actual.byte_reads,
                     b,
                 )?;
             }
@@ -4734,6 +4784,11 @@ fn derive_cfg(
     for (index, (f, facts)) in module.functions.iter().zip(&summaries).enumerate() {
         if !b.composition_stored.is_empty() && !b.composition_stored[index] {
             continue;
+        }
+        if b.byte_queries && b.byte_query_functions[index] && !facts.byte_covered {
+            return Err(failure(
+                "Byte query function lacks complete actual read coverage",
+            ));
         }
         if !facts.complete {
             return Err(failure(
@@ -4916,7 +4971,7 @@ pub(super) fn infer(
             .iter()
             .any(|d| d.kind == CallableKind::FnOnce)
         || b.stored_owned_fixed
-        || b.qualified_package_returns
+        || (b.qualified_package_returns || b.byte_queries)
             && b.composition_stored.is_empty()
             && !b.task_borrowed_results
             && !b.store_option_results
@@ -5215,6 +5270,7 @@ fn actual_instructions(
     for block in &f.blocks {
         for i in &block.instructions {
             fee(b, 1)?;
+            let byte_query = byte_queries::instruction(module, f, i, b)?;
             let enum_operation = enum_address::instruction(module, f, i, b)?;
             let owned_operation = (b.stored_owned_fixed
                 || matches!(i.kind, InstructionKind::ReadDesc { .. })
@@ -5226,6 +5282,7 @@ fn actual_instructions(
                 && !super::stored_callables::instruction(module, f, i)
                 && !owned_operation
                 && !enum_operation
+                && !byte_query
                 && !(b.task_borrowed_results && task_address::operation(&i.kind))
                 && !(b.store_option_results
                     && matches!(

@@ -71,6 +71,8 @@ pub(super) struct Budget {
     pub(super) store_option_results: bool,
     // Presence from actual Direct Call types; only schedules the private proof.
     pub(super) qualified_package_returns: bool,
+    pub(super) byte_queries: bool,
+    pub(super) byte_query_functions: Vec<bool>,
     pub(super) package_return_calls: Option<BTreeMap<(zil_ir::FunctionId, zil_ir::ValueId), u32>>,
     /// Private complete stored-target facts, published only after the stored
     /// solver finishes every reachable CFG and signature relation.
@@ -156,6 +158,8 @@ impl Budget {
             task_borrowed_results: false,
             store_option_results: false,
             qualified_package_returns: false,
+            byte_queries: false,
+            byte_query_functions: Vec::new(),
             package_return_calls: None,
             store_option_targets: None,
             task_pointer_roots: Vec::new(),
@@ -1853,6 +1857,11 @@ pub(super) fn preflight(
                 {
                     budget.qualified_package_returns = true;
                 }
+                budget.byte_queries |= matches!(
+                    instruction.kind,
+                    InstructionKind::ByteBufferLen { .. }
+                        | InstructionKind::ByteBufferCapacity { .. }
+                );
                 match &instruction.kind {
                     InstructionKind::AsyncRegistrationStart {
                         register,

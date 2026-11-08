@@ -1,6 +1,7 @@
 //! Independent stored-target reconstruction. Sorted vectors and batch CFG
 //! solving deliberately do not consume analyzer roots, summaries, or claims.
 use super::*;
+mod byte_queries;
 #[path = "stored_flow_pure_copy.rs"]
 mod pure_copy;
 
@@ -348,6 +349,8 @@ struct Loan {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Summary {
+    byte_reads: Vec<Source>,
+    byte_covered: bool,
     result: Vec<(Path, Vec<Source>)>,
     task_ports: Vec<(Vec<ContractProjection>, Vec<Source>)>,
     external_after: Vec<(u32, Path, Vec<Source>)>,
@@ -1199,6 +1202,7 @@ pub(super) fn qualifications(
                     && !super::stored_callables::instruction(module, f, i)
                     && !owned_operation
                     && !enum_operation
+                    && byte_queries::query(&i.kind).is_none()
                     && !(b.task_borrowed_results && task_address::operation(&i.kind))
                     && !(b.store_option_results
                         && matches!(
@@ -2550,7 +2554,10 @@ fn step(
             }
             add_loans(&mut out.address.loans, &description.loans, b)?;
         }
-        InstructionKind::ByteBufferNew | InstructionKind::DescribeAddress { .. } => {}
+        InstructionKind::ByteBufferNew
+        | InstructionKind::ByteBufferLen { .. }
+        | InstructionKind::ByteBufferCapacity { .. }
+        | InstructionKind::DescribeAddress { .. } => {}
         InstructionKind::ByteBufferPush { .. }
         | InstructionKind::ByteBufferReserve { .. }
         | InstructionKind::ByteBufferTruncate { .. } => {
@@ -3622,6 +3629,7 @@ fn check_call(
     active: &[usize],
     summaries: &[Summary],
     requirements: &mut Vec<(Source, Source)>,
+    byte_flow: Option<&byte_queries::Flow>,
     b: &mut Budget,
 ) -> Check<()> {
     let callee = module
@@ -3700,6 +3708,32 @@ fn check_call(
         }
     }
     for (a, z) in &summaries[function.0 as usize].apart {
+        let weak =
+            |source: &Source| match source.base {
+                HoldRoot::Parameter(position) => callee
+                    .parameters
+                    .get(position as usize)
+                    .is_some_and(|local| {
+                        byte_queries::is_description(&callee.locals[local.0 as usize].ty)
+                    }),
+                _ => false,
+            };
+        if b.byte_queries && (weak(a) || weak(z)) {
+            let flow =
+                byte_flow.ok_or_else(|| err("Byte separation has no covered origin flow"))?;
+            let left = flow.instantiate(a, callee, arguments, &solution.values, state, b)?;
+            let right = flow.instantiate(z, callee, arguments, &solution.values, state, b)?;
+            for a in &left {
+                for z in &right {
+                    for x in &a.sources {
+                        for y in &z.sources {
+                            apart(x, y, requirements, b)?;
+                        }
+                    }
+                }
+            }
+            continue;
+        }
         let a = instantiate(a, arguments, &solution.values, state, b)?;
         let z = instantiate(z, arguments, &solution.values, state, b)?;
         if a.sources.is_empty() || z.sources.is_empty() {
@@ -3721,8 +3755,10 @@ fn windows(
     solution: &mut Solution,
     summaries: &[Summary],
     requirements: &mut Vec<(Source, Source)>,
+    byte_reads: &mut Vec<Source>,
     b: &mut Budget,
 ) -> Check<()> {
+    let byte_flow = byte_queries::Flow::solve(f, g, &solution.values, b)?;
     let output_live = live_out(module, f, g, b)?;
     for (bi, block) in f.blocks.iter().enumerate() {
         b.spend(1)?;
@@ -3766,6 +3802,19 @@ fn windows(
                     .map(|v| &v.address)
                     .ok_or_else(|| err("address operand absent"))
             };
+            if let Some(flow) = &byte_flow {
+                for permission in flow.reads(module, i, &solution.values, &state, summaries, b)? {
+                    access(
+                        &permission,
+                        false,
+                        &active,
+                        &solution.loans,
+                        requirements,
+                        b,
+                    )?;
+                    byte_queries::record(byte_reads, &permission, b)?;
+                }
+            }
             match &i.kind {
                 InstructionKind::MakeAggregate { fields }
                 | InstructionKind::MakePackage { fields }
@@ -4214,6 +4263,7 @@ fn windows(
                     &active,
                     summaries,
                     requirements,
+                    byte_flow.as_ref(),
                     b,
                 )?,
                 _ => {}
@@ -4234,6 +4284,10 @@ fn windows(
     Ok(())
 }
 fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
+    if b.byte_queries {
+        source_work(&s.byte_reads, b)?;
+        b.spend(1)?;
+    }
     if !s.none_values.is_empty() {
         b.spend(s.none_values.len())?;
     }
@@ -4764,6 +4818,7 @@ fn solve_check(
     mask: Option<&[bool]>,
     b: &mut Budget,
 ) -> Check<()> {
+    byte_queries::inventory(module, graphs, mask, b)?;
     b.spend(module.functions.len().saturating_mul(2))?;
     let mut observed_none = false;
     let mut summaries = vec![Summary::default(); module.functions.len()];
@@ -4838,6 +4893,7 @@ fn solve_check(
             }
             observed_none |= !summary.none_values.is_empty();
             if summary.complete {
+                summary.byte_covered = b.byte_queries;
                 windows(
                     module,
                     f,
@@ -4845,6 +4901,7 @@ fn solve_check(
                     &mut solution,
                     &summaries,
                     &mut summary.apart,
+                    &mut summary.byte_reads,
                     b,
                 )?;
             }
@@ -4909,6 +4966,11 @@ fn solve_check(
                 });
             }
             continue;
+        }
+        if b.byte_queries && b.byte_query_functions[index] && !s.byte_covered {
+            return Err(err(
+                "Byte query function lacks complete actual read coverage",
+            ));
         }
         if !s.complete {
             return Err(err(
