@@ -716,3 +716,39 @@ fn raw_and_wire_check_a_single_upper_against_the_real_stored_destination() {
         "single actual b replaces actual a destination: Analyze/Verify/Wire independent expected-class rejection"
     );
 }
+
+#[test]
+fn unknown_legacy_upper_sources_cannot_be_masked_by_a_known_branch() {
+    let mut reports = Vec::new();
+    for (label, alternate) in [
+        ("legacy right", "id(right.pointer)"),
+        ("legacy left", "id(left.pointer)"),
+        ("direct right", "right.pointer"),
+    ] {
+        let program = format!(
+            "struct Refs<life a>{{pointer:&'a i32}}fn make<life a>(pointer:&'a i32)->Refs<'a>{{return Refs::<'a>{{pointer:pointer}}}}fn id<life p>(pointer:&'p i32)->&'p i32{{return pointer}}fn read<life a,life b>(left:Refs<'a>,right:Refs<'b>,index:i32,flag:bool)->i32{{let items=[left.pointer,left.pointer];let pointer=if flag{{items[index]}}else{{{alternate}}};let holder=Refs::<'a>{{pointer:pointer}};return *holder.pointer}}fn main()->i32{{let first=7;let second=9;return read(make(&first),make(&second),1,false)-9}}"
+        );
+        let report = compile_source(
+            &source(label, &program),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        println!("unknown-upper branch probe {label}: {}", report.to_json());
+        reports.push((label, report));
+    }
+    for (label, report) in reports {
+        if label == "legacy left" {
+            continue;
+        }
+        assert!(
+            matches!(
+                report.status,
+                ResultCategory::Unsupported | ResultCategory::SafeReject
+            ),
+            "{label}: {}",
+            report.to_json()
+        );
+    }
+}
