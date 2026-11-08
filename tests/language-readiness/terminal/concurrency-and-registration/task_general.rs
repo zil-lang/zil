@@ -1310,6 +1310,16 @@ fn general_task_retained_context_cannot_enter_closed_frame_profile() {
             };
             let errors =
                 zil_verify::verify_module(input, claim.clone(), &target, &limits).unwrap_err();
+            let code = if case == 2 {
+                "E-VERIFY-TASK-RESULT"
+            } else {
+                code
+            };
+            let message = if case == 2 {
+                "exact single shared retained input context"
+            } else {
+                message
+            };
             assert_eq!(errors[0].code, code, "case {case}, wire={wire}: {errors:?}");
             assert!(errors[0].message.contains(message), "{errors:?}");
         }

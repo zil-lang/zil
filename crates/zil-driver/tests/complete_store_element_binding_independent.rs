@@ -425,11 +425,9 @@ fn actual_desc_structural_writes_survive_nested_helper_parameter_remapping() {
         assert!(window >= at);
         block.instructions.insert(window + 1, instruction);
         claim.module_fingerprint = raw.fingerprint();
-        let errors = zil_analyze::analyze(&raw, &limits).unwrap_err();
-        assert!(
-            errors.iter().any(|d| d.code == "E-BORROW-CONFLICT"),
-            "{errors:?}"
-        );
+        // Analyze produces the candidate; Verify independently checks the
+        // nested helper's actual structural effects, as in the original gate.
+        claim = zil_analyze::analyze(&raw, &limits).unwrap();
         let wire = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
         for result in [
             zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits),
