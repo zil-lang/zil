@@ -216,6 +216,42 @@ impl Flow {
                 }
             }
         }
+        // A seed cannot discharge another Store/copy incoming dependency.
+        work(b, self.affected.len())?;
+        let mut required = self.affected.clone();
+        {
+            let boundaries = self.boundaries.borrow();
+            work(b, boundaries.len())?;
+            for row in boundaries.iter() {
+                if self.affected(row.actual) || self.affected(row.expected) {
+                    let actual = required
+                        .get_mut(row.actual)
+                        .ok_or_else(|| bad("identity actual upper is outside the typed graph"))?;
+                    *actual = true;
+                }
+            }
+        }
+        let mut changed = true;
+        while changed {
+            changed = false;
+            work(b, self.edges.len().saturating_add(1))?;
+            for (to, from) in &self.edges {
+                if required[*to] && !required[*from] {
+                    required[*from] = true;
+                    changed = true;
+                }
+            }
+        }
+        work(b, required.len())?;
+        for (port, required) in required.iter().enumerate() {
+            if *required && domains[port].is_empty() {
+                return Err(Diagnostic::unsupported(
+                    Phase::Verify,
+                    "dynamic upper dependency has no complete actual source",
+                    None,
+                ));
+            }
+        }
         work(b, self.selections.len())?;
         for selection in &self.selections {
             work(b, selection.len())?;
