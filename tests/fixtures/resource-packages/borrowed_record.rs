@@ -800,7 +800,7 @@ fn whole_package_merged_input_program(flag: bool) -> String {
 }
 
 #[test]
-fn qualified_package_manager_read_keeps_existing_opcode_boundary() {
+fn qualified_package_manager_reads_follow_direct_and_returned_windows() {
     let returned = whole_package_identity_program().replace(
         "if *window.refs.pointer==7",
         "if bytes_len(window.bytes)==0 && *window.refs.pointer==7",
@@ -813,14 +813,28 @@ fn qualified_package_manager_read_keeps_existing_opcode_boundary() {
         let report = compile_source(&source(label, &program), &CompileOptions::default());
         assert_eq!(
             report.status,
-            ResultCategory::Unsupported,
+            ResultCategory::Success,
             "{}",
             report.to_json()
         );
-        assert_eq!(report.verification_runs, 0);
-        assert!(report.diagnostics.iter().any(|d| d.phase == zil_base::Phase::Analyze
-            && d.message == "instruction is outside the actual stored profile, including in unreachable blocks"),
-            "{}", report.to_json());
+        assert_eq!(report.verification_runs, 1);
+        let invalidated = program.replace("spare=11;", "value=11;");
+        let rejected = compile_source(&source(label, &invalidated), &CompileOptions::default());
+        assert_eq!(
+            rejected.status,
+            ResultCategory::SafeReject,
+            "{}",
+            rejected.to_json()
+        );
+        assert!(
+            rejected
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("actual stored target/parent loan")
+                    || d.message.contains("live incompatible loan")),
+            "{}",
+            rejected.to_json()
+        );
     }
 }
 
@@ -1041,3 +1055,6 @@ fn qualified_package_return_budget_covers_signatures_chains_and_current_requests
         );
     }
 }
+
+#[path = "borrowed_byte_queries.rs"]
+mod byte_queries;
