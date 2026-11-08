@@ -522,7 +522,12 @@ fn task_multiport_result_budget_boundaries_are_repeatable_and_fresh() {
 #[test]
 fn task_multiport_result_context_work_grows_with_actual_port_leaves() {
     let mut growth = Vec::new();
-    for (width, depth, name_width) in [(2, 2, 8), (4, 6, 64)] {
+    for (width, depth, name_width, slice) in [
+        (2, 2, 8, false),
+        (4, 6, 64, false),
+        (2, 2, 8, true),
+        (4, 6, 64, true),
+    ] {
         let field = format!("field_{}", "x".repeat(name_width));
         let mut ty = "i64".to_owned();
         let mut value = "i64(1)".to_owned();
@@ -559,6 +564,15 @@ fn main()->TaskCreateError!i32 {
   return *pointer-42
  }}},.err(_)=>{return 5}}
 }"#.replace("@field@", &field).replace("@type@", &ty).replace("@value@", &value).replace("@params@", &params).replace("@args@", &args).replace("@context@", &context);
+        let source = if slice {
+            source
+                .replace("&'a Scratch", "&'a [Scratch]")
+                .replace("&scratch", "&scratch[..]")
+                .replace("let scratch=Scratch{", "let scratch=[Scratch{")
+                .replace("\n let number=42", "]\n let number=42")
+        } else {
+            source
+        };
         let module = typed_stored(&source);
         let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
         zil_verify::verify_module(
@@ -621,15 +635,17 @@ fn main()->TaskCreateError!i32 {
                 zil_analyze::analyze(&fresh, &limits).unwrap();
             }
             eprintln!(
-                "multiport growth width={width} depth={depth} field_bytes={} verify={verify} N={high}/N-1/fresh",
+                "multiport growth width={width} depth={depth} field_bytes={} slice={slice} verify={verify} N={high}/N-1/fresh",
                 field.len()
             );
             boundaries.push(high);
         }
         growth.push(boundaries);
     }
-    for phase in 0..2 {
-        assert!(growth[1][phase] > growth[0][phase] + 1024, "{growth:?}");
+    for [small, large] in growth.as_chunks::<2>().0 {
+        for (small, large) in small.iter().zip(large) {
+            assert!(*large > small + 1024, "{growth:?}");
+        }
     }
 }
 

@@ -79,6 +79,7 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
                 payload: element, ..
             }
             | Type::Array { element, .. }
+            | Type::Slice { element }
             | Type::Registration {
                 environment: element,
             }
