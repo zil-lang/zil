@@ -828,3 +828,80 @@ fn seeded_parameter_upper_still_requires_every_store_incoming_source() {
         "seed parameter plus unknown Store: required closure refuses to stop at its initial seed"
     );
 }
+
+#[test]
+fn raw_and_wire_reject_unknown_incoming_upper_before_identity_binding() {
+    let program = "struct Refs<life a>{pointer:&'a i32}fn id<life p>(pointer:&'p i32)->&'p i32{return pointer}fn read<life a,life b>(left:Refs<'a>,right:Refs<'b>,index:i32,flag:bool)->i32{let other=id(right.pointer);let items=[left.pointer,left.pointer];let pointer=if flag{items[index]}else{left.pointer};let holder=Refs::<'a>{pointer:pointer};return *holder.pointer}fn main()->i32{return 0}";
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let mut raw = typed_source("unknown-upper-real-incoming", program, &target, &limits);
+    let mut prior = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), prior.clone(), &target, &limits).unwrap();
+    let f = raw.functions.iter_mut().find(|f| f.name == "read").unwrap();
+    let other = f.locals.iter().find(|l| l.name == "other").unwrap().id;
+    let pointer = f.locals.iter().find(|l| l.name == "pointer").unwrap().id;
+    let stored = |local| {
+        f.blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .find_map(|i| {
+                if let zil_ir::InstructionKind::Store { local: l, value } = i.kind {
+                    (l == local).then_some(value)
+                } else {
+                    None
+                }
+            })
+            .unwrap()
+    };
+    let unknown = stored(other);
+    let selected = stored(pointer);
+    let definition = f
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find(|i| i.result == Some(selected))
+        .unwrap();
+    let zil_ir::InstructionKind::Load(phi) = definition.kind else {
+        panic!("actual conditional local")
+    };
+    let dynamic = f
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find(|i| matches!(i.kind, zil_ir::InstructionKind::ExtractIndex { .. }))
+        .unwrap()
+        .result
+        .unwrap();
+    let branch=f.blocks.iter_mut().flat_map(|b|&mut b.instructions).find(|i|matches!(i.kind,zil_ir::InstructionKind::Store{local,value}if local==phi&&value!=dynamic)).unwrap();
+    let zil_ir::InstructionKind::Store { value, .. } = &mut branch.kind else {
+        unreachable!()
+    };
+    *value = unknown;
+    let errors = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d
+            .message
+            .contains("upper dependency has no complete actual source")),
+        "{errors:?}"
+    );
+    prior.module_fingerprint = raw.fingerprint();
+    let errors =
+        zil_verify::verify_module(raw.clone(), prior.clone(), &target, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d
+            .message
+            .contains("upper dependency has no complete actual source")),
+        "{errors:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &prior, &limits).unwrap();
+    let errors = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d
+            .message
+            .contains("upper dependency has no complete actual source")),
+        "{errors:?}"
+    );
+    println!(
+        "unknown incoming copy branch: Analyze/Verify/Wire independent completeness rejection"
+    );
+}
