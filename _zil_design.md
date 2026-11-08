@@ -1448,9 +1448,9 @@ opaque载体共同`RetainedLifeShape`保留binder_count、完整typed ports、�
 
 同一程序的 Task 消费者按实际完整 Task 类型分别核验：共享借入结果不改变既有零 port、共享/独占多 port 标量结果的准入。私有逐 port 来源携带各自真实模式和 ordinal，构造、拥有移动、helper 及清理均保留这些输入；只有已认证共享结果的实际 TaskPoll 能将结果叶关联到该保留输入。模块中存在这种结果只启用证明，不向其它 Task 的结果制造 Address 权限。
 
-共享借入结果使用原有 TaskPollState!Poll<R> ABI，不增加结果提取原语。当前直接共享 Address 结果要求 Task 的 retained 中有唯一 `[Result],class0→binder0` 映射，并与唯一 SharedAddress 输入 port 的完整叶类型一致。该声明只限定来源上界：两核仍从实际 worker 返回、TaskCreate 有序实参和 port_bindings 独立证明结果来自该输入；binder/class 相等不能替代实际目标身份，frame-local 或其它未保留来源拒绝。Core Task recipe 无损携带 retained 映射，Types 在解析实际结果/port 类型后重新认证。
+共享借入结果使用原有 TaskPollState!Poll<R> ABI，不增加结果提取原语。当前直接共享 Address 结果要求 Task 的 retained 中有唯一 `[Result],class0→binder` 映射，binder 对应规范密集输入类中的非空 SharedAddress port 集合，并至少有一个端口的完整叶类型与结果一致。允许多个不同输入类和普通标量参数；port ordinal 与 TaskCreate 实参的 parameter ordinal 分别核验，不固定返回首端口，也不按 pointee 类型猜测来源关系。该声明只限定来源上界：两核仍从实际 worker 返回、TaskCreate 有序实参和 port_bindings 独立证明结果来自该类中完整叶类型一致的真实输入集合；binder/class 相等不能替代实际目标身份，frame-local 或其它未保留来源拒绝。Core Task recipe 无损携带 retained 映射，Types 在解析实际结果/port 类型后重新认证。
 
-TaskPoll 的成功 Ready 叶保留真实外部重借父链，Pending 和错误臂不导出 payload loan。Task 壳的物理写目标与保留输入、结果依赖分开求证；公开 Hold 仍逐值表示完整强依赖。TaskFinishDestroy 结清 frame keeper 后，调用者的 Ready 引用可继续使用；它的共享贷款仍暂停原外部独占父窗口，直到结果的最后使用。创建失败臂没有 frame，取消/关闭状态本身不释放成功 frame 的输入责任。
+TaskPoll 的成功 Ready 叶保留真实外部重借父链，Pending 和错误臂不导出 payload loan。Task 壳的物理写目标与保留输入、结果依赖分开求证；公开 Hold 仍逐值表示完整强依赖。TaskFinishDestroy 结清所有 frame keeper 后，未被结果类导出的输入归还真实父窗口，调用者的 Ready 引用可继续使用；它的共享贷款只保留已声明结果类中完整叶类型一致的真实输入及父链，仍暂停这些外部独占父窗口，直到结果的最后使用。创建失败臂没有 frame，取消/关闭状态本身不释放成功 frame 的输入责任。
 
 PC0 在首次轮询前已将真实输入指针存入稳定帧。两核独立保护随拥有责任在创建、成功错误联合、局部移动、合法 helper 返回及解构间转交的帧借用，不能按最初 SSA 的末用提前结束。Allocation 实际错误边没有帧；成功帧的 Pending、Ready、请求取消和 PollClose 不归还借用。首片保守保持到真实成功的 TaskFinishDestroy 或已证明同步的默认清理结束，不宣称仅 Closed 而未销毁即可立即重借。结果本身的拥有/借用责任另行核验，不因清理帧而删除调用者仍持有的 loan。
 

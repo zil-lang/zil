@@ -766,11 +766,13 @@ fn check_with(
                             && !values[task.0 as usize].task_ports.is_empty()
                         {
                             let input = &values[task.0 as usize];
+                            resources::charge_payload(&f.values[task.0 as usize], b)?;
                             let port = input
                                 .task_ports
                                 .iter()
                                 .find(|(p, _)| {
-                                    p == &vec![zil_ir::ContractProjection::RetainedPort(0)]
+                                    matches!(p.as_slice(), [zil_ir::ContractProjection::RetainedPort(port)]
+                                        if super::tasks::result_port(&f.values[task.0 as usize], *port))
                                 })
                                 .ok_or_else(|| bad("TaskPoll has no actual retained class"))?
                                 .1;

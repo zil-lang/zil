@@ -12,6 +12,514 @@ use zil_ir::{
 };
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 #[test]
+fn task_multiport_result_tracks_the_nonfirst_input() {
+    let source =
+        include_str!("../../../tests/fixtures/task-borrow-results/multiport-shared-result.zil");
+    let module = typed_stored(source);
+    let creates = module
+        .functions
+        .iter()
+        .flat_map(|f| {
+            f.blocks.iter().flat_map(move |b| {
+                b.instructions.iter().filter_map(move |i| {
+                    let InstructionKind::TaskCreate { port_bindings, .. } = &i.kind else {
+                        return None;
+                    };
+                    Some((f, i, port_bindings))
+                })
+            })
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(creates.len(), 1);
+    let (factory, create, ports) = creates[0];
+    assert_eq!(
+        ports
+            .iter()
+            .map(|p| (p.port, p.source.base))
+            .collect::<Vec<_>>(),
+        [
+            (0, zil_ir::StorageBase::Parameter(1)),
+            (1, zil_ir::StorageBase::Parameter(2))
+        ]
+    );
+    let Type::ErrorUnion { result, .. } = &factory.values[create.result.unwrap().0 as usize] else {
+        unreachable!()
+    };
+    let Type::Managed(task) = result.as_ref() else {
+        unreachable!()
+    };
+    let Type::Task { retained_life, .. } = task.as_ref() else {
+        unreachable!()
+    };
+    assert_eq!(retained_life.binder_count, 2);
+    assert_eq!(retained_life.ports[0].leaf, retained_life.ports[1].leaf);
+    assert_eq!(retained_life.retained[0].binder, 1);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+    for variant in [
+        source.replace("<life a,life b>", "<life b,life a>"),
+        source
+            .replace("life a", "life scratch_bound")
+            .replace("&'a", "&'scratch_bound")
+            .replace("life b", "life result_bound")
+            .replace("&'b", "&'result_bound"),
+    ] {
+        let changed = typed_stored(&variant);
+        let candidate = zil_analyze::analyze(&changed, &Limits::default()).unwrap();
+        let bytes = zil_ir::wire::encode_module_candidate(&changed, &candidate, &Limits::default())
+            .unwrap();
+        zil_verify::verify_module_bytes(&bytes, &changed.target, &Limits::default()).unwrap();
+    }
+    native_borrowed_enum(&zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "multiport.zil",
+            source,
+        )],
+        paths: Default::default(),
+    });
+}
+
+#[test]
+fn task_multiport_result_three_shared_inputs_keep_the_middle_class() {
+    let source =
+        include_str!("../../../tests/fixtures/task-borrow-results/multiport-shared-result.zil")
+            .replace("<life a,life b>", "<life a,life b,life c>")
+            .replace("pointer:&'b i32)", "pointer:&'b i32,extra:&'c i32)")
+            .replace("(&'a i32,&'b i32)", "(&'a i32,&'b i32,&'c i32)")
+            .replace(
+                " let observed=*scratch",
+                " let observed=*scratch\n let additional=*extra",
+            )
+            .replace(
+                "task_create(worker,7,scratch,pointer)",
+                "task_create(worker,7,scratch,pointer,extra)",
+            )
+            .replace(" var scratch=9", " let extra=11\n var scratch=9")
+            .replace(
+                "start(&*scratch_parent,&*q)",
+                "start(&*scratch_parent,&*q,&extra)",
+            );
+    let module = typed_stored(&source);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+    native_borrowed_enum(&zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "three-shared-inputs.zil",
+            source,
+        )],
+        paths: Default::default(),
+    });
+}
+
+#[test]
+fn task_multiport_result_same_class_different_full_leaves_do_not_export_the_scratch_port() {
+    let source =
+        include_str!("../../../tests/fixtures/task-borrow-results/multiport-shared-result.zil")
+            .replace("<life a,life b>", "<life b>")
+            .replace("scratch:&'a i32", "scratch:&'b i64")
+            .replace("(&'a i32,&'b i32)", "(&'b i64,&'b i32)")
+            .replace(" var scratch=9", " var scratch=i64(9)")
+            .replace("*scratch_parent=10", "*scratch_parent=i64(10)")
+            .replace("+released-10", "+i32(released)-10");
+    let module = typed_stored(&source);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+    native_borrowed_enum(&zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "same-class-distinct-leaves.zil",
+            source,
+        )],
+        paths: Default::default(),
+    });
+}
+
+#[test]
+fn task_multiport_result_cross_module_factory_and_relay() {
+    native_borrowed_enum(&zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![
+            SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "main.zil",
+                include_str!("../../../tests/fixtures/task-borrow-results/multiport-main.zil"),
+            ),
+            SourceUnit::new(
+                FileId(1),
+                ModuleId(1),
+                "api.zil",
+                include_str!("../../../tests/fixtures/task-borrow-results/multiport-api.zil"),
+            ),
+        ],
+        paths: std::collections::BTreeMap::from([(vec!["api".into()], ModuleId(1))]),
+    });
+}
+
+#[test]
+fn task_multiport_result_cancel_and_create_failure_release_both_inputs() {
+    let source =
+        include_str!("../../../tests/fixtures/task-borrow-results/multiport-create-branches.zil");
+    native_borrowed_enum(&zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "multiport-cancel.zil",
+            source,
+        )],
+        paths: Default::default(),
+    });
+    #[cfg(target_os = "linux")]
+    native_task_result_allocation_failure(source);
+}
+
+#[test]
+fn task_multiport_result_rejects_wrong_source_and_forged_relations() {
+    let module = typed_stored(include_str!(
+        "../../../tests/fixtures/task-borrow-results/multiport-shared-result.zil"
+    ));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    for mutation in 0..6 {
+        let mut changed = module.clone();
+        if mutation <= 1 {
+            let worker = changed
+                .functions
+                .iter_mut()
+                .find(|f| f.name == "worker")
+                .unwrap();
+            let local = worker
+                .locals
+                .iter()
+                .find(|l| l.name == if mutation == 0 { "scratch" } else { "local" })
+                .unwrap()
+                .id;
+            let returned = worker
+                .blocks
+                .iter()
+                .find_map(|block| match block.terminator {
+                    zil_ir::Terminator::Return(Some(value)) => Some(value),
+                    _ => None,
+                })
+                .unwrap();
+            let producer = worker
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| i.result == Some(returned))
+                .unwrap();
+            producer.kind = if mutation == 0 {
+                InstructionKind::Load(local)
+            } else {
+                InstructionKind::BorrowLocal { local }
+            };
+        } else {
+            let factory = changed
+                .functions
+                .iter_mut()
+                .find(|f| f.name == "start")
+                .unwrap();
+            let create = factory
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| matches!(i.kind, InstructionKind::TaskCreate { .. }))
+                .unwrap();
+            if mutation == 2 {
+                let InstructionKind::TaskCreate { port_bindings, .. } = &mut create.kind else {
+                    unreachable!()
+                };
+                let source = port_bindings[0].source.clone();
+                port_bindings[0].source = port_bindings[1].source.clone();
+                port_bindings[1].source = source;
+            } else {
+                let Type::ErrorUnion { result, .. } =
+                    &mut factory.values[create.result.unwrap().0 as usize]
+                else {
+                    unreachable!()
+                };
+                let Type::Managed(task) = result.as_mut() else {
+                    unreachable!()
+                };
+                let Type::Task { retained_life, .. } = task.as_mut() else {
+                    unreachable!()
+                };
+                match mutation {
+                    3 => retained_life.retained[0].binder = 0,
+                    4 => retained_life.retained.clear(),
+                    5 => {
+                        retained_life.ports[0].binder = 1;
+                        retained_life.ports[1].binder = 0;
+                    }
+                    _ => unreachable!(),
+                }
+            }
+        }
+        assert!(
+            zil_analyze::analyze(&changed, &Limits::default()).is_err(),
+            "Analyze accepted mutation {mutation}"
+        );
+        let mut candidate = plan.clone();
+        candidate.module_fingerprint = changed.fingerprint();
+        let bytes = zil_ir::wire::encode_module_candidate(&changed, &candidate, &Limits::default())
+            .unwrap();
+        for diagnostics in [
+            zil_verify::verify_module(
+                changed.clone(),
+                candidate,
+                &changed.target,
+                &Limits::default(),
+            )
+            .unwrap_err(),
+            zil_verify::verify_module_bytes(&bytes, &changed.target, &Limits::default())
+                .unwrap_err(),
+        ] {
+            assert!(
+                diagnostics.iter().any(|d| d.phase == Phase::Verify
+                    && matches!(
+                        d.category,
+                        ResultCategory::SafeReject | ResultCategory::Unsupported
+                    )),
+                "mutation {mutation}: {diagnostics:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn task_multiport_result_ready_hold_and_selected_parent_are_required() {
+    let source =
+        include_str!("../../../tests/fixtures/task-borrow-results/multiport-shared-result.zil");
+    let module = typed_stored(source);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let (function, value) = module
+        .functions
+        .iter()
+        .find_map(|f| {
+            f.blocks.iter().flat_map(|b| &b.instructions).find_map(|i| {
+                matches!(i.kind, InstructionKind::TaskPoll { .. })
+                    .then(|| (f.id, i.result.unwrap()))
+            })
+        })
+        .unwrap();
+    for roots in [vec![], vec![zil_ir::HoldRoot::Static]] {
+        let mut candidate = plan.clone();
+        candidate.functions[function.0 as usize].holds[value.0 as usize].roots = roots;
+        reject(
+            "multiport-ready-hold",
+            module.clone(),
+            candidate,
+            "E-VERIFY-STORED",
+        );
+    }
+    let invalid = source.replace(
+        "    let observed=*pointer",
+        "    *q=99\n    let observed=*pointer",
+    );
+    let invalid = typed_stored(&invalid);
+    assert!(zil_analyze::analyze(&invalid, &Limits::default()).is_err());
+    reject(
+        "multiport-result-parent-write",
+        invalid,
+        plan,
+        "E-VERIFY-STORED",
+    );
+}
+
+#[test]
+fn task_multiport_result_keeps_every_input_until_destroy_and_the_selected_result_afterwards() {
+    let source =
+        include_str!("../../../tests/fixtures/task-borrow-results/multiport-shared-result.zil");
+    let cancel =
+        include_str!("../../../tests/fixtures/task-borrow-results/multiport-create-branches.zil");
+    for (label, invalid) in [
+        (
+            "wrong-worker-source",
+            source.replace(" return pointer", " return scratch"),
+        ),
+        (
+            "pc0-scratch",
+            source.replacen(
+                " match poll(&mut task)",
+                " *scratch_parent=99\n match poll(&mut task)",
+                1,
+            ),
+        ),
+        (
+            "pc0-result",
+            source.replacen(
+                " match poll(&mut task)",
+                " *q=99\n match poll(&mut task)",
+                1,
+            ),
+        ),
+        (
+            "pending-scratch",
+            source.replacen(
+                "Poll.Pending()=>{}",
+                "Poll.Pending()=>{*scratch_parent=99}",
+                1,
+            ),
+        ),
+        (
+            "ready-before-destroy",
+            source.replace(
+                "    task_finish_destroy(give task)",
+                "    *scratch_parent=99\n    task_finish_destroy(give task)",
+            ),
+        ),
+        (
+            "result-after-destroy",
+            source.replace(
+                "    let observed=*pointer",
+                "    *q=99\n    let observed=*pointer",
+            ),
+        ),
+        (
+            "cancel-before-destroy",
+            cancel.replace(
+                "   task_finish_destroy(give owner)",
+                "   *scratch=99\n   task_finish_destroy(give owner)",
+            ),
+        ),
+    ] {
+        let report = zil_driver::compile_source(
+            &SourceUnit::new(FileId(0), ModuleId(0), label, invalid),
+            &zil_driver::CompileOptions {
+                stop_after: zil_driver::Stage::Verify,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{label}: {}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| matches!(d.phase, Phase::Expand | Phase::Types | Phase::Analyze)),
+            "{label}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn task_multiport_result_budget_boundaries_are_repeatable_and_fresh() {
+    let source =
+        include_str!("../../../tests/fixtures/task-borrow-results/multiport-shared-result.zil");
+    let core = stored_core(source);
+    let module = typed_stored(source);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    for phase in [Phase::Types, Phase::Analyze, Phase::Verify] {
+        let run = |steps| {
+            let limits = Limits {
+                max_analysis_steps: steps,
+                ..Limits::default()
+            };
+            match phase {
+                Phase::Types => zil_types::check(&core, &module.target, &limits)
+                    .map(|actual| assert_eq!(actual, module)),
+                Phase::Analyze => {
+                    zil_analyze::analyze(&module, &limits).map(|actual| assert_eq!(actual, plan))
+                }
+                Phase::Verify => {
+                    zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits)
+                        .map(|_| ())
+                }
+                _ => unreachable!(),
+            }
+        };
+        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+        run(high).unwrap();
+        while low + 1 < high {
+            let mid = low + (high - low) / 2;
+            match run(mid) {
+                Ok(()) => high = mid,
+                Err(ds) => {
+                    assert!(
+                        ds.iter()
+                            .all(|d| d.category == ResultCategory::ResourceLimit),
+                        "{phase:?}: {ds:?}"
+                    );
+                    low = mid;
+                }
+            }
+        }
+        for _ in 0..2 {
+            run(high).unwrap();
+            assert!(
+                run(high - 1)
+                    .unwrap_err()
+                    .iter()
+                    .all(|d| d.category == ResultCategory::ResourceLimit)
+            );
+        }
+        let fresh = typed_stored(source);
+        let fresh_plan = zil_analyze::analyze(&fresh, &Limits::default()).unwrap();
+        assert_eq!(fresh, module);
+        assert_eq!(fresh_plan, plan);
+        let limits = Limits {
+            max_analysis_steps: high,
+            ..Limits::default()
+        };
+        match phase {
+            Phase::Types => assert_eq!(
+                zil_types::check(&stored_core(source), &fresh.target, &limits).unwrap(),
+                fresh
+            ),
+            Phase::Analyze => {
+                assert_eq!(zil_analyze::analyze(&fresh, &limits).unwrap(), fresh_plan)
+            }
+            Phase::Verify => {
+                zil_verify::verify_module(fresh.clone(), fresh_plan, &fresh.target, &limits)
+                    .unwrap();
+            }
+            _ => unreachable!(),
+        }
+        eprintln!(
+            "multiport {phase:?}: accepted N={high}, rejected N-1={}",
+            high - 1
+        );
+    }
+}
+
+#[test]
 fn task_borrowed_result_local_create_poll_has_no_header_dependency() {
     let source = include_str!("../../../tests/fixtures/task-borrow-results/local-create-poll.zil");
     for text in [
@@ -219,6 +727,11 @@ fn task_borrowed_result_local_catalog_budget_is_repeatable_at_the_exact_boundary
         (
             "borrowed-task",
             include_str!("../../../tests/fixtures/task-borrow-results/local-create-poll.zil"),
+            true,
+        ),
+        (
+            "multiport-borrowed-task",
+            include_str!("../../../tests/fixtures/task-borrow-results/multiport-shared-result.zil"),
             true,
         ),
         ("unused-shared-worker", control, false),
