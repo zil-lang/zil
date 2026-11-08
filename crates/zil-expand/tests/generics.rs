@@ -707,3 +707,29 @@ fn concrete_local_callables_keep_owned_signatures_and_actual_modes() {
         assert!(zil_expand::expand(&source, &syntax).is_err(), "{body}");
     }
 }
+
+#[test]
+fn nested_generic_error_arguments_retain_symbolic_choices_before_substitution() {
+    for text in [
+        "fn sink<T:Copy>(v:T!i32,w:T)->i32{return 0}fn relay<U:Copy>(w:U)->i32{return sink(7,w)}fn main()->i32{return relay(0)}",
+        "fn sink<T:Copy>(w:T,v:T!i32)->i32{return 0}fn relay<U:Copy>(w:U)->i32{return sink(w,7)}fn main()->i32{return relay(0)}",
+    ] {
+        let unit = SourceUnit::new(FileId(0), ModuleId(0), "nested-error-argument.zil", text);
+        let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+        zil_expand::expand(&unit, &syntax).unwrap();
+    }
+    for text in [
+        "fn sink<T:Copy>(v:T!T,w:T)->i32{return 0}fn relay<U:Copy>(w:U)->i32{return sink(w,w)}fn main(){}",
+        "fn sink<T:Copy>(w:T,v:T!T)->i32{return 0}fn relay<U:Copy>(w:U)->i32{return sink(w,w)}fn main(){}",
+    ] {
+        let unit = SourceUnit::new(FileId(0), ModuleId(0), "ambiguous-error-argument.zil", text);
+        let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+        let errors = zil_expand::expand(&unit, &syntax).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.phase == Phase::Expand && e.code == "E-GENERIC-ARGUMENT"),
+            "{errors:?}"
+        );
+    }
+}

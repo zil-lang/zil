@@ -1102,6 +1102,64 @@ impl Check<'_, '_, '_> {
         }
         Ok(())
     }
+    fn selected_error_argument(
+        &mut self,
+        expression: &Expr,
+        expected: &TypeRef,
+        is_error: bool,
+    ) -> R<()> {
+        if self.expression_ids.is_empty() {
+            self.expression_ids = Cow::Owned(trait_instances::expression_ids(
+                self.scoped_source,
+                self.budget,
+            )?);
+        }
+        let ordinal = *self
+            .expression_ids
+            .get(&(expression as *const Expr as usize))
+            .ok_or_else(|| {
+                error(
+                    expression.span,
+                    "selected error argument has no expression identity",
+                )
+            })?;
+        let TypeKind::Error {
+            error: error_type,
+            result,
+        } = &group(expected).kind
+        else {
+            return Err(error(
+                expression.span,
+                "selected error argument lacks a complete union",
+            ));
+        };
+        self.budget.ty(error_type)?;
+        self.budget.ty(result)?;
+        self.budget.lineage_bytes(
+            std::mem::size_of::<(usize, error_injection::ArgumentChoice)>(),
+            expression.span,
+        )?;
+        if self
+            .selected_error_arms
+            .arguments
+            .insert(
+                ordinal,
+                error_injection::ArgumentChoice {
+                    span: expression.span,
+                    error: (**error_type).clone(),
+                    result: (**result).clone(),
+                    is_error,
+                },
+            )
+            .is_some()
+        {
+            return Err(error(
+                expression.span,
+                "generic error argument selected twice at one node",
+            ));
+        }
+        Ok(())
+    }
     fn life_copy(&mut self, roots: &BTreeSet<usize>, span: Span) -> R<BTreeSet<usize>> {
         for _ in roots {
             self.budget.node(span, 0)?;
@@ -5153,7 +5211,19 @@ impl Check<'_, '_, '_> {
                     index,
                 )?
             };
-            if !context_argument(
+            if matches!(group(&hint).kind, TypeKind::Error { .. })
+                && !context_unresolved(&parameter.ty, variables, found, self.budget)?
+            {
+                if let Some(is_error) = role_check::same_return_selected(
+                    &actual,
+                    &hint,
+                    argument.span,
+                    self.class_scope,
+                    self.budget,
+                )? {
+                    self.selected_error_argument(&argument.value, &hint, is_error)?;
+                }
+            } else if !context_argument(
                 &parameter.ty,
                 &actual,
                 variables,

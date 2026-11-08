@@ -958,3 +958,66 @@ fn runtime_try_does_not_hide_comptime_work_or_execute_runtime_errors_at_ct() {
     );
     assert!(!report.artifacts.contains_key("executable"));
 }
+
+#[test]
+fn generic_call_arguments_keep_definition_selected_error_tags_at_equal_instances() {
+    for (definition, expected) in [
+        (
+            "fn sink<T:Copy>(v:T!i32,w:T)->i32{match v{.ok(n)=>{return n},.err(_)=>{return 19}}}fn relay<U:Copy>(w:U)->i32{return sink(7,w)}",
+            7,
+        ),
+        (
+            "fn sink<T:Copy>(w:T,v:T!i32)->i32{match v{.ok(n)=>{return n},.err(_)=>{return 19}}}fn relay<U:Copy>(w:U)->i32{return sink(w,7)}",
+            7,
+        ),
+        (
+            "fn sink<T:Copy>(v:T!i32,w:T)->i32{match v{.ok(_)=>{return 19},.err(_)=>{return 7}}}fn relay<U:Copy>(w:U)->i32{return sink(w,w)}",
+            7,
+        ),
+        (
+            "fn sink<T:Copy>(w:T,v:T!i32)->i32{match v{.ok(_)=>{return 19},.err(_)=>{return 7}}}fn relay<U:Copy>(w:U)->i32{return sink(w,w)}",
+            7,
+        ),
+    ] {
+        let text = format!("{definition}fn result()->i32{{return relay(0)}}fn main(){{}}");
+        let input = SourceUnit::new(FileId(0), ModuleId(0), "generic-error-argument.zil", text);
+        let temp = Temp::new();
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let report = compile_source(
+                    &input,
+                    &CompileOptions {
+                        stop_after: Stage::Build,
+                        entry: Some("result".into()),
+                        backend,
+                        optimization,
+                        output: Some(
+                            temp.0
+                                .join(format!("argument-{backend:?}-{optimization:?}")),
+                        ),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert_eq!(codegen.backend, backend);
+                assert!(codegen.fallback.is_none());
+                run(
+                    &report.artifacts["executable"],
+                    b"",
+                    0,
+                    &format!("{expected}\n"),
+                );
+            }
+        }
+    }
+}
