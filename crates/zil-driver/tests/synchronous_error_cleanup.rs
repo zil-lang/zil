@@ -1238,3 +1238,70 @@ fn main(){}
         );
     }
 }
+
+#[test]
+fn generic_method_payload_arguments_use_unique_outer_error_context() {
+    let shared = "trait Read{fn value<T:Copy>(self:&Self,w:T)->i32;}struct Host{}impl Read for Host{fn value<T:Copy>(w:T)->i32{return 7}}";
+    for text in [
+        format!("{shared}fn sink<T:Copy>(v:T!i32,w:T)->i32{{match v{{.ok(n)=>{{return n}},.err(_)=>{{return 19}}}}}}fn relay<U:Copy,X:Read>(w:U,x:&X)->i32{{return sink(x.value(w),w)}}fn result()->i32{{let h=Host{{}};return relay(0,&h)}}fn main(){{}}"),
+        format!("{shared}fn sink<T:Copy>(w:T,v:T!i32)->i32{{match v{{.ok(n)=>{{return n}},.err(_)=>{{return 19}}}}}}fn relay<U:Copy,X:Read>(w:U,x:&X)->i32{{return sink(w,x.value(w))}}fn result()->i32{{let h=Host{{}};return relay(0,&h)}}fn main(){{}}"),
+        "trait Echo{fn value<T:Copy>(self:&Self,w:T)->T;}struct Host{}impl Echo for Host{fn value<T:Copy>(w:T)->T{return w}}fn sink<T:Copy>(v:T!i32,w:T)->i32{match v{.ok(_)=>{return 19},.err(_)=>{return 7}}}fn relay<U:Copy,X:Echo>(w:U,x:&X)->i32{return sink(x.value(w),w)}fn result()->i32{let h=Host{};return relay(0,&h)}fn main(){}".into(),
+    ] {
+        let input = SourceUnit::new(FileId(0), ModuleId(0), "generic-method-error-argument.zil", text);
+        let syntax = zil_syntax::parse(&input).into_result().unwrap();
+        let core = zil_expand::expand(&input, &syntax).unwrap();
+        let limits = zil_base::Limits::default();
+        let target = zil_base::TargetProfile::default();
+        let raw = zil_types::check(&core, &target, &limits).unwrap();
+        let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+        zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+        let temp = Temp::new();
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") { continue; }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let report = compile_source(&input, &CompileOptions {
+                    stop_after: Stage::Build, entry: Some("result".into()), backend, optimization,
+                    output: Some(temp.0.join(format!("method-error-{backend:?}-{optimization:?}"))), ..CompileOptions::default()
+                });
+                assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+                assert_eq!(report.verification_runs, 1);
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert_eq!(codegen.backend, backend);
+                assert!(codegen.fallback.is_none());
+                run(&report.artifacts["executable"], b"", 0, "7\n");
+            }
+        }
+    }
+    for text in [
+        "trait Echo{fn value<T:Copy>(self:&Self,w:T)->T;}fn sink<T:Copy>(v:T!T,w:T)->i32{return 0}fn bad<U:Copy,X:Echo>(w:U,x:&X)->i32{return sink(x.value(w),w)}fn main(){}",
+        "trait Read{fn value<T:Copy>(self:&Self,w:T)->bool;}fn sink<T:Copy>(v:T!i32,w:T)->i32{return 0}fn bad<U:Copy,X:Read>(w:U,x:&X)->i32{return sink(x.value(w),w)}fn main(){}",
+        "trait Read{fn value<T:Copy>(self:&Self,w:T)->i32;}struct Wrong{}fn relay<U:Copy,X:Read>(w:U,x:&X)->i32{return x.value(w)}fn main()->i32{let x=Wrong{};return relay(0,&x)}",
+    ] {
+        let report = compile_source(
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "invalid-method-error-argument.zil",
+                text,
+            ),
+            &CompileOptions::default(),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|e| e.phase == Phase::Expand && e.code == "E-GENERIC-ARGUMENT"),
+            "{}",
+            report.to_json()
+        );
+    }
+}
