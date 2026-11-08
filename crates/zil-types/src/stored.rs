@@ -512,6 +512,42 @@ fn closed_copy(ty: &Type, left: &mut usize, depth: usize, limit: usize, span: Sp
     })
 }
 
+/// A complete inline Record contributes addresses, never an owning leaf.
+/// Physical coverage and class mappings are authenticated by the shape pass.
+pub(crate) fn shared_record_child(ty: &Type) -> bool {
+    let Type::BorrowedStorage { storage, life } = ty else {
+        return false;
+    };
+    let Type::Record { fields, .. } = storage.as_ref() else {
+        return false;
+    };
+    !life.slots.is_empty()
+        && life.retained.is_empty()
+        && life.slots.iter().all(|slot| {
+            slot.mode == StoredBorrowMode::SharedAddress
+                && matches!(slot.path.as_slice(), [PlaceProjection::Field(_)])
+        })
+        && fields.iter().all(|(_, field)| {
+            let scalar = |ty: &Type| {
+                matches!(
+                    ty,
+                    Type::Unit
+                        | Type::Bool
+                        | Type::I32
+                        | Type::I64
+                        | Type::U64
+                        | Type::Usize
+                        | Type::U8
+                        | Type::U16
+                        | Type::F32
+                        | Type::F64
+                )
+            };
+            scalar(field)
+                || matches!(field, Type::Address { mutable: false, inner } if scalar(inner))
+        })
+}
+
 pub(super) fn shared_value(ty: &Type) -> bool {
     // Builder only receives Resolver output. Its paid shape check admits this
     // shared finite profile and binds it to the actual nominal inventory.
@@ -801,7 +837,10 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
                     self.ty(element, path, depth + 1)?;
                 }
                 Type::BorrowedStorage { storage, life } => {
-                    if !self.owning || !matches!(storage.as_ref(), Type::Package { .. }) {
+                    if !self.owning
+                        || (!matches!(storage.as_ref(), Type::Package { .. })
+                            && !shared_record_child(ty))
+                    {
                         if !retained::pure(ty, self.span, self.left)? {
                             return Err(unsupported(
                                 self.span,

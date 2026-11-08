@@ -139,6 +139,7 @@ fn admit_shape(
                 // Copy: stored-flow separately proves its target, exclusivity
                 // and carrier lifetime on every actual operation.
                 Type::Address { .. } if qualified => {}
+                _ if qualified && crate::stored_flow::shared_record_child(ty) => {}
                 ty if ty.is_copy_value() => {}
                 _ => {
                     if borrowed {

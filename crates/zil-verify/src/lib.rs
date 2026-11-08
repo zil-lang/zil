@@ -2780,6 +2780,12 @@ fn check_instruction(
                     "field projection index outside its record or tuple",
                 )
             })?;
+            if *mutable && stored_flow::shared_record_child(field) {
+                return Err(unsupported(
+                    "exclusive nested Record windows require their slot consumer",
+                    span,
+                ));
+            }
             if matches!(projected, Type::Package { .. })
                 && let Type::Closure(id) = field
             {

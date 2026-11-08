@@ -2725,3 +2725,6 @@ fn same_stored_leaf_and_same_exclusive_input_reject() {
         report.to_json()
     );
 }
+
+#[path = "borrowed_record.rs"]
+mod borrowed_record;

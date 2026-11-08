@@ -1393,6 +1393,10 @@ impl Resolver<'_> {
                             f.span,
                         )?)
                     || (stored_instance.is_some() && matches!(ty, Type::Address { .. }))
+                    || (stored_instance.is_some()
+                        && d.kind == AggregateKind::Package
+                        && !f.manages
+                        && stored::shared_record_child(&ty))
                     || (d.kind == AggregateKind::Package
                         && !f.manages
                         && d.name.starts_with("$generic_")
