@@ -924,36 +924,42 @@ fn scalar_body(
 
 impl Builder<'_, '_> {
     pub(super) fn dyn_method_slot(
-        &self,
+        &mut self,
         object: &CoreExpr,
         member: &str,
-    ) -> Option<(DynInterfaceId, u32)> {
-        let interface = match self.known_type(object)? {
-            Type::Address { inner, .. } => match *inner {
-                Type::Dyn { interface } => interface,
-                _ => return None,
-            },
-            Type::OwnedDyn { interface } => interface,
-            _ => return None,
+    ) -> R<Option<(DynInterfaceId, u32)>> {
+        let Some(actual) = self.known_type_checked(object)? else {
+            return Ok(None);
         };
-        let definition = self
-            .dyn_interfaces
-            .iter()
-            .find(|candidate| candidate.id == interface)?;
-        let mut found = None;
-        for (index, slot) in definition.slots.iter().enumerate() {
-            let declaration = self
-                .dyn_declarations
+        let result = (|| {
+            let interface = match actual {
+                Type::Address { inner, .. } => match *inner {
+                    Type::Dyn { interface } => interface,
+                    _ => return None,
+                },
+                Type::OwnedDyn { interface } => interface,
+                _ => return None,
+            };
+            let definition = self
+                .dyn_interfaces
                 .iter()
-                .find(|declaration| declaration.id == slot.member.application.declaration)?;
-            if declaration.members.get(slot.member.ordinal as usize)?.name == member {
-                if found.is_some() {
-                    return None;
+                .find(|candidate| candidate.id == interface)?;
+            let mut found = None;
+            for (index, slot) in definition.slots.iter().enumerate() {
+                let declaration = self
+                    .dyn_declarations
+                    .iter()
+                    .find(|declaration| declaration.id == slot.member.application.declaration)?;
+                if declaration.members.get(slot.member.ordinal as usize)?.name == member {
+                    if found.is_some() {
+                        return None;
+                    }
+                    found = Some((interface, index as u32));
                 }
-                found = Some((interface, index as u32));
             }
-        }
-        found
+            found
+        })();
+        Ok(result)
     }
 
     pub(super) fn dyn_coerce(

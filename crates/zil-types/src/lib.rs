@@ -63,6 +63,7 @@ mod stored;
 mod task_factories;
 mod tasks;
 mod tuple_bindings;
+mod type_hints;
 mod utf8_literals;
 pub use inference::{infer_program_closures, infer_source_closures};
 pub use program::{check_program, resolve_program_shapes};
@@ -109,7 +110,7 @@ fn signatures(
     limits: &Limits,
     offset: usize,
     exports: Option<&std::collections::BTreeSet<zil_base::NodeId>>,
-    array_billing: bool,
+    array_billing: &mut bool,
 ) -> CompileResult<BTreeMap<String, Signature>> {
     let mut errors = Vec::new();
     if core.schema_version != SCHEMA_VERSION {
@@ -245,11 +246,12 @@ fn signatures(
         ) {
             errors.push(diagnostic);
         }
-        let mut signature_arrays = array_billing;
+        let mut signature_arrays = *array_billing;
         if f.type_parameters.is_empty() {
             signature_arrays |=
                 signature_errors(f, &mut errors, limits, &mut foreign_work).map_err(|e| vec![e])?;
         }
+        *array_billing |= signature_arrays;
         if signature_arrays {
             inference::charge_type_snapshot(&f.return_type, f.span, limits, &mut foreign_work, 1)
                 .map_err(|e| vec![e])?;
@@ -475,7 +477,7 @@ pub fn check(
     let (life_declarations, life_instances) = closure_state
         .copy_stored_inventory(core)
         .map_err(|e| vec![e])?;
-    let mut signatures = signatures(core, limits, 0, None, closure_state.array_billing)?;
+    let mut signatures = signatures(core, limits, 0, None, &mut closure_state.array_billing)?;
     let dyn_vtables = dyn_dispatch::inventory(core, &signatures, limits).map_err(|e| vec![e])?;
     if !core.dyn_declarations.is_empty() && core.dyn_interfaces.is_empty() {
         return Err(vec![unsupported(
@@ -738,10 +740,12 @@ impl<'a, 'c> Builder<'a, 'c> {
         } else {
             None
         };
-        let storage_life = f.storage_life.clone().or(worker_life);
-        if let Some(contract) = &storage_life {
+        // Reserve the selected actual rows before cloning the header. Fixed
+        // arrays can contribute one complete relation row per physical leaf.
+        if let Some(contract) = f.storage_life.as_ref().or(worker_life.as_ref()) {
             borrowed_fp::charge_contract(contract, |work| closures.snapshot(work, f.span), 1)?;
         }
+        let storage_life = f.storage_life.clone().or(worker_life);
         closures.array_snapshot(&f.return_type, 1, f.span)?;
         let first_closure = closures.pending.len();
         let helper_bounds = closures.source_helper_bounds(f)?;
@@ -1504,6 +1508,11 @@ impl<'a, 'c> Builder<'a, 'c> {
                         format!("unknown variable {name}"),
                     )
                 })?;
+                let actual = &self.function.locals[l.0 as usize];
+                self.closures.array_snapshot(&actual.ty, 1, s.span)?;
+                if self.closures.array_billing {
+                    self.closures.snapshot(actual.name.len(), s.span)?;
+                }
                 let d = self.function.locals[l.0 as usize].clone();
                 if self.closure_slots.contains_key(&l) {
                     return self.assign_closure_slot(l, value, s.span);
@@ -1538,7 +1547,17 @@ impl<'a, 'c> Builder<'a, 'c> {
                 self.store(l, v, s.span)?;
             }
             CoreStatementKind::Expression(e) => {
-                let (value, ty) = if self.known_type(e).is_some_and(|ty| self.owned_closure(&ty)) {
+                let closure = !matches!(
+                    e.kind,
+                    CoreExprKind::Unary {
+                        op: UnaryOp::Borrow | UnaryOp::BorrowMut,
+                        ..
+                    }
+                ) && self
+                    .known_type_checked(e)?
+                    .as_ref()
+                    .is_some_and(|ty| self.owned_closure(ty));
+                let (value, ty) = if closure {
                     self.transfer_expr(e, None)?
                 } else {
                     self.expr(e, None)?
@@ -1549,6 +1568,8 @@ impl<'a, 'c> Builder<'a, 'c> {
                 if self.factory_bound.is_some() {
                     return self.factory_return(e.as_ref(), s.span);
                 }
+                self.closures
+                    .array_snapshot(&self.function.return_type, 1, s.span)?;
                 let wanted = self.function.return_type.clone();
                 let value = if let Some(e) = e {
                     let (v, t) = self.transfer_expr(e, Some(&wanted))?;
@@ -1701,9 +1722,10 @@ impl<'a, 'c> Builder<'a, 'c> {
     ) -> R<()> {
         // Type lookup is pure. Emit each endpoint once, in the outer scope and
         // in source order, before making the iteration name visible.
-        let hint = self
-            .range_hint(start, 0)
-            .or_else(|| self.range_hint(end, 0));
+        let hint = match self.range_hint_checked(start, 0)? {
+            Some(ty) => Some(ty),
+            None => self.range_hint_checked(end, 0)?,
+        };
         let (start_value, ty) = self.expr(start, hint.as_ref())?;
         if !ty.is_integer() {
             return Err(error(
@@ -2338,7 +2360,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 member,
                 owner,
             } = &callee.kind
-                && let Some((interface, slot)) = self.dyn_method_slot(object, member)
+                && let Some((interface, slot)) = self.dyn_method_slot(object, member)?
             {
                 if owner.is_some() {
                     return Err(unsupported(
@@ -2353,7 +2375,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 member,
                 owner,
             } = &callee.kind
-                && let Some(signature) = self.method_signature(object, member)
+                && let Some(signature) = self.method_signature_checked(object, member)?
             {
                 return self.method_call(
                     object,
@@ -2426,6 +2448,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             });
             self.current = Some(tb);
             let (tv, tt) = self.transfer_expr(then_value, expected)?;
+            self.closures.array_snapshot(&tt, 1, e.span)?;
             let result = self.temp(tt.clone(), e.span)?;
             self.store(result, tv, e.span)?;
             self.terminate(Terminator::Jump(join));
@@ -2435,6 +2458,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             self.store(result, ev, e.span)?;
             self.terminate(Terminator::Jump(join));
             self.current = Some(join);
+            self.closures.array_snapshot(&tt, 1, e.span)?;
             (
                 self.value(
                     if self.affine_type(&tt) || matches!(tt, Type::Managed(_)) {
@@ -2461,10 +2485,10 @@ impl<'a, 'c> Builder<'a, 'c> {
         };
         let result = {
             self.push_scope(e.span)?;
-            let mut hints = self.sequence_hints(value);
+            let mut hints = self.sequence_hints_checked(value)?;
             for (name, v) in bindings {
                 if hints.is_empty() {
-                    hints = self.sequence_hints(value);
+                    hints = self.sequence_hints_checked(value)?;
                 }
                 let (id, ty) = if hints
                     .get(name)
@@ -2639,7 +2663,41 @@ impl<'a, 'c> Builder<'a, 'c> {
                     .or_else(|| self.sum_slots.get(&id))
                     .or_else(|| self.function.locals.get(id.0 as usize).map(|l| &l.ty))
             }
-            CoreExprKind::Ascribed { ty, .. } => Some(ty),
+            CoreExprKind::Ascribed { ty, .. } | CoreExprKind::Record { ty, .. } => Some(ty),
+            CoreExprKind::Call { callee, .. } => {
+                if let Some(
+                    Type::FunctionPointer { result, .. }
+                    | Type::BorrowedFunctionPointer { result, .. },
+                ) = self.known_type_ref(callee)
+                {
+                    return Some(result);
+                }
+                if let CoreExprKind::Member { object, member, .. } = &callee.kind
+                    && self.known_type_ref(object).is_some()
+                    && let Some(signature) = self.method_signature(object, member)
+                {
+                    return Some(&signature.result);
+                }
+                self.resolve_callee(callee)
+                    .ok()
+                    .map(|signature| &signature.result)
+            }
+            CoreExprKind::Unary {
+                op: UnaryOp::Dereference,
+                operand,
+            } => match self.known_type_ref(operand)? {
+                Type::Address { inner, .. } => Some(inner),
+                _ => None,
+            },
+            CoreExprKind::Sequence { value, .. } => self.known_type_ref(value),
+            CoreExprKind::If {
+                then_value,
+                else_value,
+                ..
+            } => self
+                .known_type_ref(then_value)
+                .or_else(|| self.known_type_ref(else_value)),
+            CoreExprKind::RecordUpdate { ty: Some(ty), .. } => Some(ty),
             CoreExprKind::Index { object, .. } => match self.known_type_ref(object)? {
                 Type::Array { element, .. } => Some(element),
                 Type::Address { inner, .. } => match inner.as_ref() {
@@ -2673,6 +2731,17 @@ impl<'a, 'c> Builder<'a, 'c> {
     }
 
     fn known_address(&self, e: &CoreExpr) -> bool {
+        if self.closures.array_billing
+            && matches!(
+                e.kind,
+                CoreExprKind::Unary {
+                    op: UnaryOp::Borrow | UnaryOp::BorrowMut,
+                    ..
+                }
+            )
+        {
+            return true;
+        }
         self.known_type_is(e, |ty| matches!(ty, Type::Address { .. }))
     }
 
@@ -2889,6 +2958,30 @@ impl<'a, 'c> Builder<'a, 'c> {
                     && let Some(ty) = self.sum_slots.get(local)
                 {
                     self.closures.snapshot_type(ty, 1, 0, input.span)?;
+                }
+                let selected = self
+                    .borrowed_captures
+                    .get(local)
+                    .or_else(|| self.managed_captures.get(local).map(|(_, ty)| ty))
+                    .or_else(|| self.closure_captures.get(local).map(|(_, ty)| ty))
+                    .or_else(|| {
+                        if self.closure_slots.contains_key(local) {
+                            None
+                        } else {
+                            self.inline_store_sum_slots
+                                .contains(local)
+                                .then(|| self.sum_slots.get(local))
+                                .flatten()
+                                .or_else(|| {
+                                    self.function
+                                        .locals
+                                        .get(local.0 as usize)
+                                        .map(|decl| &decl.ty)
+                                })
+                        }
+                    });
+                if let Some(actual) = selected {
+                    self.closures.array_snapshot(actual, 1, input.span)?;
                 }
                 outer.insert(
                     name.clone(),
@@ -3564,7 +3657,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         // constraint on its payload. Check it through argument_expr below.
         for (index, argument) in arguments.iter().enumerate() {
             self.closures.snapshot(1, argument.span)?;
-            if let Some(hint) = self.range_hint(argument, 0)
+            if let Some(hint) = self.range_hint_checked(argument, 0)?
                 && !matches!(
                     self.closures.pending[id.0 as usize]
                         .inference

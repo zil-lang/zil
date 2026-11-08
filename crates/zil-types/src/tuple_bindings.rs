@@ -69,7 +69,10 @@ impl Builder<'_, '_> {
             }
         ) || matches!(pattern.kind, CorePatternKind::Record { .. })
             && (matches!(expected, Some(Type::Package { .. }))
-                || matches!(self.known_type(initializer), Some(Type::Package { .. })))
+                || matches!(
+                    self.known_type_checked(initializer)?,
+                    Some(Type::Package { .. })
+                ))
         {
             return self.partial_pattern_binding(pattern, mutable, expected, initializer);
         }
@@ -91,7 +94,7 @@ impl Builder<'_, '_> {
                 }
             )
             && self
-                .known_type(initializer)
+                .known_type_checked(initializer)?
                 .as_ref()
                 .is_some_and(|ty| self.partial_pattern_needed(pattern, ty))
         {

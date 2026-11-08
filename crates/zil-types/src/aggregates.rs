@@ -2417,7 +2417,7 @@ impl<'a> Builder<'a, '_> {
         }
         let receiver = &signature.parameters[0];
         let (first, actual) =
-            if matches!(receiver, Type::Address { .. }) && !self.known_address(object) {
+            if matches!(receiver, Type::Address { .. }) && !self.known_address_checked(object)? {
                 let (value, ty) = self.borrow_place_mode(
                     object,
                     matches!(receiver, Type::Address { mutable: true, .. }),
@@ -2660,7 +2660,7 @@ impl<'a> Builder<'a, '_> {
                 ty,
             ));
         }
-        if self.known_address(object) || dynamic_store::borrow_expression(object) {
+        if self.known_address_checked(object)? || dynamic_store::borrow_expression(object) {
             let (address, ty) = self.borrow_place(e)?;
             let Type::Address { inner, .. } = ty else {
                 unreachable!()
@@ -2916,26 +2916,26 @@ impl<'a> Builder<'a, '_> {
         else {
             unreachable!("expression dispatcher variant")
         };
-        if self.known_type_is(object, |ty| {
+        if self.known_type_is_checked(object, |ty| {
             stored::shared_value(ty) || stored::shared_address(ty)
-        }) {
-            if self.known_type_is(object, |ty| matches!(ty,
+        })? {
+            if self.known_type_is_checked(object, |ty| matches!(ty,
                 Type::BorrowedStorage { storage, .. }
                     if matches!(storage.as_ref(), Type::Package { fields, .. }
-                        if fields.iter().any(|(name, field)| name == member && matches!(field, Type::Managed(_))))))
+                        if fields.iter().any(|(name, field)| name == member && matches!(field, Type::Managed(_))))))?
                 && !self.indirect_place(e)
-                && self.method_signature(object, member).is_none()
+                && self.method_signature_checked(object, member)?.is_none()
             {
                 return self.package_field(object, member, owner.as_ref(), e.span);
             }
-            let exclusive = self.known_type_is(object, |ty| {
+            let exclusive = self.known_type_is_checked(object, |ty| {
                 let ty = match ty {
                     Type::Address { inner, .. } => inner.as_ref(),
                     _ => ty,
                 };
                 matches!(stored::physical(ty), Type::Record { fields, .. } | Type::Package { fields, .. }
                     if fields.iter().any(|(_, field)| matches!(field, Type::Address { mutable: true, .. })))
-            });
+            })?;
             let (storage, address_ty) = self.projection_base(object, exclusive)?;
             let Type::Address { mutable, inner } = &address_ty else {
                 unreachable!()
@@ -3046,19 +3046,20 @@ impl<'a> Builder<'a, '_> {
                 ty,
             ));
         }
-        if self.known_type_is(object, |ty| matches!(ty, Type::Package { .. }))
+        if self.known_type_is_checked(object, |ty| matches!(ty, Type::Package { .. }))?
             && !self.indirect_place(e)
-            && self.method_signature(object, member).is_none()
+            && self.method_signature_checked(object, member)?.is_none()
         {
             return self.package_field(object, member, owner.as_ref(), e.span);
         }
-        if self.known_type_is(object, |ty| matches!(ty, Type::Managed(_) | Type::Desc(_)))
+        if self
+            .known_type_is_checked(object, |ty| matches!(ty, Type::Managed(_) | Type::Desc(_)))?
             && !self.indirect_place(e)
-            && self.method_signature(object, member).is_none()
+            && self.method_signature_checked(object, member)?.is_none()
         {
             return self.resource_field(object, member, owner.as_ref(), e.span);
         }
-        if self.method_signature(object, member).is_some() {
+        if self.method_signature_checked(object, member)?.is_some() {
             return Err(error(
                 "E-RECEIVER-METHOD-VALUE",
                 e.span,
@@ -3079,7 +3080,7 @@ impl<'a> Builder<'a, '_> {
         })();
         self.closures.snapshot(before - remaining, e.span)?;
         if owned_tuple_place?
-            || self.known_address(object)
+            || self.known_address_checked(object)?
             || dynamic_store::borrow_expression(object)
             || self.indirect_place(e)
         {

@@ -922,7 +922,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         arms: &[CoreMatchArm],
         span: Span,
     ) -> R<()> {
-        if let Some(ty) = self.known_type(expression)
+        if let Some(ty) = self.known_type_checked(expression)?
             && !matches!(
                 expression.kind,
                 CoreExprKind::Unary {
@@ -936,7 +936,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         {
             return self.partial_pattern_match(expression, arms, span);
         }
-        if (matches!(&expression.kind,CoreExprKind::Unary{op:UnaryOp::Dereference,operand} if matches!(self.known_type(operand),Some(Type::Address{inner,..}) if matches!(inner.as_ref(),Type::Enum{..}|Type::ErrorUnion{..}))))
+        if (matches!(&expression.kind,CoreExprKind::Unary{op:UnaryOp::Dereference,operand} if matches!(self.known_type_checked(operand)?,Some(Type::Address{inner,..}) if matches!(inner.as_ref(),Type::Enum{..}|Type::ErrorUnion{..}))))
             || arms
                 .iter()
                 .any(|a| reference_patterns::has_reference(&a.pattern))
@@ -944,7 +944,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             return self.reference_match(expression, arms, span);
         }
         if self
-            .known_type(expression)
+            .known_type_checked(expression)?
             .as_ref()
             .is_some_and(owned_shapes::enumeration)
         {
@@ -1080,6 +1080,11 @@ impl<'a, 'c> Builder<'a, 'c> {
     ) -> R<()> {
         match &pattern.kind {
             CorePatternKind::Name(name) => {
+                self.closures.array_snapshot(ty, 1, pattern.span)?;
+                if self.closures.array_billing {
+                    self.closures
+                        .snapshot(name.len().saturating_add(1), pattern.span)?;
+                }
                 bindings.push((name.clone(), value, ty.clone(), pattern.span))
             }
             CorePatternKind::Wildcard => {}

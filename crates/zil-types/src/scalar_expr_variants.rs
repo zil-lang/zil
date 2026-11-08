@@ -205,7 +205,10 @@ impl Builder<'_, '_> {
                     | BinaryOp::Greater
                     | BinaryOp::GreaterEqual
             );
-            let operand_hint = self.known_type(left).or_else(|| self.known_type(right));
+            let operand_hint = match self.known_type_checked(left)? {
+                Some(ty) => Some(ty),
+                None => self.known_type_checked(right)?,
+            };
             let numeric_expected = if comparison {
                 operand_hint.as_ref()
             } else {
