@@ -1124,41 +1124,12 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
     if let Some(life) = &signature.storage_life {
         borrowed_fp::charge_contract(life, |work| budget.work(work, span), 1)?;
     }
-    // Repeated uses must reserve the complete shape before cloning a signature.
-    // Reuse the existing finite ordinary ABI shapes, including owned error
-    // alternatives. This does not grant a closure capture or callable ABI.
+    // This is the complete context of a static symbol, including ordinary
+    // direct calls. Snapshotting it must not impose the first-class callable
+    // ABI on unrelated calls in a function that happens to contain a closure.
+    // Preserve every type and life relation; scalar() separately requires the
+    // actual pointer_type() when a symbol becomes a function value.
     budget.work(signature.parameters.len(), span)?;
-    let admitted = |ty: &Type| {
-        ty.is_copy_value()
-            || ty.is_scalar_or_address()
-            || closures::signature_parameter(ty)
-            || resources::supported(ty)
-            || errors::owned(ty)
-            || packages::ordinary(ty)
-            || owned_shapes::sum(ty)
-            || packages::owned_array_supported(ty)
-            || stored::exclusive_value(ty)
-            || stored::exclusive_address(ty)
-            || matches!(ty, Type::MutexGuard { .. })
-    };
-    if signature.type_parameter.is_none()
-        && ((!admitted(&signature.result)
-            && signature.callable_return.is_none()
-            && forwarding::signature(signature).is_none()
-            && !callable_fields::signature(signature))
-            || signature.parameters.iter().enumerate().any(|(index, ty)| {
-                !admitted(ty)
-                    && !signature
-                        .callable
-                        .iter()
-                        .any(|bound| bound.index as usize == index)
-            }))
-    {
-        return Err(unsupported(
-            span,
-            "unsupported signature in closure inference",
-        ));
-    }
     validate_type(&signature.result, 0, span, budget)?;
     if let Some(life) = &signature.life {
         budget.work(life.parameter_lives.len().saturating_add(1), span)?;
@@ -2722,7 +2693,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         if let Some((inner, Some(mutable))) = self.graph.address_shape(variable, span)? {
             return Ok(Term::Address(inner, mutable));
         }
-        if let Some(ty @ (Type::Managed(_) | Type::Desc(_))) = self.graph.ty(variable)? {
+        // A concrete pattern payload can be an address without an inferred
+        // Address shape node. Keep its original qualifier and complete pointee
+        // when exposing it to ordinary projections and direct call contexts.
+        if let Some(ty @ (Type::Managed(_) | Type::Desc(_) | Type::Address { .. })) =
+            self.graph.ty(variable)?
+        {
             return self.known_term(&ty, span);
         }
         Ok(Term::Scalar(variable))
