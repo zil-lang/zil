@@ -73,13 +73,13 @@ pub fn sort_unstable_by<T:Copy,F:FnMut(T,T)->bool>(values:&mut [T],less:&mut F) 
 
 // Each next result borrows this invocation of the receiver until its last use.
 pub trait LendingIterator {
-    type Item:Copy;
+    type Item;
     fn next<life a>(self:&'a mut Self)->Option<&'a Self.Item>;
 }
 
 // Copy the yielded item before releasing the receiver loan.
 
-pub fn next_copy<I:LendingIterator>(cursor:&mut I)->Option<I.Item>{
+pub fn next_copy<I:LendingIterator>(cursor:&mut I)->Option<I.Item> where I.Item:Copy {
     match cursor.next(){
         Option.Some(value)=>{return Option::<I.Item>.Some(*value)},
         Option.None()=>{return Option::<I.Item>.None()}

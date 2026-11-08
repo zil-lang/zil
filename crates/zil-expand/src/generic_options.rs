@@ -2,7 +2,7 @@
 //! compiler-only template. The generated enum remains ordinary untrusted Core.
 use super::*;
 use crate::generated_spans::{self, Visitor as _};
-pub(super) const TEMPLATE: &str = "$builtinOption340";
+pub(crate) const TEMPLATE: &str = "$builtinOption340";
 pub(super) const TASK_POLL: &str = "$stdTaskPoll343";
 pub(super) const TASK_CREATE_ERROR: &str = "$stdTaskCreateError343";
 pub(super) const TASK_POLL_STATE: &str = "$stdTaskPollState343";

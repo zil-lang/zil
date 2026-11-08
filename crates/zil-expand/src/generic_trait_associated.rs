@@ -60,7 +60,7 @@ pub(crate) fn atom(
 /// trait identity, all ordered arguments and the symbolic host; it is never a
 /// nominal type looked up by the spelling of the member.
 impl Index<'_> {
-    fn projection_names(
+    pub(super) fn projection_names(
         &self,
         available: &Bounds,
         budget: &mut Budget<'_>,

@@ -515,11 +515,12 @@ fn relation_inner(
                 }
             } else if pointed {
                 if !(target.is_address_pointee()
-                    // A declared shared Package manager may ground a Store
-                    // window; this checks only its signature shape.
+                    // A borrowed Package manager may ground a Store window.
+                    // Mutable input shape does not supply a target or loan;
+                    // body provenance and exclusive authority are checked later.
                     || self.inputs.is_none()
                         && matches!(base, StorageBase::Parameter(_))
-                        && matches!(ty, Type::Address { mutable: false, .. })
+                        && matches!(ty, Type::Address { .. })
                         && matches!(target, Type::Package { .. })
                     || self.allow_callback && matches!(target, Type::Closure(_)))
                 {

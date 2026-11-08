@@ -45,7 +45,13 @@ pub(super) fn qualified_signature(
     nominals: &BTreeMap<String, &Item>,
     budget: &mut Budget<'_>,
 ) -> R<bool> {
-    if !budget.has_stored_lifetimes() || !super::super::lifetimes::copy_life(function) {
+    if !budget.has_stored_lifetimes() {
+        return Ok(false);
+    }
+    if super::super::lifetimes::nominal_life(function) {
+        return Ok(true);
+    }
+    if !super::super::lifetimes::copy_life(function) {
         return Ok(false);
     }
     struct Qualified<'a, 'b, 'l> {
@@ -140,6 +146,11 @@ struct Scope<'a> {
     host: Option<usize>,
     impl_target: Option<&'a TypeRef>,
 }
+struct TraitSource<'a> {
+    declaration: &'a TraitDecl,
+    first_function: usize,
+    end_function: usize,
+}
 struct Check<'a, 'b, 'l> {
     functions: Vec<&'a Function>,
     records: Vec<&'a Aggregate>,
@@ -147,6 +158,7 @@ struct Check<'a, 'b, 'l> {
     hosts: Vec<Option<usize>>,
     impl_targets: BTreeMap<usize, &'a TypeRef>,
     standalone: Vec<bool>,
+    trait_sources: Vec<TraitSource<'a>>,
     borrow_ids: BTreeMap<usize, u32>,
     fact_depth: usize,
     budget: &'b mut Budget<'l>,
@@ -1490,6 +1502,12 @@ impl Check<'_, '_, '_> {
                     return Ok(variant);
                 }
                 if root.is_none()
+                    && let Some(result) =
+                        self.nominal_method_result(callee, &actuals, scope, env, e.span, depth + 1)?
+                {
+                    return Ok(result);
+                }
+                if root.is_none()
                     && let Some(member) =
                         self.member_call_result(callee, arguments.len(), scope, e.span, depth + 1)?
                 {
@@ -1779,6 +1797,117 @@ impl Check<'_, '_, '_> {
                 "free CT actual kind differs from full ordinal",
             )),
         }
+    }
+
+    fn nominal_method_result(
+        &mut self,
+        callee: &Expr,
+        actuals: &[Fact],
+        caller: &Scope<'_>,
+        env: &Facts,
+        span: Span,
+        depth: usize,
+    ) -> R<Option<Fact>> {
+        if !crate::lifetimes::nominal_life(self.functions[caller.owner]) {
+            return Ok(None);
+        }
+        let ExprKind::Member {
+            object,
+            member: MemberName::Name(name),
+        } = &callee.kind
+        else {
+            return Ok(None);
+        };
+        let ExprKind::Name(receiver_name) = &object.kind else {
+            return Ok(None);
+        };
+        self.lookup(env.len(), receiver_name.len(), span)?;
+        let Some(receiver) = env.get(receiver_name) else {
+            return Ok(None);
+        };
+        let Fact::Address(_, inner) = receiver else {
+            return Ok(None);
+        };
+        let Fact::Parameter(Binder(owner, ordinal)) = inner.as_ref() else {
+            return Ok(None);
+        };
+        if *owner != caller.owner {
+            return Ok(None);
+        }
+        let parameter = &caller.parameters[*ordinal];
+        let GenericParamKind::Type(bounds) = &parameter.kind else {
+            return Ok(None);
+        };
+        let [bound] = bounds.as_slice() else {
+            return Err(unsupported(
+                span,
+                "nominal lending class forwarding requires one direct trait bound",
+            ));
+        };
+        let TypeKind::Named { path, args } = &bound.kind else {
+            return Ok(None);
+        };
+        let [trait_name] = path.as_slice() else {
+            return Ok(None);
+        };
+        if !args.is_empty() {
+            return Ok(None);
+        }
+        let mut selected = None;
+        for source in &self.trait_sources {
+            self.budget.node(span, depth)?;
+            self.budget.text(trait_name, span)?;
+            self.budget.text(&source.declaration.name, span)?;
+            if source.declaration.name != *trait_name {
+                continue;
+            }
+            if !source.declaration.generics.is_empty() || !source.declaration.bounds.is_empty() {
+                return Err(unsupported(
+                    span,
+                    "nominal lending class forwarding requires an ordinary nongeneric trait",
+                ));
+            }
+            for owner in source.first_function..source.end_function {
+                self.budget.node(span, depth)?;
+                self.budget.text(name, span)?;
+                self.budget.text(&self.functions[owner].name, span)?;
+                if self.functions[owner].name == *name {
+                    if selected.replace(owner).is_some() {
+                        return Err(error(span, "nominal lending method class is ambiguous"));
+                    }
+                }
+            }
+        }
+        let Some(owner) = selected else {
+            return Ok(None);
+        };
+        let method = self.functions[owner];
+        if !crate::lifetimes::only_life(method) || method.params.len() != actuals.len() + 1 {
+            return Err(unsupported(
+                span,
+                "nominal lending class forwarding requires a life-only receiver method",
+            ));
+        }
+        let definition = Scope {
+            owner,
+            parameters: &method.generics,
+            host: None,
+            impl_target: None,
+        };
+        let mut map = Substitutions::new();
+        for (formal, actual) in method
+            .params
+            .iter()
+            .zip(std::iter::once(receiver).chain(actuals))
+        {
+            let formal = self.ty(&formal.ty, &definition, depth + 1)?;
+            self.infer(&formal, actual, &mut map, span, false)?;
+        }
+        let Some(result) = &method.return_type else {
+            return Ok(Some(Fact::Unknown));
+        };
+        let result = self.ty(result, &definition, depth + 1)?;
+        self.substitute(&result, &map, span).map(Some)
     }
 
     // Resolve a CT host/member call from the actual source AST and inventory.
@@ -2184,6 +2313,8 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
         hosts: Vec<Option<usize>>,
         impl_targets: BTreeMap<usize, &'a TypeRef>,
         standalone: Vec<bool>,
+        trait_sources: Vec<TraitSource<'a>>,
+        nominal_lending: bool,
     }
     fn inventory<'a>(
         items: &'a [Item],
@@ -2257,7 +2388,16 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
                             "ambient trait requires its actual enclosing source context",
                         ));
                     }
+                    let first_function = found.functions.len();
                     inventory(&t.members, found, host, None, false, budget, depth + 1)?;
+                    if found.nominal_lending {
+                        budget.identity_work(3, item.span)?;
+                        found.trait_sources.push(TraitSource {
+                            declaration: t,
+                            first_function,
+                            end_function: found.functions.len(),
+                        });
+                    }
                 }
                 _ => {}
             }
@@ -2271,6 +2411,10 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
         hosts: Vec::new(),
         impl_targets: BTreeMap::new(),
         standalone: Vec::new(),
+        trait_sources: Vec::new(),
+        nominal_lending: module.items.iter().any(
+            |item| matches!(&item.kind,ItemKind::Function(f) if crate::lifetimes::nominal_life(f)),
+        ),
     };
     inventory(&module.items, &mut found, None, None, true, budget, 0)?;
     let mut check = Check {
@@ -2280,6 +2424,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
         hosts: found.hosts,
         impl_targets: found.impl_targets,
         standalone: found.standalone,
+        trait_sources: found.trait_sources,
         borrow_ids: BTreeMap::new(),
         fact_depth: 0,
         budget,
@@ -2391,6 +2536,7 @@ mod local_class_tests {
             hosts: vec![],
             impl_targets: BTreeMap::new(),
             standalone: vec![],
+            trait_sources: vec![],
             borrow_ids: BTreeMap::new(),
             fact_depth: 0,
             budget: &mut budget,

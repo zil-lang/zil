@@ -199,6 +199,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     if (function.name.starts_with("$generic_method_")
         && super::super::lifetimes::only_life(function))
         || super::super::lifetimes::copy_life(function)
+        || super::super::lifetimes::nominal_life(function)
         || check.class_scope.active
     {
         let mut remaining = check.budget.remaining_limits();
@@ -279,7 +280,9 @@ pub(super) fn validate_parametric_with_bounds<'l>(
                                         TypeKind::Reference { .. }
                                     )
                             });
-                            if !local || !receiver {
+                            if !local
+                                || (!receiver && !super::super::lifetimes::nominal_life(function))
+                            {
                                 None
                             } else {
                                 let mut found = None;
@@ -1168,6 +1171,111 @@ impl Check<'_, '_, '_> {
         Ok(roots.clone())
     }
 
+    fn bound_subject<'h>(&mut self, host: &'h TypeRef, span: Span) -> R<Cow<'h, str>> {
+        if let Some(variable) =
+            trait_bounds::plain(host).filter(|name| self.variables.contains(*name))
+        {
+            return Ok(Cow::Borrowed(variable));
+        }
+        let key = trait_bounds::subject_key(host, self.budget)?;
+        if !self.bounds.contains_key(&key) {
+            return Err(error(
+                span,
+                "method receiver requires a declared nominal bound for this type",
+            ));
+        }
+        Ok(Cow::Owned(key))
+    }
+
+    fn life_method_expression(
+        &mut self,
+        callee: &Expr,
+        arguments: &[Argument],
+        state: &State,
+    ) -> R<Option<BTreeSet<usize>>> {
+        let member = match &callee.kind {
+            ExprKind::TypeApply { callee, .. } => callee.as_ref(),
+            _ => callee,
+        };
+        let ExprKind::Member {
+            object,
+            member: MemberName::Name(name) | MemberName::Constrained { name, .. },
+        } = &member.kind
+        else {
+            return Ok(None);
+        };
+        let actual = self.value_hint(object, state, 0, false)?.ok_or_else(|| {
+            unsupported(
+                object.span,
+                "lending method receiver requires an actual symbolic type",
+            )
+        })?;
+        let host = match &group(&actual).kind {
+            TypeKind::Reference { inner, .. } => inner.as_ref(),
+            _ => &actual,
+        };
+        let subject = self.bound_subject(host, object.span)?;
+        let method = self
+            .traits
+            .method(&self.bounds, &subject, name, self.budget, object.span)?;
+        if !super::super::lifetimes::only_life(&method)
+            || method.params.len() != arguments.len() + 1
+        {
+            return Err(unsupported(
+                callee.span,
+                "symbolic lending requires a life-only receiver method",
+            ));
+        }
+        let result = method
+            .return_type
+            .as_ref()
+            .ok_or_else(|| error(callee.span, "lending method has no result"))?;
+        let payload = match &group(result).kind {
+            TypeKind::Reference { .. } => result,
+            TypeKind::Named { path, args } if path.as_slice() == [super::options::TEMPLATE] => {
+                let [GenericArg::Type(payload)] = args.as_slice() else {
+                    return Err(error(result.span, "lending Option payload differs"));
+                };
+                payload
+            }
+            _ => {
+                return Err(unsupported(
+                    result.span,
+                    "symbolic lending requires a shared address result",
+                ));
+            }
+        };
+        let TypeKind::Reference {
+            mutable: false,
+            lifetime: Some(result_life),
+            ..
+        } = &group(payload).kind
+        else {
+            return Err(unsupported(
+                payload.span,
+                "symbolic lending requires an explicit shared result life",
+            ));
+        };
+        let mut roots = BTreeSet::new();
+        for (index, parameter) in method.params.iter().enumerate() {
+            self.budget.node(parameter.span, 0)?;
+            self.budget.text(result_life, parameter.span)?;
+            if matches!(&group(&parameter.ty).kind,TypeKind::Reference{lifetime:Some(life),..} if life==result_life)
+            {
+                let actual = if index == 0 {
+                    object.as_ref()
+                } else {
+                    &arguments[index - 1].value
+                };
+                for root in self.life_expression(actual, state)? {
+                    self.budget.node(actual.span, 0)?;
+                    roots.insert(root);
+                }
+            }
+        }
+        Ok(Some(roots))
+    }
+
     // A definition-time origin calculation, separate from ordinary type
     // unification. Concrete instances still enter both independent CFG cores.
     fn life_expression(&mut self, expression: &Expr, state: &State) -> R<BTreeSet<usize>> {
@@ -1223,6 +1331,9 @@ impl Check<'_, '_, '_> {
                 Ok(roots)
             }
             ExprKind::Call { callee, arguments } => {
+                if let Some(roots) = self.life_method_expression(callee, arguments, state)? {
+                    return Ok(roots);
+                }
                 let target = match &callee.kind {
                     ExprKind::Name(name) => Some(name),
                     ExprKind::TypeApply { callee, .. } => match &callee.kind {
@@ -2951,21 +3062,8 @@ impl Check<'_, '_, '_> {
             TypeKind::Reference { inner, .. } => inner.as_ref(),
             _ => actual,
         };
-        let subject_key;
-        let variable = if let Some(variable) =
-            trait_bounds::plain(host).filter(|name| self.variables.contains(*name))
-        {
-            variable
-        } else {
-            subject_key = trait_bounds::subject_key(host, self.budget)?;
-            if !self.bounds.contains_key(&subject_key) {
-                return Err(error(
-                    object.span,
-                    "method receiver requires a declared nominal bound for this type",
-                ));
-            }
-            &subject_key
-        };
+        let subject = self.bound_subject(host, object.span)?;
+        let variable = subject.as_ref();
         let (method, selected_reference) = if let Some((method, reference)) = static_method {
             (Cow::Owned(method), Some(reference))
         } else {

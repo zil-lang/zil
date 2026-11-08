@@ -115,7 +115,10 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                     || only_life(f)
                     || provider_life
                     || !self.impl_scope
-                        && (copy_life(f) || store_element_life(f) || callable_life(f));
+                        && (copy_life(f)
+                            || store_element_life(f)
+                            || nominal_life(f)
+                            || callable_life(f));
                 for p in &f.generics {
                     if matches!(p.kind, s::GenericParamKind::Lifetime) {
                         self.budget.node(p.span, depth).map_err(|e| vec![e])?;
@@ -455,6 +458,57 @@ pub(super) fn store_element_life(function: &s::Function) -> bool {
     (1..=2).contains(&types) && lives == 1
 }
 
+/// Ordinary nominal bounds do not imply Copy. A mixed helper may forward a
+/// shared result under its own life binders; definition and instance checking
+/// still establish the nominal premises and actual return sources.
+pub(super) fn nominal_life(function: &s::Function) -> bool {
+    let mut types = 0;
+    let mut lives = 0;
+    for parameter in &function.generics {
+        match &parameter.kind {
+            s::GenericParamKind::Lifetime => lives += 1,
+            s::GenericParamKind::Type(bounds)
+                if bounds.len() == 1
+                    && bounds.iter().all(|bound| {
+                        matches!(&bound.kind,
+                    s::TypeKind::Named { path, args } if !path.is_empty() && args.is_empty()
+                    && !path.iter().any(|name| matches!(name.as_str(),
+                        "Copy" | "StoreElement" | "Fn" | "FnMut" | "FnOnce" | "ThreadCallable")))
+                    }) =>
+            {
+                types += 1
+            }
+            _ => return false,
+        }
+    }
+    let Some(result) = &function.return_type else {
+        return false;
+    };
+    let payload = match &result.kind {
+        s::TypeKind::Reference { .. } => result,
+        s::TypeKind::Named { path, args }
+            if path.as_slice() == ["Option"]
+                || path.as_slice() == [crate::generics::options::TEMPLATE] =>
+        {
+            let [s::GenericArg::Type(payload)] = args.as_slice() else {
+                return false;
+            };
+            payload
+        }
+        _ => return false,
+    };
+    types == 1
+        && lives > 0
+        && matches!(
+            payload.kind,
+            s::TypeKind::Reference {
+                mutable: false,
+                lifetime: Some(_),
+                ..
+            }
+        )
+}
+
 /// This spelling is created only by the method lift; source identifiers cannot
 /// contain `$`. It selects the existing life or Copy/life profile while
 /// retaining the provider's nominal trait obligation for definition-time checking.
@@ -520,7 +574,10 @@ pub(super) fn contract(
         return Ok(None);
     }
     let provider_life = lending_provider_life(function);
-    let mutable_life = only_life(function) || copy_life(function) || callable_life(function);
+    let mutable_life = only_life(function)
+        || copy_life(function)
+        || nominal_life(function)
+        || callable_life(function);
     if !mutable_life || (!function.where_clause.is_empty() && !provider_life) {
         return Err(Diagnostic::unsupported(
             Phase::Expand,

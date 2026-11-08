@@ -439,23 +439,23 @@ pub(crate) fn validate_declaration(
                 false
             };
             if direct_item || projected_item {
-                let mut copy_item = false;
+                let mut declared_item = false;
                 for candidate in &declaration.members {
                     budget.node(candidate.span, 0)?;
                     if let ItemKind::TypeAlias(alias) = &candidate.kind {
                         budget.text(&alias.name, candidate.span)?;
                         if alias.name == "Item" {
+                            declared_item = true;
                             for bound in &alias.bounds {
                                 budget.ty(bound)?;
-                                copy_item |= copy::is_bound(bound);
                             }
                         }
                     }
                 }
-                if !copy_item {
+                if !declared_item {
                     return Err(error(
                         referent.span,
-                        "lending associated Item requires a declared Copy bound",
+                        "lending associated Item requires a declared associated type",
                     ));
                 }
             } else {
