@@ -421,6 +421,14 @@ fn main()->E!i32{
             "fn bad()->E!R contract{result(give)}{return error_err::<E,Ref<R>>(E.Fail)}",
         ),
         (
+            "explicit-store-descriptor-success",
+            "package P{manages r:R} fn bad()->E!Store<P> contract{result(create)}{let s:Store<P>=store_new();return error_ok::<E,Ref<Store<P>>>(give s)}",
+        ),
+        (
+            "explicit-store-descriptor-failure",
+            "package P{manages r:R} fn bad()->E!Store<P> contract{result(create)}{return error_err::<E,Ref<Store<P>>>(E.Fail)}",
+        ),
+        (
             "wrong-resource-identity",
             "resource S{code:i32} fn bad()->E!R contract{result(create)}{return error_ok::<E,S>(S{code:1})}",
         ),
