@@ -136,7 +136,7 @@
       "G8.6.5",
       "G10.6.6.1"
     ],
-    "status": "Default common regression in progress; not accepted",
+    "status": "Default common regression in progress with five preserved Expand generics failures; not accepted",
     "prior_combined_source": "50e77fdf274bcd172aacb794aa6b3157605a6977",
     "prior_focused": {
       "passed": 798,
@@ -174,6 +174,58 @@
         "nominal_rerun_uses_workspace_tmpdir": true
       }
     },
-    "default_result_directory": "/workspace/.zil-env/release-foundations/library-composition-common-default"
+    "default_result_directory": "/workspace/.zil-env/release-foundations/library-composition-common-default",
+    "new_common_failures": {
+      "source": "61ad58b684709b9dc9edb7ac36c062a197ca7754",
+      "batch": 20,
+      "target": "zil-expand::generics",
+      "passed": 24,
+      "failed": 11,
+      "log": "/workspace/.zil-env/release-foundations/library-composition-common-default/default-20.log",
+      "description": "Nine old exact work assertions, one newly legal shared associated-Item declaration and one diagnostic-path expectation; real fee traces and Astra semantic decision required before test-only compatibility claims.",
+      "batches": [
+        20,
+        29,
+        33,
+        36
+      ]
+    },
+    "cold_recovery": {
+      "status": "Pass for selected consumers",
+      "source": "61ad58b684709b9dc9edb7ac36c062a197ca7754",
+      "programs": 11,
+      "native_executions": 44,
+      "native_builds": 44,
+      "verify_runs_per_selected_build": 1,
+      "configuration_counts": {
+        "clang/O0": 11,
+        "clang/O2": 11,
+        "llvm-api/O0": 11,
+        "llvm-api/O2": 11
+      },
+      "compiler_artifacts_reused": false,
+      "source_or_object_cache": false,
+      "git_alternates": false,
+      "cli_sha256": "2f3841874322b4e0348a9ab6fb924df60c4935535eceda4b16d695c0d6a9b440",
+      "summary": "/workspace/.zil-env/release-foundations/library-composition-cold/summary.json",
+      "summary_sha256": "81d4dba8e5fbbd0893a16c016e663109d2d7b455eee01958f51f3799b62d9375",
+      "receipt_sha256": "ea7a13545940e2419c718bc34e542e6c32ae8170fb82a1481406e44752cd1055",
+      "original_loader_failure_preserved": true,
+      "attempted_native_builds_including_rejected_loader_case": 45,
+      "root_rechecked_stream_hashes": 194
+    }
+  },
+  "lookahead_board_audit": {
+    "base_main": "222e550af2daa08812b210cf3b5c726831b15bec",
+    "reviewer": "non-author sol high read-only",
+    "no_cargo_run": true,
+    "corrected_stale_rows": [
+      "G5.1 fixed dynamic dispatch",
+      "G6.2.1 default-budget rich graph",
+      "G3.4 partial owned/borrowed composition",
+      "G7.2/G7.3 closed threaded registration",
+      "G8.4/G8.5/G8.6 supported finite ports/mutex/result families"
+    ],
+    "general_parents_left_open": true
   }
 }

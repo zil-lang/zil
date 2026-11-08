@@ -87,6 +87,15 @@ Sol high负责实现，疑难交Astra；本批已交付远端main@222e550af。�
 | G2.4.10 | 普通拥有Item的trait lending iterator | 实现待验 | P0 | sol high · owning_iterator | `dc8d8b159`已推送并获Astra精确接受，已合施工树`61ad58b68`待共同验收；165/0、四配置正常/三allocfail、精确work218399/nodes14857与strict通过，非GAT/dyn/广泛ByteOption。 |
 
 <details>
+<summary>G2.4.10 · 子任务</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G2.4.10.1 | 拥有Item lending与旧定义期义务/精确费用控制兼容 | 进行中 | P0 | sol high · owning_iterator；Astra审定 | `61ad58b68`共同门Expand generics出现5Fail：4组旧work差异、1旧无Copy声明拒绝失效；原完整Fail保留。逐项核真实费用和签名/Copy使用边界，不能盲改N或删负例；独立树修，root冻结源不改。 |
+
+</details>
+
+<details>
 <summary>G2.4.2 · 子任务</summary>
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
@@ -116,7 +125,7 @@ Sol high负责实现，疑难交Astra；本批已交付远端main@222e550af。�
 | G3.1 | 普通/嵌套Product借给可变helper、CopyT+mutable life、有限FP/HRTB和实际来源检查 | 已合入 | — | — | [已合入证据][e37]；一般借用返回见 G3.4。 |
 | G3.2 | shared stored View、qualified静态Code及捕获为空的Fn，每个实际role独立核验 | 已合入 | — | — | [本批验收][e41]；真实静态 Code、空捕获 Fn 与逐 role 检查已通过共同验收。 |
 | **G3.3** | **捕获的外层Fixed上下文、qualified FnMut/FnOnce的真实环境与调用关系** | 已合入 | — | — | [PR46 验收][e-pr46] 本表 Fixed/Invocation、闭包 helper、循环及多 role 组合已闭合；普通闭包 Value 的 give 按规范拒绝，一般 lending 继续见 G3.4。 |
-| G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P0 | 待派 | shared View/片、短 getter、共享迭代与单直接可变叶 holder 已通；借入＋拥有 Package、多可变叶/槽替换、resource 宿主关联 Item/lending、一般 lending 和 Source 地址数组参数仍缺。 |
+| G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P0 | 待派 | 共享View/片、getter与共享迭代已合；G3.4.3/9的借入＋拥有Package、多可变叶/槽替换有限范围也已合入。尚缺嵌套Record、地址数组、一般lending及长期捕获组合；G3.4.11/12与G2.4.10继续施工/共同验收。 |
 | G3.5 | 一般拥有/借入捕获及责任组合的消费者矩阵 | 待排期 | P0 | 待派 | 依赖 G3.4、G6.1；按真实 API 补齐。 |
 
 <details>
@@ -160,7 +169,7 @@ Sol high负责实现，疑难交Astra；本批已交付远端main@222e550af。�
 | G3.4.9 | 独占constructor实际loan site与现有写槽组合 | 已合入 | — | — | `a19ee3339`已独审并合；constructor只激活自己的site排程，不扩大slot updates权限；原三误拒恢复、cross112/stored33/mixed28专项通过。 已由main@222e550af本批有限范围验收。 |
 | G3.4.10 | 借入结果Task与拥有Map/Option在同一普通CFG中的真实组合 | 已合入 | — | — | `c5/c8/e042/e6`及独立`a030/10dd`已由main@222e550af本批验收：标准let/临时match/双来源if真实default、16native与失败cleanup/rawWire通过；先前默认耗尽与Copy Poll兼容首次失败保留。 |
 | G3.4.11 | 拥有Package嵌入含真实借入叶的qualified Record | 实现待验 | P0 | sol high · borrowed_record | `d6be16708`已推送并获非作者精审接受，已合施工树`61ad58b68`待共同验收；36holder/23旧预算、20组新N控制、16native与strict通过，实际映射/父loan和两clone先费；不含独占/嵌套Record。 |
-| G3.4.12 | 固定共享地址数组的普通函数与存储消费者 | 进行中 | P0 | sol high · borrowed_record | WIP`564119431`已推送并纳入固定源码归档；qualified Batch构造/复制/helper/常量索引已过Source/raw/Wire，bare Array已到Analyze资格消费者。逐元素真实来源继续实现，尚未验收，不虚构独占复制或动态泛化。 |
+| G3.4.12 | 固定共享地址数组的普通函数与存储消费者 | 进行中 | P0 | sol high · borrowed_record | WIP`603f4eca2`已推送：Batch与bare Array构造/复制/helper/constindex各Source/raw/Wire通过。Sol预审发现新Type clone及VecN构建前费待补，正修；多life/来源反例、四native与N控制尚未齐，不接受阶段提交。 |
 
 </details>
 
@@ -225,7 +234,7 @@ Sol high负责实现，疑难交Astra；本批已交付远端main@222e550af。�
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G5.0 | 具体Fn/FnMut/FnOnce、opaque拥有工厂及有限具体环境保存 | 已合入 | — | — | [已合入证据][e37]；仅动态抽象前置。 |
-| G5.1 | dyn真实Source→Core声明/provider身份 | 部分实现 | P1 | 待派 | [C39][c39] / [C40][c40] 已有源码/Core 声明与 provider 目录；当前 Types 仍拒绝未接通的动态消费者，不能当作已有机器派发。 |
+| G5.1 | dyn真实Source→Core声明/provider身份 | 已合入 | — | — | [PR52][e-pr52]及main@222e550af：实际Source/Core/provider、Types、独立两核及双后端机器派发已贯通；一般关联项/泛型slot和拥有擦除存储继续见G5.2/3。 |
 | G5.2 | 异构调用、静态vtable、关联项与有限泛型method slot的真实派发 | 部分实现 | P0 | 待派 | 首批 G5.2.1 先接单共享接收者、固定方法槽和两个 provider；关联项、泛型槽与拥有擦除存储仍按各自合同后续扩展。 |
 | G5.3 | 显式拥有/共同借入存储及管理route，移动/销毁/失败路径完整 | 部分实现 | P0 | sol high · dyn | `45d9c9327`限定ByteBuffer cleanup独审并合；修同frame失败栈、interface-only债、旧view及闭包捕获硬拒。真实同frame400000故障已补。userDrop/更广管理与捕获仍有缺口，不关闭父项。 |
 
@@ -274,7 +283,7 @@ Sol high负责实现，疑难交Astra；本批已交付远端main@222e550af。�
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G6.2.1 | 运行时图、真实拥有payload、逻辑删除/显式回收/旧ticket不复活 | 进行中 | P0 | sol high · graph | `1e751cbca`：普通std.graph、真实ByteBuffer载荷及失败返还、跨module key、运行时3/5/8节点环和共享边、四机器配置与故障清理已过。小消费者默认预算通过；丰富组合需50m，默认成本待优化，不因调限额算闭合。 |
+| G6.2.1 | 运行时图、真实拥有payload、逻辑删除/显式回收/旧ticket不复活 | 已合入 | — | — | main@222e550af：普通std.graph、拥有ByteBuffer载荷、运行时环/共享边、删除/collect/旧ticket不复活与失败返还已验收；G6.2.3已补原rich消费者默认10m两核/机器，旧需50m描述停用。有限graph-relative checked ticket不代表一般Desc图。 |
 | G6.2.3 | 同函数真实动态图在默认预算下完成两核与机器执行 | 已合入 | — | — | `711968341`/`5d464be44`已合：rich原Source默认10m两核及Clang/API O0/O2、fault通过，50m覆盖已删除；实际不可变type memo及稀疏活loan扫描消冗余，N−1/fresh仍验，非抬限额。 已由main@222e550af本批有限范围验收。 |
 </details>
 
@@ -283,9 +292,9 @@ Sol high负责实现，疑难交Astra；本批已交付远端main@222e550af。�
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G7.1 | 安装函数返回后稳定拥有真实闭包环境的Registration、显式强关闭及失败清理 | 已合入 | — | — | [已合入证据][e37]；限同步关闭，不覆盖跨线程排空。 |
-| G7.2 | 更一般借入/跨线程环境的登记对象与关闭合同 | 待排期 | P0 | 待派 | 依赖 G3.4、G8.5。 |
+| G7.2 | 更一般借入/跨线程环境的登记对象与关闭合同 | 部分实现 | P0 | 待派 | G7.2.1已合入closed FnMut环境的跨线程准入、raw holder、no-future/drain和一次cleanup；一般借入环境及任意入口图未闭合，继续依赖G3.4、G8.5。 |
 | G7.2.1 | 跨线程raw持有、FnMut准入、完整drain及一次关闭 | 已合入 | — | — | `861f18086/e4380130`独审并合：具体与generic四前提、原子发布/准入/driver、真实raw holder、完整drain与一次cleanup。closed环境/Direct入口有限，不授任意FFI/线程能力。 已由main@222e550af本批有限范围验收。 |
-| G7.3 | 外部waker/晚通知、no-future及drain，关闭后所有raw入口静止 | 部分实现 | P0 | root | 同线程稳定拥有环境、晚通知 gate 与 provider 排空已[合入][e42]；一般跨线程环境待补。 |
+| G7.3 | 外部waker/晚通知、no-future及drain，关闭后所有raw入口静止 | 部分实现 | P0 | root | 同线程晚通知gate/provider排空已[合入][e42]；G7.2.1的closed跨线程raw holder/no-future/drain已由main@222e550af验收。一般借入环境和通用waker图仍待补。 |
 | G7.4 | Registration与异步任务责任的失败/取消/完成组合 | 部分实现 | P0 | root | 有限 Task 失败/取消/返回时排空已[合入][e42]；更一般组合依赖 G7.2、G8.6。 |
 
 ## G8 · 异步与并发
@@ -295,9 +304,9 @@ Sol high负责实现，疑难交Astra；本批已交付远端main@222e550af。�
 | G8.1 | 结构化pthread、密封MutexI32/AtomicI32、稳定TaskI32帧和有限静态Suspend child | 已合入 | — | — | [已合入证据][e37]；限密封 I32 及有限静态任务。 |
 | G8.2 | 静态拥有Task/child、保存SSA、Unit/有限Copy错误结果及清理 | 已合入 | — | — | [本批验收][e41]；有限静态拥有 Task/child 已通过共同验收；通用 frame port/拥有 Sum 仍另列。 |
 | G8.3 | CAS41真实源码→Types→两核/Wire→机器及争用/错误次序控制 | 已合入 | — | — | [本批验收][e41]；源码 CAS、两核/Wire、原生争用与错误次序控制已通过共同验收。 |
-| G8.4 | 通用PendingExit、挂起/取消排空、外部waker及晚通知 | 部分实现 | P0 | root | 有限同线程登记、Pending 清理及 Task 责任已由 PR37 [合入][e42]；跨线程、借入 frame port、一般拥有组合仍缺。 |
-| G8.5 | 一般Mutex<T>/Guard、Transfer/Share、原子位宽和拥有同步构造 | 进行中 | P0 | sol high · sync | 依赖 G3.4、G6.1；从密封 I32 扩展到一般拥有类型。 |
-| G8.6 | 一般拥有Sum/result、借入frame port、部分责任、ticket/defer的任务组合 | 部分实现 | P0 | CT / 异步 | G8.6.1 完整拥有 Enum 与内部只读借用跨挂起已由[PR41合入][e-pr41]，包含实际返回值、稳定帧存储与完成/取消清理。一般拥有结果、借入 port 与部分责任另待补。 |
+| G8.4 | 通用PendingExit、挂起/取消排空、外部waker及晚通知 | 部分实现 | P0 | root | 有限同线程Pending清理/Task责任及closed跨线程登记已合入；有限真实Task ports见G8.6.2/3。通用PendingExit、外部waker及一般拥有/借入责任组合仍缺。 |
+| G8.5 | 一般Mutex<T>/Guard、Transfer/Share、原子位宽和拥有同步构造 | 进行中 | P0 | sol high · sync | G8.5.1已合入拥有Package/Tuple/Enum/Array的Mutex<T>/affine Guard、结构化线程与更宽atomics；一般T及Guard跨挂起/线程迁移不因有限实现获得权限，继续补真实能力证明。 |
+| G8.6 | 一般拥有Sum/result、借入frame port、部分责任、ticket/defer的任务组合 | 部分实现 | P0 | CT / 异步 | 已合入完整拥有Enum及内部只读借用跨挂起、多个共享/独占输入普通结果、单共享输入借入结果；尚缺更一般多端口/独占/嵌套结果与owner/capture运输，G8.6.5进入下批共同验收。 |
 
 <details>
 <summary>G8.5 · 子任务</summary>
@@ -313,7 +322,7 @@ Sol high负责实现，疑难交Astra；本批已交付远端main@222e550af。�
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G8.6.2 | 单共享 &i32 输入 Task：真实 port、工厂返回及 frame 全寿命保留 | 已合入 | — | — | `main@e800b39d5`；实际共享 &i32 port 保留至 Destroy/同步 Drop，跨模块返回、PC0/取消及独立 raw/Wire/预算通过。[验收][e-native-foundations]；其它结果、Task 输入和线程迁移未开放。 |
-| G8.6.3 | 多共享/独占Task端口、普通结果族及跨helper完整上下文转交 | 已合入 | — | — | `dccc5764c`：多共享/独占端口、标量及有限Product referent、Task<T,Context>泛型helper已合候选；非作者复核通过限定范围并实跑16项Source、4项Verify。嵌套owner transport和借入结果仍缺。 已由main@222e550af本批有限范围验收。 |
+| G8.6.3 | 多共享/独占Task端口、普通结果族及跨helper完整上下文转交 | 已合入 | — | — | `dccc5764c`已由main@222e550af有限范围验收：多共享/独占端口、标量及有限Product referent、Task<T,Context>泛型helper，真实来源/完整上下文正反例闭合。单输入借入结果见G8.6.4；嵌套owner运输仍缺。 |
 | G8.6.4 | Task借入结果：外部输入来源、真实Poll载荷及Destroy后父loan | 已合入 | — | — | `ee8f13055/b2ecb006e`已独审并合：真实local父链/普通SSA消费、无dummyheader/合法elision/非首参数/cross-module Direct，61专项及原预算通过；pub Suspend仍SABI1，multiport/exclusive/nested结果未关闭。 已由main@222e550af本批有限范围验收。 |
 | G8.6.5 | 至少双共享Task输入、只返回其中一条真实外部来源 | 实现待验 | P0 | sol high · multiport_task | `1ae76f59e`完整三commit已推送并获Astra精确接受，已合施工树`61ad58b68`待共同验收；74/44/18、24native及真实calloc/取消、fullcontext/Slice费用增长控制过；frame保所有port，Ready只取真实eligible来源。 |
 
