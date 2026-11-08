@@ -1,33 +1,27 @@
 {
   "kind": "coordination-only; no acceptance claim",
-  "source": "9f9abb805bc6f81052e531c2d6835a18c31d8ac8",
+  "source": "263f11f3e3e0c0fc924b4f2573416e1fe1a0d755",
   "source_branch": "task/G10.6.3",
   "main": "e800b39d5f9a096b33560625a4273c1ef11e3d92",
   "strict_clippy": {
     "status": "Pass",
-    "source": "9f9abb805bc6f81052e531c2d6835a18c31d8ac8",
+    "source": "263f11f3e3e0c0fc924b4f2573416e1fe1a0d755",
     "command": "cargo clippy --locked --offline --workspace --all-targets --features llvm-api -- -D warnings",
-    "log": "/workspace/.zil-env/release-foundations/post-compatibility/strict-clippy.log"
+    "log": "/workspace/.zil-env/release-foundations/final-composition-focus/strict-final.log"
   },
   "default": {
-    "status": "Fail",
-    "frozen_source": "659ab48b4aff924430d4714174bc9c60cf61afce",
-    "passed": 5532,
-    "failed": 34,
-    "batches": 53,
-    "integration_target_names": 394,
-    "result": "/workspace/.zil-env/release-foundations/final-schema46-default/default-result.json",
-    "fixes_in_current_candidate": true,
+    "status": "Running",
+    "source": "263f11f3e3e0c0fc924b4f2573416e1fe1a0d755",
+    "result_root": "/workspace/.zil-env/release-foundations/native-language-common-default",
     "exact_final_rerun_pending": true
   },
   "source_backup": {
-    "archive": "5a2a4a0a52041cccc0ebea07567c54195e4489c9",
-    "verified_tips": 182,
+    "archive": "3b7ad18892b35895dd973f47934f917242408387",
+    "verified_tips": 181,
     "stable_source_snapshot": true,
     "remote_verified": true,
     "actual_wip_bytes": true,
-    "receipt": "/workspace/.zil-env/release-foundations/archive-fourteenth-source-checkpoint.json",
-    "scope": "All source refs, indexes and actual WIP at the paused source-writing boundary; recovery only, not acceptance."
+    "receipt": "/workspace/.zil-env/release-foundations/archive-sixteenth-source-checkpoint.json"
   },
   "not_accepted": [
     "full default/reference/text",
@@ -57,8 +51,52 @@
       "scope": "That target passed; same command later failed the separate generics target, which was corrected and separately rerun."
     }
   },
-  "active_composition_failures": [
-    "Generic-call ErrorUnion tag at E=T",
-    "Actual same-CFG borrowed-result Task plus owning Map/Option"
+  "active_composition_failures": [],
+  "historical_default_runs": [
+    {
+      "source": "1b462001c6e74548196e72f62ab6074eb4296913",
+      "passed": 5511,
+      "failed": 21,
+      "status": "Fail"
+    },
+    {
+      "source": "659ab48b4aff924430d4714174bc9c60cf61afce",
+      "passed": 5532,
+      "failed": 34,
+      "status": "Fail"
+    },
+    {
+      "source": "56bcbb30c22dcc31c5e8cd2ddf5be118a9174859",
+      "passed": 5573,
+      "failed": 1,
+      "status": "Fail",
+      "result": "/workspace/.zil-env/release-foundations/language-release-default/default-result.json",
+      "remaining_failure": "default-worker stack; fixed by266b758ef without changing tests/stack/limits"
+    }
+  ],
+  "integrated_focused": {
+    "source": "38662973498eee786dcac76852677aa681931288",
+    "passed": 99,
+    "failed": 0,
+    "log": "/workspace/.zil-env/release-foundations/final-composition-focus/driver-compatible.log",
+    "scope": "All18 owning Map,64 raw stored lending,17 synchronous error; next source only changes three test err-expect lint expressions."
+  },
+  "previous_cold_recovery": {
+    "source": "56bcbb30c22dcc31c5e8cd2ddf5be118a9174859",
+    "executions": 20,
+    "passed": 20,
+    "compiler_artifacts_reused": false,
+    "scope": "Previous source only; final current-source recovery pending.",
+    "receipt": "/workspace/.zil-env/release-foundations/accepted-source-cold/receipt.json"
+  },
+  "pending_common_gates": [
+    "final full default/reference",
+    "current-source cold build and consumers",
+    "main integration"
+  ],
+  "next_implementation": [
+    "G2.4.10",
+    "G3.4.11",
+    "G8.6.5"
   ]
 }
