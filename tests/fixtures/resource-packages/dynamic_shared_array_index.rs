@@ -45,7 +45,7 @@ fn dynamic_indices_keep_all_actual_element_sources() {
 }
 
 #[test]
-fn rigid_element_uppers_have_explicit_literal_and_dynamic_qualification() {
+fn distinct_rigid_element_uppers_are_valid_local_dynamic_candidates() {
     let prefix = "struct Refs<life a>{pointer:&'a i32}fn read<life a,life b>(left:Refs<'a>,right:Refs<'b>,index:i32)->i32{let items=[left.pointer,right.pointer];return *items[";
     for index in ["0", "1", "index"] {
         let program = format!("{prefix}{index}]}}fn main()->i32{{return 0}}");
@@ -57,21 +57,14 @@ fn rigid_element_uppers_have_explicit_literal_and_dynamic_qualification() {
             },
         );
         println!("rich distinct rigid index={index}: {}", report.to_json());
-        if index != "index" {
-            assert_eq!(
-                report.status,
-                ResultCategory::Success,
-                "{}",
-                report.to_json()
-            );
-        } else {
-            assert_eq!(
-                report.status,
-                ResultCategory::SafeReject,
-                "{}",
-                report.to_json()
-            );
-        }
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        verify_source("distinct rigid upper candidates", &program);
     }
 }
 
@@ -547,4 +540,119 @@ fn raw_and_wire_reject_dynamic_index_type_and_incomplete_actual_array() {
         );
         println!("{case}: Analyze/Verify/Wire independent actual type/shape rejection");
     }
+}
+
+#[test]
+fn distinct_uppers_survive_local_copies_reborrows_and_scalar_observers() {
+    let program = "struct Refs<life a>{pointer:&'a i32}fn observe(pointer:&i32)->i32{return *pointer}fn read<life a,life b>(left:Refs<'a>,right:Refs<'b>,index:i32)->i32{let items=[left.pointer,right.pointer];let pointer=items[index];let copied=pointer;let reborrowed=&*copied;return observe(reborrowed)}fn main()->i32{return 0}";
+    verify_source("mixed upper copy/reborrow/observer", program);
+}
+
+#[test]
+fn dynamic_uppers_are_checked_at_real_return_and_local_slot_boundaries() {
+    let declarations = "struct Refs<life a>{pointer:&'a i32}";
+    let bad_return = format!(
+        "{declarations}fn wrong<life a,life b>(left:Refs<'a>,right:Refs<'b>,index:i32)->&'a i32{{let items=[left.pointer,right.pointer];return items[index]}}fn main()->i32{{return 0}}"
+    );
+    let good_store = format!(
+        "{declarations}fn write<life a,life b>(left:Refs<'a>,right:Refs<'b>,index:i32)->i32{{let items=[left.pointer,left.pointer];let pointer=items[index];var holder=Refs::<'a>{{pointer:pointer}};holder.pointer=left.pointer;return *holder.pointer}}fn main()->i32{{return 0}}"
+    );
+    verify_source(
+        "dynamic upper actual slot compatible replacement",
+        &good_store,
+    );
+    let bad_store = good_store.replace(
+        "holder.pointer=left.pointer",
+        "holder.pointer=right.pointer",
+    );
+    for (label, program) in [
+        ("mixed upper return claims a", bad_return),
+        ("single b replaces actual a slot", bad_store),
+    ] {
+        let report = compile_source(
+            &source(label, &program),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{label}: {}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("retained class")),
+            "{label}: {}",
+            report.to_json()
+        );
+        println!("{label}: actual expected class rejects incompatible source");
+    }
+}
+
+#[test]
+fn raw_and_wire_cannot_replace_a_declared_return_source_by_another_upper() {
+    let program = "struct Refs<life a>{pointer:&'a i32}fn choose<life a,life b>(left:Refs<'a>,right:Refs<'b>,index:i32)->&'a i32{let other=right.pointer;let items=[left.pointer,left.pointer];return items[index]}fn main()->i32{return 0}";
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let mut raw = typed_source("dynamic-upper-real-source", program, &target, &limits);
+    let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let f = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "choose")
+        .unwrap();
+    let other = f.locals.iter().find(|l| l.name == "other").unwrap().id;
+    let right = f
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| {
+            if let zil_ir::InstructionKind::Store { local, value } = i.kind {
+                (local == other).then_some(value)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let fields = f
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find_map(|i| {
+            if let zil_ir::InstructionKind::MakeAggregate { fields } = &mut i.kind {
+                Some(fields)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    assert_eq!(fields.len(), 2);
+    fields[1] = right;
+    let errors = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d.message.contains("retained class")),
+        "{errors:?}"
+    );
+    plan.module_fingerprint = raw.fingerprint();
+    let errors =
+        zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d.message.contains("retained class")),
+        "{errors:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    let errors = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d.message.contains("retained class")),
+        "{errors:?}"
+    );
+    println!(
+        "actual b source inserted in a-returning dynamic selector: Analyze/Verify/Wire independent class rejection"
+    );
 }

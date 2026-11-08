@@ -1,6 +1,7 @@
 //! Independently rebuild finite upper alternatives with sorted vector domains.
 //! No analyzer graph, domain, identity conclusion, or target claim is consumed.
 use super::*;
+use crate::stored_flow::type_work;
 use std::cell::{Cell, RefCell};
 
 type Site = (usize, usize);
@@ -409,15 +410,15 @@ impl Flow {
                     continue;
                 };
                 work(b, parent.keys.len().saturating_mul(2))?;
-                parent.keys.iter().position(|(p, c)| {
-                    p.as_slice()
-                        == if prefix {
-                            &[LifeTypeProjection::Pointee]
-                        } else {
-                            &[]
-                        }
-                        && *c == row.binder
-                })
+                let wanted_prefix: &[LifeTypeProjection] = if prefix {
+                    &[LifeTypeProjection::Pointee]
+                } else {
+                    &[]
+                };
+                parent
+                    .keys
+                    .iter()
+                    .position(|(p, c)| p.as_slice() == wanted_prefix && *c == row.binder)
             } else {
                 work(
                     b,

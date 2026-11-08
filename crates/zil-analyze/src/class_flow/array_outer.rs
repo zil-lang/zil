@@ -402,15 +402,15 @@ impl Flow {
                     continue;
                 };
                 work(b, parent.keys.len().saturating_mul(2))?;
-                parent.keys.iter().position(|(p, c)| {
-                    p.as_slice()
-                        == if prefix {
-                            &[LifeTypeProjection::Pointee]
-                        } else {
-                            &[]
-                        }
-                        && *c == row.binder
-                })
+                let wanted_prefix: &[LifeTypeProjection] = if prefix {
+                    &[LifeTypeProjection::Pointee]
+                } else {
+                    &[]
+                };
+                parent
+                    .keys
+                    .iter()
+                    .position(|(p, c)| p.as_slice() == wanted_prefix && *c == row.binder)
             } else {
                 work(
                     b,
