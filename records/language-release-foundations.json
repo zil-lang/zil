@@ -1,28 +1,33 @@
 {
   "kind": "coordination-only; no acceptance claim",
-  "source": "2641dd6a7",
+  "source": "9f9abb805bc6f81052e531c2d6835a18c31d8ac8",
   "source_branch": "task/G10.6.3",
   "main": "e800b39d5f9a096b33560625a4273c1ef11e3d92",
   "strict_clippy": {
     "status": "Pass",
-    "command": "cargo clippy --locked --workspace --all-targets --keep-going --features llvm-api -- -D warnings",
-    "log": "/workspace/.zil-env/release-foundations/schema46-clippy-sixth.log",
-    "scope": "Historical source1b462001c only; merged candidate rerun pending"
+    "source": "9f9abb805bc6f81052e531c2d6835a18c31d8ac8",
+    "command": "cargo clippy --locked --offline --workspace --all-targets --features llvm-api -- -D warnings",
+    "log": "/workspace/.zil-env/release-foundations/post-compatibility/strict-clippy.log"
   },
   "default": {
     "status": "Fail",
-    "frozen_source": "1b462001c6e74548196e72f62ab6074eb4296913",
-    "passed": 5511,
-    "failed": 21,
+    "frozen_source": "659ab48b4aff924430d4714174bc9c60cf61afce",
+    "passed": 5532,
+    "failed": 34,
+    "batches": 53,
+    "integration_target_names": 394,
+    "result": "/workspace/.zil-env/release-foundations/final-schema46-default/default-result.json",
     "fixes_in_current_candidate": true,
     "exact_final_rerun_pending": true
   },
   "source_backup": {
-    "archive": "54ad5f516d301df3f32490fc9e62c01517584a17",
-    "verified_tips": 178,
+    "archive": "5a2a4a0a52041cccc0ebea07567c54195e4489c9",
+    "verified_tips": 182,
     "stable_source_snapshot": true,
     "remote_verified": true,
-    "actual_wip_bytes": true
+    "actual_wip_bytes": true,
+    "receipt": "/workspace/.zil-env/release-foundations/archive-fourteenth-source-checkpoint.json",
+    "scope": "All source refs, indexes and actual WIP at the paused source-writing boundary; recovery only, not acceptance."
   },
   "not_accepted": [
     "full default/reference/text",
@@ -30,5 +35,30 @@
     "this-source cold recovery",
     "functional 1.0",
     "formal product gates"
+  ],
+  "focused": {
+    "status": "Pass",
+    "source": "9f9abb805bc6f81052e531c2d6835a18c31d8ac8",
+    "driver_targets": {
+      "passed": 300,
+      "failed": 0,
+      "log": "/workspace/.zil-env/release-foundations/post-compatibility/driver-focused-final.log"
+    },
+    "expand_generics": {
+      "passed": 28,
+      "failed": 0,
+      "log": "/workspace/.zil-env/release-foundations/post-compatibility/expand-generics.log"
+    },
+    "generic_regressions": {
+      "source": "35a7084029867715f127d26be0a7c5cf9d8b79b9",
+      "passed": 210,
+      "failed": 0,
+      "log": "/workspace/.zil-env/release-foundations/post-compatibility/driver-focused-corrected.log",
+      "scope": "That target passed; same command later failed the separate generics target, which was corrected and separately rerun."
+    }
+  },
+  "active_composition_failures": [
+    "Generic-call ErrorUnion tag at E=T",
+    "Actual same-CFG borrowed-result Task plus owning Map/Option"
   ]
 }
