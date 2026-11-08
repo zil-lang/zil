@@ -383,8 +383,8 @@ fn actual_desc_structural_writes_survive_nested_helper_parameter_remapping() {
     }
 
     // Source now diagnoses these aliases before Typed. Move a real, unused
-    // reserve call across the actual element window to keep testing both raw
-    // kernels' parameter-remapped structural effects independently.
+    // reserve call across the actual element window to keep testing raw/Wire
+    // Verify's parameter-remapped structural effects independently.
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
     for capacity in [4, 2, -1] {
@@ -400,7 +400,8 @@ fn actual_desc_structural_writes_survive_nested_helper_parameter_remapping() {
             &limits,
         )
         .unwrap();
-        let mut claim = zil_analyze::analyze(&raw, &limits).unwrap();
+        let control_claim = zil_analyze::analyze(&raw, &limits).unwrap();
+        zil_verify::verify_module(raw.clone(), control_claim, &target, &limits).unwrap();
         let block = raw
             .functions
             .iter_mut()
@@ -424,10 +425,9 @@ fn actual_desc_structural_writes_survive_nested_helper_parameter_remapping() {
             .unwrap();
         assert!(window >= at);
         block.instructions.insert(window + 1, instruction);
-        claim.module_fingerprint = raw.fingerprint();
         // Analyze produces the candidate; Verify independently checks the
         // nested helper's actual structural effects, as in the original gate.
-        claim = zil_analyze::analyze(&raw, &limits).unwrap();
+        let claim = zil_analyze::analyze(&raw, &limits).unwrap();
         let wire = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
         for result in [
             zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits),
