@@ -22,6 +22,8 @@ pub(crate) struct Budget<'a> {
     stored_lifetimes: bool,
     source_identity: bool,
     shared_enum_addresses: bool,
+    task_result_worker: bool,
+    static_task_create: bool,
 }
 impl<'a> Budget<'a> {
     pub(crate) fn new(limits: &'a Limits) -> Self {
@@ -45,6 +47,8 @@ impl<'a> Budget<'a> {
             stored_lifetimes: false,
             source_identity: false,
             shared_enum_addresses: false,
+            task_result_worker: false,
+            static_task_create: false,
         }
     }
     pub(crate) fn has_dynamic(&self) -> bool {
@@ -64,6 +68,44 @@ impl<'a> Budget<'a> {
     }
     pub(crate) fn note_source_identity(&mut self) {
         self.source_identity = true;
+    }
+    fn task_result_inventory(&mut self) {
+        if self.task_result_worker && self.static_task_create {
+            self.note_source_identity();
+            self.note_stored_lifetimes();
+        }
+    }
+    /// Record conservative inventory demand during an already paid signature
+    /// walk. Actual static-worker identity and result sources are checked later.
+    pub(crate) fn note_task_result_worker(&mut self, function: &Function) {
+        if function.return_type.as_ref().is_some_and(|result| {
+            matches!(
+                grouped(result).kind,
+                TypeKind::Reference { mutable: false, .. }
+            )
+        }) {
+            self.task_result_worker = true;
+            self.task_result_inventory();
+        }
+    }
+    pub(crate) fn note_static_task_create(&mut self, expression: &Expr) {
+        fn static_path(expression: &Expr) -> bool {
+            match &expression.kind {
+                ExprKind::Name(_) => true,
+                ExprKind::Group(inner) | ExprKind::TypeApply { callee: inner, .. } => {
+                    static_path(inner)
+                }
+                ExprKind::Member { object, .. } => static_path(object),
+                _ => false,
+            }
+        }
+        if let ExprKind::Call { callee, arguments } = &expression.kind
+            && crate::foreign::bare_name(callee) == Some("task_create")
+            && arguments.first().is_some_and(|a| static_path(&a.value))
+        {
+            self.static_task_create = true;
+            self.task_result_inventory();
+        }
     }
     pub(crate) fn has_shared_enum_addresses(&self) -> bool {
         self.shared_enum_addresses
@@ -627,6 +669,7 @@ impl<'a> Budget<'a> {
         if let Some(t) = &f.return_type {
             self.ty_at(t, depth + 1, subs)?;
         }
+        self.note_task_result_worker(f);
         match &f.body {
             FunctionBody::Block(b) => self.block(b, depth + 1, subs)?,
             FunctionBody::Expression(e) => self.expr(e, depth + 1, subs)?,
@@ -1187,6 +1230,7 @@ impl<'a> Budget<'a> {
                     for a in arguments {
                         self.expr(&a.value, depth + 1, subs)?;
                     }
+                    self.note_static_task_create(e);
                 };
             }
             _ => unreachable!("budget expression dispatch"),

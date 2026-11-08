@@ -20,6 +20,32 @@ pub(super) fn has_life(item: &Item) -> bool {
     }
 }
 
+pub(super) fn erase_stored_header_lifetimes(function: &mut Function) {
+    fn erase(ty: &mut TypeRef) {
+        match &mut ty.kind {
+            TypeKind::Reference {
+                lifetime, inner, ..
+            } => {
+                *lifetime = None;
+                erase(inner);
+            }
+            TypeKind::Group(inner) => erase(inner),
+            TypeKind::Tuple(fields) => {
+                for field in fields {
+                    erase(field);
+                }
+            }
+            _ => {}
+        }
+    }
+    for parameter in &mut function.params {
+        erase(&mut parameter.ty);
+    }
+    if let Some(result) = &mut function.return_type {
+        erase(result);
+    }
+}
+
 impl<'a> Engine<'a> {
     fn capture_actual_life(
         &mut self,
@@ -534,29 +560,7 @@ impl<'a> Engine<'a> {
         // All retained occurrences have been emitted before the old flat
         // function-lifetime producer sees this header. Only direct header
         // references are erased here; arbitrary body/type labels stay checked.
-        fn erase(ty: &mut TypeRef) {
-            match &mut ty.kind {
-                TypeKind::Reference {
-                    lifetime, inner, ..
-                } => {
-                    *lifetime = None;
-                    erase(inner);
-                }
-                TypeKind::Group(inner) => erase(inner),
-                TypeKind::Tuple(fields) => {
-                    for field in fields {
-                        erase(field);
-                    }
-                }
-                _ => {}
-            }
-        }
-        for parameter in &mut function.params {
-            erase(&mut parameter.ty);
-        }
-        if let Some(result) = &mut function.return_type {
-            erase(result);
-        }
+        erase_stored_header_lifetimes(function);
         // Retain the source scope until the body is specialized, even when a
         // caller appears before this definition. Only emitted Core is erased.
         Ok(true)
@@ -1504,6 +1508,168 @@ impl<'a> Engine<'a> {
             self.enqueue(instance, Some(origin))?;
         }
         Ok((generated, classes))
+    }
+
+    pub(super) fn task_create_poll_instance(
+        &mut self,
+        worker: &Function,
+        retained: &[(usize, TypeRef)],
+        result: &TypeRef,
+        span: Span,
+        depth: usize,
+    ) -> R<Option<TypeRef>> {
+        self.budget.ty(result)?;
+        let TypeKind::Reference {
+            mutable: false,
+            lifetime: result_life,
+            inner: result_inner,
+        } = &grouped(result).kind
+        else {
+            return Ok(None);
+        };
+        let [(position, actual)] = retained else {
+            return Ok(None);
+        };
+        self.budget.node(span, depth)?;
+        let parameter = &worker.params[*position];
+        self.budget.ty(&parameter.ty)?;
+        self.budget.ty(actual)?;
+        let TypeKind::Reference {
+            mutable: false,
+            lifetime: input_life,
+            inner: input_inner,
+        } = &grouped(&parameter.ty).kind
+        else {
+            return Ok(None);
+        };
+        if result_life.is_none() {
+            for (ordinal, parameter) in worker.params.iter().enumerate() {
+                self.budget.ty(&parameter.ty)?;
+                if ordinal != *position && !callable_context::scalar_syntax(&parameter.ty) {
+                    return Ok(None);
+                }
+            }
+        }
+        let TypeKind::Reference {
+            mutable: false,
+            inner: actual_inner,
+            ..
+        } = &grouped(actual).kind
+        else {
+            return Ok(None);
+        };
+        // This only supplies the physical Poll declaration for the existing
+        // one-shared-port, same-whole-leaf Task protocol. Worker bodies and
+        // actual argument bindings remain independent kernel proof inputs.
+        for ty in [result_inner.as_ref(), input_inner, actual_inner] {
+            self.budget.ty(ty)?;
+        }
+        let result_key = type_key(result_inner, &mut self.budget)?;
+        if result_key != type_key(input_inner, &mut self.budget)?
+            || result_key != type_key(actual_inner, &mut self.budget)?
+            || matches!((input_life, result_life), (Some(input), Some(result)) if input != result)
+            || matches!((input_life, result_life), (None, Some(_)))
+        {
+            return Ok(None);
+        }
+        let mut scope = Vec::new();
+        for parameter in &worker.generics {
+            self.budget.node(parameter.span, depth)?;
+            if !matches!(parameter.kind, GenericParamKind::Lifetime) {
+                return Ok(None);
+            }
+            self.budget.text(&parameter.name, parameter.span)?;
+            self.budget
+                .lineage_bytes(std::mem::size_of::<String>(), parameter.span)?;
+            scope.push(parameter.name.clone());
+        }
+        let life = if let Some(life) = input_life {
+            self.budget.text(life, span)?;
+            life.clone()
+        } else {
+            // A single actual reference input is the existing elision bound.
+            // This private label belongs to the worker scope, never the caller.
+            self.budget.text("$task_worker_input", span)?;
+            self.budget
+                .lineage_bytes(std::mem::size_of::<String>(), span)?;
+            let life = "$task_worker_input".to_owned();
+            self.budget.text(&life, span)?;
+            scope.push(life.clone());
+            life
+        };
+        self.budget.ty(result)?;
+        let mut payload = grouped(result).clone();
+        let TypeKind::Reference { lifetime, .. } = &mut payload.kind else {
+            unreachable!()
+        };
+        *lifetime = Some(life);
+        self.budget.ty(&payload)?;
+        let mut layout = payload.clone();
+        let TypeKind::Reference { lifetime, .. } = &mut layout.kind else {
+            unreachable!()
+        };
+        *lifetime = None;
+        let old_scope = std::mem::replace(&mut self.life_scope, scope);
+        let old_bindings = std::mem::take(&mut self.nominal_life_bindings);
+        let old_captured = std::mem::take(&mut self.nominal_captured_lives);
+        let registered = self.stored_nominal(
+            options::TASK_POLL,
+            &mut [GenericArg::Type(payload)],
+            span,
+            depth + 1,
+        );
+        self.life_scope = old_scope;
+        self.nominal_life_bindings = old_bindings;
+        self.nominal_captured_lives = old_captured;
+        registered?;
+        {
+            // Preserve the checked whole-input declaration bound in the
+            // structured signature, including ordinary single-input elision.
+            // The body must still return that actual input; these rows cannot
+            // attest to an executable source.
+            self.stored_lookup_fee(
+                self.products.storage.functions.len(),
+                worker.name.len(),
+                span,
+            )?;
+            self.budget.lineage_bytes(
+                2usize.saturating_mul(std::mem::size_of::<stored_types::Occurrence>()),
+                span,
+            )?;
+            let parameter = u32::try_from(*position)
+                .map_err(|_| error(span, "Task worker parameter ordinal overflow"))?;
+            let occurrences = [
+                zil_ir::StorageBase::Parameter(parameter),
+                zil_ir::StorageBase::Result,
+            ]
+            .into_iter()
+            .map(|base| stored_types::Occurrence {
+                position: stored_types::OccurrencePosition::Borrow(zil_ir::StoragePosition {
+                    base,
+                    path: Vec::new(),
+                }),
+                life: LexicalLife(0),
+                fixed_input: false,
+            })
+            .collect();
+            let contract = stored_types::contract(occurrences, &mut self.budget, span)?;
+            if let Some(existing) = self.products.storage.functions.get(&worker.name) {
+                // The candidate has two empty paths and no class rows, so
+                // length mismatches stop comparison before any longer path.
+                self.budget.identity_work(12, span)?;
+                if existing != &contract {
+                    return Ok(None);
+                }
+            } else {
+                self.budget.text(&worker.name, span)?;
+                self.products
+                    .storage
+                    .functions
+                    .insert(worker.name.clone(), contract);
+            }
+        }
+        self.budget.note_shared_enum_addresses();
+        Ok(Some(layout))
     }
 
     pub(super) fn task_poll_layout_hint(

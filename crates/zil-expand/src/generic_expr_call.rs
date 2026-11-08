@@ -288,7 +288,9 @@ impl Engine<'_> {
                 }
                 let mut context_ports = Vec::new();
                 let mut complete_context = true;
-                for (argument, parameter) in arguments[1..].iter_mut().zip(&signature.params) {
+                for (position, (argument, parameter)) in
+                    arguments[1..].iter_mut().zip(&signature.params).enumerate()
+                {
                     let actual = self.expr_expected(
                         &mut argument.value,
                         env,
@@ -305,7 +307,7 @@ impl Engine<'_> {
                                 TypeKind::Reference { mutable, .. }
                                     if mutable == expected) =>
                             {
-                                context_ports.push(actual)
+                                context_ports.push((position, actual))
                             }
                             _ => complete_context = false,
                         }
@@ -315,6 +317,22 @@ impl Engine<'_> {
                     .return_type
                     .clone()
                     .unwrap_or_else(|| named("void", e.span));
+                if name == "task_create"
+                    && complete_context
+                    && matches!(
+                        grouped(&result).kind,
+                        TypeKind::Reference { mutable: false, .. }
+                    )
+                    && let Some(layout) = self.task_create_poll_instance(
+                        &signature,
+                        &context_ports,
+                        &result,
+                        e.span,
+                        depth + 1,
+                    )?
+                {
+                    result = layout;
+                }
                 let owning_result = signature.contract.iter().any(|clause| clause.name == "result"
                     && matches!(clause.terms.as_slice(), [term] if term.type_args.is_empty() && term.arguments.is_empty() && term.index.is_none() && matches!(term.path.as_slice(), [mode] if mode == "give" || mode == "create")));
                 if owning_result
@@ -336,11 +354,16 @@ impl Engine<'_> {
                 let mut task_args = vec![GenericArg::Type(result)];
                 if complete_context && !context_ports.is_empty() {
                     let context = if context_ports.len() == 1 {
-                        context_ports.pop().unwrap()
+                        context_ports.pop().unwrap().1
                     } else {
                         TypeRef {
                             span: e.span,
-                            kind: TypeKind::Tuple(context_ports),
+                            kind: TypeKind::Tuple(
+                                context_ports
+                                    .into_iter()
+                                    .map(|(_, actual)| actual)
+                                    .collect(),
+                            ),
                         }
                     };
                     task_args.push(GenericArg::Type(context));
