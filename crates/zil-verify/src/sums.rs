@@ -36,7 +36,9 @@ fn owned_leaf(ty: &Type) -> bool {
 // type/slot classification is indexed; every invalidation still updates the
 // actual Content, missing fields, routes and current tag alternatives.
 fn indexed_invalidation(budget: &Budget) -> bool {
-    budget.pod_stores || budget.task_borrowed_results && budget.store_option_results
+    budget.pod_stores
+        || budget.store_option_results
+            && (budget.task_borrowed_results || budget.ordinary_error_places)
 }
 
 fn bad(span: Option<Span>, message: impl Into<String>) -> Diagnostic {
@@ -2248,8 +2250,12 @@ fn run_with_replacements(
     };
     let mut inputs = vec![None; f.blocks.len()];
     inputs[f.entry.0 as usize] = Some(state);
-    let mut pending =
-        resources::schedule::Worklist::new(graph, f.entry.0 as usize, budget.pod_stores, budget)?;
+    let mut pending = resources::schedule::Worklist::new(
+        graph,
+        f.entry.0 as usize,
+        budget.pod_stores || (budget.store_option_results && budget.ordinary_error_places),
+        budget,
+    )?;
     let mut queued = vec![false; f.blocks.len()];
     queued[f.entry.0 as usize] = true;
     let mut excluded_edges = BTreeSet::new();
@@ -2329,38 +2335,42 @@ pub(super) fn test_schedule_equivalence(
     graph: &FunctionGraph,
     limits: &Limits,
 ) -> bool {
-    let solve = |ranked| {
+    let solve = |profile| {
         TEST_SUM_INPUTS.with(|capture| *capture.borrow_mut() = Some(Vec::new()));
         let mut budget = Budget::new(limits);
-        budget.pod_stores = ranked;
+        budget.pod_stores = profile == 1;
+        budget.store_option_results = profile == 2;
+        budget.ordinary_error_places = profile == 2;
         let found = run(module, f, graph, &[Content::Copy], true, &mut budget);
         let inputs = TEST_SUM_INPUTS.with(|capture| capture.borrow_mut().take().unwrap());
         (found, inputs)
     };
-    let (old_result, old_inputs) = solve(false);
-    let (new_result, new_inputs) = solve(true);
+    let (old_result, old_inputs) = solve(0);
     let accepted = old_result.is_ok();
-    assert!(
-        old_inputs == new_inputs,
-        "complete Sum block-input states differ"
-    );
-    match (old_result, new_result) {
-        (Ok((left, left_rows, left_edges)), Ok((right, right_rows, right_edges))) => {
-            assert_eq!(left_edges, right_edges, "Sum edge exclusions differ");
-            assert!(left == right, "Sum return content differs");
-            let rows = |rows: Vec<Vec<Bridge>>| {
-                rows.into_iter()
-                    .map(|row| {
-                        row.into_iter()
-                            .map(|bridge| (bridge.result, bridge.package, bridge.unpack))
-                            .collect::<Vec<_>>()
-                    })
-                    .collect::<Vec<_>>()
-            };
-            assert_eq!(rows(left_rows), rows(right_rows), "Sum bridge rows differ");
+    for profile in [1, 2] {
+        let (new_result, new_inputs) = solve(profile);
+        assert!(
+            old_inputs == new_inputs,
+            "complete Sum block-input states differ"
+        );
+        match (old_result.clone(), new_result) {
+            (Ok((left, left_rows, left_edges)), Ok((right, right_rows, right_edges))) => {
+                assert_eq!(left_edges, right_edges, "Sum edge exclusions differ");
+                assert!(left == right, "Sum return content differs");
+                let rows = |rows: Vec<Vec<Bridge>>| {
+                    rows.into_iter()
+                        .map(|row| {
+                            row.into_iter()
+                                .map(|bridge| (bridge.result, bridge.package, bridge.unpack))
+                                .collect::<Vec<_>>()
+                        })
+                        .collect::<Vec<_>>()
+                };
+                assert_eq!(rows(left_rows), rows(right_rows), "Sum bridge rows differ");
+            }
+            (Err(left), Err(right)) => assert_eq!(left, right, "Sum diagnostics differ"),
+            _ => panic!("Sum acceptance differs"),
         }
-        (Err(left), Err(right)) => assert_eq!(left, right, "Sum diagnostics differ"),
-        _ => panic!("Sum acceptance differs"),
     }
     accepted
 }

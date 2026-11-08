@@ -777,15 +777,37 @@ fn ordinary_scalar_entry_preserves_order_replay_and_the_parameter_boundary() {
     }
 }
 
-#[test]
-fn ordinary_owned_pipeline_keeps_callbacks_and_error_paths() {
-    let files = [
+fn pipeline_files() -> [(&'static str, &'static str); 4] {
+    [
         ("main", include_str!("../owned_pipeline/main.zil")),
         ("model", include_str!("../owned_pipeline/model.zil")),
         ("protocol", include_str!("../owned_pipeline/protocol.zil")),
         ("library", include_str!("../owned_pipeline/library.zil")),
-    ];
+    ]
+}
+
+#[test]
+fn ordinary_owned_pipeline_keeps_callbacks_and_error_paths() {
+    let files = pipeline_files();
+    let dir = std::env::temp_dir().join(format!(
+        "zil-owned-callback-pipeline-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    fs::create_dir_all(&dir).unwrap();
+    let types = compile_project(
+        &project(&files),
+        &CompileOptions {
+            stop_after: Stage::Types,
+            emit_dir: Some(dir.join("types")),
+            ..CompileOptions::default()
+        },
+    );
+    fs::write(dir.join("types.json"), types.to_json()).unwrap();
+    assert_eq!(types.status, ResultCategory::Success, "{}", types.to_json());
     let report = compile_project(&project(&files), &CompileOptions::default());
+    fs::write(dir.join("report.json"), report.to_json()).unwrap();
+    eprintln!("complete owning callback pipeline: {}", dir.display());
     assert_eq!(
         report.status,
         ResultCategory::Success,
@@ -848,4 +870,71 @@ fn ordinary_package_fields_complete_project_has_exact_fresh_analysis_work() {
         }
     }
     eprintln!("ordinary Package four-module analysis N={high}; N-1/fresh agree");
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn ordinary_owned_pipeline_executes_callbacks_and_allocation_cleanup_paths() {
+    owning_trait_native_cleanup(
+        &pipeline_files(),
+        &[
+            (None, 0, b"11:11:11\n"),
+            (Some("1"), 1, b"1:0:0\n"),
+            (Some("2"), 2, b"2:1:1\n"),
+            (Some("3"), 3, b"3:2:2\n"),
+            (Some("4"), 10, b"4:3:3\n"),
+            (Some("5"), 14, b"5:4:4\n"),
+            (Some("6"), 15, b"6:5:5\n"),
+            (Some("7"), 30, b"7:6:6\n"),
+            (Some("8"), 20, b"8:7:7\n"),
+            (Some("9"), 24, b"9:8:8\n"),
+            (Some("10"), 25, b"10:9:9\n"),
+            (Some("11"), 40, b"11:10:10\n"),
+        ],
+    );
+}
+
+#[test]
+fn ordinary_error_places_have_exact_fresh_independent_resource_work() {
+    let module = typed(&error_place_program());
+    let plan = control(&module);
+    for phase in [Phase::Analyze, Phase::Verify] {
+        let run = |steps| {
+            let limits = Limits {
+                max_analysis_steps: steps,
+                ..Limits::default()
+            };
+            if phase == Phase::Analyze {
+                zil_analyze::analyze(&module, &limits).map(|actual| assert_eq!(actual, plan))
+            } else {
+                zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits)
+                    .map(|_| ())
+            }
+        };
+        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+        run(high).unwrap();
+        while low + 1 < high {
+            let middle = low + (high - low) / 2;
+            match run(middle) {
+                Ok(()) => high = middle,
+                Err(errors) => {
+                    assert!(
+                        errors
+                            .iter()
+                            .all(|d| d.category == ResultCategory::ResourceLimit)
+                    );
+                    low = middle;
+                }
+            }
+        }
+        run(high).unwrap();
+        assert!(
+            run(high - 1)
+                .unwrap_err()
+                .iter()
+                .all(|d| d.phase == phase && d.category == ResultCategory::ResourceLimit)
+        );
+        run(high).unwrap();
+        eprintln!("ordinary Error/Option resource {phase:?} N={high}; N-1/fresh agree");
+    }
 }
