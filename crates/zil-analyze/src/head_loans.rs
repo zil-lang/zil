@@ -592,14 +592,33 @@ fn check_function(
     )?;
     let mut nodes = Vec::with_capacity(count);
     for (index, ty) in f.values.iter().enumerate() {
-        fee(b, facts[index].roots.len())?;
-        nodes.push(Node {
-            roots: facts[index]
-                .roots
-                .iter()
+        let mut physical = None;
+        if b.task_borrowed_results && b.store_option_results && matches!(ty, Type::Address { .. }) {
+            fee(b, 1)?;
+            let covered = b
+                .task_stored_coverage
+                .get(f.id.0 as usize)
                 .copied()
-                .map(LoanRoot::from_hold)
-                .collect(),
+                .ok_or_else(|| bad("head loan access lacks Task proof coverage"))?;
+            if covered {
+                let roots = b
+                    .task_pointer_roots
+                    .get(f.id.0 as usize)
+                    .and_then(|rows| rows.get(index))
+                    .ok_or_else(|| bad("head loan access lacks actual physical SSA roots"))?;
+                let count = roots.len();
+                fee(b, count)?;
+                if count != 0 {
+                    physical = Some(b.task_pointer_roots[f.id.0 as usize][index].clone());
+                }
+            }
+        }
+        let roots = physical.as_deref().unwrap_or(&facts[index].roots);
+        fee(b, roots.len())?;
+        nodes.push(Node {
+            // Public Task Hold roots also keep the worker's external input
+            // alive. Accessing the frame addresses its physical shell instead.
+            roots: roots.iter().copied().map(LoanRoot::from_hold).collect(),
             exclusive: matches!(ty, Type::Address { mutable: true, .. }),
             weak: matches!(ty, Type::Desc(_)),
             parents: Loans::new(),
@@ -945,6 +964,74 @@ fn check_function(
                                 if nodes[id].roots.as_slice() != std::slice::from_ref(&root) {
                                     nodes[id].roots = vec![root];
                                     changed = true;
+                                }
+                            }
+                        }
+                    }
+                    if fresh
+                        && b.task_borrowed_results
+                        && b.store_option_results
+                        && matches!(f.values[id], Type::Address { .. })
+                    {
+                        fee(b, 1)?;
+                        if b.task_stored_coverage
+                            .get(f.id.0 as usize)
+                            .copied()
+                            .ok_or_else(|| bad("head loan parent lacks Task proof coverage"))?
+                        {
+                            let anchors = b
+                                .task_pointer_parents
+                                .get(f.id.0 as usize)
+                                .and_then(|rows| rows.get(id))
+                                .ok_or_else(|| {
+                                    bad("head loan parent lacks actual stored anchors")
+                                })?;
+                            let work = anchors.iter().fold(anchors.len(), |n, a| {
+                                n.saturating_add(match a {
+                                    stored_flow::TaskLoanAnchor::Value(_) => 1,
+                                    stored_flow::TaskLoanAnchor::Input(t) => t
+                                        .stored
+                                        .len()
+                                        .saturating_add(t.place.len())
+                                        .saturating_add(1),
+                                })
+                            });
+                            fee(b, work)?;
+                            let anchors = b.task_pointer_parents[f.id.0 as usize][id].clone();
+                            for anchor in anchors {
+                                match anchor {
+                                    stored_flow::TaskLoanAnchor::Value(source)
+                                        if source.0 as usize != id =>
+                                    {
+                                        union(
+                                            &mut parents,
+                                            &direct(&values[source.0 as usize], b)?,
+                                            b,
+                                        )?;
+                                    }
+                                    stored_flow::TaskLoanAnchor::Input(t)
+                                        if t.stored.is_empty()
+                                            && t.place.is_empty()
+                                            && t.retained_port.is_none()
+                                            && t.heap_element.is_none() =>
+                                    {
+                                        if let HoldRoot::Parameter(position) = t.base {
+                                            if position as usize >= f.parameters.len() {
+                                                return Err(bad(
+                                                    "head loan actual input anchor is absent",
+                                                ));
+                                            }
+                                            fee(b, 1)?;
+                                            let parameter = f.parameters[position as usize];
+                                            if matches!(
+                                                f.locals[parameter.0 as usize].ty,
+                                                Type::Address { .. }
+                                            ) {
+                                                parents.insert(v + position as usize);
+                                            }
+                                        }
+                                    }
+                                    _ => {}
                                 }
                             }
                         }

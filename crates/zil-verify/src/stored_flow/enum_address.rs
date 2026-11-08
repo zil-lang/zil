@@ -214,6 +214,11 @@ pub(crate) fn ordinary(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check
         b.spend(1)?;
         let error_sum = ordinary(module, error, b)?;
         let result_sum = ordinary(module, result, b)?;
+        // A wrapper is in this domain only when an actual borrowed Enum arm
+        // independently selects it; ordinary owning unions keep their proof.
+        if !error_sum && !result_sum {
+            return Ok(false);
+        }
         let limits = b.limits.clone();
         if (!error_sum && !option_address::closed_pointee(error, &limits, b)?)
             || (!result_sum && !option_address::closed_pointee(result, &limits, b)?)

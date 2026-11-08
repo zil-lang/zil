@@ -1218,7 +1218,7 @@ fn tracked_desc(ty: &Type) -> bool {
     matches!(ty, Type::Desc(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. } | Type::Mutex { .. }))
 }
 
-fn retained_task_value(ty: &Type) -> bool {
+pub(super) fn retained_task_value(ty: &Type) -> bool {
     match ty {
         Type::MutexGuard { .. } => true,
         Type::Task { retained_life, .. } => !retained_life.ports.is_empty(),

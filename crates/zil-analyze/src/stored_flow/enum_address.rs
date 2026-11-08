@@ -209,6 +209,11 @@ pub(crate) fn ordinary(module: &TypedModule, ty: &Type, b: &mut Budget) -> Compi
         fee(b, 1)?;
         let a = ordinary(module, error, b)?;
         let z = ordinary(module, result, b)?;
+        // An unrelated owning union belongs to its ordinary resource proof.
+        // Only an actual borrowed Enum arm selects this wrapper consumer.
+        if !a && !z {
+            return Ok(false);
+        }
         if !a && !option_address::closed_pointee(error, b, 0)? {
             return Err(failure(
                 "borrowed error wrapper has an unqualified error payload",

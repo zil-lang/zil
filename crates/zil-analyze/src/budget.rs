@@ -73,6 +73,9 @@ pub(super) struct Budget {
     /// solver finishes every reachable CFG and signature relation.
     pub(super) store_option_targets: Option<Vec<Vec<Vec<super::stored_flow::Target>>>>,
     pub(super) task_pointer_roots: Vec<Vec<Vec<zil_ir::HoldRoot>>>,
+    pub(super) task_pointer_parents: Vec<Vec<Vec<crate::stored_flow::TaskLoanAnchor>>>,
+    /// A false row is an unselected ordinary function, not an empty proof.
+    pub(super) task_stored_coverage: Vec<bool>,
     pub(super) stored_borrows: bool,
     pub(super) stored_slot_updates: bool,
     // Current function's actual loan arena, including reserved exclusive sites.
@@ -151,6 +154,8 @@ impl Budget {
             store_option_results: false,
             store_option_targets: None,
             task_pointer_roots: Vec::new(),
+            task_pointer_parents: Vec::new(),
+            task_stored_coverage: Vec::new(),
             stored_borrows: false,
             stored_slot_updates: false,
             stored_exclusive_loans: false,

@@ -175,6 +175,8 @@ pub(super) struct TaskValueSources {
 }
 #[derive(Clone, Debug, Default)]
 pub(super) struct TaskFunctionSources {
+    /// False denotes an ordinary function omitted from stored solving.
+    pub(super) covered: bool,
     pub(super) values: Vec<TaskValueSources>,
 }
 struct Solution {
@@ -4417,6 +4419,13 @@ fn solve_check(
                 b.spend(f.values.len())?;
                 checked.push(StoreOptionFunctionSources {
                     values: vec![Vec::new(); f.values.len()],
+                });
+            }
+            if let Some(checked) = &mut checked_task_sources {
+                b.spend(f.values.len())?;
+                checked.push(TaskFunctionSources {
+                    covered: false,
+                    values: vec![TaskValueSources::default(); f.values.len()],
                 });
             }
             continue;
