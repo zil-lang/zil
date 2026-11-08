@@ -245,10 +245,12 @@ fn signatures(
         ) {
             errors.push(diagnostic);
         }
+        let mut signature_arrays = array_billing;
         if f.type_parameters.is_empty() {
-            signature_errors(f, &mut errors, limits, &mut foreign_work).map_err(|e| vec![e])?;
+            signature_arrays |=
+                signature_errors(f, &mut errors, limits, &mut foreign_work).map_err(|e| vec![e])?;
         }
-        if array_billing {
+        if signature_arrays {
             inference::charge_type_snapshot(&f.return_type, f.span, limits, &mut foreign_work, 1)
                 .map_err(|e| vec![e])?;
             for parameter in &f.parameters {
@@ -321,7 +323,7 @@ fn signature_errors(
     errors: &mut Vec<Diagnostic>,
     limits: &Limits,
     left: &mut usize,
-) -> R<()> {
+) -> R<bool> {
     fn pure_array(ty: &Type, span: Span, limits: &Limits, left: &mut usize) -> R<bool> {
         if !matches!(ty, Type::Array { .. }) || ty.is_copy_value() {
             return Ok(false);
@@ -330,6 +332,8 @@ fn signature_errors(
         inference::charge_type_snapshot(ty, span, limits, left, 2)?;
         stored::pure_inline(ty, left, limits, span)
     }
+    // Detect actual outer Array views during the existing bounded header walk.
+    let mut arrays = stored::shared_array_related(&f.return_type);
     let pure_result = pure_array(&f.return_type, f.span, limits, left)?;
     if f.return_type.is_package_address()
         && !(f.return_type.is_shared_package_address() && f.life.is_some())
@@ -393,6 +397,7 @@ fn signature_errors(
         errors.push(unsupported(f.span, "receiver capability typing"))
     }
     for (index, p) in f.parameters.iter().enumerate() {
+        arrays |= stored::shared_array_related(&p.ty);
         if f.state_parameters
             .iter()
             .any(|state| state.index as usize == index)
@@ -445,7 +450,7 @@ fn signature_errors(
             errors.push(unsupported(p.span, "resource/address parameter mode"))
         }
     }
-    Ok(())
+    Ok(arrays)
 }
 
 pub fn check(
