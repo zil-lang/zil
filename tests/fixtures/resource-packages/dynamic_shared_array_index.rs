@@ -898,10 +898,16 @@ fn rich_call_completeness_costs_grow_with_actual_input_and_output_ports() {
     let target = TargetProfile::host_llvm();
     let mut boundaries = Vec::new();
     for length in [2, 8] {
-        let program = array_budget_model(length, 1, 0, false).replace(
-            &format!("let pointer=items[{}]", length - 1),
-            &format!("let index={};let pointer=relay(*items)[index]", length - 1),
-        );
+        let program = array_budget_model(length, 1, 0, false)
+            .replace(
+                &format!("fn read<life a>(items:&[&'a Leaf;{length}])"),
+                &format!("fn read<life a>(items:[&'a Leaf;{length}])"),
+            )
+            .replace("return read(copied)-7", "return read(items)-7")
+            .replace(
+                &format!("let pointer=items[{}]", length - 1),
+                &format!("let index={};let pointer=relay(items)[index]", length - 1),
+            );
         let raw = typed_source("rich-call-upper-dependencies", &program, &target, &limits);
         let plan = zil_analyze::analyze(&raw, &limits).unwrap();
         let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
@@ -933,5 +939,6 @@ fn rich_call_completeness_costs_grow_with_actual_input_and_output_ports() {
     for phase in 0..3 {
         assert!(boundaries[1][phase] > boundaries[0][phase]);
     }
+    assert_eq!(boundaries, [[26829, 30552, 30552], [84551, 104625, 104625]]);
     println!("rich-call complete input/output requirement boundaries: {boundaries:?}");
 }
