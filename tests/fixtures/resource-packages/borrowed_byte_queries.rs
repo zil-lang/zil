@@ -967,6 +967,9 @@ fn descriptor_delegation_does_not_come_from_a_future_loop_iteration() {
     let outer = format!(
         "{prefix}fn main()->i32{{var value=7;var job=make(&value);let exclusive=&mut job;let description=exclusive.bytes;var iteration=0;var sum=i64(0);while iteration<2{{sum=sum+QUERY;sum=sum+i64(keep(&mut *exclusive))-7;iteration=iteration+1}}return i32(sum)}}"
     );
+    let saved = format!(
+        "{prefix}fn main()->i32{{var value=7;var job=make(&value);let initial=&job;var saved=initial.bytes;var iteration=0;var sum=i64(0);while iteration<2{{let exclusive=&mut job;let current=exclusive.bytes;let description=if iteration==0{{current}}else{{saved}};sum=sum+QUERY;saved=current;sum=sum+i64(keep(exclusive))-7;iteration=iteration+1}}return i32(sum)}}"
+    );
     for (label, helpers, query) in [
         ("direct", "", "bytes_len(description)"),
         (
@@ -987,6 +990,14 @@ fn descriptor_delegation_does_not_come_from_a_future_loop_iteration() {
         assert_loan(
             &format!("earlier-loop-description-{label}"),
             &format!("{helpers}{}", bad.replace("QUERY", query)),
+        );
+        assert_success(
+            &format!("saved-loop-description-control-{label}"),
+            &format!("{helpers}{}", saved.replace("QUERY", "i64(0)")),
+        );
+        assert_loan(
+            &format!("saved-loop-description-{label}"),
+            &format!("{helpers}{}", saved.replace("QUERY", query)),
         );
         assert_success(
             &format!("current-loop-description-{label}"),
