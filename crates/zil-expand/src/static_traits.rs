@@ -108,7 +108,12 @@ fn project_package_method(method: &s::Function) -> bool {
         && method
             .return_type
             .as_ref()
-            .is_none_or(|ty| plain_name(ty).is_some_and(scalar_self))
+            .is_none_or(|ty| {
+                plain_name(ty).is_some_and(scalar_self)
+                    || plain_name(ty) == Some("Self")
+                    || matches!(&ty.kind, s::TypeKind::Error { error, result }
+                        if plain_name(error).is_some() && plain_name(result) == Some("Self"))
+            })
 }
 
 impl<'a> Expander<'a> {
@@ -553,7 +558,11 @@ impl<'a> Expander<'a> {
                             .params
                             .len()
                             .saturating_add(method.generics.len())
-                            .saturating_add(1),
+                            .saturating_add(1)
+                            // The new error-result branch inspects its two
+                            // immediate children, before ordinary Types checks
+                            // their complete actual shapes and ownership.
+                            .saturating_add(usize::from(matches!(method.return_type.as_ref().map(|ty| &ty.kind), Some(s::TypeKind::Error { .. }))) * 2),
                         _ => 1,
                     })
                 });
@@ -578,7 +587,7 @@ impl<'a> Expander<'a> {
                     })
                 {
                     self.unsupported(
-                        "project Package traits require fixed borrowed receivers and scalar results",
+                        "project Package traits require fixed borrowed receivers and scalar, Self or nominal-error!Self results",
                         item.span,
                     );
                     continue;

@@ -5,6 +5,9 @@ use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit, TargetProfi
 use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_project};
 use zil_ir::{Instruction, InstructionKind, ValueId};
 
+#[path = "owned_results/consumers.rs"]
+mod owned_results;
+
 const KEY_EQ: &str = "pub trait KeyEq { fn same(self:&Self,other:&Self)->bool; }";
 const QUERY: &str =
     "import key_eq; pub fn equal<K:StoreElement+key_eq.KeyEq>(a:&K,b:&K)->bool{return a.same(b)}";
@@ -184,13 +187,10 @@ fn owning_package_shared_trait_rejects_wrong_provider_and_bad_definitions() {
     let owning_result = KEY_EQ.replace("->bool", "->Self");
     let result = check(
         &[("main", unused), ("key_eq", &owning_result)],
-        ResultCategory::Unsupported,
-        "E-UNSUPPORTED",
+        ResultCategory::SafeReject,
+        "E-TRAIT-SIGNATURE",
     );
-    assert!(result.diagnostics.iter().any(|d| {
-        d.message
-            .contains("project Package traits require fixed borrowed receivers")
-    }));
+    assert_eq!(result.verification_runs, 0);
     let owning_parameter = KEY_EQ.replace("other:&Self", "other:Self");
     let result = check(
         &[("main", unused), ("key_eq", &owning_parameter)],
