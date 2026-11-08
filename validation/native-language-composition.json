@@ -1,14 +1,13 @@
 {
   "schema_version": 1,
   "kind": "source-bound native language acceptance",
-  "status": "Pass for the finite supported profiles and complete coverage after a test-only budget repair",
-  "scope": "Qualified borrowed Record fields in owning Packages, owning Item trait lending, multiport shared Task results, retained carrier-window loans and default-stack recursive source-life checking. This is not functional 1.0, B0, Windows/ZUI or a product-cost acceptance.",
+  "status": "Pass for the stated finite profiles and repaired complete default coverage",
+  "scope": "Fixed arrays of shared thin Copy referent addresses, qualified Record windows and whole qualified Package shared-address returns from a unique actual input. This does not establish language1.0, B0 or product gates.",
   "source": {
-    "commit": "f21c5bcf80450ca0dfa8dc01bb453e110fee7605",
-    "tree": "fa3332661f0a85e909e6bfc1a0632f8c59261d3a",
-    "validation_revision": "808d85061457b350441dd6e9de3aa3eb93c3c65a",
-    "repository": "https://github.com/zil-lang/zil",
-    "clean_during_validation": true
+    "full_default": "c2650475107f44e3110757041acf89d7dbb19a0c",
+    "validation_revision": "f38875a609018476b854cf709465f453de27e11b",
+    "cold_compiler": "9d24e86fa276675e1427b4a1595d7e489aa96cdf",
+    "repository": "https://github.com/zil-lang/zil"
   },
   "target": "Linux x86_64",
   "toolchain": {
@@ -17,108 +16,212 @@
   },
   "default": {
     "single_full_green_run": false,
-    "full_run": {
-      "source": "f21c5bcf80450ca0dfa8dc01bb453e110fee7605",
+    "original_full_result": {
+      "source": "c2650475107f44e3110757041acf89d7dbb19a0c",
+      "source_after": "c2650475107f44e3110757041acf89d7dbb19a0c",
+      "worktree_after": "",
       "status": "Fail",
-      "passed": 5610,
-      "failed": 2,
+      "started_utc": "2026-11-08T07:24:30.073965+00:00",
+      "elapsed_seconds": 727.94,
       "batches": 53,
-      "groups": 431,
       "integration_target_names": 394,
+      "groups": 431,
+      "passed": 5632,
+      "failed": 1,
+      "ignored": 0,
       "failed_batches": [
-        20
+        0
       ],
-      "result": {
-        "path": "/workspace/.zil-env/release-foundations/record-window-common-default/default-result.json",
-        "sha256": "3d381e8a5d42769986b455f32d657c661c53418666fa0e63b98b7b3e9b2602f0"
+      "artifact_retention_by_batch": {
+        "0": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "1": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "2": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "3": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "4": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "5": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "6": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "7": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "8": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "9": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "10": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "11": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "12": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "13": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "14": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "15": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "16": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "17": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "18": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "19": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "20": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "21": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "22": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "23": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "24": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "25": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "26": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "27": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "28": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "29": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "30": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "31": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "32": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "33": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "34": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "35": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "36": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "37": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "38": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "39": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "40": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "41": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "42": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "43": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "44": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "45": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "46": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "47": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "48": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "49": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "50": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "51": "stdout/stderr, source identity and counts; test harness removes temporary phase reports",
+        "52": "stdout/stderr, source identity and counts; test harness removes temporary phase reports"
       },
-      "batch_manifest": {
-        "path": "/workspace/.zil-env/release-foundations/record-window-common-default/default-batches.json",
-        "sha256": "7a6e3156401e8ca1ffa42920216b0413828d0eca42ea994cb3315362a9bd833c"
-      },
-      "command_inventory": {
-        "path": "/workspace/.zil-env/release-foundations/record-window-common-default/default-inventory.json",
-        "sha256": "83ecd84b3e9aa47e6e9cd4e8221b00fbcecd66e5f641a36359b7f49dbc75f24e"
-      }
+      "cache_reclaimed_bytes": 20270082536,
+      "cache_reclaimed_bytes_scope": "complete invocation"
     },
-    "repair": "Only two existing tests account for actual retained Tag window leaves and their subsequent snapshots. Original insufficient budgets, N-1, fresh-request and native assertions remain. Compiler/library/build inputs are byte-identical.",
-    "affected_target": {
-      "source": "808d85061457b350441dd6e9de3aa3eb93c3c65a",
+    "original_result_receipt": {
+      "path": "/workspace/.zil-env/release-foundations/carrier-composition-common-default/default-result.json",
+      "sha256": "2b4f47d26c6c9ae0e7a0167953ce3f95609e52c0a6ac5958eb4d0a2ebf79c345"
+    },
+    "batch_manifest": {
+      "path": "/workspace/.zil-env/release-foundations/carrier-composition-common-default/default-batches.json",
+      "sha256": "2070ed0554b2cc7076b8cc98d5f7fdfccfa1c477d85c3cf7f3ad89f96303075e"
+    },
+    "commands": {
+      "path": "/workspace/.zil-env/release-foundations/carrier-composition-common-default/default-inventory.json",
+      "sha256": "e6b5220054856d072c30d294ee9e580b8028dfdc2ae49048f785c382da707b7c"
+    },
+    "affected_backend_retest": {
+      "name": "backend-api",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "llvm-api",
+        "--lib"
+      ],
+      "exit_code": 0,
+      "passed": 180,
+      "failed": 0,
+      "log": "/workspace/.zil-env/release-foundations/carrier-final-checks/backend-api.log",
+      "sha256": "32da4fe3c39714639b18af96bb9c01d2e59891548a4831d92e6be199f1391aa2",
+      "source": "5aa16e607e60d525d8f01bb05571f9fa4f39b709"
+    },
+    "coverage_passed": 5633,
+    "coverage_failed": 0,
+    "basis": "Replace only original backend library179/1 with full API-feature backend180/0. Original Fail retained. All other complete-run results retained."
+  },
+  "reference": {
+    "scope": "Related aggregate, generic, owning Map and raw/Wire target coverage with all workspace defaults disabled; not a complete new reference workspace run.",
+    "single_complete_run_green": false,
+    "original_result": {
+      "name": "reference-related",
       "command": [
         "cargo",
         "test",
         "--locked",
         "--offline",
         "--workspace",
+        "--no-default-features",
         "--no-fail-fast",
         "--test",
-        "generic_regressions"
+        "aggregates",
+        "--test",
+        "generic_regressions",
+        "--test",
+        "owning_map",
+        "--test",
+        "stored_environment_lending_raw"
+      ],
+      "exit_code": 101,
+      "passed": 655,
+      "failed": 1,
+      "log": "/workspace/.zil-env/release-foundations/carrier-final-checks/reference-related.log",
+      "sha256": "b4ad18051f2800c545948be85e98fcf8368158baf4e4fee9c82a6195d9b97230",
+      "source": "5aa16e607e60d525d8f01bb05571f9fa4f39b709"
+    },
+    "affected_aggregate_retest": {
+      "source": "f38875a609018476b854cf709465f453de27e11b",
+      "name": "aggregates-reference-corrected",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--workspace",
+        "--no-default-features",
+        "--test",
+        "aggregates"
       ],
       "exit_code": 0,
-      "passed": 210,
+      "passed": 355,
       "failed": 0,
-      "log": "/workspace/.zil-env/release-foundations/record-window-final-checks/affected-workspace.log",
-      "sha256": "f5ccdde5fe00062ecf91cde3f2914d267f9f6d314b134801ad368e33e4a938c9"
+      "log": "/workspace/.zil-env/release-foundations/carrier-final-checks/aggregates-reference-corrected.log",
+      "sha256": "836b8c5a048faaad917c7bceb3d5668a1d627f77952cee770941292ec932d2cd"
     },
-    "coverage_passed": 5612,
+    "coverage_passed": 656,
     "coverage_failed": 0,
-    "count_basis": "Replace only generic_regressions original 208/2 by its complete 210/0 retest with the original workspace feature selection. All other complete-run results retained; the original Fail is not rewritten."
+    "basis": "Replace only original aggregates354/1 by full corrected355/0; retain other three target results. Original655/1 Fail retained."
   },
-  "reference": {
-    "single_full_green_run": true,
-    "source": "808d85061457b350441dd6e9de3aa3eb93c3c65a",
-    "status": "Pass",
-    "passed": 5500,
-    "failed": 0,
-    "batches": 53,
-    "groups": 431,
-    "integration_target_names": 394,
-    "failed_batches": [],
-    "result": {
-      "path": "/workspace/.zil-env/release-foundations/record-window-common-reference/reference-result.json",
-      "sha256": "2d45fe83d4fb6413362294db2556a083f412b4d3ee375cdbd16508eaf4ff4c65"
-    },
-    "batch_manifest": {
-      "path": "/workspace/.zil-env/release-foundations/record-window-common-reference/reference-batches.json",
-      "sha256": "dc7b5850d74180c9d51197a308d8a96ac4accc9fc8cb1df77a78f7c074423fd9"
-    },
-    "command_inventory": {
-      "path": "/workspace/.zil-env/release-foundations/record-window-common-reference/reference-inventory.json",
-      "sha256": "b9516130dab9336cb218392ab53d3c56a13760180ed4b9a3b6977521a316dbe1"
-    }
-  },
-  "suite_selection": "All workspace lib/bin/example/integration/doc targets, no name filters. Unique integration target names scheduled eight at a time. Default uses cargo test --locked --workspace --no-fail-fast; reference adds --no-default-features. Scheduling and queueing are not performance measurements.",
-  "production_input_equivalence": {
-    "base": "f21c5bcf80450ca0dfa8dc01bb453e110fee7605",
-    "revision": "808d85061457b350441dd6e9de3aa3eb93c3c65a",
-    "git_diff_paths": [
-      "crates/zil-driver/tests/generic_regressions.rs",
-      "tests/language-readiness/terminal/higher-rank-borrows/fnonce-helper-cfg/regressions.rs"
-    ],
-    "production_or_library_changes": false
-  },
-  "strict_and_text": {
-    "source": "dc54a6c97f66ea28ad0575f1f42b69c8b1a5d0da",
+  "final_checks": {
+    "source": "f38875a609018476b854cf709465f453de27e11b",
     "rows": [
       {
-        "name": "affected-default",
+        "name": "backend-api",
         "command": [
           "cargo",
           "test",
           "--locked",
           "--offline",
           "-p",
-          "zil-driver",
-          "--test",
-          "generic_regressions"
+          "zil-backend-llvm",
+          "--features",
+          "llvm-api",
+          "--lib"
         ],
         "exit_code": 0,
-        "passed": 209,
+        "passed": 180,
         "failed": 0,
-        "log": "/workspace/.zil-env/release-foundations/record-window-final-checks/affected-default.log",
-        "sha256": "69b7d2f98cb226e7c5cdfce855eb9fc53a6212e2360c97e1c739bf35ae352dc9"
+        "log": "/workspace/.zil-env/release-foundations/carrier-final-checks/backend-api.log",
+        "sha256": "32da4fe3c39714639b18af96bb9c01d2e59891548a4831d92e6be199f1391aa2",
+        "source": "5aa16e607e60d525d8f01bb05571f9fa4f39b709"
       },
       {
+        "source": "f38875a609018476b854cf709465f453de27e11b",
+        "name": "aggregates-reference-corrected",
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "--workspace",
+          "--no-default-features",
+          "--test",
+          "aggregates"
+        ],
+        "exit_code": 0,
+        "passed": 355,
+        "failed": 0,
+        "log": "/workspace/.zil-env/release-foundations/carrier-final-checks/aggregates-reference-corrected.log",
+        "sha256": "836b8c5a048faaad917c7bceb3d5668a1d627f77952cee770941292ec932d2cd"
+      },
+      {
+        "source": "f38875a609018476b854cf709465f453de27e11b",
         "name": "strict",
         "command": [
           "cargo",
@@ -136,28 +239,11 @@
         "exit_code": 0,
         "passed": 0,
         "failed": 0,
-        "log": "/workspace/.zil-env/release-foundations/record-window-final-checks/strict.log",
-        "sha256": "3e9d6a43ee2a2bc66796cbfb8cb69f4672083a0a6015252cb23b8b160065dc55"
+        "log": "/workspace/.zil-env/release-foundations/carrier-final-checks/strict.log",
+        "sha256": "da5fee77bedcf805b13ad646bdaaf90476a07e1796caf52e6d8c59b002f4f195"
       },
       {
-        "name": "text-reference",
-        "command": [
-          "cargo",
-          "test",
-          "--locked",
-          "--offline",
-          "-p",
-          "zil-llvm-api",
-          "--features",
-          "text-reference"
-        ],
-        "exit_code": 0,
-        "passed": 70,
-        "failed": 0,
-        "log": "/workspace/.zil-env/release-foundations/record-window-final-checks/text-reference.log",
-        "sha256": "db86cd81b60f282db06cf1a05f28a6c1466357056be1da76af582756a10754a5"
-      },
-      {
+        "source": "f38875a609018476b854cf709465f453de27e11b",
         "name": "format",
         "command": [
           "cargo",
@@ -166,220 +252,140 @@
           "--",
           "--check"
         ],
-        "exit_code": 1,
+        "exit_code": 0,
         "passed": 0,
         "failed": 0,
-        "log": "/workspace/.zil-env/release-foundations/record-window-final-checks/format.log",
-        "sha256": "2ddfb9cca44c9e2f452c43a5463cb1f37191c5e427351216ff52f20f90968176"
+        "log": "/workspace/.zil-env/release-foundations/carrier-final-checks/format.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       }
     ],
-    "complete": true
-  },
-  "format_repair": {
-    "source": "808d85061457b350441dd6e9de3aa3eb93c3c65a",
-    "command": [
-      "cargo",
-      "fmt",
-      "--all",
-      "--",
-      "--check"
-    ],
-    "exit_code": 0,
-    "passed": 0,
-    "failed": 0,
-    "log": "/workspace/.zil-env/release-foundations/record-window-final-checks/format-corrected.log",
-    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-  },
-  "structure": {
-    "ok": true,
-    "errors": [],
-    "checkedCrates": 15,
-    "checkedEdges": 38,
-    "layout_paths": 3940,
-    "layout_log": {
-      "path": "/workspace/.zil-env/release-foundations/record-window-final-checks/layout.log",
-      "sha256": "a8341f8e9ec6ccb2925d6b5b3edfd164f57a2158486d01f8b2bf795e5ffa9237"
+    "complete": true,
+    "initial_reference_run": {
+      "source": "5aa16e607e60d525d8f01bb05571f9fa4f39b709",
+      "rows": [
+        {
+          "name": "backend-api",
+          "command": [
+            "cargo",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "zil-backend-llvm",
+            "--features",
+            "llvm-api",
+            "--lib"
+          ],
+          "exit_code": 0,
+          "passed": 180,
+          "failed": 0,
+          "log": "/workspace/.zil-env/release-foundations/carrier-final-checks/backend-api.log",
+          "sha256": "32da4fe3c39714639b18af96bb9c01d2e59891548a4831d92e6be199f1391aa2"
+        },
+        {
+          "name": "reference-related",
+          "command": [
+            "cargo",
+            "test",
+            "--locked",
+            "--offline",
+            "--workspace",
+            "--no-default-features",
+            "--no-fail-fast",
+            "--test",
+            "aggregates",
+            "--test",
+            "generic_regressions",
+            "--test",
+            "owning_map",
+            "--test",
+            "stored_environment_lending_raw"
+          ],
+          "exit_code": 101,
+          "passed": 655,
+          "failed": 1,
+          "log": "/workspace/.zil-env/release-foundations/carrier-final-checks/reference-related.log",
+          "sha256": "b4ad18051f2800c545948be85e98fcf8368158baf4e4fee9c82a6195d9b97230"
+        }
+      ],
+      "complete": false
     }
   },
   "cold_recovery": {
     "status": "Pass",
-    "source": "f21c5bcf80450ca0dfa8dc01bb453e110fee7605",
-    "acquisition": {
-      "remote": "https://github.com/zil-lang/zil.git",
-      "branch": "task/G10.6.3",
-      "transport": "HTTPS GitHub fetch; no local clone, alternates or objects",
-      "remote_head_before_fetch": "f21c5bcf80450ca0dfa8dc01bb453e110fee7605",
-      "commit": "f21c5bcf80450ca0dfa8dc01bb453e110fee7605",
-      "tree": "fa3332661f0a85e909e6bfc1a0632f8c59261d3a",
-      "git_alternates": false,
-      "source_clean_before": true,
-      "cargo_lock_sha256": "c71fcdaef3e431740ee2d8f61502ef2363a4b7b5a87049d3060b1b4f5f0c26d4",
-      "source_clean_after": true
-    },
-    "fresh_artifacts": {
-      "target": "/workspace/.zil-env/release-foundations/record-window-cold/cargo-target",
-      "initial_entries": 0,
-      "compiler": "new dev-profile zil-cli, explicit llvm-api feature; no compiler or object cache reuse"
-    },
-    "cli_sha256": "53023d860d8746d230bcfc4672a9c396038607c73b1ddc0896d1c46b8fe22bef",
-    "ordinary_programs": 11,
-    "ordinary_builds": 44,
-    "ordinary_executions": 44,
-    "record_conflict_safe_rejects": 4,
-    "legal_verify_controls": 4,
-    "legal_native_builds": 16,
-    "legal_native_executions": 16,
-    "configurations": [
-      "clang/O0",
-      "clang/O2",
-      "llvm-api/O0",
-      "llvm-api/O2"
-    ],
-    "ordinary_main": true,
-    "entry_override": false,
-    "source_or_object_cache": false,
-    "backend_fallback": false,
-    "exact_stdout_stderr_exit": true,
-    "verified_commands": 136,
-    "consumer_cases": [
-      {
-        "name": "stream",
-        "path": "examples/mainline/stream/main.zil",
-        "stdin": "10 20 -3\n",
-        "stdout": "3 0 45\n",
-        "stderr": "",
-        "exit": 0,
-        "source_sha256": "a3c2cb97017c05273bb3ae692e65de8dd75854502b37c26f6de82d4ca2fc4ba4"
-      },
-      {
-        "name": "foundations",
-        "path": "examples/mainline/draft_foundations/main.zil",
-        "stdin": "",
-        "stdout": "",
-        "stderr": "",
-        "exit": 42,
-        "source_sha256": "4870b775ee462f78a485f7402779ada3f45ad76ad7c776a8b5bad4b8d3df21b7"
-      },
-      {
-        "name": "local-task-result",
-        "path": "tests/fixtures/task-borrow-results/local-create-poll.zil",
-        "stdin": "",
-        "stdout": "",
-        "stderr": "",
-        "exit": 0,
-        "source_sha256": "641d889d1bac0d8def71f1aadc72b8f68f33e74fa330cb6024ab4bfae414beab"
-      },
-      {
-        "name": "owning-map-cleanup",
-        "path": "tests/fixtures/optional-store-address/owning-map-cleanup.zil",
-        "stdin": "",
-        "stdout": "CAB",
-        "stderr": "",
-        "exit": 0,
-        "source_sha256": "4fabaf309947698e42f479a512237790b4ac609db384584d1d3cff499b29a092"
-      },
-      {
-        "name": "error-union-definition-selected",
-        "path": "tests/fixtures/error-union-calls/definition-selected.zil",
-        "stdin": "",
-        "stdout": "",
-        "stderr": "",
-        "exit": 0,
-        "source_sha256": "53fe43792be1ca92860fb69657d604a24f87fec44b630674b2974d29737d59eb"
-      },
-      {
-        "name": "task-map-shared-result",
-        "path": "tests/fixtures/task-borrow-results/owning-map-lending.zil",
-        "stdin": "",
-        "stdout": "ABDEC",
-        "stderr": "",
-        "exit": 0,
-        "source_sha256": "8464ea9efbbc793770315c72cd7ac603323588c6a2f305b1f9ef4cf757cc8048"
-      },
-      {
-        "name": "task-map-temporary-match",
-        "path": "tests/fixtures/task-borrow-results/owning-map-temporary-lending.zil",
-        "stdin": "",
-        "stdout": "ABDEC",
-        "stderr": "",
-        "exit": 0,
-        "source_sha256": "04d4830761591979558b3b9571afe79fdfbf9007e66bb75647d0611135a72c41"
-      },
-      {
-        "name": "task-map-conditional-source",
-        "path": "tests/fixtures/task-borrow-results/owning-map-conditional-lending.zil",
-        "stdin": "",
-        "stdout": "ABDEC",
-        "stderr": "",
-        "exit": 0,
-        "source_sha256": "7facc21ad896b26ef8e4a45a7b6c060a2de93ab19cc0e561c7aced805775f75c"
-      },
-      {
-        "name": "borrowed-record-package",
-        "path": "tests/fixtures/resource-packages/owned-package-borrowed-record.zil",
-        "stdin": "",
-        "stdout": "R",
-        "stderr": "",
-        "exit": 0,
-        "source_sha256": "c453536d1b18d17973c58f5ecb04f30129286b68b00265c05a05b5161bb43691"
-      },
-      {
-        "name": "multiport-task-shared-result",
-        "path": "tests/fixtures/task-borrow-results/multiport-shared-result.zil",
-        "stdin": "",
-        "stdout": "",
-        "stderr": "",
-        "exit": 0,
-        "source_sha256": "b8df34f396079d03281179ab573e6c3697f985997c0c3fa368a580f9aed2efaf"
-      },
-      {
-        "name": "owning-item-lending-iterator",
-        "path": "tests/language-readiness/owning-trait-hosts/lending/main.zil",
-        "stdin": "",
-        "stdout": "",
-        "stderr": "",
-        "exit": 0,
-        "source_sha256": "db11f3aeac54a74254542cb965bf9ae0de474da451b59c42293fc6aa87d95d4b"
-      }
-    ],
     "receipt": {
-      "path": "/workspace/.zil-env/release-foundations/record-window-cold/final-receipt.json",
-      "sha256": "ebb1a094bb45e6f2e1e7609e5b9ac2d5737c95b3e30a3435c94e14f0b4c2097f"
+      "path": "/workspace/.zil-env/release-foundations/carrier-composition-cold-final/final-receipt.json",
+      "sha256": "df76c8ba91d15298d587a93f6d117b320fe0026978677249523670e8bcdf1ef3"
+    },
+    "summary": {
+      "path": "/workspace/.zil-env/release-foundations/carrier-composition-cold-final/summary.json",
+      "sha256": "c662bc75d7e0746531becedba5cab85968fb04804620a4a04f683cb1f2798217"
+    },
+    "native_builds": 16,
+    "native_executions": 16,
+    "ordinary_programs": 4,
+    "backends": [
+      "clang",
+      "llvm-api"
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "source_or_object_cache": false,
+    "fallback": false,
+    "external_input": {
+      "path": "tests/fixtures/resource-packages/whole-package-select-second.zil",
+      "sha256": "26fd6288febd8ad6b8892fa268957a22abddd29a16b754375066277a4f7a6e64",
+      "provenance": "Tested as an explicitly external source against the exact cold compiler. Same bytes included in this delivery."
     },
     "root_recheck": {
-      "path": "/workspace/.zil-env/release-foundations/record-window-cold/root-recheck.json",
-      "sha256": "9ce716214ad2b129d80d31d1ceddff1afeff8f9568a85bab26122789f563a622"
+      "path": "/workspace/.zil-env/release-foundations/carrier-composition-cold-final/root-recheck.json",
+      "sha256": "cad635e1d6b2adbbd6dc34f56b14fa7a779289adaebd28a93837e019a9fb665a"
     }
   },
-  "loan_safety": {
-    "fixed": "Bare Record and qualified child/parent Package windows retain actual leaf permissions through reborrow and physical field projection. Source and independent raw/Wire mutations reject actual target/parent loan overlap; unrelated-target controls remain legal.",
-    "previous_main_affected": "222e550af2daa08812b210cf3b5c726831b15bec",
-    "reviewed_production_commit": "7804284c1ccdb20e16e27a89d1f3d97696f07b12",
-    "author_receipt": {
-      "path": "/workspace/.zil-env/release-foundations/record-windows/result.json",
-      "sha256": "62458299e32d79b6945a4c7da558e3e2fe6f4bbc8adfb63593ca4e2d1a052099"
+  "validation_deltas": {
+    "base_to_cold": "Only inline(never) on binary_operand_hint; no semantic, fee, error-order, global stack or Limits changes. Original104 default-worker controls rerun successfully.",
+    "cold_to_final": "Only cfg(test) backend unit controls and one test fixture backend-selection guard with exact native execution counts. Production sections unchanged.",
+    "post_validation": "Only documentation, this receipt and the hash-bound ordinary consumer fixture."
+  },
+  "independent_review": {
+    "final_revision": "f38875a609018476b854cf709465f453de27e11b",
+    "method": "Non-author Sol precise integration/fee review; Astra private Package certificate and stack-helper reviews. Author execution distinguished from read-only review.",
+    "integration_receipt": {
+      "path": "/workspace/zil-release-array-integration/out/runs/array-integration/summary.json",
+      "sha256": "b66d84e4a439f22027b2f5164a53b42d0114407b8e8b6befbec2fbc415350bbc"
     },
-    "independent_review": {
-      "reviewer": "Astra array_loan_help",
-      "production": "7804284c1ccdb20e16e27a89d1f3d97696f07b12",
-      "test_backend_guard": "4654f7c082859a41039dfdec6b569d3a13071eae",
-      "test_budget_adaptation": "d6ab7467333afa933eb033a83003b8ddf1590913",
-      "status": "all three exact commits accepted; reviewer independently checked 17 evidence SHA256 bindings and source/log assertions",
-      "reviewer_ran_cargo": false
+    "package_receipt": {
+      "path": "/workspace/.zil-env/release-foundations/package-returns/result.json",
+      "sha256": "5144d61ba29b178c24a3d6de6aa7b7b971e4511fd18b368312ccc90aec65f133"
     }
+  },
+  "first_failures": {
+    "default_worker": "/workspace/zil-release-array-integration/out/runs/array-integration/default-worker.log",
+    "backend_unit": "/workspace/.zil-env/release-foundations/carrier-composition-common-default/default-00.log",
+    "cold_paused_attempt": {
+      "path": "/workspace/.zil-env/release-foundations/carrier-composition-cold/paused-attempt.json",
+      "sha256": "51228e5ef87b15586b943b502a9d7ac30e418914202b4334aead94aa2d8d02f3"
+    },
+    "retention": "Original statuses and logs retained; repaired assertions do not overwrite first failures."
   },
   "known_boundaries": [
-    "Whole qualified owning Package address returned through an identity helper can still reject at resource verification; this is a remaining expression gap, not evidence of successful transport.",
-    "Shared-address Array extensions remain outside this accepted source.",
-    "General owning lending, arbitrary nested/captured carriers, cross-thread Task transport and complete language/product gates remain open."
+    "Owning Package directly containing the shared-address Array, including whole identity and no-write controls, still rejects Analyze as Unsupported; not accepted by separate Array/Package successes.",
+    "Multiple callee input sources, projected Package arguments and managed bytes_len/capacity consumers remain outside the shared Package return profile.",
+    "Same-function Array/closure inference retains the prior rejection; no Array capture widening.",
+    "General containers/lending/captures, thread transport, platform and product cost gates remain open."
   ],
-  "previous_acceptance": "https://github.com/zil-lang/zil/blob/222e550af2daa08812b210cf3b5c726831b15bec/validation/native-language-composition.json",
-  "evidence_retention": "Source, assertions, fixtures and this compact receipt are durable in Git. Local logs are auxiliary; command inventories and hashes identify the run and allow reproduction after environment loss. Derived phase dumps are not archived.",
-  "integration_review": {
-    "revision": "808d85061457b350441dd6e9de3aa3eb93c3c65a",
-    "method": "Non-author Sol high precise patch comparison; difficult loan, stack and obligation changes independently reviewed by Astra. Review is distinguished from author and root executions.",
-    "production_input_equivalence_confirmed": true,
-    "cold_fixture_files_matched_to_commit": 189,
-    "note": "Initial owning-iterator cherry differs only in the combined supported-language guide. All 27 non-guide files match the reviewed patch; later safety/backend/budget patches match exactly; final assertion change is formatting only."
+  "previous_acceptance": "https://github.com/zil-lang/zil/blob/0e770a26e0a12dcc24a13cbbdf1aa57b59605d31/validation/native-language-composition.json",
+  "evidence_retention": "Git preserves source, assertions, semantic fixtures and this compact receipt. Auxiliary local logs may require reproduction after environment loss; derived phase dumps are not archived.",
+  "structure": {
+    "architecture": {
+      "ok": true,
+      "errors": [],
+      "checkedCrates": 15,
+      "checkedEdges": 38
+    },
+    "layout": "Checked 3948 paths and declarations across the full tree.",
+    "layout_sha256": "727107827dda482d89acac4e9c9f44d45d77aca54109d47a5740c950787f7822"
   }
 }
