@@ -48,11 +48,13 @@ pub(super) fn inventory(
     if !b.byte_queries {
         return Ok(());
     }
-    b.spend(module.functions.len().saturating_mul(2))?;
+    b.spend(module.functions.len())?;
     let mut queries = vec![false; module.functions.len()];
     loop {
         let mut progressed = false;
+        b.spend(module.functions.len())?;
         for (index, function) in module.functions.iter().enumerate().rev() {
+            b.spend(function.blocks.len())?;
             for (block, live) in function.blocks.iter().zip(&graphs[index].reachable) {
                 if !live {
                     continue;
@@ -74,7 +76,9 @@ pub(super) fn inventory(
     }
     let covered = |index: usize| mask.is_none_or(|rows| rows[index]);
     if mask.is_some() {
+        b.spend(module.functions.len())?;
         for (caller, function) in module.functions.iter().enumerate() {
+            b.spend(function.blocks.len())?;
             for (block, live) in function.blocks.iter().zip(&graphs[caller].reachable) {
                 if !live {
                     continue;
@@ -113,6 +117,7 @@ pub(super) fn inventory(
         {
             return Err(outside());
         }
+        b.spend(function.blocks.len())?;
         for block in &function.blocks {
             b.spend(block.instructions.len())?;
             for operation in &block.instructions {

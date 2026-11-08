@@ -1234,3 +1234,66 @@ fn metadata_queries_do_not_grant_shared_heads_mutation_authority() {
         );
     }
 }
+
+#[test]
+fn byte_query_repeated_inventory_charges_empty_unreachable_blocks() {
+    let default = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let original = typed_source(
+        "empty-unreachable-query-control",
+        &query_budget_model(1, 2, 1),
+        &target,
+        &default,
+    );
+    let mut boundaries = Vec::new();
+    for count in [0, 7, 31] {
+        let mut raw = original.clone();
+        let function = raw
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "query0")
+            .unwrap();
+        for _ in 0..count {
+            let block = zil_ir::BlockId(function.blocks.len() as u32);
+            function.blocks.push(zil_ir::BasicBlock {
+                id: block,
+                instructions: Vec::new(),
+                terminator: zil_ir::Terminator::Jump(block),
+            });
+        }
+        let plan = zil_analyze::analyze(&raw, &default).unwrap();
+        zil_verify::verify_module(raw.clone(), plan.clone(), &target, &default).unwrap();
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &default).unwrap();
+        zil_verify::verify_module_bytes(&wire, &target, &default).unwrap();
+        let limits = |n| Limits {
+            max_analysis_steps: n,
+            ..default.clone()
+        };
+        let analyze =
+            exact_record_budget(&format!("Empty query blocks Analyze count={count}"), |n| {
+                budget_category(zil_analyze::analyze(&raw, &limits(n)))
+            });
+        let verify =
+            exact_record_budget(&format!("Empty query blocks Verify count={count}"), |n| {
+                budget_category(zil_verify::verify_module(
+                    raw.clone(),
+                    plan.clone(),
+                    &target,
+                    &limits(n),
+                ))
+            });
+        let decoded = exact_record_budget(&format!("Empty query blocks Wire count={count}"), |n| {
+            budget_category(zil_verify::verify_module_bytes(&wire, &target, &limits(n)))
+        });
+        assert_eq!(verify, decoded);
+        boundaries.push([analyze, verify, decoded]);
+    }
+    for rows in boundaries.windows(2) {
+        for kernel in 0..3 {
+            assert!(
+                rows[1][kernel] > rows[0][kernel],
+                "actual empty-block inventory: {boundaries:?}"
+            );
+        }
+    }
+}

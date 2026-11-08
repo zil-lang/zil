@@ -106,6 +106,7 @@ pub(super) fn inventory(
     let mut marked = vec![false; module.functions.len()];
     let mut edges = Vec::new();
     for (index, f) in module.functions.iter().enumerate() {
+        fee(b, f.blocks.len())?;
         for (block, live) in f.blocks.iter().zip(&graphs[index].1) {
             if !live {
                 continue;
@@ -162,6 +163,7 @@ pub(super) fn inventory(
         {
             return Err(closed());
         }
+        fee(b, f.blocks.len())?;
         for block in &f.blocks {
             fee(b, block.instructions.len())?;
             for i in &block.instructions {
@@ -549,6 +551,7 @@ impl Flow {
         };
         loop {
             let mut changed = false;
+            fee(b, f.blocks.len())?;
             for (bi, block) in f.blocks.iter().enumerate() {
                 if !reachable[bi] {
                     continue;

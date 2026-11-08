@@ -3863,10 +3863,6 @@ fn windows(
                 live[id.0 as usize] = false;
             }
             let mut active = live_loans(solution, &state, &live, b)?;
-            if let Some(id) = i.result {
-                b.spend(active.len())?;
-                active.retain(|x| *x != id.0 as usize);
-            }
             let pointer = |v: ValueId| -> Check<&Permission> {
                 solution
                     .values
@@ -3887,6 +3883,12 @@ fn windows(
                     query_access(&permission, &active, &solution.loans, requirements, b)?;
                     byte_queries::record(byte_reads, &permission, b)?;
                 }
+            }
+            // Query effects precede publication of this call's new result.
+            // Preserve the original result exclusion for ordinary accesses.
+            if let Some(id) = i.result {
+                b.spend(active.len())?;
+                active.retain(|x| *x != id.0 as usize);
             }
             match &i.kind {
                 InstructionKind::MakeAggregate { fields }

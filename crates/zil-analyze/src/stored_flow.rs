@@ -3918,9 +3918,6 @@ fn windows(
                 live[v.0 as usize] = false;
             }
             let mut current = active(values, &state, &live, loans, b)?;
-            if let Some(v) = i.result {
-                current.remove(&(v.0 as usize));
-            }
             let pointer = |v: ValueId| -> CompileResult<&Permission> {
                 values
                     .get(v.0 as usize)
@@ -3940,6 +3937,11 @@ fn windows(
                     query_permission(&permission, &current, loans, apart, b)?;
                     byte_queries::record(byte_reads, &permission, b)?;
                 }
+            }
+            // Callee reads happen before a new result loan is published. The
+            // ordinary access path still excludes the instruction's result.
+            if let Some(v) = i.result {
+                current.remove(&(v.0 as usize));
             }
             match &i.kind {
                 InstructionKind::MakeAggregate { fields }
