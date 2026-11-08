@@ -13,8 +13,7 @@ pub(super) struct Rows {
 
 #[derive(Clone, Debug)]
 struct Index {
-    positions: BTreeMap<Path, usize>,
-    max_path: usize,
+    positions: Vec<(Path, usize)>,
     // Table entries plus the complete cloned keys, also used before deletion.
     copy_work: usize,
 }
@@ -41,27 +40,38 @@ impl<'a> IntoIterator for &'a Rows {
 }
 
 impl Index {
-    fn lookup_work(&self, path: &[PlaceProjection]) -> Check<usize> {
-        amount(
-            self.positions
-                .len()
-                .checked_ilog2()
-                .map_or(1, |n| n as usize + 2),
-            self.max_path.saturating_add(path.len()).saturating_add(1),
-        )
+    fn search(&self, path: &[PlaceProjection], b: &mut Budget) -> Check<Result<usize, usize>> {
+        let mut low = 0;
+        let mut high = self.positions.len();
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let existing = &self.positions[mid].0;
+            // Prepay each real comparison, including a deep common prefix.
+            b.spend(existing.len().saturating_add(path.len()).saturating_add(1))?;
+            match existing.as_slice().cmp(path) {
+                std::cmp::Ordering::Less => low = mid + 1,
+                std::cmp::Ordering::Greater => high = mid,
+                std::cmp::Ordering::Equal => return Ok(Ok(mid)),
+            }
+        }
+        Ok(Err(low))
     }
     fn insert(&mut self, path: &[PlaceProjection], row: usize, b: &mut Budget) -> Check<()> {
-        b.spend(
-            self.lookup_work(path)?
-                .saturating_add(path.len())
-                .saturating_add(1),
-        )?;
-        // Entry retains the oldest ordinal if direct construction repeats a key.
-        if let std::collections::btree_map::Entry::Vacant(entry) =
-            self.positions.entry(path.to_vec())
-        {
-            entry.insert(row);
-            self.max_path = self.max_path.max(path.len());
+        // Keep the oldest ordinal if direct construction repeats a key.
+        if let Err(at) = self.search(path, b)? {
+            let shift = self.positions.len().saturating_sub(at);
+            let growth = if self.positions.len() == self.positions.capacity() {
+                self.positions.len()
+            } else {
+                0
+            };
+            b.spend(
+                path.len()
+                    .saturating_add(1)
+                    .saturating_add(shift)
+                    .saturating_add(growth),
+            )?;
+            self.positions.insert(at, (path.to_vec(), row));
             self.copy_work = self.copy_work.saturating_add(path.len().saturating_add(1));
         }
         Ok(())
@@ -71,8 +81,7 @@ impl Index {
         b: &mut Budget,
     ) -> Check<Self> {
         let mut index = Self {
-            positions: BTreeMap::new(),
-            max_path: 0,
+            positions: Vec::new(),
             copy_work: 0,
         };
         for (ordinal, (path, _)) in rows.enumerate() {
@@ -96,8 +105,9 @@ impl Rows {
         b: &mut Budget,
     ) -> Check<Option<usize>> {
         if let Some(index) = &self.index {
-            b.spend(index.lookup_work(path)?.saturating_add(1))?;
-            Ok(index.positions.get(path).copied())
+            let found = index.search(path, b)?.ok();
+            b.spend(1)?;
+            Ok(found.map(|at| index.positions[at].1))
         } else {
             b.spend(amount(
                 self.rows.len().saturating_add(1),
@@ -125,12 +135,12 @@ impl Rows {
     }
     pub(super) fn retain(
         &mut self,
-        mut keep: impl FnMut(&(Path, Permission)) -> bool,
+        keep: impl FnMut(&(Path, Permission)) -> bool,
         b: &mut Budget,
     ) -> Check<()> {
         self.copy_work(b)?;
         self.index = None;
-        self.rows.retain(|row| keep(row));
+        self.rows.retain(keep);
         if self.rows.len() >= INDEX_THRESHOLD {
             self.index = Some(Index::build(self.rows.iter(), b)?);
         }
@@ -210,5 +220,27 @@ mod tests {
         assert!(rows.push(row(INDEX_THRESHOLD - 1), &mut b).is_err());
         assert_eq!(rows, before);
         assert!(rows.index.is_none());
+    }
+
+    #[test]
+    fn deep_common_prefix_comparison_is_prepaid_in_full() {
+        let path = vec![PlaceProjection::Field(0); 17];
+        let mut rows = Rows::default();
+        let mut b = Budget::new(&Limits::default());
+        for ordinal in 0..INDEX_THRESHOLD {
+            rows.push((path.clone(), row(ordinal).1), &mut b).unwrap();
+        }
+        // One unique indexed key: both complete paths (17 + 17), the
+        // comparison visit and the final vector-position read cost 36.
+        let mut exact = Budget::new(&Limits {
+            max_analysis_steps: 36,
+            ..Limits::default()
+        });
+        assert_eq!(rows.position(&path, &mut exact).unwrap(), Some(0));
+        let mut short = Budget::new(&Limits {
+            max_analysis_steps: 35,
+            ..Limits::default()
+        });
+        assert!(rows.position(&path, &mut short).is_err());
     }
 }

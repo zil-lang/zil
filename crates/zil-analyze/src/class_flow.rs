@@ -94,41 +94,6 @@ struct Equations {
     grounded: Option<Vec<bool>>,
 }
 
-#[cfg(test)]
-mod equation_tests {
-    use super::*;
-
-    #[test]
-    fn balanced_components_preserve_rigid_conflicts_and_actual_grounding() {
-        let mut b = Budget::new(&Limits::default());
-        let mut e = Equations {
-            parent: Vec::new(),
-            sizes: Some(Vec::new()),
-            rigid: Vec::new(),
-            next_rigid: 0,
-            grounded: Some(Vec::new()),
-        };
-        let a = e.fresh(false, &mut b).unwrap();
-        let z = e.fresh(false, &mut b).unwrap();
-        e.equal(a, z, &mut b).unwrap();
-        let rigid = e.fresh(true, &mut b).unwrap();
-        // The grounded rigid singleton loses the representative to a larger
-        // flexible component; both properties must follow the real equality.
-        e.equal(rigid, a, &mut b).unwrap();
-        e.retain(z, &mut b).unwrap();
-        let other = e.fresh(true, &mut b).unwrap();
-        assert!(e.equal(z, other, &mut b).is_err());
-
-        let x = e.fresh(false, &mut b).unwrap();
-        let y = e.fresh(false, &mut b).unwrap();
-        e.equal(x, y, &mut b).unwrap();
-        assert!(e.retain(y, &mut b).is_err());
-        e.address_origin(y, &mut b).unwrap();
-        e.retain(y, &mut b).unwrap();
-        assert!(e.equal(x, a, &mut b).is_err());
-    }
-}
-
 impl Equations {
     fn fresh(&mut self, rigid: bool, b: &mut Budget) -> CompileResult<usize> {
         b.spend(
@@ -1498,4 +1463,39 @@ pub(super) fn pointer_types(
         _ => {}
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod equation_tests {
+    use super::*;
+
+    #[test]
+    fn balanced_components_preserve_rigid_conflicts_and_actual_grounding() {
+        let mut b = Budget::new(&Limits::default());
+        let mut e = Equations {
+            parent: Vec::new(),
+            sizes: Some(Vec::new()),
+            rigid: Vec::new(),
+            next_rigid: 0,
+            grounded: Some(Vec::new()),
+        };
+        let a = e.fresh(false, &mut b).unwrap();
+        let z = e.fresh(false, &mut b).unwrap();
+        e.equal(a, z, &mut b).unwrap();
+        let rigid = e.fresh(true, &mut b).unwrap();
+        // The grounded rigid singleton loses the representative to a larger
+        // flexible component; both properties must follow the real equality.
+        e.equal(rigid, a, &mut b).unwrap();
+        e.retain(z, &mut b).unwrap();
+        let other = e.fresh(true, &mut b).unwrap();
+        assert!(e.equal(z, other, &mut b).is_err());
+
+        let x = e.fresh(false, &mut b).unwrap();
+        let y = e.fresh(false, &mut b).unwrap();
+        e.equal(x, y, &mut b).unwrap();
+        assert!(e.retain(y, &mut b).is_err());
+        e.address_origin(y, &mut b).unwrap();
+        e.retain(y, &mut b).unwrap();
+        assert!(e.equal(x, a, &mut b).is_err());
+    }
 }

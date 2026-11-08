@@ -210,6 +210,12 @@ fn native_array_ordinals_and_shared_copies_match_both_backends() {
                     report.to_json()
                 );
                 assert_eq!(report.verification_runs, 1);
+                if label == "512-elements" {
+                    println!(
+                        "512-element native {backend:?}/{optimization:?}: {}",
+                        report.to_json()
+                    );
+                }
                 let codegen = report.native_codegen.as_ref().unwrap();
                 assert_eq!(codegen.backend, backend);
                 assert!(codegen.fallback.is_none());
@@ -223,6 +229,14 @@ fn native_array_ordinals_and_shared_copies_match_both_backends() {
                     output.stdout.is_empty() && output.stderr.is_empty(),
                     "{output:?}"
                 );
+                if label == "512-elements" {
+                    println!(
+                        "512-element execution {backend:?}/{optimization:?}: exit={:?}, stdout={:?}, stderr={:?}",
+                        output.status.code(),
+                        output.stdout,
+                        output.stderr
+                    );
+                }
                 runs += 1;
                 std::fs::remove_dir_all(dir).unwrap();
             }
@@ -554,14 +568,14 @@ fn array_slots_and_actual_pointee_snapshot_budgets_are_exact_and_fresh() {
     assert_eq!(
         boundaries,
         vec![
-            [1702, 22401, 27237, 27237, 27237],
-            [2326, 50265, 63714, 63714, 63714],
-            [4229, 47432, 55139, 55139, 55139],
-            [6250, 48219, 56754, 56754, 56754],
-            [3576, 40845, 54856, 54856, 54856],
-            [4788, 91115, 130651, 130651, 130651],
-            [6481, 69803, 92173, 92173, 92173],
-            [8988, 75594, 100921, 100921, 100921],
+            [1702, 22401, 27357, 27357, 27357],
+            [2326, 50265, 64126, 64126, 64126],
+            [4229, 47432, 55259, 55259, 55259],
+            [6250, 48219, 56877, 56877, 56877],
+            [3576, 40845, 54917, 54917, 54917],
+            [4788, 91115, 130856, 130856, 130856],
+            [6481, 69803, 92234, 92234, 92234],
+            [8988, 75594, 101001, 101001, 101001],
         ]
     );
     println!("array complete boundaries: {boundaries:?}");
@@ -615,7 +629,7 @@ fn ordinary_512_element_array_completes_source_raw_and_wire_verification() {
         )
         .status
     });
-    assert_eq!(exact, 4_306_006);
+    assert_eq!(exact, 4_170_159);
     println!("512-slot Source/raw/Wire: independent Verify complete within default limits");
 }
 
