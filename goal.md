@@ -169,8 +169,9 @@ Sol high负责实现，疑难交Astra。本批已合入远端main@0e770a26e：qu
 | G3.4.9 | 独占constructor实际loan site与现有写槽组合 | 已合入 | — | — | `a19ee3339`已独审并合；constructor只激活自己的site排程，不扩大slot updates权限；原三误拒恢复、cross112/stored33/mixed28专项通过。 已由main@222e550af本批有限范围验收。 |
 | G3.4.10 | 借入结果Task与拥有Map/Option在同一普通CFG中的真实组合 | 已合入 | — | — | `c5/c8/e042/e6`及独立`a030/10dd`已由main@222e550af本批验收：标准let/临时match/双来源if真实default、16native与失败cleanup/rawWire通过；先前默认耗尽与Copy Poll兼容首次失败保留。 |
 | G3.4.11 | 拥有Package嵌入含真实借入叶的qualified Record | 已合入 | — | — | main@0e770a26e；qualified Record含真实借入叶进入有限拥有Package；构造、getter及真实来源映射通过。窗口传播漏洞由子项修复；父Package地址经identity helper返回仍由G3.4.13接续。 |
-| G3.4.12 | 固定共享地址数组的普通函数与存储消费者 | 进行中 | P0 | sol high · borrowed_record | `cb41e4792` WIP已推送并clean；hint剩余额度结算、Array.len前费及40+3预算已补。此前14组13/1中最后的闭包控制已按既有准入修正并单测1/0，原拒绝输入保留。新整组/旧23/strict及最终独审待收，与main新Record规则的合流尚未验收。 |
-| G3.4.13 | qualified拥有Package的整对象共享地址经普通helper返回 | 进行中 | P0 | sol high · integration_audit；Astra审 | `36246a106` WIP已推送，Astra已审定私有实际来源证书方案；两核只转交选中实参既有活desc，不从life声明造资源根。补父identity/链/pick_second、未选来源合法、真实冲突及raw/Wire；原父identity合法控制首测已过；独立task/G3.4.13的完整反例/机器矩阵尚未验收。 |
+| G3.4.12 | 固定共享地址数组的普通函数与存储消费者 | 实现待验 | P0 | sol high · borrowed_record | `06176cac9` clean已推送并获两项精确独审接受；51/0、旧23/0、45新精确预算、16native与strict通过。同函数Array/closure推断边界保留；与新main的Record/Package返回合流共同验收见G3.4.14。 |
+| G3.4.13 | qualified拥有Package的整对象共享地址经普通helper返回 | 实现待验 | P0 | sol high · integration_audit；Astra审 | `667874acb`已获Astra精确接受并接入候选70e9f1fa0；相关431/0、reference15/0、旧预算/worker/strict通过。多个callee输入来源、投影实参及bytes_len仍在范围外；等待G3.4.14共同验收。 |
+| G3.4.14 | 地址数组、Record窗口及整Package借入返回的共同来源与预算验收 | 进行中 | P0 | sol high · borrowed_record；root集成 | 从70e9f1fa0合流Array061；保留三域真实loan、资源描述和预付费规则，独立复核后跑共同门。尚未合入main。 |
 
 </details>
 

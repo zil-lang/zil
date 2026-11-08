@@ -148,8 +148,8 @@
   },
   "pending_common_gates": [],
   "next_implementation": [
-    "G3.4.12 shared-address Array budget and cache closure",
-    "G3.4.13 actual whole-Package address helper return"
+    "G3.4.14 common Array/Record/whole-Package source and budget integration",
+    "Managed bytes_len through direct/returned Package: read-only gap analysis"
   ],
   "delivery_validation_revision": "808d85061457b350441dd6e9de3aa3eb93c3c65a",
   "delivery_record": "https://github.com/zil-lang/zil/blob/0e770a26e0a12dcc24a13cbbdf1aa57b59605d31/validation/native-language-composition.json",
@@ -449,15 +449,12 @@
   },
   "active_source_checkpoints": {
     "G3.4.12": {
-      "source": "cb41e4792dc2f3b61e16067abfe6afdd89fef2cd",
-      "status": "WIP, not accepted; last auxiliary control separately repaired, complete matrix and independent review pending",
-      "remote_verified": true,
-      "worktree_clean_at_checkpoint": true
+      "source": "06176cac982c33ab94a5d54a77024c007a7640cd",
+      "status": "Precise independent acceptance; root combined gates pending"
     },
     "G3.4.13": {
-      "source": "36246a106fb78b989e4faa17e699cacacccf7db8",
-      "status": "WIP, not accepted; original legal identity control passed, full semantic/native matrix pending",
-      "remote_verified": true
+      "source": "667874acbfe5fe111a4b52812a6e638501ab9103",
+      "status": "Precise Astra acceptance; integrated candidate70e9; combined gates pending"
     }
   }
 }
