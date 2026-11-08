@@ -171,7 +171,9 @@ Sol high负责实现，疑难交Astra。本批已合入远端main@0e770a26e：qu
 | G3.4.11 | 拥有Package嵌入含真实借入叶的qualified Record | 已合入 | — | — | main@0e770a26e；qualified Record含真实借入叶进入有限拥有Package；构造、getter及真实来源映射通过。窗口传播漏洞由子项修复；父Package地址经identity helper返回仍由G3.4.13接续。 |
 | G3.4.12 | 固定共享地址数组的普通函数与存储消费者 | 实现待验 | P0 | sol high · borrowed_record | `06176cac9` clean已推送并获两项精确独审接受；51/0、旧23/0、45新精确预算、16native与strict通过。同函数Array/closure推断边界保留；与新main的Record/Package返回合流共同验收见G3.4.14。 |
 | G3.4.13 | qualified拥有Package的整对象共享地址经普通helper返回 | 实现待验 | P0 | sol high · integration_audit；Astra审 | `667874acb`已获Astra精确接受并接入候选70e9f1fa0；相关431/0、reference15/0、旧预算/worker/strict通过。多个callee输入来源、投影实参及bytes_len仍在范围外；等待G3.4.14共同验收。 |
-| G3.4.14 | 地址数组、Record窗口及整Package借入返回的共同来源与预算验收 | 进行中 | P0 | sol high · borrowed_record；root集成 | `3b0456534`合流checkpoint已推送；相关59/0、旧23/0。原104默认worker发现binary深表达式栈溢出，Sol/Astra正在定位调用帧，禁止增栈/弱化测试。拥有Package直接含Array仍Unsupported，保留组合缺口。当前不合main。 |
+| G3.4.14 | 地址数组、Record窗口及整Package借入返回的共同来源与预算验收 | 进行中 | P0 | root集成；Sol独审/Astra难点 | `5aa16e607`已冻结并获精确独审；59/0、旧23/0、原104默认栈请求已恢复，冷恢复16编译/执行通过。默认整树c265正在跑，旧backend布局断言已由test-only修正；原失败保留，尚未合main。 |
+| G3.4.15 | 借入Package窗口的ByteBuffer长度/容量查询与实际read权限 | 进行中 | P0 | sol high · integration_audit；Astra审 | 只读合同复核中：不能把weakDesc存活当active借用，也不能将query当noop放行；须在查询时核实际head/parent及独占窗口冲突。尚未生产实现。 |
+| G3.4.16 | 拥有Package含共享地址数组及普通helper返回的组合 | 待排期 | P0 | 待派 | 新三Source合法邻域仍Analyze Unsupported，未把分别通过的Array/Package功能当作组合已成立；接共同门后优先补实际准入、来源及责任清理。 |
 
 </details>
 
