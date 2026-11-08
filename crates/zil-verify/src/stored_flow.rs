@@ -2523,13 +2523,34 @@ fn step(
                     target.inline.push(PlaceProjection::Field(*index));
                 }
             }
+            if let Some((_, shape)) = addressed(vt(
+                f,
+                i.result.ok_or_else(|| err("field address lacks result"))?,
+            )?) {
+                b.spend(shape.slots.len())?;
+                for row in &shape.slots {
+                    // select pays the existing root clone; reserve this new
+                    // appended physical path before constructing it as well.
+                    b.spend(amount(
+                        out.address.sources.len(),
+                        row.path.len().saturating_add(1),
+                    )?)?;
+                    let permission = select(state, &out.address, &row.path, b)?;
+                    add_leaf(&mut out, &row.path, &permission, b)?;
+                }
+            }
         }
         InstructionKind::ReborrowAddress { address, .. }
         | InstructionKind::AddressIndex { address, .. }
         | InstructionKind::AddressSlice { address, .. } => {
             join_permission(&mut out.address, &val(*address)?.address, b)?;
             task_address::join(&mut out, val(*address)?, b)?;
-            if fixed_environment(module, vt(f, *address)?) {
+            let carrier_reborrow = matches!(i.kind, InstructionKind::ReborrowAddress { .. })
+                && addressed(vt(f, *address)?).is_some();
+            if carrier_reborrow {
+                b.spend(val(*address)?.leaves.len())?;
+            }
+            if fixed_environment(module, vt(f, *address)?) || carrier_reborrow {
                 for (path, p) in &val(*address)?.leaves {
                     add_leaf(&mut out, path, p, b)?;
                 }
