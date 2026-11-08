@@ -213,8 +213,26 @@ fn backends() -> Vec<NativeBackend> {
 #[cfg(unix)]
 #[test]
 fn borrowed_task_and_owning_map_share_one_lending_and_cleanup_cfg() {
+    task_map_native(
+        include_str!("../../../tests/fixtures/task-borrow-results/owning-map-lending.zil"),
+        "borrowed-task-lending",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn temporary_task_match_preserves_each_actual_source_and_cleanup_path() {
+    task_map_native(
+        include_str!(
+            "../../../tests/fixtures/task-borrow-results/owning-map-temporary-lending.zil"
+        ),
+        "temporary-task-lending",
+    );
+}
+
+#[cfg(unix)]
+fn task_map_native(source: &str, label: &str) {
     use std::os::unix::fs::PermissionsExt;
-    let source = include_str!("../../../tests/fixtures/task-borrow-results/owning-map-lending.zil");
     let clang = std::env::var_os("ZIL_CLANG")
         .map(PathBuf::from)
         .unwrap_or_else(|| "clang".into());
@@ -224,7 +242,7 @@ fn borrowed_task_and_owning_map_share_one_lending_and_cleanup_cfg() {
         |path: &std::path::Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
     for backend in backends() {
         for optimization in [Optimization::O0, Optimization::O2] {
-            let out = directory("borrowed-task-lending");
+            let out = directory(label);
             let object = out.join("actual-api.o");
             let wrapper = out.join("capture-clang.sh");
             fs::write(&wrapper, format!("#!/bin/sh\nset -eu\nfor arg in \"$@\"; do case \"$arg\" in *.o|*.obj) cp -- \"$arg\" {} ;; esac; done\nexec {} \"$@\"\n", quote(&object), quote(&clang))).unwrap();
@@ -371,8 +389,138 @@ fn task_map_lending_keeps_each_live_source_window() {
     }
 }
 
-fn raw_task_map_lending() -> zil_ir::TypedModule {
-    let source = include_str!("../../../tests/fixtures/task-borrow-results/owning-map-lending.zil");
+#[test]
+fn temporary_task_match_requires_one_real_hidden_owner_and_live_input() {
+    let source = include_str!(
+        "../../../tests/fixtures/task-borrow-results/owning-map-temporary-lending.zil"
+    );
+    let module = raw_task_map_lending(source);
+    let target = TargetProfile::host_llvm();
+    let limits = Limits {
+        max_analysis_steps: 100_000_000,
+        ..Limits::default()
+    };
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let attempt = module
+        .functions
+        .iter()
+        .find(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.kind, InstructionKind::TaskCreate { .. }))
+        })
+        .unwrap();
+    let creates: Vec<_> = attempt
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .filter(|i| matches!(i.kind, InstructionKind::TaskCreate { .. }))
+        .collect();
+    assert_eq!(
+        creates.len(),
+        1,
+        "the temporary scrutinee is evaluated once"
+    );
+    let created = creates[0].result.unwrap();
+    let owner = attempt
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match i.kind {
+            InstructionKind::Store { local, value } if value == created => Some(local),
+            _ => None,
+        })
+        .expect("the actual Task error wrapper has a local owner before tag selection");
+    assert!(matches!(
+        attempt.locals[owner.0 as usize].ty,
+        Type::ErrorUnion { .. }
+    ));
+    assert!(
+        attempt
+            .blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(i.kind,
+        InstructionKind::PlaceTagLocal { local, .. } if local == owner))
+    );
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    let mut missing = module.clone();
+    let function = &mut missing.functions[attempt.id.0 as usize];
+    let mut removed = 0;
+    for block in &mut function.blocks {
+        block.instructions.retain(|i| {
+            let selected = matches!(i.kind, InstructionKind::Store { local, value } if local == owner && value == created);
+            removed += usize::from(selected);
+            !selected
+        });
+    }
+    assert_eq!(removed, 1);
+    let errors = zil_analyze::analyze(&missing, &limits).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.category == ResultCategory::SafeReject),
+        "{errors:?}"
+    );
+    let mut candidate = plan;
+    candidate.module_fingerprint = missing.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&missing, &candidate, &limits).unwrap();
+    for result in [
+        zil_verify::verify_module(missing, candidate, &target, &limits),
+        zil_verify::verify_module_bytes(&wire, &target, &limits),
+    ] {
+        let errors = result
+            .err()
+            .expect("a tag cannot bypass the missing actual temporary owner");
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.phase == Phase::Verify && d.category == ResultCategory::SafeReject),
+            "{errors:?}"
+        );
+    }
+    for (label, bad) in [
+        (
+            "temporary-pending-input-write",
+            source.replace("   var map=", "   *parent=9\n   var map="),
+        ),
+        (
+            "temporary-ready-input-write",
+            source.replace(
+                "      let observed=*pointer",
+                "      *parent=9\n      let observed=*pointer",
+            ),
+        ),
+    ] {
+        let report = compile_project(
+            &project(&bad),
+            &CompileOptions {
+                limits: limits.clone(),
+                ..CompileOptions::default()
+            },
+        );
+        let out = directory(label);
+        fs::write(out.join("main.zil"), bad).unwrap();
+        fs::write(out.join("compile.json"), report.to_json()).unwrap();
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{label}: {}",
+            report.to_json()
+        );
+        assert_eq!(
+            report.phase,
+            Phase::Analyze,
+            "{label}: {}",
+            report.to_json()
+        );
+    }
+}
+
+fn raw_task_map_lending(source: &str) -> zil_ir::TypedModule {
     let project = project(source);
     let parsed: Vec<_> = project
         .modules
@@ -432,7 +580,9 @@ fn raw_task_map_lending() -> zil_ir::TypedModule {
 
 #[test]
 fn mixed_task_map_raw_wire_and_exact_verifier_work_are_independent() {
-    let module = raw_task_map_lending();
+    let module = raw_task_map_lending(include_str!(
+        "../../../tests/fixtures/task-borrow-results/owning-map-lending.zil"
+    ));
     let target = TargetProfile::host_llvm();
     let limits = Limits {
         max_analysis_steps: 100_000_000,

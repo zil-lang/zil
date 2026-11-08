@@ -113,20 +113,29 @@ impl Builder<'_, '_> {
         } else {
             self.transfer_expr(e, None)?
         };
-        self.closures.snapshot_type(&t, 3, 0, e.span)?;
-        self.finish_resource_temps(e.span)?;
+        self.owner_pattern_place_value(v, t, e.span, extend)
+    }
+    fn owner_pattern_place_value(
+        &mut self,
+        value: ValueId,
+        ty: Type,
+        span: Span,
+        extend: bool,
+    ) -> R<Place> {
+        self.closures.snapshot_type(&ty, 3, 0, span)?;
+        self.finish_resource_temps(span)?;
         let local = if extend {
             let name = format!("$patternOwner340${}", self.function.locals.len());
-            self.local(&name, t.clone(), true, e.span)?
+            self.local(&name, ty.clone(), true, span)?
         } else {
-            self.temp(t.clone(), e.span)?
+            self.temp(ty.clone(), span)?
         };
-        self.store(local, v, e.span)?;
+        self.store(local, value, span)?;
         Ok(Place {
             local,
             path: Vec::new(),
-            root: t.clone(),
-            ty: t,
+            root: ty.clone(),
+            ty,
         })
     }
     pub(super) fn pattern_variant_index(&self, p: &CorePattern, ty: &Type) -> R<u32> {
@@ -514,6 +523,29 @@ impl Builder<'_, '_> {
             .iter()
             .any(|a| reference_patterns::has_reference(&a.pattern));
         let place = self.owner_pattern_place(e, consume, false)?;
+        self.finish_partial_pattern_match(place, consume, arms, span)
+    }
+    pub(super) fn partial_pattern_match_value(
+        &mut self,
+        value: ValueId,
+        ty: Type,
+        arms: &[CoreMatchArm],
+        expression_span: Span,
+        span: Span,
+    ) -> R<()> {
+        let consume = !arms
+            .iter()
+            .any(|a| reference_patterns::has_reference(&a.pattern));
+        let place = self.owner_pattern_place_value(value, ty, expression_span, false)?;
+        self.finish_partial_pattern_match(place, consume, arms, span)
+    }
+    fn finish_partial_pattern_match(
+        &mut self,
+        place: Place,
+        consume: bool,
+        arms: &[CoreMatchArm],
+        span: Span,
+    ) -> R<()> {
         self.check_match_coverage(&place.ty, arms, span)?;
         // Mutually exclusive arms start with the same prepared owners. A
         // cleanup emitted for one arm must not remove another arm's debt.

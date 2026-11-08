@@ -952,6 +952,15 @@ impl<'a, 'c> Builder<'a, 'c> {
         }
         let (value, ty) = self.expr(expression, None)?;
         self.closures.snapshot_type(&ty, 1, 0, span)?;
+        // Intrinsics and other expressions can disclose their complete owning
+        // shape only after evaluation. Route that one actual SSA value through
+        // the same owner/tag/cleanup path used for a named scrutinee.
+        if arms
+            .iter()
+            .any(|arm| self.partial_pattern_needed(&arm.pattern, &ty))
+        {
+            return self.partial_pattern_match_value(value, ty, arms, expression.span, span);
+        }
         if owned_shapes::enumeration(&ty) {
             return self.owned_enum_match_value(value, ty, arms, span);
         }
