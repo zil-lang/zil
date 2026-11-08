@@ -2134,6 +2134,10 @@ fn transfer(
         InstructionKind::TakeLocal { local } => {
             ordered(b, state.locals.len(), 0)?;
             if task_address::shape(&f.locals[local.0 as usize].ty).is_some()
+                || matches!(
+                    f.locals[local.0 as usize].ty,
+                    Type::Address { mutable: true, .. }
+                )
                 || super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty)
                 || carrier(&f.locals[local.0 as usize].ty).is_some()
                 || (b.stored_enum_addresses
