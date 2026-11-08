@@ -558,7 +558,11 @@ impl Flow {
                                 flow.edge(to, from, b)?;
                             }
                         }
-                        consumer = Consumer::Copy;
+                        consumer = if out.is_some_and(|p| p.outer.is_some()) {
+                            Consumer::Copy
+                        } else {
+                            Consumer::Forbidden
+                        };
                     }
                     InstructionKind::ReadAddress { address } => {
                         if let Some(out) = out {
@@ -758,7 +762,13 @@ impl Flow {
                 }
                 for input in super::super::instruction_operands(&i.kind) {
                     work(b, 1)?;
-                    flow.use_ports(site, value(values, input)?, consumer, b)?;
+                    let input_consumer = if matches!(i.kind, InstructionKind::StoreStoredBorrow { storage, .. } if storage == input)
+                    {
+                        Consumer::Copy
+                    } else {
+                        consumer
+                    };
+                    flow.use_ports(site, value(values, input)?, input_consumer, b)?;
                 }
             }
             if reachable.get(bi) == Some(&true)
