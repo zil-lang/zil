@@ -607,9 +607,7 @@ fn temporary_task_match_requires_one_real_hidden_owner_and_live_input() {
         zil_verify::verify_module(missing, candidate, &target, &limits),
         zil_verify::verify_module_bytes(&wire, &target, &limits),
     ] {
-        let errors = result
-            .err()
-            .expect("a tag cannot bypass the missing actual temporary owner");
+        let errors = result.expect_err("a tag cannot bypass the missing actual temporary owner");
         assert!(
             errors
                 .iter()
@@ -835,9 +833,7 @@ fn mixed_task_map_raw_wire_and_exact_verifier_work_are_independent() {
         zil_verify::verify_module(module.clone(), frame_claim, &target, &limits),
         zil_verify::verify_module_bytes(&frame_wire, &target, &limits),
     ] {
-        let errors = result
-            .err()
-            .expect("Ready external source cannot be forged into its frame");
+        let errors = result.expect_err("Ready external source cannot be forged into its frame");
         assert!(
             errors
                 .iter()
@@ -869,9 +865,7 @@ fn mixed_task_map_raw_wire_and_exact_verifier_work_are_independent() {
         zil_verify::verify_module(module, forged, &target, &limits),
         zil_verify::verify_module_bytes(&forged_wire, &target, &limits),
     ] {
-        let errors = result
-            .err()
-            .expect("skipped ordinary helper is independently checked");
+        let errors = result.expect_err("skipped ordinary helper is independently checked");
         assert!(
             errors
                 .iter()
