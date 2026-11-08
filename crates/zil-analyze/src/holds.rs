@@ -4,6 +4,7 @@
 use super::*;
 use std::collections::BTreeMap;
 mod captured_lending;
+mod local_parents;
 mod replacement_pins;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -703,6 +704,7 @@ struct PatternFacts<'a> {
     values: &'a [Roots],
     state: &'a State,
     captures: Option<&'a captured_lending::Facts>,
+    local_parents: Option<(&'a local_parents::Facts, &'a local_parents::Locals)>,
     replacements: Option<&'a crate::place_replacements::Definitions>,
 }
 type PatternAccess = (Roots, bool, Option<ValueId>);
@@ -893,6 +895,7 @@ fn pattern_window_transition(
         values,
         state,
         captures,
+        local_parents,
         replacements,
     } = facts;
     let Some((roots, exclusive, parent)) = pattern_access(f, i, values, replacements, b)? else {
@@ -924,7 +927,10 @@ fn pattern_window_transition(
         }
         if overlaps(&roots, held, b)? {
             if let Some(parent) = parent
-                && if let Some(captures) = captures {
+                && if matches!(ty, Type::Address { .. }) && local_parents.is_some() {
+                    let (facts, state) = local_parents.unwrap();
+                    local_parents::delegated(parent, *active, state, facts, b)?
+                } else if let Some(captures) = captures {
                     captured_lending::delegated(f, parent, *active, captures, b)?
                 } else {
                     delegated(f, parent, *active, b)?
@@ -1688,6 +1694,9 @@ fn infer_with_private(
     } else {
         Vec::new()
     };
+    if budget.task_borrowed_results {
+        local_parents::check_transfers(f, predecessors, reachable, budget)?;
+    }
     loop {
         let mut changed = false;
         let capture_facts = if budget.owning_address_captures {
@@ -1700,6 +1709,11 @@ fn infer_with_private(
                 summaries,
                 budget,
             )?)
+        } else {
+            None
+        };
+        let local_parent_facts = if budget.task_borrowed_results && pattern_windows {
+            local_parents::reconstruct(f, predecessors, reachable, capture_facts.as_ref(), budget)?
         } else {
             None
         };
@@ -1754,6 +1768,11 @@ fn infer_with_private(
                 captured_lending::input(facts, b, budget)?
             } else {
                 captured_lending::Locals::new()
+            };
+            let mut pointer_locals = if let Some(facts) = &local_parent_facts {
+                local_parents::input(facts, b, budget)?
+            } else {
+                local_parents::Locals::new()
             };
             let mut prepared = if let Some(schedule) = &replacement_schedule {
                 let incoming = schedule.incoming[b]
@@ -1826,6 +1845,9 @@ fn infer_with_private(
                             values: &values,
                             state: &state,
                             captures: capture_facts.as_ref(),
+                            local_parents: local_parent_facts
+                                .as_ref()
+                                .map(|facts| (facts, &pointer_locals)),
                             replacements: replacement_definitions.as_ref(),
                         },
                         live,
@@ -2257,6 +2279,9 @@ fn infer_with_private(
                         &captures.values,
                         budget,
                     )?;
+                }
+                if let Some(facts) = &local_parent_facts {
+                    local_parents::step(&mut pointer_locals, instruction, facts, budget)?;
                 }
                 if thread_windows {
                     changed |= thread_access_step(
