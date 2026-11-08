@@ -1871,10 +1871,8 @@ impl Check<'_, '_, '_> {
                 self.budget.node(span, depth)?;
                 self.budget.text(name, span)?;
                 self.budget.text(&self.functions[owner].name, span)?;
-                if self.functions[owner].name == *name {
-                    if selected.replace(owner).is_some() {
-                        return Err(error(span, "nominal lending method class is ambiguous"));
-                    }
+                if self.functions[owner].name == *name && selected.replace(owner).is_some() {
+                    return Err(error(span, "nominal lending method class is ambiguous"));
                 }
             }
         }
