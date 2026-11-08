@@ -6,6 +6,8 @@
 
 普通拥有 Package 可组合已支持的资源与多个外部共享/独占借入叶，支持嵌套 qualified 子 Package、槽替换及 `move_out` 后完整补回。各槽保留真实来源、父 loan、初始化状态与独立拥有清理；通用捕获及更广异步运输仍有边界。规则分别见[可变存储载体](../../spec/mutable-stored-holder.md)、[trait 合同](../../spec/trait-method-lending.md)和[affine Mutex](../../spec/affine-mutex.md)。[基础语言发布门](../../validation/language-release-gates.json)定义完整功能验收，不代表当前预览已达到1.0。
 
+包含真实共享借入叶的 qualified Record 可作为有限拥有 Package 的字段，局部窗口和字段投影保留实际来源。这类父 Package 的整对象地址经 identity helper 返回仍可能被资源验证拒绝，尚未列为支持范围。
+
 ## 支持矩阵
 
 | 能力簇 | 预览支持范围 | 验证范围 | 边界 |
