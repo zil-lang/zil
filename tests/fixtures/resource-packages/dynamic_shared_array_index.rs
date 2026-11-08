@@ -349,7 +349,7 @@ fn complete_other_root_cannot_mask_a_taken_array_leaf() {
 fn local_roots_snapshot(refill_before: bool) -> zil_ir::TypedModule {
     let definitions = PARTIAL_SNAPSHOT.split("fn main").next().unwrap();
     let program = format!(
-        "{definitions}fn read<life a>(first:&'a i32,second:&'a i32,flag:bool)->i32{{var left=make(first,first);var right=make(second,second);let initial=&left;let unused=initial.items[0];let selected=if flag{{&left}}else{{&right}};let snapshot=selected.items;return *snapshot[1]}}fn main()->i32{{return 0}}"
+        "{definitions}fn read<life a>(first:&'a i32,second:&'a i32,flag:bool)->i32{{var left=make(first,first);var right=make(second,second);let initial=&left;let unused=initial.items[0];let selected=if flag{{&left}}else{{&right}};let snapshot=selected.items;return *snapshot[1]}}fn main()->i32{{let first=7;let second=9;return read(&first,&second,true)-7}}"
     );
     let mut raw = typed_source(
         "array-snapshot-two-local-roots",
@@ -478,6 +478,20 @@ fn complete_local_parent_cannot_mask_a_vacant_snapshot_candidate() {
     match &analyzed {
         Ok(fresh) => {
             println!("local roots: one hole plus complete other parent Analyze Success");
+            let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../out/runs/dynamic-shared-array/old-initialization-reproducer");
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join("bad-raw.txt"), format!("{bad:#?}")).unwrap();
+            std::fs::write(dir.join("fresh-candidate.txt"), format!("{fresh:#?}")).unwrap();
+            std::fs::write(
+                dir.join("bad-module-candidate.wire"),
+                zil_ir::wire::encode_module_candidate(&bad, fresh, &limits).unwrap(),
+            )
+            .unwrap();
+            println!(
+                "saved original initialization reproducer artifacts at {}",
+                dir.display()
+            );
             println!(
                 "fresh candidate Verify {:?}",
                 zil_verify::verify_module(bad.clone(), fresh.clone(), &target, &limits)
