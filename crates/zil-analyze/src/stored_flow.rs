@@ -182,10 +182,54 @@ struct Loan {
     parents: Loans,
     mutable: bool,
 }
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum TaskLoanAnchor {
+    Value(ValueId),
+    Input(Target),
+}
+
+fn pointer_anchors(
+    f: &TypedFunction,
+    current: ValueId,
+    permission: &Permission,
+    loans: &[Loan],
+    b: &mut Budget,
+) -> CompileResult<Vec<TaskLoanAnchor>> {
+    fee(b, permission.loans.len())?;
+    let mut pending = permission.loans.clone();
+    let mut seen = BTreeSet::new();
+    let mut out = BTreeSet::new();
+    while let Some(id) = pending.pop_first() {
+        ordered(b, seen.len(), 0)?;
+        if !seen.insert(id) {
+            continue;
+        }
+        let loan = loans
+            .get(id)
+            .ok_or_else(|| failure("pointer parent exceeds actual stored loan arena"))?;
+        if id < f.values.len() && id != current.0 as usize {
+            ordered(b, out.len(), 0)?;
+            out.insert(TaskLoanAnchor::Value(ValueId(id as u32)));
+        } else if !loan.parents.is_empty() {
+            fee(b, loan.parents.len())?;
+            pending.extend(&loan.parents);
+        } else if id >= f.values.len() {
+            for source in &loan.targets {
+                fee(b, target_width(source))?;
+                ordered(b, out.len(), target_width(source))?;
+                out.insert(TaskLoanAnchor::Input(source.clone()));
+            }
+        }
+    }
+    fee(b, out.len())?;
+    Ok(out.into_iter().collect())
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct Facts {
     pub values: Vec<Vec<Target>>,
     pointer_values: Vec<Vec<HoldRoot>>,
+    pointer_parents: Vec<Vec<TaskLoanAnchor>>,
     pub returned: BTreeMap<Path, Vec<Target>>,
     returned_task_ports: BTreeMap<Vec<zil_ir::ContractProjection>, Vec<Target>>,
     external_after: BTreeMap<(u32, Path), Vec<Target>>,
@@ -3949,6 +3993,7 @@ fn derive_cfg(
             let mut actual = Facts {
                 values: Vec::with_capacity(values.len()),
                 pointer_values: Vec::new(),
+                pointer_parents: Vec::new(),
                 returned: BTreeMap::new(),
                 returned_task_ports: BTreeMap::new(),
                 external_after: BTreeMap::new(),
@@ -3980,6 +4025,15 @@ fn derive_cfg(
                         .map(|t| t.base)
                         .collect::<BTreeSet<_>>();
                     actual.pointer_values.push(roots.into_iter().collect());
+                    if b.store_option_results {
+                        actual.pointer_parents.push(pointer_anchors(
+                            f,
+                            ValueId(id as u32),
+                            &value.pointer,
+                            &loans,
+                            b,
+                        )?);
+                    }
                 }
                 let root = roots(value, b)?;
                 fee(b, root.len())?;
@@ -4422,6 +4476,11 @@ pub(super) fn infer(
         .store_option_results
         .then(|| Vec::with_capacity(facts.len()));
     for (index, function) in facts.into_iter().enumerate() {
+        if b.task_borrowed_results && b.store_option_results {
+            fee(b, 1)?;
+            b.task_stored_coverage
+                .push(b.composition_stored.is_empty() || b.composition_stored[index]);
+        }
         if b.store_option_results
             && !b.composition_stored.is_empty()
             && !b.composition_stored[index]
@@ -4430,6 +4489,12 @@ pub(super) fn infer(
             fee(b, count.saturating_mul(2))?;
             if let Some(actual) = &mut option_targets {
                 actual.push(vec![Vec::new(); count]);
+            }
+            if b.task_borrowed_results {
+                fee(b, count)?;
+                b.task_pointer_roots.push(vec![Vec::new(); count]);
+                fee(b, count)?;
+                b.task_pointer_parents.push(vec![Vec::new(); count]);
             }
             result.push(
                 (0..count)
@@ -4456,6 +4521,12 @@ pub(super) fn infer(
                 return Err(failure("Task physical-source proof omitted an SSA value"));
             }
             b.task_pointer_roots.push(function.pointer_values);
+            if b.store_option_results {
+                if function.pointer_parents.len() != function.values.len() {
+                    return Err(failure("Task physical parent proof omitted an SSA value"));
+                }
+                b.task_pointer_parents.push(function.pointer_parents);
+            }
         }
         let mut rows = Vec::new();
         fee(b, function.values.len())?;

@@ -103,6 +103,17 @@ fn physical(
     if !b.task_borrowed_results || !matches!(f.values[value.0 as usize], Type::Address { .. }) {
         return actual(holds, value, b);
     }
+    if b.store_option_results {
+        fee(b, 1)?;
+        if !b
+            .task_stored_coverage
+            .get(f.id.0 as usize)
+            .copied()
+            .ok_or_else(|| bad("Task physical access lacks function coverage"))?
+        {
+            return actual(holds, value, b);
+        }
+    }
     let roots = b
         .task_pointer_roots
         .get(f.id.0 as usize)

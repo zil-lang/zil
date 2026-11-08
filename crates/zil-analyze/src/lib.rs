@@ -133,7 +133,7 @@ fn analyze_budgeted(
         // A stored module with only scalar helpers retains its old path/fees.
         let ordinary_required = budget.tasks || budget.registrations;
         if budget.task_borrowed_results || budget.store_option_results {
-            if budget.store_option_results && !budget.task_borrowed_results {
+            if budget.store_option_results {
                 budget.spend(module.functions.len(), "qualified Option function mask")?;
                 budget.composition_stored = module
                     .functions
@@ -188,7 +188,7 @@ fn analyze_budgeted(
     // The Option mask schedules only the stored-address solver. Every
     // function, including the ones with a qualified Option, still needs its
     // independent ordinary Hold/resource solution over the original CFG.
-    let store_option_mask = if budget.store_option_results && !budget.task_borrowed_results {
+    let store_option_mask = if budget.store_option_results {
         std::mem::take(&mut budget.composition_stored)
     } else {
         Vec::new()
@@ -247,6 +247,37 @@ fn analyze_budgeted(
     };
     if let Some(stored) = stored_holds {
         for (index, rows) in stored.into_iter().enumerate() {
+            if budget.store_option_results && budget.task_borrowed_results {
+                budget.spend(1, "mixed stored proof coverage")?;
+                if !budget
+                    .task_stored_coverage
+                    .get(index)
+                    .copied()
+                    .ok_or_else(|| bad("mixed Task proof omitted function coverage"))?
+                {
+                    continue;
+                }
+                if rows.len() != module.functions[index].values.len() {
+                    return Err(bad("mixed Task proof omitted an actual SSA value"));
+                }
+                for (value, (ty, stored)) in
+                    module.functions[index].values.iter().zip(&rows).enumerate()
+                {
+                    budget.spend(1, "mixed stored value coverage")?;
+                    // Only the complete selected stored proof supplies these
+                    // strong rows. Ordinary descriptors and other values keep
+                    // the independent ordinary resource/borrow solution.
+                    if matches!(ty, Type::BorrowedStorage { .. })
+                        || stored_flow::enum_address::signature(ty)
+                        || holds::retained_task_value(ty) && !matches!(ty, Type::Desc(_))
+                        || matches!(ty, Type::Address { .. }) && !stored.roots.is_empty()
+                    {
+                        budget.spend(stored.roots.len(), "mixed strong Hold copy")?;
+                        actual_holds[index][value] = stored.clone();
+                    }
+                }
+                continue;
+            }
             if budget.store_option_results && !budget.task_borrowed_results {
                 if !store_option_mask.is_empty() && !store_option_mask[index] {
                     continue;

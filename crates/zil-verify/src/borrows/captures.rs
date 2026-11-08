@@ -100,6 +100,9 @@ impl Invocation<'_> {
                 return Ok(roots.clone());
             }
             Root::ParameterPort(parameter, port) => {
+                if budget.store_option_results {
+                    budget.spend(1)?;
+                }
                 let value = *self
                     .arguments
                     .get(parameter as usize)
@@ -108,6 +111,7 @@ impl Invocation<'_> {
                     .task_stored_sources
                     .as_ref()
                     .and_then(|rows| rows.get(self.caller.0 as usize))
+                    .filter(|row| row.covered)
                     .and_then(|row| row.values.get(value.0 as usize))
                     .ok_or_else(ungrounded)?;
                 let count = rows.retained.len();

@@ -1014,7 +1014,7 @@ fn check_module(
     } else {
         None
     };
-    let store_option_mask = if budget.store_option_results && !budget.task_borrowed_results {
+    let store_option_mask = if budget.store_option_results {
         budget.spend(module.functions.len())?;
         Some(
             module

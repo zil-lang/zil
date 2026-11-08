@@ -31,6 +31,13 @@ fn retained_task_value(ty: &Type) -> bool {
     }
 }
 
+fn mixed_task_strong_value(ty: &Type) -> bool {
+    !matches!(ty, Type::Desc(_))
+        && (retained_task_value(ty)
+            || matches!(ty, Type::Address { .. } | Type::BorrowedStorage { .. })
+            || crate::stored_flow::enum_address::signature(ty))
+}
+
 fn has_sources(
     module: &TypedModule,
     ty: &Type,
@@ -324,11 +331,10 @@ fn check(
         budget.spend(coarse.len())?;
         coarse.dedup();
         if budget.task_borrowed_results {
-            let checked = budget
+            let function_proof = budget
                 .task_stored_sources
                 .as_ref()
                 .and_then(|rows| rows.get(f.id.0 as usize))
-                .and_then(|row| row.values.get(claim.value.0 as usize))
                 .ok_or_else(|| {
                     reject(
                         "E-VERIFY-TASK-SOURCES",
@@ -336,12 +342,37 @@ fn check(
                         "canonical Hold lacks an actual stored SSA proof",
                     )
                 })?;
-            let count = checked.public.len();
-            budget.spend(count)?;
-            coarse = budget.task_stored_sources.as_ref().unwrap()[f.id.0 as usize].values
-                [claim.value.0 as usize]
-                .public
-                .clone();
+            let checked = function_proof
+                .values
+                .get(claim.value.0 as usize)
+                .ok_or_else(|| {
+                    reject(
+                        "E-VERIFY-TASK-SOURCES",
+                        Some(f.span),
+                        "canonical Hold lacks an actual stored SSA proof",
+                    )
+                })?;
+            let ty = &f.values[claim.value.0 as usize];
+            let overlay = !budget.store_option_results
+                || function_proof.covered
+                    && mixed_task_strong_value(ty)
+                    && (!matches!(ty, Type::Address { .. }) || !checked.pointer.is_empty());
+            let count = if overlay { checked.public.len() } else { 0 };
+            budget.spend(count.saturating_add(usize::from(budget.store_option_results)))?;
+            if overlay {
+                coarse = budget.task_stored_sources.as_ref().unwrap()[f.id.0 as usize].values
+                    [claim.value.0 as usize]
+                    .public
+                    .clone();
+            } else if budget.store_option_results {
+                budget.spend(
+                    coarse
+                        .len()
+                        .saturating_mul(coarse.len().checked_ilog2().map_or(1, |n| n as usize + 1)),
+                )?;
+                coarse.sort_unstable();
+                coarse.dedup();
+            }
         }
         if claim.roots != coarse {
             return Err(reject(
@@ -1365,7 +1396,7 @@ fn check_module_mask(
     let empty_port_facts = port_facts::FunctionFacts::default();
     let descriptor_origins = descriptor_origins(module, budget)?;
     let mut facts = reconstruct_module(module, graphs, descriptor_origins, mask, budget)?;
-    if budget.store_option_results {
+    if budget.store_option_results && !budget.task_borrowed_results {
         let checked = budget.store_option_sources.take().ok_or_else(|| {
             reject(
                 "E-VERIFY-STORE-WINDOW",
@@ -1402,13 +1433,27 @@ fn check_module_mask(
                     "Task source proof omitted an actual SSA value",
                 ));
             }
+            if budget.store_option_results {
+                budget.spend(1)?;
+                if !actual.covered {
+                    continue;
+                }
+            }
             for ((ty, row), sources) in function
                 .values
                 .iter()
                 .zip(&mut facts.values)
                 .zip(&actual.values)
             {
-                let roots = if matches!(ty, Type::Address { .. }) {
+                if budget.store_option_results {
+                    budget.spend(1)?;
+                    if !mixed_task_strong_value(ty)
+                        || matches!(ty, Type::Address { .. }) && sources.pointer.is_empty()
+                    {
+                        continue;
+                    }
+                }
+                let roots: Vec<Root> = if matches!(ty, Type::Address { .. }) {
                     budget.spend(sources.pointer.len())?;
                     sources
                         .pointer
@@ -1434,10 +1479,44 @@ fn check_module_mask(
                         })
                         .collect()
                 };
+                if budget.store_option_results && matches!(ty, Type::Address { .. }) {
+                    // The complete stored proof may refine a Task-exported
+                    // pointer away from its frame. Equal coarse origins retain
+                    // ordinary field/window detail and its existing loans.
+                    budget.spend(sources.pointer.len())?;
+                    if sources.pointer.iter().all(|source| source.port.is_none()) {
+                        let count = row.len().saturating_add(roots.len());
+                        budget.spend(
+                            count.saturating_mul(
+                                count.checked_ilog2().map_or(1, |n| n as usize + 2),
+                            ),
+                        )?;
+                        let mut ordinary: Vec<_> = row.iter().map(|root| root.coarse()).collect();
+                        ordinary.sort_unstable();
+                        ordinary.dedup();
+                        let mut stored: Vec<_> = roots.iter().map(|root| root.coarse()).collect();
+                        stored.sort_unstable();
+                        stored.dedup();
+                        if ordinary == stored {
+                            continue;
+                        }
+                    }
+                }
                 *row = roots;
             }
         }
         budget.task_stored_sources = Some(checked);
+    }
+    if budget.store_option_results && budget.task_borrowed_results {
+        let checked = budget.store_option_sources.take().ok_or_else(|| {
+            reject(
+                "E-VERIFY-STORE-WINDOW",
+                None,
+                "Option result lacks its complete independent stored proof",
+            )
+        })?;
+        overlay_store_option_sources(module, &mut facts, &checked, budget)?;
+        budget.store_option_sources = Some(checked);
     }
     if budget.invocation_callbacks {
         check_callback_returns(module, graphs, &facts, budget)?;

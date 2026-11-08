@@ -147,6 +147,23 @@ fn reconstruct(
     ports: &super::port_facts::FunctionFacts,
     budget: &mut Budget,
 ) -> Check<Flow> {
+    let task_covered = if budget.task_borrowed_results && budget.store_option_results {
+        budget.spend(1)?;
+        budget
+            .task_stored_sources
+            .as_ref()
+            .and_then(|rows| rows.get(f.id.0 as usize))
+            .ok_or_else(|| {
+                reject(
+                    "E-VERIFY-TASK-SOURCES",
+                    Some(f.span),
+                    "Task loan proof omitted function coverage",
+                )
+            })?
+            .covered
+    } else {
+        budget.task_borrowed_results
+    };
     let v = f.values.len();
     let base = v
         .checked_add(f.parameters.len())
@@ -634,7 +651,7 @@ fn reconstruct(
                             }
                         }
                     }
-                    if budget.task_borrowed_results {
+                    if task_covered {
                         let checked = budget
                             .task_stored_sources
                             .as_ref()
