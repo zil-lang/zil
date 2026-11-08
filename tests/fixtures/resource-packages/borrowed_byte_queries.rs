@@ -99,6 +99,9 @@ fn activated_ignore(program: &str) -> String {
 fn raw_query_rebuilds_helper_reads_and_delegation_without_candidate_authority() {
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
+    let loop_relay = include_str!("byte-query-controls/loop-old-delegation-query.zil")
+        .replace("sum+inspect(description)","sum+relay_twice(description)")
+        .replace("fn main", "fn relay(buffer:ByteBuffer)->i64{return inspect(buffer)}fn relay_twice(buffer:ByteBuffer)->i64{return relay(buffer)}fn main");
     for (label, program, reject) in [
         (
             "old-parent",
@@ -110,6 +113,7 @@ fn raw_query_rebuilds_helper_reads_and_delegation_without_candidate_authority() 
             include_str!("byte-query-controls/loop-old-delegation-query.zil"),
             true,
         ),
+        ("old-loop-two-relays", loop_relay.as_str(), true),
         (
             "mixed-false",
             include_str!("byte-query-controls/mixed-false-query.zil"),
@@ -991,6 +995,63 @@ fn descriptor_delegation_does_not_come_from_a_future_loop_iteration() {
         assert_success(
             &format!("outer-loop-description-{label}"),
             &format!("{helpers}{}", outer.replace("QUERY", query)),
+        );
+    }
+    let control = format!(
+        "fn enable_query(buffer:ByteBuffer)->i64{{return bytes_capacity(buffer)}}{}",
+        bad.replace(
+            "let description=current.bytes;",
+            "let description=current.bytes;let copied=description;"
+        )
+        .replace(
+            "let exclusive=&mut job;",
+            "let exclusive=&mut job;let observed=i64(0);"
+        )
+        .replace("QUERY", "observed")
+    );
+    assert_success("direct-loop-raw-control", &control);
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let mut raw = typed_source("direct-loop-raw-control", &control, &target, &limits);
+    let mut candidate = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), candidate.clone(), &target, &limits).unwrap();
+    let f = raw.functions.iter_mut().find(|f| f.name == "main").unwrap();
+    let assigned = |name: &str| {
+        let local = f.locals.iter().find(|l| l.name == name).unwrap().id;
+        f.blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .find_map(|i| match i.kind {
+                InstructionKind::Store { local: l, value } if l == local => Some(value),
+                _ => None,
+            })
+            .unwrap()
+    };
+    let descriptor = assigned("copied");
+    let result = assigned("observed");
+    f.blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| i.result == Some(result))
+        .unwrap()
+        .kind = InstructionKind::ByteBufferLen { buffer: descriptor };
+    candidate.module_fingerprint = raw.fingerprint();
+    let a = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(
+        a.iter()
+            .any(|d| d.message.contains("actual stored target/parent loan")),
+        "{a:?}"
+    );
+    let v =
+        zil_verify::verify_module(raw.clone(), candidate.clone(), &target, &limits).unwrap_err();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &candidate, &limits).unwrap();
+    let w = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    for errors in [v, w] {
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("live incompatible loan")),
+            "{errors:?}"
         );
     }
 }
