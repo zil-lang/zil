@@ -1251,6 +1251,7 @@ fn generic_error_union_templates_retain_selected_return_tags_and_reject_unresolv
                         backend,
                         optimization,
                         stop_after: Stage::Build,
+                        entry: Some("result".into()),
                         output: Some(out.join("program")),
                         ..CompileOptions::default()
                     },
