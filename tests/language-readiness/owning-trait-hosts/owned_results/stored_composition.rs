@@ -59,6 +59,67 @@ fn typed(text: &str) -> TypedModule {
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()
 }
 
+fn typed_project(files: &[(&str, &str)]) -> TypedModule {
+    let project = project(files);
+    let syntax = project
+        .modules
+        .iter()
+        .map(|source| zil_syntax::parse(source).into_result().unwrap())
+        .collect::<Vec<_>>();
+    let imports = syntax
+        .iter()
+        .map(|module| {
+            module
+                .items
+                .iter()
+                .filter_map(|item| {
+                    let zil_syntax::ast::ItemKind::Import(import) = &item.kind else {
+                        return None;
+                    };
+                    assert!(!import.syntax);
+                    Some(zil_ir::CoreImport {
+                        alias: import
+                            .alias
+                            .clone()
+                            .unwrap_or_else(|| import.path.last().unwrap().clone()),
+                        module: project.paths[&import.path],
+                        span: item.span,
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    let syntax_refs = syntax.iter().collect::<Vec<_>>();
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let expanded = zil_expand::expand_program_with_limits_target_context(
+        &project.modules,
+        &syntax_refs,
+        &imports,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: project.root,
+            aliases: &project.paths,
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap();
+    let mut fingerprint = zil_base::FingerprintBuilder::new();
+    for source in &project.modules {
+        fingerprint.update(source.path.as_bytes());
+        fingerprint.update(source.text.as_bytes());
+    }
+    let core = zil_ir::CoreProgram {
+        root: project.root,
+        source_fingerprint: fingerprint.digest(),
+        modules: expanded.into_iter().map(|(module, _)| module).collect(),
+    };
+    zil_types::check_program(&core, &target, &limits)
+        .unwrap()
+        .module
+}
+
 fn control(module: &TypedModule) -> zil_ir::CandidatePlan {
     let limits = Limits::default();
     let plan = zil_analyze::analyze(module, &limits).unwrap();
@@ -519,7 +580,272 @@ fn ordinary_error_places_keep_real_tag_initialization_and_live_loans() {
                         .any(|d| d.message.contains("live incompatible loan")),
                     "{errors:?}"
                 );
+            } else if attack == "wrong-tag" {
+                assert!(
+                    a.iter().any(|d| d.code == "E-ANALYZE-IR"
+                        && d.message.contains("partial error/success content absent")),
+                    "{a:?}"
+                );
+                assert!(
+                    errors.iter().any(|d| d.code == "E-VERIFY-SUM"
+                        && d.message.contains("current actual error/success tag guard")),
+                    "{errors:?}"
+                );
+            } else if attack == "missing-initialization" {
+                assert!(a.iter().any(|d| d.code == "E-UNINITIALIZED"), "{a:?}");
+                assert!(
+                    errors.iter().any(|d| d.code == "E-VERIFY-INITIALIZATION"),
+                    "{errors:?}"
+                );
             }
         }
     }
+}
+
+fn scalar_entry_model() -> String {
+    let providers = MODEL.split("pub fn run()->i32").next().unwrap();
+    format!(
+        "{providers}pub fn run()->i32{{let items:Store<Item>=store_new();if !store_reserve(items,1){{return 1}}let data=bytes_new();if !bytes_reserve(data,1)||!bytes_push(data,65u8){{return 2}}store_push(items,Item{{data:give data,tag:20}});var cursor=Cursor{{items:give items,index:0}};match library.next_tagged(&mut cursor,7){{Option.None()=>{{return 3}},Option.Some(original)=>{{var copy:Item=original.duplicate();let old=copy.data;let exclusive=&mut copy;let seen:i64=1;let kept=exclusive.tag;return i32(seen+kept+original.tag-42)}}}}}}"
+    )
+}
+
+#[test]
+fn ordinary_scalar_entry_requires_the_callees_real_internal_query_proof() {
+    let model = scalar_entry_model();
+    let raw = typed_project(&[
+        ("main", MAIN),
+        ("model", &model),
+        ("protocol", PROTOCOL),
+        ("library", LIBRARY),
+    ]);
+    let plan = control(&raw);
+    let mut forged = raw.clone();
+    let function = forged
+        .functions
+        .iter_mut()
+        .find(|f| {
+            f.locals.iter().any(|l| l.name == "seen") && f.locals.iter().any(|l| l.name == "old")
+        })
+        .unwrap();
+    let stored_value = |name: &str| {
+        let local = function.locals.iter().find(|l| l.name == name).unwrap().id;
+        function
+            .blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .find_map(|i| {
+                if let InstructionKind::Store { local: l, value } = i.kind
+                    && l == local
+                {
+                    Some(value)
+                } else {
+                    None
+                }
+            })
+            .unwrap()
+    };
+    let buffer = stored_value("old");
+    let scalar = stored_value("seen");
+    let operation = function
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| i.result == Some(scalar))
+        .unwrap();
+    assert!(matches!(
+        operation.kind,
+        InstructionKind::Constant(zil_ir::Constant::I64(1))
+    ));
+    operation.kind = InstructionKind::ByteBufferLen { buffer };
+    let mut claim = plan;
+    claim.module_fingerprint = forged.fingerprint();
+    let a = rejected(
+        zil_analyze::analyze(&forged, &Limits::default()),
+        "zero-input callee actual read/Analyze",
+    );
+    assert!(
+        a.iter()
+            .any(|d| d.message.contains("actual stored target/parent loan")),
+        "{a:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&forged, &claim, &Limits::default()).unwrap();
+    for errors in [
+        rejected(
+            zil_verify::verify_module(forged.clone(), claim, &forged.target, &Limits::default()),
+            "zero-input callee actual read/Verify",
+        ),
+        rejected(
+            zil_verify::verify_module_bytes(&wire, &forged.target, &Limits::default()),
+            "zero-input callee actual read/Wire",
+        ),
+    ] {
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("live incompatible loan")),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn ordinary_scalar_entry_preserves_order_replay_and_the_parameter_boundary() {
+    let control = scalar_entry_model();
+    let good = control.replace(
+        "let seen:i64=1",
+        "let current=exclusive.data;let seen:i64=bytes_len(current)",
+    );
+    let bad = control.replace("let seen:i64=1", "let seen:i64=bytes_len(old)");
+    let main = "import model;fn relay()->i32{return model.run()}fn main()->i32{return relay()}";
+    let mut session = zil_driver::CompilationSession::default();
+    for model in [&good, &bad, &good] {
+        for sources in [
+            project(&[
+                ("main", main),
+                ("model", model),
+                ("protocol", PROTOCOL),
+                ("library", LIBRARY),
+            ]),
+            project(&[
+                ("main", main),
+                ("library", LIBRARY),
+                ("protocol", PROTOCOL),
+                ("model", model),
+            ]),
+        ] {
+            for report in [
+                session.compile_project(&sources, &CompileOptions::default()),
+                compile_project(&sources, &CompileOptions::default()),
+            ] {
+                if model == &bad {
+                    assert_eq!(
+                        report.status,
+                        ResultCategory::SafeReject,
+                        "{}",
+                        report.to_json()
+                    );
+                    assert!(
+                        report
+                            .diagnostics
+                            .iter()
+                            .any(|d| d.message.contains("actual stored target/parent loan")),
+                        "{}",
+                        report.to_json()
+                    );
+                } else {
+                    assert_eq!(
+                        report.status,
+                        ResultCategory::Success,
+                        "{}",
+                        report.to_json()
+                    );
+                    assert_eq!(report.verification_runs, 1);
+                }
+            }
+            assert_eq!(session.active_query_count(), 0);
+        }
+    }
+    let parameter = good.replace("pub fn run()->i32", "pub fn run(extra:&i32)->i32");
+    let caller = "import model;fn main()->i32{let n=7;return model.run(&n)}";
+    let no_query = parameter.replace("bytes_len(current)", "1");
+    for (model, expected) in [
+        (&no_query, ResultCategory::Success),
+        (&parameter, ResultCategory::Unsupported),
+    ] {
+        let report = compile_project(
+            &project(&[
+                ("main", caller),
+                ("model", model),
+                ("protocol", PROTOCOL),
+                ("library", LIBRARY),
+            ]),
+            &CompileOptions::default(),
+        );
+        assert_eq!(report.status, expected, "{}", report.to_json());
+        if expected == ResultCategory::Success {
+            assert_eq!(report.verification_runs, 1)
+        } else {
+            assert_eq!(report.verification_runs, 0);
+            assert!(
+                report.diagnostics.iter().any(|d| d.phase == Phase::Analyze
+                    && d.message
+                        .contains("complete Direct actual description/read proof")),
+                "{}",
+                report.to_json()
+            );
+        }
+    }
+}
+
+#[test]
+fn ordinary_owned_pipeline_keeps_callbacks_and_error_paths() {
+    let files = [
+        ("main", include_str!("../owned_pipeline/main.zil")),
+        ("model", include_str!("../owned_pipeline/model.zil")),
+        ("protocol", include_str!("../owned_pipeline/protocol.zil")),
+        ("library", include_str!("../owned_pipeline/library.zil")),
+    ];
+    let report = compile_project(&project(&files), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn ordinary_package_fields_complete_project_has_exact_fresh_analysis_work() {
+    let input = project(&files());
+    let run = |steps| {
+        compile_project(
+            &input,
+            &CompileOptions {
+                stop_after: Stage::Analyze,
+                limits: Limits {
+                    max_analysis_steps: steps,
+                    ..Limits::default()
+                },
+                ..CompileOptions::default()
+            },
+        )
+    };
+    let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+    let initial = run(high);
+    assert_eq!(
+        initial.status,
+        ResultCategory::Success,
+        "{}",
+        initial.to_json()
+    );
+    let fingerprint = initial.input_fingerprint;
+    while low + 1 < high {
+        let middle = low + (high - low) / 2;
+        let report = run(middle);
+        assert_eq!(report.input_fingerprint, fingerprint);
+        match report.status {
+            ResultCategory::Success => high = middle,
+            ResultCategory::ResourceLimit => low = middle,
+            _ => panic!("{}", report.to_json()),
+        }
+    }
+    for steps in [high, high - 1, high] {
+        let report = run(steps);
+        assert_eq!(report.input_fingerprint, fingerprint);
+        assert_eq!(
+            report.status,
+            if steps == high {
+                ResultCategory::Success
+            } else {
+                ResultCategory::ResourceLimit
+            },
+            "{}",
+            report.to_json()
+        );
+        if steps != high {
+            assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
+        }
+    }
+    eprintln!("ordinary Package four-module analysis N={high}; N-1/fresh agree");
 }
