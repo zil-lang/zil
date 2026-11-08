@@ -19,6 +19,29 @@ fn composition(consumer: &str, main: &str) -> zil_driver::CompileReport {
 const COMPOSED_MAIN: &str = "import api;import cursor;import consumer;fn main()->i32{var c=cursor.make(20,22);var sum=0;match consumer.next_tagged(&mut c,7){Option.Some(v)=>{sum+=*v},Option.None()=>{return 1}}match consumer.next_tagged(&mut c,true){Option.Some(v)=>{sum+=*v},Option.None()=>{return 2}}return sum}";
 
 #[test]
+fn copy_companions_keep_ordinary_scalar_and_owned_results() {
+    // These ordinary helpers do not declare a source life. Their scalar and
+    // closed owning results do not select the nominal lending profile.
+    let base = "trait L{fn value(self:&Self)->i32;}struct Item{payload:i32}impl L for Item{fn value(self:&Self)->i32{return self.payload}}";
+    for provider in [
+        "trait Tag{fn tag(self:&Self)->i32;}impl Tag for Item{fn tag(self:&Self)->i32{return self.payload}}fn forward<T:Copy,I:L+Tag>(i:&I,t:T)->i32{return i.tag()}",
+        "package Reply{manages data:ByteBuffer;}trait Tag{fn tag(self:&Self)->Reply;}impl Tag for Item{fn tag(self:&Self)->Reply{let data=bytes_new();return Reply{data:give data}}}fn forward<T:Copy,I:L+Tag>(i:&I,t:T)->Reply{return i.tag()}",
+    ] {
+        let source = format!(
+            "{base}{provider}fn main()->i32{{let item=Item{{payload:0}};let result=forward(&item,1);return 0}}"
+        );
+        let report = compile_project(&project(&[("main", &source)]), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+}
+
+#[test]
 fn ordinary_extra_copy_binder_and_multiple_nominal_bounds() {
     let report = composition(HELPER, COMPOSED_MAIN);
     assert_eq!(
