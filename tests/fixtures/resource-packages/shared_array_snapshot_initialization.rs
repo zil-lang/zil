@@ -353,7 +353,7 @@ fn local_roots_snapshot(refill_before: bool) -> zil_ir::TypedModule {
     )
 }
 
-fn local_snapshot_body(body: &str, refill_before: bool) -> zil_ir::TypedModule {
+pub(super) fn local_snapshot_body(body: &str, refill_before: bool) -> zil_ir::TypedModule {
     let definitions = PARTIAL_SNAPSHOT.split("fn main").next().unwrap();
     let program = format!(
         "{definitions}fn read<life a>(first:&'a i32,second:&'a i32,flag:bool)->i32{{var left=make(first,first);var right=make(second,second);{body}}}fn main()->i32{{let first=7;let second=9;return read(&first,&second,true)-7}}"
