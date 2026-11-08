@@ -62,6 +62,11 @@ impl Visitor for Discovery<'_, '_> {
         let generic = matches!(&item.kind, s::ItemKind::Function(f) if f.generics.iter().any(|p| !matches!(p.kind, s::GenericParamKind::Lifetime)));
         let previous = std::mem::replace(&mut self.1, generic);
         let result = crate::ct_selection::walk_item(self, item, depth);
+        if result.is_ok()
+            && let s::ItemKind::Function(function) = &item.kind
+        {
+            self.0.note_task_result_worker(function);
+        }
         self.1 = previous;
         result
     }
@@ -74,7 +79,9 @@ impl Visitor for Discovery<'_, '_> {
         {
             self.0.note_source_identity();
         }
-        crate::ct_selection::walk_expression(self, expression, depth)
+        crate::ct_selection::walk_expression(self, expression, depth)?;
+        self.0.note_static_task_create(expression);
+        Ok(())
     }
     fn ty(&mut self, ty: &s::TypeRef, depth: usize) -> CompileResult<()> {
         if matches!(ty.kind, s::TypeKind::Dyn { .. }) {

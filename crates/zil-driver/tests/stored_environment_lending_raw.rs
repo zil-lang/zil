@@ -12,6 +12,275 @@ use zil_ir::{
 };
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 #[test]
+fn task_borrowed_result_local_create_poll_has_no_header_dependency() {
+    let source = include_str!("../../../tests/fixtures/task-borrow-results/local-create-poll.zil");
+    for text in [
+        source.to_owned(),
+        source.replace(
+            "worker<life worker_bound>(pointer:&'worker_bound i32)->&'worker_bound i32",
+            "worker(pointer:&i32)->&i32",
+        ),
+        source.replace("worker_bound", "a"),
+        source.replace(
+            "worker<life worker_bound>(pointer:&'worker_bound i32)->&'worker_bound i32",
+            "worker<life worker_bound>(prefix:i32,pointer:&'worker_bound i32,suffix:i32)->&'worker_bound i32",
+        ).replace("task_create(worker,input)", "task_create(worker,3,input,4)"),
+        source.replace("->&'worker_bound i32", "->&i32"),
+    ] {
+        let module = typed_stored(&text);
+        let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        zil_verify::verify_module(
+            module.clone(),
+            plan.clone(),
+            &module.target,
+            &Limits::default(),
+        )
+        .unwrap();
+        let bytes =
+            zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+        zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+        native_borrowed_enum(&zil_driver::ProjectSources {
+            root: ModuleId(0),
+            modules: vec![SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "local-create-poll.zil",
+                text,
+            )],
+            paths: Default::default(),
+        });
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn task_borrowed_result_local_create_poll_allocation_failure_keeps_the_input() {
+    native_task_result_allocation_failure(include_str!(
+        "../../../tests/fixtures/task-borrow-results/local-create-poll.zil"
+    ));
+}
+
+#[test]
+fn task_borrowed_result_local_create_poll_keeps_the_imported_worker_pointee() {
+    native_borrowed_enum(&zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![
+            SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "main.zil",
+                include_str!(
+                    "../../../tests/fixtures/task-borrow-results/module-local-create-poll.zil"
+                ),
+            ),
+            SourceUnit::new(
+                FileId(1),
+                ModuleId(1),
+                "api.zil",
+                include_str!("../../../tests/fixtures/task-borrow-results/module-worker.zil"),
+            ),
+        ],
+        paths: std::collections::BTreeMap::from([(vec!["api".into()], ModuleId(1))]),
+    });
+}
+
+#[test]
+fn task_borrowed_result_local_create_poll_rejects_a_same_layout_wrong_pointee() {
+    let source =
+        include_str!("../../../tests/fixtures/task-borrow-results/module-local-create-poll.zil")
+            .replace("import api", "import api\nstruct Other{number:i32}")
+            .replace(
+                "let created=task_create(api.worker,input)",
+                "let other=Other{number:42}\n let created=task_create(api.worker,&other)",
+            );
+    let project = zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![
+            SourceUnit::new(FileId(0), ModuleId(0), "main.zil", source),
+            SourceUnit::new(
+                FileId(1),
+                ModuleId(1),
+                "api.zil",
+                include_str!("../../../tests/fixtures/task-borrow-results/module-worker.zil"),
+            ),
+        ],
+        paths: std::collections::BTreeMap::from([(vec!["api".into()], ModuleId(1))]),
+    };
+    let report = zil_driver::compile_project(
+        &project,
+        &zil_driver::CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report.diagnostics.iter().any(|d| d.phase == Phase::Types
+            || (d.phase == Phase::Expand
+                && d.message.contains("no actual sealed result instance"))),
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn task_borrowed_result_local_create_poll_does_not_authorize_a_user_poll_enum() {
+    let source = format!(
+        "enum Poll<T>{{Pending,Ready(T)}}\n{}",
+        include_str!("../../../tests/fixtures/task-borrow-results/local-create-poll.zil")
+    );
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "fake-poll.zil", source);
+    let report = zil_driver::compile_source(
+        &unit,
+        &zil_driver::CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| matches!(d.phase, Phase::Expand | Phase::Types)),
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn task_borrowed_result_local_create_poll_does_not_extend_the_retained_protocol() {
+    let source = include_str!("../../../tests/fixtures/task-borrow-results/local-create-poll.zil");
+    for text in [
+        source
+            .replace(
+                "pointer:&'worker_bound i32)->&'worker_bound i32",
+                "pointer:&'worker_bound i32,second:&'worker_bound i32)->&'worker_bound i32",
+            )
+            .replace(
+                "task_create(worker,input)",
+                "task_create(worker,input,input)",
+            ),
+        source
+            .replace(
+                "pointer:&'worker_bound i32)->&'worker_bound i32",
+                "pointer:&'worker_bound mut i32)->&'worker_bound i32",
+            )
+            .replace(
+                "task_create(worker,input)",
+                "task_create(worker,&mut *parent)",
+            ),
+        source.replace(
+            "worker<life worker_bound>(pointer:&'worker_bound i32)->&'worker_bound i32",
+            "worker<life worker_bound,life other>(pointer:&'worker_bound i32)->&'other i32",
+        ),
+    ] {
+        let unit = SourceUnit::new(FileId(0), ModuleId(0), "invalid-task-result.zil", text);
+        let report = zil_driver::compile_source(
+            &unit,
+            &zil_driver::CompileOptions {
+                stop_after: zil_driver::Stage::Verify,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| matches!(d.phase, Phase::Expand | Phase::Types)),
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn task_borrowed_result_local_catalog_budget_is_repeatable_at_the_exact_boundary() {
+    let control = "fn worker(pointer:&i32)->&i32{return pointer}fn scalar(seed:i32)->i32{return seed}fn main()->TaskCreateError!i32{var owner=task_create(scalar,42)?;task_request_cancel(&mut owner);match task_poll_close(&mut owner){Poll.Pending()=>{return 1},Poll.Ready(_)=>{}}task_finish_destroy(give owner);return 0}";
+    let no_task = "fn worker(pointer:&i32)->&i32{return pointer}fn main()->i32{return 0}";
+    let scalar_task = "fn scalar(seed:i32)->i32{return seed}fn main()->TaskCreateError!i32{var owner=task_create(scalar,42)?;task_request_cancel(&mut owner);match task_poll_close(&mut owner){Poll.Pending()=>{return 1},Poll.Ready(_)=>{}}task_finish_destroy(give owner);return 0}";
+    for (label, source, borrowed_instance) in [
+        (
+            "borrowed-task",
+            include_str!("../../../tests/fixtures/task-borrow-results/local-create-poll.zil"),
+            true,
+        ),
+        ("unused-shared-worker", control, false),
+        ("no-task", no_task, false),
+        ("scalar-task", scalar_task, false),
+    ] {
+        let unit = SourceUnit::new(FileId(0), ModuleId(0), "catalog-budget.zil", source);
+        let ast = zil_syntax::parse(&unit).into_result().unwrap();
+        let expand = |steps| {
+            zil_expand::expand_with_map_limits_target_context(
+                &unit,
+                &ast,
+                &Limits {
+                    max_analysis_steps: steps,
+                    ..Limits::default()
+                },
+                &TargetProfile::host_llvm(),
+                zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                    root: unit.module_id,
+                    aliases: &Default::default(),
+                    declarations: zil_expand::source_context::DeclarationPlacement::Original,
+                },
+            )
+        };
+        let mut low = 0;
+        let mut high = Limits::default().max_analysis_steps;
+        assert!(expand(high).is_ok());
+        while low + 1 < high {
+            let middle = low + (high - low) / 2;
+            match expand(middle) {
+                Ok(_) => high = middle,
+                Err(errors) => {
+                    assert!(
+                        errors
+                            .iter()
+                            .all(|d| d.category == ResultCategory::ResourceLimit),
+                        "{errors:?}"
+                    );
+                    low = middle;
+                }
+            }
+        }
+        eprintln!(
+            "{label}: accepted budget {high}, rejected budget {}",
+            high - 1
+        );
+        for _ in 0..2 {
+            let accepted = expand(high).unwrap();
+            assert!(!accepted.core.functions.is_empty());
+            assert_eq!(!accepted.core.life_instances.is_empty(), borrowed_instance);
+            let rejected = expand(high - 1).unwrap_err();
+            assert!(
+                rejected
+                    .iter()
+                    .all(|d| d.category == ResultCategory::ResourceLimit),
+                "{rejected:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn task_borrowed_result_source_preserves_the_result_class_and_worker_relation() {
     let module = typed_stored(include_str!(
         "../../../tests/fixtures/task-borrow-results/shared-input.zil"
@@ -132,40 +401,48 @@ fn task_borrowed_result_checks_every_ordinary_owner_address_and_ready_hold() {
 
 #[test]
 fn task_borrowed_result_rejects_frame_local_with_unchanged_result_metadata() {
-    let mut module = typed_stored(include_str!(
-        "../../../tests/fixtures/task-borrow-results/shared-input.zil"
-    ));
-    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
-    let worker = module
-        .functions
-        .iter_mut()
-        .find(|f| f.name == "worker")
-        .unwrap();
-    let local = worker.locals.iter().find(|l| l.name == "local").unwrap().id;
-    let result = worker
-        .blocks
-        .iter()
-        .find_map(|b| match b.terminator {
-            zil_ir::Terminator::Return(Some(v)) => Some(v),
-            _ => None,
-        })
-        .unwrap();
-    let definition = worker
-        .blocks
-        .iter_mut()
-        .flat_map(|b| &mut b.instructions)
-        .find(|i| i.result == Some(result))
-        .unwrap();
-    assert!(matches!(definition.kind, InstructionKind::Load(_)));
-    definition.kind = InstructionKind::BorrowLocal { local };
-    let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
-    assert!(
-        errors
+    for source in [
+        include_str!("../../../tests/fixtures/task-borrow-results/shared-input.zil").to_owned(),
+        include_str!("../../../tests/fixtures/task-borrow-results/local-create-poll.zil")
+            .to_owned(),
+        include_str!("../../../tests/fixtures/task-borrow-results/local-create-poll.zil").replace(
+            "worker<life worker_bound>(pointer:&'worker_bound i32)->&'worker_bound i32",
+            "worker(pointer:&i32)->&i32",
+        ),
+    ] {
+        let mut module = typed_stored(&source);
+        let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        let worker = module
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "worker")
+            .unwrap();
+        let local = worker.locals.iter().find(|l| l.name == "local").unwrap().id;
+        let result = worker
+            .blocks
             .iter()
-            .any(|d| d.phase == Phase::Analyze && d.category == ResultCategory::SafeReject),
-        "{errors:?}"
-    );
-    reject("task-result-frame-local", module, plan, "E-VERIFY-STORED");
+            .find_map(|b| match b.terminator {
+                zil_ir::Terminator::Return(Some(v)) => Some(v),
+                _ => None,
+            })
+            .unwrap();
+        let definition = worker
+            .blocks
+            .iter_mut()
+            .flat_map(|b| &mut b.instructions)
+            .find(|i| i.result == Some(result))
+            .unwrap();
+        assert!(matches!(definition.kind, InstructionKind::Load(_)));
+        definition.kind = InstructionKind::BorrowLocal { local };
+        let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.phase == Phase::Analyze && d.category == ResultCategory::SafeReject),
+            "{errors:?}"
+        );
+        reject("task-result-frame-local", module, plan, "E-VERIFY-STORED");
+    }
 }
 
 #[test]
@@ -1728,6 +2005,9 @@ fn native_borrowed_enum(project: &zil_driver::ProjectSources) {
                 report.to_json()
             );
             assert_eq!(report.verification_runs, 1);
+            let summary = report.native_codegen.as_ref().unwrap();
+            assert_eq!(summary.backend, backend);
+            assert!(summary.fallback.is_none());
             let output = std::process::Command::new(&executable).output().unwrap();
             assert_eq!(
                 output.status.code(),

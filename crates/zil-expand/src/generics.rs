@@ -1964,6 +1964,7 @@ impl<'a> Engine<'a> {
                         self.budget.text(&f.name, f.span)?;
                     }
                     if self.products.storage.functions.contains_key(&f.name) {
+                        stored_nominal::erase_stored_header_lifetimes(f);
                         f.generics.retain(|parameter| {
                             !matches!(parameter.kind, GenericParamKind::Lifetime)
                         });

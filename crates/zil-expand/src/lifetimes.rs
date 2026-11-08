@@ -150,6 +150,11 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 }
             }
             let result = ct_selection::walk_item(self, item, depth);
+            if result.is_ok()
+                && let s::ItemKind::Function(function) = &item.kind
+            {
+                self.budget.note_task_result_worker(function);
+            }
             self.binders = old_binders;
             self.headers = old_headers;
             self.trait_scope = old_trait;
@@ -166,6 +171,9 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             let old_type_argument = self.direct_type_argument;
             self.direct_type_argument = matches!(expression.kind, s::ExprKind::TypeApply { .. });
             let result = ct_selection::walk_expression(self, expression, depth);
+            if result.is_ok() {
+                self.budget.note_static_task_create(expression);
+            }
             self.direct_type_argument = old_type_argument;
             result
         }
