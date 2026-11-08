@@ -421,6 +421,22 @@ fn main()->E!i32{
             "fn bad()->E!R contract{result(give)}{return error_err::<E,Ref<R>>(E.Fail)}",
         ),
         (
+            "descriptor-type-alias-success",
+            "type Alias=Ref<R>; fn bad()->E!R contract{result(give)}{let r=R{code:1};return error_ok::<E,Alias>(give r)}",
+        ),
+        (
+            "descriptor-type-alias-failure",
+            "type Alias=Ref<R>; fn bad()->E!R contract{result(give)}{return error_err::<E,Alias>(E.Fail)}",
+        ),
+        (
+            "generic-descriptor-type-alias-success",
+            "type Alias<T>=Ref<T>; fn bad()->E!R contract{result(give)}{let r=R{code:1};return error_ok::<E,Alias<R>>(give r)}",
+        ),
+        (
+            "generic-descriptor-type-alias-failure",
+            "type Alias<T>=Ref<T>; fn bad()->E!R contract{result(give)}{return error_err::<E,Alias<R>>(E.Fail)}",
+        ),
+        (
             "explicit-store-descriptor-success",
             "package P{manages r:R} fn bad()->E!Store<P> contract{result(create)}{let s:Store<P>=store_new();return error_ok::<E,Ref<Store<P>>>(give s)}",
         ),
