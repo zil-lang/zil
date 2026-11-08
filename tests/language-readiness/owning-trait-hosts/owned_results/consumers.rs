@@ -30,6 +30,245 @@ fn direct_main() -> String {
     )
 }
 
+const UNUSED_LENDING: &str =
+    "pub trait UnusedLending{type Item;fn next<life a>(self:&'a mut Self)->Option<&'a Self.Item>;}";
+
+#[test]
+fn unrelated_life_trait_preserves_concrete_owned_provider_bodies() {
+    let protocol = format!("{PROTOCOL}\n{UNUSED_LENDING}");
+    for main in [MAIN, "fn main(){}"] {
+        let report = compile_project(
+            &project(&[
+                ("main", main),
+                ("protocol", &protocol),
+                ("library", LIBRARY),
+                ("model", MODEL),
+            ]),
+            &CompileOptions::default(),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+}
+
+#[test]
+fn unrelated_life_trait_keeps_unused_provider_permissions_and_ownership() {
+    let protocol = format!("{PROTOCOL}\n{UNUSED_LENDING}");
+    for (model, code, reason) in [
+        (
+            MODEL.replacen(
+                "let bytes=bytes_new()",
+                "self.tag=0;let bytes=bytes_new()",
+                1,
+            ),
+            "E-ADDRESS-PERMISSION",
+            "indirect write requires an exclusive address",
+        ),
+        (
+            MODEL.replace(
+                "return Item{data:give bytes,tag:self.tag+1}",
+                "return Item{data:self.data,tag:self.tag+1}",
+            ),
+            "E-TYPE-MISMATCH",
+            "expected Managed(ByteBuffer), found Desc(ByteBuffer)",
+        ),
+    ] {
+        let report = compile_project(
+            &project(&[
+                ("main", "fn main(){}"),
+                ("protocol", &protocol),
+                ("library", LIBRARY),
+                ("model", &model),
+            ]),
+            &CompileOptions::default(),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.phase == zil_base::Phase::Types
+                    && d.code == code
+                    && d.message == reason),
+            "{}",
+            report.to_json()
+        );
+        eprintln!("unused concrete owned provider: {}", report.to_json());
+    }
+    let shared_write = MODEL.replacen("bytes_reserve(bytes,1)", "bytes_reserve(self.data,1)", 1);
+    let report = compile_project(
+        &project(&[
+            (
+                "main",
+                "import model;import protocol;import library;fn main(){}",
+            ),
+            ("protocol", &protocol),
+            ("library", LIBRARY),
+            ("model", &shared_write),
+        ]),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 0);
+    assert!(report.diagnostics.iter().any(|d| d.phase == zil_base::Phase::Analyze && d.code == "E-ANALYZE-IR" && d.message == "shared borrowed resource head cannot authorize a write, including through forwarding or captures"), "{}", report.to_json());
+    let shared_give = MODEL.replace(
+        "return Item{data:give bytes,tag:self.tag+1}",
+        "return Item{data:give self.data,tag:self.tag+1}",
+    );
+    let report = compile_project(
+        &project(&[
+            (
+                "main",
+                "import model;import protocol;import library;fn main(){}",
+            ),
+            ("protocol", &protocol),
+            ("library", LIBRARY),
+            ("model", &shared_give),
+        ]),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 0);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.phase == zil_base::Phase::Types
+                && d.code == "E-UNSUPPORTED"
+                && d.message == "give requires a managed local or a direct Managed package field"),
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn unrelated_life_trait_preserves_native_owned_results_and_cleanup() {
+    let protocol = format!("{PROTOCOL}\n{UNUSED_LENDING}");
+    owning_trait_native_cleanup(
+        &[
+            ("main", MAIN),
+            ("protocol", &protocol),
+            ("library", LIBRARY),
+            ("model", MODEL),
+        ],
+        &[
+            (None, 0, b"4:4:4\n"),
+            (Some("1"), 1, b"1:0:0\n"),
+            (Some("2"), 2, b"2:1:1\n"),
+            (Some("3"), 4, b"3:2:2\n"),
+            (Some("4"), 6, b"4:3:3\n"),
+        ],
+    );
+}
+
+#[test]
+fn concrete_provider_keeps_generic_helper_selected_error_arms() {
+    let protocol = "pub trait Read{fn read(self:&Self,fail:bool)->i32;}";
+    let main = "import model;fn main()->i32{if model.run(true)!=13{return 1}if model.run(false)!=25{return 2}return 0}";
+    let library = "import protocol;pub fn read<P:protocol.Read>(value:&P,fail:bool)->i32{return value.read(fail)}";
+    for helper in [
+        "fn choose<E:Copy,T:Copy>(first:E,second:T,fail:bool)->E!T{if fail{return first}return second}",
+        "fn relay<E:Copy,T:Copy>(value:E!T)->E!T{return value}fn choose<E:Copy,T:Copy>(first:E,second:T,fail:bool)->E!T{if fail{return relay::<E,T>(first)}return relay::<E,T>(second)}",
+    ] {
+        let model = format!(
+            "import protocol;import library;package Item{{manages data:ByteBuffer}}{helper}impl protocol.Read for Item{{fn read(self:&Item,fail:bool)->i32{{let result:i32!i32=choose::<i32,i32>(3,5,fail);match result{{.err(value)=>{{return value+10}},.ok(value)=>{{return value+20}}}}}}}}pub fn run(fail:bool)->i32{{let value=Item{{data:bytes_new()}};return library.read(&value,fail)}}"
+        );
+        for protocol in [protocol.to_owned(), format!("{protocol}\n{UNUSED_LENDING}")] {
+            let files = [
+                ("main", main),
+                ("protocol", protocol.as_str()),
+                ("library", library),
+                ("model", model.as_str()),
+            ];
+            let report = compile_project(&project(&files), &CompileOptions::default());
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            #[cfg(target_os = "linux")]
+            owning_trait_native_cleanup(&files, &[(None, 0, b"0:0:0\n")]);
+        }
+    }
+}
+
+#[test]
+fn concrete_provider_resolves_actual_generic_trait_method() {
+    let protocol = format!(
+        "pub trait Select{{fn selected<T:Copy>(self:&Self,value:T)->i32;}}pub trait Read{{fn read(self:&Self)->i32;}}{UNUSED_LENDING}"
+    );
+    let model = "import protocol;struct Item{}impl protocol.Select for Item{fn selected<T:Copy>(self:&Self,value:T)->i32{return 42}}impl protocol.Read for Item{fn read(self:&Item)->i32{return self.selected::<i32>(7)}}pub fn run()->i32{let value=Item{};return value.read()}";
+    let main = "import model;fn main()->i32{return model.run()-42}";
+    let report = compile_project(
+        &project(&[("main", main), ("protocol", &protocol), ("model", model)]),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    #[cfg(target_os = "linux")]
+    owning_trait_native_cleanup(
+        &[("main", main), ("protocol", &protocol), ("model", model)],
+        &[(None, 0, b"0:0:0\n")],
+    );
+    let ambiguous =
+        format!("{protocol}\npub trait Other{{fn selected<T:Copy>(self:&Self,value:T)->i32;}}");
+    let other = format!(
+        "{model}\nimpl protocol.Other for Item{{fn selected<T:Copy>(self:&Self,value:T)->i32{{return 9}}}}"
+    );
+    let report = compile_project(
+        &project(&[
+            ("main", "fn main(){}"),
+            ("protocol", &ambiguous),
+            ("model", &other),
+        ]),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 0);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("ambiguous")),
+        "{}",
+        report.to_json()
+    );
+}
+
 #[test]
 fn owning_trait_results_reach_concrete_and_symbolic_consumers() {
     for main in [MAIN.to_owned(), direct_main()] {
