@@ -12,6 +12,25 @@ pub(super) mod owned;
 #[path = "stored_flow_pure_copy.rs"]
 mod pure_copy;
 
+/// These observations transport shared address permissions in this ledger,
+/// while the resource Sum ledger has no owning leaf to consume. Authenticate
+/// the actual operation; zero resource debt is not a Copy qualification.
+pub(super) fn shared_enum_observation(
+    module: &TypedModule,
+    f: &TypedFunction,
+    instruction: &Instruction,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    if !matches!(instruction.kind,
+        InstructionKind::VariantTag { .. } | InstructionKind::ReadVariant { .. }) {
+        return Ok(false);
+    }
+    Ok(enum_address::types(module, f, instruction, budget)?.is_some()
+        || budget.store_option_results
+            && option_address::types(module, f, instruction, budget)?.is_some())
+}
+
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Target {
     retained_port: Option<u32>,
