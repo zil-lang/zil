@@ -5500,6 +5500,10 @@ fn actual_instructions(
             }
             if array_index::candidate(f, i) {
                 array_index::types(f, i, b)?;
+                fee(b, b.array_outer_functions.len().saturating_add(1))?;
+                if !b.array_outer_functions.contains(&f.id) {
+                    b.array_outer_functions.push(f.id);
+                }
             }
             if pure_copy::operation(&i.kind)
                 && !array_index::candidate(f, i)
