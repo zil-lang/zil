@@ -920,6 +920,13 @@ fn check_with(
                     InstructionKind::Store { local, value } => {
                         e.copy(&locals[local.0 as usize], &values[value.0 as usize], b)?
                     }
+                    InstructionKind::BorrowPlaceLocal { .. }
+                        if super::stored_flow::ordinary_error_borrow(f, i, b)? =>
+                    {
+                        if let Some(out) = out {
+                            e.ground_address(out.outer, b)?;
+                        }
+                    }
                     InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local } => {
                         if let Some(out) = out {
