@@ -91,11 +91,13 @@ fn old_source_budget_controls() {
         rows.push_str(&format!("{label},{work},{nodes}\n"));
         // Historical 229 controls were (589,220)/(952,233); 322 now pays
         // the full type-position/life validation walk on these exact sources.
+        // Two paid T:Copy nominal-profile queries cost 7 each; prior
+        // work864/1845 increases by14 while nodes330/549 stay exact.
         measured.push((work, nodes));
     }
     fs::write(directory.join("costs.csv"), &rows).unwrap();
     println!("{}\n{rows}", directory.display());
-    assert_eq!(measured, [(864, 330), (1845, 549)]);
+    assert_eq!(measured, [(878, 330), (1859, 549)]);
 }
 
 const ACCEPTED: &[(&str, &str)] = &[
@@ -190,7 +192,7 @@ fn unsupported_clauses_are_not_erased_and_unused_bodies_are_checked() {
         (
             "projected-subject",
             "fn keep<T>(x:T)->T where T.Item:Copy=>x;fn main()->i32=>0",
-            "qualified or projected",
+            "generic where/contract solving",
         ),
         (
             "unknown-bound",
@@ -254,6 +256,25 @@ fn unsupported_clauses_are_not_erased_and_unused_bodies_are_checked() {
             report.to_json()
         );
         assert_eq!(report.phase, Phase::Expand, "{label}: {}", report.to_json());
+        if label == "projected-subject" {
+            // A projected Copy premise is only meaningful under an actual
+            // nominal trait bound. Normalization now preserves this clause;
+            // the later header gate still rejects its unresolved T.Item.
+            assert_eq!(report.status, ResultCategory::Unsupported);
+            assert!(
+                report
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == "E-UNSUPPORTED"
+                        && diagnostic.message == "generic where/contract solving"
+                        && diagnostic.span.is_some_and(|span| span.file == FileId(0)
+                            && text
+                                .get(span.start..span.end)
+                                .is_some_and(|source| source.contains("where T.Item:Copy")))),
+                "{label}: {}",
+                report.to_json()
+            );
+        }
         assert!(
             report
                 .diagnostics
@@ -308,7 +329,9 @@ fn where_aliases_and_specialization_share_exact_fresh_and_warm_limits() {
     let nodes = minimum(WHERE, true, Stage::Verify);
     assert_eq!(
         (work, nodes),
-        (2021, 610),
+        // The original unbounded header costs1 and its normalized Copy
+        // header costs7; prior work2021 +8, nodes610 unchanged.
+        (2029, 610),
         "measured where + alias + specialization work on one budget"
     );
     fs::write(

@@ -33,19 +33,86 @@ fn lending_trait_method_alpha_renaming_preserves_input_result_relation() {
 }
 
 #[test]
-fn unused_lending_trait_cannot_claim_copy_for_its_referent() {
+fn unused_lending_declarations_keep_nonassociated_referent_boundary() {
     for text in [
         "trait L{fn lend<life a>(self:&'a Self)->&'a Self;}fn main(){}",
         "resource Other{value:i32}trait L{fn lend<life a>(self:&'a Self)->Option<&'a Other>;}fn main(){}",
-        "trait L{type Item;fn lend<life a>(self:&'a Self)->Option<&'a Self.Item>;}fn main(){}",
     ] {
-        let source = SourceUnit::new(FileId(0), ModuleId(0), "trait-life-copy.zil", text);
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "trait-lending-referent.zil", text);
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
         let errors = zil_expand::expand(&source, &parsed).unwrap_err();
         assert!(
             errors.iter().any(|error| error.phase == Phase::Expand),
             "{text}: {errors:?}"
         );
+        eprintln!("nonassociated lending referent: {errors:?}");
+    }
+}
+
+#[test]
+fn unused_associated_item_lending_preserves_value_and_source_obligations() {
+    const DECLARATION: &str =
+        "trait L{type Item;fn lend<life a>(self:&'a Self)->Option<&'a Self.Item>;}fn main(){}";
+    let expand = |body: &str| {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "associated-item-lending.zil",
+            format!("{DECLARATION}{body}"),
+        );
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        zil_expand::expand(&source, &parsed)
+    };
+    // Borrowing an ordinary Item grants no permission to copy its value.
+    for body in [
+        "",
+        "fn duplicate<I:L>(item:I.Item)->(I.Item,I.Item) where I.Item:Copy{return (item,item)}",
+        "fn read<I:L>(item:&I.Item)->I.Item where I.Item:Copy{return *item}",
+        "fn none<life a,I:L>(cursor:&'a I)->Option<&'a I.Item>{return Option::<&'a I.Item>.None()}",
+        "fn forward<life a,I:L>(cursor:&'a I)->Option<&'a I.Item>{return cursor.lend()}",
+    ] {
+        let core = expand(body).unwrap_or_else(|errors| panic!("{body}: {errors:?}"));
+        assert!(
+            core.unsupported.is_empty(),
+            "{body}: {:?}",
+            core.unsupported
+        );
+    }
+    for (body, category, code, message) in [
+        (
+            "fn duplicate<I:L>(item:I.Item)->(I.Item,I.Item){return (item,item)}",
+            ResultCategory::SafeReject,
+            "E-GENERIC-ARGUMENT",
+            "generic value used after move; Copy cannot be inferred from a concrete instance",
+        ),
+        (
+            "fn read<I:L>(item:&I.Item)->I.Item{return *item}",
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+            "operation on an unconstrained type parameter requires a declared bound",
+        ),
+        (
+            "fn wrong<life a,I:L>(cursor:&'a I,item:I.Item)->Option<&'a I.Item>{return Option::<&'a I.Item>.Some(&item)}",
+            ResultCategory::SafeReject,
+            "E-GENERIC-ARGUMENT",
+            "retained reference has no actual declared source class",
+        ),
+        (
+            "fn wrong<life a,life b,I:L>(first:&'a I,second:&'b I)->Option<&'a I.Item>{return second.lend()}",
+            ResultCategory::SafeReject,
+            "E-GENERIC-ARGUMENT",
+            "source annotation cannot equate distinct declared lifetime classes",
+        ),
+    ] {
+        let errors = expand(body).unwrap_err();
+        assert!(
+            errors.iter().any(|error| error.phase == Phase::Expand
+                && error.category == category
+                && error.code == code
+                && error.message == message),
+            "{body}: {errors:?}"
+        );
+        eprintln!("unused Item obligation {body}: {errors:?}");
     }
 }
 
@@ -233,24 +300,28 @@ fn generic_error_union_contexts_have_exact_prepaid_boundaries() {
     // 1276/496, then 1428/516). Its private choice header now also has an argument
     // ledger. Argument/independent cases additionally retain actual argument nodes
     // and their full symbolic unions before specialization (formerly 1206/456
-    // and 1813/638). Every current bound is measured below, including fresh/N-1.
+    // and 1813/638). Paid nominal-lending classification now checks each
+    // actual generic header: two callable headers cost 2 each (+4); the
+    // independent case also checks its unbounded sink header twice (+2).
+    // Prior work1452/1551/2160 and all node bounds remain historical.
+    // Every current bound is measured below, including fresh/N-1.
     for (name, text, steps, nodes) in [
         (
             "binding",
             include_str!("../../../tests/generic-error-enum/pending/unique-binding-value.zil"),
-            1452,
+            1456,
             516,
         ),
         (
             "argument",
             include_str!("../../../tests/generic-error-enum/pending/unique-call-argument.zil"),
-            1551,
+            1555,
             471,
         ),
         (
             "independent",
             "enum Choice<T>{None,Some(T)}fn sink<T>(value:Choice<T>!i32,witness:T)->i32{return 0}fn run<F:Fn()->i32>(f:F)->i32{f();return sink(Choice.None,true)}fn main()->i32{let f=()->i32=>1;return run(f)}",
-            2160,
+            2166,
             655,
         ),
     ] {
@@ -356,8 +427,10 @@ fn generic_enum_error_context_prepays_new_work() {
     // the same budget without resetting the remaining work or node allowance.
     // Definition-selected tags add prepaid AST choice and source-site work
     // to the historical 978/412 boundary (then 1148/427). The additional private
-    // argument-ledger header costs 24 physical units; N-1 retains the same phase.
-    for (work, amount) in [(true, 1172), (false, 427)] {
+    // argument-ledger header costs 24 physical units. Two paid callable
+    // nominal-profile queries add 2 each to prior work1172; nodes stay427.
+    // N-1 retains the same phase.
+    for (work, amount) in [(true, 1176), (false, 427)] {
         recorded.push(amount);
         let amount = budget_boundary::minimum(work, |limits| {
             zil_expand::expand_with_map_limits(&source, &parsed, limits)
@@ -626,8 +699,9 @@ fn concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries() 
     let owned = "resource R{n:i32}package P{manages r:R}fn consume(p:P)->i32{return p.r.n}fn run<F:FnMut(i32)->i32>(f:&mut F,p:P)->i32{return f(consume(p))}fn main()->i32{var f=(x:i32)->i32=>x+1;let r=R{n:3};let p=P{r:give r};return run(&mut f,p)}";
     let local = "resource R{n:i32}package P{manages r:R}fn consume(p:P)->i32{return p.r.n}fn run<F:FnMut(i32)->i32>(f:&mut F)->i32{let r=R{n:3};let p=P{r:give r};return f(consume(p))}fn main()->i32{var f=(x:i32)->i32=>x+1;return run(&mut f)}";
     // Each source pays for its complete type-position lifetime scan and one
-    // source-life query. The query changes work cost without adding nodes.
-    for (text, work, nodes) in [(scalar, 510, 279), (owned, 977, 530), (local, 974, 531)] {
+    // source-life query. Two paid callable nominal-profile queries now add
+    // 2 each to prior work510/977/974, with no change to node bounds.
+    for (text, work, nodes) in [(scalar, 514, 279), (owned, 981, 530), (local, 978, 531)] {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "resource-budget.zil", text);
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
         let expected = zil_expand::expand(&source, &parsed).unwrap();
