@@ -292,7 +292,7 @@ fn native_object_and_index_evaluate_once_in_order_and_bounds_trap() {
             continue;
         }
         for optimization in [Optimization::O0, Optimization::O2] {
-            for (label,program) in [("ordered",ordered.to_string()),("negative","fn main()->i32{let first=7;let second=9;let items=[&first,&second];let index=-1;return *items[index]}".to_string()),("past-end","fn main()->i32{let first=7;let second=9;let items=[&first,&second];let index=2;return *items[index]}".to_string())] {
+            for (label,program) in [("ordered",ordered.to_string()),("cleanup",CLEANUP_SNAPSHOT.to_string()),("negative","fn main()->i32{let first=7;let second=9;let items=[&first,&second];let index=-1;return *items[index]}".to_string()),("past-end","fn main()->i32{let first=7;let second=9;let items=[&first,&second];let index=2;return *items[index]}".to_string())] {
                 let dir=std::env::temp_dir().join(format!("zil-dynamic-shared-array-{}-{backend:?}-{optimization:?}-{label}",std::process::id()));std::fs::create_dir_all(&dir).unwrap();
                 let executable=dir.join("program");
                 let report=compile_source(&source(label,&program),&CompileOptions{stop_after:Stage::Build,backend,optimization,output:Some(executable.clone()),..CompileOptions::default()});
@@ -300,7 +300,7 @@ fn native_object_and_index_evaluate_once_in_order_and_bounds_trap() {
                 assert_eq!(report.verification_runs,1);
                 let native=report.native_codegen.as_ref().unwrap();assert_eq!(native.backend,backend);assert!(native.fallback.is_none());
                 let result=std::process::Command::new(&executable).output().unwrap();
-                if label=="ordered" { assert_eq!(result.status.code(),Some(0),"{result:?}");assert_eq!(result.stdout,b"AI");assert!(result.stderr.is_empty());runs+=1; }
+                if label=="ordered" || label=="cleanup" { assert_eq!(result.status.code(),Some(0),"{result:?}");let expected: &[u8]=if label=="ordered"{b"AI"}else{b"RV"};assert_eq!(result.stdout,expected);assert!(result.stderr.is_empty());runs+=1; }
                 else { assert_eq!(result.status.signal(),Some(4),"{label}: {result:?}");assert!(result.stdout.is_empty());traps+=1; }
                 std::fs::remove_dir_all(dir).unwrap();
             }
