@@ -1225,3 +1225,53 @@ fn ordinary_error_places_keep_byte_query_generations_in_real_loops() {
         );
     }
 }
+
+#[test]
+fn ordinary_error_places_execute_the_original_byte_and_package_consumers() {
+    let source = error_place_program();
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = std::env::temp_dir().join(format!(
+                "zil-error-place-consumer-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir_all(&dir).unwrap();
+            fs::write(dir.join("source.zil"), &source).unwrap();
+            let report = compile_source(
+                &SourceUnit::new(FileId(0), ModuleId(0), "ordinary-error-place.zil", &source),
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    output: Some(dir.join("program")),
+                    emit_dir: Some(dir.join("phases")),
+                    ..CompileOptions::default()
+                },
+            );
+            fs::write(dir.join("report.json"), report.to_json()).unwrap();
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let native = report.native_codegen.as_ref().unwrap();
+            assert_eq!(native.backend, backend);
+            assert!(native.fallback.is_none());
+            let output = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            fs::write(dir.join("execution.txt"), format!("{output:?}")).unwrap();
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            assert!(
+                output.stdout.is_empty() && output.stderr.is_empty(),
+                "{output:?}"
+            );
+        }
+    }
+}
