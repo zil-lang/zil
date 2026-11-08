@@ -537,10 +537,12 @@ fn pod_cfg_priority_preserves_complete_resource_and_sum_fixed_points() {
     };
     for cycle in [false, true] {
         let (module, graph) = cfg_fixture(cycle);
-        let solve = |ranked, module: &TypedModule| {
+        let solve = |profile, module: &TypedModule| {
             TEST_RESOURCE_INPUTS.with(|capture| *capture.borrow_mut() = Some(Vec::new()));
             let mut budget = Budget::new(&limits);
-            budget.pod_stores = ranked;
+            budget.pod_stores = profile == 1;
+            budget.store_option_results = profile == 2;
+            budget.ordinary_error_places = profile == 2;
             let found = run_function(
                 module,
                 &module.functions[0],
@@ -552,8 +554,13 @@ fn pod_cfg_priority_preserves_complete_resource_and_sum_fixed_points() {
             let inputs = TEST_RESOURCE_INPUTS.with(|capture| capture.borrow_mut().take().unwrap());
             (found, inputs)
         };
-        let reference = solve(false, &module);
-        let priority = solve(true, &module);
+        let reference = solve(0, &module);
+        let priority = solve(1, &module);
+        assert_eq!(
+            reference,
+            solve(2, &module),
+            "ordinary owner/error states differ"
+        );
         assert_eq!(
             reference, priority,
             "complete states/writes/diagnostics differ: cycle={cycle}"
@@ -574,8 +581,13 @@ fn pod_cfg_priority_preserves_complete_resource_and_sum_fixed_points() {
             span: span(),
         });
         bad.functions[0].parameters.push(LocalId(3));
-        let reference = solve(false, &bad);
-        let priority = solve(true, &bad);
+        let reference = solve(0, &bad);
+        let priority = solve(1, &bad);
+        assert_eq!(
+            reference,
+            solve(2, &bad),
+            "ordinary owner/error rejection differs"
+        );
         assert!(reference.0.is_err());
         assert_eq!(reference, priority);
     }

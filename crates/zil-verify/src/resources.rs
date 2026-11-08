@@ -3034,8 +3034,12 @@ fn run_function_data(
     budget.spend(f.blocks.len().saturating_mul(2))?;
     let mut inputs = vec![None; f.blocks.len()];
     inputs[f.entry.0 as usize] = Some(initial);
-    let mut pending =
-        schedule::Worklist::new(graph, f.entry.0 as usize, budget.pod_stores, budget)?;
+    let mut pending = schedule::Worklist::new(
+        graph,
+        f.entry.0 as usize,
+        budget.pod_stores || (budget.store_option_results && budget.ordinary_error_places),
+        budget,
+    )?;
     let mut queued = vec![false; f.blocks.len()];
     queued[f.entry.0 as usize] = true;
     let transfer = Transfer {

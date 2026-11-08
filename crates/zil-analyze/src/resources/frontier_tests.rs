@@ -509,3 +509,73 @@ fn compiled_graph_has_exact_budget_boundary_and_does_not_reuse_stale_effects() {
             .all(|r| r.arguments.is_empty() && r.borrowed_fields.is_empty())
     );
 }
+
+#[test]
+fn ordinary_error_option_cfg_order_matches_complete_stack_fixed_point() {
+    for back_edge in [false, true] {
+        let mut module = fixture(&[vec![]], &[0]);
+        let function = &mut module.functions[0];
+        function.values.push(Type::Bool);
+        function.blocks[0].instructions.push(instruction(
+            Some(3),
+            InstructionKind::Constant(Constant::Bool(true)),
+        ));
+        function.blocks[0].terminator = Terminator::Branch {
+            condition: ValueId(3),
+            then_block: BlockId(1),
+            else_block: BlockId(2),
+        };
+        for index in 1..=4 {
+            function.blocks.push(BasicBlock {
+                id: BlockId(index),
+                instructions: if index <= 2 {
+                    vec![instruction(
+                        None,
+                        InstructionKind::WriteDesc {
+                            desc: ValueId(index - 1),
+                            index: 0,
+                            value: ValueId(2),
+                        },
+                    )]
+                } else {
+                    vec![]
+                },
+                terminator: match index {
+                    1 | 2 => Terminator::Jump(BlockId(3)),
+                    3 if back_edge => Terminator::Branch {
+                        condition: ValueId(3),
+                        then_block: BlockId(1),
+                        else_block: BlockId(4),
+                    },
+                    3 => Terminator::Jump(BlockId(4)),
+                    _ => Terminator::Return(Some(ValueId(2))),
+                },
+            });
+        }
+        let function = &module.functions[0];
+        for check in [false, true] {
+            let mut ordered = Budget::new(&Limits::default());
+            ordered.store_option_results = true;
+            ordered.ordinary_error_places = true;
+            let actual = analyze_function(
+                &module,
+                function,
+                &[true; 5],
+                &[Effect::default()],
+                check,
+                &mut ordered,
+            );
+            let reference = analyze_function_eager_reference(
+                &module,
+                function,
+                &[true; 5],
+                &[Effect::default()],
+                check,
+                &mut Budget::new(&Limits::default()),
+            );
+            assert_eq!(actual, reference, "back_edge={back_edge}, check={check}");
+            let effect = actual.unwrap();
+            assert_eq!(effect.arguments, BTreeSet::from([0, 1]));
+        }
+    }
+}
