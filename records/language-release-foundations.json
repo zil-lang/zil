@@ -2,7 +2,7 @@
   "kind": "coordination-only; no acceptance claim",
   "source": "263f11f3e3e0c0fc924b4f2573416e1fe1a0d755",
   "source_branch": "task/G10.6.3",
-  "main": "e800b39d5f9a096b33560625a4273c1ef11e3d92",
+  "main": "222e550af2daa08812b210cf3b5c726831b15bec",
   "strict_clippy": {
     "status": "Pass",
     "source": "263f11f3e3e0c0fc924b4f2573416e1fe1a0d755",
@@ -10,10 +10,11 @@
     "log": "/workspace/.zil-env/release-foundations/final-composition-focus/strict-final.log"
   },
   "default": {
-    "status": "Running",
+    "status": "Pass",
     "source": "263f11f3e3e0c0fc924b4f2573416e1fe1a0d755",
-    "result_root": "/workspace/.zil-env/release-foundations/native-language-common-default",
-    "exact_final_rerun_pending": true
+    "passed": 5582,
+    "failed": 0,
+    "result": "/workspace/.zil-env/release-foundations/native-language-common-default/default-result.json"
   },
   "source_backup": {
     "archive": "3b7ad18892b35895dd973f47934f917242408387",
@@ -24,11 +25,9 @@
     "receipt": "/workspace/.zil-env/release-foundations/archive-sixteenth-source-checkpoint.json"
   },
   "not_accepted": [
-    "full default/reference/text",
-    "combined native delivery",
-    "this-source cold recovery",
     "functional 1.0",
-    "formal product gates"
+    "formal product gates",
+    "the next three accepted increments as a combined source revision"
   ],
   "focused": {
     "status": "Pass",
@@ -89,14 +88,43 @@
     "scope": "Previous source only; final current-source recovery pending.",
     "receipt": "/workspace/.zil-env/release-foundations/accepted-source-cold/receipt.json"
   },
-  "pending_common_gates": [
-    "final full default/reference",
-    "current-source cold build and consumers",
-    "main integration"
-  ],
+  "pending_common_gates": [],
   "next_implementation": [
-    "G2.4.10",
-    "G3.4.11",
-    "G8.6.5"
-  ]
+    "integrate G2.4.10/G3.4.11/G8.6.5 as next source batch",
+    "finish G3.4.12 shared address arrays"
+  ],
+  "delivery_validation_revision": "e5400cfba036a46ca70677ca411abcd863466edf",
+  "delivery_record": "https://github.com/zil-lang/zil/blob/222e550af2daa08812b210cf3b5c726831b15bec/validation/native-language-composition.json",
+  "reference": {
+    "status": "Complete coverage after test-only backend selection correction",
+    "single_full_run": false,
+    "base_source": "263f11f3e3e0c0fc924b4f2573416e1fe1a0d755",
+    "original_full_result": {
+      "passed": 5455,
+      "failed": 15,
+      "status": "Fail"
+    },
+    "affected_target_source": "e5400cfba036a46ca70677ca411abcd863466edf",
+    "affected_target_retests": {
+      "reference": {
+        "passed": 64,
+        "failed": 0
+      },
+      "llvm_api": {
+        "passed": 64,
+        "failed": 0
+      }
+    },
+    "coverage_passed": 5470,
+    "coverage_failed": 0,
+    "production_and_library_input_changes": false
+  },
+  "cold_recovery": {
+    "source": "263f11f3e3e0c0fc924b4f2573416e1fe1a0d755",
+    "executions": 32,
+    "passed": 32,
+    "compiler_artifacts_reused": false,
+    "toolchain_registry_reused": true,
+    "summary": "/workspace/.zil-env/release-foundations/accepted-source-cold-final/summary.json"
+  }
 }
