@@ -188,6 +188,7 @@ impl Builder<'_, '_> {
         Ok(result)
     }
     // Keep fallible hint temporaries out of the recursive binary-check frame.
+    #[inline(never)]
     fn binary_operand_hint(&mut self, left: &CoreExpr, right: &CoreExpr) -> R<Option<Type>> {
         match self.known_type_checked(left)? {
             Some(ty) => Ok(Some(ty)),
