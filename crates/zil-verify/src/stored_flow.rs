@@ -22,6 +22,16 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> Check<boo
     if matches!(f.return_type, Type::Address { .. }) {
         return Ok(true);
     }
+    // Include the actual owned-result closure entry in this independent
+    // ledger; this tag does not establish its signature or capture validity.
+    if f.environment.is_some()
+        && matches!(
+            f.return_type,
+            Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+        )
+    {
+        return Ok(true);
+    }
 
     b.spend(
         f.locals
@@ -4925,6 +4935,7 @@ fn check_with_mask(
             if !super::stored_callables::finite(module, id) || d.function != f.id {
                 return Err(err("callback function is not the actual finite entry"));
             }
+            super::stored_callables::owned_entry(module, d, b)?;
         }
         for ty in f
             .locals
