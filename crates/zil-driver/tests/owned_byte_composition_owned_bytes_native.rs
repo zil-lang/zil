@@ -527,15 +527,38 @@ fn large_owned_package_raw_and_wire_reject_duplicated_move_arguments() {
         }
     }
     assert!(changed);
+    // Preserve the producer's actual claims, but bind them to the mutated
+    // module so Verify/Wire must inspect the duplicated ownership transfer.
+    assert_ne!(plan.module_fingerprint, raw.fingerprint());
+    let mut claim = plan;
+    claim.module_fingerprint = raw.fingerprint();
     let analyzed = zil_analyze::analyze(&raw, &limits).unwrap_err();
     assert_eq!(analyzed[0].category, ResultCategory::SafeReject);
-    let verified = zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits)
+    assert_eq!(analyzed[0].phase, zil_base::Phase::Analyze);
+    assert_eq!(analyzed[0].code, "E-ANALYZE-IR");
+    assert_eq!(
+        analyzed[0].message,
+        "resource closure: SSA responsibility was already consumed or absent"
+    );
+    let verified = zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits)
         .err()
         .unwrap();
     assert_eq!(verified[0].category, ResultCategory::SafeReject);
-    let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    assert_eq!(verified[0].phase, zil_base::Phase::Verify);
+    assert_eq!(verified[0].code, "E-VERIFY-RESOURCE");
+    assert_eq!(
+        verified[0].message,
+        "managed SSA value was not available exactly once"
+    );
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
     let wire = zil_verify::verify_module_bytes(&bytes, &target, &limits)
         .err()
         .unwrap();
     assert_eq!(wire[0].category, ResultCategory::SafeReject);
+    assert_eq!(wire[0].phase, zil_base::Phase::Verify);
+    assert_eq!(wire[0].code, "E-VERIFY-RESOURCE");
+    assert_eq!(
+        wire[0].message,
+        "managed SSA value was not available exactly once"
+    );
 }
