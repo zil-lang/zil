@@ -1,6 +1,7 @@
 //! Independent stored-target reconstruction. Sorted vectors and batch CFG
 //! solving deliberately do not consume analyzer roots, summaries, or claims.
 use super::*;
+mod array_index;
 mod array_snapshot;
 mod byte_queries;
 #[path = "stored_flow_pure_copy.rs"]
@@ -1287,7 +1288,11 @@ pub(super) fn qualifications(
                 if super::stored_callables::instruction(module, f, i) {
                     super::stored_callables::types(module, f, i, b)?;
                 }
+                if array_index::candidate(f, i) {
+                    array_index::types(f, i, b)?;
+                }
                 if pure_copy::operation(&i.kind)
+                    && !array_index::candidate(f, i)
                     && enum_address::types(module, f, i, b)?.is_none()
                     && option_address::types(module, f, i, b)?.is_none()
                     && !(b.task_borrowed_results && task_address::wrapper_instruction(f, i, b)?)
@@ -3163,6 +3168,9 @@ fn step(
         _ if task_transfer.is_some() => {
             out = task_transfer.clone().unwrap();
         }
+        InstructionKind::ExtractIndex { aggregate, .. } if array_index::candidate(f, i) => {
+            out.address = array_index::transfer(f, i, val(*aggregate)?, b)?;
+        }
         _ if pure_copy::operation(&i.kind) => {
             if !pure_copy::ordinary_owned_union(f, i, b)? {
                 pure_copy::types(f, i, b)?;
@@ -4044,6 +4052,13 @@ fn windows(
                         requirements,
                         b,
                     )?;
+                }
+                InstructionKind::ExtractIndex { aggregate, .. } if array_index::candidate(f, i) => {
+                    let input = solution
+                        .values
+                        .get(aggregate.0 as usize)
+                        .ok_or_else(|| err("dynamic Array operand outside actual values"))?;
+                    array_index::check(f, i, input, &active, &solution.loans, requirements, b)?;
                 }
                 InstructionKind::ReadAddress { address } => {
                     if let Type::Address { inner, .. } = vt(f, *address)?

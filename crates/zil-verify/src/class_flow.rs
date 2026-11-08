@@ -1078,14 +1078,36 @@ fn check_with(
                     }
                     InstructionKind::ExtractIndex { aggregate, .. } => {
                         if let Some(out) = out {
-                            link_projection(
+                            if super::stored_flow::shared_array_value(
                                 &f.values[aggregate.0 as usize],
-                                &values[aggregate.0 as usize],
-                                out,
-                                LifeTypeProjection::Element,
-                                &mut e,
-                                b,
-                            )?;
+                            ) {
+                                let upper = out.outer.ok_or_else(|| {
+                                    bad("dynamic shared Array result lacks an Address upper")
+                                })?;
+                                let elements = &values[aggregate.0 as usize].array_elements;
+                                let Type::Array { length, .. } = &f.values[aggregate.0 as usize]
+                                else {
+                                    unreachable!()
+                                };
+                                b.spend(elements.len().saturating_add(1))?;
+                                if elements.len() != *length as usize {
+                                    return Err(bad(
+                                        "dynamic Array upper facts lack a physical candidate",
+                                    ));
+                                }
+                                for element in elements {
+                                    e.equal(upper, *element, b)?;
+                                }
+                            } else {
+                                link_projection(
+                                    &f.values[aggregate.0 as usize],
+                                    &values[aggregate.0 as usize],
+                                    out,
+                                    LifeTypeProjection::Element,
+                                    &mut e,
+                                    b,
+                                )?;
+                            }
                         }
                     }
                     InstructionKind::ExtractField { aggregate, index } => {

@@ -1029,3 +1029,6 @@ mod package_shared_array;
 
 #[path = "shared_array_snapshot_initialization.rs"]
 mod shared_array_snapshot_initialization;
+
+#[path = "dynamic_shared_array_index.rs"]
+mod dynamic_shared_array_index;
