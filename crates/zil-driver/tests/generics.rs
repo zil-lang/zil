@@ -1168,7 +1168,7 @@ fn copy_record_bound_expand_budget_is_exact_and_fresh() {
 }
 
 #[test]
-fn generic_error_union_templates_retain_selected_return_tags_and_reject_unresolved_arguments() {
+fn generic_error_union_templates_keep_definition_selected_tags_when_arguments_equal() {
     for (definition, call) in [
         (
             "fn run<U:Copy>(w:U)->U!i32{let n:i32=7;return n}",
@@ -1190,8 +1190,8 @@ fn generic_error_union_templates_retain_selected_return_tags_and_reject_unresolv
     ] {
         // Keep the original unused and distinct-actual controls. An instance
         // in which U becomes i32 retains the unique tag selected in the
-        // generic definition; argument contexts without a retained choice remain
-        // rejected at concrete equality until their own proof path is complete.
+        // generic definition, including actual call arguments. Complete symbolic
+        // constraints select the tag before substitution.
         for text in [
             format!("{definition}fn main(){{}}"),
             format!(
@@ -1204,33 +1204,23 @@ fn generic_error_union_templates_retain_selected_return_tags_and_reject_unresolv
             ),
         ] {
             let report = compile_source(&source(&text), &CompileOptions::default());
-            if definition.starts_with("fn sink") && text.contains("run(0)") {
-                assert_eq!(
-                    report.status,
-                    ResultCategory::SafeReject,
-                    "{}",
-                    report.to_json()
-                );
-                assert_eq!(report.phase, Phase::Expand);
-                assert_eq!(report.diagnostics[0].code, "E-GENERIC-ARGUMENT");
-                assert_eq!(report.verification_runs, 0);
-            } else {
-                assert_eq!(
-                    report.status,
-                    ResultCategory::Success,
-                    "{}",
-                    report.to_json()
-                );
-                assert_eq!(report.verification_runs, 1);
-            }
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
         }
     }
-    // Observe the actual branch in the three supported return/binding positions.
+    // Observe the actual branch in all five original expression positions.
     // An accidentally reselected error arm returns 19 rather than the full 7.
     for definition in [
         "fn run<U:Copy>(w:U)->U!i32{let n:i32=7;return n}fn result()->i32{match run(0){.ok(n)=>{return n},.err(_)=>{return 19}}}",
         "fn run<U:Copy>(w:U)->U!i32=>7;fn result()->i32{match run(0){.ok(n)=>{return n},.err(_)=>{return 19}}}",
         "fn run<U:Copy>(w:U)->U!i32{let n:U!i32=7;return n}fn result()->i32{match run(0){.ok(n)=>{return n},.err(_)=>{return 19}}}",
+        "fn sink<T:Copy>(v:T!i32,w:T)->i32{match v{.ok(n)=>{return n},.err(_)=>{return 19}}}fn run<U:Copy>(w:U)->i32{return sink(7,w)}fn result()->i32{return run(0)}",
+        "fn sink<T:Copy>(w:T,v:T!i32)->i32{match v{.ok(n)=>{return n},.err(_)=>{return 19}}}fn run<U:Copy>(w:U)->i32{return sink(w,7)}fn result()->i32{return run(0)}",
     ] {
         use zil_driver::{NativeBackend, Optimization};
         for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
