@@ -781,10 +781,9 @@ fn qualified_parent_identity_transfers_actual_resource_manager() {
 
 fn whole_package_identity_program() -> String {
     let job = GETTER.split("fn main").next().unwrap();
-    let program = format!(
+    format!(
         "{job}fn identity<life a,life b>(input:&'a Job<'b>)->&'a Job<'b>{{return input}}fn main()->i32{{var value=7;var spare=0;let job=make(&value);let window=identity(&job);spare=11;if *window.refs.pointer==7{{return 0}}return 1}}"
-    );
-    program
+    )
 }
 
 fn whole_package_second_input_program() -> String {
