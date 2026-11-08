@@ -3977,6 +3977,34 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         let CoreExprKind::Call { callee, arguments } = &expression.kind else {
             unreachable!("expression dispatcher variant");
         };
+        if let CoreExprKind::TypeApply {
+            callee: target,
+            type_arguments,
+        } = &callee.kind
+            && let Some(name) = errors::constructor(target)
+        {
+            self.budget.node(depth + 1, callee.span)?;
+            self.budget.node(depth + 2, target.span)?;
+            self.expression_index += 2;
+            let [error_type, result_type] = type_arguments.as_slice() else {
+                return Err(error("E-ERROR-CONSTRUCTOR", span,
+                    "error constructor needs explicit error and result types"));
+            };
+            let [payload] = arguments.as_slice() else {
+                return Err(error("E-CALL-ARITY", span,
+                    "error constructor needs one complete payload"));
+            };
+            for ty in type_arguments {
+                validate_type(ty, 0, callee.span, self.budget)?;
+            }
+            let selected = if name == "error_err" { error_type } else { result_type };
+            let actual = self.expr_expected(payload, Some(selected), depth + 1, false)?;
+            self.bind_term(&actual, selected, payload.span)?;
+            return self.known_term(&Type::ErrorUnion {
+                error: Box::new(error_type.clone()),
+                result: Box::new(result_type.clone()),
+            }, span);
+        }
         if let Some(name) = dynamic_store::primitive(callee) {
             self.budget.node(depth + 1, callee.span)?;
             self.expression_index += 1;

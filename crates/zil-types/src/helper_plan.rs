@@ -549,6 +549,26 @@ impl Walk<'_, '_> {
                     type_arguments,
                 } = &callee.kind
                 {
+                    if errors::constructor(target).is_some() {
+                        let [error_type, result_type] = type_arguments.as_slice() else {
+                            return Err(error("E-ERROR-CONSTRUCTOR", callee.span,
+                                "error constructor needs explicit error and result types"));
+                        };
+                        if arguments.len() != 1 {
+                            return Err(error("E-CALL-ARITY", expression.span,
+                                "error constructor needs one complete payload"));
+                        }
+                        return self.applied_result_shape(
+                            &Type::ErrorUnion {
+                                error: Box::new(error_type.clone()),
+                                result: Box::new(result_type.clone()),
+                            },
+                            self.bounds,
+                            self.bindings.clone(),
+                            expression.span,
+                            depth + 1,
+                        );
+                    }
                     let [argument] = type_arguments.as_slice() else {
                         return Err(error(
                             "E-TYPE-APPLICATION",
