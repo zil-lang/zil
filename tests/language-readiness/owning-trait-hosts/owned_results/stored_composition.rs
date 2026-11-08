@@ -787,15 +787,37 @@ fn ordinary_scalar_entry_preserves_order_replay_and_the_parameter_boundary() {
     }
 }
 
-#[test]
-fn ordinary_owned_pipeline_keeps_callbacks_and_error_paths() {
-    let files = [
+fn pipeline_files() -> [(&'static str, &'static str); 4] {
+    [
         ("main", include_str!("../owned_pipeline/main.zil")),
         ("model", include_str!("../owned_pipeline/model.zil")),
         ("protocol", include_str!("../owned_pipeline/protocol.zil")),
         ("library", include_str!("../owned_pipeline/library.zil")),
-    ];
+    ]
+}
+
+#[test]
+fn ordinary_owned_pipeline_keeps_callbacks_and_error_paths() {
+    let files = pipeline_files();
+    let dir = std::env::temp_dir().join(format!(
+        "zil-owned-callback-pipeline-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    fs::create_dir_all(&dir).unwrap();
+    let types = compile_project(
+        &project(&files),
+        &CompileOptions {
+            stop_after: Stage::Types,
+            emit_dir: Some(dir.join("types")),
+            ..CompileOptions::default()
+        },
+    );
+    fs::write(dir.join("types.json"), types.to_json()).unwrap();
+    assert_eq!(types.status, ResultCategory::Success, "{}", types.to_json());
     let report = compile_project(&project(&files), &CompileOptions::default());
+    fs::write(dir.join("report.json"), report.to_json()).unwrap();
+    eprintln!("complete owning callback pipeline: {}", dir.display());
     assert_eq!(
         report.status,
         ResultCategory::Success,
