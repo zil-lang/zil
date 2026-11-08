@@ -1,6 +1,7 @@
 //! Dynamic selection conservatively retains every actual fixed-array source.
 use super::*;
 const WINDOW: &str = include_str!("dynamic-shared-address-array.zil");
+const CLEANUP_SNAPSHOT: &str = "extern \"C\" fn putchar(c:i32)->i32;resource Mark{code:i32}impl Drop for Mark{fn drop(self:Self){unsafe{putchar(.code)}}}package Job<life a>{manages mark:Mark;items:[&'a i32;2]}fn snapshot<life a>(first:&'a i32,second:&'a i32)->[&'a i32;2]{let job=Job::<'a>{mark:Mark{code:82},items:[first,second]};let window=&job;return window.items}fn main()->i32{let first=7;let second=9;let items=snapshot(&first,&second);unsafe{putchar(86)}let index=1;return *items[index]-9}";
 
 fn verify_source(label: &str, program: &str) {
     let limits = Limits::default();
@@ -37,6 +38,7 @@ fn dynamic_indices_keep_all_actual_element_sources() {
         ("window-helper", WINDOW),
         ("record", record),
         ("owning-package", package),
+        ("snapshot after manager cleanup", CLEANUP_SNAPSHOT),
     ] {
         verify_source(label, program);
     }
@@ -304,10 +306,10 @@ fn native_object_and_index_evaluate_once_in_order_and_bounds_trap() {
             }
         }
     }
-    assert_eq!(runs, 2 + 2 * usize::from(cfg!(feature = "llvm-api")));
-    assert_eq!(traps, 2 * runs);
+    assert_eq!(runs, 4 + 4 * usize::from(cfg!(feature = "llvm-api")));
+    assert_eq!(traps, runs);
     println!(
-        "dynamic Array: {runs} ordered once-only native successes and {traps} actual bounds traps"
+        "dynamic Array: {runs} native once/order and cleanup successes and {traps} actual bounds traps"
     );
 }
 
@@ -454,4 +456,95 @@ fn dynamic_snapshot_and_alternative_budgets_are_exact_and_fresh() {
         }
     }
     println!("dynamic Array complete boundaries: {boundaries:?}");
+}
+
+#[test]
+fn raw_and_wire_reject_dynamic_index_type_and_incomplete_actual_array() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let good = typed_source("dynamic-shape-boundary", WINDOW, &target, &limits);
+    let prior = zil_analyze::analyze(&good, &limits).unwrap();
+    for case in ["boolean index", "missing array operand"] {
+        let mut bad = good.clone();
+        if case == "boolean index" {
+            let f = bad
+                .functions
+                .iter_mut()
+                .find(|f| f.name == "choose")
+                .unwrap();
+            let value = zil_ir::ValueId(f.values.len() as u32);
+            f.values.push(Type::Bool);
+            let (block, at) = f
+                .blocks
+                .iter()
+                .enumerate()
+                .find_map(|(b, block)| {
+                    block
+                        .instructions
+                        .iter()
+                        .position(|i| {
+                            matches!(i.kind, zil_ir::InstructionKind::ExtractIndex { .. })
+                        })
+                        .map(|i| (b, i))
+                })
+                .unwrap();
+            let span = f.blocks[block].instructions[at].span;
+            let zil_ir::InstructionKind::ExtractIndex { index, .. } =
+                &mut f.blocks[block].instructions[at].kind
+            else {
+                unreachable!()
+            };
+            *index = value;
+            f.blocks[block].instructions.insert(
+                at,
+                zil_ir::Instruction {
+                    result: Some(value),
+                    kind: zil_ir::InstructionKind::Constant(zil_ir::Constant::Bool(true)),
+                    span,
+                },
+            );
+        } else {
+            let f = bad.functions.iter_mut().find(|f| f.name == "main").unwrap();
+            let fields = f
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find_map(|i| {
+                    if let zil_ir::InstructionKind::MakeAggregate { fields } = &mut i.kind {
+                        Some(fields)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            assert_eq!(fields.len(), 2);
+            fields.pop();
+        }
+        let errors = zil_analyze::analyze(&bad, &limits).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.category == ResultCategory::SafeReject),
+            "{case}: {errors:?}"
+        );
+        let mut candidate = prior.clone();
+        candidate.module_fingerprint = bad.fingerprint();
+        let errors = zil_verify::verify_module(bad.clone(), candidate.clone(), &target, &limits)
+            .unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.category == ResultCategory::SafeReject),
+            "{case}: {errors:?}"
+        );
+        let wire = zil_ir::wire::encode_module_candidate(&bad, &candidate, &limits).unwrap();
+        let errors = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.category == ResultCategory::SafeReject),
+            "{case}: {errors:?}"
+        );
+        println!("{case}: Analyze/Verify/Wire independent actual type/shape rejection");
+    }
 }
