@@ -258,6 +258,14 @@ pub(crate) fn package_storage(ty: &Type) -> &Type {
     }
 }
 
+/// The new description bridge concerns only existing qualified shared Packages.
+/// This constant dispatch neither strips their life shape nor grants a root.
+pub(super) fn qualified_package_address(ty: &Type) -> bool {
+    matches!(ty, Type::Address { mutable: false, inner }
+        if matches!(inner.as_ref(), Type::BorrowedStorage { storage, .. }
+            if matches!(storage.as_ref(), Type::Package { .. })))
+}
+
 fn package_address(ty: &Type) -> bool {
     matches!(ty, Type::Address { inner, .. }
         if matches!(package_storage(inner), Type::Package { .. }))
@@ -480,7 +488,8 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
             }
         }
         Type::Address { .. }
-            if budget.head_descriptions && (head_address(ty) || package_address(ty)) =>
+            if (budget.head_descriptions && (head_address(ty) || package_address(ty)))
+                || budget.qualified_package_returns && qualified_package_address(ty) =>
         {
             Shape {
                 owned: false,
@@ -3197,6 +3206,26 @@ impl Flow<'_> {
                         .get(function.0 as usize)
                         .ok_or_else(|| error("absent callee"))?;
                     if out_shape.is_some_and(|shape| shape.description)
+                        && qualified_package_address(&callee.return_type)
+                    {
+                        let value = i
+                            .result
+                            .ok_or_else(|| error("Package return has no result"))?;
+                        let position =
+                            super::stored_flow::package_return_input(f.id, value, budget)?;
+                        let argument = *arguments
+                            .get(position as usize)
+                            .ok_or_else(|| error("Package return input is absent"))?;
+                        let fact = copied(state, Place::Value(argument), budget)?;
+                        if check {
+                            live_sources(state, &fact, budget)?;
+                        }
+                        produced = Some(Fact {
+                            sources: fact.sources,
+                            ..Fact::default()
+                        });
+                    }
+                    if out_shape.is_some_and(|shape| shape.description)
                         && callee.return_type.is_shared_package_address()
                         && let Some(bound) = &callee.reference_return_bound
                     {
@@ -3598,7 +3627,11 @@ impl Flow<'_> {
                 _ => {}
             }
             if produced.is_none()
-                && (budget.head_descriptions || self.replacements.is_some())
+                && (budget.head_descriptions
+                    || self.replacements.is_some()
+                    || budget.qualified_package_returns
+                        && i.result
+                            .is_some_and(|id| qualified_package_address(&f.values[id.0 as usize])))
                 && out_shape.is_some_and(|s| s.description)
                 && let InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local } = i.kind

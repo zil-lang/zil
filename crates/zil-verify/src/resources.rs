@@ -618,6 +618,13 @@ fn package_storage(ty: &Type) -> Option<&[(String, Type)]> {
     }
 }
 
+/// A physical/profile dispatch only; the call certificate proves its origin.
+pub(super) fn qualified_package_address(ty: &Type) -> bool {
+    matches!(ty, Type::Address { mutable: false, inner }
+        if matches!(inner.as_ref(), Type::BorrowedStorage { storage, .. }
+            if matches!(storage.as_ref(), Type::Package { .. })))
+}
+
 impl Slots {
     fn new(
         module: &TypedModule,
@@ -2591,6 +2598,27 @@ impl Transfer<'_> {
                     arguments,
                 } => {
                     let returned = &self.module.functions[function.0 as usize];
+                    if qualified_package_address(&returned.return_type) {
+                        let value = instruction
+                            .result
+                            .ok_or_else(|| bad(span, "Package return has no result"))?;
+                        let position =
+                            crate::stored_flow::package_return_input(f.id, value, budget)?;
+                        let actual = *arguments
+                            .get(position as usize)
+                            .ok_or_else(|| bad(span, "Package return input is absent"))?;
+                        let source = slots.desc_value[actual.0 as usize].ok_or_else(|| {
+                            bad(span, "Package return input lacks actual description")
+                        })?;
+                        let destination = slots.desc_value[value.0 as usize].ok_or_else(|| {
+                            bad(span, "Package return lacks actual description slot")
+                        })?;
+                        if validate {
+                            description_live(state, slots, source, span, budget)?;
+                        }
+                        budget.spend(state.desc[source].len())?;
+                        state.desc[destination] = state.desc[source].clone();
+                    }
                     if returned.return_type.is_shared_package_address()
                         && let Some(bound) = &returned.reference_return_bound
                         && let Some(destination) = instruction

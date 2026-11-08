@@ -124,6 +124,135 @@ pub(super) fn option_sources_snapshot(
     Ok(lookup(budget, function, value).unwrap().clone())
 }
 
+/// Read only a certificate rebuilt from actual pointer returns and call inputs.
+pub(super) fn package_return_input(
+    function: FunctionId,
+    value: ValueId,
+    b: &mut Budget,
+) -> CompileResult<u32> {
+    let count = b.package_return_calls.as_ref().map_or(0, BTreeMap::len);
+    let found = b
+        .package_return_calls
+        .as_ref()
+        .and_then(|rows| rows.get(&(function, value)))
+        .copied();
+    ordered(b, count, 2)?;
+    found.ok_or_else(|| {
+        vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "qualified Package return requires one actual whole shared input",
+            None,
+        )]
+    })
+}
+
+fn whole_package_target(f: &TypedFunction, target: &Target, b: &mut Budget) -> CompileResult<bool> {
+    fee(b, target_width(target).saturating_add(1))?;
+    if target.retained_port.is_some()
+        || !target.stored.is_empty()
+        || !target.place.is_empty()
+        || target.heap_element.is_some()
+    {
+        return Ok(false);
+    }
+    Ok(match target.base {
+        HoldRoot::Local(local) => f.locals.get(local.0 as usize).is_some_and(|local|
+            matches!(&local.ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))),
+        HoldRoot::Parameter(position) => f.parameters.get(position as usize)
+            .and_then(|local| f.locals.get(local.0 as usize))
+            .is_some_and(|local| super::resources::qualified_package_address(&local.ty)),
+        _ => false,
+    })
+}
+
+fn package_return_candidates(
+    module: &TypedModule,
+    f: &TypedFunction,
+    reachable: &[bool],
+    values: &[Value],
+    summaries: &[Facts],
+    b: &mut Budget,
+) -> CompileResult<BTreeMap<ValueId, u32>> {
+    let mut result = BTreeMap::new();
+    if f.call_kind != CallKind::Direct || f.environment.is_some() {
+        return Ok(result);
+    }
+    fee(b, f.blocks.len())?;
+    for (block, live) in f.blocks.iter().zip(reachable) {
+        if !live {
+            continue;
+        }
+        fee(b, block.instructions.len())?;
+        for instruction in &block.instructions {
+            let InstructionKind::Call {
+                function,
+                arguments,
+            } = &instruction.kind
+            else {
+                continue;
+            };
+            let callee = &module.functions[function.0 as usize];
+            if callee.foreign.is_some()
+                || callee.environment.is_some()
+                || callee.call_kind != CallKind::Direct
+                || !super::resources::qualified_package_address(&callee.return_type)
+            {
+                continue;
+            }
+            let prior = &summaries[function.0 as usize];
+            if !prior.complete {
+                continue;
+            }
+            ordered(b, prior.returned.len(), 0)?;
+            let Some(roots) = prior.returned.get(&Vec::new()) else {
+                continue;
+            };
+            fee(b, roots.len())?;
+            let [root] = roots.as_slice() else {
+                continue;
+            };
+            if !whole_package_target(callee, root, b)? {
+                continue;
+            }
+            let HoldRoot::Parameter(position) = root.base else {
+                continue;
+            };
+            let input = &callee.locals[callee.parameters[position as usize].0 as usize].ty;
+            b.type_work(input, false, "whole Package actual input equality")?;
+            b.type_work(
+                &callee.return_type,
+                false,
+                "whole Package actual result equality",
+            )?;
+            if input != &callee.return_type {
+                continue;
+            }
+            let argument = *arguments
+                .get(position as usize)
+                .ok_or_else(|| failure("Package return actual input absent"))?;
+            let pointer = &values[argument.0 as usize].pointer.targets;
+            if pointer.is_empty() {
+                continue;
+            }
+            fee(b, pointer.len())?;
+            let mut whole = true;
+            for root in pointer {
+                whole &= whole_package_target(f, root, b)?;
+            }
+            if !whole {
+                continue;
+            }
+            let value = instruction
+                .result
+                .ok_or_else(|| failure("Package call result absent"))?;
+            ordered(b, result.len(), 1)?;
+            fee(b, std::mem::size_of::<(ValueId, u32)>())?;
+            result.insert(value, position);
+        }
+    }
+    Ok(result)
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Target {
     pub(super) retained_port: Option<u32>,
@@ -279,6 +408,7 @@ pub(super) struct Facts {
     pointer_parents: Vec<Vec<TaskLoanAnchor>>,
     pub returned: BTreeMap<Path, Vec<Target>>,
     returned_task_ports: BTreeMap<Vec<zil_ir::ContractProjection>, Vec<Target>>,
+    package_return_calls: BTreeMap<ValueId, u32>,
     external_after: BTreeMap<(u32, Path), Vec<Target>>,
     pub apart: BTreeSet<(Target, Target)>,
     complete: bool,
@@ -445,6 +575,14 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
 }
 
 fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
+    if !f.package_return_calls.is_empty() {
+        fee(
+            b,
+            f.package_return_calls
+                .len()
+                .saturating_mul(std::mem::size_of::<(ValueId, u32)>()),
+        )?;
+    }
     f.returned_enum_variants.work(b)?;
     for value in f.enum_values.values() {
         value.work(b)?;
@@ -4100,12 +4238,18 @@ fn derive_cfg(
                     break;
                 }
             }
+            let package_return_calls = if b.qualified_package_returns {
+                package_return_candidates(module, f, reachable, &values, &summaries, b)?
+            } else {
+                BTreeMap::new()
+            };
             let mut actual = Facts {
                 values: Vec::with_capacity(values.len()),
                 pointer_values: Vec::new(),
                 pointer_parents: Vec::new(),
                 returned: BTreeMap::new(),
                 returned_task_ports: BTreeMap::new(),
+                package_return_calls,
                 external_after: BTreeMap::new(),
                 apart: BTreeSet::new(),
                 complete: false,
@@ -4567,6 +4711,22 @@ pub(super) fn infer(
     }
     super::stored_callables::roles(module, graphs, b)?;
     let facts = derive(module, graphs, b)?;
+    if b.qualified_package_returns {
+        fee(
+            b,
+            std::mem::size_of::<BTreeMap<(FunctionId, ValueId), u32>>().saturating_add(facts.len()),
+        )?;
+        let mut calls = BTreeMap::new();
+        for (index, facts) in facts.iter().enumerate() {
+            fee(b, facts.package_return_calls.len())?;
+            for (value, position) in &facts.package_return_calls {
+                ordered(b, calls.len(), 2)?;
+                fee(b, std::mem::size_of::<((FunctionId, ValueId), u32)>())?;
+                calls.insert((module.functions[index].id, *value), *position);
+            }
+        }
+        b.package_return_calls = Some(calls);
+    }
     // A scalar capture has no destructor, but a concrete FnOnce environment
     // still has one actual consumption obligation. The stored dispatcher must
     // not bypass the independent SSA/local responsibility ledger.
@@ -4577,6 +4737,10 @@ pub(super) fn infer(
             .iter()
             .any(|d| d.kind == CallableKind::FnOnce)
         || b.stored_owned_fixed
+        || b.qualified_package_returns
+            && b.composition_stored.is_empty()
+            && !b.task_borrowed_results
+            && !b.store_option_results
     {
         super::resources::check_module(module, graphs, b)?;
     }
