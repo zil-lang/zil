@@ -14,6 +14,18 @@ impl Check<'_, '_, '_> {
         while let ExprKind::Group(inner) = &direct.kind {
             direct = inner;
         }
+        if let ExprKind::Unary {
+            op: UnaryOp::Dereference,
+            operand,
+        } = &direct.kind
+        {
+            self.budget.node(direct.span, 0)?;
+            direct = operand;
+            while let ExprKind::Group(inner) = &direct.kind {
+                self.budget.node(direct.span, 0)?;
+                direct = inner;
+            }
+        }
         let ExprKind::Name(name) = &direct.kind else {
             return Ok(None);
         };
