@@ -508,8 +508,10 @@ pub(super) fn checked_sources(
     s: &Solution,
     b: &mut Budget,
 ) -> Check<TaskFunctionSources> {
-    let mut out = TaskFunctionSources::default();
-    out.covered = true;
+    let mut out = TaskFunctionSources {
+        covered: true,
+        ..TaskFunctionSources::default()
+    };
     b.spend(f.values.len())?;
     for (id, p) in s.values.iter().enumerate() {
         let mut row = TaskValueSources::default();
