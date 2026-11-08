@@ -9,6 +9,36 @@ fn tree_steps(size: usize) -> usize {
 }
 
 impl Check<'_, '_, '_> {
+    pub(super) fn replace_borrowed_store_origin(
+        &mut self,
+        state: &mut State,
+        slot: usize,
+        span: Span,
+    ) -> R<()> {
+        for _ in 0..tree_steps(state.store_origins.len()) {
+            self.budget.node(span, 0)?;
+        }
+        let roots = state.store_origins.get(&slot).map_or(1, BTreeSet::len);
+        // The existing replacement helper clones these roots, inserts each
+        // into the invalidation set, and publishes a new singleton origin.
+        // Charge the whole upper bound before that helper mutates anything.
+        let invalidated = state.invalidated_stores.len().saturating_add(roots);
+        for _ in 0..roots {
+            for _ in 0..tree_steps(invalidated).saturating_add(2) {
+                self.budget.node(span, 0)?;
+            }
+        }
+        for _ in 0..tree_steps(state.store_origins.len().saturating_add(1))
+            .saturating_add(tree_steps(state.fresh_stores.len()))
+            .saturating_add(3)
+        {
+            self.budget.node(span, 0)?;
+        }
+        self.replace_store_origin(state, slot, span)?;
+        state.fresh_stores.remove(&slot);
+        Ok(())
+    }
+
     pub(super) fn borrowed_store_field_slots(
         &mut self,
         object: &Expr,

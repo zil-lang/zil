@@ -1031,8 +1031,18 @@ impl Check<'_, '_, '_> {
             // identity; this metadata invalidates descriptors, never grants
             // access or ownership to a Package reference.
             let owner = origin.position.field.unwrap_or(origin.position.owner);
+            // field_slot clones the string key, looks it up, and may insert it.
+            // The owning-local path retains its existing fee schedule.
+            let work = tree_work(self.package_slots.len().saturating_add(1)).saturating_mul(24);
+            for _ in 0..work {
+                self.budget.node(span, 0)?;
+                self.budget.text(member, span)?;
+            }
             let slot = self.field_slot(owner, member, span)?;
-            self.alias_fee(tree_work(slots.len()).saturating_add(1), span)?;
+            self.alias_fee(
+                tree_work(slots.len()).saturating_mul(12).saturating_add(1),
+                span,
+            )?;
             slots.insert(slot);
         }
         if slots.is_empty() {
