@@ -18,6 +18,10 @@ enum Consumer {
     Bound,
     Forbidden,
 }
+struct CallRequirements {
+    outputs: Vec<usize>,
+    inputs: Vec<usize>,
+}
 struct Use {
     site: Site,
     port: usize,
@@ -28,6 +32,7 @@ pub(super) struct Flow {
     edges: Vec<(usize, usize)>,
     seeds: Vec<usize>,
     selections: Vec<Vec<usize>>,
+    call_requirements: Vec<CallRequirements>,
     affected: Vec<bool>,
     uses: Vec<Use>,
     boundaries: RefCell<Vec<Boundary>>,
@@ -45,6 +50,7 @@ impl Flow {
             edges: Vec::new(),
             seeds: Vec::new(),
             selections: Vec::new(),
+            call_requirements: Vec::new(),
             affected: vec![false; count],
             uses: Vec::new(),
             boundaries: RefCell::new(Vec::new()),
@@ -241,6 +247,18 @@ impl Flow {
                     changed = true;
                 }
             }
+            work(b, self.call_requirements.len())?;
+            for call in &self.call_requirements {
+                work(b, call.outputs.len().saturating_add(call.inputs.len()))?;
+                if call.outputs.iter().any(|port| required[*port]) {
+                    for input in &call.inputs {
+                        if !required[*input] {
+                            required[*input] = true;
+                            changed = true;
+                        }
+                    }
+                }
+            }
         }
         work(b, required.len())?;
         for (port, required) in required.iter().enumerate() {
@@ -405,6 +423,51 @@ impl Flow {
                 consumer,
             });
         }
+        Ok(())
+    }
+    fn require_call_inputs(
+        &mut self,
+        out: &Ports,
+        arguments: &[ValueId],
+        values: &[Ports],
+        b: &mut Budget,
+    ) -> Check<()> {
+        let output_count = out
+            .classes
+            .len()
+            .saturating_add(out.array_elements.len())
+            .saturating_add(usize::from(out.outer.is_some()));
+        work(b, output_count.saturating_add(arguments.len()))?;
+        let outputs = out
+            .outer
+            .iter()
+            .chain(&out.classes)
+            .chain(&out.array_elements)
+            .copied()
+            .collect();
+        let mut count = 0usize;
+        for argument in arguments {
+            let p = value(values, *argument)?;
+            count = count
+                .saturating_add(p.classes.len())
+                .saturating_add(p.array_elements.len())
+                .saturating_add(usize::from(p.outer.is_some()));
+        }
+        work(b, count.saturating_add(arguments.len()))?;
+        let mut inputs = Vec::with_capacity(count);
+        for argument in arguments {
+            let p = value(values, *argument)?;
+            inputs.extend(
+                p.outer
+                    .iter()
+                    .chain(&p.classes)
+                    .chain(&p.array_elements)
+                    .copied(),
+            );
+        }
+        work(b, self.call_requirements.len().saturating_add(1))?;
+        self.call_requirements
+            .push(CallRequirements { outputs, inputs });
         Ok(())
     }
     fn projection(
@@ -776,13 +839,17 @@ impl Flow {
                         }
                         consumer = Consumer::Copy;
                     }
-                    InstructionKind::Call { function, .. } => {
+                    InstructionKind::Call {
+                        function,
+                        arguments,
+                    } => {
                         let callee = module
                             .functions
                             .get(function.0 as usize)
                             .ok_or_else(|| bad("dynamic observer callee is absent"))?;
                         if callee.storage_life.is_some() {
                             if let Some(out) = out {
+                                flow.require_call_inputs(out, arguments, values, b)?;
                                 flow.seed_ports(out, b)?;
                             }
                             consumer = Consumer::Bound;
