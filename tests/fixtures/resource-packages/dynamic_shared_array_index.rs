@@ -449,6 +449,19 @@ fn dynamic_snapshot_and_alternative_budgets_are_exact_and_fresh() {
             }
         }
     }
+    assert_eq!(
+        boundaries,
+        vec![
+            [1844, 28930, 35093, 35093, 35093],
+            [2480, 90070, 123350, 123350, 123350],
+            [4420, 54955, 64969, 64969, 64969],
+            [6467, 58503, 70655, 70655, 70655],
+            [3622, 48038, 63653, 63653, 63653],
+            [4846, 122864, 188093, 188093, 188093],
+            [6576, 77990, 102944, 102944, 102944],
+            [9109, 87013, 116429, 116429, 116429],
+        ]
+    );
     println!("dynamic Array complete boundaries: {boundaries:?}");
 }
 
@@ -760,33 +773,6 @@ fn unknown_legacy_upper_sources_cannot_be_masked_by_a_known_branch() {
             },
         );
         println!("unknown-upper branch probe {label}: {}", report.to_json());
-        if label == "rich wrapper unknown" && report.status == ResultCategory::Success {
-            let limits = Limits::default();
-            let target = TargetProfile::host_llvm();
-            let raw = typed_source(label, &program, &target, &limits);
-            let plan = zil_analyze::analyze(&raw, &limits).unwrap();
-            zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
-            let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
-            zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
-            let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../../out/runs/dynamic-shared-array/unknown-upper-reproducer");
-            std::fs::create_dir_all(&dir).unwrap();
-            for (name, bytes) in [
-                ("source.zil", program.as_bytes().to_vec()),
-                ("raw.txt", format!("{raw:#?}").into_bytes()),
-                ("candidate.txt", format!("{plan:#?}").into_bytes()),
-                ("accepted.wire", wire),
-            ] {
-                let path = dir.join(name);
-                if !path.exists() {
-                    std::fs::write(path, bytes).unwrap();
-                }
-            }
-            println!(
-                "saved original accepted rich-wrapper raw/candidate/Wire at {}",
-                dir.display()
-            );
-        }
         reports.push((label, report));
     }
     for (label, report) in reports {
@@ -906,23 +892,46 @@ fn raw_and_wire_reject_unknown_incoming_upper_before_identity_binding() {
     );
 }
 
-// Author-only replay of the original archived counterexample; remove this
-// evidence hook before delivering the reproducible semantic test fixture.
 #[test]
-fn replay_original_unknown_wrapper_wire() {
-    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../out/runs/dynamic-shared-array/unknown-upper-reproducer/accepted.wire");
-    let wire = std::fs::read(path).expect("original pre-repair Wire must already exist");
-    let errors =
-        zil_verify::verify_module_bytes(&wire, &TargetProfile::host_llvm(), &Limits::default())
-            .unwrap_err();
-    assert!(
-        errors.iter().any(|d| d
-            .message
-            .contains("upper dependency has no complete actual source")),
-        "{errors:?}"
-    );
-    println!(
-        "original accepted rich-wrapper Wire with its original fresh candidate now independently rejects unknown upper dependency"
-    );
+fn rich_call_completeness_costs_grow_with_actual_input_and_output_ports() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let mut boundaries = Vec::new();
+    for length in [2, 8] {
+        let program = array_budget_model(length, 1, 0, false).replace(
+            &format!("let pointer=items[{}]", length - 1),
+            &format!("let index={};let pointer=relay(*items)[index]", length - 1),
+        );
+        let raw = typed_source("rich-call-upper-dependencies", &program, &target, &limits);
+        let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        let at = |n| Limits {
+            max_analysis_steps: n,
+            ..limits.clone()
+        };
+        let a = exact_array_budget(
+            &format!("rich-call upper requirements len={length} Analyze"),
+            |n| array_budget_category(zil_analyze::analyze(&raw, &at(n))),
+        );
+        let v = exact_array_budget(
+            &format!("rich-call upper requirements len={length} Verify"),
+            |n| {
+                array_budget_category(zil_verify::verify_module(
+                    raw.clone(),
+                    plan.clone(),
+                    &target,
+                    &at(n),
+                ))
+            },
+        );
+        let w = exact_array_budget(
+            &format!("rich-call upper requirements len={length} Wire"),
+            |n| array_budget_category(zil_verify::verify_module_bytes(&wire, &target, &at(n))),
+        );
+        boundaries.push([a, v, w]);
+    }
+    for phase in 0..3 {
+        assert!(boundaries[1][phase] > boundaries[0][phase]);
+    }
+    println!("rich-call complete input/output requirement boundaries: {boundaries:?}");
 }
