@@ -1,33 +1,92 @@
 {
   "kind": "coordination-only; no acceptance claim",
-  "source": "263f11f3e3e0c0fc924b4f2573416e1fe1a0d755",
+  "source": "f21c5bcf80450ca0dfa8dc01bb453e110fee7605",
   "source_branch": "task/G10.6.3",
-  "main": "222e550af2daa08812b210cf3b5c726831b15bec",
+  "main": "0e770a26e0a12dcc24a13cbbdf1aa57b59605d31",
   "strict_clippy": {
-    "status": "Pass",
-    "source": "263f11f3e3e0c0fc924b4f2573416e1fe1a0d755",
-    "command": "cargo clippy --locked --offline --workspace --all-targets --features llvm-api -- -D warnings",
-    "log": "/workspace/.zil-env/release-foundations/final-composition-focus/strict-final.log"
+    "name": "strict",
+    "command": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--offline",
+      "--workspace",
+      "--all-targets",
+      "--features",
+      "llvm-api",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit_code": 0,
+    "passed": 0,
+    "failed": 0,
+    "log": "/workspace/.zil-env/release-foundations/record-window-final-checks/strict.log",
+    "sha256": "3e9d6a43ee2a2bc66796cbfb8cb69f4672083a0a6015252cb23b8b160065dc55",
+    "source": "dc54a6c97f66ea28ad0575f1f42b69c8b1a5d0da"
   },
   "default": {
-    "status": "Pass",
-    "source": "263f11f3e3e0c0fc924b4f2573416e1fe1a0d755",
-    "passed": 5582,
-    "failed": 0,
-    "result": "/workspace/.zil-env/release-foundations/native-language-common-default/default-result.json"
+    "single_full_green_run": false,
+    "full_run": {
+      "source": "f21c5bcf80450ca0dfa8dc01bb453e110fee7605",
+      "status": "Fail",
+      "passed": 5610,
+      "failed": 2,
+      "batches": 53,
+      "groups": 431,
+      "integration_target_names": 394,
+      "failed_batches": [
+        20
+      ],
+      "result": {
+        "path": "/workspace/.zil-env/release-foundations/record-window-common-default/default-result.json",
+        "sha256": "3d381e8a5d42769986b455f32d657c661c53418666fa0e63b98b7b3e9b2602f0"
+      },
+      "batch_manifest": {
+        "path": "/workspace/.zil-env/release-foundations/record-window-common-default/default-batches.json",
+        "sha256": "7a6e3156401e8ca1ffa42920216b0413828d0eca42ea994cb3315362a9bd833c"
+      },
+      "command_inventory": {
+        "path": "/workspace/.zil-env/release-foundations/record-window-common-default/default-inventory.json",
+        "sha256": "83ecd84b3e9aa47e6e9cd4e8221b00fbcecd66e5f641a36359b7f49dbc75f24e"
+      }
+    },
+    "repair": "Only two existing tests account for actual retained Tag window leaves and their subsequent snapshots. Original insufficient budgets, N-1, fresh-request and native assertions remain. Compiler/library/build inputs are byte-identical.",
+    "affected_target": {
+      "source": "808d85061457b350441dd6e9de3aa3eb93c3c65a",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--workspace",
+        "--no-fail-fast",
+        "--test",
+        "generic_regressions"
+      ],
+      "exit_code": 0,
+      "passed": 210,
+      "failed": 0,
+      "log": "/workspace/.zil-env/release-foundations/record-window-final-checks/affected-workspace.log",
+      "sha256": "f5ccdde5fe00062ecf91cde3f2914d267f9f6d314b134801ad368e33e4a938c9"
+    },
+    "coverage_passed": 5612,
+    "coverage_failed": 0,
+    "count_basis": "Replace only generic_regressions original 208/2 by its complete 210/0 retest with the original workspace feature selection. All other complete-run results retained; the original Fail is not rewritten."
   },
   "source_backup": {
-    "archive": "d74a805148c871d8dc5054040e7a37fdf472fd22",
-    "verified_tips": 185,
+    "archive": "5b8217828c2315922e9f42af3c96def7606d689d",
+    "verified_tips": 188,
     "stable_source_snapshot": true,
     "remote_verified": true,
     "actual_wip_bytes": true,
-    "receipt": "/workspace/.zil-env/release-foundations/archive-seventeenth-source-checkpoint.json"
+    "receipt": "/workspace/.zil-env/release-foundations/archive-eighteenth-source-checkpoint.json"
   },
   "not_accepted": [
     "functional 1.0",
     "formal product gates",
-    "the next three accepted increments as a combined source revision"
+    "shared-address Array extension",
+    "whole qualified Package address helper transport"
   ],
   "focused": {
     "status": "Pass",
@@ -50,25 +109,6 @@
       "scope": "That target passed; same command later failed the separate generics target, which was corrected and separately rerun."
     }
   },
-  "active_composition_failures": [
-    {
-      "kind": "real safety regression",
-      "scope": "existing qualified Record reborrow and child/parent field windows",
-      "released_main_affected": true,
-      "main_case": "bare &refs permits write to actual held n then pointer use",
-      "new_combined_cases": [
-        "&refs",
-        "&job.refs",
-        "&job"
-      ],
-      "main_probe": "/workspace/record-window-review/out/runs/accepted-main222-20261108/summary.json",
-      "frozen_probe": "/workspace/record-window-review/out/runs/frozen61ad-20261108/summary.json",
-      "task": "G3.4.11.1",
-      "implementation": "sol high",
-      "review": "Astra xhigh",
-      "status": "fix and independent semantic verification in progress"
-    }
-  ],
   "historical_default_runs": [
     {
       "source": "1b462001c6e74548196e72f62ab6074eb4296913",
@@ -108,45 +148,148 @@
   },
   "pending_common_gates": [],
   "next_implementation": [
-    "fix and independently verify real Record window regression before integration delivery",
-    "finish Array complete snapshot billing, warm cache mode and raw thin-leaf rejection",
-    "correct reference native helper backend selection"
+    "G3.4.12 shared-address Array budget and cache closure",
+    "G3.4.13 actual whole-Package address helper return"
   ],
-  "delivery_validation_revision": "e5400cfba036a46ca70677ca411abcd863466edf",
-  "delivery_record": "https://github.com/zil-lang/zil/blob/222e550af2daa08812b210cf3b5c726831b15bec/validation/native-language-composition.json",
+  "delivery_validation_revision": "808d85061457b350441dd6e9de3aa3eb93c3c65a",
+  "delivery_record": "https://github.com/zil-lang/zil/blob/0e770a26e0a12dcc24a13cbbdf1aa57b59605d31/validation/native-language-composition.json",
   "reference": {
-    "status": "Complete coverage after test-only backend selection correction",
-    "single_full_run": false,
-    "base_source": "263f11f3e3e0c0fc924b4f2573416e1fe1a0d755",
-    "original_full_result": {
-      "passed": 5455,
-      "failed": 15,
-      "status": "Fail"
+    "single_full_green_run": true,
+    "source": "808d85061457b350441dd6e9de3aa3eb93c3c65a",
+    "status": "Pass",
+    "passed": 5500,
+    "failed": 0,
+    "batches": 53,
+    "groups": 431,
+    "integration_target_names": 394,
+    "failed_batches": [],
+    "result": {
+      "path": "/workspace/.zil-env/release-foundations/record-window-common-reference/reference-result.json",
+      "sha256": "2d45fe83d4fb6413362294db2556a083f412b4d3ee375cdbd16508eaf4ff4c65"
     },
-    "affected_target_source": "e5400cfba036a46ca70677ca411abcd863466edf",
-    "affected_target_retests": {
-      "reference": {
-        "passed": 64,
-        "failed": 0
-      },
-      "llvm_api": {
-        "passed": 64,
-        "failed": 0
-      }
+    "batch_manifest": {
+      "path": "/workspace/.zil-env/release-foundations/record-window-common-reference/reference-batches.json",
+      "sha256": "dc7b5850d74180c9d51197a308d8a96ac4accc9fc8cb1df77a78f7c074423fd9"
     },
-    "coverage_passed": 5470,
-    "coverage_failed": 0,
-    "production_and_library_input_changes": false
+    "command_inventory": {
+      "path": "/workspace/.zil-env/release-foundations/record-window-common-reference/reference-inventory.json",
+      "sha256": "b9516130dab9336cb218392ab53d3c56a13760180ed4b9a3b6977521a316dbe1"
+    }
   },
   "cold_recovery": {
-    "source": "263f11f3e3e0c0fc924b4f2573416e1fe1a0d755",
-    "executions": 32,
-    "passed": 32,
-    "compiler_artifacts_reused": false,
-    "toolchain_registry_reused": true,
-    "summary": "/workspace/.zil-env/release-foundations/accepted-source-cold-final/summary.json"
+    "status": "Pass",
+    "source": "f21c5bcf80450ca0dfa8dc01bb453e110fee7605",
+    "acquisition": {
+      "remote": "https://github.com/zil-lang/zil.git",
+      "branch": "task/G10.6.3",
+      "transport": "HTTPS GitHub fetch; no local clone, alternates or objects",
+      "remote_head_before_fetch": "f21c5bcf80450ca0dfa8dc01bb453e110fee7605",
+      "commit": "f21c5bcf80450ca0dfa8dc01bb453e110fee7605",
+      "tree": "fa3332661f0a85e909e6bfc1a0632f8c59261d3a",
+      "git_alternates": false,
+      "source_clean_before": true,
+      "cargo_lock_sha256": "c71fcdaef3e431740ee2d8f61502ef2363a4b7b5a87049d3060b1b4f5f0c26d4",
+      "source_clean_after": true
+    },
+    "fresh_artifacts": {
+      "target": "/workspace/.zil-env/release-foundations/record-window-cold/cargo-target",
+      "initial_entries": 0,
+      "compiler": "new dev-profile zil-cli, explicit llvm-api feature; no compiler or object cache reuse"
+    },
+    "cli_sha256": "53023d860d8746d230bcfc4672a9c396038607c73b1ddc0896d1c46b8fe22bef",
+    "ordinary_programs": 11,
+    "ordinary_builds": 44,
+    "ordinary_executions": 44,
+    "record_conflict_safe_rejects": 4,
+    "legal_verify_controls": 4,
+    "legal_native_builds": 16,
+    "legal_native_executions": 16,
+    "configurations": [
+      "clang/O0",
+      "clang/O2",
+      "llvm-api/O0",
+      "llvm-api/O2"
+    ],
+    "ordinary_main": true,
+    "entry_override": false,
+    "source_or_object_cache": false,
+    "backend_fallback": false,
+    "exact_stdout_stderr_exit": true,
+    "verified_commands": 136,
+    "receipt": {
+      "path": "/workspace/.zil-env/release-foundations/record-window-cold/final-receipt.json",
+      "sha256": "ebb1a094bb45e6f2e1e7609e5b9ac2d5737c95b3e30a3435c94e14f0b4c2097f"
+    },
+    "root_recheck": {
+      "path": "/workspace/.zil-env/release-foundations/record-window-cold/root-recheck.json",
+      "sha256": "9ce716214ad2b129d80d31d1ceddff1afeff8f9568a85bab26122789f563a622"
+    }
   },
-  "next_combined_source": {
+  "lookahead_board_audit": {
+    "base_main": "222e550af2daa08812b210cf3b5c726831b15bec",
+    "reviewer": "non-author sol high read-only",
+    "no_cargo_run": true,
+    "corrected_stale_rows": [
+      "G5.1 fixed dynamic dispatch",
+      "G6.2.1 default-budget rich graph",
+      "G3.4 partial owned/borrowed composition",
+      "G7.2/G7.3 closed threaded registration",
+      "G8.4/G8.5/G8.6 supported finite ports/mutex/result families"
+    ],
+    "general_parents_left_open": true
+  },
+  "previous_delivery": {
+    "source": "263f11f3e3e0c0fc924b4f2573416e1fe1a0d755",
+    "main": "222e550af2daa08812b210cf3b5c726831b15bec",
+    "strict_clippy": {
+      "status": "Pass",
+      "source": "263f11f3e3e0c0fc924b4f2573416e1fe1a0d755",
+      "command": "cargo clippy --locked --offline --workspace --all-targets --features llvm-api -- -D warnings",
+      "log": "/workspace/.zil-env/release-foundations/final-composition-focus/strict-final.log"
+    },
+    "default": {
+      "status": "Pass",
+      "source": "263f11f3e3e0c0fc924b4f2573416e1fe1a0d755",
+      "passed": 5582,
+      "failed": 0,
+      "result": "/workspace/.zil-env/release-foundations/native-language-common-default/default-result.json"
+    },
+    "reference": {
+      "status": "Complete coverage after test-only backend selection correction",
+      "single_full_run": false,
+      "base_source": "263f11f3e3e0c0fc924b4f2573416e1fe1a0d755",
+      "original_full_result": {
+        "passed": 5455,
+        "failed": 15,
+        "status": "Fail"
+      },
+      "affected_target_source": "e5400cfba036a46ca70677ca411abcd863466edf",
+      "affected_target_retests": {
+        "reference": {
+          "passed": 64,
+          "failed": 0
+        },
+        "llvm_api": {
+          "passed": 64,
+          "failed": 0
+        }
+      },
+      "coverage_passed": 5470,
+      "coverage_failed": 0,
+      "production_and_library_input_changes": false
+    },
+    "cold_recovery": {
+      "source": "263f11f3e3e0c0fc924b4f2573416e1fe1a0d755",
+      "executions": 32,
+      "passed": 32,
+      "compiler_artifacts_reused": false,
+      "toolchain_registry_reused": true,
+      "summary": "/workspace/.zil-env/release-foundations/accepted-source-cold-final/summary.json"
+    },
+    "delivery_record": "https://github.com/zil-lang/zil/blob/222e550af2daa08812b210cf3b5c726831b15bec/validation/native-language-composition.json",
+    "delivery_validation_revision": "e5400cfba036a46ca70677ca411abcd863466edf"
+  },
+  "previous_combined_validation": {
     "source": "4b30ef3ad8f0c6b7cd5b8c7f13c25534b771ace2",
     "base_main": "222e550af2daa08812b210cf3b5c726831b15bec",
     "children": [
@@ -155,7 +298,7 @@
       "G8.6.5",
       "G10.6.6.1"
     ],
-    "status": "Blocked by real Record window borrow regression; not accepted",
+    "status": "Historical pre-fix failures retained; superseded by the source-bound delivery below",
     "prior_combined_source": "50e77fdf274bcd172aacb794aa6b3157605a6977",
     "prior_focused": {
       "passed": 798,
@@ -255,17 +398,53 @@
       "result": "/workspace/.zil-env/release-foundations/library-composition-common-reference/reference-result.json"
     }
   },
-  "lookahead_board_audit": {
-    "base_main": "222e550af2daa08812b210cf3b5c726831b15bec",
-    "reviewer": "non-author sol high read-only",
-    "no_cargo_run": true,
-    "corrected_stale_rows": [
-      "G5.1 fixed dynamic dispatch",
-      "G6.2.1 default-budget rich graph",
-      "G3.4 partial owned/borrowed composition",
-      "G7.2/G7.3 closed threaded registration",
-      "G8.4/G8.5/G8.6 supported finite ports/mutex/result families"
+  "resolved_composition_failures": [
+    {
+      "kind": "real safety regression",
+      "scope": "existing qualified Record reborrow and child/parent field windows",
+      "released_main_affected": true,
+      "main_case": "bare &refs permits write to actual held n then pointer use",
+      "new_combined_cases": [
+        "&refs",
+        "&job.refs",
+        "&job"
+      ],
+      "main_probe": "/workspace/record-window-review/out/runs/accepted-main222-20261108/summary.json",
+      "frozen_probe": "/workspace/record-window-review/out/runs/frozen61ad-20261108/summary.json",
+      "task": "G3.4.11.1",
+      "implementation": "sol high",
+      "review": "Astra xhigh",
+      "status": "Resolved in delivered main; original unsafe successes remain historical evidence",
+      "fix": "7804284c1ccdb20e16e27a89d1f3d97696f07b12",
+      "delivery": "0e770a26e0a12dcc24a13cbbdf1aa57b59605d31"
+    }
+  ],
+  "active_composition_failures": [],
+  "delivered_children": [
+    "G2.4.10",
+    "G2.4.10.1",
+    "G3.4.11",
+    "G3.4.11.1",
+    "G8.6.5",
+    "G10.6.6.1"
+  ],
+  "retired_remote_task_branches": {
+    "main": "0e770a26e0a12dcc24a13cbbdf1aa57b59605d31",
+    "archive": "5b8217828c2315922e9f42af3c96def7606d689d",
+    "count": 10,
+    "refs": [
+      "refs/heads/task/G1.4.6",
+      "refs/heads/task/G1.4.7",
+      "refs/heads/task/G10.6.6",
+      "refs/heads/task/G10.6.6.1",
+      "refs/heads/task/G2.4.10",
+      "refs/heads/task/G2.4.10.1",
+      "refs/heads/task/G3.4.10.1",
+      "refs/heads/task/G3.4.11",
+      "refs/heads/task/G3.4.11.1",
+      "refs/heads/task/G8.6.5"
     ],
-    "general_parents_left_open": true
+    "live_worktrees_removed": false,
+    "receipt": "/workspace/.zil-env/release-foundations/merged-task-ref-retirement.json"
   }
 }
