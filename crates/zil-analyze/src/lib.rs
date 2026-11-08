@@ -264,6 +264,7 @@ fn analyze_budgeted(
                     module.functions[index].values.iter().zip(&rows).enumerate()
                 {
                     budget.spend(1, "mixed stored value coverage")?;
+                    budget.type_work(ty, true, "mixed strong Hold type classification")?;
                     // Only the complete selected stored proof supplies these
                     // strong rows. Ordinary descriptors and other values keep
                     // the independent ordinary resource/borrow solution.
