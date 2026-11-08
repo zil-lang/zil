@@ -1,6 +1,5 @@
 use super::*;
-#[path = "../../../../tests/language-readiness/terminal/340/reservation_protocol.rs"]
-mod fixture;
+use crate::place_replacements::fixture;
 fn graph() -> FunctionGraph {
     FunctionGraph {
         successors: vec![vec![]],
