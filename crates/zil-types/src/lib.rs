@@ -1908,6 +1908,12 @@ impl<'a, 'c> Builder<'a, 'c> {
         // its element. A direct owned-success signature is an explicit
         // expected resource shape, just like a direct create signature.
         let payload_expected = match (&e.kind, union) {
+            (CoreExprKind::Call { callee, .. }, _)
+                if matches!(&callee.kind, CoreExprKind::TypeApply { callee, .. }
+                    if errors::constructor(callee).is_some()) =>
+            {
+                Some(union)
+            }
             (CoreExprKind::Call { callee, .. }, Type::ErrorUnion { result, .. })
                 if dynamic_store::primitive(callee) == Some("store_new")
                     && matches!(result.as_ref(), Type::Managed(payload)

@@ -5,10 +5,29 @@ use super::*;
 
 pub(super) fn constructor(callee: &CoreExpr) -> Option<&str> {
     match &callee.kind {
-        CoreExprKind::Name(name) if matches!(name.as_str(), "error_ok" | "error_err") => {
-            Some(name)
-        }
+        CoreExprKind::Name(name) if matches!(name.as_str(), "error_ok" | "error_err") => Some(name),
         _ => None,
+    }
+}
+
+/// A written resource name resolves to a descriptor outside a source mode.
+/// Only an exactly matching expected union supplies its direct success mode;
+/// the actual payload must still typecheck as an owner, and both kernels prove
+/// its transfer/creation source independently. Callers prepay the type trees.
+pub(super) fn constructor_result<'a>(
+    error_type: &Type,
+    result_type: &'a Type,
+    expected: Option<&'a Type>,
+) -> &'a Type {
+    if let Type::Desc(payload) = result_type
+        && let Some(Type::ErrorUnion { error, result }) = expected
+        && let Type::Managed(wanted) = result.as_ref()
+        && error_type == error.as_ref()
+        && payload == wanted
+    {
+        result
+    } else {
+        result_type
     }
 }
 
@@ -94,6 +113,11 @@ impl Builder<'_, '_> {
                 "error constructor needs one complete payload",
             ));
         };
+        if let Some(expected) = expected {
+            let work = inference::type_snapshot_work(expected, span, self.limits)?;
+            self.closures.snapshot(work.saturating_mul(2), span)?;
+        }
+        let result_type = constructor_result(error_type, result_type, expected);
         let union = Type::ErrorUnion {
             error: Box::new(error_type.clone()),
             result: Box::new(result_type.clone()),

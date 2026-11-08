@@ -2138,21 +2138,12 @@ impl Resolver<'_> {
                 if errors::constructor(callee).is_some()
                     && let [error, result] = type_arguments.as_slice()
                 {
-                    // These arguments are payload positions of one complete
-                    // union, including the existing inline Store owner rules.
-                    let union = self.ty(
-                        &Type::ErrorUnion {
-                            error: Box::new(error.clone()),
-                            result: Box::new(result.clone()),
-                        },
-                        depth + 1,
-                        e.span,
-                    )?;
-                    let Type::ErrorUnion { error, result } = union else {
-                        unreachable!("resolved error constructor payloads")
-                    };
-                    type_arguments[0] = *error;
-                    type_arguments[1] = *result;
+                    // Arguments occupy union payload positions. Legacy direct
+                    // resources still obtain their mode from the signature.
+                    let error = ordinary_inline_store(error, self.ty(error, depth + 1, e.span)?);
+                    let result = ordinary_inline_store(result, self.ty(result, depth + 1, e.span)?);
+                    type_arguments[0] = error;
+                    type_arguments[1] = result;
                     return self.expr(callee, depth + 1);
                 }
                 for argument in type_arguments {
