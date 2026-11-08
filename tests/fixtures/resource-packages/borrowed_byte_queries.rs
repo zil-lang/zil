@@ -106,6 +106,11 @@ fn raw_query_rebuilds_helper_reads_and_delegation_without_candidate_authority() 
             true,
         ),
         (
+            "old-loop-generation",
+            include_str!("byte-query-controls/loop-old-delegation-query.zil"),
+            true,
+        ),
+        (
             "mixed-false",
             include_str!("byte-query-controls/mixed-false-query.zil"),
             true,
@@ -629,12 +634,27 @@ fn byte_companion_requires_its_own_reachable_query_and_exact_input_kind() {
     let report = report_for("unreachable-source-boundary", &unreachable_source);
     assert_eq!(report.phase, zil_base::Phase::Types);
     assert_eq!(report.status, ResultCategory::Unsupported);
-    assert!(report.diagnostics.iter().any(|d| d.message == "unreachable-statement type checking"));
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message == "unreachable-statement type checking")
+    );
     let mut dead_query = raw.clone();
-    let f = dead_query.functions.iter_mut().find(|f| f.name == "inspect").unwrap();
+    let f = dead_query
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "inspect")
+        .unwrap();
     let span = f.span;
     let local = zil_ir::LocalId(f.locals.len() as u32);
-    f.locals.push(zil_ir::LocalDecl { id: local, name: "unreachable_bytes".into(), ty: Type::Managed(Box::new(Type::ByteBuffer)), mutable: true, span });
+    f.locals.push(zil_ir::LocalDecl {
+        id: local,
+        name: "unreachable_bytes".into(),
+        ty: Type::Managed(Box::new(Type::ByteBuffer)),
+        mutable: true,
+        span,
+    });
     let managed = zil_ir::ValueId(f.values.len() as u32);
     f.values.push(Type::Managed(Box::new(Type::ByteBuffer)));
     let descriptor = zil_ir::ValueId(f.values.len() as u32);
@@ -644,22 +664,55 @@ fn byte_companion_requires_its_own_reachable_query_and_exact_input_kind() {
     f.blocks.push(zil_ir::BasicBlock {
         id: zil_ir::BlockId(f.blocks.len() as u32),
         instructions: vec![
-            zil_ir::Instruction { result: None, kind: InstructionKind::StorageLive(local), span },
-            zil_ir::Instruction { result: Some(managed), kind: InstructionKind::ByteBufferNew, span },
-            zil_ir::Instruction { result: None, kind: InstructionKind::Store { local, value: managed }, span },
-            zil_ir::Instruction { result: Some(descriptor), kind: InstructionKind::DescribeLocal { local }, span },
-            zil_ir::Instruction { result: Some(queried), kind: InstructionKind::ByteBufferLen { buffer: descriptor }, span },
-            zil_ir::Instruction { result: None, kind: InstructionKind::DropManaged { local }, span },
+            zil_ir::Instruction {
+                result: None,
+                kind: InstructionKind::StorageLive(local),
+                span,
+            },
+            zil_ir::Instruction {
+                result: Some(managed),
+                kind: InstructionKind::ByteBufferNew,
+                span,
+            },
+            zil_ir::Instruction {
+                result: None,
+                kind: InstructionKind::Store {
+                    local,
+                    value: managed,
+                },
+                span,
+            },
+            zil_ir::Instruction {
+                result: Some(descriptor),
+                kind: InstructionKind::DescribeLocal { local },
+                span,
+            },
+            zil_ir::Instruction {
+                result: Some(queried),
+                kind: InstructionKind::ByteBufferLen { buffer: descriptor },
+                span,
+            },
+            zil_ir::Instruction {
+                result: None,
+                kind: InstructionKind::DropManaged { local },
+                span,
+            },
         ],
         terminator: zil_ir::Terminator::Return(Some(queried)),
     });
     let dead_block = f.blocks.last().unwrap().id;
     let mut dead_plan = zil_analyze::analyze(&dead_query, &limits).unwrap();
     zil_verify::verify_module(dead_query.clone(), dead_plan.clone(), &target, &limits).unwrap();
-    let f = dead_query.functions.iter_mut().find(|f| f.name == "inspect").unwrap();
+    let f = dead_query
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "inspect")
+        .unwrap();
     let mut changed = 0;
     for block in &mut f.blocks {
-        if block.id == dead_block { continue }
+        if block.id == dead_block {
+            continue;
+        }
         for instruction in &mut block.instructions {
             if matches!(instruction.kind, InstructionKind::ByteBufferLen { .. }) {
                 instruction.kind = InstructionKind::Constant(zil_ir::Constant::I64(0));
@@ -670,12 +723,31 @@ fn byte_companion_requires_its_own_reachable_query_and_exact_input_kind() {
     assert_eq!(changed, 1);
     dead_plan.module_fingerprint = dead_query.fingerprint();
     let errors = zil_analyze::analyze(&dead_query, &limits).unwrap_err();
-    assert!(errors.iter().any(|d| d.message == "Byte query requires a complete Direct actual description/read proof"), "{errors:?}");
-    let errors = zil_verify::verify_module(dead_query.clone(), dead_plan.clone(), &target, &limits).unwrap_err();
-    assert!(errors.iter().any(|d| d.message == "Byte query requires a complete Direct actual description/read proof"), "{errors:?}");
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.message
+                == "Byte query requires a complete Direct actual description/read proof"),
+        "{errors:?}"
+    );
+    let errors = zil_verify::verify_module(dead_query.clone(), dead_plan.clone(), &target, &limits)
+        .unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.message
+                == "Byte query requires a complete Direct actual description/read proof"),
+        "{errors:?}"
+    );
     let wire = zil_ir::wire::encode_module_candidate(&dead_query, &dead_plan, &limits).unwrap();
     let errors = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
-    assert!(errors.iter().any(|d| d.message == "Byte query requires a complete Direct actual description/read proof"), "{errors:?}");
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.message
+                == "Byte query requires a complete Direct actual description/read proof"),
+        "{errors:?}"
+    );
     for mode in 0..5 {
         let mut changed = raw.clone();
         let f = changed
@@ -828,11 +900,47 @@ fn existing_ordinary_query_domain_retains_its_independent_consumer() {
 
 #[test]
 fn descriptor_delegation_does_not_come_from_a_future_loop_iteration() {
-    let program = format!(
-        "{}fn main()->i32{{var value=7;var job=make(&value);var current=&job;var iteration=0;var sum=i64(0);while iteration<2{{let description=current.bytes;let exclusive=&mut job;sum=sum+bytes_len(description);current=&*exclusive;iteration=iteration+1}}return i32(sum)}}",
+    let prefix = format!(
+        "{}fn keep<life a>(input:&mut Job<'a>)->i32{{return 7}}",
         metadata_prefix()
     );
-    let control = program.replace("bytes_len(description)", "i64(0)");
-    assert_success("loop-generation-control", &control);
-    assert_loan("earlier-loop-description", &program);
+    let bad = format!(
+        "{prefix}fn main()->i32{{var value=7;var job=make(&value);var current=&job;var iteration=0;var sum=i64(0);while iteration<2{{let description=current.bytes;let exclusive=&mut job;sum=sum+QUERY;current=&*exclusive;iteration=iteration+1}}return i32(sum)}}"
+    );
+    let fresh = format!(
+        "{prefix}fn main()->i32{{var value=7;var job=make(&value);var iteration=0;var sum=i64(0);while iteration<2{{let exclusive=&mut job;let description=exclusive.bytes;sum=sum+QUERY;sum=sum+i64(keep(exclusive))-7;iteration=iteration+1}}return i32(sum)}}"
+    );
+    let outer = format!(
+        "{prefix}fn main()->i32{{var value=7;var job=make(&value);let exclusive=&mut job;let description=exclusive.bytes;var iteration=0;var sum=i64(0);while iteration<2{{sum=sum+QUERY;sum=sum+i64(keep(&mut *exclusive))-7;iteration=iteration+1}}return i32(sum)}}"
+    );
+    for (label, helpers, query) in [
+        ("direct", "", "bytes_len(description)"),
+        (
+            "helper",
+            "fn inspect(buffer:ByteBuffer)->i64{return bytes_len(buffer)}",
+            "inspect(description)",
+        ),
+        (
+            "relay",
+            "fn inspect(buffer:ByteBuffer)->i64{return bytes_len(buffer)}fn relay(buffer:ByteBuffer)->i64{return inspect(buffer)}fn relay_twice(buffer:ByteBuffer)->i64{return relay(buffer)}",
+            "relay_twice(description)",
+        ),
+    ] {
+        assert_success(
+            &format!("loop-generation-control-{label}"),
+            &format!("{helpers}{}", bad.replace("QUERY", "i64(0)")),
+        );
+        assert_loan(
+            &format!("earlier-loop-description-{label}"),
+            &format!("{helpers}{}", bad.replace("QUERY", query)),
+        );
+        assert_success(
+            &format!("current-loop-description-{label}"),
+            &format!("{helpers}{}", fresh.replace("QUERY", query)),
+        );
+        assert_success(
+            &format!("outer-loop-description-{label}"),
+            &format!("{helpers}{}", outer.replace("QUERY", query)),
+        );
+    }
 }

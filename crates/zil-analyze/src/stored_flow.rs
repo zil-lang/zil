@@ -3628,14 +3628,7 @@ fn ancestry(ids: &Loans, loans: &[Loan], b: &mut Budget) -> CompileResult<Loans>
     }
     Ok(out)
 }
-fn use_permission(
-    permission: &Permission,
-    write: bool,
-    active: &Loans,
-    loans: &[Loan],
-    apart: &mut BTreeSet<(Target, Target)>,
-    b: &mut Budget,
-) -> CompileResult<()> {
+fn permission_head(permission: &Permission, write: bool, b: &mut Budget) -> CompileResult<()> {
     if permission.targets.is_empty() {
         return Err(failure("address access has no actual target permission"));
     }
@@ -3651,7 +3644,17 @@ fn use_permission(
     {
         return Err(failure("program-static UTF8 has no mutable authority"));
     }
-    let ignore = ancestry(&permission.loans, loans, b)?;
+    Ok(())
+}
+fn permission_tail(
+    permission: &Permission,
+    write: bool,
+    active: &Loans,
+    loans: &[Loan],
+    ignore: &Loans,
+    apart: &mut BTreeSet<(Target, Target)>,
+    b: &mut Budget,
+) -> CompileResult<()> {
     for id in active {
         ordered(b, ignore.len(), 0)?;
         if ignore.contains(id) {
@@ -3668,6 +3671,37 @@ fn use_permission(
     }
     Ok(())
 }
+fn use_permission(
+    permission: &Permission,
+    write: bool,
+    active: &Loans,
+    loans: &[Loan],
+    apart: &mut BTreeSet<(Target, Target)>,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    permission_head(permission, write, b)?;
+    let ignore = ancestry(&permission.loans, loans, b)?;
+    permission_tail(permission, write, active, loans, &ignore, apart, b)
+}
+fn query_permission(
+    permission: &Permission,
+    active: &Loans,
+    loans: &[Loan],
+    apart: &mut BTreeSet<(Target, Target)>,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    permission_head(permission, false, b)?;
+    permission_tail(
+        permission,
+        false,
+        active,
+        loans,
+        &permission.loans,
+        apart,
+        b,
+    )
+}
+
 fn active(
     values: &[Value],
     state: &State,
@@ -3840,7 +3874,8 @@ fn windows(
     byte_reads: &mut Vec<Target>,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    let byte_flow = byte_queries::Flow::solve(f, preds, reachable, values, b)?;
+    let byte_flow =
+        byte_queries::Flow::solve(module, f, preds, reachable, entry, values, summaries, b)?;
     let live_out = liveness(module, f, preds, reachable, b)?;
     for (bi, block) in f.blocks.iter().enumerate() {
         fee(b, 1)?;
@@ -3872,6 +3907,10 @@ fn windows(
             after[position].clone_from(&live);
             reverse(module, f, i, &mut live, b)?;
         }
+        let mut byte_point = byte_flow
+            .as_ref()
+            .map(|flow| flow.input(f, bi, preds, reachable, b))
+            .transpose()?;
         for (position, i) in block.instructions.iter().enumerate() {
             fee(b, width)?;
             let mut live = after[position].clone();
@@ -3889,8 +3928,16 @@ fn windows(
                     .ok_or_else(|| failure("access operand outside values"))
             };
             if let Some(flow) = &byte_flow {
-                for permission in flow.reads(module, i, values, &state, summaries, b)? {
-                    use_permission(&permission, false, &current, loans, apart, b)?;
+                for permission in flow.reads(
+                    module,
+                    i,
+                    values,
+                    &state,
+                    byte_point.as_ref().unwrap(),
+                    summaries,
+                    b,
+                )? {
+                    query_permission(&permission, &current, loans, apart, b)?;
                     byte_queries::record(byte_reads, &permission, b)?;
                 }
             }
@@ -4325,10 +4372,24 @@ fn windows(
                             let flow = byte_flow.as_ref().ok_or_else(|| {
                                 failure("Byte separation has no covered origin flow")
                             })?;
-                            let left =
-                                flow.substitute(left, callee, arguments, values, &state, b)?;
-                            let right =
-                                flow.substitute(right, callee, arguments, values, &state, b)?;
+                            let left = flow.substitute(
+                                left,
+                                callee,
+                                arguments,
+                                values,
+                                &state,
+                                byte_point.as_ref().unwrap(),
+                                b,
+                            )?;
+                            let right = flow.substitute(
+                                right,
+                                callee,
+                                arguments,
+                                values,
+                                &state,
+                                byte_point.as_ref().unwrap(),
+                                b,
+                            )?;
                             for a in &left {
                                 for z in &right {
                                     for x in &a.targets {
@@ -4359,6 +4420,17 @@ fn windows(
             transfer(
                 module, f, i, &mut state, values, summaries, slot_ids, loans, b,
             )?;
+            if let Some(flow) = &byte_flow {
+                flow.advance(
+                    module,
+                    f,
+                    i,
+                    values,
+                    summaries,
+                    byte_point.as_mut().unwrap(),
+                    b,
+                )?;
+            }
         }
     }
     Ok(())

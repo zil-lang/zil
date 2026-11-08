@@ -1847,14 +1847,7 @@ fn apart(
     }
     Ok(())
 }
-fn access(
-    p: &Permission,
-    write: bool,
-    active: &[usize],
-    loans: &[Loan],
-    requirements: &mut Vec<(Source, Source)>,
-    b: &mut Budget,
-) -> Check<()> {
+fn access_head(p: &Permission, write: bool, b: &mut Budget) -> Check<()> {
     if p.sources.is_empty() {
         return Err(err(
             "access has no independently grounded target permission",
@@ -1871,7 +1864,17 @@ fn access(
     {
         return Err(err("program-static text cannot authorize mutation"));
     }
-    let delegated = ancestry(&p.loans, loans, b)?;
+    Ok(())
+}
+fn access_tail(
+    p: &Permission,
+    write: bool,
+    active: &[usize],
+    loans: &[Loan],
+    delegated: &[usize],
+    requirements: &mut Vec<(Source, Source)>,
+    b: &mut Budget,
+) -> Check<()> {
     for id in active {
         b.spend(delegated.len().saturating_add(1))?;
         if delegated.contains(id) {
@@ -1888,6 +1891,29 @@ fn access(
     }
     Ok(())
 }
+fn access(
+    p: &Permission,
+    write: bool,
+    active: &[usize],
+    loans: &[Loan],
+    requirements: &mut Vec<(Source, Source)>,
+    b: &mut Budget,
+) -> Check<()> {
+    access_head(p, write, b)?;
+    let delegated = ancestry(&p.loans, loans, b)?;
+    access_tail(p, write, active, loans, &delegated, requirements, b)
+}
+fn query_access(
+    p: &Permission,
+    active: &[usize],
+    loans: &[Loan],
+    requirements: &mut Vec<(Source, Source)>,
+    b: &mut Budget,
+) -> Check<()> {
+    access_head(p, false, b)?;
+    access_tail(p, false, active, loans, &p.loans, requirements, b)
+}
+
 fn captured_definition<'a>(
     module: &'a TypedModule,
     f: &TypedFunction,
@@ -3646,6 +3672,7 @@ fn check_call(
     summaries: &[Summary],
     requirements: &mut Vec<(Source, Source)>,
     byte_flow: Option<&byte_queries::Flow>,
+    byte_point: Option<&byte_queries::Point>,
     b: &mut Budget,
 ) -> Check<()> {
     let callee = module
@@ -3737,8 +3764,24 @@ fn check_call(
         if b.byte_queries && (weak(a) || weak(z)) {
             let flow =
                 byte_flow.ok_or_else(|| err("Byte separation has no covered origin flow"))?;
-            let left = flow.instantiate(a, callee, arguments, &solution.values, state, b)?;
-            let right = flow.instantiate(z, callee, arguments, &solution.values, state, b)?;
+            let left = flow.instantiate(
+                a,
+                callee,
+                arguments,
+                &solution.values,
+                state,
+                byte_point.ok_or_else(|| err("Byte separation has no current proof"))?,
+                b,
+            )?;
+            let right = flow.instantiate(
+                z,
+                callee,
+                arguments,
+                &solution.values,
+                state,
+                byte_point.ok_or_else(|| err("Byte separation has no current proof"))?,
+                b,
+            )?;
             for a in &left {
                 for z in &right {
                     for x in &a.sources {
@@ -3774,7 +3817,15 @@ fn windows(
     byte_reads: &mut Vec<Source>,
     b: &mut Budget,
 ) -> Check<()> {
-    let byte_flow = byte_queries::Flow::solve(f, g, &solution.values, b)?;
+    let byte_flow = byte_queries::Flow::solve(
+        module,
+        f,
+        g,
+        &solution.entry,
+        &solution.values,
+        summaries,
+        b,
+    )?;
     let output_live = live_out(module, f, g, b)?;
     for (bi, block) in f.blocks.iter().enumerate() {
         b.spend(1)?;
@@ -3800,6 +3851,10 @@ fn windows(
             after[at].clone_from(&live);
             reverse(module, f, i, &mut live, b)?;
         }
+        let mut byte_point = byte_flow
+            .as_ref()
+            .map(|flow| flow.input(f, bi, g, b))
+            .transpose()?;
         for (at, i) in block.instructions.iter().enumerate() {
             b.spend(width)?;
             let mut live = after[at].clone();
@@ -3819,15 +3874,16 @@ fn windows(
                     .ok_or_else(|| err("address operand absent"))
             };
             if let Some(flow) = &byte_flow {
-                for permission in flow.reads(module, i, &solution.values, &state, summaries, b)? {
-                    access(
-                        &permission,
-                        false,
-                        &active,
-                        &solution.loans,
-                        requirements,
-                        b,
-                    )?;
+                for permission in flow.reads(
+                    module,
+                    i,
+                    &solution.values,
+                    &state,
+                    byte_point.as_ref().unwrap(),
+                    summaries,
+                    b,
+                )? {
+                    query_access(&permission, &active, &solution.loans, requirements, b)?;
                     byte_queries::record(byte_reads, &permission, b)?;
                 }
             }
@@ -4280,6 +4336,7 @@ fn windows(
                     summaries,
                     requirements,
                     byte_flow.as_ref(),
+                    byte_point.as_ref(),
                     b,
                 )?,
                 _ => {}
@@ -4295,6 +4352,17 @@ fn windows(
                 &mut solution.loans,
                 b,
             )?;
+            if let Some(flow) = &byte_flow {
+                flow.advance(
+                    module,
+                    f,
+                    i,
+                    &solution.values,
+                    summaries,
+                    byte_point.as_mut().unwrap(),
+                    b,
+                )?;
+            }
         }
     }
     Ok(())

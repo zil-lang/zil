@@ -208,14 +208,241 @@ fn seed_origin(base: HoldRoot, inline: Vec<PlaceProjection>, b: &mut Budget) -> 
         loans: Vec::new(),
     })
 }
+/// Sorted sparse rows use SSA indices first and local indices after them.
+/// Every saved permission has a closed set of current-generation grants.
+#[derive(Default, PartialEq, Eq)]
+pub(super) struct Point {
+    rows: Vec<(usize, Vec<Permission>)>,
+}
+fn tracked(ty: &Type) -> bool {
+    is_description(ty) || matches!(ty, Type::Address { .. })
+}
+fn point_work(p: &Point, b: &mut Budget) -> Check<()> {
+    b.spend(p.rows.len())?;
+    for (_, row) in &p.rows {
+        b.spend(row.len())?;
+        for permission in row {
+            permission_work(permission, b)?;
+        }
+    }
+    Ok(())
+}
+impl Point {
+    fn at(&self, index: usize, b: &mut Budget) -> Check<&[Permission]> {
+        b.spend(self.rows.len().saturating_add(1))?;
+        Ok(self
+            .rows
+            .iter()
+            .find(|(key, _)| *key == index)
+            .map_or(&[], |(_, row)| row.as_slice()))
+    }
+    fn put(&mut self, index: usize, row: Vec<Permission>, b: &mut Budget) -> Check<()> {
+        b.spend(self.rows.len().saturating_add(1))?;
+        match self.rows.binary_search_by_key(&index, |(key, _)| *key) {
+            Ok(position) => self.rows[position].1 = row,
+            Err(position) => self.rows.insert(position, (index, row)),
+        }
+        Ok(())
+    }
+    fn remove(&mut self, index: usize, b: &mut Budget) -> Check<()> {
+        b.spend(self.rows.len().saturating_add(1))?;
+        if let Ok(position) = self.rows.binary_search_by_key(&index, |(key, _)| *key) {
+            self.rows.remove(position);
+        }
+        Ok(())
+    }
+    fn revoke(&mut self, id: usize, b: &mut Budget) -> Check<()> {
+        point_work(self, b)?;
+        for (_, row) in &mut self.rows {
+            for permission in row.iter_mut() {
+                b.spend(permission.loans.len())?;
+                permission.loans.retain(|loan| *loan != id);
+            }
+            *row = clone_alternatives(row, b)?;
+        }
+        Ok(())
+    }
+}
+fn join_point(to: &mut Point, from: &Point, b: &mut Budget) -> Check<()> {
+    b.spend(from.rows.len())?;
+    for (key, row) in &from.rows {
+        let mut merged = clone_alternatives(to.at(*key, b)?, b)?;
+        extend_alternatives(&mut merged, row, b)?;
+        to.put(*key, merged, b)?;
+    }
+    Ok(())
+}
+fn retarget(origins: &[Permission], sources: &[Source], b: &mut Budget) -> Check<Vec<Permission>> {
+    b.spend(origins.len())?;
+    let mut out = Vec::new();
+    for origin in origins {
+        let mut permission = Permission::default();
+        add_sources(&mut permission.sources, sources, b)?;
+        add_loans(&mut permission.loans, &origin.loans, b)?;
+        extend_alternatives(&mut out, &[permission], b)?;
+    }
+    Ok(out)
+}
+fn advance(
+    module: &TypedModule,
+    f: &TypedFunction,
+    operation: &Instruction,
+    actual: &[Payload],
+    summaries: &[Summary],
+    point: &mut Point,
+    b: &mut Budget,
+) -> Check<()> {
+    b.spend(1)?;
+    let result = operation
+        .result
+        .filter(|id| tracked(&f.values[id.0 as usize]));
+    let fresh = if let Some(result) = result {
+        let p = &actual[result.0 as usize].address;
+        b.spend(p.loans.len().saturating_add(1))?;
+        matches!(vt(f, result)?, Type::Address { .. }) && p.loans.contains(&(result.0 as usize))
+    } else {
+        false
+    };
+    if fresh {
+        point.revoke(result.unwrap().0 as usize, b)?;
+    }
+    match operation.kind {
+        InstructionKind::Store { local, value } if tracked(&f.locals[local.0 as usize].ty) => {
+            let row = clone_alternatives(point.at(value.0 as usize, b)?, b)?;
+            point.put(f.values.len() + local.0 as usize, row, b)?;
+        }
+        InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
+            point.remove(f.values.len() + local.0 as usize, b)?
+        }
+        _ => {}
+    }
+    let Some(result) = result else { return Ok(()) };
+    let mut produced = Vec::new();
+    if is_description(vt(f, result)?) {
+        match &operation.kind {
+            InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                produced = clone_alternatives(point.at(f.values.len() + local.0 as usize, b)?, b)?;
+            }
+            InstructionKind::DescribeLocal { local } if matches!(&f.locals[local.0 as usize].ty,Type::Managed(p) if p.as_ref()==&Type::ByteBuffer) => {
+                produced.push(seed_origin(HoldRoot::Local(*local), Vec::new(), b)?)
+            }
+            InstructionKind::DescribePackageField { local, index } => {
+                let ty = &f.locals[local.0 as usize].ty;
+                let physical = if let Type::BorrowedStorage { storage, .. } = ty {
+                    storage.as_ref()
+                } else {
+                    ty
+                };
+                let Type::Package { fields, .. } = physical else {
+                    return Err(outside());
+                };
+                b.spend(2)?;
+                if !fields.get(*index as usize).is_some_and(
+                    |(_, ty)| matches!(ty,Type::Managed(p) if p.as_ref()==&Type::ByteBuffer),
+                ) {
+                    return Err(outside());
+                }
+                produced.push(seed_origin(
+                    HoldRoot::Local(*local),
+                    vec![PlaceProjection::Field(*index)],
+                    b,
+                )?);
+            }
+            InstructionKind::DescribeAddress { address } if matches!(vt(f,*address)?,Type::Address {inner,..} if matches!(inner.as_ref(),Type::Managed(p) if p.as_ref()==&Type::ByteBuffer)) =>
+            {
+                produced = clone_alternatives(point.at(address.0 as usize, b)?, b)?;
+            }
+            _ => return Err(outside()),
+        }
+    } else {
+        let sources = &actual[result.0 as usize].address.sources;
+        if !sources.is_empty() {
+            match &operation.kind {
+                InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                    produced =
+                        retarget(point.at(f.values.len() + local.0 as usize, b)?, sources, b)?
+                }
+                InstructionKind::ReborrowAddress { address, .. }
+                | InstructionKind::AddressField { address, .. }
+                | InstructionKind::AddressIndex { address, .. }
+                | InstructionKind::AddressSlice { address, .. } => {
+                    produced = retarget(point.at(address.0 as usize, b)?, sources, b)?
+                }
+                InstructionKind::Call {
+                    function,
+                    arguments,
+                } => {
+                    let summary = &summaries[function.0 as usize];
+                    if summary.complete {
+                        b.spend(summary.result.len())?;
+                        if let Some((_, roots)) =
+                            summary.result.iter().find(|(path, _)| path.is_empty())
+                        {
+                            b.spend(roots.len())?;
+                            for source in roots {
+                                b.spend(width(source).saturating_add(1))?;
+                                if let HoldRoot::Parameter(position) = source.base
+                                    && source.retained_port.is_none()
+                                    && source.leaf.is_empty()
+                                    && source.heap_element.is_none()
+                                    && module.functions[function.0 as usize]
+                                        .parameters
+                                        .get(position as usize)
+                                        .is_some_and(|p| {
+                                            matches!(
+                                                module.functions[function.0 as usize].locals
+                                                    [p.0 as usize]
+                                                    .ty,
+                                                Type::Address { .. }
+                                            )
+                                        })
+                                    && arguments.get(position as usize).is_some_and(|v| {
+                                        matches!(f.values[v.0 as usize], Type::Address { .. })
+                                    })
+                                {
+                                    let inherited = retarget(
+                                        point.at(arguments[position as usize].0 as usize, b)?,
+                                        sources,
+                                        b,
+                                    )?;
+                                    extend_alternatives(&mut produced, &inherited, b)?;
+                                } else {
+                                    let mut p = Permission::default();
+                                    add_sources(&mut p.sources, sources, b)?;
+                                    extend_alternatives(&mut produced, &[p], b)?;
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    let mut p = Permission::default();
+                    add_sources(&mut p.sources, sources, b)?;
+                    produced.push(p);
+                }
+            }
+            if fresh {
+                b.spend(produced.len())?;
+                for p in &mut produced {
+                    add_loans(&mut p.loans, &[result.0 as usize], b)?;
+                }
+            }
+        }
+    }
+    point.put(result.0 as usize, produced, b)
+}
 pub(super) struct Flow {
-    values: Vec<Vec<Permission>>,
+    initial: Point,
+    exits: Vec<Point>,
 }
 impl Flow {
     pub(super) fn solve(
+        module: &TypedModule,
         f: &TypedFunction,
         graph: &FunctionGraph,
+        actual_entry: &Frame,
         actual: &[Payload],
+        summaries: &[Summary],
         b: &mut Budget,
     ) -> Check<Option<Self>> {
         if !b.byte_queries {
@@ -225,124 +452,95 @@ impl Flow {
         if !b.byte_query_functions[f.id.0 as usize] {
             return Ok(None);
         }
-        b.spend(f.values.len().saturating_add(f.locals.len()))?;
-        let mut values = vec![Vec::new(); f.values.len()];
-        let mut entry = vec![Vec::new(); f.locals.len()];
+        let mut initial = Point::default();
         b.spend(f.parameters.len())?;
         for (position, local) in f.parameters.iter().enumerate() {
-            if is_description(&f.locals[local.0 as usize].ty) {
-                entry[local.0 as usize].push(seed_origin(
+            let ty = &f.locals[local.0 as usize].ty;
+            let row = if is_description(ty) {
+                vec![seed_origin(
                     HoldRoot::Parameter(position as u32),
                     Vec::new(),
                     b,
-                )?);
-            }
+                )?]
+            } else if matches!(ty, Type::Address { .. }) {
+                vec![clone_alternative(
+                    &actual_entry.locals[local.0 as usize].address,
+                    b,
+                )?]
+            } else {
+                continue;
+            };
+            initial.put(f.values.len() + local.0 as usize, row, b)?;
         }
-        b.spend(amount(f.blocks.len(), f.locals.len().saturating_add(1))?)?;
-        let mut exits = vec![vec![Vec::new(); f.locals.len()]; f.blocks.len()];
+        b.spend(f.blocks.len())?;
+        let mut flow = Self {
+            initial,
+            exits: (0..f.blocks.len()).map(|_| Point::default()).collect(),
+        };
         loop {
-            let mut changed = false;
-            // Independent reverse CFG batches retain producer alternatives.
+            b.spend(flow.exits.len())?;
             let mut next = Vec::new();
-            b.spend(exits.len())?;
-            for exit in &exits {
-                b.spend(exit.len())?;
-                let mut row = Vec::new();
-                for p in exit {
-                    row.push(clone_alternatives(p, b)?);
-                }
-                next.push(row);
+            for exit in &flow.exits {
+                let mut copy = Point::default();
+                join_point(&mut copy, exit, b)?;
+                next.push(copy);
             }
+            let mut changed = false;
             for bi in (0..f.blocks.len()).rev() {
                 if !graph.reachable[bi] {
                     continue;
                 }
-                b.spend(f.locals.len())?;
-                let mut state = vec![Vec::new(); f.locals.len()];
-                if bi == f.entry.0 as usize {
-                    for (dst, src) in state.iter_mut().zip(&entry) {
-                        extend_alternatives(dst, src, b)?;
-                    }
-                }
-                b.spend(graph.predecessors[bi].len())?;
-                for pred in &graph.predecessors[bi] {
-                    if graph.reachable[*pred] {
-                        b.spend(f.locals.len())?;
-                        for (dst, src) in state.iter_mut().zip(&exits[*pred]) {
-                            extend_alternatives(dst, src, b)?;
-                        }
-                    }
-                }
+                let mut point = flow.input(f, bi, graph, b)?;
                 b.spend(f.blocks[bi].instructions.len())?;
                 for operation in &f.blocks[bi].instructions {
-                    match &operation.kind {
-                        InstructionKind::Store { local, value }
-                            if is_description(&f.locals[local.0 as usize].ty) =>
-                        {
-                            state[local.0 as usize] =
-                                clone_alternatives(&values[value.0 as usize], b)?
-                        }
-                        InstructionKind::StorageLive(local)
-                        | InstructionKind::StorageDead(local) => state[local.0 as usize].clear(),
-                        _ => {}
-                    }
-                    if let Some(result) = operation.result
-                        && is_description(vt(f, result)?)
-                    {
-                        let mut produced = Vec::new();
-                        match &operation.kind {
-                            InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
-                                extend_alternatives(&mut produced, &state[local.0 as usize], b)?;
-                            }
-                            InstructionKind::DescribeLocal { local } if matches!(&f.locals[local.0 as usize].ty,Type::Managed(p) if p.as_ref()==&Type::ByteBuffer) => {
-                                produced.push(seed_origin(HoldRoot::Local(*local), Vec::new(), b)?)
-                            }
-                            InstructionKind::DescribePackageField { local, index } => {
-                                let ty = &f.locals[local.0 as usize].ty;
-                                let physical = if let Type::BorrowedStorage { storage, .. } = ty {
-                                    storage.as_ref()
-                                } else {
-                                    ty
-                                };
-                                let Type::Package { fields, .. } = physical else {
-                                    return Err(outside());
-                                };
-                                b.spend(2)?;
-                                if !fields.get(*index as usize).is_some_and(|(_,ty)|matches!(ty,Type::Managed(p) if p.as_ref()==&Type::ByteBuffer)) {return Err(outside())}
-                                produced.push(seed_origin(
-                                    HoldRoot::Local(*local),
-                                    vec![PlaceProjection::Field(*index)],
-                                    b,
-                                )?);
-                            }
-                            InstructionKind::DescribeAddress { address } if matches!(vt(f,*address)?,Type::Address {inner,..} if matches!(inner.as_ref(),Type::Managed(p) if p.as_ref()==&Type::ByteBuffer)) =>
-                            {
-                                let origin = &actual[address.0 as usize].address;
-                                if !origin.sources.is_empty() {
-                                    produced.push(clone_alternative(origin, b)?);
-                                }
-                            }
-                            _ => return Err(outside()),
-                        }
-                        changed |=
-                            extend_alternatives(&mut values[result.0 as usize], &produced, b)?;
-                    }
+                    advance(module, f, operation, actual, summaries, &mut point, b)?;
                 }
-                b.spend(f.locals.len())?;
-                for (dst, src) in next[bi].iter_mut().zip(&state) {
-                    changed |= extend_alternatives(dst, src, b)?;
+                point_work(&point, b)?;
+                point_work(&flow.exits[bi], b)?;
+                if point != flow.exits[bi] {
+                    next[bi] = point;
+                    changed = true;
                 }
             }
-            exits = next;
+            flow.exits = next;
             if !changed {
                 break;
             }
         }
-        Ok(Some(Self { values }))
+        Ok(Some(flow))
     }
-    fn at(&self, value: ValueId) -> &[Permission] {
-        &self.values[value.0 as usize]
+    pub(super) fn input(
+        &self,
+        f: &TypedFunction,
+        bi: usize,
+        graph: &FunctionGraph,
+        b: &mut Budget,
+    ) -> Check<Point> {
+        let mut point = Point::default();
+        if bi == f.entry.0 as usize {
+            join_point(&mut point, &self.initial, b)?;
+        }
+        b.spend(graph.predecessors[bi].len())?;
+        for predecessor in &graph.predecessors[bi] {
+            if graph.reachable[*predecessor] {
+                join_point(&mut point, &self.exits[*predecessor], b)?;
+            }
+        }
+        Ok(point)
     }
+    pub(super) fn advance(
+        &self,
+        module: &TypedModule,
+        f: &TypedFunction,
+        operation: &Instruction,
+        actual: &[Payload],
+        summaries: &[Summary],
+        point: &mut Point,
+        b: &mut Budget,
+    ) -> Check<()> {
+        advance(module, f, operation, actual, summaries, point, b)
+    }
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn instantiate(
         &self,
         source: &Source,
@@ -350,6 +548,7 @@ impl Flow {
         arguments: &[ValueId],
         values: &[Payload],
         state: &Frame,
+        point: &Point,
         b: &mut Budget,
     ) -> Check<Vec<Permission>> {
         let HoldRoot::Parameter(position) = source.base else {
@@ -365,37 +564,57 @@ impl Flow {
             {
                 return Err(outside());
             }
-            let alternatives = clone_alternatives(self.at(arguments[position as usize]), b)?;
-            if alternatives.is_empty() {
+            let row = clone_alternatives(point.at(arguments[position as usize].0 as usize, b)?, b)?;
+            if row.is_empty() {
                 return Err(err("Byte descriptor input lacks actual weak origins"));
             }
-            Ok(alternatives)
+            Ok(row)
         } else if matches!(ty, Type::Address { .. }) {
             let actual = super::instantiate(source, arguments, values, state, b)?;
             if actual.sources.is_empty() {
                 return Err(err("Byte separation lacks complete actual address origins"));
             }
-            Ok(vec![actual])
+            let row = if source.retained_port.is_none()
+                && source.leaf.is_empty()
+                && source.heap_element.is_none()
+            {
+                retarget(
+                    point.at(arguments[position as usize].0 as usize, b)?,
+                    &actual.sources,
+                    b,
+                )?
+            } else {
+                vec![Permission {
+                    sources: actual.sources,
+                    loans: Vec::new(),
+                }]
+            };
+            if row.is_empty() {
+                return Err(err("Byte address input lacks current delegation proof"));
+            }
+            Ok(row)
         } else {
             Err(outside())
         }
     }
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn reads(
         &self,
         module: &TypedModule,
         operation: &Instruction,
         actual: &[Payload],
         state: &Frame,
+        point: &Point,
         summaries: &[Summary],
         b: &mut Budget,
     ) -> Check<Vec<Permission>> {
         b.spend(1)?;
         if let Some(value) = query(&operation.kind) {
-            let alternatives = clone_alternatives(self.at(value), b)?;
-            if alternatives.is_empty() {
+            let row = clone_alternatives(point.at(value.0 as usize, b)?, b)?;
+            if row.is_empty() {
                 return Err(err("Byte query has no actual weak head origin"));
             }
-            return Ok(alternatives);
+            return Ok(row);
         }
         let InstructionKind::Call {
             function,
@@ -409,24 +628,24 @@ impl Flow {
             return Ok(Vec::new());
         }
         let prior = &summaries[function.0 as usize];
-        // Only a fixed-point seed. Final coverage is checked independently.
         if !prior.byte_covered {
             return Ok(Vec::new());
         }
         b.spend(prior.byte_reads.len())?;
-        let mut alternatives = Vec::new();
+        let mut out = Vec::new();
         for source in &prior.byte_reads {
-            let incoming = self.instantiate(
+            let row = self.instantiate(
                 source,
                 &module.functions[function.0 as usize],
                 arguments,
                 actual,
                 state,
+                point,
                 b,
             )?;
-            extend_alternatives(&mut alternatives, &incoming, b)?;
+            extend_alternatives(&mut out, &row, b)?;
         }
-        Ok(alternatives)
+        Ok(out)
     }
 }
 pub(super) fn record(out: &mut Vec<Source>, permission: &Permission, b: &mut Budget) -> Check<()> {

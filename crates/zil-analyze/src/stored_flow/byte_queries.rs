@@ -265,17 +265,250 @@ fn new_origin(
     })
 }
 
-/// Sparse alternative flow is rebuilt from the completed strong pointer solve.
-/// Each alternative keeps its own parents even when two targets are equal.
+/// These closed grants belong to the current execution of a loan site. They
+/// never go through the strong solver's function-wide ancestry relation.
+#[derive(Default, PartialEq, Eq)]
+pub(super) struct Point {
+    values: BTreeMap<ValueId, Vec<Permission>>,
+    locals: BTreeMap<LocalId, Vec<Permission>>,
+}
+fn tracked(ty: &Type) -> bool {
+    description(ty) || matches!(ty, Type::Address { .. })
+}
+fn point_work(p: &Point, b: &mut Budget) -> CompileResult<()> {
+    fee(b, p.values.len().saturating_add(p.locals.len()))?;
+    for row in p.values.values().chain(p.locals.values()) {
+        fee(b, row.len())?;
+        for permission in row {
+            permission_work(permission, b)?;
+        }
+    }
+    Ok(())
+}
+fn point_join(to: &mut Point, from: &Point, b: &mut Budget) -> CompileResult<()> {
+    fee(b, from.values.len().saturating_add(from.locals.len()))?;
+    for (key, row) in &from.values {
+        ordered(b, to.values.len(), 1)?;
+        add(to.values.entry(*key).or_default(), row, b)?;
+    }
+    for (key, row) in &from.locals {
+        ordered(b, to.locals.len(), 1)?;
+        add(to.locals.entry(*key).or_default(), row, b)?;
+    }
+    Ok(())
+}
+impl Point {
+    fn value(&self, value: ValueId, b: &mut Budget) -> CompileResult<&[Permission]> {
+        ordered(b, self.values.len(), 1)?;
+        Ok(self.values.get(&value).map_or(&[], Vec::as_slice))
+    }
+    fn local(&self, local: LocalId, b: &mut Budget) -> CompileResult<&[Permission]> {
+        ordered(b, self.locals.len(), 1)?;
+        Ok(self.locals.get(&local).map_or(&[], Vec::as_slice))
+    }
+    fn revoke(&mut self, id: usize, b: &mut Budget) -> CompileResult<()> {
+        point_work(self, b)?;
+        for row in self.values.values_mut().chain(self.locals.values_mut()) {
+            for p in row.iter_mut() {
+                ordered(b, p.loans.len(), 1)?;
+                p.loans.remove(&id);
+            }
+            let mut distinct = Vec::new();
+            add(&mut distinct, row, b)?;
+            *row = distinct;
+        }
+        Ok(())
+    }
+}
+fn retarget(
+    from: &[Permission],
+    targets: &Targets,
+    b: &mut Budget,
+) -> CompileResult<Vec<Permission>> {
+    let mut out = Vec::new();
+    fee(b, from.len())?;
+    for p in from {
+        target_work(targets, b)?;
+        fee(b, p.loans.len())?;
+        let permission = Permission {
+            targets: targets.clone(),
+            loans: p.loans.clone(),
+        };
+        add(&mut out, &[permission], b)?;
+    }
+    Ok(out)
+}
+/// A definition replaces its SSA row. Reexecuting a real strong loan site
+/// revokes the old generation in every saved SSA value and local first.
+fn step(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    actual: &[Value],
+    summaries: &[Facts],
+    point: &mut Point,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    fee(b, 1)?;
+    let result = i.result.filter(|r| tracked(&f.values[r.0 as usize]));
+    let fresh = if let Some(result) = result {
+        let p = &actual[result.0 as usize].pointer;
+        ordered(b, p.loans.len(), 1)?;
+        matches!(value_type(f, result)?, Type::Address { .. })
+            && p.loans.contains(&(result.0 as usize))
+    } else {
+        false
+    };
+    if fresh {
+        point.revoke(result.unwrap().0 as usize, b)?;
+    }
+    match i.kind {
+        InstructionKind::Store { local, value } if tracked(&f.locals[local.0 as usize].ty) => {
+            let row = copy_origins(point.value(value, b)?, b)?;
+            ordered(b, point.locals.len(), 1)?;
+            point.locals.insert(local, row);
+        }
+        InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
+            ordered(b, point.locals.len(), 1)?;
+            point.locals.remove(&local);
+        }
+        _ => {}
+    }
+    let Some(result) = result else { return Ok(()) };
+    let mut out = Vec::new();
+    if description(value_type(f, result)?) {
+        match &i.kind {
+            InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                add(&mut out, point.local(*local, b)?, b)?
+            }
+            InstructionKind::DescribeLocal { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(p) if p.as_ref()==&Type::ByteBuffer) =>
+            {
+                out.push(new_origin(HoldRoot::Local(*local), Vec::new(), b)?);
+                false
+            }
+            InstructionKind::DescribePackageField { local, index } => {
+                let Type::Package { fields, .. } =
+                    super::super::resources::package_storage(&f.locals[local.0 as usize].ty)
+                else {
+                    return Err(closed());
+                };
+                fee(b, 2)?;
+                if !fields.get(*index as usize).is_some_and(
+                    |(_, ty)| matches!(ty, Type::Managed(p) if p.as_ref()==&Type::ByteBuffer),
+                ) {
+                    return Err(closed());
+                }
+                out.push(new_origin(
+                    HoldRoot::Local(*local),
+                    vec![PlaceProjection::Field(*index)],
+                    b,
+                )?);
+                false
+            }
+            InstructionKind::DescribeAddress { address } if matches!(value_type(f, *address)?, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(p) if p.as_ref()==&Type::ByteBuffer)) => {
+                add(&mut out, point.value(*address, b)?, b)?
+            }
+            _ => return Err(closed()),
+        };
+    } else {
+        let targets = &actual[result.0 as usize].pointer.targets;
+        if !targets.is_empty() {
+            match &i.kind {
+                InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                    out = retarget(point.local(*local, b)?, targets, b)?
+                }
+                InstructionKind::ReborrowAddress { address, .. }
+                | InstructionKind::AddressField { address, .. }
+                | InstructionKind::AddressIndex { address, .. }
+                | InstructionKind::AddressSlice { address, .. } => {
+                    out = retarget(point.value(*address, b)?, targets, b)?
+                }
+                InstructionKind::Call {
+                    function,
+                    arguments,
+                } => {
+                    let summary = &summaries[function.0 as usize];
+                    if summary.complete {
+                        ordered(b, summary.returned.len(), 0)?;
+                        if let Some(sources) = summary.returned.get(&Vec::new()) {
+                            fee(b, sources.len())?;
+                            for source in sources {
+                                fee(b, target_width(source).saturating_add(1))?;
+                                if let HoldRoot::Parameter(position) = source.base
+                                    && source.retained_port.is_none()
+                                    && source.stored.is_empty()
+                                    && source.heap_element.is_none()
+                                    && module.functions[function.0 as usize]
+                                        .parameters
+                                        .get(position as usize)
+                                        .is_some_and(|p| {
+                                            matches!(
+                                                module.functions[function.0 as usize].locals
+                                                    [p.0 as usize]
+                                                    .ty,
+                                                Type::Address { .. }
+                                            )
+                                        })
+                                    && arguments.get(position as usize).is_some_and(|v| {
+                                        matches!(f.values[v.0 as usize], Type::Address { .. })
+                                    })
+                                {
+                                    let inherited = retarget(
+                                        point.value(arguments[position as usize], b)?,
+                                        targets,
+                                        b,
+                                    )?;
+                                    add(&mut out, &inherited, b)?;
+                                } else {
+                                    target_work(targets, b)?;
+                                    add(
+                                        &mut out,
+                                        &[Permission {
+                                            targets: targets.clone(),
+                                            loans: Loans::new(),
+                                        }],
+                                        b,
+                                    )?;
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    target_work(targets, b)?;
+                    out.push(Permission {
+                        targets: targets.clone(),
+                        loans: Loans::new(),
+                    });
+                }
+            }
+            if fresh {
+                fee(b, out.len())?;
+                for p in &mut out {
+                    ordered(b, p.loans.len(), 1)?;
+                    p.loans.insert(result.0 as usize);
+                }
+            }
+        }
+    }
+    ordered(b, point.values.len(), 1)?;
+    point.values.insert(result, out);
+    Ok(())
+}
 pub(super) struct Flow {
-    values: Vec<Vec<Permission>>,
+    entry: Point,
+    outputs: Vec<Point>,
 }
 impl Flow {
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn solve(
+        module: &TypedModule,
         f: &TypedFunction,
         preds: &[Vec<usize>],
         reachable: &[bool],
+        actual_entry: &State,
         actual: &[Value],
+        summaries: &[Facts],
         b: &mut Budget,
     ) -> CompileResult<Option<Self>> {
         if !b.byte_queries {
@@ -285,115 +518,92 @@ impl Flow {
         if !b.byte_query_functions[f.id.0 as usize] {
             return Ok(None);
         }
-        fee(b, f.values.len().saturating_add(f.locals.len()))?;
-        let mut values = vec![Vec::new(); f.values.len()];
-        let mut entry = vec![Vec::new(); f.locals.len()];
+        let mut entry = Point::default();
         fee(b, f.parameters.len())?;
         for (position, local) in f.parameters.iter().enumerate() {
-            if description(&f.locals[local.0 as usize].ty) {
-                entry[local.0 as usize].push(new_origin(
+            let ty = &f.locals[local.0 as usize].ty;
+            let row = if description(ty) {
+                vec![new_origin(
                     HoldRoot::Parameter(position as u32),
                     Vec::new(),
                     b,
-                )?);
-            }
+                )?]
+            } else if matches!(ty, Type::Address { .. }) {
+                ordered(b, actual_entry.locals.len(), 1)?;
+                let actual = &actual_entry
+                    .locals
+                    .get(local)
+                    .ok_or_else(|| failure("Byte address input has no actual entry"))?
+                    .pointer;
+                vec![copy_permission(actual, b)?]
+            } else {
+                continue;
+            };
+            ordered(b, entry.locals.len(), 1)?;
+            entry.locals.insert(*local, row);
         }
-        b.product(
-            f.blocks.len(),
-            f.locals.len().saturating_add(1),
-            1,
-            "Byte weak CFG states",
-        )?;
-        let mut outputs = vec![vec![Vec::new(); f.locals.len()]; f.blocks.len()];
+        fee(b, f.blocks.len())?;
+        let mut flow = Self {
+            entry,
+            outputs: (0..f.blocks.len()).map(|_| Point::default()).collect(),
+        };
         loop {
             let mut changed = false;
             for (bi, block) in f.blocks.iter().enumerate() {
                 if !reachable[bi] {
                     continue;
                 }
-                fee(b, f.locals.len())?;
-                let mut state = vec![Vec::new(); f.locals.len()];
-                if bi == f.entry.0 as usize {
-                    for (dst, src) in state.iter_mut().zip(&entry) {
-                        add(dst, src, b)?;
-                    }
-                }
-                fee(b, preds[bi].len())?;
-                for pred in &preds[bi] {
-                    if reachable[*pred] {
-                        fee(b, f.locals.len())?;
-                        for (dst, src) in state.iter_mut().zip(&outputs[*pred]) {
-                            add(dst, src, b)?;
-                        }
-                    }
-                }
+                let mut point = flow.input(f, bi, preds, reachable, b)?;
                 fee(b, block.instructions.len())?;
                 for i in &block.instructions {
-                    let mut out = Vec::new();
-                    match &i.kind {
-                        InstructionKind::Store { local, value }
-                            if description(&f.locals[local.0 as usize].ty) =>
-                        {
-                            state[local.0 as usize] = copy_origins(&values[value.0 as usize], b)?;
-                        }
-                        InstructionKind::StorageLive(local)
-                        | InstructionKind::StorageDead(local) => state[local.0 as usize].clear(),
-                        _ => {}
-                    }
-                    if let Some(result) = i.result
-                        && description(value_type(f, result)?)
-                    {
-                        match &i.kind {
-                            InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
-                                add(&mut out, &state[local.0 as usize], b)?;
-                            }
-                            InstructionKind::DescribeLocal { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(p) if p.as_ref()==&Type::ByteBuffer) =>
-                            {
-                                out.push(new_origin(HoldRoot::Local(*local), Vec::new(), b)?);
-                            }
-                            InstructionKind::DescribePackageField { local, index } => {
-                                let Type::Package { fields, .. } =
-                                    super::super::resources::package_storage(
-                                        &f.locals[local.0 as usize].ty,
-                                    )
-                                else {
-                                    return Err(closed());
-                                };
-                                fee(b, 2)?;
-                                if !fields.get(*index as usize).is_some_and(|(_, ty)| matches!(ty, Type::Managed(p) if p.as_ref()==&Type::ByteBuffer)) { return Err(closed()) }
-                                out.push(new_origin(
-                                    HoldRoot::Local(*local),
-                                    vec![PlaceProjection::Field(*index)],
-                                    b,
-                                )?);
-                            }
-                            InstructionKind::DescribeAddress { address } if matches!(value_type(f, *address)?, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(p) if p.as_ref()==&Type::ByteBuffer)) => {
-                                if !actual[address.0 as usize].pointer.targets.is_empty() {
-                                    out.push(copy_permission(
-                                        &actual[address.0 as usize].pointer,
-                                        b,
-                                    )?);
-                                }
-                            }
-                            _ => return Err(closed()),
-                        }
-                        changed |= add(&mut values[result.0 as usize], &out, b)?;
-                    }
+                    step(module, f, i, actual, summaries, &mut point, b)?;
                 }
-                fee(b, f.locals.len())?;
-                for (dst, src) in outputs[bi].iter_mut().zip(&state) {
-                    changed |= add(dst, src, b)?;
+                point_work(&point, b)?;
+                point_work(&flow.outputs[bi], b)?;
+                if point != flow.outputs[bi] {
+                    flow.outputs[bi] = point;
+                    changed = true;
                 }
             }
             if !changed {
                 break;
             }
         }
-        Ok(Some(Self { values }))
+        Ok(Some(flow))
     }
-    pub(super) fn actual(&self, value: ValueId) -> &[Permission] {
-        &self.values[value.0 as usize]
+    pub(super) fn input(
+        &self,
+        f: &TypedFunction,
+        bi: usize,
+        preds: &[Vec<usize>],
+        reachable: &[bool],
+        b: &mut Budget,
+    ) -> CompileResult<Point> {
+        let mut point = Point::default();
+        if bi == f.entry.0 as usize {
+            point_join(&mut point, &self.entry, b)?;
+        }
+        fee(b, preds[bi].len())?;
+        for pred in &preds[bi] {
+            if reachable[*pred] {
+                point_join(&mut point, &self.outputs[*pred], b)?;
+            }
+        }
+        Ok(point)
     }
+    pub(super) fn advance(
+        &self,
+        module: &TypedModule,
+        f: &TypedFunction,
+        i: &Instruction,
+        actual: &[Value],
+        summaries: &[Facts],
+        point: &mut Point,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        step(module, f, i, actual, summaries, point, b)
+    }
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn substitute(
         &self,
         source: &Target,
@@ -401,6 +611,7 @@ impl Flow {
         arguments: &[ValueId],
         values: &[Value],
         state: &State,
+        point: &Point,
         b: &mut Budget,
     ) -> CompileResult<Vec<Permission>> {
         let HoldRoot::Parameter(position) = source.base else {
@@ -416,7 +627,7 @@ impl Flow {
             {
                 return Err(closed());
             }
-            let out = copy_origins(self.actual(arguments[position as usize]), b)?;
+            let out = copy_origins(point.value(arguments[position as usize], b)?, b)?;
             if out.is_empty() {
                 return Err(failure("Byte descriptor input lacks actual weak origins"));
             }
@@ -428,23 +639,43 @@ impl Flow {
                     "Byte separation lacks complete actual address origins",
                 ));
             }
-            Ok(vec![actual])
+            let out = if source.retained_port.is_none()
+                && source.stored.is_empty()
+                && source.heap_element.is_none()
+            {
+                retarget(
+                    point.value(arguments[position as usize], b)?,
+                    &actual.targets,
+                    b,
+                )?
+            } else {
+                vec![Permission {
+                    targets: actual.targets,
+                    loans: Loans::new(),
+                }]
+            };
+            if out.is_empty() {
+                return Err(failure("Byte address input lacks current delegation proof"));
+            }
+            Ok(out)
         } else {
             Err(closed())
         }
     }
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn reads(
         &self,
         module: &TypedModule,
         i: &Instruction,
         values: &[Value],
         state: &State,
+        point: &Point,
         summaries: &[Facts],
         b: &mut Budget,
     ) -> CompileResult<Vec<Permission>> {
         fee(b, 1)?;
         if let Some(value) = operand(&i.kind) {
-            let out = copy_origins(self.actual(value), b)?;
+            let out = copy_origins(point.value(value, b)?, b)?;
             if out.is_empty() {
                 return Err(failure("Byte query has no actual weak head origin"));
             }
@@ -462,7 +693,6 @@ impl Flow {
             return Ok(Vec::new());
         }
         let prior = &summaries[function.0 as usize];
-        // This is an iteration seed, never a final proof of an empty effect.
         if !prior.byte_covered {
             return Ok(Vec::new());
         }
@@ -475,6 +705,7 @@ impl Flow {
                 arguments,
                 values,
                 state,
+                point,
                 b,
             )?;
             add(&mut out, &actual, b)?;
