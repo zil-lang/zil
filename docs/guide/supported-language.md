@@ -8,7 +8,7 @@
 
 包含真实共享借入叶的 qualified Record 可作为有限拥有 Package 的字段，局部窗口和字段投影保留实际来源。这类父 Package 的同型整对象共享地址可经普通 helper 从唯一实际输入返回；来自多个输入的返回来源、投影实参仍有边界。已准入窗口及 Direct helper 支持 ByteBuffer 长度/容量查询，查询按实际来源与当前委派检查共享读取；见[查询合同](../../spec/borrowed-byte-metadata-queries.md)和[联合普通程序](../../tests/fixtures/resource-packages/package-array-byte-query.zil)。查询不延长拥有对象的生命，旧描述也不能豁免后来创建的独占窗口。
 
-拥有 Package 现在可直接保存固定共享地址数组，并通过实际字段、常量下标和普通 helper 取得借入元素；拥有责任与借入来源分别验证。见[普通程序](../../tests/fixtures/resource-packages/owned-package-shared-address-array.zil)和[限定合同](../../spec/qualified-package-shared-array.md)。大型拥有 Package 的 snapshot/原生 ABI 仍未验收。
+拥有 Package 现在可直接保存固定共享地址数组，并通过实际字段、常量或动态下标和普通 helper 取得借入元素；拥有责任与借入来源分别验证。见[普通程序](../../tests/fixtures/resource-packages/owned-package-shared-address-array.zil)和[限定合同](../../spec/qualified-package-shared-array.md)。大型拥有 Package 的 snapshot/原生 ABI 仍未验收。
 
 ## 支持矩阵
 
@@ -18,7 +18,7 @@
 | 普通集合、文本与 I/O | 完整 POD Tuple/Array/Record/标量 Store；有限完整 owning K/V 的 Entry 与按实际 KeyEq 查找的线性 Map；UTF8 String、排序、文件/流 I/O | 真实普通库、私有跨模块 Key、old Entry 转交、容量/分配失败返还责任、短写/EOF、四机器配置 | owning Map 不是 HashMap 性能承诺；已准入 owning Package／字段的 Option 借入 get 保留真实 manager；自动增长泛型 HashMap 及完整 Unicode 排版仍有缺口 |
 | trait 与泛型库 | Type/const/life、关联项与字段/别名投影、默认/泛型方法、静态关联函数；普通标量/Enum 与有限拥有 Package 的共享／独占 trait provider；`Store<Item>` manager 的普通拥有 Item lending；多 binder Entry/Map | 未用定义的义务、真实 nominal/provider 身份、完整实参、独立两核与原生；零资源 Package 仍执行 affine 消费检查 | 一般 blanket/约束方程、更广 owning lending 和开放泛型方法槽仍需完整证明，实例不能补上定义期缺失前提 |
 | 普通程序组合 | 真实跨模块程序中的集合更新、错误传播与明确资源责任；同一普通函数可组合借入结果Task、拥有Map的Option借出、结束借出后的插入与移动，支持直接匹配临时Task构造结果 | 固定Source、真实两来源分支、默认预算、完整stdout/退出值、calloc/realloc失败清理、独立raw/Wire与最近反例；各范围按精确源码验收 | 上述Task共享结果可来自多共享输入中声明结果类的真实外部来源；更广holder、捕获环境、借入结果及跨线程运输仍须逐一证明，有限同函数组合不关闭父能力 |
-| 固定共享地址数组 | 非零 `[&'a T;N]`、qualified Record／拥有 Package 的直接字段、常量索引、普通 helper 参数/结果及共享视图复制 | 每 ordinal 的真实来源、两 life 非恒等映射、父 loan、Source/raw/Wire、四机器配置与精确预算 | `Field(i)` 仅在实际 Array/length/element 核对后表示物理 ordinal；`Element` 仅类型元数据；动态下标、空数组和独占数组复制尚未开放；大型拥有Package snapshot/ABI尚未验收；见 [语义合同](../../spec/fixed-shared-address-array.md) |
+| 固定共享地址数组 | 非零 `[&'a T;N]`、qualified Record／拥有 Package 的直接字段、常量及六种整数动态索引、普通 helper 参数/结果及共享视图复制 | 每 ordinal 的真实来源、两 life 非恒等映射、父 loan、逐根初始化、不同 upper 的局部读、Source/raw/Wire、四机器配置与精确预算 | `Field(i)` 经实际 Array/length/element 核对才是物理 ordinal；`Element` 仅类型元数据。动态读取先快照且保全候选；空数组、独占复制、更一般 mixed-upper 身份消费者及大型拥有 Package ABI 仍有边界；见 [固定合同](../../spec/fixed-shared-address-array.md)和[动态合同](../../spec/dynamic-shared-address-array.md) |
 | 可变借入存储 | 有限 Record/拥有 Package 的多个地址叶；嵌套 qualified 子 Package、槽替换与实际取走/补回 | 真实 Source、独立 raw/Wire、CFG hole/init、SSA 消费、构造 child loan、四机器配置与实际资源释放 | 多路径缺口不能靠复制或别名重载清除；可变捕获、任意嵌套载体及跨异步运输仍需各自证明 |
 | 借入 Task | 多个共享/独占输入、有限标量/Record/Tuple/Array/Slice referent、普通闭合结果；多个共享输入中声明结果类的实际共享地址结果；无显式 Task/Poll 类型头的创建、轮询和跨模块 Direct worker；直接临时表达式匹配保留真实owner；显式 Task<Result,Context> helper 转交 | PC0、挂起、取消/关闭、逐端口实际父贷款、未再使用 SSA 的持有、raw/Wire 与四机器配置 | Ready 保留真实外部父 loan，Task Destroy 不撤销已导出的结果；frame-local 结果、嵌套 owner/capture 运输、线程迁移与外部 ABI 仍未开放；pub Suspend 跨模块导出仍受标量 SABI1 限制 |
 | 线程与同步 | 结构化线程、实际 pthread Mutex<T>/affine Guard、拥有 Package/Tuple/Enum/Array payload、明确来源的多输入 helper；i64/u64/usize 原子及强 CAS | 实际共享线程、逐输入来源、顺序合法矩阵、双后端 O0/O2、malloc/init 失败与逐元素一次清理 | Guard 不自动获得线程迁移或跨挂起资格；资源结构须满足实际同步清理与 Transfer/Share 证明 |
