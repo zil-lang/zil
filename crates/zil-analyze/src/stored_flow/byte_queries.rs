@@ -94,16 +94,76 @@ fn indirect_arguments(kind: &InstructionKind) -> Option<&[ValueId]> {
 }
 
 /// Presence is only scheduling. Missing coverage is never an empty effect.
+// A zero-input ordinary entry may call a stored scalar body only after
+// that body's independently solved query effect is proved complete and empty.
+pub(super) struct PendingEdge {
+    caller: usize,
+    block: usize,
+    instruction: usize,
+    callee: usize,
+}
+
+fn zero_input_scalar(
+    module: &TypedModule,
+    caller: usize,
+    callee: usize,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    fee(b, 8)?;
+    let from = module.functions.get(caller).ok_or_else(closed)?;
+    let to = module.functions.get(callee).ok_or_else(closed)?;
+    Ok(from.call_kind == CallKind::Direct
+        && from.environment.is_none()
+        && from.foreign.is_none()
+        && from.callable_contract.is_none()
+        && from.callable_return_contract.is_none()
+        && to.call_kind == CallKind::Direct
+        && to.environment.is_none()
+        && to.foreign.is_none()
+        && to.callable_contract.is_none()
+        && to.callable_return_contract.is_none()
+        && to.parameters.is_empty()
+        && to.return_type.is_b0_scalar()
+        && to.result_mode == PassingMode::Infer)
+}
+fn matches_edge(module: &TypedModule, edge: &PendingEdge, b: &mut Budget) -> CompileResult<bool> {
+    fee(b, 4)?;
+    if !zero_input_scalar(module, edge.caller, edge.callee, b)? {
+        return Ok(false);
+    }
+    let caller = module.functions.get(edge.caller).ok_or_else(closed)?;
+    let operation = caller
+        .blocks
+        .get(edge.block)
+        .and_then(|block| block.instructions.get(edge.instruction))
+        .ok_or_else(closed)?;
+    let InstructionKind::Call {
+        function,
+        arguments,
+    } = &operation.kind
+    else {
+        return Ok(false);
+    };
+    let target = &module.functions[edge.callee];
+    Ok(function.0 as usize == edge.callee
+        && arguments.is_empty()
+        && (operation
+            .result
+            .and_then(|value| caller.values.get(value.0 as usize))
+            == Some(&target.return_type)
+            || (operation.result.is_none() && target.return_type == Type::Unit)))
+}
 pub(super) fn inventory(
     module: &TypedModule,
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     b: &mut Budget,
-) -> CompileResult<()> {
+) -> CompileResult<Vec<PendingEdge>> {
     if !b.byte_queries {
-        return Ok(());
+        return Ok(Vec::new());
     }
     fee(b, module.functions.len().saturating_mul(2))?;
     let mut marked = vec![false; module.functions.len()];
+    let mut pending = Vec::new();
     let mut edges = Vec::new();
     for (index, f) in module.functions.iter().enumerate() {
         fee(b, f.blocks.len())?;
@@ -140,7 +200,12 @@ pub(super) fn inventory(
             if marked[callee]
                 && covered(&b.composition_stored, caller) != covered(&b.composition_stored, callee)
             {
-                return Err(closed());
+                if covered(&b.composition_stored, caller)
+                    || !covered(&b.composition_stored, callee)
+                    || !zero_input_scalar(module, caller, callee, b)?
+                {
+                    return Err(closed());
+                }
             }
         }
     }
@@ -164,9 +229,26 @@ pub(super) fn inventory(
             return Err(closed());
         }
         fee(b, f.blocks.len())?;
-        for block in &f.blocks {
+        for (block_index, block) in f.blocks.iter().enumerate() {
             fee(b, block.instructions.len())?;
-            for i in &block.instructions {
+            for (instruction_index, i) in block.instructions.iter().enumerate() {
+                if let InstructionKind::Call { function, .. } = i.kind
+                    && marked[function.0 as usize]
+                    && covered(&b.composition_stored, index)
+                        != covered(&b.composition_stored, function.0 as usize)
+                {
+                    let edge = PendingEdge {
+                        caller: index,
+                        block: block_index,
+                        instruction: instruction_index,
+                        callee: function.0 as usize,
+                    };
+                    if covered(&b.composition_stored, index) || !matches_edge(module, &edge, b)? {
+                        return Err(closed());
+                    }
+                    fee(b, 4)?;
+                    pending.push(edge);
+                }
                 if let InstructionKind::FunctionRef { function } = i.kind
                     && marked[function.0 as usize]
                     && (covered(&b.composition_stored, index)
@@ -213,7 +295,7 @@ pub(super) fn inventory(
         }
     }
     b.byte_query_functions = marked;
-    Ok(())
+    Ok(pending)
 }
 
 fn permission_work(p: &Permission, b: &mut Budget) -> CompileResult<()> {
@@ -781,4 +863,30 @@ pub(super) fn signature_presence(module: &TypedModule, b: &mut Budget) -> Compil
     }
     b.byte_query_presence_checked = true;
     Ok(false)
+}
+
+pub(super) fn certify_edges(
+    module: &TypedModule,
+    pending: &[PendingEdge],
+    summaries: &[Facts],
+    b: &mut Budget,
+) -> CompileResult<()> {
+    if pending.is_empty() {
+        return Ok(());
+    }
+    fee(b, pending.len())?;
+    for edge in pending {
+        fee(b, 4)?;
+        if covered(&b.composition_stored, edge.caller)
+            || !covered(&b.composition_stored, edge.callee)
+            || !matches_edge(module, edge, b)?
+        {
+            return Err(closed());
+        }
+        let proof = summaries.get(edge.callee).ok_or_else(closed)?;
+        if !proof.complete || !proof.byte_covered || !proof.byte_reads.is_empty() {
+            return Err(closed());
+        }
+    }
+    Ok(())
 }
