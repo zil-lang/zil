@@ -139,6 +139,127 @@ fn typed(text: &str) -> TypedModule {
     zil_types::check(&core, &TargetProfile::default(), &Limits::default()).unwrap()
 }
 
+#[test]
+fn optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets() {
+    fn boundary<T: std::fmt::Debug + PartialEq>(
+        phase: Phase,
+        run: impl Fn(usize) -> Result<T, Vec<zil_base::Diagnostic>>,
+    ) -> usize {
+        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+        let expected = run(high).unwrap();
+        while low + 1 < high {
+            let mid = low + (high - low) / 2;
+            match run(mid) {
+                Ok(actual) => {
+                    assert_eq!(actual, expected);
+                    high = mid;
+                }
+                Err(errors) => {
+                    assert!(!errors.is_empty());
+                    assert!(
+                        errors.iter().all(
+                            |d| d.phase == phase && d.category == ResultCategory::ResourceLimit
+                        ),
+                        "{errors:?}"
+                    );
+                    low = mid;
+                }
+            }
+        }
+        for _ in 0..2 {
+            assert_eq!(run(high).unwrap(), expected);
+            let errors = run(high - 1).unwrap_err();
+            assert!(!errors.is_empty());
+            assert!(
+                errors
+                    .iter()
+                    .all(|d| d.phase == phase && d.category == ResultCategory::ResourceLimit),
+                "{errors:?}"
+            );
+        }
+        high
+    }
+    let mut previous = 0;
+    for (depth, expected_analyze, expected_verify) in [
+        (0, 152_794, 294_517),
+        (4, 240_953, 513_354),
+        (12, 458_355, 1_027_003),
+    ] {
+        let mut declarations = String::new();
+        let mut value_type = "i64".to_string();
+        let mut value = "42".to_string();
+        for index in 0..depth {
+            declarations.push_str(&format!("struct Layer{index}{{value:{value_type}}}\n"));
+            value_type = format!("Layer{index}");
+            value = format!("{value_type}{{value:{value}}}");
+        }
+        let text = format!(
+            "{declarations}{}",
+            include_str!("../../../tests/fixtures/optional-store-address/field-helper.zil")
+        )
+        .replace("value:i64 }", &format!("value:{value_type} }}"))
+        .replace("value:42", &format!("value:{value}"))
+        .replace("value:8", &format!("value:{value}"))
+        .replace(
+            "&item.value}",
+            &format!("&item.value{}}}", ".value".repeat(depth)),
+        );
+        let text = text.replace(
+            &format!("let observed=inspect(found)\n    store_push(map.items,Item{{data:bytes_new(),value:{value}}})\n    return observed"),
+            "match found {Option.Some(value)=>{let number=identity(field(value));return *number},Option.None()=>{return -1}}",
+        );
+        let text = format!("fn identity<life s>(value:&'s i64)->&'s i64{{return value}}\n{text}");
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let module = typed(&text);
+        let limits = |n| Limits {
+            max_analysis_steps: n,
+            ..Limits::default()
+        };
+        let analyze = boundary(Phase::Analyze, |n| {
+            zil_analyze::analyze(&module, &limits(n))
+        });
+        assert_eq!(analyze, expected_analyze);
+        assert!(
+            analyze > previous,
+            "deeper actual element path must add work"
+        );
+        previous = analyze;
+        let plan = zil_analyze::analyze(&module, &limits(analyze)).unwrap();
+        let mut session = zil_analyze::AnalysisSession::default();
+        for _ in 0..2 {
+            assert_eq!(session.analyze(&module, &limits(analyze)).unwrap(), plan);
+            assert!(
+                session
+                    .analyze(&module, &limits(analyze - 1))
+                    .unwrap_err()
+                    .iter()
+                    .all(|d| d.category == ResultCategory::ResourceLimit)
+            );
+        }
+        let wire =
+            zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+        let raw = boundary(Phase::Verify, |n| {
+            zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits(n))
+                .map(|verified| verified.fingerprint())
+        });
+        let encoded = boundary(Phase::Verify, |n| {
+            zil_verify::verify_module_bytes(&wire, &module.target, &limits(n))
+                .map(|verified| verified.fingerprint())
+        });
+        assert_eq!(raw, encoded);
+        assert_eq!(raw, expected_verify);
+        println!(
+            "optional Store heap path depth={depth}: Analyze N={analyze}, Verify raw=Wire N={raw}; N-1/fresh/warm"
+        );
+    }
+}
+
 const BORROWED_LIFE_IDENTITY: &str =
     include_str!("../../../tests/language-readiness/recovery/pending/life-parameter-return.zil");
 

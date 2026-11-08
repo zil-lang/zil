@@ -118,9 +118,7 @@ pub(super) fn option_sources_snapshot(
         .unwrap()
         .iter()
         .fold(0usize, |cost, target| {
-            cost.saturating_add(target.stored.len())
-                .saturating_add(target.place.len())
-                .saturating_add(target.heap_element.as_ref().map_or(0, Vec::len))
+            cost.saturating_add(target_width(target))
         });
     fee(budget, cost)?;
     Ok(lookup(budget, function, value).unwrap().clone())
@@ -208,29 +206,26 @@ fn ordered(b: &mut Budget, n: usize, width: usize) -> CompileResult<()> {
         "stored path comparison/search",
     )
 }
+/// Every owned Target path participates in cloning and derived equality/order.
+fn target_width(target: &Target) -> usize {
+    target
+        .stored
+        .len()
+        .saturating_add(target.place.len())
+        .saturating_add(target.heap_element.as_ref().map_or(0, Vec::len))
+}
 fn target_work(t: &Targets, b: &mut Budget) -> CompileResult<()> {
     fee(b, t.len())?;
     for target in t {
-        fee(b, target.stored.len().saturating_add(target.place.len()))?;
+        fee(b, target_width(target))?;
     }
     Ok(())
 }
 fn union(to: &mut Permission, from: &Permission, b: &mut Budget) -> CompileResult<bool> {
     let mut changed = false;
     for target in &from.targets {
-        ordered(
-            b,
-            to.targets.len(),
-            target.stored.len().saturating_add(target.place.len()),
-        )?;
-        fee(
-            b,
-            target
-                .stored
-                .len()
-                .saturating_add(target.place.len())
-                .saturating_add(1),
-        )?;
+        ordered(b, to.targets.len(), target_width(target))?;
+        fee(b, target_width(target).saturating_add(1))?;
         changed |= to.targets.insert(target.clone());
     }
     for loan in &from.loans {
@@ -286,7 +281,7 @@ fn state_copy(s: &State, b: &mut Budget) -> CompileResult<State> {
             .saturating_add(s.captures.len()),
     )?;
     let mut out = State::default();
-    fee(b, s.vacant.len())?;
+    target_work(&s.vacant, b)?;
     out.vacant = s.vacant.clone();
     for (local, value) in &s.locals {
         ordered(b, out.locals.len(), 0)?;
@@ -309,7 +304,7 @@ fn state_copy(s: &State, b: &mut Budget) -> CompileResult<State> {
     Ok(out)
 }
 fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
-    fee(b, s.vacant.len())?;
+    target_work(&s.vacant, b)?;
     fee(
         b,
         s.locals
@@ -373,13 +368,7 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
     )?;
     for row in &f.values {
         for root in row {
-            fee(
-                b,
-                root.stored
-                    .len()
-                    .saturating_add(root.place.len())
-                    .saturating_add(1),
-            )?;
+            fee(b, target_width(root).saturating_add(1))?;
         }
     }
     if b.task_borrowed_results {
@@ -389,41 +378,29 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
         }
         for (path, row) in &f.returned_task_ports {
             fee(b, path.len())?;
-            target_work(&row.iter().cloned().collect(), b)?;
+            fee(b, row.len())?;
+            for target in row {
+                fee(b, target_width(target))?;
+            }
         }
     }
     for (path, row) in &f.returned {
         fee(b, path.len().saturating_add(row.len()))?;
         for root in row {
-            fee(
-                b,
-                root.stored
-                    .len()
-                    .saturating_add(root.place.len())
-                    .saturating_add(1),
-            )?;
+            fee(b, target_width(root).saturating_add(1))?;
         }
     }
     for ((_, path), row) in &f.external_after {
         fee(b, path.len().saturating_add(row.len()))?;
         for root in row {
-            fee(
-                b,
-                root.stored
-                    .len()
-                    .saturating_add(root.place.len())
-                    .saturating_add(1),
-            )?;
+            fee(b, target_width(root).saturating_add(1))?;
         }
     }
     for (left, right) in &f.apart {
         fee(
             b,
-            left.stored
-                .len()
-                .saturating_add(left.place.len())
-                .saturating_add(right.stored.len())
-                .saturating_add(right.place.len())
+            target_width(left)
+                .saturating_add(target_width(right))
                 .saturating_add(2),
         )?;
     }
@@ -431,7 +408,8 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
 }
 fn state_merge(to: &mut State, from: &State, b: &mut Budget) -> CompileResult<()> {
     for hole in &from.vacant {
-        ordered(b, to.vacant.len(), hole.place.len())?;
+        ordered(b, to.vacant.len(), target_width(hole))?;
+        fee(b, target_width(hole))?;
         to.vacant.insert(hole.clone());
     }
     for (local, value) in &from.locals {
@@ -1240,14 +1218,7 @@ fn returns(
                 ));
             }
             for source in sources {
-                fee(
-                    b,
-                    source
-                        .place
-                        .len()
-                        .saturating_add(source.stored.len())
-                        .saturating_add(1),
-                )?;
+                fee(b, target_width(source).saturating_add(1))?;
                 let HoldRoot::Capture(index) = source.base else {
                     return Err(failure(
                         "environment result escapes local or explicit input storage",
@@ -1906,8 +1877,7 @@ fn slot_position(
     }
     fee(
         b,
-        root.place
-            .len()
+        target_width(root)
             .saturating_add(path.len())
             .saturating_add(1),
     )?;
@@ -1928,14 +1898,13 @@ fn require_filled(
     for root in &address.targets {
         fee(
             b,
-            root.place
-                .len()
+            target_width(root)
                 .saturating_add(path.len())
                 .saturating_add(1),
         )?;
         let mut position = root.clone();
         position.place.extend_from_slice(path);
-        ordered(b, state.vacant.len(), position.place.len())?;
+        ordered(b, state.vacant.len(), target_width(&position))?;
         if state.vacant.contains(&position) {
             return Err(failure("stored slot is vacant on an incoming path"));
         }
@@ -2012,7 +1981,7 @@ fn substitute(
                 "static UTF8 summary cannot carry nested projections",
             ));
         }
-        fee(b, 1)?;
+        fee(b, target_width(source).saturating_add(1))?;
         return Ok(Permission {
             targets: Targets::from([source.clone()]),
             loans: Loans::new(),
@@ -2074,12 +2043,8 @@ fn substitute(
         for target in &result.targets {
             fee(
                 b,
-                target
-                    .stored
-                    .len()
-                    .saturating_add(target.place.len())
+                target_width(target)
                     .saturating_add(source.place.len())
-                    .saturating_add(target.heap_element.as_ref().map_or(0, Vec::len))
                     .saturating_add(source.heap_element.as_ref().map_or(0, Vec::len))
                     .saturating_add(1),
             )?;
@@ -2095,11 +2060,7 @@ fn substitute(
                 target.place.extend(&source.place);
                 target.heap_element = source.heap_element.clone();
             }
-            ordered(
-                b,
-                targets.len(),
-                target.stored.len().saturating_add(target.place.len()),
-            )?;
+            ordered(b, targets.len(), target_width(&target))?;
             targets.insert(target);
         }
         result.targets = targets;
@@ -2389,25 +2350,14 @@ fn transfer(
             }
             let mut targets = Targets::new();
             for target in &out.pointer.targets {
-                fee(
-                    b,
-                    target
-                        .stored
-                        .len()
-                        .saturating_add(target.place.len())
-                        .saturating_add(2),
-                )?;
+                fee(b, target_width(target).saturating_add(2))?;
                 let mut target = target.clone();
                 if let Some(element) = &mut target.heap_element {
                     element.push(PlaceProjection::Field(*index));
                 } else {
                     target.place.push(PlaceProjection::Field(*index));
                 }
-                ordered(
-                    b,
-                    targets.len(),
-                    target.stored.len().saturating_add(target.place.len()),
-                )?;
+                ordered(b, targets.len(), target_width(&target))?;
                 targets.insert(target);
             }
             out.pointer.targets = targets;
@@ -2516,7 +2466,7 @@ fn transfer(
                 if let Some(slots) = actual {
                     slots.remove(&position.place);
                 }
-                ordered(b, state.vacant.len(), position.place.len())?;
+                ordered(b, state.vacant.len(), target_width(&position))?;
                 state.vacant.insert(position);
             }
         }
@@ -2569,6 +2519,9 @@ fn transfer(
             }
             if !state.vacant.is_empty() {
                 let position = slot_position(&get(*storage)?.pointer, path, b)?;
+                if target_width(&position) != 0 {
+                    ordered(b, state.vacant.len(), target_width(&position))?;
+                }
                 state.vacant.remove(&position);
             }
         }
@@ -2686,10 +2639,10 @@ fn transfer(
                 }
                 fee(b, path.len().saturating_add(permission.targets.len()))?;
                 let permission = retain_slot(&permission, i, *parameter, path, slot_ids, loans, b)?;
-                updates.push((root.clone(), actual_path, permission));
+                updates.push((root.base, actual_path, permission));
             }
-            for (root, path, permission) in updates {
-                match root.base {
+            for (base, path, permission) in updates {
+                match base {
                     HoldRoot::Local(local) => {
                         let holder = state.locals.get_mut(&local).ok_or_else(|| {
                             failure("updated caller local carrier is unavailable")
@@ -2698,7 +2651,7 @@ fn transfer(
                         holder.slots.insert(path, permission);
                     }
                     HoldRoot::Parameter(_) | HoldRoot::Capture(_) => {
-                        let holder = state.external.get_mut(&root.base).ok_or_else(|| {
+                        let holder = state.external.get_mut(&base).ok_or_else(|| {
                             failure("updated caller external carrier is unavailable")
                         })?;
                         ordered(b, holder.len(), path.len())?;
@@ -2805,21 +2758,14 @@ fn transfer(
                     for target in &receiver.targets {
                         fee(
                             b,
-                            target
-                                .place
-                                .len()
-                                .saturating_add(target.stored.len())
+                            target_width(target)
                                 .saturating_add(source.place.len())
                                 .saturating_add(3),
                         )?;
                         let mut target = target.clone();
                         target.place.push(PlaceProjection::Field(index));
                         target.place.extend_from_slice(&source.place);
-                        ordered(
-                            b,
-                            out.pointer.targets.len(),
-                            target.place.len().saturating_add(target.stored.len()),
-                        )?;
+                        ordered(b, out.pointer.targets.len(), target_width(&target))?;
                         out.pointer.targets.insert(target);
                     }
                     for loan in &receiver.loans {
@@ -2884,17 +2830,10 @@ fn transfer(
                         "nested Store element window is outside this profile",
                     ));
                 }
-                fee(
-                    b,
-                    source
-                        .stored
-                        .len()
-                        .saturating_add(source.place.len())
-                        .saturating_add(1),
-                )?;
+                fee(b, target_width(source).saturating_add(1))?;
                 let mut target = source.clone();
                 target.heap_element = Some(Vec::new());
-                ordered(b, out.pointer.targets.len(), target.place.len())?;
+                ordered(b, out.pointer.targets.len(), target_width(&target))?;
                 out.pointer.targets.insert(target);
             }
             fee(b, description.loans.len())?;
@@ -2943,7 +2882,7 @@ fn transfer(
         _ if pure_copy::ordinary_owned_union(f, i, b)? => {}
         _ if pure_copy::ordinary_package_borrow(f, i, b)? => {}
         _ if task_transfer.is_some() => {
-            out = task_transfer.clone().unwrap();
+            out = task_transfer.unwrap();
         }
         _ if pure_copy::operation(&i.kind) => {
             if !pure_copy::ordinary_owned_union(f, i, b)? {
@@ -3130,11 +3069,8 @@ fn transfer(
 fn intersects(left: &Target, right: &Target, b: &mut Budget) -> CompileResult<bool> {
     fee(
         b,
-        left.stored
-            .len()
-            .saturating_add(right.stored.len())
-            .saturating_add(left.place.len())
-            .saturating_add(right.place.len())
+        target_width(left)
+            .saturating_add(target_width(right))
             .saturating_add(1),
     )?;
     if left.base != right.base
@@ -3171,12 +3107,8 @@ fn separate(
         ));
     }
     if may_alias(left, right) {
-        let width = left
-            .stored
-            .len()
-            .saturating_add(right.stored.len())
-            .saturating_add(left.place.len())
-            .saturating_add(right.place.len())
+        let width = target_width(left)
+            .saturating_add(target_width(right))
             .saturating_add(2);
         ordered(b, apart.len(), width)?;
         fee(b, width)?;
@@ -3634,16 +3566,10 @@ fn windows(
                             loans: pointer(*storage)?.loans.clone(),
                         };
                         for root in &pointer(*storage)?.targets {
-                            fee(
-                                b,
-                                root.stored
-                                    .len()
-                                    .saturating_add(root.place.len())
-                                    .saturating_add(path.len()),
-                            )?;
+                            fee(b, target_width(root).saturating_add(path.len()))?;
                             let mut target = root.clone();
                             target.place.extend(path);
-                            ordered(b, slot.targets.len(), target.place.len())?;
+                            ordered(b, slot.targets.len(), target_width(&target))?;
                             slot.targets.insert(target);
                         }
                         use_permission(&slot, exclusive, &current, loans, apart, b)?;
@@ -3670,22 +3596,19 @@ fn windows(
                         loans: pointer(*storage)?.loans.clone(),
                     };
                     for root in &pointer(*storage)?.targets {
-                        fee(
-                            b,
-                            root.stored
-                                .len()
-                                .saturating_add(root.place.len())
-                                .saturating_add(path.len()),
-                        )?;
+                        fee(b, target_width(root).saturating_add(path.len()))?;
                         let mut target = root.clone();
                         target.place.extend(path);
-                        ordered(b, slot.targets.len(), target.place.len())?;
+                        ordered(b, slot.targets.len(), target_width(&target))?;
                         slot.targets.insert(target);
                     }
                     use_permission(&slot, true, &current, loans, apart, b)?;
                     let previous = select(&state, pointer(*storage)?, path, b)?;
                     if previous.targets.is_empty() {
                         let position = slot_position(pointer(*storage)?, path, b)?;
+                        if target_width(&position) != 0 {
+                            ordered(b, state.vacant.len(), target_width(&position))?;
+                        }
                         if !state.vacant.contains(&position) {
                             return Err(failure(
                                 "replacement has neither a live slot nor an extracted hole",
@@ -4063,10 +3986,8 @@ fn derive_cfg(
                             for target in &permission.targets {
                                 fee(
                                     b,
-                                    target
-                                        .stored
-                                        .len()
-                                        .saturating_add(target.place.len())
+                                    target_width(target)
+                                        .saturating_mul(row.len().saturating_add(1))
                                         .saturating_add(1),
                                 )?;
                                 if !matches!(target.base, HoldRoot::Parameter(_) | HoldRoot::Static)
@@ -4108,10 +4029,7 @@ fn derive_cfg(
                         for target in &permission.targets {
                             fee(
                                 b,
-                                target
-                                    .stored
-                                    .len()
-                                    .saturating_add(target.place.len())
+                                target_width(target)
                                     .saturating_mul(row.len().saturating_add(1))
                                     .saturating_add(1),
                             )?;
@@ -4510,14 +4428,7 @@ pub(super) fn infer(
             for row in &function.values {
                 fee(b, row.len())?;
                 for target in row {
-                    fee(
-                        b,
-                        target
-                            .stored
-                            .len()
-                            .saturating_add(target.place.len())
-                            .saturating_add(target.heap_element.as_ref().map_or(0, Vec::len)),
-                    )?;
+                    fee(b, target_width(target))?;
                 }
             }
             actual.push(function.values.clone());
@@ -5346,6 +5257,59 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
         ));
+    }
+    #[test]
+    fn heap_target_union_exhausts_remaining_budget_before_publishing_permission() {
+        for heap in [
+            None,
+            Some(vec![]),
+            Some(vec![PlaceProjection::Field(0); 128]),
+        ] {
+            let from = Permission {
+                targets: Targets::from([Target {
+                    retained_port: None,
+                    base: HoldRoot::Parameter(0),
+                    stored: vec![PlaceProjection::Field(0)],
+                    place: vec![PlaceProjection::Field(1)],
+                    heap_element: heap,
+                }]),
+                loans: Loans::new(),
+            };
+            let mut to = Permission::default();
+            let mut budget = Budget::new(&Limits {
+                max_analysis_steps: 1_100,
+                ..Limits::default()
+            });
+            fee(&mut budget, 1_000).unwrap();
+            let result = union(&mut to, &from, &mut budget);
+            if from
+                .targets
+                .first()
+                .unwrap()
+                .heap_element
+                .as_ref()
+                .is_some_and(|p| !p.is_empty())
+            {
+                assert!(
+                    result
+                        .unwrap_err()
+                        .iter()
+                        .all(|d| d.code == "E-RESOURCE-LIMIT")
+                );
+                assert!(
+                    to.targets.is_empty(),
+                    "an underfunded clone must not publish permission"
+                );
+            } else {
+                assert!(result.unwrap());
+                assert_eq!(to, from);
+                assert_eq!(
+                    budget.remaining(),
+                    94,
+                    "empty heap keeps the old request fee"
+                );
+            }
+        }
     }
     #[test]
     fn owned_fixed_once_keeps_resource_and_class_proofs_independent() {

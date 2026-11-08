@@ -47,6 +47,15 @@ pub(super) fn work(value: &Value, b: &mut Budget) -> CompileResult<()> {
     }
     Ok(())
 }
+/// The port and its owned paths must be paid before a wrapper copies them.
+fn port_snapshot(p: &Permission, path_width: usize, b: &mut Budget) -> CompileResult<Permission> {
+    fee(
+        b,
+        path_width.saturating_add(p.loans.len()).saturating_add(1),
+    )?;
+    target_work(&p.targets, b)?;
+    Ok(p.clone())
+}
 pub(super) fn merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileResult<bool> {
     if !b.task_borrowed_results {
         return Ok(false);
@@ -207,7 +216,12 @@ pub(super) fn summarize(
         }
         let row = facts.returned_task_ports.entry(path.clone()).or_default();
         for source in &permission.targets {
-            fee(b, row.len().saturating_add(1))?;
+            fee(
+                b,
+                target_width(source)
+                    .saturating_add(1)
+                    .saturating_mul(row.len().saturating_add(1)),
+            )?;
             if !row.contains(source) {
                 row.push(source.clone());
             }
@@ -233,6 +247,7 @@ pub(super) fn transfer(
             .ok_or_else(|| failure("Task operand is absent"))
     };
     let mut out = Value::default();
+    let mut work_prepaid = false;
     match &i.kind {
         InstructionKind::TaskCreate {
             worker,
@@ -320,10 +335,12 @@ pub(super) fn transfer(
         InstructionKind::TakeErrorUnion { value, is_error }
             if shape(value_type(f, *value)?).is_some() =>
         {
+            work_prepaid = true;
             let prefix = ContractProjection::Place(PlaceProjection::ErrorArm(*is_error));
             for (path, p) in &get(*value)?.task_ports {
                 if path.first() == Some(&prefix) {
-                    out.task_ports.insert(path[1..].to_vec(), p.clone());
+                    let permission = port_snapshot(p, path.len() - 1, b)?;
+                    out.task_ports.insert(path[1..].to_vec(), permission);
                 }
             }
             out.creation_complete = get(*value)?.creation_complete;
@@ -352,21 +369,25 @@ pub(super) fn transfer(
             )?)
             .is_some() =>
         {
+            work_prepaid = true;
             for (path, p) in &get(*value)?.task_ports {
+                let permission = port_snapshot(p, path.len().saturating_add(1), b)?;
                 let mut selected = vec![ContractProjection::Place(PlaceProjection::ErrorArm(
                     *is_error,
                 ))];
                 selected.extend(path);
-                out.task_ports.insert(selected, p.clone());
+                out.task_ports.insert(selected, permission);
             }
         }
         InstructionKind::ReadErrorUnion { value, is_error }
             if shape(value_type(f, *value)?).is_some() =>
         {
+            work_prepaid = true;
             let step = ContractProjection::Place(PlaceProjection::ErrorArm(*is_error));
             for (path, p) in &get(*value)?.task_ports {
                 if path.first() == Some(&step) {
-                    out.task_ports.insert(path[1..].to_vec(), p.clone());
+                    let permission = port_snapshot(p, path.len() - 1, b)?;
+                    out.task_ports.insert(path[1..].to_vec(), permission);
                 }
             }
         }
@@ -378,7 +399,9 @@ pub(super) fn transfer(
         | InstructionKind::TaskFinishDestroy { .. } => {}
         _ => return Ok(None),
     }
-    work(&out, b)?;
+    if !work_prepaid {
+        work(&out, b)?;
+    }
     Ok(Some(out))
 }
 
