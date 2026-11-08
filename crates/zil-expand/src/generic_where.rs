@@ -45,6 +45,7 @@ fn nominal_bound<'a>(
         // implementation check; the ordinary trait index checks it later.
         if !declarations_only {
             for item in &module.items {
+                budget.node(item.span, 0)?;
                 if let ItemKind::Trait(declaration) = &item.kind {
                     for member in &declaration.members {
                         budget.node(member.span, 0)?;
