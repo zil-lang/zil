@@ -990,12 +990,20 @@ fn array_closure_inference_keeps_its_existing_boundary() {
 }
 
 #[test]
-fn owning_package_array_identity_remains_an_explicit_combination_boundary() {
+fn owning_package_array_identity_preserves_its_selected_source() {
     let definitions = "package Job<life b>{manages bytes:ByteBuffer;items:[&'b i32;2]}fn make<life b>(first:&'b i32,second:&'b i32)->Job<'b>{var bytes=bytes_new();return Job::<'b>{bytes:give bytes,items:[first,second]}}fn identity<life a,life b>(input:&'a Job<'b>)->&'a Job<'b>{return input}";
-    for (label, write) in [
-        ("no-write", ""),
-        ("selected-source-write", "second=11;"),
-        ("unselected-source-write", "first=11;"),
+    for (label, write, expected) in [
+        ("no-write", "", ResultCategory::Success),
+        (
+            "selected-source-write",
+            "second=11;",
+            ResultCategory::SafeReject,
+        ),
+        (
+            "unselected-source-write",
+            "first=11;",
+            ResultCategory::Success,
+        ),
     ] {
         let program = format!(
             "{definitions}fn main()->i32{{var first=7;var second=9;let job=make(&first,&second);let window=identity(&job);let pointer=window.items[1];{write}return *pointer-9}}"
@@ -1008,13 +1016,13 @@ fn owning_package_array_identity_remains_an_explicit_combination_boundary() {
             },
         );
         println!("cross-domain {label}: {}", report.to_json());
+        assert_eq!(report.status, expected, "{label}: {}", report.to_json());
         assert_eq!(
-            report.status,
-            ResultCategory::Unsupported,
-            "{label}: {}",
-            report.to_json()
+            report.verification_runs,
+            usize::from(expected == ResultCategory::Success)
         );
-        assert_eq!(report.verification_runs, 0);
-        assert!(report.diagnostics.iter().any(|d| d.phase == zil_base::Phase::Analyze && d.message == "pure Copy operation result contains an address, capability or nonordinary payload"), "{}", report.to_json());
     }
 }
+
+#[path = "package_shared_array.rs"]
+mod package_shared_array;
