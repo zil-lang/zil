@@ -48,6 +48,10 @@ fn qualified_record_source_preserves_external_loan_and_rejects_local_escape() {
             ),
         ),
         (
+            "live Record window prevents parent movement",
+            NORMAL.replacen("if read(&moved)!=7", "let child=&moved.refs\n        let again=relay(moved)\n        if *child.pointer!=7", 1),
+        ),
+        (
             "local source escape",
             NORMAL
                 .replacen(

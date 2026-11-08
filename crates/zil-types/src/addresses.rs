@@ -366,6 +366,12 @@ impl Builder<'_, '_> {
         {
             // Keep the actual parent shell as the projection's carrier. The
             // Record has no separate resource cell or cleanup responsibility.
+            let parent_work = inference::type_snapshot_work(
+                &self.function.locals[local.0 as usize].ty,
+                span,
+                self.limits,
+            )?;
+            self.closures.snapshot(parent_work, span)?;
             let parent = self.function.locals[local.0 as usize].ty.clone();
             let address = self.value(
                 InstructionKind::BorrowLocal { local },
