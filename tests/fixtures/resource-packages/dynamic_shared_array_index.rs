@@ -720,13 +720,32 @@ fn raw_and_wire_check_a_single_upper_against_the_real_stored_destination() {
 #[test]
 fn unknown_legacy_upper_sources_cannot_be_masked_by_a_known_branch() {
     let mut reports = Vec::new();
-    for (label, alternate) in [
-        ("legacy right", "id(right.pointer)"),
-        ("legacy left", "id(left.pointer)"),
-        ("direct right", "right.pointer"),
+    for (label, prefix, pointer) in [
+        (
+            "legacy right",
+            "",
+            "if flag{items[index]}else{id(right.pointer)}",
+        ),
+        (
+            "legacy left",
+            "",
+            "if flag{items[index]}else{id(left.pointer)}",
+        ),
+        (
+            "direct right",
+            "",
+            "if flag{items[index]}else{right.pointer}",
+        ),
+        ("direct left", "", "if flag{items[index]}else{left.pointer}"),
+        (
+            "two-level unknown",
+            "let q=if flag{left.pointer}else{id(right.pointer)};",
+            "if flag{items[index]}else{q}",
+        ),
+        ("legacy without dynamic", "", "id(right.pointer)"),
     ] {
         let program = format!(
-            "struct Refs<life a>{{pointer:&'a i32}}fn make<life a>(pointer:&'a i32)->Refs<'a>{{return Refs::<'a>{{pointer:pointer}}}}fn id<life p>(pointer:&'p i32)->&'p i32{{return pointer}}fn read<life a,life b>(left:Refs<'a>,right:Refs<'b>,index:i32,flag:bool)->i32{{let items=[left.pointer,left.pointer];let pointer=if flag{{items[index]}}else{{{alternate}}};let holder=Refs::<'a>{{pointer:pointer}};return *holder.pointer}}fn main()->i32{{let first=7;let second=9;return read(make(&first),make(&second),1,false)-9}}"
+            "struct Refs<life a>{{pointer:&'a i32}}fn make<life a>(pointer:&'a i32)->Refs<'a>{{return Refs::<'a>{{pointer:pointer}}}}fn id<life p>(pointer:&'p i32)->&'p i32{{return pointer}}fn read<life a,life b>(left:Refs<'a>,right:Refs<'b>,index:i32,flag:bool)->i32{{{prefix}let items=[left.pointer,left.pointer];let pointer={pointer};let holder=Refs::<'a>{{pointer:pointer}};return *holder.pointer}}fn main()->i32{{let first=7;let second=9;return read(make(&first),make(&second),1,false)-9}}"
         );
         let report = compile_source(
             &source(label, &program),
@@ -739,16 +758,41 @@ fn unknown_legacy_upper_sources_cannot_be_masked_by_a_known_branch() {
         reports.push((label, report));
     }
     for (label, report) in reports {
-        if label == "legacy left" {
-            continue;
-        }
-        assert!(
-            matches!(
-                report.status,
-                ResultCategory::Unsupported | ResultCategory::SafeReject
-            ),
-            "{label}: {}",
-            report.to_json()
-        );
+        let expected = match label {
+            "direct left" => ResultCategory::Success,
+            "direct right" => ResultCategory::SafeReject,
+            "legacy without dynamic" => continue,
+            _ => ResultCategory::Unsupported,
+        };
+        assert_eq!(report.status, expected, "{label}: {}", report.to_json());
     }
+}
+
+#[test]
+fn seeded_parameter_upper_still_requires_every_store_incoming_source() {
+    let program = "struct Refs<life a>{pointer:&'a i32}fn id<life p>(pointer:&'p i32)->&'p i32{return pointer}fn read<life a,life b>(left:Refs<'a>,right:Refs<'b>,supplied:&'a i32,index:i32,flag:bool)->i32{var local=supplied;local=id(right.pointer);let items=[left.pointer,left.pointer];let pointer=if flag{items[index]}else{local};let holder=Refs::<'a>{pointer:pointer};return *holder.pointer}fn main()->i32{return 0}";
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let mut raw = typed_source("seeded-parameter-unknown-store", program, &target, &limits);
+    let f = raw.functions.iter_mut().find(|f| f.name == "read").unwrap();
+    let local = f.locals.iter().find(|l| l.name == "local").unwrap().id;
+    let supplied = f.locals.iter().find(|l| l.name == "supplied").unwrap().id;
+    f.locals[supplied.0 as usize].mutable = true;
+    for i in f.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+        match &mut i.kind {
+            zil_ir::InstructionKind::Load(id) if *id == local => *id = supplied,
+            zil_ir::InstructionKind::Store { local: id, .. } if *id == local => *id = supplied,
+            _ => {}
+        }
+    }
+    let errors = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d
+            .message
+            .contains("upper dependency has no complete actual source")),
+        "{errors:?}"
+    );
+    println!(
+        "seed parameter plus unknown Store: required closure refuses to stop at its initial seed"
+    );
 }
