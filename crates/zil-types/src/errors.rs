@@ -3,6 +3,15 @@
 //! builder state or turns a recoverable failure into a trap.
 use super::*;
 
+pub(super) fn constructor(callee: &CoreExpr) -> Option<&str> {
+    match &callee.kind {
+        CoreExprKind::Name(name) if matches!(name.as_str(), "error_ok" | "error_err") => {
+            Some(name)
+        }
+        _ => None,
+    }
+}
+
 pub(super) fn owned(ty: &Type) -> bool {
     matches!(ty, Type::ErrorUnion { error, result }
         if matches!(error.as_ref(), Type::Package { .. })
