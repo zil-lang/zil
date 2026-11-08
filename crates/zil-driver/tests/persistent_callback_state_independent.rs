@@ -951,8 +951,10 @@ fn legacy_single_field_state_has_fresh_exact_expand_budget_measurement() {
     assert_eq!(
         // query work budget: prior2766, first921 measurement2774. Removing the unused
         // fixed-class leaf query leaves three real callable source-life scans.
+        // Paid nominal-profile queries inspect make/run's callable header
+        // twice each at2 work per query: prior2769 +8, source/default unchanged.
         expand,
-        2769,
-        "205 State alias checks plus322 full-AST life validation; source/default unchanged"
+        2777,
+        "State alias/life checks and paid nominal-profile queries; source/default unchanged"
     );
 }

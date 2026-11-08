@@ -129,6 +129,9 @@ fn real_collision_paths_have_measured_fresh_and_exhausted_boundaries() {
         // Original accepted collision path: inline 281/131, where 380/173.
         // Prior scoped nominal checks cost 837/188 and 936/230; 322
         // additionally pays its complete type-position validation walk.
+        // Paid nominal-profile queries add 7+7 for inline T:Copy, or 1+7
+        // for the original unbounded header and its normalized Copy header.
+        // Prior work1008/1111 and the node bounds remain historical.
         measured.push((work, nodes));
         fs::write(out.join("costs.csv"), format!("{label},{work},{nodes}\n")).unwrap();
         eprintln!("{label} work={work} nodes={nodes}");
@@ -169,7 +172,7 @@ fn real_collision_paths_have_measured_fresh_and_exhausted_boundaries() {
             }
         }
     }
-    assert_eq!(measured, [(1008, 265), (1111, 309)]);
+    assert_eq!(measured, [(1022, 265), (1119, 309)]);
 }
 
 #[cfg(feature = "llvm-api")]

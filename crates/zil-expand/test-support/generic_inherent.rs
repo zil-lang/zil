@@ -144,8 +144,10 @@ fn inherent_specialization_preserves_exact_request_boundaries() {
         });
         eprintln!("inherent budget work={work} N={amount}");
         // Actual AST receiver lowering is prepaid; the 1431/484 pre-lowering
-        // observation remains in the historical author receipt.
-        assert_eq!(amount, if work { 1675 } else { 547 });
+        // observation remains in the historical author receipt. The actual
+        // T:Copy method header's nominal-profile query pays 1 parameter,
+        // 1 bound and 5 name units: prior work1675 +7, nodes unchanged.
+        assert_eq!(amount, if work { 1682 } else { 547 });
 
         let mut limits = Limits::default();
         if work {

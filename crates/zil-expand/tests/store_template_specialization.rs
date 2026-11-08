@@ -268,8 +268,9 @@ fn legacy_single_field_state_preserves_exact_expand_budget() {
     );
     check(exact).unwrap();
     // The boundary includes three actual callable source-life queries;
-    // fixed-class leaf walks do not consume work.
-    assert_eq!(exact, 2769);
+    // fixed-class leaf walks do not consume work. make/run each now pay
+    // two actual nominal-profile queries of2 work: prior2769 +8.
+    assert_eq!(exact, 2777);
 }
 
 const ORDINARY: &str = r#"
@@ -342,8 +343,11 @@ fn ordinary_store_calls_stay_eager_with_a_measured_exact_budget() {
     let n = boundary(ORDINARY);
     eprintln!("ordinary_store_expand_n={n}");
     assert_eq!(
-        n, 3360,
-        "full type-position lifetime validation consumes the shared budget"
+        // empty/reserve/push each pay two actual StoreElement profile
+        // queries of15 work (1 parameter +1 bound +13 name): prior3360 +90.
+        n,
+        3450,
+        "lifetime validation and nominal-profile queries consume the shared budget"
     );
 }
 
