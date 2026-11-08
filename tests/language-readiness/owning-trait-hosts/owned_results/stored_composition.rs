@@ -938,3 +938,100 @@ fn ordinary_error_places_have_exact_fresh_independent_resource_work() {
         eprintln!("ordinary Error/Option resource {phase:?} N={high}; N-1/fresh agree");
     }
 }
+
+#[test]
+fn ordinary_error_places_keep_byte_query_generations_in_real_loops() {
+    let base = error_place_program();
+    let fresh = "var copy:Item=original.duplicate();var iteration=0;var sum=i64(0);while iteration<2{let exclusive=&mut copy;let description=exclusive.data;sum=sum+bytes_len(description)+exclusive.tag;iteration=iteration+1}return i32(sum+original.tag-62)";
+    let outside = "var copy:Item=original.duplicate();let exclusive=&mut copy;let description=exclusive.data;var iteration=0;var sum=i64(0);while iteration<2{sum=sum+bytes_len(description)+exclusive.tag;iteration=iteration+1}return i32(sum+original.tag-62)";
+    let stale = "var copy:Item=original.duplicate();var current=&copy;var iteration=0;var sum=i64(0);while iteration<2{let description=current.data;let exclusive=&mut copy;let amount:i64=bytes_len(description);sum=sum+amount;current=&*exclusive;iteration=iteration+1}return i32(sum+original.tag-22)";
+    for (name, body, valid) in [
+        ("fresh-in-loop", fresh, true),
+        ("parent-outside-loop", outside, true),
+        (
+            "stale-control",
+            &stale.replace("bytes_len(description)", "1"),
+            true,
+        ),
+        ("stale-query", stale, false),
+    ] {
+        let source = base.replace("return i32(original.tag-20)", body);
+        let module = typed(&source);
+        if valid {
+            control(&module);
+        } else {
+            let a = rejected(zil_analyze::analyze(&module, &Limits::default()), name);
+            assert!(
+                a.iter()
+                    .any(|d| d.message.contains("actual stored target/parent loan")),
+                "{a:?}"
+            );
+        }
+    }
+    // The lawful scalar control supplies the candidate. Only the actual loop
+    // scalar operation is changed to a query; no origin or loan claim is added.
+    let source = base.replace(
+        "return i32(original.tag-20)",
+        &stale.replace("bytes_len(description)", "1"),
+    );
+    let mut module = typed(&source);
+    let mut claim = control(&module);
+    let function = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let stored_value = |name: &str| {
+        let local = function.locals.iter().find(|l| l.name == name).unwrap().id;
+        function
+            .blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .find_map(|i| match i.kind {
+                InstructionKind::Store { local: l, value } if l == local => Some(value),
+                _ => None,
+            })
+            .unwrap()
+    };
+    let buffer = stored_value("description");
+    let result = stored_value("amount");
+    let operation = function
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| i.result == Some(result))
+        .unwrap();
+    assert!(matches!(
+        operation.kind,
+        InstructionKind::Constant(zil_ir::Constant::I64(1))
+    ));
+    operation.kind = InstructionKind::ByteBufferLen { buffer };
+    claim.module_fingerprint = module.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &claim, &Limits::default()).unwrap();
+    let a = rejected(
+        zil_analyze::analyze(&module, &Limits::default()),
+        "stale-loop/raw Analyze",
+    );
+    assert!(
+        a.iter()
+            .any(|d| d.message.contains("actual stored target/parent loan")),
+        "{a:?}"
+    );
+    for errors in [
+        rejected(
+            zil_verify::verify_module(module.clone(), claim, &module.target, &Limits::default()),
+            "stale-loop/raw Verify",
+        ),
+        rejected(
+            zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()),
+            "stale-loop/fresh Wire",
+        ),
+    ] {
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("live incompatible loan")),
+            "{errors:?}"
+        );
+    }
+}
