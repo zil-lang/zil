@@ -1023,3 +1023,6 @@ fn owning_package_array_identity_preserves_its_selected_source() {
 
 #[path = "package_shared_array.rs"]
 mod package_shared_array;
+
+#[path = "shared_array_snapshot_initialization.rs"]
+mod shared_array_snapshot_initialization;

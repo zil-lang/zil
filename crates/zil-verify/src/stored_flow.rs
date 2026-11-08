@@ -1,6 +1,7 @@
 //! Independent stored-target reconstruction. Sorted vectors and batch CFG
 //! solving deliberately do not consume analyzer roots, summaries, or claims.
 use super::*;
+mod array_snapshot;
 mod byte_queries;
 #[path = "stored_flow_pure_copy.rs"]
 mod pure_copy;
@@ -4044,8 +4045,23 @@ fn windows(
                         b,
                     )?;
                 }
-                InstructionKind::ReadAddress { address }
-                | InstructionKind::SliceLength { address }
+                InstructionKind::ReadAddress { address } => {
+                    if let Type::Address { inner, .. } = vt(f, *address)?
+                        && shared_array_value(inner)
+                        && let Type::Array { length, .. } = inner.as_ref()
+                    {
+                        array_snapshot::check(&state, pointer(*address)?, *length, b)?;
+                    }
+                    access(
+                        pointer(*address)?,
+                        false,
+                        &active,
+                        &solution.loans,
+                        requirements,
+                        b,
+                    )?;
+                }
+                InstructionKind::SliceLength { address }
                 | InstructionKind::ReborrowAddress {
                     address,
                     mutable: false,

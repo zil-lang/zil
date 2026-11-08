@@ -2,6 +2,7 @@
 //! This pass does not use a candidate, source label, or nominal name as a root.
 use super::*;
 
+mod array_snapshot;
 mod byte_queries;
 pub(super) mod enum_address;
 mod nominal;
@@ -4080,8 +4081,16 @@ fn windows(
                     fee(b, 1)?;
                     use_permission(&actual, *mutable, &current, loans, apart, b)?;
                 }
-                InstructionKind::ReadAddress { address }
-                | InstructionKind::SliceLength { address }
+                InstructionKind::ReadAddress { address } => {
+                    if let Type::Address { inner, .. } = value_type(f, *address)?
+                        && shared_array_value(inner)
+                        && let Type::Array { length, .. } = inner.as_ref()
+                    {
+                        array_snapshot::check(&state, pointer(*address)?, *length, b)?;
+                    }
+                    use_permission(pointer(*address)?, false, &current, loans, apart, b)?;
+                }
+                InstructionKind::SliceLength { address }
                 | InstructionKind::ReborrowAddress {
                     address,
                     mutable: false,
