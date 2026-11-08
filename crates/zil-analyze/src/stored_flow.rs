@@ -1358,11 +1358,13 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             _ => Ok(false),
         }
     }
+    let mut byte_companion = false;
     for p in &f.parameters {
         fee(b, 1)?;
         if f.locals.get(p.0 as usize).is_none() {
             return Err(failure("signature parameter outside actual local table"));
         }
+        byte_companion |= byte_queries::description(&f.locals[p.0 as usize].ty);
     }
     if super::stored_callables::fixed_value(module, &f.return_type) {
         return Err(vec![Diagnostic::unsupported(
@@ -1493,7 +1495,20 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             c,
         );
     }
-    super::signature_life::function_relation(
+    let byte_signature = byte_companion
+        && f.call_kind == CallKind::Direct
+        && f.foreign.is_none()
+        && f.environment.is_none()
+        && byte_queries::signature_presence(module, b)?;
+    if byte_signature {
+        fee(b, parameters.len())?;
+    }
+    let check = if byte_signature {
+        super::signature_life::function_relation_byte_inputs
+    } else {
+        super::signature_life::function_relation
+    };
+    check(
         &parameters,
         &f.return_type,
         c,

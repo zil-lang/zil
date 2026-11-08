@@ -93,6 +93,17 @@ pub(super) fn inventory(
     }
     for (index, f) in module.functions.iter().enumerate() {
         fee(b, 1)?;
+        let companion = if f.storage_life.is_some() {
+            fee(b, f.parameters.len())?;
+            f.parameters
+                .iter()
+                .any(|p| description(&f.locals[p.0 as usize].ty))
+        } else {
+            false
+        };
+        if companion && !marked[index] {
+            return Err(closed());
+        }
         if marked[index]
             && (f.foreign.is_some()
                 || f.environment.is_some()
@@ -423,4 +434,29 @@ pub(super) fn work(reads: &[Target], b: &mut Budget) -> CompileResult<()> {
         fee(b, target_width(source))?;
     }
     Ok(())
+}
+
+/// Rich signatures can be checked before the ordinary instruction inventory.
+/// Only the exact new input companion pays this bounded presence scan.
+pub(super) fn signature_presence(module: &TypedModule, b: &mut Budget) -> CompileResult<bool> {
+    fee(b, 1)?;
+    if b.byte_queries || b.byte_query_presence_checked {
+        return Ok(b.byte_queries);
+    }
+    fee(b, module.functions.len())?;
+    for function in &module.functions {
+        fee(b, function.blocks.len())?;
+        for block in &function.blocks {
+            fee(b, block.instructions.len())?;
+            for instruction in &block.instructions {
+                if operand(&instruction.kind).is_some() {
+                    b.byte_queries = true;
+                    b.byte_query_presence_checked = true;
+                    return Ok(true);
+                }
+            }
+        }
+    }
+    b.byte_query_presence_checked = true;
+    Ok(false)
 }

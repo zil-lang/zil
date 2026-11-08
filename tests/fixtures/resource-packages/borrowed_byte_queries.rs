@@ -207,10 +207,11 @@ fn selected_query_program() -> String {
 }
 fn separated_formals_program() -> String {
     format!(
-        "{}package Head{{manages bytes:ByteBuffer}}fn head()->Head{{var bytes=bytes_new();return Head{{bytes:give bytes}}}}fn hold_head(input:&mut Head)->i32{{return 7}}fn inspect_heads(buffer:ByteBuffer,owner:&mut Head)->i64{{let observed=bytes_len(buffer);hold_head(owner);return observed}}fn main()->i32{{var first=head();var second=head();let old=first.bytes;let exclusive=&mut second;let observed=inspect_heads(old,exclusive);if observed==0{{return 0}}return 1}}",
+        "{}fn keep<life a>(input:&mut Job<'a>)->i32{{return 7}}fn inspect<life a>(buffer:ByteBuffer,owner:&mut Job<'a>)->i64{{let observed=bytes_len(buffer);keep(owner);return observed}}fn main()->i32{{var a=3;var b=7;var first=make(&a);var second=make(&b);let window=&first;let old=window.bytes;let exclusive=&mut second;let observed=inspect(old,exclusive);if observed==0{{return 0}}return 1}}",
         metadata_prefix()
     )
 }
+
 fn owner_liveness_program() -> String {
     let prefix = metadata_prefix()
         .replace(
@@ -289,6 +290,10 @@ fn check_raw_owner_or_formal_separation(owner: bool) {
         } else {
             let from = main.locals.iter().find(|l| l.name == "second").unwrap().id;
             let to = main.locals.iter().find(|l| l.name == "first").unwrap().id;
+            assert_eq!(
+                main.locals[from.0 as usize].ty,
+                main.locals[to.0 as usize].ty
+            );
             let instruction = main
                 .blocks
                 .iter_mut()

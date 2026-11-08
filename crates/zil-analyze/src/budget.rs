@@ -72,6 +72,7 @@ pub(super) struct Budget {
     // Presence from actual Direct Call types; only schedules the private proof.
     pub(super) qualified_package_returns: bool,
     pub(super) byte_queries: bool,
+    pub(super) byte_query_presence_checked: bool,
     pub(super) byte_query_functions: Vec<bool>,
     pub(super) package_return_calls: Option<BTreeMap<(zil_ir::FunctionId, zil_ir::ValueId), u32>>,
     /// Private complete stored-target facts, published only after the stored
@@ -159,6 +160,7 @@ impl Budget {
             store_option_results: false,
             qualified_package_returns: false,
             byte_queries: false,
+            byte_query_presence_checked: false,
             byte_query_functions: Vec::new(),
             package_return_calls: None,
             store_option_targets: None,

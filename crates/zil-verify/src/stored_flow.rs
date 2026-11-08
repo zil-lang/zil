@@ -1638,11 +1638,13 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             _ => Ok(false),
         }
     }
+    let mut byte_companion = false;
     for p in &f.parameters {
         b.spend(1)?;
         if f.locals.get(p.0 as usize).is_none() {
             return Err(err("signature parameter outside actual local table"));
         }
+        byte_companion |= byte_queries::is_description(&f.locals[p.0 as usize].ty);
     }
     let Some(c) = &f.storage_life else {
         if b.stored_enum_addresses
@@ -1769,7 +1771,20 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             }
         }
     }
-    super::signature_life::function_relation(
+    let byte_signature = byte_companion
+        && f.call_kind == CallKind::Direct
+        && f.foreign.is_none()
+        && f.environment.is_none()
+        && byte_queries::signature_presence(module, b)?;
+    if byte_signature {
+        b.spend(parameters.len())?;
+    }
+    let check = if byte_signature {
+        super::signature_life::function_relation_byte_inputs
+    } else {
+        super::signature_life::function_relation
+    };
+    check(
         module,
         &parameters,
         &f.return_type,
