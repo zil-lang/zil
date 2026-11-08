@@ -236,12 +236,14 @@ fn ordinary_package_fields_do_not_replace_qualified_leaf_transport() {
     let mut raw = module.clone();
     let mut changed = false;
     for function in &mut raw.functions {
+        let Some(local) = function.locals.iter().find(|l|
+            matches!(&l.ty, zil_ir::Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), zil_ir::Type::Package { .. })))
+            .map(|l| l.id) else { continue; };
         for i in function.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
-            if let InstructionKind::BorrowPackageField { local, index, .. } = i.kind
-                && matches!(
-                    function.locals[local.0 as usize].ty,
-                    zil_ir::Type::BorrowedStorage { .. }
-                )
+            if let InstructionKind::AddressField { address, index } = i.kind
+                && matches!(&function.values[address.0 as usize], zil_ir::Type::Address { inner, .. }
+                    if matches!(inner.as_ref(), zil_ir::Type::BorrowedStorage { storage, .. }
+                        if matches!(storage.as_ref(), zil_ir::Type::Package { .. })))
             {
                 i.kind = InstructionKind::ReadPackageField { local, index };
                 changed = true;
