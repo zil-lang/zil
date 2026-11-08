@@ -340,6 +340,7 @@ impl Flow {
         summaries: &[Facts],
         b: &mut Budget,
     ) -> CompileResult<Vec<Permission>> {
+        fee(b, 1)?;
         if let Some(value) = operand(&i.kind) {
             let out = copy_origins(self.actual(value), b)?;
             if out.is_empty() {

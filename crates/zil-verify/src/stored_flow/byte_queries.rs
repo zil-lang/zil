@@ -302,6 +302,7 @@ impl Flow {
         summaries: &[Summary],
         b: &mut Budget,
     ) -> Check<Vec<Permission>> {
+        b.spend(1)?;
         if let Some(value) = query(&operation.kind) {
             let alternatives = clone_alternatives(self.at(value), b)?;
             if alternatives.is_empty() {

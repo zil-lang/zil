@@ -1041,3 +1041,6 @@ fn qualified_package_return_budget_covers_signatures_chains_and_current_requests
         );
     }
 }
+
+#[path = "borrowed_byte_queries.rs"]
+mod byte_queries;
