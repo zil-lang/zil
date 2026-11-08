@@ -96,6 +96,41 @@ struct Equations {
     grounded: Option<Vec<bool>>,
     next_rigid: usize,
 }
+
+#[cfg(test)]
+mod equation_tests {
+    use super::*;
+
+    #[test]
+    fn member_substitution_preserves_rigid_conflicts_and_actual_grounding() {
+        let mut b = Budget::new(&Limits::default());
+        let mut e = Equations {
+            representative: Vec::new(),
+            members: Some(Vec::new()),
+            rigid: Vec::new(),
+            grounded: None,
+            next_rigid: 0,
+        };
+        let a = e.fresh(false, &mut b).unwrap();
+        let z = e.fresh(false, &mut b).unwrap();
+        e.equal(a, z, &mut b).unwrap();
+        let rigid = e.fresh(true, &mut b).unwrap();
+        e.track_grounding(&mut b).unwrap();
+        e.equal(rigid, a, &mut b).unwrap();
+        e.freeze(&[z], &mut b).unwrap();
+        let other = e.fresh(true, &mut b).unwrap();
+        assert!(e.equal(z, other, &mut b).is_err());
+
+        let x = e.fresh(false, &mut b).unwrap();
+        let y = e.fresh(false, &mut b).unwrap();
+        e.equal(x, y, &mut b).unwrap();
+        assert!(e.freeze(&[y], &mut b).is_err());
+        e.ground_address(Some(y), &mut b).unwrap();
+        e.freeze(&[y], &mut b).unwrap();
+        assert!(e.equal(x, a, &mut b).is_err());
+    }
+}
+
 impl Equations {
     fn fresh(&mut self, rigid: bool, b: &mut Budget) -> Check<usize> {
         b.spend(3)?;
