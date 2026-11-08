@@ -12,6 +12,8 @@ Both kernels independently check constructor arity, every required source leaf, 
 
 This slice excludes empty address arrays, dynamic indexing, exclusive address-array copying, and arbitrary nested target-bearing containers. It does not add array slot extraction/refill or dynamic index disjointness. Expansion, per-element metadata, complete type snapshots and physical snapshot planning use the request's existing limits. A large source can exhaust those limits before code generation; the default limits are unchanged.
 
+Types collects a private accounting bit during its already paid actual inventory traversal and when an actual shared array type forms. Once set, it reserves each complete type snapshot before copying. This bit supplies no shape, Copy or source authority. Scalar function cost reuse stays on its existing path before this mode applies; the checker rebuilds functions after it applies, so cached costs cannot cross accounting modes. Permanent controls compare both function orders and their cold, warm and fresh budget boundaries.
+
 | Operation | Contract |
 | --- | --- |
 | Construct or copy a fixed shared array | Preserve every actual element source and its original upper bound |
