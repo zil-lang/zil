@@ -560,15 +560,12 @@ fn array_slots_and_actual_pointee_snapshot_budgets_are_exact_and_fresh() {
 }
 
 #[test]
-fn large_array_growth_keeps_the_unchanged_default_resource_boundary() {
-    let elements = std::iter::repeat_n("pointer", 512)
-        .collect::<Vec<_>>()
-        .join(",");
-    let program = format!(
-        "fn main()->i32{{let value=7;let pointer=&value;let original=[{elements}];let copied=original;let selected=copied[511];return *selected-7}}"
-    );
+fn ordinary_512_element_array_completes_source_raw_and_wire_verification() {
+    let program = include_str!("fixed-shared-address-array-512.zil");
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
     let report = compile_source(
-        &source("array-default-growth", &program),
+        &source("array-default-growth", program),
         &CompileOptions {
             stop_after: Stage::Verify,
             ..CompileOptions::default()
@@ -576,17 +573,17 @@ fn large_array_growth_keeps_the_unchanged_default_resource_boundary() {
     );
     assert_eq!(
         report.status,
-        ResultCategory::ResourceLimit,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .all(|d| d.category == ResultCategory::ResourceLimit)
-    );
-    println!("512-slot Source growth: unchanged default ResourceLimit, no executable emitted");
+    assert_eq!(report.verification_runs, 1);
+    let raw = typed_source("array-default-growth", program, &target, &limits);
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    println!("512-slot Source/raw/Wire: independent Verify complete within default limits");
 }
 
 #[test]
