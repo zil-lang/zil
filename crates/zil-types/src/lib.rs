@@ -2291,7 +2291,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             } = &callee.kind
                 && member == "len"
                 && self
-                    .known_type(object)
+                    .known_type_checked(object)?
                     .is_some_and(|ty| ty.is_slice_address())
             {
                 if !arguments.is_empty() {
