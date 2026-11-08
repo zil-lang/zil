@@ -7197,18 +7197,23 @@ fn captured_helper_source_captured_source_native_full_results_and_budget() {
         // Complete nominal-row proofs and retained-boundary inventories now
         // run independently in each kernel. These are measured actual source
         // counts, separate from the unchanged local callable solver fees.
-        let (old, nominal, retained_scans) = match case {
-            "fn" => (24_224, 178, 37),
-            "fnmut-two-calls" => (34_804, 178, 39),
-            "fnonce" => (36_926, 98, 22),
+        // Tag's qualified windows now retain their real leaf permissions.
+        // Pay their copies and the larger downstream snapshot/live inventory;
+        // this does not change the local callable solver's fees.
+        let (old, nominal, retained_scans, window_leaves) = match case {
+            "fn" => (24_224, 178, 37, 390),
+            "fnmut-two-calls" => (34_804, 178, 39, 426),
+            "fnonce" => (36_926, 98, 22, 360),
             _ => unreachable!(),
         };
+        let prior = old + nominal + retained_scans * 3;
         assert_eq!(
             low,
-            old + nominal + retained_scans * 3,
+            prior + window_leaves,
             "{case} actual Source work changed"
         );
         assert_eq!(check(old).status, ResultCategory::ResourceLimit);
+        assert_eq!(check(prior).status, ResultCategory::ResourceLimit);
         assert_eq!(check(low).status, ResultCategory::Success);
         let short = check(low - 1);
         assert_eq!(short.status, ResultCategory::ResourceLimit);

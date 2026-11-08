@@ -184,10 +184,20 @@ fn actual_dag_budget_boundaries_and_old_tail_fees() {
                 // add 25*3 / 41*3 respectively; neither is staged CFG work.
                 let nominal_delta = if phase == 0 { 98 } else { 178 };
                 let retained_delta = if phase == 0 { 25 * 3 } else { 41 * 3 };
+                // The actual Tag windows now carry their source permissions
+                // through reborrows, including downstream snapshots/liveness.
+                let window_delta = if phase == 0 { 528 } else { 526 };
+                let prior = known[phase] + physical_delta + nominal_delta + retained_delta;
                 assert_eq!(
                     low,
-                    known[phase] + physical_delta + nominal_delta + retained_delta,
+                    prior + window_delta,
                     "{label}/{phase}"
+                );
+                assert!(
+                    check(prior)
+                        .unwrap_err()
+                        .iter()
+                        .any(|d| d.category == ResultCategory::ResourceLimit)
                 );
                 assert!(
                     check(known[phase] + physical_delta)
