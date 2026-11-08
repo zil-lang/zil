@@ -442,6 +442,8 @@ fn check_package_type(
             owns = true;
         } else if borrowed.is_some() && crate::stored_flow::shared_record_child(field, budget)? {
             // Stored flow proves its actual addresses; this field has zero debt.
+        } else if borrowed.is_some() && crate::stored_flow::shared_array_shape(field, budget)? {
+            // Actual ordinal slots/loans are proved by stored flow, never debt.
         } else if let Type::Closure(id) = field {
             if !array_fields {
                 return Err(unsupported(

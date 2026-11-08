@@ -140,6 +140,7 @@ fn admit_shape(
                 // and carrier lifetime on every actual operation.
                 Type::Address { .. } if qualified => {}
                 _ if qualified && crate::stored_flow::shared_record_child(ty, budget)? => {}
+                _ if qualified && crate::stored_flow::shared_array_shape(ty, budget)? => {}
                 ty if ty.is_copy_value() => {}
                 _ => {
                     if borrowed {

@@ -2562,6 +2562,34 @@ impl<'a> Builder<'a, '_> {
         ))
     }
 
+    // This paid hint is local to constant indexing. Ordinary Package hints
+    // retain their Managed-to-Desc projection and their existing lookup path.
+    #[inline(never)]
+    fn package_array_index_hint(&mut self, object: &CoreExpr) -> R<Option<Type>> {
+        if !self.closures.array_billing || self.known_type_ref(object).is_some() {
+            return Ok(None);
+        }
+        let CoreExprKind::Member { object: parent, .. } = &object.kind else {
+            return Ok(None);
+        };
+        let Some(parent) = self.known_type_ref(parent) else {
+            return Ok(None);
+        };
+        let parent = if let Type::Address { inner, .. } = parent {
+            inner.as_ref()
+        } else {
+            parent
+        };
+        if !matches!(parent, Type::BorrowedStorage { storage, .. }
+            if matches!(storage.as_ref(), Type::Package { .. }))
+        {
+            return Ok(None);
+        }
+        // known_type_checked prepays the complete actual parent before field
+        // lookup, and independently prepays its selected field before clone.
+        self.known_type_checked(object)
+    }
+
     #[inline(never)]
     fn aggregate_index(&mut self, e: &CoreExpr) -> R<(ValueId, Type)> {
         let CoreExprKind::Index { object, index } = &e.kind else {
@@ -2577,8 +2605,10 @@ impl<'a> Builder<'a, '_> {
                 ty,
             ));
         }
+        let package_hint = self.package_array_index_hint(object)?;
         let element_width = self
             .known_type_ref(object)
+            .or(package_hint.as_ref())
             .and_then(|ty| {
                 let ty = if let Type::Address { inner, .. } = ty {
                     inner.as_ref()
@@ -2603,7 +2633,10 @@ impl<'a> Builder<'a, '_> {
             .transpose()?;
         if let Some((work, length)) = element_width {
             self.closures.snapshot(work, e.span)?;
-            let actual = self.known_type_ref(object).expect("known array");
+            let actual = self
+                .known_type_ref(object)
+                .or(package_hint.as_ref())
+                .expect("known array");
             let actual = if let Type::Address { inner, .. } = actual {
                 inner.as_ref()
             } else {

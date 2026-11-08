@@ -1,0 +1,9 @@
+# Qualified Package shared Array fields
+
+An owning qualified Package may contain a direct nonempty fixed Array of thin shared addresses to finite closed Copy storage. Managed fields retain their ordinary resource responsibility; the Array contributes no cleanup debt and does not make the Package Copy. This contract does not extend exclusive Array copying, dynamic index disjointness, empty Arrays, fat address elements, or nested Record child admission.
+
+A constant index through the actual Package field uses the complete resolved parent and Array type, the bounded physical field ordinal, and the bounded element ordinal. The path is `[Field(parent), Field(element)]`; lifetime `Element` metadata supplies no physical authority. Ordinary pure-Copy operations remain closed to addresses. Paid local hints select the existing stored-load consumer without changing Managed field descriptions or granting a source.
+
+Construction preserves every actual element source, upper bound, and parent loan. Shared whole-Package helper returns require the independently reconstructed unique whole input certificate and preserve all retained Array leaves. Before the view's last use, all of those sources remain borrowed. After selecting one pointer and ending the view's last use, that pointer retains only its real element source and ancestors. Same types, classes, or parameter positions cannot replace this proof.
+
+Both kernels independently authenticate actual physical slots, sources and ownership on the same CFG. Normal exits, errors and allocation failure must discharge each actual Managed responsibility once. Complete snapshots, field-name lookup, shape checks, Array slots and metadata growth are charged before work under the existing limits.
