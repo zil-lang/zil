@@ -799,3 +799,246 @@ fn whole_package_merged_input_program(flag: bool) -> String {
         "{job}fn identity<life a,life b>(input:&'a Job<'b>)->&'a Job<'b>{{return input}}fn flag()->bool{{return {flag}}}fn main()->i32{{var other=3;var value=7;var spare=0;let left=make(&other);let right=make(&value);let chosen=if flag(){{&left}}else{{&right}};let window=identity(chosen);spare=11;let expected=if flag(){{3}}else{{7}};if *window.refs.pointer==expected{{return 0}}return 1}}"
     )
 }
+
+#[test]
+fn qualified_package_manager_read_keeps_existing_opcode_boundary() {
+    let returned = whole_package_identity_program().replace(
+        "if *window.refs.pointer==7",
+        "if bytes_len(window.bytes)==0 && *window.refs.pointer==7",
+    );
+    let direct = returned.replace("let window=identity(&job)", "let window=&job");
+    for (label, program) in [
+        ("direct-manager-read", direct),
+        ("returned-manager-read", returned),
+    ] {
+        let report = compile_source(&source(label, &program), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
+        assert!(report.diagnostics.iter().any(|d| d.phase == zil_base::Phase::Analyze
+            && d.message == "instruction is outside the actual stored profile, including in unreachable blocks"),
+            "{}", report.to_json());
+    }
+}
+
+#[test]
+fn qualified_package_return_bridge_keeps_its_whole_input_boundary() {
+    let job = GETTER.split("fn main").next().unwrap();
+    let multiple = format!(
+        "{job}fn choose<life a,life b>(flag:bool,left:&'a Job<'b>,right:&'a Job<'b>)->&'a Job<'b>{{if flag{{return left}}return right}}fn main()->i32{{var a=3;var b=7;let left=make(&a);let right=make(&b);let window=choose(false,&left,&right);if *window.refs.pointer==7{{return 0}}return 1}}"
+    );
+    let outer = format!(
+        "{job}package Outer<life b>{{inner:Job<'b>}}fn wrap<life b>(job:Job<'b>)->Outer<'b>{{return Outer::<'b>{{inner:job}}}}fn identity<life a,life b>(input:&'a Job<'b>)->&'a Job<'b>{{return input}}fn inspect<life a,life b>(parent:&'a Outer<'b>)->i32{{let input=&parent.inner;let window=identity(input);return *window.refs.pointer}}fn main()->i32{{var value=7;let parent=wrap(make(&value));return inspect(&parent)-7}}"
+    );
+    // A projection is a legitimate existing address. The limitation is the
+    // new whole-input description bridge, rather than its source grammar.
+    let control = outer.replace("let window=identity(input)", "let window=input");
+    let report = compile_source(
+        &source("projected-manager-direct-control", &control),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    for (label, program) in [
+        ("multiple-callee-inputs", multiple),
+        ("projected-caller-manager", outer),
+    ] {
+        let report = compile_source(&source(label, &program), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message
+                    == "qualified Package return requires one actual whole shared input"),
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn qualified_package_return_current_request_rechecks_selection_and_conflicts() {
+    let program = whole_package_second_input_program();
+    let wrong_owner = program.replace("discard(left)", "discard(right)");
+    let wrong_source = program.replace("spare=11;", "value=11;");
+    let changed_body = program.replace("return right", "return left");
+    let mut session = zil_driver::CompilationSession::default();
+    for text in [
+        &program,
+        &wrong_owner,
+        &program,
+        &wrong_source,
+        &program,
+        &changed_body,
+        &program,
+    ] {
+        for report in [
+            session.compile_source(
+                &source("current-manager-selection", text),
+                &CompileOptions::default(),
+            ),
+            compile_source(
+                &source("current-manager-selection", text),
+                &CompileOptions::default(),
+            ),
+        ] {
+            if text == &program {
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+            } else {
+                assert_eq!(
+                    report.status,
+                    ResultCategory::SafeReject,
+                    "{}",
+                    report.to_json()
+                );
+                assert!(
+                    matches!(
+                        report.phase,
+                        zil_base::Phase::Analyze | zil_base::Phase::Verify
+                    ),
+                    "{}",
+                    report.to_json()
+                );
+                if text == &wrong_source {
+                    assert!(
+                        report
+                            .diagnostics
+                            .iter()
+                            .any(|d| d.message.contains("actual stored target/parent loan")
+                                || d.message.contains("live incompatible loan")),
+                        "{}",
+                        report.to_json()
+                    );
+                } else {
+                    assert_eq!(report.phase, zil_base::Phase::Analyze);
+                    assert!(report.diagnostics.iter().any(|d|
+                        d.code == "E-ANALYZE-IR" && d.message == "stored target proof: stored/address producer has incomplete actual target facts"),
+                        "{}", report.to_json());
+                }
+            }
+        }
+        assert_eq!(session.active_query_count(), 0);
+    }
+}
+
+fn package_return_budget_model(width: usize, depth: usize) -> String {
+    let fields = (0..width)
+        .map(|n| format!("field{n}:i32;"))
+        .collect::<String>();
+    let values = (0..width)
+        .map(|n| format!(",field{n}:0"))
+        .collect::<String>();
+    let mut program = format!(
+        "struct Refs<life b>{{pointer:&'b i32;{fields}}}package Job<life b>{{manages bytes:ByteBuffer;refs:Refs<'b>}}fn make<life b>(input:&'b i32)->Job<'b>{{var bytes=bytes_new();return Job::<'b>{{bytes:give bytes,refs:Refs::<'b>{{pointer:input{values}}}}}}}fn relay0<life a,life b>(input:&'a Job<'b>)->&'a Job<'b>{{return input}}"
+    );
+    for n in 1..=depth {
+        program.push_str(&format!(
+            "fn relay{n}<life a,life b>(input:&'a Job<'b>)->&'a Job<'b>{{return relay{}(input)}}",
+            n - 1
+        ));
+    }
+    program.push_str(&format!("fn main()->i32{{let value=7;let job=make(&value);let window=relay{depth}(&job);if *window.refs.pointer==7{{return 0}}return 1}}"));
+    program
+}
+
+#[test]
+fn qualified_package_return_budget_covers_signatures_chains_and_current_requests() {
+    let default = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let mut boundaries = Vec::new();
+    for (width, depth) in [(1, 0), (8, 0), (1, 2), (8, 2)] {
+        let program = package_return_budget_model(width, depth);
+        let input = source("whole-package-return-budget", &program);
+        let raw = typed_source("whole-package-return-budget", &program, &target, &default);
+        let plan = zil_analyze::analyze(&raw, &default).unwrap();
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &default).unwrap();
+        let limits = |n| Limits {
+            max_analysis_steps: n,
+            ..default.clone()
+        };
+        let analyze = exact_record_budget(
+            &format!("Package return Analyze width={width} depth={depth}"),
+            |n| budget_category(zil_analyze::analyze(&raw, &limits(n))),
+        );
+        let verify = exact_record_budget(
+            &format!("Package return Verify width={width} depth={depth}"),
+            |n| {
+                budget_category(zil_verify::verify_module(
+                    raw.clone(),
+                    plan.clone(),
+                    &target,
+                    &limits(n),
+                ))
+            },
+        );
+        let decoded = exact_record_budget(
+            &format!("Package return Wire width={width} depth={depth}"),
+            |n| budget_category(zil_verify::verify_module_bytes(&wire, &target, &limits(n))),
+        );
+        let whole = exact_record_budget(
+            &format!("Package return Source width={width} depth={depth}"),
+            |n| {
+                compile_source(
+                    &input,
+                    &CompileOptions {
+                        limits: limits(n),
+                        ..CompileOptions::default()
+                    },
+                )
+                .status
+            },
+        );
+        let mut session = zil_driver::CompilationSession::default();
+        for (n, status) in [
+            (whole, ResultCategory::Success),
+            (whole - 1, ResultCategory::ResourceLimit),
+            (whole, ResultCategory::Success),
+        ] {
+            let options = CompileOptions {
+                limits: limits(n),
+                ..CompileOptions::default()
+            };
+            assert_eq!(session.compile_source(&input, &options).status, status);
+            assert_eq!(compile_source(&input, &options).status, status);
+            assert_eq!(session.active_query_count(), 0);
+        }
+        assert_eq!(verify, decoded);
+        boundaries.push([analyze, verify, decoded, whole]);
+    }
+    for kernel in 0..4 {
+        assert!(
+            boundaries[1][kernel] > boundaries[0][kernel],
+            "wide signatures must cost more: {boundaries:?}"
+        );
+        assert!(
+            boundaries[2][kernel] > boundaries[0][kernel],
+            "real return chains must cost more: {boundaries:?}"
+        );
+        assert!(
+            boundaries[3][kernel] > boundaries[1][kernel]
+                && boundaries[3][kernel] > boundaries[2][kernel],
+            "{boundaries:?}"
+        );
+    }
+}

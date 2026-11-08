@@ -123,17 +123,17 @@ pub(super) fn package_return_input(
     b: &mut Budget,
 ) -> Check<u32> {
     let count = b.package_return_calls.as_ref().map_or(0, BTreeMap::len);
-    let found = b
-        .package_return_calls
-        .as_ref()
-        .and_then(|rows| rows.get(&(function, value)))
-        .copied();
     b.spend(
         count
             .checked_ilog2()
             .map_or(1, |n| n as usize + 2)
             .saturating_mul(3),
     )?;
+    let found = b
+        .package_return_calls
+        .as_ref()
+        .and_then(|rows| rows.get(&(function, value)))
+        .copied();
     found.ok_or_else(|| {
         unsupported(
             "qualified Package return requires one actual whole shared input",
