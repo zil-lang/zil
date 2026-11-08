@@ -538,6 +538,35 @@ fn nominal_life_charged(
                             return Ok(false);
                         }
                     }
+                    // Copy used to end this query at the paid bound name.
+                    // Continue into companion bounds only for a possible
+                    // lending result. This fixed-depth shape dispatch traverses
+                    // no names or vectors; the complete result and bounds
+                    // retain their charged validation below.
+                    if copy
+                        && !function.return_type.as_ref().is_some_and(|result| {
+                            let payload = match &result.kind {
+                                s::TypeKind::Reference { .. } => result,
+                                s::TypeKind::Named { args, .. } => {
+                                    let [s::GenericArg::Type(payload)] = args.as_slice() else {
+                                        return false;
+                                    };
+                                    payload
+                                }
+                                _ => return false,
+                            };
+                            matches!(
+                                payload.kind,
+                                s::TypeKind::Reference {
+                                    mutable: false,
+                                    lifetime: Some(_),
+                                    ..
+                                }
+                            )
+                        })
+                    {
+                        return Ok(false);
+                    }
                     nominal |= !copy;
                 }
                 types += 1;
