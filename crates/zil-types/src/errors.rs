@@ -122,6 +122,9 @@ impl Builder<'_, '_> {
             error: Box::new(error_type.clone()),
             result: Box::new(result_type.clone()),
         };
+        if let Some(expected) = expected {
+            self.same(&union, expected, span)?;
+        }
         if !supported(&union) {
             return Err(unsupported(
                 span,
@@ -137,9 +140,6 @@ impl Builder<'_, '_> {
             union.clone(),
             span,
         )?;
-        if let Some(expected) = expected {
-            self.same(&union, expected, span)?;
-        }
         Ok((value, union))
     }
 

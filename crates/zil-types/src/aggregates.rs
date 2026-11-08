@@ -2138,6 +2138,18 @@ impl Resolver<'_> {
                 if errors::constructor(callee).is_some()
                     && let [error, result] = type_arguments.as_slice()
                 {
+                    // Ref<R> and R resolve to the same descriptor shape. A
+                    // source mode can supply the bare resource's owner mode,
+                    // but must never rewrite an explicit descriptor argument.
+                    // Bare built-in carriers have a direct structural payload
+                    // here; Ref<Store<T>> instead has a nested Desc payload.
+                    if [error, result].iter().any(|ty| {
+                        matches!(ty,
+                        Type::Desc(payload) if matches!(payload.as_ref(),
+                            Type::Named(_) | Type::Desc(_) | Type::Managed(_)))
+                    }) {
+                        return Err(error_constructor_descriptor(e.span));
+                    }
                     // Arguments occupy union payload positions. Legacy direct
                     // resources still obtain their mode from the signature.
                     let error = ordinary_inline_store(error, self.ty(error, depth + 1, e.span)?);
@@ -2255,6 +2267,14 @@ impl Resolver<'_> {
         }
         Ok(())
     }
+}
+
+fn error_constructor_descriptor(span: Span) -> Diagnostic {
+    error(
+        "E-ERROR-CONSTRUCTOR",
+        span,
+        "error constructor payload types cannot be explicit resource descriptors",
+    )
 }
 
 pub(super) fn field(ty: &Type, name: &str, span: Span) -> R<(u32, Type)> {

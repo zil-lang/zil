@@ -314,6 +314,133 @@ fn error_constructor_names_cannot_be_rebound_or_choose_the_wrong_payload() {
 }
 
 #[test]
+fn tagged_resource_success_preserves_declared_modes_and_actual_creation_sources() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_ir::PassingMode;
+    let source = r#"
+extern "C" fn putchar(n:i32)->i32;
+resource R{code:i32}
+impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}
+package P{manages r:R}
+enum E{Fail}
+fn fresh()->E!R contract{result(create)}{return error_ok::<E,R>(R{code:65})}
+fn passed(give r:R)->E!R contract{result(give)}{return error_ok::<E,R>(give r)}
+fn unavailable()->E!R contract{result(create)}{return error_err::<E,R>(E.Fail)}
+fn generic_fresh<T:StoreElement>(value:T)->E!Store<T> contract{result(create)}{
+ let s:Store<T>=store_new();if !store_reserve(s,1){return E.Fail};
+ store_push(s,value);return give s
+}
+fn generic_pass<T:StoreElement>(give r:Store<T>)->E!Store<T> contract{result(give)}{return give r}
+fn generic_unavailable<T:StoreElement>(give r:Store<T>)->E!Store<T> contract{result(create)}{return E.Fail}
+fn main()->E!i32{
+ let a=fresh()?;let b=passed(R{code:66})?;
+ let c=generic_fresh(P{r:R{code:67}})?;let d=generic_pass(generic_fresh(P{r:R{code:68}})?)?;
+ let e=unavailable();let f=generic_unavailable(generic_fresh(P{r:R{code:69}})?);
+ return 0
+}
+"#;
+    let input = SourceUnit::new(FileId(0), ModuleId(0), "tagged-resource-modes", source);
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &syntax).unwrap();
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let raw = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    assert_eq!(
+        zil_verify::verify_module_bytes(&wire, &target, &limits)
+            .unwrap()
+            .module(),
+        &raw
+    );
+
+    let mut wrong = raw.clone();
+    wrong
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "passed")
+        .unwrap()
+        .result_mode = PassingMode::Create;
+    assert!(zil_analyze::analyze(&wrong, &limits).is_err());
+    let mut claim = plan;
+    claim.module_fingerprint = wrong.fingerprint();
+    assert!(zil_verify::verify_module(wrong.clone(), claim.clone(), &target, &limits).is_err());
+    let wire = zil_ir::wire::encode_module_candidate(&wrong, &claim, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&wire, &target, &limits).is_err());
+
+    let temp = Temp::new();
+    let input = temp.0.join("tagged-resource-modes.zil");
+    fs::write(&input, source).unwrap();
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let report = compile_path(
+                &input,
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(temp.0.join(format!("modes-{backend:?}-{optimization:?}"))),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+            run(&report.artifacts["executable"], b"", 0, "EDCBA");
+        }
+    }
+
+    for (name, definition) in [
+        (
+            "old-as-create",
+            "fn bad(give r:R)->E!R contract{result(create)}{return error_ok::<E,R>(give r)}",
+        ),
+        (
+            "descriptor-as-owner",
+            "fn bad(r:R)->E!R contract{result(give)}{return error_ok::<E,R>(r)}",
+        ),
+        (
+            "descriptor-alias-as-owner",
+            "fn bad()->E!R contract{result(create)}{let r=R{code:1};let desc=r;return error_ok::<E,R>(desc)}",
+        ),
+        (
+            "explicit-descriptor-success",
+            "fn bad()->E!R contract{result(give)}{let r=R{code:1};return error_ok::<E,Ref<R>>(give r)}",
+        ),
+        (
+            "explicit-descriptor-failure",
+            "fn bad()->E!R contract{result(give)}{return error_err::<E,Ref<R>>(E.Fail)}",
+        ),
+        (
+            "wrong-resource-identity",
+            "resource S{code:i32} fn bad()->E!R contract{result(create)}{return error_ok::<E,S>(S{code:1})}",
+        ),
+    ] {
+        let source = format!("resource R{{code:i32}} enum E{{Fail}} {definition} fn main(){{}}");
+        let report = compile_source(
+            &SourceUnit::new(FileId(0), ModuleId(0), name, source),
+            &CompileOptions::default(),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{name}: {}",
+            report.to_json()
+        );
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+}
+
+#[test]
 fn equal_owning_error_arms_transfer_each_entry_once() {
     let source = r#"
 extern "C" fn putchar(n:i32)->i32;
