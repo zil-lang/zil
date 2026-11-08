@@ -32,6 +32,13 @@ fn owned_leaf(ty: &Type) -> bool {
     }
 }
 
+// Both domains use the same complete Content constructor. Only immutable
+// type/slot classification is indexed; every invalidation still updates the
+// actual Content, missing fields, routes and current tag alternatives.
+fn indexed_invalidation(budget: &Budget) -> bool {
+    budget.pod_stores || budget.task_borrowed_results && budget.store_option_results
+}
+
 fn bad(span: Option<Span>, message: impl Into<String>) -> Diagnostic {
     reject("E-VERIFY-SUM", span, message)
 }
@@ -738,12 +745,13 @@ impl Content {
         }
         let copy_sum = match self {
             Self::Sum(_, _)
-                if b.pod_stores && matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) =>
+                if indexed_invalidation(b)
+                    && matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) =>
             {
                 b.addressed_copy_sum(ty)?
             }
-            Self::Product(_) if b.pod_stores => false,
-            Self::Copy | Self::Leaf(_) if b.pod_stores => {
+            Self::Product(_) if indexed_invalidation(b) => false,
+            Self::Copy | Self::Leaf(_) if indexed_invalidation(b) => {
                 return Ok(());
             }
             _ => {
@@ -2181,7 +2189,7 @@ fn run_with_replacements(
     if partial {
         state.partial = Some(partial_places::State::default());
     }
-    let tagged_locals = if budget.pod_stores && partial {
+    let tagged_locals = if indexed_invalidation(budget) && partial {
         // Scan and index slots are prepaid before allocation. Each queued
         // child is paid before growth, including nested owning Products.
         budget.spend(f.locals.len().saturating_mul(2).saturating_add(1))?;
