@@ -12,6 +12,27 @@ pub(super) fn query(kind: &InstructionKind) -> Option<ValueId> {
         _ => None,
     }
 }
+/// The existing borrowed-Task signature checker already has its own complete
+/// companion rules; it must not be reclassified as this new consumer.
+pub(super) fn legacy_task_signature(f: &TypedFunction) -> bool {
+    matches!(&f.return_type,Type::ErrorUnion {result,..}
+        if matches!(result.as_ref(),Type::Managed(payload)
+            if matches!(payload.as_ref(),Type::Task {retained_life,..} if !retained_life.ports.is_empty())))
+}
+
+fn indirect_arguments(kind: &InstructionKind) -> Option<&[ValueId]> {
+    match kind {
+        InstructionKind::CallIndirect { arguments, .. }
+        | InstructionKind::CallClosure { arguments, .. }
+        | InstructionKind::CallClosureBorrowed { arguments, .. }
+        | InstructionKind::CallClosureShared { arguments, .. }
+        | InstructionKind::CallClosureMut { arguments, .. }
+        | InstructionKind::CallClosureOnce { arguments, .. }
+        | InstructionKind::CallDynSlot { arguments, .. } => Some(arguments),
+        _ => None,
+    }
+}
+
 fn outside() -> Diagnostic {
     unsupported(
         "Byte query requires a complete Direct actual description/read proof",
@@ -51,9 +72,28 @@ pub(super) fn inventory(
             break;
         }
     }
+    let covered = |index: usize| mask.is_none_or(|rows| rows[index]);
+    if mask.is_some() {
+        for (caller, function) in module.functions.iter().enumerate() {
+            for (block, live) in function.blocks.iter().zip(&graphs[caller].reachable) {
+                if !live {
+                    continue;
+                }
+                b.spend(block.instructions.len())?;
+                for instruction in &block.instructions {
+                    if let InstructionKind::Call { function, .. } = instruction.kind
+                        && queries[function.0 as usize]
+                        && covered(caller) != covered(function.0 as usize)
+                    {
+                        return Err(outside());
+                    }
+                }
+            }
+        }
+    }
     for (index, function) in module.functions.iter().enumerate() {
         b.spend(1)?;
-        let companion = if function.storage_life.is_some() {
+        let companion = if function.storage_life.is_some() && !legacy_task_signature(function) {
             b.spend(function.parameters.len())?;
             function
                 .parameters
@@ -62,14 +102,14 @@ pub(super) fn inventory(
         } else {
             false
         };
-        if companion && !queries[index] {
+        if companion && covered(index) && !queries[index] {
             return Err(outside());
         }
         if queries[index]
+            && covered(index)
             && (function.foreign.is_some()
                 || function.environment.is_some()
-                || function.call_kind != CallKind::Direct
-                || mask.is_some_and(|rows| !rows[index]))
+                || function.call_kind != CallKind::Direct)
         {
             return Err(outside());
         }
@@ -78,9 +118,42 @@ pub(super) fn inventory(
             for operation in &block.instructions {
                 if let InstructionKind::FunctionRef { function } = operation.kind
                     && queries[function.0 as usize]
+                    && (covered(index) || covered(function.0 as usize) || b.store_option_results)
                 {
                     return Err(outside());
                 }
+                if covered(index) {
+                    if let Some(arguments) = indirect_arguments(&operation.kind) {
+                        b.spend(arguments.len())?;
+                        if arguments
+                            .iter()
+                            .any(|id| is_description(&function.values[id.0 as usize]))
+                        {
+                            return Err(outside());
+                        }
+                    }
+                    if let InstructionKind::MakeClosure { closure, .. } = operation.kind {
+                        b.spend(1)?;
+                        let entry = module
+                            .closures
+                            .get(closure.0 as usize)
+                            .ok_or_else(outside)?
+                            .function;
+                        if queries[entry.0 as usize] {
+                            return Err(outside());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    b.spend(module.dyn_vtables.len())?;
+    for table in &module.dyn_vtables {
+        b.spend(table.entries.len().saturating_add(1))?;
+        for entry in table.entries.iter().chain(table.cleanup.iter()) {
+            let index = entry.function.0 as usize;
+            if queries.get(index).copied().ok_or_else(outside)? && covered(index) {
+                return Err(outside());
             }
         }
     }

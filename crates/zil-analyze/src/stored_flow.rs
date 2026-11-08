@@ -1496,6 +1496,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         );
     }
     let byte_signature = byte_companion
+        && !byte_queries::legacy_task_signature(f)
         && f.call_kind == CallKind::Direct
         && f.foreign.is_none()
         && f.environment.is_none()
@@ -4842,6 +4843,7 @@ pub(super) fn infer(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     b: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
+    byte_queries::authenticate(module, b)?;
     // Raw paid inventories classify new owning holders and Fixed captures.
     // Preserve the established Fixed profile without rescanning either table.
     b.stored_owned_fixed = if !b.task_borrowed_results

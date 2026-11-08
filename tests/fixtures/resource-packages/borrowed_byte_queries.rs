@@ -168,6 +168,11 @@ fn raw_query_rebuilds_helper_reads_and_delegation_without_candidate_authority() 
         // its module fingerprint change; this is not a producer certificate.
         plan.module_fingerprint = raw.fingerprint();
         let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        let artifacts = std::env::temp_dir().join("byte-query-raw-controls");
+        std::fs::create_dir_all(&artifacts).unwrap();
+        std::fs::write(artifacts.join(format!("{label}.zil")), &control).unwrap();
+        std::fs::write(artifacts.join(format!("{label}-mutated.wire")), &wire).unwrap();
+
         if reject {
             let a = zil_analyze::analyze(&raw, &limits).unwrap_err();
             assert!(
@@ -390,7 +395,12 @@ fn metadata_native_programs() -> Vec<(&'static str, String)> {
     }
     programs.push((
         "selected-parameter1",
-        filled(&selected_query_program()).replace("observed==0", "observed==2"),
+        filled(&selected_query_program())
+            .replace("observed==0", "observed==2")
+            .replace(
+                "bytes_push(bytes,66u8)",
+                "if *pointer==7{bytes_push(bytes,66u8)}",
+            ),
     ));
     programs.push((
         "separate-formals",
@@ -562,4 +572,218 @@ fn byte_queries_pay_for_actual_types_effect_chains_and_origin_alternatives() {
             );
         }
     }
+}
+
+#[test]
+fn byte_companion_requires_its_own_reachable_query_and_exact_input_kind() {
+    let legal = separated_formals_program();
+    assert_success("actual-query-companion", &legal);
+    let no_query = legal.replace("let observed=bytes_len(buffer)", "let observed=i64(0)");
+    for (label, program) in [
+        ("no-query", no_query.clone()),
+        (
+            "unrelated-query",
+            format!(
+                "fn unrelated(buffer:ByteBuffer)->i64{{return bytes_capacity(buffer)}}{no_query}"
+            ),
+        ),
+        (
+            "unreachable-query",
+            legal.replace(
+                "let observed=bytes_len(buffer);keep(owner);return observed",
+                "keep(owner);return 0;let observed=bytes_len(buffer)",
+            ),
+        ),
+    ] {
+        let typed = compile_source(
+            &source(label, &program),
+            &CompileOptions {
+                stop_after: Stage::Types,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            typed.status,
+            ResultCategory::Success,
+            "{label}: {}",
+            typed.to_json()
+        );
+        let report = report_for(label, &program);
+        assert_eq!(
+            report.phase,
+            zil_base::Phase::Analyze,
+            "{}",
+            report.to_json()
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{label}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
+    }
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let raw = typed_source("byte-classifier-control", &legal, &target, &limits);
+    let original = zil_analyze::analyze(&raw, &limits).unwrap();
+    for mode in 0..5 {
+        let mut changed = raw.clone();
+        let f = changed
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "inspect")
+            .unwrap();
+        match mode {
+            0 => {
+                let contract = f.storage_life.as_mut().unwrap();
+                let mut row = contract.bindings[0].clone();
+                row.position.base = zil_ir::StorageBase::Parameter(0);
+                contract.bindings.insert(0, row);
+            }
+            1 => {
+                let contract = f.storage_life.as_mut().unwrap();
+                let mut row = contract.classes[0].clone();
+                row.position.base = zil_ir::StorageBase::Parameter(0);
+                contract.classes.insert(0, row);
+            }
+            2 => {
+                let p = f.parameters[0];
+                f.locals[p.0 as usize].ty = Type::Managed(Box::new(Type::ByteBuffer));
+            }
+            3 => {
+                let p = f.parameters[0];
+                f.locals[p.0 as usize].ty = Type::Desc(Box::new(Type::I32));
+            }
+            _ => f.return_type = Type::Desc(Box::new(Type::ByteBuffer)),
+        }
+        let mut plan = original.clone();
+        plan.module_fingerprint = changed.fingerprint();
+        let a = zil_analyze::analyze(&changed, &limits).unwrap_err();
+        assert!(
+            a.iter().all(|d| d.category == ResultCategory::SafeReject),
+            "mode{mode}: {a:?}"
+        );
+        let v =
+            zil_verify::verify_module(changed.clone(), plan.clone(), &target, &limits).unwrap_err();
+        if mode == 4 {
+            assert!(v.iter().any(|d|d.category==ResultCategory::Unsupported && d.message=="resource description returns require exported source and management contracts"),"{v:?}");
+        } else {
+            assert!(
+                v.iter().all(|d| d.category == ResultCategory::SafeReject),
+                "mode{mode}: {v:?}"
+            );
+        }
+        let wire = zil_ir::wire::encode_module_candidate(&changed, &plan, &limits).unwrap();
+        let w = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+        if mode == 4 {
+            assert!(w.iter().any(|d|d.category==ResultCategory::Unsupported && d.message=="resource description returns require exported source and management contracts"),"{w:?}");
+        } else {
+            assert!(
+                w.iter().all(|d| d.category == ResultCategory::SafeReject),
+                "mode{mode}: {w:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn byte_queries_reject_wrong_operand_result_and_sealed_resource() {
+    let program = separated_formals_program().replace(
+        "let observed=bytes_len(buffer)",
+        "let marker=0;let observed=bytes_len(buffer)",
+    );
+    assert_success("canonical-byte-header", &program);
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let raw = typed_source("canonical-byte-header", &program, &target, &limits);
+    let original = zil_analyze::analyze(&raw, &limits).unwrap();
+    for mode in 0..3 {
+        let mut changed = raw.clone();
+        if mode == 2 {
+            changed
+                .resources
+                .retain(|r| r.name != "@builtin:ByteBuffer");
+        } else {
+            let f = changed
+                .functions
+                .iter_mut()
+                .find(|f| f.name == "inspect")
+                .unwrap();
+            let marker = f
+                .blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .find_map(|i| {
+                    if matches!(i.kind, InstructionKind::Constant(_))
+                        && i.result
+                            .is_some_and(|v| f.values[v.0 as usize] == Type::I32)
+                    {
+                        i.result
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            let query = f
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| matches!(i.kind, InstructionKind::ByteBufferLen { .. }))
+                .unwrap();
+            if mode == 0 {
+                query.kind = InstructionKind::ByteBufferLen { buffer: marker };
+            } else {
+                f.values[query.result.unwrap().0 as usize] = Type::I32;
+            }
+        }
+        let mut plan = original.clone();
+        plan.module_fingerprint = changed.fingerprint();
+        let a = zil_analyze::analyze(&changed, &limits).unwrap_err();
+        assert!(
+            a.iter().all(|d| d.category == ResultCategory::SafeReject),
+            "mode{mode}: {a:?}"
+        );
+        let v =
+            zil_verify::verify_module(changed.clone(), plan.clone(), &target, &limits).unwrap_err();
+        assert!(
+            v.iter().all(|d| d.category == ResultCategory::SafeReject),
+            "mode{mode}: {v:?}"
+        );
+        let wire = zil_ir::wire::encode_module_candidate(&changed, &plan, &limits).unwrap();
+        let w = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+        assert!(
+            w.iter().all(|d| d.category == ResultCategory::SafeReject),
+            "mode{mode}: {w:?}"
+        );
+    }
+}
+
+#[test]
+fn existing_ordinary_query_domain_retains_its_independent_consumer() {
+    let program = include_str!("byte-query-controls/ordinary-query-with-stored-neighbor.zil");
+    assert_success("ordinary-query-with-stored-neighbor", program);
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let raw = typed_source(
+        "ordinary-query-with-stored-neighbor",
+        program,
+        &target,
+        &limits,
+    );
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+}
+
+#[test]
+fn descriptor_delegation_does_not_come_from_a_future_loop_iteration() {
+    let program = format!(
+        "{}fn main()->i32{{var value=7;var job=make(&value);var current=&job;var iteration=0;var sum=i64(0);while iteration<2{{let description=current.bytes;let exclusive=&mut job;sum=sum+bytes_len(description);current=&*exclusive;iteration=iteration+1}}return i32(sum)}}",
+        metadata_prefix()
+    );
+    let control = program.replace("bytes_len(description)", "i64(0)");
+    assert_success("loop-generation-control", &control);
+    assert_loan("earlier-loop-description", &program);
 }

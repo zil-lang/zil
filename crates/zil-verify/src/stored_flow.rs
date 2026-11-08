@@ -1772,6 +1772,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         }
     }
     let byte_signature = byte_companion
+        && !byte_queries::legacy_task_signature(f)
         && f.call_kind == CallKind::Direct
         && f.foreign.is_none()
         && f.environment.is_none()

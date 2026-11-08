@@ -12,6 +12,14 @@ pub(super) fn operand(kind: &InstructionKind) -> Option<ValueId> {
         _ => None,
     }
 }
+/// The existing borrowed-Task signature checker already has its own complete
+/// companion rules; it must not be reclassified as this new consumer.
+pub(super) fn legacy_task_signature(f: &TypedFunction) -> bool {
+    matches!(&f.return_type,Type::ErrorUnion {result,..}
+        if matches!(result.as_ref(),Type::Managed(payload)
+            if matches!(payload.as_ref(),Type::Task {retained_life,..} if !retained_life.ports.is_empty())))
+}
+
 fn closed() -> Vec<Diagnostic> {
     vec![Diagnostic::unsupported(
         Phase::Analyze,
@@ -20,7 +28,7 @@ fn closed() -> Vec<Diagnostic> {
     )]
 }
 pub(super) fn instruction(
-    module: &TypedModule,
+    _module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
     b: &mut Budget,
@@ -28,7 +36,7 @@ pub(super) fn instruction(
     let Some(buffer) = operand(&i.kind) else {
         return Ok(false);
     };
-    fee(b, module.resources.len().saturating_add(3))?;
+    fee(b, 3)?;
     if !description(value_type(f, buffer)?)
         || i.result.and_then(|v| f.values.get(v.0 as usize)) != Some(&Type::I64)
     {
@@ -36,19 +44,53 @@ pub(super) fn instruction(
             "Byte query requires actual Desc<ByteBuffer> and i64 result",
         ));
     }
-    let mut sealed = false;
+    Ok(true)
+}
+
+/// Authenticate once before stored executable-value admission, so a missing
+/// sealed definition is rejected as malformed IR rather than an opaque profile.
+pub(super) fn authenticate(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
+    if !b.byte_queries {
+        return Ok(());
+    }
+    fee(b, module.resources.len().saturating_add(1))?;
+    let mut count = 0usize;
     for resource in &module.resources {
         fee(b, resource.name.len().saturating_add(19))?;
-        sealed |= resource.name == "@builtin:ByteBuffer"
-            && resource.payload == Type::ByteBuffer
-            && resource.teardown.is_none();
+        if resource.name == "@builtin:ByteBuffer" || resource.payload == Type::ByteBuffer {
+            if resource.name != "@builtin:ByteBuffer"
+                || resource.payload != Type::ByteBuffer
+                || resource.teardown.is_some()
+            {
+                return Err(failure(
+                    "Byte query requires the actual canonical sealed ByteBuffer resource",
+                ));
+            }
+            count += 1;
+        }
     }
-    if !sealed || !module.target.is_supported_x64_llvm() {
+    if count != 1 || !module.target.is_supported_x64_llvm() {
         return Err(failure(
-            "Byte query requires the actual canonical sealed ByteBuffer resource",
+            "Byte query requires one actual canonical sealed ByteBuffer resource",
         ));
     }
-    Ok(true)
+    Ok(())
+}
+
+fn covered(mask: &[bool], index: usize) -> bool {
+    mask.is_empty() || mask[index]
+}
+fn indirect_arguments(kind: &InstructionKind) -> Option<&[ValueId]> {
+    match kind {
+        InstructionKind::CallIndirect { arguments, .. }
+        | InstructionKind::CallClosure { arguments, .. }
+        | InstructionKind::CallClosureBorrowed { arguments, .. }
+        | InstructionKind::CallClosureShared { arguments, .. }
+        | InstructionKind::CallClosureMut { arguments, .. }
+        | InstructionKind::CallClosureOnce { arguments, .. }
+        | InstructionKind::CallDynSlot { arguments, .. } => Some(arguments),
+        _ => None,
+    }
 }
 
 /// Presence is only scheduling. Missing coverage is never an empty effect.
@@ -91,9 +133,19 @@ pub(super) fn inventory(
             break;
         }
     }
+    if !b.composition_stored.is_empty() {
+        fee(b, edges.len())?;
+        for &(caller, callee) in &edges {
+            if marked[callee]
+                && covered(&b.composition_stored, caller) != covered(&b.composition_stored, callee)
+            {
+                return Err(closed());
+            }
+        }
+    }
     for (index, f) in module.functions.iter().enumerate() {
         fee(b, 1)?;
-        let companion = if f.storage_life.is_some() {
+        let companion = if f.storage_life.is_some() && !legacy_task_signature(f) {
             fee(b, f.parameters.len())?;
             f.parameters
                 .iter()
@@ -101,14 +153,12 @@ pub(super) fn inventory(
         } else {
             false
         };
-        if companion && !marked[index] {
+        if companion && covered(&b.composition_stored, index) && !marked[index] {
             return Err(closed());
         }
         if marked[index]
-            && (f.foreign.is_some()
-                || f.environment.is_some()
-                || f.call_kind != CallKind::Direct
-                || !b.composition_stored.is_empty() && !b.composition_stored[index])
+            && covered(&b.composition_stored, index)
+            && (f.foreign.is_some() || f.environment.is_some() || f.call_kind != CallKind::Direct)
         {
             return Err(closed());
         }
@@ -117,9 +167,46 @@ pub(super) fn inventory(
             for i in &block.instructions {
                 if let InstructionKind::FunctionRef { function } = i.kind
                     && marked[function.0 as usize]
+                    && (covered(&b.composition_stored, index)
+                        || covered(&b.composition_stored, function.0 as usize)
+                        || b.store_option_results)
                 {
                     return Err(closed());
                 }
+                if covered(&b.composition_stored, index) {
+                    if let Some(arguments) = indirect_arguments(&i.kind) {
+                        fee(b, arguments.len())?;
+                        if arguments
+                            .iter()
+                            .any(|id| description(&f.values[id.0 as usize]))
+                        {
+                            return Err(closed());
+                        }
+                    }
+                    if let InstructionKind::MakeClosure { closure, .. } = i.kind {
+                        fee(b, 1)?;
+                        let entry = module
+                            .closures
+                            .get(closure.0 as usize)
+                            .ok_or_else(closed)?
+                            .function;
+                        if marked[entry.0 as usize] {
+                            return Err(closed());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    fee(b, module.dyn_vtables.len())?;
+    for table in &module.dyn_vtables {
+        fee(b, table.entries.len().saturating_add(1))?;
+        for entry in table.entries.iter().chain(table.cleanup.iter()) {
+            let index = entry.function.0 as usize;
+            if marked.get(index).copied().ok_or_else(closed)?
+                && covered(&b.composition_stored, index)
+            {
+                return Err(closed());
             }
         }
     }
