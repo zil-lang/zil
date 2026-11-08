@@ -229,26 +229,29 @@ fn generic_error_union_contexts_have_exact_prepaid_boundaries() {
     // Full type-position lifetime validation and the callable source-life query
     // both consume the same work budget; the latter adds one unit per source.
     // The fixed-class leaf walk contributes no work or node charge. The
-    // binding case now prepays retained definition-selected tag sites
-    // (historically 1276/496); argument/independent costs remain unchanged.
+    // binding case prepays retained definition-selected tag sites (historically
+    // 1276/496, then 1428/516). Its private choice header now also has an argument
+    // ledger. Argument/independent cases additionally retain actual argument nodes
+    // and their full symbolic unions before specialization (formerly 1206/456
+    // and 1813/638). Every current bound is measured below, including fresh/N-1.
     for (name, text, steps, nodes) in [
         (
             "binding",
             include_str!("../../../tests/generic-error-enum/pending/unique-binding-value.zil"),
-            1428,
+            1452,
             516,
         ),
         (
             "argument",
             include_str!("../../../tests/generic-error-enum/pending/unique-call-argument.zil"),
-            1206,
-            456,
+            1551,
+            471,
         ),
         (
             "independent",
             "enum Choice<T>{None,Some(T)}fn sink<T>(value:Choice<T>!i32,witness:T)->i32{return 0}fn run<F:Fn()->i32>(f:F)->i32{f();return sink(Choice.None,true)}fn main()->i32{let f=()->i32=>1;return run(f)}",
-            1813,
-            638,
+            2160,
+            655,
         ),
     ] {
         let source = SourceUnit::new(FileId(0), ModuleId(0), name, text);
@@ -352,8 +355,9 @@ fn generic_enum_error_context_prepays_new_work() {
     // Full-AST lifetime validation and the callable source-life query consume
     // the same budget without resetting the remaining work or node allowance.
     // Definition-selected tags add prepaid AST choice and source-site work
-    // to the historical 978/412 boundary; N-1 still fails in the same phase.
-    for (work, amount) in [(true, 1148), (false, 427)] {
+    // to the historical 978/412 boundary (then 1148/427). The additional private
+    // argument-ledger header costs 24 physical units; N-1 retains the same phase.
+    for (work, amount) in [(true, 1172), (false, 427)] {
         recorded.push(amount);
         let amount = budget_boundary::minimum(work, |limits| {
             zil_expand::expand_with_map_limits(&source, &parsed, limits)
@@ -705,5 +709,31 @@ fn concrete_local_callables_keep_owned_signatures_and_actual_modes() {
         );
         let syntax = zil_syntax::parse(&source).into_result().unwrap();
         assert!(zil_expand::expand(&source, &syntax).is_err(), "{body}");
+    }
+}
+
+#[test]
+fn nested_generic_error_arguments_retain_symbolic_choices_before_substitution() {
+    for text in [
+        "fn sink<T:Copy>(v:T!i32,w:T)->i32{return 0}fn relay<U:Copy>(w:U)->i32{return sink(7,w)}fn main()->i32{return relay(0)}",
+        "fn sink<T:Copy>(w:T,v:T!i32)->i32{return 0}fn relay<U:Copy>(w:U)->i32{return sink(w,7)}fn main()->i32{return relay(0)}",
+    ] {
+        let unit = SourceUnit::new(FileId(0), ModuleId(0), "nested-error-argument.zil", text);
+        let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+        zil_expand::expand(&unit, &syntax).unwrap();
+    }
+    for text in [
+        "fn sink<T:Copy>(v:T!T,w:T)->i32{return 0}fn relay<U:Copy>(w:U)->i32{return sink(w,w)}fn main(){}",
+        "fn sink<T:Copy>(w:T,v:T!T)->i32{return 0}fn relay<U:Copy>(w:U)->i32{return sink(w,w)}fn main(){}",
+    ] {
+        let unit = SourceUnit::new(FileId(0), ModuleId(0), "ambiguous-error-argument.zil", text);
+        let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+        let errors = zil_expand::expand(&unit, &syntax).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.phase == Phase::Expand && e.code == "E-GENERIC-ARGUMENT"),
+            "{errors:?}"
+        );
     }
 }

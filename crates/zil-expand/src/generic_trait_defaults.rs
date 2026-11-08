@@ -158,7 +158,7 @@ impl Engine<'_> {
                     &mut self.budget,
                 )?;
                 let (_, selected) = self.check_default(declaration, member, &reference, true)?;
-                if selected.expression.is_some() || !selected.statements.is_empty() {
+                if !selected.is_empty() {
                     self.budget.text(&reference.key.name, member.span)?;
                     self.budget.text(&method.name, member.span)?;
                     self.budget.lineage_bytes(

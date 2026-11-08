@@ -6,6 +6,53 @@ use super::*;
 pub(super) struct Choices {
     pub expression: Option<bool>,
     pub statements: BTreeMap<usize, (Span, bool)>,
+    pub arguments: BTreeMap<usize, ArgumentChoice>,
+}
+pub(super) struct ArgumentChoice {
+    pub span: Span,
+    pub error: TypeRef,
+    pub result: TypeRef,
+    pub is_error: bool,
+}
+impl Choices {
+    pub(super) fn is_empty(&self) -> bool {
+        self.expression.is_none() && self.statements.is_empty() && self.arguments.is_empty()
+    }
+}
+
+/// These identities belong to one owned instance, before rewriting its callees.
+/// Ordinals bind the original clone once; subsequent walks consume node anchors.
+#[derive(Default)]
+pub(super) struct ArgumentAnchors {
+    sites: BTreeMap<usize, usize>,
+}
+pub(super) fn anchor_arguments(
+    function: &Function,
+    choices: &Choices,
+    budget: &mut Budget<'_>,
+) -> R<ArgumentAnchors> {
+    let mut sites = BTreeMap::new();
+    if !choices.arguments.is_empty() {
+        let ids = trait_instances::expression_ids(&function.body, budget)?;
+        for (pointer, ordinal) in ids {
+            budget.node(function.span, 0)?;
+            if choices.arguments.contains_key(&ordinal) {
+                budget.lineage_bytes(std::mem::size_of::<(usize, usize)>(), function.span)?;
+                sites.insert(pointer, ordinal);
+            }
+        }
+        if sites.len() != choices.arguments.len() {
+            return Err(error(
+                function.span,
+                "selected error argument lost its original node",
+            ));
+        }
+    }
+    Ok(ArgumentAnchors { sites })
+}
+struct RewriteSites {
+    moved: BTreeMap<usize, usize>,
+    arguments: BTreeMap<usize, usize>,
 }
 
 pub(super) fn statement_ids(
@@ -50,7 +97,7 @@ fn wrap(
     result: &TypeRef,
     is_error: bool,
     budget: &mut Budget<'_>,
-    moved_sites: &mut BTreeMap<usize, usize>,
+    moved_sites: &mut RewriteSites,
 ) -> R<()> {
     budget.const_expression(value)?;
     budget.ty(error)?;
@@ -92,7 +139,9 @@ fn wrap(
     let ExprKind::Call { arguments, .. } = &value.kind else {
         unreachable!()
     };
-    moved_sites.insert(old_site, &arguments[0].value as *const Expr as usize);
+    moved_sites
+        .moved
+        .insert(old_site, &arguments[0].value as *const Expr as usize);
     Ok(())
 }
 
@@ -101,8 +150,36 @@ pub(super) fn apply(
     choices: &Choices,
     budget: &mut Budget<'_>,
 ) -> R<BTreeMap<usize, usize>> {
-    if choices.expression.is_none() && choices.statements.is_empty() {
+    let anchors = anchor_arguments(function, choices, budget)?;
+    apply_with_arguments(function, choices, anchors, budget)
+}
+
+pub(super) fn apply_with_arguments(
+    function: &mut Function,
+    choices: &Choices,
+    anchors: ArgumentAnchors,
+    budget: &mut Budget<'_>,
+) -> R<BTreeMap<usize, usize>> {
+    if choices.is_empty() {
         return Ok(BTreeMap::new());
+    }
+    if anchors.sites.len() != choices.arguments.len() {
+        return Err(error(
+            function.span,
+            "selected error argument anchors are incomplete",
+        ));
+    }
+    if !anchors.sites.is_empty() {
+        let current = trait_instances::expression_ids(&function.body, budget)?;
+        for pointer in anchors.sites.keys() {
+            budget.node(function.span, 0)?;
+            if !current.contains_key(pointer) {
+                return Err(error(
+                    function.span,
+                    "selected error argument was removed during rewriting",
+                ));
+            }
+        }
     }
     // This feature-only walk follows every nested statement site, including
     // closure bodies and meta expressions. Prepay the complete current tree.
@@ -111,20 +188,24 @@ pub(super) fn apply(
         function.return_type.as_ref().map(|t| &grouped(t).kind)
     else {
         // Local annotated unions may be present even when the result is ordinary.
-        return apply_body(function, choices, None, budget);
+        return apply_body(function, choices, anchors, None, budget);
     };
     let pair = Some(((**error).clone(), (**result).clone()));
-    apply_body(function, choices, pair, budget)
+    apply_body(function, choices, anchors, pair, budget)
 }
 
 fn apply_body(
     function: &mut Function,
     choices: &Choices,
+    anchors: ArgumentAnchors,
     return_pair: Option<(TypeRef, TypeRef)>,
     budget: &mut Budget<'_>,
 ) -> R<BTreeMap<usize, usize>> {
     let mut next = 0;
-    let mut moved_sites = BTreeMap::new();
+    let mut moved_sites = RewriteSites {
+        moved: BTreeMap::new(),
+        arguments: anchors.sites,
+    };
     match &mut function.body {
         FunctionBody::Expression(value) => {
             if let (Some(is_error), Some((error, result))) = (choices.expression, &return_pair) {
@@ -165,7 +246,13 @@ fn apply_body(
             "selected generic error arm lost its source site",
         ));
     }
-    Ok(moved_sites)
+    if !moved_sites.arguments.is_empty() {
+        return Err(error(
+            function.span,
+            "selected error argument was removed during rewriting",
+        ));
+    }
+    Ok(moved_sites.moved)
 }
 
 fn rewrite_block(
@@ -174,7 +261,7 @@ fn rewrite_block(
     return_pair: &Option<(TypeRef, TypeRef)>,
     next: &mut usize,
     budget: &mut Budget<'_>,
-    moved_sites: &mut BTreeMap<usize, usize>,
+    moved_sites: &mut RewriteSites,
 ) -> R<()> {
     for statement in &mut block.statements {
         rewrite_statement(statement, choices, return_pair, next, budget, moved_sites)?;
@@ -188,7 +275,7 @@ fn rewrite_statement(
     return_pair: &Option<(TypeRef, TypeRef)>,
     next: &mut usize,
     budget: &mut Budget<'_>,
-    moved_sites: &mut BTreeMap<usize, usize>,
+    moved_sites: &mut RewriteSites,
 ) -> R<()> {
     let site = *next;
     *next += 1;
@@ -315,7 +402,7 @@ fn rewrite_condition(
     return_pair: &Option<(TypeRef, TypeRef)>,
     next: &mut usize,
     budget: &mut Budget<'_>,
-    moved_sites: &mut BTreeMap<usize, usize>,
+    moved_sites: &mut RewriteSites,
 ) -> R<()> {
     match condition {
         Condition::Expression(value) | Condition::Let { value, .. } => {
@@ -330,7 +417,7 @@ fn rewrite_arrow(
     return_pair: &Option<(TypeRef, TypeRef)>,
     next: &mut usize,
     budget: &mut Budget<'_>,
-    moved_sites: &mut BTreeMap<usize, usize>,
+    moved_sites: &mut RewriteSites,
 ) -> R<()> {
     match arrow {
         ArrowBody::Block(body) => {
@@ -348,8 +435,26 @@ fn rewrite_expr(
     return_pair: &Option<(TypeRef, TypeRef)>,
     next: &mut usize,
     budget: &mut Budget<'_>,
-    moved_sites: &mut BTreeMap<usize, usize>,
+    moved_sites: &mut RewriteSites,
 ) -> R<()> {
+    let pointer = value as *const Expr as usize;
+    if let Some(ordinal) = moved_sites.arguments.remove(&pointer) {
+        let selected = &choices.arguments[&ordinal];
+        if selected.span != value.span {
+            return Err(error(
+                value.span,
+                "selected error argument changed source site",
+            ));
+        }
+        wrap(
+            value,
+            &selected.error,
+            &selected.result,
+            selected.is_error,
+            budget,
+            moved_sites,
+        )?;
+    }
     match &mut value.kind {
         ExprKind::Ascribed { ty, value } => {
             rewrite_type(ty, choices, return_pair, next, budget, moved_sites)?;
@@ -471,7 +576,7 @@ fn rewrite_arg(
     return_pair: &Option<(TypeRef, TypeRef)>,
     next: &mut usize,
     budget: &mut Budget<'_>,
-    moved_sites: &mut BTreeMap<usize, usize>,
+    moved_sites: &mut RewriteSites,
 ) -> R<()> {
     match argument {
         GenericArg::Type(ty) => rewrite_type(ty, choices, return_pair, next, budget, moved_sites),
@@ -488,7 +593,7 @@ fn rewrite_type(
     return_pair: &Option<(TypeRef, TypeRef)>,
     next: &mut usize,
     budget: &mut Budget<'_>,
-    moved_sites: &mut BTreeMap<usize, usize>,
+    moved_sites: &mut RewriteSites,
 ) -> R<()> {
     if let TypeKind::Dyn { bindings, .. } = &mut ty.kind {
         for binding in bindings {
@@ -556,6 +661,90 @@ fn rewrite_type(
 mod tests {
     use super::*;
     use zil_base::{FileId, ModuleId, SourceUnit};
+
+    #[test]
+    fn argument_anchors_survive_callee_growth_and_reject_removed_nodes() {
+        for remove in [false, true] {
+            let input = SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "argument-anchor.zil",
+                "fn relay<U:Copy>(w:U)->i32{return sink(7,w)}",
+            );
+            let mut syntax = zil_syntax::parse(&input).into_result().unwrap();
+            let ItemKind::Function(function) = &mut syntax.items[0].kind else {
+                unreachable!()
+            };
+            let budget_limits = Limits::default();
+            let mut budget = Budget::new(&budget_limits);
+            let ids = trait_instances::expression_ids(&function.body, &mut budget).unwrap();
+            let FunctionBody::Block(body) = &mut function.body else {
+                unreachable!()
+            };
+            let StmtKind::Return(Some(call)) = &mut body.statements[0].kind else {
+                unreachable!()
+            };
+            let ExprKind::Call { arguments, .. } = &call.kind else {
+                unreachable!()
+            };
+            let pointer = &arguments[0].value as *const Expr as usize;
+            let span = arguments[0].value.span;
+            let mut choices = Choices::default();
+            choices.arguments.insert(
+                ids[&pointer],
+                ArgumentChoice {
+                    span,
+                    error: named("U", span),
+                    result: named("i32", span),
+                    is_error: false,
+                },
+            );
+            let anchors = anchor_arguments(function, &choices, &mut budget).unwrap();
+            let FunctionBody::Block(body) = &mut function.body else {
+                unreachable!()
+            };
+            let StmtKind::Return(Some(call)) = &mut body.statements[0].kind else {
+                unreachable!()
+            };
+            let ExprKind::Call { callee, arguments } = &mut call.kind else {
+                unreachable!()
+            };
+            if remove {
+                arguments.clear();
+                let error =
+                    apply_with_arguments(function, &choices, anchors, &mut budget).unwrap_err();
+                assert!(error.message.contains("removed during rewriting"));
+            } else {
+                // Callee rewriting grows a subtree before this argument in traversal order.
+                // The argument is the same actual node, regardless of its new ordinal.
+                callee.kind = ExprKind::Group(Box::new(Expr {
+                    span: callee.span,
+                    kind: ExprKind::Name("rewritten_sink".into()),
+                }));
+                let moved = apply_with_arguments(function, &choices, anchors, &mut budget).unwrap();
+                assert!(moved.contains_key(&pointer));
+                let FunctionBody::Block(body) = &function.body else {
+                    unreachable!()
+                };
+                let StmtKind::Return(Some(call)) = &body.statements[0].kind else {
+                    unreachable!()
+                };
+                let ExprKind::Call { arguments, .. } = &call.kind else {
+                    unreachable!()
+                };
+                let ExprKind::Call { callee, .. } = &arguments[0].value.kind else {
+                    panic!("argument choice lost")
+                };
+                let ExprKind::TypeApply { callee, arguments } = &callee.kind else {
+                    unreachable!()
+                };
+                assert!(matches!(&callee.kind, ExprKind::Name(name) if name == "error_ok"));
+                assert!(
+                    matches!(&arguments[0], GenericArg::Type(TypeRef { kind: TypeKind::Named { path, .. }, .. }) if path == &["U"])
+                );
+            }
+        }
+    }
 
     #[test]
     fn generated_ascription_and_type_meta_sites_precede_selected_return() {

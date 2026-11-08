@@ -958,3 +958,203 @@ fn runtime_try_does_not_hide_comptime_work_or_execute_runtime_errors_at_ct() {
     );
     assert!(!report.artifacts.contains_key("executable"));
 }
+
+#[test]
+fn generic_call_arguments_keep_definition_selected_error_tags_at_equal_instances() {
+    for (definition, expected) in [
+        (
+            "fn sink<T:Copy>(v:T!i32,w:T)->i32{match v{.ok(n)=>{return n},.err(_)=>{return 19}}}fn relay<U:Copy>(w:U)->i32{return sink(7,w)}",
+            7,
+        ),
+        (
+            "fn sink<T:Copy>(w:T,v:T!i32)->i32{match v{.ok(n)=>{return n},.err(_)=>{return 19}}}fn relay<U:Copy>(w:U)->i32{return sink(w,7)}",
+            7,
+        ),
+        (
+            "fn sink<T:Copy>(v:T!i32,w:T)->i32{match v{.ok(_)=>{return 19},.err(_)=>{return 7}}}fn relay<U:Copy>(w:U)->i32{return sink(w,w)}",
+            7,
+        ),
+        (
+            "fn sink<T:Copy>(w:T,v:T!i32)->i32{match v{.ok(_)=>{return 19},.err(_)=>{return 7}}}fn relay<U:Copy>(w:U)->i32{return sink(w,w)}",
+            7,
+        ),
+    ] {
+        let text = format!("{definition}fn result()->i32{{return relay(0)}}fn main(){{}}");
+        let input = SourceUnit::new(FileId(0), ModuleId(0), "generic-error-argument.zil", text);
+        // The raw and Wire consumers independently reconstruct the actual
+        // tagged arguments before either native backend observes the result.
+        let syntax = zil_syntax::parse(&input).into_result().unwrap();
+        let core = zil_expand::expand(&input, &syntax).unwrap();
+        let limits = zil_base::Limits::default();
+        let target = zil_base::TargetProfile::default();
+        let raw = zil_types::check(&core, &target, &limits).unwrap();
+        let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+        zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+        let temp = Temp::new();
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let report = compile_source(
+                    &input,
+                    &CompileOptions {
+                        stop_after: Stage::Build,
+                        entry: Some("result".into()),
+                        backend,
+                        optimization,
+                        output: Some(
+                            temp.0
+                                .join(format!("argument-{backend:?}-{optimization:?}")),
+                        ),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert_eq!(codegen.backend, backend);
+                assert!(codegen.fallback.is_none());
+                run(
+                    &report.artifacts["executable"],
+                    b"",
+                    0,
+                    &format!("{expected}\n"),
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn generic_error_argument_choices_survive_ct_and_keep_nearest_rejections() {
+    let temp = Temp::new();
+    let text = "fn sink<T:Copy>(v:T!i32,w:T)->i32{match v{.ok(n)=>{return n},.err(_)=>{return 19}}}fn relay<U:Copy>(w:U)->i32{return sink(#(7),w)}fn result()->i32{return relay(0)}fn main(){}";
+    let report = compile_source(
+        &SourceUnit::new(FileId(0), ModuleId(0), "ct-error-argument.zil", text),
+        &CompileOptions {
+            stop_after: Stage::Build,
+            entry: Some("result".into()),
+            output: Some(temp.0.join("ct-argument")),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    run(&report.artifacts["executable"], b"", 0, "7\n");
+    // Base9f already rejects both complete CT calls: distinct bool!i32 is
+    // not a serializable CT value, while i32!i32 lacks the old argument choice.
+    // Retaining explicit tags does not enable execution of type applications.
+    for actual in ["0", "false"] {
+        let text = format!(
+            "fn sink<T:Copy>(v:T!i32,w:T)->i32{{match v{{.ok(n)=>{{return n}},.err(_)=>{{return 19}}}}}}fn relay<U:Copy>(w:U)->i32{{return sink(7,w)}}fn main()->i32{{return #(relay({actual}))}}"
+        );
+        let report = compile_source(
+            &SourceUnit::new(FileId(0), ModuleId(0), "ct-constructor-boundary.zil", text),
+            &CompileOptions::default(),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|e| e.phase == Phase::Ct && e.code == "E-CT-FORBIDDEN"),
+            "{}",
+            report.to_json()
+        );
+    }
+    for text in [
+        "fn sink<T:Copy>(v:T!T,w:T)->i32{return 0}fn relay<U:Copy>(w:U)->i32{return sink(w,w)}fn main(){}",
+        "fn sink<T:Copy>(w:T,v:T!T)->i32{return 0}fn relay<U:Copy>(w:U)->i32{return sink(w,w)}fn main(){}",
+        "struct A{n:i32}struct B{n:i32}fn sink<T:Copy>(v:T!A,w:T)->i32{return 0}fn relay<U:Copy>(w:U)->i32{return sink(B{n:7},w)}fn main(){}",
+    ] {
+        let report = compile_source(
+            &SourceUnit::new(FileId(0), ModuleId(0), "bad-error-argument.zil", text),
+            &CompileOptions::default(),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|e| e.phase == Phase::Expand && e.code == "E-GENERIC-ARGUMENT"),
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn generic_error_argument_anchors_survive_trait_materialization() {
+    let text = r#"
+fn sink<T:Copy>(v:T!i32,w:T)->i32{match v{.ok(n)=>{return n},.err(_)=>{return 19}}}
+trait DefaultArgument<E:Copy>{fn pick(self:&Self,w:E)->i32{return sink(7,w)}}
+struct Host{}
+impl DefaultArgument<i32> for Host{}
+trait RecipeArgument<E:Copy>{fn pick(self:&Self,w:E)->i32;}
+struct Box<T:Copy>{value:T}
+impl<E:Copy> RecipeArgument<E> for Box<E>{fn pick(w:E)->i32{return sink(7,w)}}
+trait Read{fn value(self:&Self)->i32;}
+impl Read for Host{fn value()->i32{return 7}}
+fn callee_argument<U:Copy,X:Read>(w:U,x:&X)->i32{return sink(x.value(),w)}
+fn result()->i32{let h=Host{};let b=Box::<i32>{value:0};return h.pick(0)+b.pick(0)+callee_argument(0,&h)}
+fn main(){}
+"#;
+    let temp = Temp::new();
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let report = compile_source(
+                &SourceUnit::new(FileId(0), ModuleId(0), "trait-error-arguments.zil", text),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    entry: Some("result".into()),
+                    backend,
+                    optimization,
+                    output: Some(
+                        temp.0
+                            .join(format!("trait-arguments-{backend:?}-{optimization:?}")),
+                    ),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let codegen = report.native_codegen.as_ref().unwrap();
+            assert_eq!(codegen.backend, backend);
+            assert!(codegen.fallback.is_none());
+            run(&report.artifacts["executable"], b"", 0, "21\n");
+        }
+    }
+}

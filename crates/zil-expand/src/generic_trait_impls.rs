@@ -555,7 +555,7 @@ impl<'a> Engine<'a> {
                         None => bounds.clone(),
                     }),
                 )?;
-                if selected.expression.is_some() || !selected.statements.is_empty() {
+                if !selected.is_empty() {
                     self.budget.node(member.span, 0)?;
                     self.budget.lineage_bytes(
                         std::mem::size_of::<((usize, usize), error_injection::Choices)>(),
@@ -711,6 +711,13 @@ impl<'a> Engine<'a> {
                     }
                 }
             }
+            let error_arguments = if let ItemKind::Function(function) = &member.kind
+                && let Some(selected) = self.impl_error_arms.get(&(witness.recipe, ordinal))
+            {
+                error_injection::anchor_arguments(function, selected, &mut self.budget)?
+            } else {
+                error_injection::ArgumentAnchors::default()
+            };
             let mut anchors = None;
             if let Some(calls) = self.impl_calls.get(&(witness.recipe, ordinal)) {
                 if self.traits.has_generic_methods {
@@ -736,7 +743,12 @@ impl<'a> Engine<'a> {
             if let ItemKind::Function(function) = &mut member.kind
                 && let Some(selected) = self.impl_error_arms.get(&(witness.recipe, ordinal))
             {
-                let moved = error_injection::apply(function, selected, &mut self.budget)?;
+                let moved = error_injection::apply_with_arguments(
+                    function,
+                    selected,
+                    error_arguments,
+                    &mut self.budget,
+                )?;
                 if let Some(anchors) = anchors.as_mut() {
                     anchors.relocate(&moved, &mut self.budget, member.span)?;
                 }
