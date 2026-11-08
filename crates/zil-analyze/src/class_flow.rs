@@ -691,10 +691,10 @@ fn call_with_outer(
     output: Option<ValueId>,
     values: &[Ports],
     fixed: Option<&[usize]>,
-    e: &mut Equations,
-    flow: Option<&array_outer::Flow>,
+    context: (&mut Equations, Option<&array_outer::Flow>),
     b: &mut Budget,
 ) -> CompileResult<()> {
+    let (e, flow) = context;
     if flow.is_none() {
         return call(c, args, output, values, fixed, e, b);
     }
@@ -871,9 +871,7 @@ fn check_with(
                 module,
                 f,
                 reachable,
-                &values,
-                &locals,
-                &captures,
+                (&values, &locals, &captures),
                 e.parent.len(),
                 b,
             )?)
@@ -1460,8 +1458,7 @@ fn check_with(
                                 i.result,
                                 &values,
                                 None,
-                                &mut e,
-                                outer.as_ref(),
+                                (&mut e, outer.as_ref()),
                                 b,
                             )?;
                         }
@@ -1515,8 +1512,7 @@ fn check_with(
                             i.result,
                             &values,
                             None,
-                            &mut e,
-                            outer.as_ref(),
+                            (&mut e, outer.as_ref()),
                             b,
                         )?;
                     }
@@ -1534,8 +1530,7 @@ fn check_with(
                         i.result,
                         &values,
                         None,
-                        &mut e,
-                        outer.as_ref(),
+                        (&mut e, outer.as_ref()),
                         b,
                     )?;
                 }
@@ -1567,8 +1562,7 @@ fn check_with(
             output,
             &values,
             None,
-            &mut e,
-            outer.as_ref(),
+            (&mut e, outer.as_ref()),
             b,
         )?;
     }
@@ -1579,8 +1573,7 @@ fn check_with(
             output,
             &values,
             Some(fixed),
-            &mut e,
-            outer.as_ref(),
+            (&mut e, outer.as_ref()),
             b,
         )?;
     }

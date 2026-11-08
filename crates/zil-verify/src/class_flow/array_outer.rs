@@ -294,7 +294,7 @@ impl Flow {
     }
 }
 
-fn value<'a>(values: &'a [Ports], id: ValueId) -> Check<&'a Ports> {
+fn value(values: &[Ports], id: ValueId) -> Check<&Ports> {
     values
         .get(id.0 as usize)
         .ok_or_else(|| bad("actual upper operand is absent"))
@@ -458,12 +458,11 @@ impl Flow {
         module: &TypedModule,
         f: &TypedFunction,
         reachable: &[bool],
-        values: &[Ports],
-        locals: &[Ports],
-        captures: &[Ports],
+        ports: (&[Ports], &[Ports], &[Ports]),
         count: usize,
         b: &mut Budget,
     ) -> Check<Self> {
+        let (values, locals, captures) = ports;
         let mut flow = Self::new(count, b)?;
         work(b, f.parameters.len().saturating_add(captures.len()))?;
         for parameter in &f.parameters {
@@ -553,10 +552,10 @@ impl Flow {
                     }
                     InstructionKind::AddressIndex { address, .. }
                     | InstructionKind::AddressSlice { address, .. } => {
-                        if let (Some(out), Some(from)) = (out, value(values, *address)?.outer) {
-                            if let Some(to) = out.outer {
-                                flow.edge(to, from, b)?;
-                            }
+                        if let (Some(out), Some(from)) = (out, value(values, *address)?.outer)
+                            && let Some(to) = out.outer
+                        {
+                            flow.edge(to, from, b)?;
                         }
                         consumer = if out.is_some_and(|p| p.outer.is_some()) {
                             Consumer::Copy
@@ -585,8 +584,8 @@ impl Flow {
                         }
                     }
                     InstructionKind::LoadStoredBorrow { storage, path, .. } => {
-                        if let Some(out) = out {
-                            if let (Some(to), Some(from)) = (
+                        if let Some(out) = out
+                            && let (Some(to), Some(from)) = (
                                 out.outer,
                                 source_slot(
                                     &f.values[storage.0 as usize],
@@ -594,9 +593,9 @@ impl Flow {
                                     path,
                                     b,
                                 )?,
-                            ) {
-                                flow.edge(to, from, b)?;
-                            }
+                            )
+                        {
+                            flow.edge(to, from, b)?;
                         }
                         consumer = Consumer::Copy;
                     }
@@ -708,15 +707,15 @@ impl Flow {
                     InstructionKind::ExtractField { aggregate, index } => {
                         if let Some(out) = out {
                             let source = value(values, *aggregate)?;
-                            if let Some(to) = out.outer {
-                                if let Some(from) = source_slot(
+                            if let Some(to) = out.outer
+                                && let Some(from) = source_slot(
                                     &f.values[aggregate.0 as usize],
                                     source,
                                     &[PlaceProjection::Field(*index)],
                                     b,
-                                )? {
-                                    flow.edge(to, from, b)?;
-                                }
+                                )?
+                            {
+                                flow.edge(to, from, b)?;
                             }
                             work(b, out.array_elements.len())?;
                             for (ordinal, to) in out.array_elements.iter().enumerate() {

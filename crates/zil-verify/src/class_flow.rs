@@ -858,9 +858,7 @@ fn check_with(
                 module,
                 f,
                 reachable,
-                &values,
-                &locals,
-                &captures,
+                (&values, &locals, &captures),
                 e.representative.len(),
                 b,
             )?)
