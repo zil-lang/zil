@@ -887,10 +887,10 @@ fn check_with(
                 InstructionKind::BorrowPlaceLocal { .. }
                     if super::stored_flow::ordinary_error_borrow(f, i, b)? =>
                 {
-                    if let Some(out) = out {
-                        if let Some(outer) = out.outer {
-                            e.address_origin(outer, b)?;
-                        }
+                    if let Some(out) = out
+                        && let Some(outer) = out.outer
+                    {
+                        e.address_origin(outer, b)?;
                     }
                 }
                 InstructionKind::BorrowLocal { local }
