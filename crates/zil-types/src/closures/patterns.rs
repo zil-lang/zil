@@ -160,7 +160,9 @@ impl Graph {
                     return Ok(());
                 }
                 self.bind(value, ty, pattern.span)?;
-                let Type::Enum { variants, .. } = ty else {
+                // Keep the complete stored type in the value constraint;
+                // only variant structure uses its already-resolved layout.
+                let Type::Enum { variants, .. } = stored::physical(ty) else {
                     return Err(error(
                         "E-MATCH-TYPE",
                         pattern.span,

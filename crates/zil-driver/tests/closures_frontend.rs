@@ -308,6 +308,242 @@ fn closure_closure_body_resolves_imports_without_exporting_environment_functions
     assert_eq!(exports[0].function.0, 1);
 }
 
+const DIRECT_LENDING_MODEL: &str =
+    include_str!("../../../tests/fixtures/closures/direct-lending-context/model.zil");
+const DIRECT_LENDING_LIBRARY: &str =
+    include_str!("../../../tests/fixtures/closures/direct-lending-context/library.zil");
+
+fn direct_lending_project(model: &str, library: &str) -> ProjectSources {
+    let inputs = [
+        (
+            "main",
+            include_str!("../../../tests/fixtures/closures/direct-lending-context/main.zil"),
+        ),
+        ("model", model),
+        (
+            "protocol",
+            include_str!("../../../tests/fixtures/closures/direct-lending-context/protocol.zil"),
+        ),
+        ("library", library),
+    ];
+    ProjectSources {
+        root: ModuleId(0),
+        modules: inputs
+            .iter()
+            .enumerate()
+            .map(|(index, (name, text))| {
+                SourceUnit::new(
+                    FileId(index as u32),
+                    ModuleId(index as u32),
+                    format!("{name}.zil"),
+                    *text,
+                )
+            })
+            .collect(),
+        paths: inputs
+            .iter()
+            .enumerate()
+            .map(|(index, (name, _))| (vec![name.to_string()], ModuleId(index as u32)))
+            .collect(),
+    }
+}
+
+#[test]
+fn unrelated_closure_preserves_ordinary_direct_lending_context() {
+    for model in [
+        DIRECT_LENDING_MODEL.to_string(),
+        DIRECT_LENDING_MODEL.replace(" let unrelated=()->i32=>1\n", ""),
+    ] {
+        let report = compile_project(
+            &direct_lending_project(&model, DIRECT_LENDING_LIBRARY),
+            &CompileOptions::default(),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(
+            report.phase,
+            zil_base::Phase::Verify,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+}
+
+#[test]
+fn direct_lending_context_keeps_actual_loan_boundaries() {
+    for (label, model, library, phase, code, message) in [
+        (
+            "live-loan",
+            DIRECT_LENDING_MODEL.replace(
+                "total+=value.value;if byte(value)!=65u8",
+                "let again=library.next(&mut cursor);total+=value.value;if byte(value)!=65u8",
+            ),
+            DIRECT_LENDING_LIBRARY.to_string(),
+            zil_base::Phase::Analyze,
+            "E-ANALYZE-IR",
+            "simultaneously live access overlaps an actual stored target/parent loan",
+        ),
+        (
+            "wrong-result-source",
+            DIRECT_LENDING_MODEL.to_string(),
+            format!("{DIRECT_LENDING_LIBRARY}pub fn wrong<life a,life b,I:protocol.LendingIterator>(cursor:&'a mut I,other:&'b mut I)->Option<&'a I.Item>{{return other.next()}}"),
+            zil_base::Phase::Expand,
+            "E-GENERIC-ARGUMENT",
+            "cannot equate distinct declared lifetime classes",
+        ),
+        (
+            "local-result-escape",
+            DIRECT_LENDING_MODEL.replace(
+                "return Option::<&'a Item>.Some(store_at(self.items,index))",
+                "let data=bytes_new();let local=Item{data:give data,value:9};return Option::<&'a Item>.Some(&local)",
+            ),
+            DIRECT_LENDING_LIBRARY.to_string(),
+            zil_base::Phase::Expand,
+            "E-GENERIC-ARGUMENT",
+            "retained reference has no actual declared source class",
+        ),
+    ] {
+        let report = compile_project(
+            &direct_lending_project(&model, &library),
+            &CompileOptions::default(),
+        );
+        println!("{label}: {}", report.to_json());
+        assert_eq!(report.status, ResultCategory::SafeReject, "{label}: {}", report.to_json());
+        assert_eq!(report.phase, phase, "{label}: {}", report.to_json());
+        assert!(report.diagnostics.iter().any(|d| d.code == code && d.message.contains(message)), "{label}: {}", report.to_json());
+        assert_eq!(report.verification_runs, 0);
+    }
+}
+
+#[test]
+fn direct_lending_context_does_not_admit_a_rich_function_pointer() {
+    let text = "fn select<life a>(value:&'a i32)->Option<&'a i32>{return Option::<&'a i32>.Some(value)}fn main(){let unrelated=()->i32=>1;let indirect=select}";
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, zil_base::Phase::Types, "{}", report.to_json());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("function pointers require")),
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 0);
+}
+
+#[test]
+fn direct_lending_context_executes_the_complete_project() {
+    let mut backends = vec![zil_driver::NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(zil_driver::NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [zil_driver::Optimization::O0, zil_driver::Optimization::O2] {
+            let dir = std::env::temp_dir().join(format!(
+                "zil-direct-lending-{}-{}-{backend:?}-{optimization:?}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir_all(&dir).unwrap();
+            let executable = dir.join("program");
+            let report = compile_project(
+                &direct_lending_project(DIRECT_LENDING_MODEL, DIRECT_LENDING_LIBRARY),
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    output: Some(executable.clone()),
+                    emit_dir: Some(dir.join("phases")),
+                    ..CompileOptions::default()
+                },
+            );
+            fs::write(dir.join("report.json"), report.to_json()).unwrap();
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let execution = Command::new(executable).output().unwrap();
+            fs::write(dir.join("execution.txt"), format!("{execution:?}")).unwrap();
+            assert_eq!(execution.status.code(), Some(0), "{execution:?}");
+            assert!(execution.stdout.is_empty(), "{execution:?}");
+            assert!(execution.stderr.is_empty(), "{execution:?}");
+            println!(
+                "direct lending {backend:?}/{optimization:?}: exit=0 stdout=empty stderr=empty; {}",
+                dir.display()
+            );
+        }
+    }
+}
+
+#[test]
+fn direct_lending_context_keeps_exact_fresh_type_budgets_and_contracts() {
+    let text = "fn select<life a>(value:&'a i32)->Option<&'a i32>{return Option::<&'a i32>.Some(value)}fn main()->i32{let unrelated=()->i32=>1;let n=7;match select(&n){Option.Some(value)=>{return *value-7},Option.None()=>{return 1}}}";
+    let core = raw_core(text);
+    let expected =
+        zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap();
+    let select = expected
+        .functions
+        .iter()
+        .find(|f| f.name == "select")
+        .unwrap();
+    assert!(
+        select
+            .storage_life
+            .as_ref()
+            .is_some_and(|life| !life.classes.is_empty())
+    );
+    assert!(matches!(select.return_type, Type::BorrowedStorage { .. }));
+    assert!(
+        expected
+            .functions
+            .iter()
+            .find(|f| f.name == "main")
+            .unwrap()
+            .storage_life
+            .is_none()
+    );
+    let check = |max_analysis_steps| {
+        zil_types::check(
+            &core,
+            &TargetProfile::host_llvm(),
+            &Limits {
+                max_analysis_steps,
+                ..Limits::default()
+            },
+        )
+    };
+    let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+    assert!(check(high).is_ok());
+    while low + 1 < high {
+        let middle = low + (high - low) / 2;
+        if check(middle).is_ok() {
+            high = middle
+        } else {
+            low = middle
+        }
+    }
+    resource_limited(check(high - 1));
+    assert_eq!(check(high).unwrap(), expected);
+    assert_eq!(check(high).unwrap(), expected);
+    println!(
+        "direct lending Types: N={high}, N-1 ResourceLimit, fresh N equal; actual result classes retained and main contract remains None"
+    );
+}
+
 #[test]
 fn closure_ct_parameter_shadowing_does_not_use_outer_i64_hint() {
     let report = report(
