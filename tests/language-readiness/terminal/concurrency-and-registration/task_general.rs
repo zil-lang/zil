@@ -1283,8 +1283,18 @@ fn general_task_retained_context_cannot_enter_closed_frame_profile() {
             _ => unreachable!(),
         }
         let errors = zil_analyze::analyze(&raw, &limits).unwrap_err();
-        assert_eq!(errors[0].code, "E-UNSUPPORTED", "case {case}: {errors:?}");
-        assert!(errors[0].message.contains("borrowed Task"), "{errors:?}");
+        let code = if case == 2 {
+            "E-TASK-ABI"
+        } else {
+            "E-UNSUPPORTED"
+        };
+        let message = if case == 2 {
+            "complete actual single shared input context"
+        } else {
+            "borrowed Task"
+        };
+        assert_eq!(errors[0].code, code, "case {case}: {errors:?}");
+        assert!(errors[0].message.contains(message), "{errors:?}");
         let mut claim = plan.clone();
         claim.module_fingerprint = raw.fingerprint();
         for wire in [false, true] {
@@ -1300,11 +1310,8 @@ fn general_task_retained_context_cannot_enter_closed_frame_profile() {
             };
             let errors =
                 zil_verify::verify_module(input, claim.clone(), &target, &limits).unwrap_err();
-            assert_eq!(
-                errors[0].code, "E-UNSUPPORTED",
-                "case {case}, wire={wire}: {errors:?}"
-            );
-            assert!(errors[0].message.contains("borrowed Task"), "{errors:?}");
+            assert_eq!(errors[0].code, code, "case {case}, wire={wire}: {errors:?}");
+            assert!(errors[0].message.contains(message), "{errors:?}");
         }
     }
 }

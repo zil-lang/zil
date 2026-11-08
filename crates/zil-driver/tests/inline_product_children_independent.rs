@@ -445,17 +445,27 @@ fn raw_unused_nested_metadata_does_not_gain_ordinary_or_legacy_authority() {
             }
             _ => unreachable!(),
         }
-        if variant == 5 {
-            // The original raw Product contains a legal E!Leaf field. Its
-            // unused local has no initialized payload responsibility.
-            let case = Case::new("unused-nested-metadata-5-promoted");
+        if matches!(variant, 2 | 5) {
+            // Complete zero-debt Package children and E!Leaf are legal value
+            // shapes. An unused local creates no initialized payload debt.
+            let case = Case::new(&format!("unused-nested-metadata-{variant}-promoted"));
             let actual = zil_analyze::analyze(&module, &Limits::default());
             case.write("analyze.txt", format!("{actual:#?}"));
             let actual = actual.unwrap();
-            verify_pair("unused-nested-metadata-5-actual", &module, &actual, true);
+            verify_pair(
+                &format!("unused-nested-metadata-{variant}-actual"),
+                &module,
+                &actual,
+                true,
+            );
             let mut rebound = plan.clone();
             rebound.module_fingerprint = module.fingerprint();
-            verify_pair("unused-nested-metadata-5-rebound", &module, &rebound, true);
+            verify_pair(
+                &format!("unused-nested-metadata-{variant}-rebound"),
+                &module,
+                &rebound,
+                true,
+            );
             continue;
         }
         attack(

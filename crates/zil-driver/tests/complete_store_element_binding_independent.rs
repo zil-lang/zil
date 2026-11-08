@@ -351,7 +351,101 @@ fn actual_desc_structural_writes_survive_nested_helper_parameter_remapping() {
         ),
     ] {
         let source = control.replace("let first = store_at_mut(items, 0)", changed);
-        reject_source(label, &source, &[Phase::Verify], Some("E-BORROW-CONFLICT"));
+        let case = Case::new(label);
+        let report = compile(&case, &source, None);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        match report.phase {
+            Phase::Expand => assert!(
+                report.diagnostics.iter().any(|d| {
+                    d.code == "E-GENERIC-ARGUMENT"
+                        && d.message
+                            .contains("alias outlives a moved or replaced field")
+                }),
+                "{}",
+                report.to_json()
+            ),
+            Phase::Verify => assert!(
+                report
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.code == "E-BORROW-CONFLICT"),
+                "{}",
+                report.to_json()
+            ),
+            _ => panic!("{}", report.to_json()),
+        }
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+
+    // Source now diagnoses these aliases before Typed. Move a real, unused
+    // reserve call across the actual element window to keep testing both raw
+    // kernels' parameter-remapped structural effects independently.
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    for capacity in [4, 2, -1] {
+        let call = format!("shifted(0,items,{capacity})");
+        let before = control.replace(
+            "let first = store_at_mut(items, 0)",
+            &format!("{call}\nlet first = store_at_mut(items, 0)"),
+        );
+        let start = before.find(&format!("{call}\nlet first")).unwrap() as u32;
+        let mut raw = zil_types::check(
+            &expanded("structural-write-before-window", &before),
+            &target,
+            &limits,
+        )
+        .unwrap();
+        let mut claim = zil_analyze::analyze(&raw, &limits).unwrap();
+        let block = raw
+            .functions
+            .iter_mut()
+            .flat_map(|f| &mut f.blocks)
+            .find(|block| {
+                block.instructions.iter().any(|i| {
+                    i.span.start == start && matches!(i.kind, InstructionKind::Call { .. })
+                })
+            })
+            .unwrap();
+        let at = block
+            .instructions
+            .iter()
+            .position(|i| i.span.start == start && matches!(i.kind, InstructionKind::Call { .. }))
+            .unwrap();
+        let instruction = block.instructions.remove(at);
+        let window = block
+            .instructions
+            .iter()
+            .position(|i| {
+                matches!(
+                    i.kind,
+                    InstructionKind::OwnedStoreBorrow { mutable: true, .. }
+                )
+            })
+            .unwrap();
+        assert!(window >= at);
+        block.instructions.insert(window + 1, instruction);
+        claim.module_fingerprint = raw.fingerprint();
+        let errors = zil_analyze::analyze(&raw, &limits).unwrap_err();
+        assert!(
+            errors.iter().any(|d| d.code == "E-BORROW-CONFLICT"),
+            "{errors:?}"
+        );
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        for result in [
+            zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits),
+            zil_verify::verify_module_bytes(&wire, &target, &limits),
+        ] {
+            let errors = result.unwrap_err();
+            assert!(
+                errors.iter().any(|d| d.code == "E-BORROW-CONFLICT"),
+                "{errors:?}"
+            );
+        }
     }
 }
 

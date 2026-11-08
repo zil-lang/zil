@@ -167,8 +167,20 @@ fn both_public_types_apis_check_unused_complete_product_metadata() {
         fs::write(dir.join("single.txt"), format!("{single:#?}")).unwrap();
         fs::write(dir.join("program.txt"), format!("{program:#?}")).unwrap();
         for result in [single, program] {
-            if label == "valid" {
-                result.unwrap();
+            if matches!(label, "valid" | "child-without-managed") {
+                let module = result.unwrap();
+                if label == "child-without-managed" {
+                    let function = module
+                        .functions
+                        .iter()
+                        .find(|f| f.name == "unused")
+                        .unwrap();
+                    assert!(
+                        !function.locals[function.parameters[0].0 as usize]
+                            .ty
+                            .is_copy_value()
+                    );
+                }
             } else {
                 let errors = result.expect_err(label);
                 assert!(

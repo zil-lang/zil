@@ -271,7 +271,6 @@ fn main()->void!i32{
 fn element_bound_checks_real_shapes_and_never_grants_copy_or_members() {
     for bad in [
         "let s:Store<R>=empty();",
-        "let s:Store<OnlyCopy>=empty();",
         "let s:Store<Zero>=empty();",
         "let s:Store<Nested>=empty();",
     ] {
@@ -287,6 +286,17 @@ fn element_bound_checks_real_shapes_and_never_grants_copy_or_members() {
         );
         assert_eq!(report.verification_runs, 0);
     }
+    let source = format!(
+        "{MODEL}{HELPERS}package OnlyCopy{{n:i32}}fn main(){{let s:Store<OnlyCopy>=empty();}}"
+    );
+    let report = check(&[("main", &source)]);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
     for bad in [
         "fn bad<T:StoreElement>(a:&T)->T=>*a",
         "fn bad<T:StoreElement>(a:T)->i32=>a.n",
@@ -688,19 +698,20 @@ fn actual_generic_calls_do_not_merge_distinct_nominal_elements() {
 }
 
 #[test]
-fn scalar_store_original_scalar_gate_reaches_existing_invalid_package_boundary() {
-    // Preserve the entire historical negative fixture: its OnlyCopy Package
-    // is independently invalid. Scalar eligibility no longer masks that error.
+fn scalar_store_with_unused_complete_package_declarations() {
+    // Keep the original complete fixture. Zero-debt Packages are valid affine
+    // values; their absence of Managed fields does not make them Copy.
     let source = format!(
         "{MODEL}{HELPERS}struct V{{n:i32}}package OnlyCopy{{n:i32}}resource Z{{}}package Zero{{manages z:Z}}package Nested{{manages items:Store<Item>}}fn main(){{let s:Store<i32>=empty();}}"
     );
     let report = check(&[("main", &source)]);
     assert_eq!(
         report.status,
-        ResultCategory::Unsupported,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
+    assert_eq!(report.verification_runs, 1);
 }
 
 #[test]
