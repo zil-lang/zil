@@ -286,9 +286,11 @@ impl Flow {
             }
             Ok(alternatives)
         } else if matches!(ty, Type::Address { .. }) {
-            Ok(vec![super::instantiate(
-                source, arguments, values, state, b,
-            )?])
+            let actual = super::instantiate(source, arguments, values, state, b)?;
+            if actual.sources.is_empty() {
+                return Err(err("Byte separation lacks complete actual address origins"));
+            }
+            Ok(vec![actual])
         } else {
             Err(outside())
         }

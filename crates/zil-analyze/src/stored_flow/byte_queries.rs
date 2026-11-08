@@ -324,9 +324,13 @@ impl Flow {
             }
             Ok(out)
         } else if matches!(ty, Type::Address { .. }) {
-            Ok(vec![super::substitute(
-                source, arguments, values, state, b,
-            )?])
+            let actual = super::substitute(source, arguments, values, state, b)?;
+            if actual.targets.is_empty() {
+                return Err(failure(
+                    "Byte separation lacks complete actual address origins",
+                ));
+            }
+            Ok(vec![actual])
         } else {
             Err(closed())
         }
