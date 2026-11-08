@@ -78,6 +78,66 @@ fn borrowed_owned_candidate(d: &ClosureDefinition) -> bool {
         )
 }
 
+fn callback_data_without_targets(ty: &Type, b: &mut Budget) -> Check<()> {
+    super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
+    let mut pending = vec![ty];
+    while let Some(current) = pending.pop() {
+        b.spend(1)?;
+        match current {
+            Type::Address { .. }
+            | Type::Desc(_)
+            | Type::BorrowedStorage { .. }
+            | Type::Closure(_)
+            | Type::Opaque { .. }
+            | Type::TaskI32
+            | Type::Task { .. }
+            | Type::Registration { .. }
+            | Type::AsyncRegistration { .. } => {
+                return Err(bad(
+                    "stored owning callback data contains a target-bearing or callable environment dependency",
+                ));
+            }
+            Type::Managed(inner)
+            | Type::OwnedStore { element: inner }
+            | Type::Array { element: inner, .. }
+            | Type::Slice { element: inner } => {
+                b.spend(1)?;
+                pending.push(inner);
+            }
+            Type::Tuple(fields) => {
+                b.spend(fields.len())?;
+                pending.extend(fields);
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, child)| child));
+            }
+            Type::Enum { variants, .. } => {
+                b.spend(variants.len())?;
+                for (_, fields) in variants {
+                    b.spend(fields.len())?;
+                    pending.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                b.spend(2)?;
+                pending.extend([error.as_ref(), result.as_ref()]);
+            }
+            Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }
+            | Type::ForeignCallback { parameters, result } => {
+                b.spend(parameters.len().saturating_add(1))?;
+                pending.extend(parameters);
+                pending.push(result);
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
 fn borrowed_owned_definition(
     module: &TypedModule,
     d: &ClosureDefinition,
@@ -86,6 +146,16 @@ fn borrowed_owned_definition(
     resources::charge_payload(&d.result, b)?;
     super::borrowed_fp::signature_work(&d.parameters, &d.result, b)?;
     b.spend(d.parameters.len())?;
+    callback_data_without_targets(&d.result, b)?;
+    for parameter in &d.parameters {
+        callback_data_without_targets(
+            match parameter {
+                Type::Address { inner, .. } => inner,
+                other => other,
+            },
+            b,
+        )?;
+    }
     if !super::owned_callbacks::root(&d.result)
         || !d
             .parameters
