@@ -2,6 +2,12 @@
 //! becoming the owner of its complete Package or permitting a field give.
 use super::*;
 
+fn tree_steps(size: usize) -> usize {
+    size.checked_ilog2()
+        .map_or(1, |n| n as usize + 2)
+        .saturating_mul(12)
+}
+
 impl Check<'_, '_, '_> {
     pub(super) fn borrowed_store_field_slots(
         &mut self,
@@ -12,6 +18,7 @@ impl Check<'_, '_, '_> {
     ) -> R<Option<BTreeSet<usize>>> {
         let mut direct = object;
         while let ExprKind::Group(inner) = &direct.kind {
+            self.budget.node(direct.span, 0)?;
             direct = inner;
         }
         if let ExprKind::Unary {
@@ -29,6 +36,10 @@ impl Check<'_, '_, '_> {
         let ExprKind::Name(name) = &direct.kind else {
             return Ok(None);
         };
+        for _ in 0..tree_steps(state.locals.len()) {
+            self.budget.node(span, 0)?;
+            self.budget.text(name, span)?;
+        }
         let Some(local) = state.locals.get(name) else {
             return Ok(None);
         };
@@ -43,10 +54,19 @@ impl Check<'_, '_, '_> {
         let TypeKind::Named { path, args } = &group(inner).kind else {
             return Ok(None);
         };
+        for component in path {
+            self.budget.node(span, 0)?;
+            self.budget.text(component, span)?;
+        }
+        let key = path.join(".");
+        for _ in 0..tree_steps(self.nominals.len()) {
+            self.budget.node(span, 0)?;
+            self.budget.text(&key, span)?;
+        }
         let Some(Item {
             kind: ItemKind::Aggregate(aggregate),
             ..
-        }) = self.nominals.get(&path.join("."))
+        }) = self.nominals.get(&key)
         else {
             return Ok(None);
         };
@@ -102,24 +122,19 @@ impl Check<'_, '_, '_> {
     ) -> R<BTreeSet<usize>> {
         let mut origins = BTreeSet::new();
         for slot in slots {
-            for _ in 0..state
-                .store_origins
-                .len()
-                .checked_ilog2()
-                .map_or(1, |n| n as usize + 2)
-            {
+            for _ in 0..tree_steps(state.store_origins.len()) {
                 self.budget.node(span, 0)?;
             }
             if let Some(roots) = state.store_origins.get(slot) {
                 for root in roots {
-                    for _ in 0..origins.len().checked_ilog2().map_or(1, |n| n as usize + 2) {
+                    for _ in 0..tree_steps(origins.len()) {
                         self.budget.node(span, 0)?;
                     }
                     self.budget.node(span, 0)?;
                     origins.insert(*root);
                 }
             } else {
-                for _ in 0..origins.len().checked_ilog2().map_or(1, |n| n as usize + 2) {
+                for _ in 0..tree_steps(origins.len()) {
                     self.budget.node(span, 0)?;
                 }
                 self.budget.node(span, 0)?;
