@@ -389,7 +389,14 @@ fn qualified_record_getter_width_and_depth_budgets_are_exact_and_fresh() {
     let default = Limits::default();
     let target = TargetProfile::host_llvm();
     let mut boundaries = Vec::new();
-    for (width, depth) in [(1, 0), (8, 0), (1, 2), (8, 2)] {
+    // Prior fees omitted the real leaves retained by projected/reborrowed windows.
+    let prior = [
+        [3220, 32911, 45276, 45276, 45276],
+        [6111, 97665, 142372, 142372, 142372],
+        [19476, 159886, 195052, 195052, 195052],
+        [37767, 415174, 542990, 542990, 542990],
+    ];
+    for (case, (width, depth)) in [(1, 0), (8, 0), (1, 2), (8, 2)].into_iter().enumerate() {
         let program = getter_model(width, depth);
         let input = source("record-getter-budget", &program);
         let syntax = zil_syntax::parse(&input).into_result().unwrap();
@@ -470,6 +477,35 @@ fn qualified_record_getter_width_and_depth_budgets_are_exact_and_fresh() {
             );
             assert_eq!(session.active_query_count(), 0);
         }
+        assert_eq!(types, prior[case][0]);
+        for status in [
+            budget_category(zil_analyze::analyze(&raw, &limits(prior[case][1]))),
+            budget_category(zil_verify::verify_module(
+                raw.clone(),
+                plan.clone(),
+                &target,
+                &limits(prior[case][2]),
+            )),
+            budget_category(zil_verify::verify_module_bytes(
+                &wire,
+                &target,
+                &limits(prior[case][3]),
+            )),
+            compile_source(
+                &input,
+                &CompileOptions {
+                    limits: limits(prior[case][4]),
+                    ..CompileOptions::default()
+                },
+            )
+            .status,
+        ] {
+            assert_eq!(
+                status,
+                ResultCategory::ResourceLimit,
+                "old window fee omits actual retained leaves"
+            );
+        }
         boundaries.push([types, analyze, verify, decoded, whole]);
     }
     // Fixed complete-consumer boundaries catch a missing scan or snapshot
@@ -477,10 +513,10 @@ fn qualified_record_getter_width_and_depth_budgets_are_exact_and_fresh() {
     assert_eq!(
         boundaries,
         vec![
-            [3220, 32911, 45276, 45276, 45276],
-            [6111, 97665, 142372, 142372, 142372],
-            [19476, 159886, 195052, 195052, 195052],
-            [37767, 415174, 542990, 542990, 542990],
+            [3220, 33852, 46364, 46364, 46364],
+            [6111, 108455, 157530, 157530, 157530],
+            [19476, 162051, 197646, 197646, 197646],
+            [37767, 440018, 581116, 581116, 581116],
         ]
     );
     for kernel in 0..5 {
@@ -498,4 +534,242 @@ fn qualified_record_getter_width_and_depth_budgets_are_exact_and_fresh() {
             "wide deep getter must retain both costs: {boundaries:?}"
         );
     }
+}
+
+fn record_window_programs() -> Vec<(&'static str, String)> {
+    let refs = "struct Refs<life a>{pointer:&'a i32}fn make<life a>(p:&'a i32)->Refs<'a>{return Refs::<'a>{pointer:p}}";
+    let main = |creation: &str, window: &str, read: &str| {
+        format!(
+            "fn main()->i32{{var value=7;var spare=0;{creation}let window={window};spare=11;if *{read}==7{{return 0}}return 1}}"
+        )
+    };
+    let identity_refs =
+        "fn identity<life a,life b>(input:&'a Refs<'b>)->&'a Refs<'b>{return input}";
+    let job = GETTER.split("fn main").next().unwrap();
+    vec![
+        (
+            "record-window",
+            format!(
+                "{refs}{}",
+                main("let refs=make(&value);", "&refs", "window.pointer")
+            ),
+        ),
+        (
+            "record-identity-window",
+            format!(
+                "{refs}{identity_refs}{}",
+                main(
+                    "let refs=make(&value);",
+                    "identity(&refs)",
+                    "window.pointer"
+                )
+            ),
+        ),
+        (
+            "record-child-window",
+            format!(
+                "{job}{}",
+                main("let job=make(&value);", "&job.refs", "window.pointer")
+            ),
+        ),
+        (
+            "record-parent-window",
+            format!(
+                "{job}{}",
+                main("let job=make(&value);", "&job", "window.refs.pointer")
+            ),
+        ),
+        (
+            "record-child-identity-window",
+            format!(
+                "{job}{identity_refs}{}",
+                main(
+                    "let job=make(&value);",
+                    "identity(&job.refs)",
+                    "window.pointer"
+                )
+            ),
+        ),
+    ]
+}
+
+#[test]
+fn qualified_record_windows_retain_actual_leaf_loans() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    for (label, program) in record_window_programs() {
+        let good = compile_source(&source(label, &program), &CompileOptions::default());
+        assert_eq!(
+            good.status,
+            ResultCategory::Success,
+            "{label}: {}",
+            good.to_json()
+        );
+        assert_eq!(good.verification_runs, 1);
+        let rejected = program.replacen("spare=11;", "value=11;", 1);
+        assert_ne!(rejected, program);
+        let report = compile_source(&source(label, &rejected), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{label}: {}",
+            report.to_json()
+        );
+        assert!(
+            matches!(
+                report.phase,
+                zil_base::Phase::Analyze | zil_base::Phase::Verify
+            ),
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("actual stored target/parent loan")
+                    || d.message.contains("live incompatible loan")),
+            "{}",
+            report.to_json()
+        );
+
+        // Preserve the successful candidate, all metadata and the instruction
+        // shape. Only retarget the final scalar write from spare to the actual
+        // source held by the live window. Each core reconstructs its own loans.
+        let original = typed_source(label, &program, &target, &limits);
+        let mut plan = zil_analyze::analyze(&original, &limits).unwrap();
+        zil_verify::verify_module(original.clone(), plan.clone(), &target, &limits).unwrap();
+        let control = zil_ir::wire::encode_module_candidate(&original, &plan, &limits).unwrap();
+        zil_verify::verify_module_bytes(&control, &target, &limits).unwrap();
+        let mut raw = original;
+        let main = raw.functions.iter_mut().find(|f| f.name == "main").unwrap();
+        let spare = main.locals.iter().find(|l| l.name == "spare").unwrap().id;
+        let value = main.locals.iter().find(|l| l.name == "value").unwrap().id;
+        let write = main.blocks.iter_mut().flat_map(|b| &mut b.instructions).filter(|i|
+            matches!(i.kind, zil_ir::InstructionKind::Store { local, .. } if local == spare)
+        ).last().unwrap();
+        let zil_ir::InstructionKind::Store { local, .. } = &mut write.kind else {
+            unreachable!()
+        };
+        *local = value;
+        // Refresh only byte identity; every candidate borrowing claim stays unchanged.
+        plan.module_fingerprint = raw.fingerprint();
+        let rejected = zil_analyze::analyze(&raw, &limits).unwrap_err();
+        assert!(
+            rejected
+                .iter()
+                .any(|d| d.message.contains("actual stored target/parent loan")),
+            "{label}: {rejected:?}"
+        );
+        let rejected =
+            zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap_err();
+        assert!(
+            rejected
+                .iter()
+                .any(|d| d.message.contains("live incompatible loan")),
+            "{label}: {rejected:?}"
+        );
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        let rejected = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+        assert!(
+            rejected
+                .iter()
+                .any(|d| d.message.contains("live incompatible loan")),
+            "{label}: {rejected:?}"
+        );
+    }
+    let sibling = "struct Refs<life a,life b>{left:&'a i32;right:&'b i32}fn make<life a,life b>(left:&'a i32,right:&'b i32)->Refs<'a,'b>{return Refs::<'a,'b>{left:left,right:right}}fn main()->i32{var left=7;var right=9;let refs=make(&left,&right);let window=&refs;let pointer=window.left;right=11;return *pointer}";
+    let report = compile_source(
+        &source("ended-window-independent-sibling", sibling),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn qualified_record_window_native_values_remain_complete() {
+    let mut runs = 0;
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            for (label, program) in record_window_programs() {
+                let directory = std::env::temp_dir().join(format!(
+                    "zil-record-window-{}-{label}-{backend:?}-{optimization:?}",
+                    std::process::id()
+                ));
+                std::fs::create_dir_all(&directory).unwrap();
+                let executable = directory.join("program");
+                let report = compile_source(
+                    &source(label, &program),
+                    &CompileOptions {
+                        stop_after: Stage::Build,
+                        backend,
+                        optimization,
+                        output: Some(executable.clone()),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert_eq!(codegen.backend, backend);
+                assert!(codegen.fallback.is_none());
+                let output = std::process::Command::new(&executable).output().unwrap();
+                assert_eq!(
+                    output.status.code(),
+                    Some(0),
+                    "{label}/{backend:?}/{optimization:?}: {output:?}"
+                );
+                assert!(output.stdout.is_empty(), "{output:?}");
+                runs += 1;
+            }
+        }
+    }
+    assert_eq!(
+        runs,
+        record_window_programs().len() * (2 + 2 * usize::from(cfg!(feature = "llvm-api")))
+    );
+}
+
+#[test]
+fn qualified_parent_identity_retains_existing_resource_source_boundary() {
+    // This separate older resource-description boundary rejects before any
+    // invalid write. It supplies no successful borrowing-window evidence.
+    let job = GETTER.split("fn main").next().unwrap();
+    let program = format!(
+        "{job}fn identity<life a,life b>(input:&'a Job<'b>)->&'a Job<'b>{{return input}}fn main()->i32{{var value=7;var spare=0;let job=make(&value);let window=identity(&job);spare=11;if *window.refs.pointer==7{{return 0}}return 1}}"
+    );
+    let report = compile_source(
+        &source("parent-identity-resource-boundary", &program),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, zil_base::Phase::Verify);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-VERIFY-RESOURCE"
+                && d.message == "resource description has no independently grounded source"),
+        "{}",
+        report.to_json()
+    );
 }

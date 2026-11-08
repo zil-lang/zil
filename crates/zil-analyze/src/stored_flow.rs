@@ -2485,6 +2485,34 @@ fn transfer(
                 targets.insert(target);
             }
             out.pointer.targets = targets;
+            if let Some((_, shape)) = pointed_carrier(value_type(
+                f,
+                i.result
+                    .ok_or_else(|| failure("field address lacks result"))?,
+            )?) {
+                fee(b, shape.slots.len())?;
+                for row in &shape.slots {
+                    // select constructs a complete path from each actual root.
+                    // Its legacy lookup fee does not pay this new path clone.
+                    for root in &out.pointer.targets {
+                        fee(
+                            b,
+                            root.place
+                                .len()
+                                .saturating_add(row.path.len())
+                                .saturating_add(1),
+                        )?;
+                    }
+                    let permission = select(state, &out.pointer, &row.path, b)?;
+                    ordered(b, out.slots.len(), row.path.len())?;
+                    fee(b, row.path.len())?;
+                    union(
+                        out.slots.entry(row.path.clone()).or_default(),
+                        &permission,
+                        b,
+                    )?;
+                }
+            }
         }
         InstructionKind::ReborrowAddress { address, .. }
         | InstructionKind::AddressIndex { address, .. }
@@ -2492,6 +2520,17 @@ fn transfer(
             union(&mut out.pointer, &get(*address)?.pointer, b)?;
             task_address::merge(&mut out, get(*address)?, b)?;
             environment_merge(&mut out, get(*address)?, b)?;
+            if matches!(i.kind, InstructionKind::ReborrowAddress { .. })
+                && pointed_carrier(value_type(f, *address)?).is_some()
+            {
+                let actual = get(*address)?;
+                fee(b, actual.slots.len())?;
+                for (path, permission) in &actual.slots {
+                    ordered(b, out.slots.len(), path.len())?;
+                    fee(b, path.len())?;
+                    union(out.slots.entry(path.clone()).or_default(), permission, b)?;
+                }
+            }
         }
         InstructionKind::MakeAggregate { fields } | InstructionKind::MakePackage { fields } => {
             let ty = value_type(
