@@ -231,6 +231,154 @@ fn temporary_task_match_preserves_each_actual_source_and_cleanup_path() {
 }
 
 #[cfg(unix)]
+#[test]
+fn conditional_task_input_keeps_both_actual_sources_and_resource_cleanup() {
+    let source = include_str!(
+        "../../../tests/fixtures/task-borrow-results/owning-map-conditional-lending.zil"
+    );
+    task_map_native(source, "conditional-task-parent-input");
+    let local_input = source
+        .replace("var number=42", "var number=43")
+        .replace("return number-43", "return number-44");
+    task_map_native(&local_input, "conditional-task-local-input");
+}
+
+#[test]
+fn conditional_task_map_analyze_work_preserves_tags_and_live_inputs() {
+    let source = include_str!(
+        "../../../tests/fixtures/task-borrow-results/owning-map-conditional-lending.zil"
+    );
+    let report = compile_project(
+        &project(source),
+        &CompileOptions {
+            stop_after: Stage::Analyze,
+            ..CompileOptions::default()
+        },
+    );
+    let out = directory("conditional-task-analysis");
+    fs::write(out.join("compile.json"), report.to_json()).unwrap();
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 0);
+    let module = raw_task_map_lending(source);
+    let limits = Limits::default();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    // The independent verifier still uses its old work schedule in this
+    // Analyze-only increment; neither its authority nor its checks change.
+    let verify_limits = Limits {
+        max_analysis_steps: 100_000_000,
+        ..limits.clone()
+    };
+    let target = TargetProfile::host_llvm();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &verify_limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &verify_limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &verify_limits).unwrap();
+    let mut lower = 0;
+    let mut upper = limits.max_analysis_steps;
+    while lower + 1 < upper {
+        let middle = lower + (upper - lower) / 2;
+        let bounded = Limits {
+            max_analysis_steps: middle,
+            ..limits.clone()
+        };
+        match zil_analyze::analyze(&module, &bounded) {
+            Ok(actual) => {
+                assert_eq!(actual, plan);
+                upper = middle;
+            }
+            Err(errors) => {
+                assert!(
+                    errors
+                        .iter()
+                        .all(|d| d.category == ResultCategory::ResourceLimit),
+                    "{errors:?}"
+                );
+                lower = middle;
+            }
+        }
+    }
+    fs::write(
+        out.join("analyze-work.json"),
+        format!("{{\"N\":{upper},\"N_minus_one\":{lower}}}\n"),
+    )
+    .unwrap();
+    eprintln!("conditional Task Map Analyze N={upper}");
+    for _ in 0..2 {
+        assert_eq!(
+            zil_analyze::analyze(
+                &module,
+                &Limits {
+                    max_analysis_steps: upper,
+                    ..limits.clone()
+                }
+            )
+            .unwrap(),
+            plan
+        );
+        let errors = zil_analyze::analyze(
+            &module,
+            &Limits {
+                max_analysis_steps: lower,
+                ..limits.clone()
+            },
+        )
+        .unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.category == ResultCategory::ResourceLimit)
+        );
+    }
+    for (label, bad) in [
+        (
+            "conditional-pending-input-write",
+            source.replace("   var map=", "   *parent=9\n   var map="),
+        ),
+        (
+            "conditional-ready-input-write",
+            source.replace(
+                "      let observed=*pointer",
+                "      *parent=9\n      let observed=*pointer",
+            ),
+        ),
+        (
+            "conditional-live-option-move",
+            source.replace(
+                "   let observed=inspect(found)",
+                "   let retired_early=map\n   let observed=inspect(found)",
+            ),
+        ),
+    ] {
+        let report = compile_project(
+            &project(&bad),
+            &CompileOptions {
+                stop_after: Stage::Analyze,
+                ..CompileOptions::default()
+            },
+        );
+        let failure = directory(label);
+        fs::write(failure.join("main.zil"), bad).unwrap();
+        fs::write(failure.join("compile.json"), report.to_json()).unwrap();
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{label}: {}",
+            report.to_json()
+        );
+        assert_eq!(
+            report.phase,
+            Phase::Analyze,
+            "{label}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[cfg(unix)]
 fn task_map_native(source: &str, label: &str) {
     use std::os::unix::fs::PermissionsExt;
     let clang = std::env::var_os("ZIL_CLANG")

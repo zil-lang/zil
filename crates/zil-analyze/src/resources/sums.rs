@@ -276,8 +276,9 @@ impl Tree {
         ty: &Type,
         budget: &mut Budget,
     ) -> CompileResult<()> {
-        if budget.pod_stores {
-            budget.spend(1, "POD Sum terminal tag classification")?;
+        let mixed = budget.task_borrowed_results && budget.store_option_results;
+        if budget.pod_stores || mixed {
+            budget.spend(1, "Sum terminal tag classification")?;
             // Actual private facts already represent ordinary Record payloads
             // as Copy and managed headers as Leaf. Neither stores tag facts.
             // Do not rescan their complete types after every unrelated write.
@@ -290,7 +291,7 @@ impl Tree {
         // classify; the recursive walk below pays for their real children.
         let copy_sum = match &self.node {
             Node::Sum(_)
-                if budget.has_owned_store_package()
+                if (budget.has_owned_store_package() || mixed)
                     && matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) =>
             {
                 budget.addressed_copy_sum(ty)?
@@ -299,7 +300,7 @@ impl Tree {
                 budget.type_work(ty, true, "mutable local Enum tag knowledge")?;
                 ty.is_copy_value()
             }
-            Node::Product(_) if budget.has_owned_store_package() => {
+            Node::Product(_) if budget.has_owned_store_package() || mixed => {
                 budget.spend(1, "POD addressed Product tag descent")?;
                 false
             }
@@ -913,6 +914,9 @@ impl Facts {
 }
 
 pub(super) struct Plan {
+    // Immutable local indices whose exact Tree constructor contains tag state.
+    // None preserves the established scheduling/fees outside mixed consumers.
+    tagged_locals: Option<Vec<LocalId>>,
     partial: Option<partial_places::Meta>,
     observations: BTreeMap<ValueId, (LocalId, Vec<VariantProjection>)>,
     tests: BTreeMap<ValueId, (ValueId, ValueId, u32, bool)>,
@@ -1021,8 +1025,45 @@ impl Plan {
                 }
             }
         }
+        let partial = partial || (address_tag && address_replacement);
+        let tagged_locals =
+            if partial && budget.task_borrowed_results && budget.store_option_results {
+                budget.spend(
+                    f.locals.len().saturating_mul(2).saturating_add(1),
+                    "mixed tag local index allocation",
+                )?;
+                let mut tagged = Vec::with_capacity(f.locals.len());
+                for local in &f.locals {
+                    budget.spend(1, "mixed tag local classification")?;
+                    let mut pending = vec![&local.ty];
+                    while let Some(ty) = pending.pop() {
+                        budget.spend(1, "mixed tag tree node classification")?;
+                        match ty {
+                            Type::Enum { .. } | Type::ErrorUnion { .. } => {
+                                tagged.push(local.id);
+                                break;
+                            }
+                            Type::Tuple(fields) => {
+                                budget.spend(fields.len(), "mixed tag Tuple child inventory")?;
+                                pending.extend(fields);
+                            }
+                            Type::Package { fields, .. } => {
+                                budget.spend(fields.len(), "mixed tag Package child inventory")?;
+                                pending.extend(fields.iter().map(|(_, child)| child));
+                            }
+                            // Tree::unknown makes every other form Copy or Leaf;
+                            // neither stores tag knowledge or mutable route state.
+                            _ => {}
+                        }
+                    }
+                }
+                Some(tagged)
+            } else {
+                None
+            };
         Ok(Some(Self {
-            partial: if partial || (address_tag && address_replacement) {
+            tagged_locals,
+            partial: if partial {
                 Some(partial_places::Meta::new(f, budget)?)
             } else {
                 None
@@ -1215,8 +1256,20 @@ impl Plan {
         if let (Some(meta), Some(state)) = (&self.partial, &mut facts.partial) {
             meta.step(state, i, budget)?;
             if partial_places::invalidates(&i.kind) {
-                for (local, tree) in &mut facts.locals {
-                    tree.forget_addressed_copy_tags(&f.locals[local.0 as usize].ty, budget)?;
+                if let Some(locals) = &self.tagged_locals {
+                    budget.spend(locals.len(), "mixed tagged local invalidation inventory")?;
+                    for local in locals {
+                        budget.lookup(facts.locals.len(), "mixed tagged local fact lookup")?;
+                        facts
+                            .locals
+                            .get_mut(local)
+                            .ok_or_else(|| error("mixed tagged local fact is absent"))?
+                            .forget_addressed_copy_tags(&f.locals[local.0 as usize].ty, budget)?;
+                    }
+                } else {
+                    for (local, tree) in &mut facts.locals {
+                        tree.forget_addressed_copy_tags(&f.locals[local.0 as usize].ty, budget)?;
+                    }
                 }
             }
         }
