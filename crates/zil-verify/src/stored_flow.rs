@@ -26,6 +26,9 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> Check<boo
         .collect();
     while let Some(ty) = pending.pop() {
         b.spend(1)?;
+        if shared_array_value(ty) {
+            return Ok(true);
+        }
         match ty {
             // Their actual capture/retained declarations can carry targets
             // outside this type spelling. Keep their functions in the proof.
@@ -248,6 +251,30 @@ fn package_return_candidates(
         }
     }
     Ok(result)
+}
+
+pub(crate) fn shared_array_value(ty: &Type) -> bool {
+    matches!(ty, Type::Array { element, length } if *length > 0
+        && matches!(element.as_ref(), Type::Address { mutable: false, .. }))
+}
+
+pub(crate) fn shared_array_shape(ty: &Type, b: &mut Budget) -> Check<bool> {
+    if !shared_array_value(ty) {
+        return Ok(false);
+    }
+    let Type::Array { element, .. } = ty else {
+        unreachable!()
+    };
+    let Type::Address { inner, .. } = element.as_ref() else {
+        unreachable!()
+    };
+    type_work(inner, &b.limits.clone(), b)?;
+    if !inner.is_address_pointee() {
+        return Err(err(
+            "shared array actual pointee is outside its finite profile",
+        ));
+    }
+    Ok(true)
 }
 
 type Path = Vec<PlaceProjection>;
@@ -882,7 +909,16 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
                     }
                 }
             }
-            Type::Array { element, .. } => {
+            Type::Array { element, length } => {
+                if shared_array_shape(t, b)? {
+                    b.spend((*length as usize).saturating_mul(path.len().saturating_add(2)))?;
+                    for index in (0..*length).rev() {
+                        let mut complete = path.clone();
+                        complete.push(PlaceProjection::Field(index));
+                        todo.push((element, complete));
+                    }
+                    continue;
+                }
                 if !retained::pure(t, b)? {
                     return Err(err("stored Array contains an address or ownership leaf"));
                 }
@@ -1475,6 +1511,23 @@ fn relation(
         StorageBase::Capture(_) => None,
     }
     .ok_or_else(|| err("stored relation base is absent"))?;
+    let array = if let Type::Address { inner, .. } = ty {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    if shared_array_shape(array, b)? {
+        let Type::Array { length, .. } = array else {
+            unreachable!()
+        };
+        if !matches!(path, [PlaceProjection::Field(index)] if *index < *length) {
+            return Err(err("array relation has no actual bounded element"));
+        }
+        b.spend(c.bindings.len().saturating_mul(2))?;
+        return c.bindings.iter().find(|row| row.position.base == base
+            && matches!(row.position.path.as_slice(), [ContractProjection::Place(step)] if *step == path[0]))
+            .map(|row| row.binder).ok_or_else(|| err("array element lacks its actual signature binding"));
+    }
     let mut boundary = ty;
     let mut leaf_path = path;
     let mut class_path = Vec::new();
@@ -1606,7 +1659,12 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             .chain(std::iter::once(&f.return_type))
         {
             b.spend(1)?;
-            if f.environment.is_none() && (qualified(ty).is_some() || addressed(ty).is_some()) {
+            if f.environment.is_none()
+                && (qualified(ty).is_some()
+                    || addressed(ty).is_some()
+                    || shared_array_value(ty)
+                    || matches!(ty, Type::Address { inner, .. } if shared_array_value(inner)))
+            {
                 return Err(err("stored signature requires complete class relation"));
             }
             let composite = |ty: &Type| {
@@ -1930,6 +1988,42 @@ fn seed_payload(
             )?;
         }
     }
+    let array = if let Type::Address { inner, .. } = ty {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    if shared_array_shape(array, b)? {
+        let Type::Array { length, .. } = array else {
+            unreachable!()
+        };
+        b.spend((*length as usize).saturating_mul(8))?;
+        for index in 0..*length {
+            let path = vec![PlaceProjection::Field(index)];
+            let source = Source {
+                retained_port: None,
+                base,
+                leaf: path.clone(),
+                inline: Vec::new(),
+                heap_element: None,
+            };
+            let id = loans.len();
+            loans.push(Loan {
+                sources: vec![source.clone()],
+                parents: Vec::new(),
+                exclusive: false,
+            });
+            add_leaf(
+                &mut p,
+                &path,
+                &Permission {
+                    sources: vec![source],
+                    loans: vec![id],
+                },
+                b,
+            )?;
+        }
+    }
     if let Some((_, shape)) = qualified(ty).or_else(|| addressed(ty)) {
         for slot in &shape.slots {
             b.spend(slot.path.len().saturating_mul(3).saturating_add(4))?;
@@ -2012,7 +2106,10 @@ fn seed(
                 b,
             )?;
         }
-        if addressed(ty).is_some() || fixed_environment(module, ty) {
+        if addressed(ty).is_some()
+            || fixed_environment(module, ty)
+            || matches!(ty, Type::Address { inner, .. } if shared_array_value(inner))
+        {
             state.external[position] = copy_payload(&p, b)?;
         }
         state.locals[local.0 as usize] = p;
@@ -2691,6 +2788,28 @@ fn step(
             }
         }
         InstructionKind::MakeAggregate { fields } | InstructionKind::MakePackage { fields } => {
+            let result = vt(
+                f,
+                i.result
+                    .ok_or_else(|| err("array constructor lacks result"))?,
+            )?;
+            if shared_array_shape(result, b)? {
+                let Type::Array { length, .. } = result else {
+                    unreachable!()
+                };
+                if fields.len() != *length as usize {
+                    return Err(err("shared array constructor omits actual element"));
+                }
+                b.spend(fields.len().saturating_mul(2))?;
+                for (index, field) in fields.iter().enumerate() {
+                    add_leaf(
+                        &mut out,
+                        &[PlaceProjection::Field(index as u32)],
+                        &val(*field)?.address,
+                        b,
+                    )?;
+                }
+            }
             if let Some((_, shape)) = qualified(vt(
                 f,
                 i.result.ok_or_else(|| err("aggregate lacks result"))?,
@@ -2986,6 +3105,21 @@ fn step(
         InstructionKind::FunctionRef { .. } | InstructionKind::CallIndirect { .. }
             if super::class_flow::pointer_instruction(f, i) => {}
         InstructionKind::ReadAddress { address } => {
+            let Type::Address { inner, .. } = vt(f, *address)? else {
+                return Err(err("array read lacks actual address"));
+            };
+            if shared_array_shape(inner, b)? {
+                let Type::Array { length, .. } = inner.as_ref() else {
+                    unreachable!()
+                };
+                b.spend((*length as usize).saturating_mul(2))?;
+                for index in 0..*length {
+                    let path = [PlaceProjection::Field(index)];
+                    let permission = select(state, &val(*address)?.address, &path, b)?;
+                    add_leaf(&mut out, &path, &permission, b)?;
+                }
+            }
+
             let Type::Address { inner, .. } = vt(f, *address)? else {
                 return Err(err("read transfer has no actual Address"));
             };
@@ -4192,6 +4326,19 @@ fn summarize(
                 }
             }
         }
+        if shared_array_shape(ty, b)? {
+            let Type::Array { length, .. } = ty else {
+                unreachable!()
+            };
+            b.spend(*length as usize)?;
+            for index in 0..*length {
+                if leaf(p, &[PlaceProjection::Field(index)], b)?
+                    .is_none_or(|p| p.sources.is_empty())
+                {
+                    summary.complete = false;
+                }
+            }
+        }
         if let Some((_, shape)) = qualified(ty) {
             if enum_address::ordinary(module, ty, b)? {
                 if !p.enum_variants.grounded(ty, b)? {
@@ -4551,6 +4698,8 @@ fn check_with_mask(
                 || addressed(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
                 || ty.is_copy_value()
+                || shared_array_shape(ty, b)?
+                || matches!(ty, Type::Address { inner, .. } if shared_array_shape(inner, b)?)
                 || super::stored_owned::owner(ty)
                 || super::stored_owned::description(ty)
                 || b.store_option_results

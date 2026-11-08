@@ -13,6 +13,8 @@ struct Ports {
     direct: bool,
     environment: bool,
     task_ports: Vec<(Vec<zil_ir::ContractProjection>, usize)>,
+    // Per-ordinal address upper variables, distinct from nominal classes.
+    array_elements: Vec<usize>,
 }
 fn pure_class_keys(
     ty: &Type,
@@ -169,6 +171,17 @@ impl Equations {
         if environment {
             self.track_grounding(b)?;
         }
+        let mut array_elements = Vec::new();
+        if super::stored_flow::shared_array_value(ty) {
+            let Type::Array { length, .. } = ty else {
+                unreachable!()
+            };
+            let count = usize::try_from(*length).map_err(|_| bad("array class count overflow"))?;
+            b.spend(count)?;
+            for _ in 0..count {
+                array_elements.push(self.fresh(false, b)?);
+            }
+        }
         let mut keys = Vec::new();
         let mut direct = false;
         if let Type::Closure(id) = ty {
@@ -287,6 +300,7 @@ impl Equations {
             direct,
             environment,
             task_ports,
+            array_elements,
         })
     }
     fn freeze(&mut self, fixed: &[usize], b: &mut Budget) -> Check<()> {
@@ -310,7 +324,25 @@ impl Equations {
         }
         Ok(())
     }
+    fn copy_elements(&mut self, a: &Ports, z: &Ports, b: &mut Budget) -> Check<()> {
+        if a.array_elements.is_empty() && z.array_elements.is_empty() {
+            return Ok(());
+        }
+        b.spend(
+            a.array_elements
+                .len()
+                .saturating_add(z.array_elements.len()),
+        )?;
+        if a.array_elements.len() != z.array_elements.len() {
+            return Err(bad("array address upper arity differs"));
+        }
+        for (a, z) in a.array_elements.iter().zip(&z.array_elements) {
+            self.equal(*a, *z, b)?;
+        }
+        Ok(())
+    }
     fn copy(&mut self, a: &Ports, z: &Ports, b: &mut Budget) -> Check<()> {
+        self.copy_elements(a, z, b)?;
         b.spend(
             a.classes
                 .len()
@@ -448,6 +480,17 @@ fn bind(
     crate::signature_life::charge(c, b)?;
     for row in &c.bindings {
         if row.position.base == base {
+            if !p.array_elements.is_empty()
+                && let [zil_ir::ContractProjection::Place(PlaceProjection::Field(index))] =
+                    row.position.path.as_slice()
+            {
+                let actual = *p
+                    .array_elements
+                    .get(*index as usize)
+                    .ok_or_else(|| bad("array binding selects absent actual ordinal"))?;
+                e.equal(actual, select(v, row.binder)?, b)?;
+                continue;
+            }
             if !row.position.path.is_empty() && b.task_borrowed_results {
                 b.spend(p.task_ports.len())?;
                 if let Some((_, index)) = p
@@ -837,6 +880,7 @@ fn check_with(
                         if let Some(out) = out {
                             e.ground_address(out.outer, b)?;
                             let stored = &locals[local.0 as usize];
+                            e.copy_elements(out, stored, b)?;
                             b.spend(out.classes.len().saturating_add(stored.classes.len()))?;
                             if out.classes.len() != stored.classes.len() {
                                 return Err(bad("borrowed actual class arity differs"));
@@ -870,6 +914,30 @@ fn check_with(
                     InstructionKind::AddressField { address, index } => {
                         if let Some(out) = out {
                             let parent = &values[address.0 as usize];
+                            if !out.array_elements.is_empty() {
+                                let shape =
+                                    shape(&f.values[address.0 as usize]).ok_or_else(|| {
+                                        bad("array field projection has no actual qualified parent")
+                                    })?;
+                                b.spend(out.array_elements.len().saturating_mul(
+                                    shape.slots.len().saturating_mul(3).saturating_add(1),
+                                ))?;
+                                for (ordinal, upper) in out.array_elements.iter().enumerate() {
+                                    let path = [
+                                        PlaceProjection::Field(*index),
+                                        PlaceProjection::Field(ordinal as u32),
+                                    ];
+                                    let row = shape
+                                        .slots
+                                        .iter()
+                                        .find(|row| row.path == path)
+                                        .ok_or_else(|| {
+                                            bad("array field lacks its actual physical class row")
+                                        })?;
+                                    e.equal(*upper, parent.classes[row.binder as usize], b)?;
+                                }
+                            }
+
                             if let (Some(a), Some(z)) = (out.outer, parent.outer) {
                                 e.equal(a, z, b)?;
                             }
@@ -891,6 +959,22 @@ fn check_with(
                         }
                     }
                     InstructionKind::LoadStoredBorrow { storage, path, .. } => {
+                        if !values[storage.0 as usize].array_elements.is_empty() {
+                            let [PlaceProjection::Field(index)] = path.as_slice() else {
+                                return Err(bad("array load has no actual constant ordinal"));
+                            };
+                            let class = *values[storage.0 as usize]
+                                .array_elements
+                                .get(*index as usize)
+                                .ok_or_else(|| bad("array load selects absent actual ordinal"))?;
+                            e.equal(
+                                out.and_then(|o| o.outer)
+                                    .ok_or_else(|| bad("array load lacks Address result"))?,
+                                class,
+                                b,
+                            )?;
+                            continue;
+                        }
                         let actual = shape(&f.values[storage.0 as usize])
                             .ok_or_else(|| bad("stored load lacks actual class shape"))?;
                         b.spend(
@@ -913,26 +997,49 @@ fn check_with(
                         )?;
                     }
                     InstructionKind::MakeAggregate { fields } => {
+                        if let Some(out) = out
+                            && !out.array_elements.is_empty()
+                        {
+                            b.spend(fields.len())?;
+                            if fields.len() != out.array_elements.len() {
+                                return Err(bad("array constructor address upper arity differs"));
+                            }
+                            for (upper, argument) in out.array_elements.iter().zip(fields) {
+                                e.equal(
+                                    *upper,
+                                    values[argument.0 as usize].outer.ok_or_else(|| {
+                                        bad("array constructor operand is not an Address")
+                                    })?,
+                                    b,
+                                )?;
+                            }
+                        }
+
                         if let (Some(out), Some(id)) = (out, i.result)
                             && let Some(actual) = shape(&f.values[id.0 as usize])
                         {
                             for slot in &actual.slots {
                                 b.spend(slot.path.len().saturating_add(1))?;
-                                let [PlaceProjection::Field(index)] = slot.path.as_slice() else {
+                                let (PlaceProjection::Field(index), tail) =
+                                    slot.path.split_first().ok_or_else(|| {
+                                        bad("stored constructor slot lacks an actual field")
+                                    })?
+                                else {
                                     return Err(bad(
-                                        "nested constructor class requires its physical operand consumer",
+                                        "stored constructor slot is not an inline field",
                                     ));
                                 };
                                 let arg = fields
                                     .get(*index as usize)
                                     .ok_or_else(|| bad("aggregate class operand is absent"))?;
-                                e.equal(
-                                    out.classes[slot.binder as usize],
-                                    values[arg.0 as usize].outer.ok_or_else(|| {
-                                        bad("stored class operand is not an Address")
-                                    })?,
-                                    b,
-                                )?;
+                                let operand = &values[arg.0 as usize];
+                                let upper = match tail {
+                                [] => operand.outer.ok_or_else(|| bad("stored class operand is not an Address"))?,
+                                [PlaceProjection::Field(ordinal)] => *operand.array_elements.get(*ordinal as usize)
+                                    .ok_or_else(|| bad("stored Array class operand lacks its actual ordinal"))?,
+                                _ => return Err(bad("nested constructor class requires its physical operand consumer")),
+                            };
+                                e.equal(out.classes[slot.binder as usize], upper, b)?;
                             }
                         }
                         if let (Some(out), Some(id)) = (out, i.result)
@@ -960,6 +1067,7 @@ fn check_with(
                     InstructionKind::ReadAddress { address } => {
                         if let Some(out) = out {
                             let input = &values[address.0 as usize];
+                            e.copy_elements(out, input, b)?;
                             if out.classes.len() != input.classes.len() {
                                 return Err(bad("pure projection class arity differs"));
                             }

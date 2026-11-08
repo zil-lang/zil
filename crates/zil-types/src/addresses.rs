@@ -643,7 +643,13 @@ impl Builder<'_, '_> {
                 }
                 let (index, selected) = aggregates::field_ref(&inner, member, e.span)?;
                 let record_child =
-                    stored::shared_record_child(selected, &mut self.match_work_left, e.span)?;
+                    stored::shared_record_child(selected, &mut self.match_work_left, e.span)?
+                        || stored::shared_array_shape(
+                            selected,
+                            &mut self.match_work_left,
+                            self.limits.max_call_depth,
+                            e.span,
+                        )?;
                 if record_child {
                     // This clone is distinct from the Address result clone.
                     self.closures.snapshot_type(selected, 1, 0, e.span)?;

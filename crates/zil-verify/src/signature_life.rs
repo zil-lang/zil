@@ -333,6 +333,26 @@ fn relation_inner(
             }
             _ => (ty, false),
         };
+        if super::stored_flow::shared_array_value(actual) {
+            if capture {
+                return Err(invalid());
+            }
+            let Type::Array { length, .. } = actual else {
+                unreachable!()
+            };
+            for index in 0..*length {
+                let row = c.bindings.get(borrow).ok_or_else(invalid)?;
+                if row.position.base != base
+                    || row.position.path.as_slice()
+                        != [ContractProjection::Place(PlaceProjection::Field(index))]
+                {
+                    return Err(invalid());
+                }
+                borrow += 1;
+                visit(row.binder, false)?;
+            }
+            continue;
+        }
         let task = match actual {
             Type::Task { .. } => Some((actual, None, false)),
             Type::Managed(inner) | Type::Desc(inner)

@@ -607,6 +607,11 @@ fn local_value(
     module: &TypedModule,
     budget: &mut Budget,
 ) -> CompileResult<bool> {
+    if super::stored_flow::shared_array_shape(ty, budget)?
+        || matches!(ty, Type::Address { inner, .. } if super::stored_flow::shared_array_shape(inner, budget)?)
+    {
+        return Ok(false);
+    }
     if let Type::OwnedDyn { interface } = ty {
         budget.lookup(budget.dyn_interfaces.len(), "owned dyn interface")?;
         if !budget.dyn_interfaces.contains(interface) {
@@ -1047,6 +1052,9 @@ pub(super) fn preflight(
                     }
                 }
                 _ => {}
+            }
+            if super::stored_flow::shared_array_value(ty) {
+                budget.stored_borrows = true;
             }
             match ty {
                 Type::BorrowedStorage { storage, .. } => {

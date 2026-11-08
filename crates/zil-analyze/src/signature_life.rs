@@ -320,6 +320,31 @@ fn relation_inner(
             } else {
                 (ty, false)
             };
+            if super::stored_flow::shared_array_value(target) {
+                if capture {
+                    return Err(bad("array captures require their own retained consumer"));
+                }
+                let Type::Array { length, .. } = target else {
+                    unreachable!()
+                };
+                for index in 0..*length {
+                    let row =
+                        self.c.bindings.get(self.borrow).ok_or_else(|| {
+                            bad("array signature omits an actual element binding")
+                        })?;
+                    if row.position.base != base
+                        || row.position.path.as_slice()
+                            != [ContractProjection::Place(PlaceProjection::Field(index))]
+                    {
+                        return Err(bad(
+                            "array signature element binding differs from actual ordinal",
+                        ));
+                    }
+                    self.borrow += 1;
+                    self.binder(row.binder, false)?;
+                }
+                return Ok(());
+            }
             let task = match target {
                 Type::Task { .. } => Some((target, None, false)),
                 Type::Managed(inner) | Type::Desc(inner)

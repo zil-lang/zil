@@ -182,6 +182,19 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             result
         }
         fn ty(&mut self, ty: &s::TypeRef, depth: usize) -> CompileResult<()> {
+            if matches!(&ty.kind, s::TypeKind::Array { element, length: Some(_) }
+                if matches!(element.kind, s::TypeKind::Reference { mutable: false, lifetime: Some(_), .. }))
+                && self.headers.contains(&std::ptr::from_ref(ty))
+            {
+                self.budget.node(ty.span, depth).map_err(|e| vec![e])?;
+                self.budget.note_stored_lifetimes();
+                let old = self.stored_fields;
+                self.stored_fields = true;
+                let result = ct_selection::walk_type(self, ty, depth);
+                self.stored_fields = old;
+                return result;
+            }
+
             if matches!(ty.kind, s::TypeKind::Dyn { .. }) {
                 self.budget.note_dynamic();
             }
@@ -300,7 +313,24 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 s::TypeKind::Group(_) => old_type_argument,
                 _ => false,
             };
+            let array_header = match &ty.kind {
+                s::TypeKind::Reference { inner, .. }
+                    if self.headers.contains(&std::ptr::from_ref(ty))
+                        && matches!(&inner.kind, s::TypeKind::Array { element, length: Some(_) }
+                            if matches!(element.kind, s::TypeKind::Reference { mutable: false, lifetime: Some(_), .. })) =>
+                {
+                    Some(std::ptr::from_ref(inner.as_ref()))
+                }
+                _ => None,
+            };
+            if let Some(header) = array_header {
+                self.budget.node(ty.span, depth).map_err(|e| vec![e])?;
+                self.headers.push(header);
+            }
             let result = ct_selection::walk_type(self, ty, depth);
+            if array_header.is_some() {
+                self.headers.pop();
+            }
             self.direct_type_argument = old_type_argument;
             self.task_context = old_task_context;
             self.ordinary_type_argument = old_ordinary_type_argument;

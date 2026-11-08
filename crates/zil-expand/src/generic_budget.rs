@@ -504,6 +504,16 @@ impl<'a> Budget<'a> {
                 }
             }
             TypeKind::Array { element, length } => {
+                if matches!(
+                    element.kind,
+                    TypeKind::Reference {
+                        mutable: false,
+                        lifetime: Some(_),
+                        ..
+                    }
+                ) {
+                    self.note_stored_lifetimes();
+                }
                 self.ty_context(
                     element,
                     depth + 1,

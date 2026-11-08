@@ -1394,6 +1394,13 @@ impl Resolver<'_> {
                         )?)
                     || (stored_instance.is_some() && matches!(ty, Type::Address { .. }))
                     || (stored_instance.is_some()
+                        && stored::shared_array_shape(
+                            &ty,
+                            &mut self.remaining,
+                            self.depth_limit,
+                            f.span,
+                        )?)
+                    || (stored_instance.is_some()
                         && d.kind == AggregateKind::Package
                         && !f.manages
                         && stored::shared_record_child(&ty, &mut self.remaining, f.span)?)
@@ -2512,17 +2519,24 @@ impl<'a> Builder<'a, '_> {
         if let Type::Array { element, length } = &ty {
             self.check_owned_array_closure(element, *length, e.span)?;
         }
+        let shared_array = stored::shared_array_shape(
+            &ty,
+            &mut self.match_work_left,
+            self.limits.max_call_depth,
+            e.span,
+        )?;
         let qualified_pure = !owned
+            && !shared_array
             && !ty.is_copy_value()
             && stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?;
-        if !owned && !ty.is_copy_value() && !qualified_pure {
+        if !owned && !ty.is_copy_value() && !qualified_pure && !shared_array {
             return Err(unsupported(
                 e.span,
                 "array elements require finite Copy values or a nonempty homogeneous Package or self-contained Closure array",
             ));
         }
         let fields = self.commit_arguments(staged, e.span)?;
-        if qualified_pure {
+        if qualified_pure || shared_array {
             self.closures.snapshot_type(&ty, 1, 0, e.span)?;
         }
         Ok((
@@ -2548,6 +2562,89 @@ impl<'a> Builder<'a, '_> {
             return Ok((
                 self.value(
                     InstructionKind::TakeOwnedArrayElement { local, index },
+                    ty.clone(),
+                    e.span,
+                )?,
+                ty,
+            ));
+        }
+        let element_width = self
+            .known_type_ref(object)
+            .and_then(|ty| {
+                let ty = if let Type::Address { inner, .. } = ty {
+                    inner.as_ref()
+                } else {
+                    ty
+                };
+                if stored::shared_array_value(ty) {
+                    let Type::Array { element, length } = ty else {
+                        unreachable!()
+                    };
+                    Some((element.as_ref(), *length))
+                } else {
+                    None
+                }
+            })
+            .map(|(element, length)| {
+                Ok((
+                    inference::type_snapshot_work(element, e.span, self.limits)?,
+                    length,
+                ))
+            })
+            .transpose()?;
+        if let Some((work, length)) = element_width {
+            self.closures.snapshot(work, e.span)?;
+            let actual = self.known_type_ref(object).expect("known array");
+            let actual = if let Type::Address { inner, .. } = actual {
+                inner.as_ref()
+            } else {
+                actual
+            };
+            let Type::Array { element, .. } = actual else {
+                unreachable!()
+            };
+            let element = element.as_ref().clone();
+            let CoreExprKind::Integer(text) = &index.kind else {
+                return Err(unsupported(
+                    index.span,
+                    "shared address array index must be an actual constant ordinal",
+                ));
+            };
+            self.closures
+                .snapshot(text.len().saturating_add(1), index.span)?;
+            let text = text
+                .strip_suffix("usize")
+                .or_else(|| text.strip_suffix("i64"))
+                .or_else(|| text.strip_suffix("u64"))
+                .or_else(|| text.strip_suffix("i32"))
+                .or_else(|| text.strip_suffix("u16"))
+                .or_else(|| text.strip_suffix("u8"))
+                .unwrap_or(text);
+            let ordinal = text.replace('_', "").parse::<u32>().map_err(|_| {
+                error(
+                    "E-INDEX-RANGE",
+                    index.span,
+                    "array index is outside its fixed domain",
+                )
+            })?;
+            if ordinal >= length {
+                return Err(error(
+                    "E-INDEX-RANGE",
+                    index.span,
+                    "array index is outside its fixed domain",
+                ));
+            }
+            let (storage, _) = self.projection_base(object, false)?;
+            self.closures.snapshot(1, e.span)?;
+            let ty = element;
+            self.closures.snapshot_type(&ty, 1, 0, e.span)?;
+            return Ok((
+                self.value(
+                    InstructionKind::LoadStoredBorrow {
+                        storage,
+                        path: vec![PlaceProjection::Field(ordinal)],
+                        mode: StoredBorrowLoad::CopyShared,
+                    },
                     ty.clone(),
                     e.span,
                 )?,
@@ -2893,6 +2990,12 @@ impl<'a> Builder<'a, '_> {
                 ));
             }
             if !ty.is_copy_value()
+                && !stored::shared_array_shape(
+                    &ty,
+                    &mut self.match_work_left,
+                    self.limits.max_call_depth,
+                    e.span,
+                )?
                 && !stored::pure_value(&ty, &mut self.match_work_left, self.limits, e.span)?
                 && !stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?
             {

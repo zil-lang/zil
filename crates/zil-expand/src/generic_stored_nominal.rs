@@ -30,6 +30,7 @@ pub(super) fn erase_stored_header_lifetimes(function: &mut Function) {
                 erase(inner);
             }
             TypeKind::Group(inner) => erase(inner),
+            TypeKind::Array { element, .. } => erase(element),
             TypeKind::Tuple(fields) => {
                 for field in fields {
                     erase(field);
@@ -919,6 +920,56 @@ impl<'a> Engine<'a> {
                     type_path.pop();
                 }
                 Ok(physical_witness)
+            }
+            TypeKind::Array {
+                element,
+                length: Some(length),
+            } if matches!(element.kind, TypeKind::Reference { mutable: false, .. }) => {
+                self.budget.const_expression(length)?;
+                let ExprKind::Literal(Literal::Integer(text)) = &length.kind else {
+                    return Err(error(
+                        ty.span,
+                        "array signature needs its normalized fixed length",
+                    ));
+                };
+                let count = text
+                    .replace('_', "")
+                    .parse::<u32>()
+                    .map_err(|_| error(ty.span, "array signature length invalid"))?;
+                if count == 0 {
+                    return Err(unsupported(
+                        ty.span,
+                        "physical borrowed arrays require nonzero fixed length",
+                    ));
+                }
+                self.budget.identity_work(
+                    (count as usize).saturating_mul(
+                        path.len().saturating_add(type_path.len()).saturating_add(4),
+                    ),
+                    ty.span,
+                )?;
+                for index in 0..count {
+                    path.push(zil_ir::ContractProjection::Place(
+                        zil_ir::PlaceProjection::Field(index),
+                    ));
+                    type_path.push(zil_ir::LifeTypeProjection::Place(
+                        zil_ir::PlaceProjection::Field(index),
+                    ));
+                    self.storage_header(
+                        element,
+                        base,
+                        path,
+                        type_path,
+                        occurrences,
+                        stored,
+                        next_elided,
+                        depth + 1,
+                    )?;
+                    path.pop();
+                    type_path.pop();
+                }
+                *stored = true;
+                Ok(true)
             }
             TypeKind::Array { element, .. } => {
                 let before = occurrences.len();
