@@ -388,6 +388,8 @@ pub(super) struct Input<'a> {
 }
 
 pub(super) struct State {
+    // Billing only, never a type/Copy/source permission. Monotonic per request.
+    pub(super) array_billing: bool,
     pub resource_writes: resource_effects::Writes,
     next_function: usize,
     pub helper_templates: BTreeMap<helpers::TemplateKey, helpers::Template>,
@@ -511,6 +513,7 @@ impl State {
 
     pub fn new(ordinary_functions: usize, limits: &Limits) -> Self {
         Self {
+            array_billing: false,
             resource_writes: BTreeMap::new(),
             next_function: ordinary_functions,
             helper_templates: BTreeMap::new(),
@@ -563,6 +566,25 @@ impl State {
             .work_left
             .checked_sub(entries)
             .ok_or_else(|| limit("closure lookup snapshot budget exceeded", span))?;
+        Ok(())
+    }
+
+    pub(super) fn copy_stored_inventory(
+        &mut self,
+        core: &CoreModule,
+    ) -> R<(Vec<LifeNominalDeclaration>, Vec<LifeNominalInstance>)> {
+        // This is the same single inventory snapshot formerly taken after
+        // finish; it debits the same ledger before its owned metadata moves out.
+        let (declarations, instances, arrays) =
+            stored::copy_inventory(core, &mut self.work_left, &self.limits)?;
+        self.array_billing |= arrays;
+        Ok((declarations, instances))
+    }
+    pub(super) fn array_snapshot(&mut self, actual: &Type, copies: usize, span: Span) -> R<()> {
+        self.array_billing |= stored::shared_array_related(actual);
+        if self.array_billing {
+            self.snapshot_type(actual, copies, 0, span)?;
+        }
         Ok(())
     }
 

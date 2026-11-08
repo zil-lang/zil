@@ -415,8 +415,8 @@ pub(super) fn copy_inventory(
     core: &CoreModule,
     left: &mut usize,
     limits: &Limits,
-) -> R<(Vec<LifeNominalDeclaration>, Vec<LifeNominalInstance>)> {
-    let work = inference::life_inventory_snapshot_work(
+) -> R<(Vec<LifeNominalDeclaration>, Vec<LifeNominalInstance>, bool)> {
+    let (work, arrays) = inference::life_inventory_snapshot_billing(
         core,
         &Limits {
             max_analysis_steps: *left,
@@ -424,7 +424,11 @@ pub(super) fn copy_inventory(
         },
     )?;
     fee(left, work, Span::default())?;
-    Ok((core.life_declarations.clone(), core.life_instances.clone()))
+    Ok((
+        core.life_declarations.clone(),
+        core.life_instances.clone(),
+        arrays,
+    ))
 }
 
 /// A physical compiler Option may be referenced by a generated provider in

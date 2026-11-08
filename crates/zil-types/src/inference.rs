@@ -18,6 +18,7 @@ struct Budget<'a> {
     inside_store: bool,
     store_shapes: bool,
     direct_type_callee: bool,
+    shared_arrays: bool,
     products: aggregate_templates::Products,
     current_module: zil_base::ModuleId,
 }
@@ -32,6 +33,7 @@ impl<'a> Budget<'a> {
             inside_store: false,
             store_shapes: false,
             direct_type_callee: false,
+            shared_arrays: false,
             products: None,
             current_module: zil_base::ModuleId(0),
         }
@@ -836,20 +838,26 @@ pub(super) fn snapshot_context_module(
 }
 
 pub(super) fn life_inventory_snapshot_work(core: &CoreModule, limits: &Limits) -> R<usize> {
-    if core.closure_life_contexts.is_empty() {
-        return life_table_snapshot_work(&core.life_declarations, &core.life_instances, limits);
+    life_inventory_snapshot_billing(core, limits).map(|(work, _)| work)
+}
+pub(super) fn life_inventory_snapshot_billing(
+    core: &CoreModule,
+    limits: &Limits,
+) -> R<(usize, bool)> {
+    let mut budget = Budget::new(limits);
+    if !core.closure_life_contexts.is_empty() {
+        closures::reserve_source_contexts(
+            &core.closure_life_contexts,
+            limits,
+            &mut budget.work,
+            1,
+        )?;
     }
-    let mut left = limits.max_analysis_steps;
-    closures::reserve_source_contexts(&core.closure_life_contexts, limits, &mut left, 1)?;
-    let work = life_table_snapshot_work(
-        &core.life_declarations,
-        &core.life_instances,
-        &Limits {
-            max_analysis_steps: left,
-            ..limits.clone()
-        },
-    )?;
-    Ok((limits.max_analysis_steps - left).saturating_add(work))
+    validate_life_inventory_parts(&core.life_declarations, &core.life_instances, &mut budget)?;
+    Ok((
+        limits.max_analysis_steps - budget.work,
+        budget.shared_arrays,
+    ))
 }
 pub(super) fn life_table_snapshot_work(
     declarations: &[LifeNominalDeclaration],
@@ -968,6 +976,8 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
         }
         Type::Array { element, length } => {
             budget.work(*length as usize, span)?;
+            budget.shared_arrays |=
+                *length > 0 && matches!(element.as_ref(), Type::Address { mutable: false, .. });
             validate_type(element, depth + 1, span, budget)?;
         }
         Type::Record { name, fields } | Type::Package { name, fields } => {

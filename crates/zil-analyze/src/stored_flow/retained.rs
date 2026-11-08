@@ -81,12 +81,20 @@ fn scan(
 }
 
 pub(super) fn pure(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    pure_profile(ty, b, true)
+}
+/// A fixed shared array element is a thin address to closed finite storage.
+/// Qualified pointees and fat Slice/dyn values do not enter this profile.
+pub(super) fn closed_copy(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    pure_profile(ty, b, false)
+}
+fn pure_profile(ty: &Type, b: &mut Budget, qualified: bool) -> CompileResult<bool> {
     fee(b, 1)?;
     let mut todo = vec![ty];
     while let Some(ty) = todo.pop() {
         fee(b, 1)?;
         match ty {
-            Type::BorrowedStorage { storage, .. } => {
+            Type::BorrowedStorage { storage, .. } if qualified => {
                 fee(b, 1)?;
                 todo.push(storage);
             }

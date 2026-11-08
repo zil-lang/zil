@@ -2435,6 +2435,7 @@ impl<'a> Builder<'a, '_> {
             arguments.push(self.stage_argument(value, &actual, arg.span)?);
         }
         let arguments = self.commit_arguments(arguments, span)?;
+        self.closures.array_snapshot(&signature.result, 1, span)?;
         let ty = signature.result.clone();
         if let Some(expected) = expected {
             self.same(&ty, expected, span)?;
@@ -2447,6 +2448,7 @@ impl<'a> Builder<'a, '_> {
             self.emit(kind, None, span)?;
             self.constant(Constant::Unit, span)
         } else {
+            self.closures.array_snapshot(&ty, 1, span)?;
             Ok((self.value(kind, ty.clone(), span)?, ty))
         }
     }
@@ -2542,6 +2544,7 @@ impl<'a> Builder<'a, '_> {
             ));
         }
         let fields = self.commit_arguments(staged, e.span)?;
+        self.closures.array_billing |= shared_array;
         if qualified_pure || shared_array {
             self.closures.snapshot_type(&ty, 1, 0, e.span)?;
         }
@@ -2767,6 +2770,10 @@ impl<'a> Builder<'a, '_> {
                 "record constructor requires a resolved nominal type",
             ));
         };
+        // New array-bearing requests pay the complete physical field table
+        // before allocation and repeated actual-field predicates/lookups.
+        self.closures
+            .array_snapshot(payload, fields.len().max(1), e.span)?;
         let mut slots = vec![None; decl.len()];
         let mut guarded = vec![None; decl.len()];
         for (name, value) in fields {
@@ -2775,6 +2782,9 @@ impl<'a> Builder<'a, '_> {
                 && stored::pure_inline(actual, &mut self.match_work_left, self.limits, value.span)?
             {
                 self.closures.snapshot_type(actual, 1, 0, value.span)?;
+            }
+            if let Some((_, actual)) = decl.iter().find(|(field, _)| field == name) {
+                self.closures.array_snapshot(actual, 1, value.span)?;
             }
             let (i, t) = field(payload, name, value.span)?;
             if slots[i as usize].is_some() {
@@ -2826,6 +2836,7 @@ impl<'a> Builder<'a, '_> {
         {
             self.closures.snapshot_type(ty, 2, 0, e.span)?;
         }
+        self.closures.array_snapshot(ty, 2, e.span)?;
         Ok((
             self.value(
                 if matches!(ty, Type::Managed(_)) {

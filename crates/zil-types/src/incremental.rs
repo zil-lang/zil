@@ -220,6 +220,12 @@ impl Reuse<'_> {
         state: &mut closures::State,
         limits: &Limits,
     ) -> R<Option<TypedFunction>> {
+        // Array billing is request state beyond the legacy scalar cost row.
+        // Scalar-only cached CFGs cannot create an array; once an actual array
+        // has appeared, rebuild instead of replaying a different billing mode.
+        if state.array_billing {
+            return Ok(None);
+        }
         let Some(key) = self
             .keys
             .as_ref()
@@ -281,8 +287,12 @@ impl Reuse<'_> {
         function: &TypedFunction,
         before: [usize; 6],
         after: [usize; 6],
+        array_billing: bool,
     ) {
         self.stats.executed_functions += 1;
+        if array_billing {
+            return;
+        }
         let Some(key) = self
             .keys
             .as_ref()
