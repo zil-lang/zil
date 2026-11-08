@@ -969,4 +969,56 @@ mod qualified_snapshot_tests {
                 .is_none()
         );
     }
+    #[test]
+    fn fixed_shared_address_array_snapshot_layout_and_budget_are_exact() {
+        let array = Type::Array {
+            element: Box::new(Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I32),
+            }),
+            length: 512,
+        };
+        let batch = Type::BorrowedStorage {
+            storage: Box::new(Type::Record {
+                name: "Batch".into(),
+                fields: vec![("items".into(), array.clone())],
+            }),
+            life: zil_ir::StorageLifeShape {
+                binder_count: 1,
+                slots: (0..512)
+                    .map(|index| zil_ir::StorageLifeSlot {
+                        path: vec![
+                            zil_ir::PlaceProjection::Field(0),
+                            zil_ir::PlaceProjection::Field(index),
+                        ],
+                        binder: 0,
+                        mode: zil_ir::StoredBorrowMode::SharedAddress,
+                    })
+                    .collect(),
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+        };
+        for actual in [array, batch] {
+            assert!(!actual.is_copy_value());
+            assert!(!stored_borrows::pure_composite(&actual));
+            let mut left = usize::MAX;
+            let slot = classify(&actual, &mut left, &Limits::default())
+                .unwrap()
+                .unwrap();
+            assert_eq!((slot.bytes, slot.align), (4096, 8));
+            let cost = usize::MAX - left;
+            let mut exact = cost;
+            assert!(
+                classify(&actual, &mut exact, &Limits::default())
+                    .unwrap()
+                    .is_some()
+            );
+            assert_eq!(exact, 0);
+            let failure = classify(&actual, &mut (cost - 1), &Limits::default())
+                .err()
+                .expect("N-1 must exhaust physical snapshot planning");
+            assert_eq!(failure[0].category, zil_base::ResultCategory::ResourceLimit);
+        }
+    }
 }

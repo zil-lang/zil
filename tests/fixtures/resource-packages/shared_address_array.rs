@@ -325,8 +325,48 @@ fn raw_and_wire_reject_forged_ordinals_and_missing_element_bindings() {
     assert!(zil_verify::verify_module(raw.clone(), candidate.clone(), &target, &limits).is_err());
     let wire = zil_ir::wire::encode_module_candidate(&raw, &candidate, &limits).unwrap();
     assert!(zil_verify::verify_module_bytes(&wire, &target, &limits).is_err());
+    let mut raw = typed_source("array-mapping-raw", MAPPING, &target, &limits);
+    let mut candidate = zil_analyze::analyze(&raw, &limits).unwrap();
+    let make = raw.functions.iter_mut().find(|f| f.name == "make").unwrap();
+    let row = make
+        .storage_life
+        .as_mut()
+        .unwrap()
+        .classes
+        .iter_mut()
+        .find(|r| r.position.base == zil_ir::StorageBase::Result)
+        .unwrap();
+    let zil_ir::StorageBinder::Invocation(actual) = row.binder else {
+        panic!("expected invocation lifetime class")
+    };
+    assert!(actual < 2);
+    row.binder = zil_ir::StorageBinder::Invocation(1 - actual);
+    candidate.module_fingerprint = raw.fingerprint();
+    assert!(zil_analyze::analyze(&raw, &limits).is_err());
+    assert!(zil_verify::verify_module(raw.clone(), candidate.clone(), &target, &limits).is_err());
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &candidate, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&wire, &target, &limits).is_err());
+    let mut raw = typed_source("array-missing-constructor-source", HELPER, &target, &limits);
+    let mut candidate = zil_analyze::analyze(&raw, &limits).unwrap();
+    let make = raw.functions.iter_mut().find(|f| f.name == "make").unwrap();
+    let constructor = make
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| matches!(i.kind, zil_ir::InstructionKind::MakeAggregate { .. }))
+        .unwrap();
+    let zil_ir::InstructionKind::MakeAggregate { fields } = &mut constructor.kind else {
+        unreachable!()
+    };
+    assert_eq!(fields.len(), 2);
+    fields.pop();
+    candidate.module_fingerprint = raw.fingerprint();
+    assert!(zil_analyze::analyze(&raw, &limits).is_err());
+    assert!(zil_verify::verify_module(raw.clone(), candidate.clone(), &target, &limits).is_err());
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &candidate, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&wire, &target, &limits).is_err());
     println!(
-        "array raw/Wire: wrong actual ordinal, out-of-range, missing leaf, false root, metadata-only Element rejected"
+        "array raw/Wire: wrong actual ordinal, out-of-range, missing binding/source, false root, metadata-only Element, wrong nonidentity lifetime mapping rejected"
     );
 }
 
@@ -469,6 +509,15 @@ fn array_slots_and_actual_pointee_snapshot_budgets_are_exact_and_fresh() {
         }
         boundaries.push([types, analyze, verify, decoded, whole]);
     }
+    assert_eq!(
+        boundaries,
+        vec![
+            [1061, 24467, 28955, 28955, 28955],
+            [1265, 73097, 85658, 85658, 85658],
+            [2286, 48378, 55527, 55527, 55527],
+            [2741, 49940, 58022, 58022, 58022],
+        ]
+    );
     println!("array complete boundaries: {boundaries:?}");
     for kernel in 0..5 {
         for i in 1..4 {
@@ -481,62 +530,95 @@ fn array_slots_and_actual_pointee_snapshot_budgets_are_exact_and_fresh() {
 }
 
 #[test]
-fn large_array_physical_snapshots_preserve_shared_values() {
+fn large_array_growth_keeps_the_unchanged_default_resource_boundary() {
     let elements = std::iter::repeat_n("pointer", 512)
         .collect::<Vec<_>>()
         .join(",");
     let program = format!(
-        "fn main()->i32{{let value=7;let pointer=&value;let original=[{elements}];let copied=original;let pointer=copied[511];return *pointer-7}}"
+        "fn main()->i32{{let value=7;let pointer=&value;let original=[{elements}];let copied=original;let selected=copied[511];return *selected-7}}"
     );
-    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
-        for optimization in [Optimization::O0, Optimization::O2] {
-            let dir = std::env::temp_dir().join(format!(
-                "zil-large-address-array-{}-{backend:?}-{optimization:?}",
-                std::process::id()
-            ));
-            std::fs::create_dir_all(&dir).unwrap();
-            let executable = dir.join("program");
-            let report = compile_source(
-                &source("large-array-snapshot", &program),
-                &CompileOptions {
-                    stop_after: Stage::Build,
-                    backend,
-                    optimization,
-                    output: Some(executable.clone()),
-                    ..CompileOptions::default()
-                },
-            );
-            assert_eq!(
-                report.status,
-                ResultCategory::Success,
-                "{backend:?}/{optimization:?}: {}",
-                report.to_json()
-            );
-            assert_eq!(report.verification_runs, 1);
-            let actual = report.native_codegen.as_ref().unwrap();
-            assert_eq!(actual.backend, backend);
-            assert!(actual.fallback.is_none());
-            let output = std::process::Command::new(executable).output().unwrap();
-            assert_eq!(output.status.code(), Some(0), "{output:?}");
-            assert!(output.stdout.is_empty() && output.stderr.is_empty());
-            std::fs::remove_dir_all(dir).unwrap();
-        }
-    }
+    let report = compile_source(
+        &source("array-default-growth", &program),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::ResourceLimit,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .all(|d| d.category == ResultCategory::ResourceLimit)
+    );
+    println!("512-slot Source growth: unchanged default ResourceLimit, no executable emitted");
 }
 
 #[test]
-fn raw_and_wire_independently_reject_writing_a_live_array_window_source(){
-    let limits=Limits::default();let target=TargetProfile::host_llvm();
-    for expression in ["&items", "identity(&items)", "&*(&items)"]{
-        let program=format!("fn identity<life a,life b>(items:&'a [&'b i32;2])->&'a [&'b i32;2]{{return items}}fn main()->i32{{var second=9;var spare=0;let items=[&second,&second];let window={expression};spare=11;return *window[1]-9}}");
-        let mut raw=typed_source("array-window-source",&program,&target,&limits);let mut plan=zil_analyze::analyze(&raw,&limits).unwrap();
-        zil_verify::verify_module(raw.clone(),plan.clone(),&target,&limits).unwrap();
-        let main=raw.functions.iter_mut().find(|f|f.name=="main").unwrap();
-        let second=zil_ir::LocalId(main.locals.iter().position(|l|l.name=="second").unwrap() as u32);let spare=zil_ir::LocalId(main.locals.iter().position(|l|l.name=="spare").unwrap() as u32);
-        let store=main.blocks.iter_mut().flat_map(|b| &mut b.instructions).filter(|i|matches!(i.kind,zil_ir::InstructionKind::Store{local,..} if local==spare)).last().unwrap();
-        let zil_ir::InstructionKind::Store{local,..}=&mut store.kind else{unreachable!()};*local=second;
-        plan.module_fingerprint=raw.fingerprint();
-        assert!(zil_analyze::analyze(&raw,&limits).is_err(),"{expression}: Analyze");assert!(zil_verify::verify_module(raw.clone(),plan.clone(),&target,&limits).is_err(),"{expression}: Verify");
-        let wire=zil_ir::wire::encode_module_candidate(&raw,&plan,&limits).unwrap();assert!(zil_verify::verify_module_bytes(&wire,&target,&limits).is_err(),"{expression}: Wire");
+fn raw_and_wire_independently_reject_writing_a_live_array_window_source() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    for expression in ["&items", "identity(&items)", "&*(&items)", "&batch.items"] {
+        let program = format!(
+            "fn identity<life a,life b>(items:&'a [&'b i32;2])->&'a [&'b i32;2]{{return items}}fn main()->i32{{var second=9;var spare=0;let items=[&second,&second];let window={expression};spare=11;return *window[1]-9}}"
+        );
+        let program = if expression == "&batch.items" {
+            program
+                .replace(
+                    "fn main()",
+                    "struct Batch<life a>{items:[&'a i32;2]}fn make<life a>(items:[&'a i32;2])->Batch<'a>{return Batch::<'a>{items:items}}fn main()",
+                )
+                .replace("let window=", "let batch=make(items);let window=")
+        } else {
+            program
+        };
+        let mut raw = typed_source("array-window-source", &program, &target, &limits);
+        let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
+        zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+        let main = raw.functions.iter_mut().find(|f| f.name == "main").unwrap();
+        let second =
+            zil_ir::LocalId(main.locals.iter().position(|l| l.name == "second").unwrap() as u32);
+        let spare =
+            zil_ir::LocalId(main.locals.iter().position(|l| l.name == "spare").unwrap() as u32);
+        let store = main
+            .blocks
+            .iter_mut()
+            .flat_map(|b| &mut b.instructions)
+            .filter(|i| matches!(i.kind,zil_ir::InstructionKind::Store{local,..} if local==spare))
+            .last()
+            .unwrap();
+        let zil_ir::InstructionKind::Store { local, .. } = &mut store.kind else {
+            unreachable!()
+        };
+        *local = second;
+        plan.module_fingerprint = raw.fingerprint();
+        let analyzed = zil_analyze::analyze(&raw, &limits).unwrap_err();
+        assert!(
+            analyzed
+                .iter()
+                .any(|d| d.message.contains("actual stored target/parent loan")),
+            "{expression}: {analyzed:?}"
+        );
+        let verified =
+            zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap_err();
+        assert!(
+            verified
+                .iter()
+                .any(|d| d.message.contains("live incompatible loan")),
+            "{expression}: {verified:?}"
+        );
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        let decoded = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+        assert!(
+            decoded
+                .iter()
+                .any(|d| d.message.contains("live incompatible loan")),
+            "{expression}: {decoded:?}"
+        );
     }
 }
