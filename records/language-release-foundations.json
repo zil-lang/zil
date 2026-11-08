@@ -17,12 +17,12 @@
     "result": "/workspace/.zil-env/release-foundations/native-language-common-default/default-result.json"
   },
   "source_backup": {
-    "archive": "3b7ad18892b35895dd973f47934f917242408387",
-    "verified_tips": 181,
+    "archive": "d74a805148c871d8dc5054040e7a37fdf472fd22",
+    "verified_tips": 185,
     "stable_source_snapshot": true,
     "remote_verified": true,
     "actual_wip_bytes": true,
-    "receipt": "/workspace/.zil-env/release-foundations/archive-sixteenth-source-checkpoint.json"
+    "receipt": "/workspace/.zil-env/release-foundations/archive-seventeenth-source-checkpoint.json"
   },
   "not_accepted": [
     "functional 1.0",
@@ -90,7 +90,7 @@
   },
   "pending_common_gates": [],
   "next_implementation": [
-    "integrate G2.4.10/G3.4.11/G8.6.5 as next source batch",
+    "accept combined G2.4.10/G3.4.11/G8.6.5 and stack regression fix after common gates",
     "finish G3.4.12 shared address arrays"
   ],
   "delivery_validation_revision": "e5400cfba036a46ca70677ca411abcd863466edf",
@@ -126,5 +126,54 @@
     "compiler_artifacts_reused": false,
     "toolchain_registry_reused": true,
     "summary": "/workspace/.zil-env/release-foundations/accepted-source-cold-final/summary.json"
+  },
+  "next_combined_source": {
+    "source": "61ad58b684709b9dc9edb7ac36c062a197ca7754",
+    "base_main": "222e550af2daa08812b210cf3b5c726831b15bec",
+    "children": [
+      "G2.4.10",
+      "G3.4.11",
+      "G8.6.5",
+      "G10.6.6.1"
+    ],
+    "status": "Default common regression in progress; not accepted",
+    "prior_combined_source": "50e77fdf274bcd172aacb794aa6b3157605a6977",
+    "prior_focused": {
+      "passed": 798,
+      "failed": 1,
+      "targets": {
+        "aggregates": 332,
+        "generic_regressions": {
+          "passed": 209,
+          "failed": 1
+        },
+        "nominal_trait_bounds": 165,
+        "owning_map": 18,
+        "stored_environment_lending_raw": 74
+      },
+      "log": "/workspace/.zil-env/release-foundations/library-composition-focus/driver-corrected.log"
+    },
+    "stack_fix": {
+      "source": "1ea0ceb06ed4a503f235310f94004eabcb1fd18e",
+      "implementation": "sol high",
+      "review": "Astra exact source accepted",
+      "recursive_frame_before_bytes": 13880,
+      "recursive_frame_after_bytes": 1832,
+      "original_default_worker_requests_passed": 104,
+      "stack_limits_or_assertions_changed": false,
+      "focused_regressions": {
+        "generic_regressions": {
+          "passed": 210,
+          "failed": 0
+        },
+        "nominal_trait_bounds": {
+          "passed": 165,
+          "failed": 0
+        },
+        "temporary_mount_failure_preserved": true,
+        "nominal_rerun_uses_workspace_tmpdir": true
+      }
+    },
+    "default_result_directory": "/workspace/.zil-env/release-foundations/library-composition-common-default"
   }
 }

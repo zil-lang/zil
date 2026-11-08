@@ -10,11 +10,11 @@
 
 父任务汇总完整范围，子任务记录具体交付，父子不重复计数；子项全完成不自动代表父项完成。需要独立派工、复核或验收的补充工作才新增任务编号，沿用父编号加一段；零散修正记在原任务进展中。编号同时用于分支与实施说明，不再另设勾稽编号。
 
-**当前主线：以通用编程语言 1.0 的功能闭环为下一阶段目标。** 上批 `main@e800b39d5` 已验收：默认5269/0、参考5157/0、文本70/0，真实联合程序及远端恢复通过。当前仍是有限开发预览，不能据此称1.0完备。
+**当前主线：以通用编程语言 1.0 的功能闭环为下一阶段目标。** 当前交付 `main@222e550af` 已接受本批有限语言范围，精确运行口径见下文。仍是开发预览，不能据此称1.0完备。
 
 本阶段先补普通数据模型、泛型库、模式、同步与标准库，再收动态抽象、图/外部生命周期和完整程序。必需能力全部进入P0；有普通合法程序仍被临时白名单或未实现组合阻挡，就保留缺口，不能靠缩小子项关闭父项。运行/编译成本和安全产品门保持原要求，功能就绪与正式发布分别验收。
 
-Sol high负责实现，疑难交Astra；本批已交付远端main@222e550af。受测compiler源码263f11默认5582/0、text70/0、独立冷恢复32/32；reference原全量5455/15只因旧helper调用未启用API，测试6行修复后受影响64项在两配置均过，完整修复覆盖5470项，未重写原Fail或冒称单轮全绿。交付仅增加该test-only修复及精简验收记录，compiler/lib输入逐字相同。[不可变验收快照](https://github.com/zil-lang/zil/blob/222e550af2daa08812b210cf3b5c726831b15bec/validation/native-language-composition.json)。本次不宣称功能1.0/B0/成本门；下批G2.4.10/G3.4.11/G8.6.5已专项/精审接受待合，G3.4.12共享地址数组继续Sol high实施。
+Sol high负责实现，疑难交Astra；本批已交付远端main@222e550af。受测compiler源码263f11默认5582/0、text70/0、独立冷恢复32/32；reference原全量5455/15只因旧helper调用未启用API，测试6行修复后受影响64项在两配置均过，完整修复覆盖5470项，未重写原Fail或冒称单轮全绿。交付仅增加该test-only修复及精简验收记录，compiler/lib输入逐字相同。[不可变验收快照](https://github.com/zil-lang/zil/blob/222e550af2daa08812b210cf3b5c726831b15bec/validation/native-language-composition.json)。本次不宣称功能1.0/B0/成本门；下批G2.4.10/G3.4.11/G8.6.5已专项/精审接受并合入施工树；合流新栈回归已由Sol定位修复、Astra精审，`61ad58b68`正在全默认共同验收。G3.4.12共享地址数组继续Sol high实施。
 
 ## G1 · 基础类型与模式
 
@@ -59,7 +59,7 @@ Sol high负责实现，疑难交Astra；本批已交付远端main@222e550af。�
 | G2.1 | 有限const、supertrait、泛型trait/impl、关联类型/常量、默认体及泛型接收者方法 | 已合入 | — | — | [已合入证据][e37]；一般约束方程另列。 |
 | G2.2 | 混合life/F helper、独立Invocation关系与未用声明检查，贯通两核及原生 | 已合入 | — | — | [本批验收][e41]；混合 life/F helper、独立 Invocation 与未用声明检查已通过共同验收。 |
 | G2.3 | 一般关联投影、类型/Self依赖的常量表达式、约束蕴含和循环诊断 | 部分实现 | P0 | 待派 | G2.3.1 有限 Self 依赖常量已由 PR39 [合入][e39]；一般投影、泛型及 Drop 组合仍缺。 |
-| G2.4 | 更一般life/lending、符号泛型方法和静态关联函数；一般/blanket/primitive/enum impl及更广supertrait实参组合 | 部分实现 | P0 | sol high · traits | 共享lending、静态关联函数已合；958957042补具体primitive/Enum宿主与真实provider待验。更广blanket、life/lending和约束组合仍保留。 |
+| G2.4 | 更一般life/lending、符号泛型方法和静态关联函数；一般/blanket/primitive/enum impl及更广supertrait实参组合 | 部分实现 | P0 | sol high · traits | 共享lending、静态关联函数、具体primitive/Enum及有限拥有Package宿主已合入main；更广blanket、life/lending和约束组合仍保留。 |
 
 <details>
 <summary>G2.3 · 子任务</summary>
@@ -84,7 +84,7 @@ Sol high负责实现，疑难交Astra；本批已交付远端main@222e550af。�
 | G2.4.7 | 普通拥有Package共享trait宿主与跨module provider | 已合入 | — | — | `f343334d2`已合；恢复实际Package owner import边，shared固定签名及私有/同名provider；154trait专项和Source/raw/Wire/native， 已由main@222e550af本批有限范围验收。 |
 | G2.4.8 | 普通拥有Package的独占trait接收者及跨module泛型调用 | 已合入 | — | — | `e9f530337`独审并合；Unit/scalar可变方法、真实拥有负载、158回归/四配置失败清理与raw实际receiver/provider反例通过。 已由main@222e550af本批有限范围验收。 |
 | G2.4.9 | 导出life泛型get实例化诊断 | 无需改动 | — | — | 已证为include_str嵌入旧stdlib的CLI与接口改名不一致；最终源重建后正确。零生产修改，空分支已保全并删除，编号不复用。 |
-| G2.4.10 | 普通拥有Item的trait lending iterator | 实现待验 | P0 | sol high · owning_iterator | `dc8d8b159`已推送并获Astra精确接受；165/0、四配置正常/三allocfail、精确work218399/nodes14857控制与strict通过；待下一合成树整合，非GAT/dyn/广泛ByteOption。 |
+| G2.4.10 | 普通拥有Item的trait lending iterator | 实现待验 | P0 | sol high · owning_iterator | `dc8d8b159`已推送并获Astra精确接受，已合施工树`61ad58b68`待共同验收；165/0、四配置正常/三allocfail、精确work218399/nodes14857与strict通过，非GAT/dyn/广泛ByteOption。 |
 
 <details>
 <summary>G2.4.2 · 子任务</summary>
@@ -158,9 +158,9 @@ Sol high负责实现，疑难交Astra；本批已交付远端main@222e550af。�
 | G3.4.7 | 标准Poll的真实借入载荷与sealed身份 | 已合入 | — | — | `a1e737c09`已合；真实role/fullR、19布局身份反例、跨module与12新native通过，不等于Task结果已验收。 已由main@222e550af本批有限范围验收。 |
 | G3.4.8 | Store实际manager借入叶/字段返回、一般life及Option借出组合 | 已合入 | — | — | `f3b600238`精确独审接受并合：真实Map get/inspect/identity/field helper、Some投影前强pin、两核真实heap来源，24机器及长heap N/N−1通过；已保留旧ce5构造/消费规则， 已由main@222e550af本批有限范围验收。 |
 | G3.4.9 | 独占constructor实际loan site与现有写槽组合 | 已合入 | — | — | `a19ee3339`已独审并合；constructor只激活自己的site排程，不扩大slot updates权限；原三误拒恢复、cross112/stored33/mixed28专项通过。 已由main@222e550af本批有限范围验收。 |
-| G3.4.10 | 借入结果Task与拥有Map/Option在同一普通CFG中的真实组合 | 已合入 | — | — | `c5/c8/e042/e6`及独立`a030/10dd`已独审并合：标准let/临时match/双来源if真实default、16native与失败cleanup/rawWire通过；先前默认耗尽与Copy Poll兼容失败保留，最终source共同门仍待。 已由main@222e550af本批有限范围验收。 |
-| G3.4.11 | 拥有Package嵌入含真实借入叶的qualified Record | 实现待验 | P0 | sol high · borrowed_record | `d6be16708`已推送并获非作者精审接受；36holder/23旧预算、20组新N控制、16native与strict通过，实际映射/父loan和两clone先费；待下一批整合，不含独占/嵌套Record。 |
-| G3.4.12 | 固定共享地址数组的普通函数与存储消费者 | 进行中 | P0 | sol high · borrowed_record | Expand/Types仍拒物理借入元素；保留每元素实际来源与life，先固定长度共享叶，不虚构独占复制或动态泛化。 | 
+| G3.4.10 | 借入结果Task与拥有Map/Option在同一普通CFG中的真实组合 | 已合入 | — | — | `c5/c8/e042/e6`及独立`a030/10dd`已由main@222e550af本批验收：标准let/临时match/双来源if真实default、16native与失败cleanup/rawWire通过；先前默认耗尽与Copy Poll兼容首次失败保留。 |
+| G3.4.11 | 拥有Package嵌入含真实借入叶的qualified Record | 实现待验 | P0 | sol high · borrowed_record | `d6be16708`已推送并获非作者精审接受，已合施工树`61ad58b68`待共同验收；36holder/23旧预算、20组新N控制、16native与strict通过，实际映射/父loan和两clone先费；不含独占/嵌套Record。 |
+| G3.4.12 | 固定共享地址数组的普通函数与存储消费者 | 进行中 | P0 | sol high · borrowed_record | WIP`564119431`已推送并纳入固定源码归档；qualified Batch构造/复制/helper/常量索引已过Source/raw/Wire，bare Array已到Analyze资格消费者。逐元素真实来源继续实现，尚未验收，不虚构独占复制或动态泛化。 |
 
 </details>
 
@@ -315,7 +315,7 @@ Sol high负责实现，疑难交Astra；本批已交付远端main@222e550af。�
 | G8.6.2 | 单共享 &i32 输入 Task：真实 port、工厂返回及 frame 全寿命保留 | 已合入 | — | — | `main@e800b39d5`；实际共享 &i32 port 保留至 Destroy/同步 Drop，跨模块返回、PC0/取消及独立 raw/Wire/预算通过。[验收][e-native-foundations]；其它结果、Task 输入和线程迁移未开放。 |
 | G8.6.3 | 多共享/独占Task端口、普通结果族及跨helper完整上下文转交 | 已合入 | — | — | `dccc5764c`：多共享/独占端口、标量及有限Product referent、Task<T,Context>泛型helper已合候选；非作者复核通过限定范围并实跑16项Source、4项Verify。嵌套owner transport和借入结果仍缺。 已由main@222e550af本批有限范围验收。 |
 | G8.6.4 | Task借入结果：外部输入来源、真实Poll载荷及Destroy后父loan | 已合入 | — | — | `ee8f13055/b2ecb006e`已独审并合：真实local父链/普通SSA消费、无dummyheader/合法elision/非首参数/cross-module Direct，61专项及原预算通过；pub Suspend仍SABI1，multiport/exclusive/nested结果未关闭。 已由main@222e550af本批有限范围验收。 |
-| G8.6.5 | 至少双共享Task输入、只返回其中一条真实外部来源 | 实现待验 | P0 | sol high · multiport_task | `1ae76f59e`完整三commit已推送并获Astra精确接受；74/44/18、24native及真实calloc/取消、fullcontext/Slice费用增长控制过；frame保所有port，Ready只取真实eligible来源。待下一合成树。 |
+| G8.6.5 | 至少双共享Task输入、只返回其中一条真实外部来源 | 实现待验 | P0 | sol high · multiport_task | `1ae76f59e`完整三commit已推送并获Astra精确接受，已合施工树`61ad58b68`待共同验收；74/44/18、24native及真实calloc/取消、fullcontext/Slice费用增长控制过；frame保所有port，Ready只取真实eligible来源。 |
 
 </details>
 
@@ -445,10 +445,21 @@ Sol high负责实现，疑难交Astra；本批已交付远端main@222e550af。�
 | --- | --- | --- | --- | --- | --- |
 | G10.6.1 | 语言初稿开发预览：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 已合入 | — | — | [PR51 验收][e-pr51]：精确源码 `a8c7953e7` 默认5190/0、参考5078/0、文本70/0；双严格检查、release、10项工程门及远端源码恢复构建运行通过。有限预览不替代 B0/完整语言。 |
 | G10.6.2 | 通用 Native 库与异步资源联合验收：精确源码、真实消费者、独审和远端恢复 | 已合入 | — | — | `main@e800b39d5`：默认5269/0、参考5157/0、文本70/0；真实联合双后端 O0/O2、3735文件远端恢复/空缓存构建、16次 API 构建/128次运行/56次故障注入均通过。[本批记录][e-native-foundations]。 |
-| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | `1b462001c`严格clippy通过，正冻结全默认回归；V46身份、责任、来源及旧精确预算修复已合。全reference/text/统一原生和本SHA冷恢复待验，main未更新，不宣称1.0完成。 |
+| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | 本批有限范围已交付`main@222e550af`，默认5582/0、text70/0、冷恢复32/32；reference完整修复覆盖5470项（保留原全量Fail，非单轮全绿）。下批`61ad58b68`正跑共同门；功能1.0/成本门及父级完整能力尚未接受。 |
 | G10.6.4 | 全量回归中的旧Store/实际callback Package准入 | 已合入 | — | — | `6c1ac6fdf`已合候选；恢复旧flat callback/Store真实root快路，保留新borrowed Product分类，84项与原CLI/window正反例专项通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.5 | 新共享构造检查的两核实际独占loan发现与旧fee保持 | 已合入 | — | — | `e5c52c936/396c183c`已合：复用付费建表，无额外扫描，原两预算控制恢复原值、28独占构造/slot控制通过。 已由main@222e550af本批有限范围验收。 |
-| G10.6.6 | 默认worker深调用与life组合栈溢出 | 已合入 | — | — | `9839ecd91`实际帧6344→2296字节，未增栈/限额；两个原失败及144次编译边界控制通过，整aggregates仅旧work值待合流更新。 已由main@222e550af本批有限范围验收。 |
+| G10.6.6 | 默认worker深调用与life组合栈溢出 | 已合入 | — | — | `9839ecd91`与`266b758ef`两条旧递归帧修复已由main@222e550af本批验收；未增栈/限额，原深调用和预算控制通过。下一合流新source_life帧回归另列子项。 |
+
+</details>
+
+
+
+<details>
+<summary>G10.6.6 · 子任务</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G10.6.6.1 | 普通trait/lending合流后source life深调用保持默认线程栈 | 实现待验 | P0 | sol high · integration_audit；Astra精审 | `50e77fdf2`原深调用depth124复现溢出；精确修复`1ea0ceb06`递归帧13880→1832B，原104请求通过，Astra精审接受。仅求值后分类抽helper，来源/费用/顺序及stack/limits/断言不变；已合`61ad58b68`待共同门。 |
 
 </details>
 
