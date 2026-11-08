@@ -738,6 +738,40 @@ fn task_borrowed_result_coexists_with_exclusive_and_multiport_scalar_tasks() {
     let source =
         include_str!("../../../tests/fixtures/task-borrow-results/mixed-task-profiles.zil");
     let module = typed_stored(source);
+    let mut copy_polls = 0;
+    for function in &module.functions {
+        for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
+            let Some(result) = instruction.result else {
+                continue;
+            };
+            if !matches!(instruction.kind, InstructionKind::TaskPoll { .. })
+                || !function.values[result.0 as usize].is_copy_value()
+            {
+                continue;
+            }
+            copy_polls += 1;
+            assert!(
+                function
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.instructions)
+                    .any(
+                        |i| matches!(i.kind, InstructionKind::ErrorTag { value } if value == result)
+                    ),
+                "a finite Copy poll result must retain its SSA discriminator"
+            );
+            assert!(function.blocks.iter().flat_map(|block| &block.instructions).any(|i|
+                matches!(i.kind, InstructionKind::ReadErrorUnion { value, is_error:false } if value == result)),
+                "a finite Copy poll payload must retain its SSA projection");
+            assert!(!function.blocks.iter().flat_map(|block| &block.instructions).any(|i|
+                matches!(i.kind, InstructionKind::Store { value, .. } if value == result)),
+                "a finite Copy poll scrutinee must not acquire an owning match slot");
+        }
+    }
+    assert_eq!(
+        copy_polls, 4,
+        "both zero-port and multiport scalar tasks are actually polled twice"
+    );
     let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
     zil_verify::verify_module(
         module.clone(),
