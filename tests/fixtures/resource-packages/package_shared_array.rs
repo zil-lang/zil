@@ -744,3 +744,43 @@ fn owning_package_stays_affine_and_its_live_view_pins_the_parent() {
     );
     assert_eq!(report.verification_runs, 1);
 }
+
+#[test]
+fn large_package_array_reports_its_actual_default_source_work_boundary() {
+    let program = package_budget_model(512, 1, 0);
+    let report = compile_source(
+        &source("large-package-array-default-work", &program),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    println!(
+        "512-element Package Array default Source: {}",
+        report.to_json()
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::ResourceLimit,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .all(|d| d.category == ResultCategory::ResourceLimit)
+    );
+    assert_eq!(report.phase, zil_base::Phase::Analyze);
+    assert_eq!(report.verification_runs, 0);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message == "analysis budget exceeded during class variable ancestry")
+    );
+    assert!(report.native_codegen.is_none());
+    println!(
+        "Only default Source budget termination is proved here; large Package snapshot/native ABI is untested"
+    );
+}
