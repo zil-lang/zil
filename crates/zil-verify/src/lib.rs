@@ -365,6 +365,8 @@ struct Budget {
     head_descriptions: bool,
     stored_enum_addresses: bool,
     task_borrowed_results: bool,
+    store_option_results: bool,
+    store_option_sources: Option<Vec<stored_flow::StoreOptionFunctionSources>>,
     task_stored_sources: Option<Vec<stored_flow::TaskFunctionSources>>,
     stored_borrows: bool,
     stored_package_instance: bool,
@@ -417,6 +419,8 @@ impl Budget {
             head_descriptions: false,
             stored_enum_addresses: false,
             task_borrowed_results: false,
+            store_option_results: false,
+            store_option_sources: None,
             task_stored_sources: None,
             stored_borrows: false,
             stored_package_instance: false,
@@ -1006,8 +1010,15 @@ fn check_module(
     } else {
         None
     };
+    let store_option_mask = if budget.store_option_results && !budget.task_borrowed_results {
+        budget.spend(module.functions.len())?;
+        Some(module.functions.iter().map(|function|
+            stored_flow::qualified_function(function, &mut budget))
+            .collect::<Check<Vec<_>>>()?)
+    } else { None };
     if budget.stored_borrows || budget.task_borrowed_results {
-        stored_flow::qualifications(module, limits, stored_partition.as_deref(), &mut budget)?;
+        stored_flow::qualifications(module, limits,
+            store_option_mask.as_deref().or(stored_partition.as_deref()), &mut budget)?;
     }
     let fingerprint = module.fingerprint();
     if plan.module_fingerprint != fingerprint
@@ -1046,11 +1057,17 @@ fn check_module(
         task_input_fingerprint = tasks::interface_fingerprint(program, fingerprint, &mut budget)?;
     }
     helpers::check_module(module, &graphs, limits, &mut budget)?;
-    let guard_sources = if budget.task_borrowed_results {
-        for f in &module.functions {
-            stored_flow::header(module, f, &mut budget)?;
+    let guard_sources = if budget.task_borrowed_results || budget.store_option_results {
+        for (index, f) in module.functions.iter().enumerate() {
+            if store_option_mask.as_ref().is_none_or(|mask| mask[index]) {
+                stored_flow::header(module, f, &mut budget)?;
+            }
         }
-        stored_flow::check(module, &graphs, plan, &mut budget)?;
+        if let Some(mask) = store_option_mask.as_deref() {
+            stored_flow::check_mixed(module, &graphs, plan, mask, &mut budget)?;
+        } else {
+            stored_flow::check(module, &graphs, plan, &mut budget)?;
+        }
         borrows::check_module(module, plan, &graphs, &mut budget)?
     } else if budget.stored_borrows && stored_partition.is_none() {
         for f in &module.functions {
@@ -1219,6 +1236,11 @@ fn check_type_shape(
             matches!(ty, Type::Task { retained_life, .. } if !retained_life.ports.is_empty());
         tasks::require_closed_context(ty, None)?;
         budget.task_borrowed_results |= matches!(ty, Type::Task { result, .. } if matches!(result.as_ref(), Type::Address { mutable: false, .. }));
+        budget.store_option_results |= matches!(ty, Type::BorrowedStorage { storage, .. }
+            if matches!(storage.as_ref(), Type::Enum { variants, .. }
+                if matches!(variants.as_slice(), [(_, none), (_, some)]
+                    if none.is_empty() && matches!(some.as_slice(), [Type::Address { mutable: false, inner }]
+                        if matches!(inner.as_ref(), Type::Package { .. })))));
         // Detect the new ordinary profile during the already paid raw-tree
         // traversal. Old functions do not acquire an extra classifier pass.
         if (context & 64 != 0 && matches!(ty, Type::Managed(_) | Type::Package { .. }))

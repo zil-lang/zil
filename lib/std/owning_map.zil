@@ -41,6 +41,14 @@ pub fn get_copy<K:StoreElement+KeyEq,V:Copy+StoreElement>(map:&OwningMap<K,V>,ke
     return Option::<V>.Some(entry.value)
 }
 
+// A shared value window remains tied to the actual map Store until its last use.
+pub fn get<life s,K:StoreElement+KeyEq,V:StoreElement>(map:&'s OwningMap<K,V>,key:&K)->Option<&'s V> {
+    let at=find::<K,V>(map,key)
+    if at<0 {return Option::<&'s V>.None()}
+    let entry=store_at(map.items,at)
+    return Option::<&'s V>.Some(&entry.value)
+}
+
 // A failed reserve or suffix preparation returns the original incoming Entry
 // while preserving all old map entries. A successful replacement consumes and
 // cleans the old Entry exactly once. After removal, the existing capacity has

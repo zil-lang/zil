@@ -13,7 +13,7 @@ pub(super) fn declaration(d: &LifeNominalDeclaration) -> bool {
         && d.parameters == [LifeParameterKind::Type]
 }
 
-pub(super) fn shape(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
+pub(crate) fn shape(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
     let Some((storage, life)) = qualified(ty) else {
         return Ok(false);
     };

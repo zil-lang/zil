@@ -438,6 +438,8 @@ pub(super) fn reserve_binding(
                     | InstructionKind::ReadCapture { .. }
                     | InstructionKind::BorrowCapture { .. }
                     | InstructionKind::WriteCapture { .. }
+                    | InstructionKind::OwnedStoreBorrow { .. }
+                    | InstructionKind::OwnedStoreBorrowMut { .. }
                     | InstructionKind::TakeLocal { .. }
                     | InstructionKind::TakeCapture { .. }
                     | InstructionKind::DescribeLocal { .. }

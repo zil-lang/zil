@@ -17,6 +17,133 @@ pub(super) fn operation(kind: &InstructionKind) -> bool {
     )
 }
 
+// In a mixed Option/ordinary-owner function, the stored-address ledger has no
+// permission to transfer an owning ErrorUnion. Its tag and complete debt are
+// checked by the ordinary resource kernel. Authenticate this exact zero-target
+// shape before leaving the stored ledger empty; an address or qualified child
+// must continue through a real stored permission operation.
+pub(super) fn ordinary_owned_union(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !b.store_option_results {
+        return Ok(false);
+    }
+    let union = match &i.kind {
+        InstructionKind::PlaceTagLocal { local, path } if path.is_empty() => {
+            if value_type(f, i.result.ok_or_else(|| failure("union tag lacks result"))?)? != &Type::I32 {
+                return Err(failure("ordinary owning union tag result differs"));
+            }
+            &f.locals.get(local.0 as usize)
+                .ok_or_else(|| failure("ordinary union local absent"))?.ty
+        }
+        InstructionKind::TakeVariantField { local, path }
+            if matches!(path.as_slice(), [PlaceProjection::ErrorArm(_)]) =>
+            &f.locals.get(local.0 as usize)
+                .ok_or_else(|| failure("ordinary union local absent"))?.ty,
+        InstructionKind::ErrorTag { value } => value_type(f, *value)?,
+        InstructionKind::TakeErrorUnion { value, .. } => value_type(f, *value)?,
+        InstructionKind::MakeErrorUnion { .. } => value_type(f,
+            i.result.ok_or_else(|| failure("ordinary union constructor lacks result"))?)?,
+        _ => return Ok(false),
+    };
+    let Type::ErrorUnion { error, result } = union else { return Ok(false) };
+    if union.is_copy_value() { return Ok(false); }
+    b.type_work(union, false, "ordinary owning union complete shape")?;
+    let mut pending = vec![(error.as_ref(), 0usize), (result.as_ref(), 0usize)];
+    while let Some((ty, depth)) = pending.pop() {
+        fee(b, 1)?;
+        if depth > b.partial_depth { return Err(failure("ordinary union shape depth exceeded")); }
+        match ty {
+            Type::Address { .. } | Type::Desc(_) | Type::BorrowedStorage { .. }
+            | Type::Closure(_) | Type::BorrowedFunctionPointer { .. }
+            | Type::Task { .. } => return Ok(false),
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                fee(b, fields.len())?;
+                pending.extend(fields.iter().map(|(_, child)| (child, depth + 1)));
+            }
+            Type::Enum { variants, .. } => {
+                fee(b, variants.len())?;
+                for (_, fields) in variants {
+                    fee(b, fields.len())?;
+                    pending.extend(fields.iter().map(|child| (child, depth + 1)));
+                }
+            }
+            Type::Tuple(fields) => {
+                fee(b, fields.len())?;
+                pending.extend(fields.iter().map(|child| (child, depth + 1)));
+            }
+            Type::ErrorUnion { error, result } => {
+                fee(b, 2)?;
+                pending.push((error, depth + 1)); pending.push((result, depth + 1));
+            }
+            Type::Managed(child) | Type::OwnedStore { element: child }
+            | Type::Array { element: child, .. } => {
+                pending.push((child, depth + 1));
+            }
+            Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U64
+            | Type::Usize | Type::U8 | Type::U16 | Type::F32 | Type::F64
+            | Type::ByteBuffer => {}
+            _ => return Ok(false),
+        }
+    }
+    if let InstructionKind::MakeErrorUnion { is_error, value } = i.kind {
+        let arm = if is_error { error.as_ref() } else { result.as_ref() };
+        b.type_work(arm, false, "ordinary owning union actual arm")?;
+        if value_type(f, value)? != arm {
+            return Err(failure("ordinary owning union actual arm differs"));
+        }
+    }
+    if let InstructionKind::TakeVariantField { path, .. } = &i.kind {
+        let arm = if matches!(path.as_slice(), [PlaceProjection::ErrorArm(true)]) {
+            error.as_ref()
+        } else { result.as_ref() };
+        b.type_work(arm, false, "ordinary owning union taken arm")?;
+        if value_type(f, i.result.ok_or_else(|| failure("ordinary union take lacks result"))?)? != arm {
+            return Err(failure("ordinary owning union taken arm differs"));
+        }
+    }
+    if let InstructionKind::ErrorTag { .. } = i.kind {
+        if value_type(f, i.result.ok_or_else(|| failure("ordinary union tag lacks result"))?)? != &Type::Bool {
+            return Err(failure("ordinary owning union tag result differs"));
+        }
+    }
+    if let InstructionKind::TakeErrorUnion { is_error, .. } = i.kind {
+        let arm = if is_error { error.as_ref() } else { result.as_ref() };
+        b.type_work(arm, false, "ordinary owning union taken arm")?;
+        if value_type(f, i.result.ok_or_else(|| failure("ordinary union take lacks result"))?)? != arm {
+            return Err(failure("ordinary owning union taken arm differs"));
+        }
+    }
+    Ok(true)
+}
+
+pub(super) fn ordinary_package_borrow(
+    f: &TypedFunction, i: &Instruction, b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::BorrowPackageField { local, index, mutable } = i.kind else {
+        return Ok(false);
+    };
+    if !b.store_option_results { return Ok(false); }
+    let Some(Type::Package { fields, .. }) = f.locals.get(local.0 as usize).map(|l| &l.ty) else {
+        return Ok(false);
+    };
+    let Some((_, field)) = fields.get(index as usize) else { return Ok(false) };
+    let Type::Package { fields: children, .. } = field else { return Ok(false) };
+    fee(b, children.len())?;
+    if !children.iter().all(|(_, child)|
+        child.is_copy_value() || matches!(child, Type::Managed(inner) if inner.as_ref() == &Type::ByteBuffer)) {
+        return Ok(false);
+    }
+    b.type_work(field, false, "ordinary borrowed Package field")?;
+    if !matches!(value_type(f, i.result.ok_or_else(|| failure("Package field borrow lacks result"))?)?,
+        Type::Address { mutable: actual, inner } if *actual == mutable && inner.as_ref() == field) {
+        return Err(failure("ordinary Package field borrow result differs"));
+    }
+    Ok(true)
+}
+
 fn pure(ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<bool> {
     fee(b, 1)?;
     if depth > b.partial_depth {
