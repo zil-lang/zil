@@ -742,6 +742,11 @@ fn unknown_legacy_upper_sources_cannot_be_masked_by_a_known_branch() {
             "let q=if flag{left.pointer}else{id(right.pointer)};",
             "if flag{items[index]}else{q}",
         ),
+        (
+            "rich wrapper unknown",
+            "let boxed=make(id(right.pointer));",
+            "if flag{items[index]}else{boxed.pointer}",
+        ),
         ("legacy without dynamic", "", "id(right.pointer)"),
     ] {
         let program = format!(
