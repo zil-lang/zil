@@ -328,3 +328,39 @@ fn ordinary_package_fields_have_exact_fresh_analysis_and_verification_work() {
         eprintln!("ordinary Package Copy observation {phase:?} N={high}; N-1/fresh agree");
     }
 }
+
+#[test]
+fn ordinary_owned_pipeline_keeps_callbacks_and_error_paths() {
+    let files = [
+        ("main", include_str!("../owned_pipeline/main.zil")),
+        ("model", include_str!("../owned_pipeline/model.zil")),
+        ("protocol", include_str!("../owned_pipeline/protocol.zil")),
+        ("library", include_str!("../owned_pipeline/library.zil")),
+    ];
+    let dir = std::env::temp_dir().join(format!(
+        "zil-owned-callback-pipeline-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    fs::create_dir_all(&dir).unwrap();
+    let types = compile_project(
+        &project(&files),
+        &CompileOptions {
+            stop_after: Stage::Types,
+            emit_dir: Some(dir.join("types")),
+            ..CompileOptions::default()
+        },
+    );
+    fs::write(dir.join("types.json"), types.to_json()).unwrap();
+    assert_eq!(types.status, ResultCategory::Success, "{}", types.to_json());
+    let report = compile_project(&project(&files), &CompileOptions::default());
+    fs::write(dir.join("report.json"), report.to_json()).unwrap();
+    eprintln!("complete owning callback pipeline: {}", dir.display());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
