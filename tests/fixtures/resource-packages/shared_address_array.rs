@@ -173,7 +173,11 @@ fn dynamic_exclusive_and_empty_address_arrays_keep_their_boundary() {
 
 #[test]
 fn native_array_ordinals_and_shared_copies_match_both_backends() {
+    let mut runs = 0;
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
         for optimization in [Optimization::O0, Optimization::O2] {
             for (label, program) in [
                 ("batch", BATCH),
@@ -217,10 +221,13 @@ fn native_array_ordinals_and_shared_copies_match_both_backends() {
                     output.stdout.is_empty() && output.stderr.is_empty(),
                     "{output:?}"
                 );
+                runs += 1;
                 std::fs::remove_dir_all(dir).unwrap();
             }
         }
     }
+    assert_eq!(runs, 8 + 8 * usize::from(cfg!(feature = "llvm-api")));
+    println!("fixed shared address Array native executions: {runs}");
 }
 
 #[test]
