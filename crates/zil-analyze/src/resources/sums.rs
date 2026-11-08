@@ -1716,7 +1716,8 @@ impl Plan {
                 facts.invalidate(*local, self, budget)?;
             }
             InstructionKind::VariantTag { value } | InstructionKind::ReadVariant { value, .. }
-                if !f.values[value.0 as usize].is_copy_value() =>
+                if !f.values[value.0 as usize].is_copy_value()
+                    && !crate::stored_flow::shared_enum_observation(module, f, i, budget)? =>
             {
                 return Err(error("legacy Enum SSA observation requires Copy"));
             }
