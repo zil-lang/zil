@@ -1,19 +1,24 @@
 {
   "kind": "coordination-only; no acceptance claim",
-  "source": "1b462001c6e74548196e72f62ab6074eb4296913",
+  "source": "2641dd6a7",
   "source_branch": "task/G10.6.3",
   "main": "e800b39d5f9a096b33560625a4273c1ef11e3d92",
   "strict_clippy": {
     "status": "Pass",
     "command": "cargo clippy --locked --workspace --all-targets --keep-going --features llvm-api -- -D warnings",
-    "log": "/workspace/.zil-env/release-foundations/schema46-clippy-sixth.log"
+    "log": "/workspace/.zil-env/release-foundations/schema46-clippy-sixth.log",
+    "scope": "Historical source1b462001c only; merged candidate rerun pending"
   },
   "default": {
-    "status": "Running",
-    "output": "/workspace/.zil-env/release-foundations/common-schema46-default"
+    "status": "Fail",
+    "frozen_source": "1b462001c6e74548196e72f62ab6074eb4296913",
+    "passed": 5511,
+    "failed": 21,
+    "fixes_in_current_candidate": true,
+    "exact_final_rerun_pending": true
   },
   "source_backup": {
-    "archive": "25e0f0db460766071d02af187192dbd8433ea027",
+    "archive": "54ad5f516d301df3f32490fc9e62c01517584a17",
     "verified_tips": 178,
     "stable_source_snapshot": true,
     "remote_verified": true,

@@ -14,7 +14,7 @@
 
 本阶段先补普通数据模型、泛型库、模式、同步与标准库，再收动态抽象、图/外部生命周期和完整程序。必需能力全部进入P0；有普通合法程序仍被临时白名单或未实现组合阻挡，就保留缺口，不能靠缩小子项关闭父项。运行/编译成本和安全产品门保持原要求，功能就绪与正式发布分别验收。
 
-Sol high 并行实施与独审，Astra复核疑难语义。已推候选 `task/G10.6.3@1b462001c`，统一schema/Wire46：拥有dyn、完整泛型Entry/Map、嵌套take/refill、真实借入Enum/Poll、默认预算动态图、共享借入结果Task及具体跨线程回调已合流。严格clippy已通过；修正后的库回归1337/1中最后一项布局断言已修并由对应backend176/0验证，当前正按冻结源码重跑全部默认目标，仍未取得本批全default/reference/text及冷恢复接受。Option借出、泛型ThreadCallable、显式ErrorUnion及已知tag误拒继续并行。固定备份 `archive/source-history@25e0f0db4` 已核178个源码tip和真实WIP字节；main仍是上批已验版本。功能1.0以 `validation/language-release-gates.json` 的全部能力及真实普通组合为门槛；归档、声明和专项计数不关闭父任务。
+Sol high 并行实施，疑难与精确语义由 Astra 独审。当前候选合入：完整Value/Entry/Map、shared Option借出、真实borrowed Enum/Poll、nested take/refill、owned dyn有限路线、ThreadCallable及无dummy header的Task/Poll，schema/Wire46。首次冻结 `1b462001c` 全默认5511/21：两处默认worker栈溢出同根已修；旧构造费通过真实两核loan flag优化恢复原N；其余当前work值按真实Copy memo/稀疏loan/已证不可达边重测，所有N/N−1与fresh控制保留。当前重跑严格与联合检查，尚未取得合成树全default/reference/text和冷恢复接受。最新固定归档 `archive/source-history@54ad5f516` 保留真实源码/WIP；远端main仍 `e800b39d5`。功能1.0的每个必需组合仍按 `validation/language-release-gates.json` 验收，有限子项通过不关闭父项。
 
 ## G1 · 基础类型与模式
 
@@ -46,8 +46,8 @@ Sol high 并行实施与独审，Astra复核疑难语义。已推候选 `task/G1
 | --- | --- | --- | --- | --- | --- |
 | G1.4.1 | 具名 Record/Enum 的普通绑定与条件模式、名义身份/可见性及真实字段借用 | 实现待验 | P0 | sol high · patterns | `dc7be483d`已进入联合候选；具名Copy Record/Enum和身份反例通过专项，等待共同验收。 |
 | G1.4.2 | 拥有Package具名解构、选择性移动、ref/ref mut混合及拥有错误载荷消费 | 实现待验 | P0 | sol high · patterns | `557753f32`：递归拥有Package模式、ref/ref mut与兄弟移动、错误key、真实清理正反例已专项通过，进入联合候选；不代表父项全部完成。 |
-| G1.4.4 | 显式ErrorUnion成功/失败构造及泛型同型实例的已选tag保真 | 进行中 | P0 | sol high · error construction | `23325ddd3→f953eff07→a68b66eeb`：显式tag及已覆盖定义期选择、完整owning载荷清理8/0；独审要求补齐AST/trait materialization的site保真，未合候选。 |
-| G1.4.5 | 已知ErrorUnion标签的真实CFG可达性与局部拥有模式 | 进行中 | P0 | sol high · verify | 正修Verify把已知ok值传入不可能err边的误拒；仅从有效实际tag/完整Content证不可达，可达wrong-arm和缺失责任仍必须拒。 |
+| G1.4.4 | 显式ErrorUnion成功/失败构造及泛型同型实例的已选tag保真 | 实现待验 | P0 | sol high · error construction | `762213171`精确独审并合：AST/TypeRef站点、trait default/impl实体化前保留已选分支，E=T及真实owning清理正反例通过；待最终合成树共同门。 |
+| G1.4.5 | 已知ErrorUnion标签的真实CFG可达性与局部拥有模式 | 实现待验 | P0 | sol high · verify | `a40bc6134`独审并合：由Verify实际完整tag裁边，资源liveness/effects/transfer同图，旧观察/可达债6类raw/Wire拒；真实Clang/API通过。 |
 </details>
 
 ## G2 · 泛型与 trait
@@ -80,6 +80,8 @@ Sol high 并行实施与独审，Astra复核疑难语义。已推候选 `task/G1
 | G2.4.5 | 标量/Enum的普通trait impl、实际owner及完整provider调用 | 实现待验 | P0 | root · traits | 已合候选并修默认Self真实receiver；相关184项及两后端/旧privacy/精确预算联合通过。 |
 | G2.4.6 | 泛型定义与shared Store/defer既有义务兼容 | 实现待验 | P0 | sol high · obligations | `027b510a8`/`40c355258`/`671c7ffa5`已入候选；真实shared引用仍只读、拥有let可管理Store、未用Copy/nominal义务及私有host边界恢复。旧Types418等精确边界与183项联合回归通过，等待整批验收。 |
 | G2.4.7 | 普通拥有Package共享trait宿主与跨module provider | 实现待验 | P0 | sol high · traits | `f343334d2`已合；恢复实际Package owner import边，shared固定签名及私有/同名provider；154trait专项和Source/raw/Wire/native，待共同门。 |
+| G2.4.8 | 普通拥有Package的独占trait接收者及跨module泛型调用 | 实现待验 | P0 | sol high · traits | `e9f530337`独审并合；Unit/scalar可变方法、真实拥有负载、158回归/四配置失败清理与raw实际receiver/provider反例通过。 |
+| G2.4.9 | 导出life泛型get实例化诊断 | 无需改动 | — | — | 已证为include_str嵌入旧stdlib的CLI与接口改名不一致；最终源重建后正确。零生产修改，空分支已保全并删除，编号不复用。 |
 
 <details>
 <summary>G2.4.2 · 子任务</summary>
@@ -151,7 +153,7 @@ Sol high 并行实施与独审，Astra复核疑难语义。已推候选 `task/G1
 | G3.4.5 | 独立Verify新增存储/Task证明保持旧请求费用 | 实现待验 | P0 | sol high · budget | `9f75c5538`与root74900adc3已整合；旧captured helper24513、old-tail raw/Wire52141及Package13954原断言恢复；新写槽十项仍通过。 |
 | G3.4.6 | 普通借入Enum与ErrorUnion的分支条件、来源和完整消费者 | 实现待验 | P0 | sol high · borrowed sum | `0f711d389`：真实variant/class、泛型完整实例、跨helper/ErrorUnion及short-to-long raw/Wire控制专项通过；原Option17项已复核，待root合流共同验收。 |
 | G3.4.7 | 标准Poll的真实借入载荷与sealed身份 | 实现待验 | P0 | sol high · borrowed sum | `a1e737c09`已合；真实role/fullR、19布局身份反例、跨module与12新native通过，不等于Task结果已验收。 |
-| G3.4.8 | Store实际manager借入叶/字段返回、一般life及Option借出组合 | 进行中 | P0 | sol high · lending | `37b345444`/`e5b3274ba`direct shared Copy/owning叶及life+一/二Store binder已独审并合，保留真实manager pin/局部逃逸拒；Option仍需同CFG Store债+stored Sum独立双proof。 |
+| G3.4.8 | Store实际manager借入叶/字段返回、一般life及Option借出组合 | 实现待验 | P0 | sol high · lending | `f3b600238`精确独审接受并合：真实Map get/inspect/identity/field helper、Some投影前强pin、两核真实heap来源，24机器及长heap N/N−1通过；已保留旧ce5构造/消费规则，待联合门。 |
 | G3.4.9 | 独占constructor实际loan site与现有写槽组合 | 实现待验 | P0 | sol high · storage | `a19ee3339`已独审并合；constructor只激活自己的site排程，不扩大slot updates权限；原三误拒恢复、cross112/stored33/mixed28专项通过。 |
 
 </details>
@@ -276,7 +278,7 @@ Sol high 并行实施与独审，Astra复核疑难语义。已推候选 `task/G1
 | --- | --- | --- | --- | --- | --- |
 | G7.1 | 安装函数返回后稳定拥有真实闭包环境的Registration、显式强关闭及失败清理 | 已合入 | — | — | [已合入证据][e37]；限同步关闭，不覆盖跨线程排空。 |
 | G7.2 | 更一般借入/跨线程环境的登记对象与关闭合同 | 待排期 | P0 | 待派 | 依赖 G3.4、G8.5。 |
-| G7.2.1 | 跨线程raw持有、FnMut准入、完整drain及一次关闭 | 进行中 | P0 | sol high · foreign | `861f18086`具体F已独审并合候选：原子准入/发布/driver、真正raw holder和完整drain；7/7专项含generic线WIP，泛型安装正补显式ThreadCallable及三核实际entry图证明。Transfer只证环境/cleanup。 |
+| G7.2.1 | 跨线程raw持有、FnMut准入、完整drain及一次关闭 | 实现待验 | P0 | sol high · foreign | `861f18086/e4380130`独审并合：具体与generic四前提、原子发布/准入/driver、真实raw holder、完整drain与一次cleanup。closed环境/Direct入口有限，不授任意FFI/线程能力。 |
 | G7.3 | 外部waker/晚通知、no-future及drain，关闭后所有raw入口静止 | 部分实现 | P0 | root | 同线程稳定拥有环境、晚通知 gate 与 provider 排空已[合入][e42]；一般跨线程环境待补。 |
 | G7.4 | Registration与异步任务责任的失败/取消/完成组合 | 部分实现 | P0 | root | 有限 Task 失败/取消/返回时排空已[合入][e42]；更一般组合依赖 G7.2、G8.6。 |
 
@@ -306,7 +308,7 @@ Sol high 并行实施与独审，Astra复核疑难语义。已推候选 `task/G1
 | --- | --- | --- | --- | --- | --- |
 | G8.6.2 | 单共享 &i32 输入 Task：真实 port、工厂返回及 frame 全寿命保留 | 已合入 | — | — | `main@e800b39d5`；实际共享 &i32 port 保留至 Destroy/同步 Drop，跨模块返回、PC0/取消及独立 raw/Wire/预算通过。[验收][e-native-foundations]；其它结果、Task 输入和线程迁移未开放。 |
 | G8.6.3 | 多共享/独占Task端口、普通结果族及跨helper完整上下文转交 | 实现待验 | P0 | sol high · task | `dccc5764c`：多共享/独占端口、标量及有限Product referent、Task<T,Context>泛型helper已合候选；非作者复核通过限定范围并实跑16项Source、4项Verify。嵌套owner transport和借入结果仍缺。 |
-| G8.6.4 | Task借入结果：外部输入来源、真实Poll载荷及Destroy后父loan | 进行中 | P0 | sol high · task | `cb8a99a32/f399acf95`已独审并合：单shared完整叶结果、全SSA Hold及与旧零/独占/多输入标量Task共存，48专项/20native。正注入机器分配失败并修named shared local父链；多端口借入结果仍未闭合。 |
+| G8.6.4 | Task借入结果：外部输入来源、真实Poll载荷及Destroy后父loan | 实现待验 | P0 | sol high · task | `ee8f13055/b2ecb006e`已独审并合：真实local父链/普通SSA消费、无dummyheader/合法elision/非首参数/cross-module Direct，61专项及原预算通过；pub Suspend仍SABI1，multiport/exclusive/nested结果未关闭。 |
 
 </details>
 
@@ -332,7 +334,7 @@ Sol high 并行实施与独审，Astra复核疑难语义。已推候选 `task/G1
 | G9.3.4 | 标量动态序列：直接 Store<i32/u64/usize/bool/浮点等既有标量> 与真实 std.store | 已合入 | — | — | [PR51 验收][e-pr51]：bool/u8/u16/i32/i64/u64/usize/f32/f64 直接序列与真实 std.store、完整 u64 和双后端通过；Unit、一般拥有/捕获及 standalone Array/Tuple/Enum 仍排除。 |
 | G9.3.5 | POD/标量 Store 的普通拥有数据模型：字段、整值流、替换与自含捕获 | 已合入 | — | — | [PR52 验收][e-pr52]：精确源码 `498f0f5a1` 默认5248/0、参考5136/0、文本70/0；17 Source/68 原生、独审、release/10工程门和远端重建运行通过，远端 main `c2ae6edb9` 已核。仅本表有限拥有组合，首轮5242/6与历史缺件状态保留。 |
 | G9.3.6 | 基础String查询、排序、文件/流I/O与真正可封装的Map/Set | 进行中 | P0 | sol high · stdlib | `c116bd65f`：UTF8查询/整数转换/排序/文件流、拥有StringMap、固定容量POD回调HashMap、名义i64 Map/Set已合候选；真实私有Key、失败返key/删除故障在四配置通过。一般owning K/V和自动增长泛型库仍缺。 |
-| G9.3.9 | 真正按key的owning K/V Map、替换/取出及失败责任 | 部分实现 | P0 | sol high · owning map | `b3f3888f2`链已独审并合：实际KeyEq、find/contains/get_copy、upsert/take/oldEntry转交，ByteBuffer K/V、四配置及allocator失败原map/输入保持；一般borrowed get等待G3.4.8。 |
+| G9.3.9 | 真正按key的owning K/V Map、替换/取出及失败责任 | 实现待验 | P0 | sol high · owning map | 原`b3f3888f2`实际KeyEq/替换/取出/分配失败责任保持，`f3b600238`加入已准入V的Option借入get及helper，actual manager源/强pin/错误key来源已独审；待共同门，不承诺HashMap成本。 |
 
 <details>
 <summary>G9.3.5 · 子任务</summary>
@@ -438,6 +440,8 @@ Sol high 并行实施与独审，Astra复核疑难语义。已推候选 `task/G1
 | G10.6.2 | 通用 Native 库与异步资源联合验收：精确源码、真实消费者、独审和远端恢复 | 已合入 | — | — | `main@e800b39d5`：默认5269/0、参考5157/0、文本70/0；真实联合双后端 O0/O2、3735文件远端恢复/空缓存构建、16次 API 构建/128次运行/56次故障注入均通过。[本批记录][e-native-foundations]。 |
 | G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | `1b462001c`严格clippy通过，正冻结全默认回归；V46身份、责任、来源及旧精确预算修复已合。全reference/text/统一原生和本SHA冷恢复待验，main未更新，不宣称1.0完成。 |
 | G10.6.4 | 全量回归中的旧Store/实际callback Package准入 | 实现待验 | P0 | sol high · compatibility | `6c1ac6fdf`已合候选；恢复旧flat callback/Store真实root快路，保留新borrowed Product分类，84项与原CLI/window正反例专项通过。 |
+| G10.6.5 | 新共享构造检查的两核实际独占loan发现与旧fee保持 | 实现待验 | P0 | sol high · budget | `e5c52c936/396c183c`已合：复用付费建表，无额外扫描，原两预算控制恢复原值、28独占构造/slot控制通过。 |
+| G10.6.6 | 默认worker深调用与life组合栈溢出 | 实现待验 | P0 | sol high · compiler | `9839ecd91`实际帧6344→2296字节，未增栈/限额；两个原失败及144次编译边界控制通过，整aggregates仅旧work值待合流更新。 |
 
 </details>
 
