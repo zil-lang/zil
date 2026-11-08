@@ -205,6 +205,7 @@ pub(super) fn ordinary_package_borrow(
     else {
         return Ok(false);
     };
+    b.type_work(field, false, "ordinary borrowed Package field")?;
     fee(b, children.len())?;
     if !children.iter().all(|(_, child)| {
         child.is_copy_value()
@@ -212,7 +213,6 @@ pub(super) fn ordinary_package_borrow(
     }) {
         return Ok(false);
     }
-    b.type_work(field, false, "ordinary borrowed Package field")?;
     if !matches!(value_type(f, i.result.ok_or_else(|| failure("Package field borrow lacks result"))?)?,
         Type::Address { mutable: actual, inner } if *actual == mutable && inner.as_ref() == field)
     {

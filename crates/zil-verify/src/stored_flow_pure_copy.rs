@@ -199,6 +199,7 @@ pub(super) fn ordinary_package_borrow(
     else {
         return Ok(false);
     };
+    super::type_work(field, &b.limits.clone(), b)?;
     b.spend(children.len())?;
     if !children.iter().all(|(_, child)| {
         child.is_copy_value()
@@ -206,7 +207,6 @@ pub(super) fn ordinary_package_borrow(
     }) {
         return Ok(false);
     }
-    super::type_work(field, &b.limits.clone(), b)?;
     if !matches!(vt(f, i.result.ok_or_else(|| err("Package field borrow lacks result"))?)?,
         Type::Address { mutable: actual, inner } if *actual == mutable && inner.as_ref() == field)
     {
