@@ -551,12 +551,18 @@ impl Walk<'_, '_> {
                 {
                     if errors::constructor(target).is_some() {
                         let [error_type, result_type] = type_arguments.as_slice() else {
-                            return Err(error("E-ERROR-CONSTRUCTOR", callee.span,
-                                "error constructor needs explicit error and result types"));
+                            return Err(error(
+                                "E-ERROR-CONSTRUCTOR",
+                                callee.span,
+                                "error constructor needs explicit error and result types",
+                            ));
                         };
                         if arguments.len() != 1 {
-                            return Err(error("E-CALL-ARITY", expression.span,
-                                "error constructor needs one complete payload"));
+                            return Err(error(
+                                "E-CALL-ARITY",
+                                expression.span,
+                                "error constructor needs one complete payload",
+                            ));
                         }
                         return self.applied_result_shape(
                             &Type::ErrorUnion {

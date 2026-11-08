@@ -3532,7 +3532,16 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 CoreExprKind::If { .. } | CoreExprKind::Sequence { .. }
             )
         {
-            let term = self.expr_raw(expression, None, depth, write)?;
+            let constructor_expected = match &expression.kind {
+                CoreExprKind::Call { callee, .. }
+                    if matches!(&callee.kind, CoreExprKind::TypeApply { callee, .. }
+                        if errors::constructor(callee).is_some()) =>
+                {
+                    Some(union)
+                }
+                _ => None,
+            };
+            let term = self.expr_raw(expression, constructor_expected, depth, write)?;
             if matches!(term, Term::ValueUnion { .. }) {
                 self.bind_term(&term, union, expression.span)?;
                 return Ok(term);
@@ -3987,23 +3996,41 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             self.budget.node(depth + 2, target.span)?;
             self.expression_index += 2;
             let [error_type, result_type] = type_arguments.as_slice() else {
-                return Err(error("E-ERROR-CONSTRUCTOR", span,
-                    "error constructor needs explicit error and result types"));
+                return Err(error(
+                    "E-ERROR-CONSTRUCTOR",
+                    span,
+                    "error constructor needs explicit error and result types",
+                ));
             };
             let [payload] = arguments.as_slice() else {
-                return Err(error("E-CALL-ARITY", span,
-                    "error constructor needs one complete payload"));
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "error constructor needs one complete payload",
+                ));
             };
             for ty in type_arguments {
                 validate_type(ty, 0, callee.span, self.budget)?;
             }
-            let selected = if name == "error_err" { error_type } else { result_type };
+            if let Some(expected) = expected {
+                let work = type_snapshot_work(expected, span, self.budget.limits)?;
+                self.budget.work(work.saturating_mul(2), span)?;
+            }
+            let result_type = errors::constructor_result(error_type, result_type, expected);
+            let selected = if name == "error_err" {
+                error_type
+            } else {
+                result_type
+            };
             let actual = self.expr_expected(payload, Some(selected), depth + 1, false)?;
             self.bind_term(&actual, selected, payload.span)?;
-            return self.known_term(&Type::ErrorUnion {
-                error: Box::new(error_type.clone()),
-                result: Box::new(result_type.clone()),
-            }, span);
+            return self.known_term(
+                &Type::ErrorUnion {
+                    error: Box::new(error_type.clone()),
+                    result: Box::new(result_type.clone()),
+                },
+                span,
+            );
         }
         if let Some(name) = dynamic_store::primitive(callee) {
             self.budget.node(depth + 1, callee.span)?;
