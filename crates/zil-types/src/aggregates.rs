@@ -2593,6 +2593,24 @@ impl<'a> Builder<'a, '_> {
         self.known_type_checked(object)
     }
 
+    #[inline(never)]
+    fn shared_array_dynamic_candidate(&mut self, object: &CoreExpr) -> R<bool> {
+        if !self.closures.array_billing {
+            return Ok(false);
+        }
+        // A hint only selects the paid algorithm. Actual expression checking
+        // and both kernels independently authenticate its Array and leaf type.
+        let hint = self.known_type_checked(object)?;
+        Ok(hint.as_ref().is_some_and(|ty| {
+            let actual = if let Type::Address { inner, .. } = ty {
+                inner.as_ref()
+            } else {
+                ty
+            };
+            stored::shared_array_value(actual)
+        }))
+    }
+
     // Snapshot the complete actual Array before evaluating the index. The
     // snapshot's leaves keep every possible referent live across index effects.
     #[inline(never)]
@@ -2662,22 +2680,12 @@ impl<'a> Builder<'a, '_> {
                 ty,
             ));
         }
-        let package_hint = self.package_array_index_hint(object)?;
         if !matches!(index.kind, CoreExprKind::Integer(_))
-            && self
-                .known_type_ref(object)
-                .or(package_hint.as_ref())
-                .is_some_and(|ty| {
-                    let actual = if let Type::Address { inner, .. } = ty {
-                        inner.as_ref()
-                    } else {
-                        ty
-                    };
-                    stored::shared_array_value(actual)
-                })
+            && self.shared_array_dynamic_candidate(object)?
         {
             return self.shared_array_dynamic_index(e);
         }
+        let package_hint = self.package_array_index_hint(object)?;
         let element_width = self
             .known_type_ref(object)
             .or(package_hint.as_ref())
