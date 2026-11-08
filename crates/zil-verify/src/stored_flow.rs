@@ -2926,6 +2926,52 @@ fn step(
     Ok(out)
 }
 
+/// A reachable DAG needs no iterative frame propagation. The graph comes from
+/// this verifier's structural checks, including checks of unreachable blocks.
+fn acyclic_order(g: &FunctionGraph, b: &mut Budget) -> Check<Option<Vec<usize>>> {
+    let count = g.reachable.len();
+    b.spend(amount(count, 3)?)?;
+    let mut incoming = vec![0usize; count];
+    let mut ready = Vec::with_capacity(count);
+    let mut order = Vec::with_capacity(count);
+    let mut reachable = 0usize;
+    b.spend(count)?;
+    for (block, live) in g.reachable.iter().enumerate() {
+        if !live {
+            continue;
+        }
+        reachable += 1;
+        b.spend(g.successors[block].len())?;
+        for child in &g.successors[block] {
+            if g.reachable[*child] {
+                incoming[*child] = incoming[*child]
+                    .checked_add(1)
+                    .ok_or_else(|| limit("stored DAG predecessor count overflow"))?;
+            }
+        }
+    }
+    b.spend(count)?;
+    for (block, degree) in incoming.iter().enumerate() {
+        if g.reachable[block] && *degree == 0 {
+            ready.push(block);
+        }
+    }
+    while let Some(block) = ready.pop() {
+        b.spend(1)?;
+        order.push(block);
+        b.spend(g.successors[block].len())?;
+        for child in &g.successors[block] {
+            if g.reachable[*child] {
+                incoming[*child] -= 1;
+                if incoming[*child] == 0 {
+                    ready.push(*child);
+                }
+            }
+        }
+    }
+    Ok((order.len() == reachable).then_some(order))
+}
+
 fn solve(
     module: &TypedModule,
     f: &TypedFunction,
@@ -2960,6 +3006,54 @@ fn solve(
     let mut outputs = Vec::new();
     for _ in &f.blocks {
         outputs.push(empty_frame(module, f, b)?);
+    }
+    // The combined Task/Option domain is newly admitted. Keep historical
+    // requests on their existing solver and request-cost path. In a DAG every
+    // predecessor frame and dominating SSA definition is final before its user;
+    // join_payload still records all sources and loan growth, including values
+    // whose creation does not change a local frame.
+    if b.task_borrowed_results
+        && b.store_option_results
+        && let Some(order) = acyclic_order(g, b)?
+    {
+        for bi in order {
+            b.spend(1)?;
+            let mut state = if bi == f.entry.0 as usize {
+                copy_frame(&entry, b)?
+            } else {
+                empty_frame(module, f, b)?
+            };
+            b.spend(g.predecessors[bi].len())?;
+            for pred in &g.predecessors[bi] {
+                if g.reachable[*pred] {
+                    join_frame(&mut state, &outputs[*pred], b)?;
+                }
+            }
+            for instruction in &f.blocks[bi].instructions {
+                let out = step(
+                    module,
+                    f,
+                    instruction,
+                    &mut state,
+                    &values,
+                    summaries,
+                    &sites,
+                    &mut loans,
+                    b,
+                )?;
+                if let Some(value) = instruction.result {
+                    join_payload(&mut values[value.0 as usize], &out, b)?;
+                }
+            }
+            outputs[bi] = state;
+        }
+        return Ok(Solution {
+            values,
+            outputs,
+            entry,
+            loans,
+            sites,
+        });
     }
     loop {
         let mut changed = false;
