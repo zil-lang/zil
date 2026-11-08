@@ -2596,6 +2596,7 @@ fn step(
                 task_address::join(&mut out, &state.locals[local.0 as usize], b)?;
             }
             if qualified(&f.locals[local.0 as usize].ty).is_some()
+                || shared_array_value(&f.locals[local.0 as usize].ty)
                 || fixed_environment(module, &f.locals[local.0 as usize].ty)
             {
                 for (path, p) in &state.locals[local.0 as usize].leaves {
@@ -2619,7 +2620,11 @@ fn step(
         | InstructionKind::AddressSlice { address, .. } => {
             join_permission(&mut out.address, &val(*address)?.address, b)?;
             task_address::join(&mut out, val(*address)?, b)?;
-            if fixed_environment(module, vt(f, *address)?) {
+            if fixed_environment(module, vt(f, *address)?)
+                || matches!(i.kind, InstructionKind::ReborrowAddress { .. })
+                    && matches!(vt(f, *address)?, Type::Address { inner, .. }
+                        if shared_array_shape(inner, b)?)
+            {
                 for (path, p) in &val(*address)?.leaves {
                     add_leaf(&mut out, path, p, b)?;
                 }

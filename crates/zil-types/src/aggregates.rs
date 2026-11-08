@@ -2472,7 +2472,10 @@ impl<'a> Builder<'a, '_> {
             unreachable!("expression dispatcher variant")
         };
         let (mut element, length) = match expected {
-            Some(Type::Array { element, length }) => {
+            Some(array @ Type::Array { element, length }) => {
+                if stored::shared_array_value(array) {
+                    self.closures.snapshot_type(element, 1, 0, e.span)?;
+                }
                 if !element.is_copy_value()
                     && stored::pure_inline(element, &mut self.match_work_left, self.limits, e.span)?
                 {
@@ -2494,6 +2497,9 @@ impl<'a> Builder<'a, '_> {
         for v in items {
             let (id, t) = self.owned_array_input(v, element.as_ref())?;
             if element.is_none() {
+                if matches!(t, Type::Address { mutable: false, .. }) {
+                    self.closures.snapshot_type(&t, 1, 0, v.span)?;
+                }
                 if !t.is_copy_value()
                     && stored::pure_inline(&t, &mut self.match_work_left, self.limits, v.span)?
                 {

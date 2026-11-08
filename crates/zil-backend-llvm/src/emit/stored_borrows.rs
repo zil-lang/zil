@@ -247,7 +247,9 @@ pub(super) fn reserve_callable_metadata(
 /// Only this representation slice is currently implemented. This predicate is
 /// used after Verify; it grants no source Copy/Store/capture qualification.
 pub(super) fn representation_type(t: &Type) -> bool {
-    matches!(t,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Record{..}|Type::Package{..}|Type::Tuple(_)))
+    shared_address_array(t)
+        || shared_address_array_address(t)
+        || matches!(t,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Record{..}|Type::Package{..}|Type::Tuple(_)))
         || matches!(t,Type::Address{inner,..}if matches!(inner.as_ref(),Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Record{..}|Type::Package{..}|Type::Tuple(_))))
         || shared_pointer_enum(t)
         || matches!(t,Type::ErrorUnion{error,result} if (error.is_copy_value() || representation_type(error)) && (result.is_copy_value() || representation_type(result)))
@@ -257,6 +259,53 @@ pub(super) fn representation_type(t: &Type) -> bool {
 // Machine shape only, after immutable Verify capability and full LIR binding.
 // A Slice pointee is deliberately excluded: that Address is a fat {ptr,len}.
 // No nominal name, class or source permission is inferred by this predicate.
+// Finite thin element storage only. The full representation/type walk is
+// already prepaid by reserve_callable_metadata before any machine query.
+pub(super) fn shared_address_array(t: &Type) -> bool {
+    matches!(t, Type::Array { element, length } if *length > 0
+        && matches!(element.as_ref(), Type::Address { mutable: false, inner }
+            if pure_composite(inner)))
+}
+pub(super) fn shared_address_array_address(t: &Type) -> bool {
+    matches!(t, Type::Address { inner, .. } if shared_address_array(inner))
+}
+
+/// Snapshot classification under immutable Verify, not language Copy. Only
+/// finite non-owning products containing actual thin shared array leaves enter.
+/// Each caller prepays its complete actual type before this recursive walk.
+pub(super) fn shared_array_snapshot(t: &Type) -> bool {
+    fn shape(t: &Type) -> Option<bool> {
+        match t {
+            Type::BorrowedStorage { storage, life }
+                if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
+                    && life
+                        .slots
+                        .iter()
+                        .all(|s| s.mode == zil_ir::StoredBorrowMode::SharedAddress) =>
+            {
+                shape(storage)
+            }
+            Type::Record { fields, .. } => {
+                let mut contains = false;
+                for (_, field) in fields {
+                    contains |= shape(field)?;
+                }
+                Some(contains)
+            }
+            Type::Tuple(fields) => {
+                let mut contains = false;
+                for field in fields {
+                    contains |= shape(field)?;
+                }
+                Some(contains)
+            }
+            Type::Array { .. } if shared_address_array(t) => Some(true),
+            _ => pure_composite(t).then_some(false),
+        }
+    }
+    shape(t) == Some(true)
+}
+
 pub(super) fn shared_pointer_enum(t: &Type) -> bool {
     let Type::BorrowedStorage { storage, .. } = t else {
         return false;

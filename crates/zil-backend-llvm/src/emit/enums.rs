@@ -95,7 +95,8 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
                 || resource_head_address(ty)
                 || ty.is_exclusive_task_head_address()
                 || ty.is_package_address()
-                || stored_borrows::pure_storage_address(ty) =>
+                || stored_borrows::pure_storage_address(ty)
+                || stored_borrows::shared_address_array_address(ty) =>
         {
             Layout { size: 8, align: 8 }
         }

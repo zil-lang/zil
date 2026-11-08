@@ -234,6 +234,24 @@ impl<'a> Budget<'a> {
                 }
                 Ok(true)
             }
+            Type::Array { element, length }
+                if *length > 0
+                    && matches!(element.as_ref(), Type::Address { mutable: false, .. }) =>
+            {
+                self.pay(ty, depth)?;
+                self.copy_work(ty, depth + 1)?;
+                let Type::Address { inner, .. } = element.as_ref() else {
+                    unreachable!()
+                };
+                self.pure_composite(inner, depth + 2)
+            }
+            Type::Address { inner, .. }
+                if matches!(inner.as_ref(), Type::Array { element, length }
+                    if *length > 0 && matches!(element.as_ref(), Type::Address { mutable: false, .. })) =>
+            {
+                self.pay(ty, depth)?;
+                self.borrowed(inner, depth + 1)
+            }
             Type::BorrowedStorage { storage, life } => {
                 self.pay(ty, depth)?;
                 self.stored_shape(life)?;
