@@ -1450,7 +1450,12 @@ fn check_with(
                         };
                         if defer {
                             b.spend(1, "deferred actual environment helper call")?;
-                            deferred_helpers.push((c, arguments.as_slice(), i.result));
+                            deferred_helpers.push((
+                                c,
+                                arguments.as_slice(),
+                                i.result,
+                                (block_index, instruction_index),
+                            ));
                         } else {
                             call_with_outer(
                                 c,
@@ -1504,6 +1509,7 @@ fn check_with(
                             arguments,
                             i.result,
                             receiver.classes.as_slice(),
+                            (block_index, instruction_index),
                         ));
                     } else if let Some(life) = role {
                         call_with_outer(
@@ -1555,7 +1561,10 @@ fn check_with(
             }
         }
     }
-    for (contract, arguments, output) in deferred_helpers {
+    for (contract, arguments, output, site) in deferred_helpers {
+        if let Some(flow) = &outer {
+            flow.enter(site.0, site.1);
+        }
         call_with_outer(
             contract,
             arguments,
@@ -1566,7 +1575,10 @@ fn check_with(
             b,
         )?;
     }
-    for (contract, arguments, output, fixed) in deferred_closures {
+    for (contract, arguments, output, fixed, site) in deferred_closures {
+        if let Some(flow) = &outer {
+            flow.enter(site.0, site.1);
+        }
         call_with_outer(
             contract,
             arguments,
