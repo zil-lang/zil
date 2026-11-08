@@ -560,6 +560,23 @@ impl Flow {
             initial,
             exits: (0..f.blocks.len()).map(|_| Point::default()).collect(),
         };
+        // In this new domain a DAG has final predecessor point states before
+        // each instruction. Cycles retain the complete original fixed point,
+        // including every fresh execution's full grant revocation.
+        if b.ordinary_error_places
+            && b.store_option_results
+            && let Some(order) = super::acyclic_order(graph, b)?
+        {
+            for block in order {
+                let mut point = flow.input(f, block, graph, b)?;
+                b.spend(f.blocks[block].instructions.len())?;
+                for operation in &f.blocks[block].instructions {
+                    advance(module, f, operation, actual, summaries, &mut point, b)?;
+                }
+                flow.exits[block] = point;
+            }
+            return Ok(Some(flow));
+        }
         loop {
             b.spend(flow.exits.len())?;
             let mut next = Vec::new();

@@ -3436,12 +3436,13 @@ fn solve(
     for _ in &f.blocks {
         outputs.push(empty_frame(module, f, b)?);
     }
-    // The combined Task/Option domain is newly admitted. Keep historical
+    // The Task/Option and ordinary Copy error-place domains use this DAG path.
+    // Keep historical
     // requests on their existing solver and request-cost path. In a DAG every
     // predecessor frame and dominating SSA definition is final before its user;
     // join_payload still records all sources and loan growth, including values
     // whose creation does not change a local frame.
-    if b.task_borrowed_results
+    if (b.task_borrowed_results || b.ordinary_error_places)
         && b.store_option_results
         && let Some(order) = acyclic_order(g, b)?
     {
