@@ -764,7 +764,7 @@ fn owning_package_stays_affine_and_its_live_view_pins_the_parent() {
 fn large_package_array_reports_its_actual_default_source_work_boundary() {
     let program = include_str!("owned-package-shared-address-array-512.zil");
     let report = compile_source(
-        &source("large-package-array-default-work", &program),
+        &source("large-package-array-default-work", program),
         &CompileOptions {
             stop_after: Stage::Verify,
             ..CompileOptions::default()
