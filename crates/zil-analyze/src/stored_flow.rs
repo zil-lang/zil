@@ -138,6 +138,43 @@ pub(super) struct Target {
 type Targets = BTreeSet<Target>;
 type Loans = BTreeSet<usize>;
 type Path = Vec<PlaceProjection>;
+
+/// A complete inline Record contributes addresses, never an owning leaf.
+/// Physical coverage and class mappings are authenticated by the shape pass.
+pub(crate) fn shared_record_child(ty: &Type) -> bool {
+    let Type::BorrowedStorage { storage, life } = ty else {
+        return false;
+    };
+    let Type::Record { fields, .. } = storage.as_ref() else {
+        return false;
+    };
+    !life.slots.is_empty()
+        && life.retained.is_empty()
+        && life.slots.iter().all(|slot| {
+            slot.mode == StoredBorrowMode::SharedAddress
+                && matches!(slot.path.as_slice(), [PlaceProjection::Field(_)])
+        })
+        && fields.iter().all(|(_, field)| {
+            let scalar = |ty: &Type| {
+                matches!(
+                    ty,
+                    Type::Unit
+                        | Type::Bool
+                        | Type::I32
+                        | Type::I64
+                        | Type::U64
+                        | Type::Usize
+                        | Type::U8
+                        | Type::U16
+                        | Type::F32
+                        | Type::F64
+                )
+            };
+            scalar(field)
+                || matches!(field, Type::Address { mutable: false, inner } if scalar(inner))
+        })
+}
+
 type ActualStoredSlot = (
     Path,
     StoredBorrowMode,
@@ -1486,7 +1523,10 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                 walk(element, path, out, b, owning)?;
             }
             Type::BorrowedStorage { storage, life } => {
-                if !owning || !matches!(storage.as_ref(), Type::Package { .. }) {
+                if !owning
+                    || (!matches!(storage.as_ref(), Type::Package { .. })
+                        && !shared_record_child(ty))
+                {
                     if !retained::pure(ty, b)? {
                         return Err(failure("nested physical child requires an owning Package"));
                     }
@@ -1495,7 +1535,13 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                 physical(ty, b)?;
                 let start = out.len();
                 let prefix = path.len();
-                walk(storage, path, out, b, true)?;
+                walk(
+                    storage,
+                    path,
+                    out,
+                    b,
+                    matches!(storage.as_ref(), Type::Package { .. }),
+                )?;
                 let boundary: Vec<_> = path
                     .iter()
                     .copied()
@@ -5052,12 +5098,20 @@ fn actual_instructions(
                         failure("actual field is absent or crosses non-inline storage")
                     })?;
                     b.type_work(child, true, "stored actual ordinary inline projection")?;
+                    if *mutable && shared_record_child(child) {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "exclusive nested Record windows require their slot consumer",
+                            Some(i.span),
+                        )]);
+                    }
                     if !child.is_copy_value()
                         && !pure_read(module, child, b)?
                         && !pure_inline(module, child, b)?
                         && !(matches!(child, Type::BorrowedStorage { storage, .. }
                             if matches!(storage.as_ref(), Type::Package { .. }))
                             && physical(child, b)?)
+                        && !(shared_record_child(child) && physical(child, b)?)
                         && !matches!(child, Type::Managed(payload)
                             if module.resources.iter().any(|definition| definition.payload == **payload))
                         && !(b.store_option_results && matches!(child, Type::Package { .. }))

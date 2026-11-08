@@ -359,6 +359,35 @@ impl Builder<'_, '_> {
     ) -> R<(ValueId, Type)> {
         let work = inference::type_snapshot_work(&field, span, self.limits)?;
         self.closures.snapshot(work.saturating_mul(2), span)?;
+        if !mutable
+            && stored::shared_record_child(&field)
+            && matches!(&self.function.locals[local.0 as usize].ty,
+                Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
+        {
+            // Keep the actual parent shell as the projection's carrier. The
+            // Record has no separate resource cell or cleanup responsibility.
+            let parent = self.function.locals[local.0 as usize].ty.clone();
+            let address = self.value(
+                InstructionKind::BorrowLocal { local },
+                Type::Address {
+                    mutable: false,
+                    inner: Box::new(parent),
+                },
+                span,
+            )?;
+            let ty = Type::Address {
+                mutable: false,
+                inner: Box::new(field),
+            };
+            return Ok((
+                self.value(
+                    InstructionKind::AddressField { address, index },
+                    ty.clone(),
+                    span,
+                )?,
+                ty,
+            ));
+        }
         let shared_owned = !mutable
             && (packages::product::supported(&field)
                 || packages::product::owned_supported(&field)
@@ -607,6 +636,12 @@ impl Builder<'_, '_> {
                     self.closures.snapshot_type(field, 1, 0, e.span)?;
                 }
                 let (index, field) = aggregates::field(&inner, member, e.span)?;
+                if mutable && stored::shared_record_child(&field) {
+                    return Err(unsupported(
+                        e.span,
+                        "exclusive nested Record windows require their slot consumer",
+                    ));
+                }
                 let borrowed_owned = (matches!(&field, Type::Managed(_))
                     && resources::supported(&field))
                     || packages::product::supported(&field)

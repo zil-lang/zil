@@ -25,7 +25,10 @@ fn scan(
     }
     match ty {
         Type::BorrowedStorage { storage, life } => {
-            if !matches!(storage.as_ref(), Type::Package { .. }) && !pure(ty, b)? {
+            if !matches!(storage.as_ref(), Type::Package { .. })
+                && !shared_record_child(ty)
+                && !pure(ty, b)?
+            {
                 return Err(err(
                     "retained physical boundary has an address or ownership leaf",
                 ));

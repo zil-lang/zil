@@ -37,7 +37,8 @@ fn shape(ty: &Type, stores: bool) -> bool {
             if name.is_empty() {
                 return false;
             }
-            if field.is_copy_value()
+            if (qualified && crate::stored::shared_record_child(field))
+                || field.is_copy_value()
                 || (qualified
                     && matches!(field, Type::Address { inner, .. } if inner.is_address_pointee()))
             {

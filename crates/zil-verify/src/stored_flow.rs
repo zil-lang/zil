@@ -74,6 +74,42 @@ pub(super) mod option_address;
 mod retained;
 mod task_address;
 
+/// A complete inline Record contributes addresses, never an owning leaf.
+/// Physical coverage and class mappings are authenticated by the shape pass.
+pub(crate) fn shared_record_child(ty: &Type) -> bool {
+    let Type::BorrowedStorage { storage, life } = ty else {
+        return false;
+    };
+    let Type::Record { fields, .. } = storage.as_ref() else {
+        return false;
+    };
+    !life.slots.is_empty()
+        && life.retained.is_empty()
+        && life.slots.iter().all(|slot| {
+            slot.mode == StoredBorrowMode::SharedAddress
+                && matches!(slot.path.as_slice(), [PlaceProjection::Field(_)])
+        })
+        && fields.iter().all(|(_, field)| {
+            let scalar = |ty: &Type| {
+                matches!(
+                    ty,
+                    Type::Unit
+                        | Type::Bool
+                        | Type::I32
+                        | Type::I64
+                        | Type::U64
+                        | Type::Usize
+                        | Type::U8
+                        | Type::U16
+                        | Type::F32
+                        | Type::F64
+                )
+            };
+            scalar(field)
+                || matches!(field, Type::Address { mutable: false, inner } if scalar(inner))
+        })
+}
+
 type Path = Vec<PlaceProjection>;
 type WriteSites = Vec<(usize, u32, Path, usize, bool)>;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -716,7 +752,7 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
                 life,
             } => {
                 if !matches!(storage, Type::Package { .. })
-                    || !matches!(child.as_ref(), Type::Package { .. })
+                    || (!matches!(child.as_ref(), Type::Package { .. }) && !shared_record_child(t))
                 {
                     if !retained::pure(t, b)? {
                         return Err(err("nested physical child requires owning Package"));
