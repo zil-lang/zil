@@ -116,6 +116,140 @@ pub(crate) fn shared_record_child(ty: &Type, b: &mut Budget) -> Check<bool> {
     }))
 }
 
+/// Certificates come only from this kernel's completed actual pointer proof.
+pub(super) fn package_return_input(
+    function: FunctionId,
+    value: ValueId,
+    b: &mut Budget,
+) -> Check<u32> {
+    let count = b.package_return_calls.as_ref().map_or(0, BTreeMap::len);
+    let found = b
+        .package_return_calls
+        .as_ref()
+        .and_then(|rows| rows.get(&(function, value)))
+        .copied();
+    b.spend(
+        count
+            .checked_ilog2()
+            .map_or(1, |n| n as usize + 2)
+            .saturating_mul(3),
+    )?;
+    found.ok_or_else(|| {
+        unsupported(
+            "qualified Package return requires one actual whole shared input",
+            None,
+        )
+    })
+}
+
+fn whole_package_source(f: &TypedFunction, source: &Source, b: &mut Budget) -> Check<bool> {
+    b.spend(width(source).saturating_add(1))?;
+    if source.retained_port.is_some()
+        || !source.leaf.is_empty()
+        || !source.inline.is_empty()
+        || source.heap_element.is_some()
+    {
+        return Ok(false);
+    }
+    Ok(match source.base {
+        HoldRoot::Local(local) => f.locals.get(local.0 as usize).is_some_and(|local|
+            matches!(&local.ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))),
+        HoldRoot::Parameter(position) => f.parameters.get(position as usize)
+            .and_then(|local| f.locals.get(local.0 as usize))
+            .is_some_and(|local| super::resources::qualified_package_address(&local.ty)),
+        _ => false,
+    })
+}
+
+fn package_return_candidates(
+    module: &TypedModule,
+    f: &TypedFunction,
+    graph: &FunctionGraph,
+    values: &[Payload],
+    summaries: &[Summary],
+    b: &mut Budget,
+) -> Check<BTreeMap<ValueId, u32>> {
+    let mut result = BTreeMap::new();
+    if f.call_kind != CallKind::Direct || f.environment.is_some() {
+        return Ok(result);
+    }
+    b.spend(f.blocks.len())?;
+    for (block, live) in f.blocks.iter().zip(&graph.reachable) {
+        if !live {
+            continue;
+        }
+        b.spend(block.instructions.len())?;
+        for instruction in &block.instructions {
+            let InstructionKind::Call {
+                function,
+                arguments,
+            } = &instruction.kind
+            else {
+                continue;
+            };
+            let callee = &module.functions[function.0 as usize];
+            if callee.foreign.is_some()
+                || callee.environment.is_some()
+                || callee.call_kind != CallKind::Direct
+                || !super::resources::qualified_package_address(&callee.return_type)
+            {
+                continue;
+            }
+            let prior = &summaries[function.0 as usize];
+            if !prior.complete {
+                continue;
+            }
+            b.spend(prior.result.len().saturating_add(1))?;
+            let Some((_, roots)) = prior.result.iter().find(|(path, _)| path.is_empty()) else {
+                continue;
+            };
+            b.spend(roots.len())?;
+            let [root] = roots.as_slice() else {
+                continue;
+            };
+            if !whole_package_source(callee, root, b)? {
+                continue;
+            }
+            let HoldRoot::Parameter(position) = root.base else {
+                continue;
+            };
+            let input = &callee.locals[callee.parameters[position as usize].0 as usize].ty;
+            type_work(input, &b.limits.clone(), b)?;
+            type_work(&callee.return_type, &b.limits.clone(), b)?;
+            if input != &callee.return_type {
+                continue;
+            }
+            let argument = *arguments
+                .get(position as usize)
+                .ok_or_else(|| err("Package return actual input absent"))?;
+            let pointer = &values[argument.0 as usize].address.sources;
+            if pointer.is_empty() {
+                continue;
+            }
+            b.spend(pointer.len())?;
+            let mut whole = true;
+            for source in pointer {
+                whole &= whole_package_source(f, source, b)?;
+            }
+            if !whole {
+                continue;
+            }
+            let value = instruction
+                .result
+                .ok_or_else(|| err("Package call result absent"))?;
+            b.spend(
+                result
+                    .len()
+                    .checked_ilog2()
+                    .map_or(1, |n| n as usize + 2)
+                    .saturating_add(std::mem::size_of::<(ValueId, u32)>()),
+            )?;
+            result.insert(value, position);
+        }
+    }
+    Ok(result)
+}
+
 type Path = Vec<PlaceProjection>;
 type WriteSites = Vec<(usize, u32, Path, usize, bool)>;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -4581,6 +4715,12 @@ fn solve_check(
     let mut checked_option_sources = b
         .store_option_results
         .then(|| Vec::with_capacity(module.functions.len()));
+    let mut package_calls = if b.qualified_package_returns {
+        b.spend(std::mem::size_of::<BTreeMap<(FunctionId, ValueId), u32>>())?;
+        Some(BTreeMap::new())
+    } else {
+        None
+    };
     for (index, (f, s)) in module.functions.iter().zip(&summaries).enumerate() {
         if mask.is_some_and(|mask| !mask[index]) {
             if let Some(checked) = &mut checked_option_sources {
@@ -4690,6 +4830,27 @@ fn solve_check(
         let solution = solved[index]
             .as_ref()
             .ok_or_else(|| err("independent solver omitted a function"))?;
+        if let Some(calls) = &mut package_calls {
+            let rows = package_return_candidates(
+                module,
+                f,
+                &graphs[index],
+                &solution.values,
+                &summaries,
+                b,
+            )?;
+            b.spend(rows.len())?;
+            for (value, position) in rows {
+                b.spend(
+                    calls
+                        .len()
+                        .checked_ilog2()
+                        .map_or(1, |n| n as usize + 2)
+                        .saturating_add(std::mem::size_of::<((FunctionId, ValueId), u32)>()),
+                )?;
+                calls.insert((f.id, value), position);
+            }
+        }
         if b.store_option_results {
             b.spend(f.blocks.len())?;
             for (block, reachable) in f.blocks.iter().zip(&graphs[index].reachable) {
@@ -4789,6 +4950,9 @@ fn solve_check(
         b.task_stored_sources = Some(checked);
     }
     b.store_option_sources = checked_option_sources;
+    if b.qualified_package_returns {
+        b.package_return_calls = package_calls;
+    }
     Ok(())
 }
 

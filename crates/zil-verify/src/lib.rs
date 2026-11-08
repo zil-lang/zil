@@ -366,6 +366,8 @@ struct Budget {
     stored_enum_addresses: bool,
     task_borrowed_results: bool,
     store_option_results: bool,
+    qualified_package_returns: bool,
+    package_return_calls: Option<BTreeMap<(FunctionId, ValueId), u32>>,
     store_option_sources: Option<Vec<stored_flow::StoreOptionFunctionSources>>,
     task_stored_sources: Option<Vec<stored_flow::TaskFunctionSources>>,
     stored_borrows: bool,
@@ -423,6 +425,8 @@ impl Budget {
             stored_enum_addresses: false,
             task_borrowed_results: false,
             store_option_results: false,
+            qualified_package_returns: false,
+            package_return_calls: None,
             store_option_sources: None,
             task_stored_sources: None,
             stored_borrows: false,
@@ -2319,6 +2323,14 @@ fn check_instruction(
     budget: &mut Budget,
 ) -> Check<()> {
     let span = Some(instruction.span);
+    if let InstructionKind::Call { function, .. } = instruction.kind
+        && module
+            .functions
+            .get(function.0 as usize)
+            .is_some_and(|callee| resources::qualified_package_address(&callee.return_type))
+    {
+        budget.qualified_package_returns = true;
+    }
     if budget.pod_stores {
         dynamic_store::instruction_type_work(module, function, instruction, budget)?;
     }

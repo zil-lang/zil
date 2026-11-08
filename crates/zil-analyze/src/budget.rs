@@ -69,6 +69,9 @@ pub(super) struct Budget {
     // Qualified Option with a shared owning Package pointee needs both the
     // stored Sum proof and ordinary Store/resource proof on the same CFG.
     pub(super) store_option_results: bool,
+    // Presence from actual Direct Call types; only schedules the private proof.
+    pub(super) qualified_package_returns: bool,
+    pub(super) package_return_calls: Option<BTreeMap<(zil_ir::FunctionId, zil_ir::ValueId), u32>>,
     /// Private complete stored-target facts, published only after the stored
     /// solver finishes every reachable CFG and signature relation.
     pub(super) store_option_targets: Option<Vec<Vec<Vec<super::stored_flow::Target>>>>,
@@ -152,6 +155,8 @@ impl Budget {
             stored_enum_addresses: false,
             task_borrowed_results: false,
             store_option_results: false,
+            qualified_package_returns: false,
+            package_return_calls: None,
             store_option_targets: None,
             task_pointer_roots: Vec::new(),
             task_pointer_parents: Vec::new(),
@@ -1830,6 +1835,16 @@ pub(super) fn preflight(
             budget.input(1, "block preflight")?;
             for instruction in &block.instructions {
                 budget.input(1, "instruction preflight")?;
+                if let InstructionKind::Call { function, .. } = instruction.kind
+                    && module
+                        .functions
+                        .get(function.0 as usize)
+                        .is_some_and(|callee| {
+                            super::resources::qualified_package_address(&callee.return_type)
+                        })
+                {
+                    budget.qualified_package_returns = true;
+                }
                 match &instruction.kind {
                     InstructionKind::AsyncRegistrationStart {
                         register,
