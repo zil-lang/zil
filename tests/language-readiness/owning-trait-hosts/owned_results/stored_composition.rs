@@ -640,3 +640,48 @@ fn ordinary_owned_pipeline_executes_callbacks_and_allocation_cleanup_paths() {
         ],
     );
 }
+
+#[test]
+fn ordinary_error_places_have_exact_fresh_independent_resource_work() {
+    let module = typed(&error_place_program());
+    let plan = control(&module);
+    for phase in [Phase::Analyze, Phase::Verify] {
+        let run = |steps| {
+            let limits = Limits {
+                max_analysis_steps: steps,
+                ..Limits::default()
+            };
+            if phase == Phase::Analyze {
+                zil_analyze::analyze(&module, &limits).map(|actual| assert_eq!(actual, plan))
+            } else {
+                zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits)
+                    .map(|_| ())
+            }
+        };
+        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+        run(high).unwrap();
+        while low + 1 < high {
+            let middle = low + (high - low) / 2;
+            match run(middle) {
+                Ok(()) => high = middle,
+                Err(errors) => {
+                    assert!(
+                        errors
+                            .iter()
+                            .all(|d| d.category == ResultCategory::ResourceLimit)
+                    );
+                    low = middle;
+                }
+            }
+        }
+        run(high).unwrap();
+        assert!(
+            run(high - 1)
+                .unwrap_err()
+                .iter()
+                .all(|d| d.phase == phase && d.category == ResultCategory::ResourceLimit)
+        );
+        run(high).unwrap();
+        eprintln!("ordinary Error/Option resource {phase:?} N={high}; N-1/fresh agree");
+    }
+}
