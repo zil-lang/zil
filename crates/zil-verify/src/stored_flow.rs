@@ -73,7 +73,6 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> Check<boo
     Ok(false)
 }
 
-mod array_snapshot;
 pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
