@@ -128,13 +128,23 @@ fn analyze_budgeted(
         });
     }
     let mut stored_holds = None;
-    if budget.stored_borrows || budget.task_borrowed_results {
+    if budget.stored_borrows || budget.task_borrowed_results || budget.store_option_results {
         // These actual opaque carriers cannot enter the legacy stored lane.
         // A stored module with only scalar helpers retains its old path/fees.
         let ordinary_required = budget.tasks || budget.registrations;
-        if budget.task_borrowed_results {
-            for function in &module.functions {
-                stored_flow::header(module, function, budget)?;
+        if budget.task_borrowed_results || budget.store_option_results {
+            if budget.store_option_results && !budget.task_borrowed_results {
+                budget.spend(module.functions.len(), "qualified Option function mask")?;
+                budget.composition_stored = module
+                    .functions
+                    .iter()
+                    .map(|function| stored_flow::qualified_function(function, budget))
+                    .collect::<CompileResult<Vec<_>>>()?;
+            }
+            for (index, function) in module.functions.iter().enumerate() {
+                if budget.composition_stored.is_empty() || budget.composition_stored[index] {
+                    stored_flow::header(module, function, budget)?;
+                }
             }
             stored_holds = Some(stored_flow::infer(module, &hold_graphs, budget)?);
         } else if ordinary_required {
@@ -175,6 +185,14 @@ fn analyze_budgeted(
             return Ok(plan);
         }
     }
+    // The Option mask schedules only the stored-address solver. Every
+    // function, including the ones with a qualified Option, still needs its
+    // independent ordinary Hold/resource solution over the original CFG.
+    let store_option_mask = if budget.store_option_results && !budget.task_borrowed_results {
+        std::mem::take(&mut budget.composition_stored)
+    } else {
+        Vec::new()
+    };
     foreign_scoped::check(module, &hold_graphs, budget)?;
     scoped_thread::check(module, budget)?;
     generic_mutex::check(module, budget)?;
@@ -229,7 +247,47 @@ fn analyze_budgeted(
     };
     if let Some(stored) = stored_holds {
         for (index, rows) in stored.into_iter().enumerate() {
-            if budget.task_borrowed_results || budget.composition_stored[index] {
+            if budget.store_option_results && !budget.task_borrowed_results {
+                if !store_option_mask.is_empty() && !store_option_mask[index] {
+                    continue;
+                }
+                if rows.len() != module.functions[index].values.len() {
+                    return Err(bad("stored Option proof omitted an actual SSA value"));
+                }
+                for (value, (ty, stored)) in
+                    module.functions[index].values.iter().zip(&rows).enumerate()
+                {
+                    budget.spend(1, "stored Option and ordinary Hold comparison")?;
+                    if matches!(ty, Type::BorrowedStorage { .. }) {
+                        budget.spend(stored.roots.len(), "qualified actual Hold copy")?;
+                        actual_holds[index][value] = stored.clone();
+                    } else if matches!(ty, Type::Address { mutable: false, .. })
+                        && stored.roots != actual_holds[index][value].roots
+                    {
+                        let targets = stored_flow::option_sources_snapshot(
+                            module.functions[index].id,
+                            ValueId(value as u32),
+                            budget,
+                        )?;
+                        let count = targets.len();
+                        let incomplete = targets.is_empty() || targets.iter().any(|target| {
+                                target.heap_element.is_none()
+                                    && !matches!((target.base, target.stored.as_slice()),
+                                        (zil_ir::HoldRoot::Parameter(_),
+                                            [zil_ir::PlaceProjection::Variant(selector)])
+                                            if selector.variant == 1 && selector.index == 0
+                                                && target.place.iter().all(|step|
+                                                    matches!(step, zil_ir::PlaceProjection::Field(_))))
+                            });
+                        budget.spend(count, "stored Option element proof")?;
+                        if incomplete {
+                            return Err(bad("stored Option and ordinary actual roots disagree"));
+                        }
+                        budget.spend(stored.roots.len(), "Store element actual Hold copy")?;
+                        actual_holds[index][value] = stored.clone();
+                    }
+                }
+            } else if budget.task_borrowed_results || budget.composition_stored[index] {
                 if rows.len() != module.functions[index].values.len() {
                     return Err(bad("stored composition solver omitted an owned function"));
                 }

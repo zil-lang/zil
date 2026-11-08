@@ -392,7 +392,9 @@ fn seed_paths(
     let mut stack = vec![(ty, Vec::<u32>::new())];
     while let Some((ty, path)) = stack.pop() {
         fee(b, checked_add(path.len(), 1)?)?;
-        if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
+        if matches!(ty, Type::Address { .. } | Type::Desc(_))
+            || (b.store_option_results && stored_flow::option_address::shape(ty, b)?)
+        {
             let id = if let Some(id) = reuse.filter(|_| path.is_empty()) {
                 id
             } else {
@@ -689,6 +691,83 @@ fn check_function(
                         InstructionKind::Load(l) | InstructionKind::TakeLocal { local: l } => {
                             if let Some(c) = state.get(l) {
                                 carrier = copy(c, b)?;
+                            }
+                        }
+                        InstructionKind::MakeVariant { fields, .. }
+                            if b.store_option_results
+                                && stored_flow::option_address::shape(&f.values[id], b)? =>
+                        {
+                            if !facts[id].roots.is_empty() {
+                                fresh = true;
+                            }
+                            fee(b, fields.len())?;
+                            for field in fields {
+                                union(&mut parents, &direct(&values[field.0 as usize], b)?, b)?;
+                            }
+                        }
+                        InstructionKind::ReadVariant {
+                            value,
+                            variant: 1,
+                            index: 0,
+                        } if b.store_option_results && !facts[id].roots.is_empty() => {
+                            fresh = true;
+                            parents = direct(&values[value.0 as usize], b)?;
+                        }
+                        InstructionKind::Call {
+                            function,
+                            arguments,
+                        } if b.store_option_results
+                            && stored_flow::option_address::shape(&f.values[id], b)? =>
+                        {
+                            if !facts[id].roots.is_empty() {
+                                fresh = true;
+                            }
+                            let callee = module
+                                .functions
+                                .get(function.0 as usize)
+                                .ok_or_else(|| bad("Option callee is absent"))?;
+                            fee(b, callee.blocks.len())?;
+                            let mut selected = BTreeSet::new();
+                            for block in &callee.blocks {
+                                if let Terminator::Return(Some(value)) = block.terminator {
+                                    let sources =
+                                        stored_flow::option_sources_snapshot(*function, value, b)?;
+                                    fee(b, sources.len())?;
+                                    for source in sources {
+                                        fee(
+                                            b,
+                                            source
+                                                .stored
+                                                .len()
+                                                .saturating_add(source.place.len())
+                                                .saturating_add(
+                                                    source
+                                                        .heap_element
+                                                        .as_ref()
+                                                        .map_or(0, Vec::len),
+                                                ),
+                                        )?;
+                                        let HoldRoot::Parameter(position) = source.base else {
+                                            return Err(bad(
+                                                "Option return source is not an actual input",
+                                            ));
+                                        };
+                                        if position as usize >= callee.parameters.len() {
+                                            return Err(bad(
+                                                "Option return source input is absent",
+                                            ));
+                                        }
+                                        fee(b, selected.len().saturating_add(1))?;
+                                        selected.insert(position);
+                                    }
+                                }
+                            }
+                            for position in selected {
+                                let argument =
+                                    arguments.get(position as usize).ok_or_else(|| {
+                                        bad("Option actual manager argument is absent")
+                                    })?;
+                                union(&mut parents, &direct(&values[argument.0 as usize], b)?, b)?;
                             }
                         }
                         InstructionKind::BorrowLocal { local }

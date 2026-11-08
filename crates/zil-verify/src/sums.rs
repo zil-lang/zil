@@ -203,6 +203,60 @@ pub(super) fn check_type_for(
     Ok(())
 }
 
+// This only exposes the tag/content skeleton to the resource ledger. Shared
+// address leaves carry no resource debt; actual source/loan permission stays
+// in the independently authenticated stored proof.
+fn shared_enum_physical<'a>(ty: &'a Type, budget: &mut Budget) -> Check<&'a Type> {
+    if let Type::BorrowedStorage { storage, .. } = ty {
+        let limits = budget.limits.clone();
+        if budget.store_option_results
+            && crate::stored_flow::option_address::shape(ty, &limits, budget)?
+            || budget.stored_enum_addresses
+                && crate::stored_flow::enum_address::shape(ty, &limits, budget)?
+        {
+            return Ok(storage);
+        }
+    }
+    Ok(ty)
+}
+
+fn shared_enum_content(ty: &Type, budget: &mut Budget) -> Check<bool> {
+    if !budget.store_option_results && !budget.stored_enum_addresses {
+        return Ok(false);
+    }
+    budget.spend(1)?;
+    let mut pending = vec![ty];
+    while let Some(ty) = pending.pop() {
+        budget.spend(1)?;
+        if !std::ptr::eq(shared_enum_physical(ty, budget)?, ty) {
+            return Ok(true);
+        }
+        match ty {
+            Type::ErrorUnion { error, result } => {
+                budget.spend(2)?;
+                pending.extend([error.as_ref(), result.as_ref()]);
+            }
+            Type::Tuple(fields) => {
+                budget.spend(fields.len())?;
+                pending.extend(fields);
+            }
+            Type::Package { fields, .. } => {
+                budget.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, field)| field));
+            }
+            Type::Enum { variants, .. } => {
+                budget.spend(variants.len())?;
+                for (_, fields) in variants {
+                    budget.spend(fields.len())?;
+                    pending.extend(fields);
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(false)
+}
+
 fn projected_type<'a>(
     f: &'a TypedFunction,
     local: LocalId,
@@ -210,7 +264,7 @@ fn projected_type<'a>(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<&'a Type> {
-    let mut ty = local_type(f, local, span)?;
+    let mut ty = shared_enum_physical(local_type(f, local, span)?, budget)?;
     budget.spend(path.len().saturating_add(1))?;
     for projection in path {
         let Type::Enum { variants, .. } = ty else {
@@ -234,7 +288,7 @@ pub(super) fn place_type<'a>(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<&'a Type> {
-    let mut at = local_type(f, local, span)?;
+    let mut at = shared_enum_physical(local_type(f, local, span)?, budget)?;
     if path.is_empty() || path.len() > budget.limits.max_call_depth {
         return Err(bad(
             span,
@@ -678,6 +732,7 @@ impl Content {
     }
     fn forget_copy_tags(&mut self, ty: &Type, b: &mut Budget) -> Check<()> {
         b.spend(1)?;
+        let ty = shared_enum_physical(ty, b)?;
         if let Self::Missing(child) = self {
             return child.forget_copy_tags(ty, b);
         }
@@ -741,6 +796,7 @@ impl Content {
         b: &mut Budget,
     ) -> Check<()> {
         b.spend(1)?;
+        let ty = shared_enum_physical(ty, b)?;
         if let Self::Missing(child) = self {
             return child.forget_place_copy_tags(path, ty, b);
         }
@@ -940,6 +996,12 @@ fn content(
     budget: &mut Budget,
 ) -> Check<Content> {
     budget.spend(path.len().saturating_add(2))?;
+    if let Type::BorrowedStorage { .. } = ty {
+        let physical = shared_enum_physical(ty, budget)?;
+        if !std::ptr::eq(physical, ty) {
+            return content(physical, parameter, path, bottom, budget);
+        }
+    }
     Ok(match ty {
         Type::Managed(_) => Content::Leaf(if bottom {
             BTreeSet::new()
@@ -1519,7 +1581,10 @@ impl Flow<'_> {
                     state.captures[*index as usize] = Some(Arc::new(incoming));
                 }
                 InstructionKind::BorrowLocalMut { local }
-                    if matches!(self.f.locals[local.0 as usize].ty, Type::Enum { .. }) =>
+                    if matches!(
+                        shared_enum_physical(&self.f.locals[local.0 as usize].ty, budget)?,
+                        Type::Enum { .. }
+                    ) =>
                 {
                     fn forget(at: &mut Content, t: &Type, b: &mut Budget) -> Check<()> {
                         resources::charge_payload(t, b)?;
@@ -1547,9 +1612,11 @@ impl Flow<'_> {
                         Ok(())
                     }
                     state.locals[local.0 as usize].cost(budget)?;
+                    let physical =
+                        shared_enum_physical(&self.f.locals[local.0 as usize].ty, budget)?;
                     forget(
                         Arc::make_mut(&mut state.locals[local.0 as usize]),
-                        &self.f.locals[local.0 as usize].ty,
+                        physical,
                         budget,
                     )?;
                     self.kill(state, *local, budget)?;
@@ -2102,6 +2169,14 @@ fn run_with_replacements(
                         tagged.push(local);
                         break;
                     }
+                    Type::BorrowedStorage { .. }
+                        if budget.store_option_results || budget.stored_enum_addresses =>
+                    {
+                        let actual = shared_enum_physical(ty, budget)?;
+                        if !std::ptr::eq(actual, ty) {
+                            pending.push(actual);
+                        }
+                    }
                     Type::Tuple(fields) => {
                         budget.spend(fields.len())?;
                         pending.extend(fields);
@@ -2309,11 +2384,12 @@ pub(super) fn check_module(
         .functions
         .iter()
         .map(|f| {
-            f.foreign.is_none()
+            Ok(f.foreign.is_none()
                 && (matches!(f.return_type, Type::Managed(_) | Type::Package { .. })
-                    || owned(&f.return_type))
+                    || owned(&f.return_type)
+                    || shared_enum_content(&f.return_type, budget)?))
         })
-        .collect::<Vec<_>>();
+        .collect::<Check<Vec<_>>>()?;
     let mut users = vec![BTreeSet::new(); count];
     let mut callees = vec![BTreeSet::new(); count];
     for (index, f) in module.functions.iter().enumerate() {

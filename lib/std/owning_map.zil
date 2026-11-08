@@ -32,13 +32,21 @@ pub fn contains<K:StoreElement+KeyEq,V:StoreElement>(map:&OwningMap<K,V>,key:&K)
     return find::<K,V>(map,key)>=0
 }
 
-// A Copy value can be read without moving its owning key. General V remains
-// available through take, which transfers the complete old Entry.
+// A Copy value can be read without moving its owning key. For shared windows
+// use get; take transfers the complete old Entry.
 pub fn get_copy<K:StoreElement+KeyEq,V:Copy+StoreElement>(map:&OwningMap<K,V>,key:&K)->Option<V> {
     let at=find::<K,V>(map,key)
     if at<0 {return Option::<V>.None()}
     let entry=store_at(map.items,at)
     return Option::<V>.Some(entry.value)
+}
+
+// A shared value window remains tied to the actual map Store until its last use.
+pub fn get<life s,K:StoreElement+KeyEq,V:StoreElement>(map:&'s OwningMap<K,V>,key:&K)->Option<&'s V> {
+    let at=find::<K,V>(map,key)
+    if at<0 {return Option::<&'s V>.None()}
+    let entry=store_at(map.items,at)
+    return Option::<&'s V>.Some(&entry.value)
 }
 
 // A failed reserve or suffix preparation returns the original incoming Entry

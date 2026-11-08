@@ -62,6 +62,9 @@ fn function_has_sources(
     descriptor_origins: bool,
     budget: &mut Budget,
 ) -> Check<bool> {
+    if budget.store_option_results && super::stored_flow::qualified_function(function, budget)? {
+        return Ok(true);
+    }
     if descriptor_origins {
         budget.spend(
             function
@@ -305,9 +308,7 @@ fn check(
         }
         budget.spend(claim.roots.len())?;
     }
-    if !budget.task_borrowed_results
-        && !function_has_sources(module, f, descriptor_origins, budget)?
-    {
+    if !function_has_sources(module, f, descriptor_origins, budget)? {
         if plan.holds.iter().any(|claim| !claim.roots.is_empty()) {
             return Err(reject(
                 "E-VERIFY-HOLD",
@@ -1265,6 +1266,86 @@ pub(super) fn check_mixed(
 ) -> Check<Vec<BTreeSet<u32>>> {
     check_module_mask(module, plan, graphs, Some(mask), budget)
 }
+fn overlay_store_option_sources(
+    module: &TypedModule,
+    ordinary: &mut [Facts],
+    checked: &[crate::stored_flow::StoreOptionFunctionSources],
+    budget: &mut Budget,
+) -> Check<()> {
+    if checked.len() != module.functions.len() || ordinary.len() != module.functions.len() {
+        return Err(reject(
+            "E-VERIFY-STORE-WINDOW",
+            None,
+            "Option source proof omitted an actual function",
+        ));
+    }
+    budget.spend(checked.len())?;
+    for ((function, ordinary), stored) in module.functions.iter().zip(ordinary).zip(checked) {
+        if stored.values.len() != function.values.len()
+            || ordinary.values.len() != function.values.len()
+        {
+            return Err(reject(
+                "E-VERIFY-STORE-WINDOW",
+                Some(function.span),
+                "Option source proof omitted an actual SSA value",
+            ));
+        }
+        for (index, (ty, sources)) in function.values.iter().zip(&stored.values).enumerate() {
+            let qualified =
+                crate::stored_flow::option_address::shape(ty, &budget.limits.clone(), budget)?;
+            budget.spend(sources.len())?;
+            let mut window = false;
+            for source in sources {
+                window |= source.heap_element.is_some();
+                if let (HoldRoot::Parameter(position), [zil_ir::PlaceProjection::Variant(selector)]) =
+                    (source.base, source.leaf.as_slice())
+                    && selector.variant == 1
+                    && selector.index == 0
+                {
+                    let input = function
+                        .parameters
+                        .get(position as usize)
+                        .and_then(|local| function.locals.get(local.0 as usize))
+                        .ok_or_else(|| {
+                            reject(
+                                "E-VERIFY-STORE-WINDOW",
+                                Some(function.span),
+                                "Option leaf source input is absent",
+                            )
+                        })?;
+                    let input = match &input.ty {
+                        Type::Address { inner, .. } => inner.as_ref(),
+                        ty => ty,
+                    };
+                    window |= crate::stored_flow::option_address::shape(
+                        input,
+                        &budget.limits.clone(),
+                        budget,
+                    )?;
+                }
+            }
+            if !qualified && !window {
+                continue;
+            }
+            if !qualified && !matches!(ty, Type::Address { mutable: false, .. }) {
+                return Err(reject(
+                    "E-VERIFY-STORE-WINDOW",
+                    Some(function.span),
+                    "Store window authority escaped into a non-address value",
+                ));
+            }
+            let mut roots = Vec::new();
+            budget.spend(sources.len())?;
+            for source in sources {
+                let root = roots::store_option_root(function, ty, source, budget)?;
+                roots_join(&mut roots, &[root], budget)?;
+            }
+            ordinary.values[index] = roots;
+        }
+    }
+    Ok(())
+}
+
 fn check_module_mask(
     module: &TypedModule,
     plan: &CandidatePlan,
@@ -1282,6 +1363,17 @@ fn check_module_mask(
     let empty_port_facts = port_facts::FunctionFacts::default();
     let descriptor_origins = descriptor_origins(module, budget)?;
     let mut facts = reconstruct_module(module, graphs, descriptor_origins, mask, budget)?;
+    if budget.store_option_results {
+        let checked = budget.store_option_sources.take().ok_or_else(|| {
+            reject(
+                "E-VERIFY-STORE-WINDOW",
+                None,
+                "Option result lacks its complete independent stored proof",
+            )
+        })?;
+        overlay_store_option_sources(module, &mut facts, &checked, budget)?;
+        budget.store_option_sources = Some(checked);
+    }
     if budget.task_borrowed_results {
         let checked = budget.task_stored_sources.take().ok_or_else(|| {
             reject(
@@ -1393,14 +1485,28 @@ fn check_module_mask(
     // Public Hold remains an address dependency claim. Weak descriptions are
     // independently reconstructed above for effects and responsibility, and
     // must not be promoted to strong holds when publishing or checking it.
-    let holds = if descriptor_origins {
+    let mut holds = if descriptor_origins {
         Some(reconstruct_module(module, graphs, false, mask, budget)?)
     } else {
         None
     };
+    if let Some(holds) = &mut holds
+        && budget.store_option_results
+    {
+        let checked = budget.store_option_sources.take().ok_or_else(|| {
+            reject(
+                "E-VERIFY-STORE-WINDOW",
+                None,
+                "Option Hold lacks checked physical sources",
+            )
+        })?;
+        overlay_store_option_sources(module, holds, &checked, budget)?;
+        budget.store_option_sources = Some(checked);
+    }
     budget.spend(module.resources.len())?;
     let has_buffers = descriptor_origins
         || budget.task_borrowed_results
+        || budget.store_option_results
         || module
             .resources
             .iter()

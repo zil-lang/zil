@@ -837,10 +837,10 @@ pub(super) fn projections(
                 Some(InstructionKind::VariantTag { value }),
                 Some(InstructionKind::Constant(Constant::I32(n))),
             ) = (definitions[tag.0 as usize], definitions[scalar.0 as usize])
+                && *n >= 0
+                && facts.enum_values.contains_key(value)
             {
-                if *n >= 0 && facts.enum_values.contains_key(value) {
-                    return Some((*value, *n as u32));
-                }
+                return Some((*value, *n as u32));
             }
         }
         None
@@ -885,12 +885,12 @@ pub(super) fn projections(
                     continue;
                 }
                 let mut next = state.clone();
-                if let Some((id, tag, equal)) = test {
-                    if let Some(tags) = next.get_mut(&id) {
-                        tags.retain(|v| (*v == tag) == equal);
-                        if tags.is_empty() {
-                            continue;
-                        }
+                if let Some((id, tag, equal)) = test
+                    && let Some(tags) = next.get_mut(&id)
+                {
+                    tags.retain(|v| (*v == tag) == equal);
+                    if tags.is_empty() {
+                        continue;
                     }
                 }
                 match &mut incoming[to.0 as usize] {

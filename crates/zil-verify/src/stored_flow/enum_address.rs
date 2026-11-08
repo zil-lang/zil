@@ -96,7 +96,7 @@ pub(super) fn arguments(
     Ok(())
 }
 
-pub(super) fn shape(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
+pub(crate) fn shape(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
     if !candidate(ty) {
         return Ok(false);
     }
@@ -866,7 +866,8 @@ pub(super) fn projections(
         }
         None
     };
-    let mut entries: Vec<Option<Vec<(ValueId, Vec<u32>)>>> = vec![None; f.blocks.len()];
+    type BlockTags = Vec<(ValueId, Vec<u32>)>;
+    let mut entries: Vec<Option<BlockTags>> = vec![None; f.blocks.len()];
     entries[f.entry.0 as usize] = Some(start);
     let mut pending = vec![f.entry.0 as usize];
     while let Some(bi) = pending.pop() {
