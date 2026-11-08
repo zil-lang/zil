@@ -8,6 +8,8 @@
 
 包含真实共享借入叶的 qualified Record 可作为有限拥有 Package 的字段，局部窗口和字段投影保留实际来源。这类父 Package 的同型整对象共享地址可经普通 helper 从唯一实际输入返回；来自多个输入的返回来源、投影实参和经窗口访问拥有 ByteBuffer 的长度/容量仍有边界。
 
+拥有 Package 现在可直接保存固定共享地址数组，并通过实际字段、常量下标和普通 helper 取得借入元素；拥有责任与借入来源分别验证。见[普通程序](../../tests/fixtures/resource-packages/owned-package-shared-address-array.zil)和[限定合同](../../spec/qualified-package-shared-array.md)。大型拥有 Package 的 snapshot/原生 ABI 仍未验收。
+
 ## 支持矩阵
 
 | 能力簇 | 预览支持范围 | 验证范围 | 边界 |
