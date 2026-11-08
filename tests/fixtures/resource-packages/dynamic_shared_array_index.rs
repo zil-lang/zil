@@ -168,3 +168,180 @@ fn whole_array_snapshot_requires_every_taken_slot_to_be_refilled() {
         "a complete other leaf cannot hide the taken physical Array slot"
     );
 }
+
+fn multi_root_snapshot(refill_before: bool) -> zil_ir::TypedModule {
+    let definitions = PARTIAL_SNAPSHOT.split("fn main").next().unwrap();
+    let program = format!(
+        "{definitions}fn read<life w,life a>(left:&'w Job<'a>,right:&'w Job<'a>,flag:bool)->i32{{let unused=left.items[0];let selected=if flag{{left}}else{{right}};let snapshot=selected.items;return *snapshot[1]}}fn main()->i32{{return 0}}"
+    );
+    let mut raw = typed_source(
+        "array-snapshot-two-roots",
+        &program,
+        &TargetProfile::host_llvm(),
+        &Limits::default(),
+    );
+    let f = raw.functions.iter_mut().find(|f| f.name == "read").unwrap();
+    let left = f.parameters[0];
+    let Type::Address { mutable, .. } = &mut f.locals[left.0 as usize].ty else {
+        unreachable!()
+    };
+    *mutable = true;
+    let (take_block, take_index) = f
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(b, block)| {
+            block
+                .instructions
+                .iter()
+                .position(|i| matches!(i.kind, zil_ir::InstructionKind::LoadStoredBorrow { .. }))
+                .map(|i| (b, i))
+        })
+        .unwrap();
+    let take = f.blocks[take_block].instructions[take_index].clone();
+    let zil_ir::InstructionKind::LoadStoredBorrow { storage, .. } = take.kind else {
+        unreachable!()
+    };
+    let field_index = f.blocks[take_block]
+        .instructions
+        .iter()
+        .position(|i| i.result == Some(storage))
+        .unwrap();
+    let zil_ir::InstructionKind::AddressField {
+        address: parent,
+        index: 1,
+    } = f.blocks[take_block].instructions[field_index].kind
+    else {
+        panic!("actual Array field")
+    };
+    let Type::Address { mutable, .. } = &mut f.values[parent.0 as usize] else {
+        unreachable!()
+    };
+    *mutable = true;
+    let parent_type = f.values[parent.0 as usize].clone();
+    f.values[storage.0 as usize] = parent_type.clone();
+    f.blocks[take_block].instructions[field_index].kind =
+        zil_ir::InstructionKind::ReborrowAddress {
+            address: parent,
+            mutable: true,
+        };
+    let path = vec![
+        zil_ir::PlaceProjection::Field(1),
+        zil_ir::PlaceProjection::Field(0),
+    ];
+    f.blocks[take_block].instructions[take_index].kind =
+        zil_ir::InstructionKind::LoadStoredBorrow {
+            storage,
+            path: path.clone(),
+            mode: zil_ir::StoredBorrowLoad::Take,
+        };
+    for block in &mut f.blocks {
+        let mut index = 0;
+        while index < block.instructions.len() {
+            let instruction = &block.instructions[index];
+            if matches!(instruction.kind,zil_ir::InstructionKind::Load(local) if local==left)
+                && instruction.result != Some(parent)
+            {
+                let original = instruction.clone();
+                let id = zil_ir::ValueId(f.values.len() as u32);
+                f.values.push(parent_type.clone());
+                block.instructions[index].kind = zil_ir::InstructionKind::ReborrowAddress {
+                    address: id,
+                    mutable: false,
+                };
+                block.instructions.insert(
+                    index,
+                    zil_ir::Instruction {
+                        result: Some(id),
+                        kind: zil_ir::InstructionKind::Load(left),
+                        span: original.span,
+                    },
+                );
+                index += 1;
+            }
+            index += 1;
+        }
+    }
+    let reload = zil_ir::ValueId(f.values.len() as u32);
+    f.values.push(parent_type);
+    let load = zil_ir::Instruction {
+        result: Some(reload),
+        kind: zil_ir::InstructionKind::Load(left),
+        span: take.span,
+    };
+    let refill = zil_ir::Instruction {
+        result: None,
+        kind: zil_ir::InstructionKind::StoreStoredBorrow {
+            storage: reload,
+            path,
+            value: take.result.unwrap(),
+        },
+        span: take.span,
+    };
+    let (block, index) = if refill_before {
+        (take_block, take_index + 1)
+    } else {
+        f.blocks
+            .iter()
+            .enumerate()
+            .find_map(|(b, block)| {
+                block
+                    .instructions
+                    .iter()
+                    .position(|i| matches!(i.kind, zil_ir::InstructionKind::ReadAddress { .. }))
+                    .map(|i| (b, i + 1))
+            })
+            .unwrap()
+    };
+    f.blocks[block]
+        .instructions
+        .splice(index..index, [load, refill]);
+    raw
+}
+
+#[test]
+fn complete_other_root_cannot_mask_a_taken_array_leaf() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let good = multi_root_snapshot(true);
+    let prior = zil_analyze::analyze(&good, &limits).expect("multi-root positive take/refill");
+    zil_verify::verify_module(good.clone(), prior.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&good, &prior, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    println!("multi-root valid take/refill before Read: A/V/W Success");
+    let bad = multi_root_snapshot(false);
+    let analyzed = zil_analyze::analyze(&bad, &limits);
+    match &analyzed {
+        Ok(plan) => {
+            println!("multi-root taken leaf with complete other parent: Analyze Success");
+            println!(
+                "fresh candidate Verify: {:?}",
+                zil_verify::verify_module(bad.clone(), plan.clone(), &target, &limits)
+                    .as_ref()
+                    .map(|_| "Success")
+            );
+            let wire = zil_ir::wire::encode_module_candidate(&bad, plan, &limits).unwrap();
+            println!(
+                "fresh Wire: {:?}",
+                zil_verify::verify_module_bytes(&wire, &target, &limits)
+                    .as_ref()
+                    .map(|_| "Success")
+            );
+        }
+        Err(errors) => println!("multi-root taken leaf: Analyze {errors:?}"),
+    }
+    assert!(
+        analyzed.is_err(),
+        "each actual parent must have every initialized slot"
+    );
+    let mut candidate = prior;
+    candidate.module_fingerprint = bad.fingerprint();
+    println!(
+        "prior candidate Verify: {:?}",
+        zil_verify::verify_module(bad.clone(), candidate.clone(), &target, &limits)
+            .as_ref()
+            .map(|_| "Success")
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&bad, &candidate, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&wire, &target, &limits).is_err());
+}
