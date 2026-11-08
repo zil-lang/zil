@@ -3885,11 +3885,12 @@ fn analyze_function_program(
     let mut input: Vec<Option<State>> = vec![None; f.blocks.len()];
     input[f.entry.0 as usize] = Some(initial);
     let mut stack = vec![f.entry.0 as usize];
-    let ranks = if budget.pod_stores {
-        pod_resource_ranks(f, budget)?
-    } else {
-        Vec::new()
-    };
+    let ranks =
+        if budget.pod_stores || (budget.store_option_results && budget.ordinary_error_places) {
+            pod_resource_ranks(f, budget)?
+        } else {
+            Vec::new()
+        };
     let mut frontier = BinaryHeap::new();
     if !ranks.is_empty() {
         budget.lookup(f.blocks.len(), "POD resource frontier insertion")?;
