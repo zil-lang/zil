@@ -593,6 +593,22 @@ fn record_window_programs() -> Vec<(&'static str, String)> {
                 )
             ),
         ),
+        (
+            "whole-package-identity-window",
+            whole_package_identity_program(),
+        ),
+        (
+            "whole-package-second-input",
+            whole_package_second_input_program(),
+        ),
+        (
+            "whole-package-merged-input-false",
+            whole_package_merged_input_program(false),
+        ),
+        (
+            "whole-package-merged-input-true",
+            whole_package_merged_input_program(true),
+        ),
     ]
 }
 
@@ -748,31 +764,38 @@ fn qualified_record_window_native_values_remain_complete() {
 }
 
 #[test]
-fn qualified_parent_identity_retains_existing_resource_source_boundary() {
-    // This separate older resource-description boundary rejects before any
-    // invalid write. It supplies no successful borrowing-window evidence.
-    let job = GETTER.split("fn main").next().unwrap();
-    let program = format!(
-        "{job}fn identity<life a,life b>(input:&'a Job<'b>)->&'a Job<'b>{{return input}}fn main()->i32{{var value=7;var spare=0;let job=make(&value);let window=identity(&job);spare=11;if *window.refs.pointer==7{{return 0}}return 1}}"
-    );
+fn qualified_parent_identity_transfers_actual_resource_manager() {
+    let program = whole_package_identity_program();
     let report = compile_source(
         &source("parent-identity-resource-boundary", &program),
         &CompileOptions::default(),
     );
     assert_eq!(
         report.status,
-        ResultCategory::SafeReject,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
-    assert_eq!(report.phase, zil_base::Phase::Verify);
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.code == "E-VERIFY-RESOURCE"
-                && d.message == "resource description has no independently grounded source"),
-        "{}",
-        report.to_json()
+    assert_eq!(report.verification_runs, 1);
+}
+
+fn whole_package_identity_program() -> String {
+    let job = GETTER.split("fn main").next().unwrap();
+    let program = format!(
+        "{job}fn identity<life a,life b>(input:&'a Job<'b>)->&'a Job<'b>{{return input}}fn main()->i32{{var value=7;var spare=0;let job=make(&value);let window=identity(&job);spare=11;if *window.refs.pointer==7{{return 0}}return 1}}"
     );
+    program
+}
+
+fn whole_package_second_input_program() -> String {
+    let job = GETTER.split("fn main").next().unwrap();
+    format!(
+        "{job}fn pick_second<life a,life b>(left:&'a Job<'b>,right:&'a Job<'b>)->&'a Job<'b>{{return right}}fn discard<life b>(job:Job<'b>){{}}fn main()->i32{{var ignored=3;var value=7;var spare=0;let left=make(&ignored);let right=make(&value);let window=pick_second(&left,&right);discard(left);ignored=11;spare=11;if *window.refs.pointer==7{{return 0}}return 1}}"
+    )
+}
+fn whole_package_merged_input_program(flag: bool) -> String {
+    let job = GETTER.split("fn main").next().unwrap();
+    format!(
+        "{job}fn identity<life a,life b>(input:&'a Job<'b>)->&'a Job<'b>{{return input}}fn flag()->bool{{return {flag}}}fn main()->i32{{var other=3;var value=7;var spare=0;let left=make(&other);let right=make(&value);let chosen=if flag(){{&left}}else{{&right}};let window=identity(chosen);spare=11;let expected=if flag(){{3}}else{{7}};if *window.refs.pointer==expected{{return 0}}return 1}}"
+    )
 }
