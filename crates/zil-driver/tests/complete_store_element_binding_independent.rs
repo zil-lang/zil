@@ -393,7 +393,7 @@ fn actual_desc_structural_writes_survive_nested_helper_parameter_remapping() {
             "let first = store_at_mut(items, 0)",
             &format!("{call}\nlet first = store_at_mut(items, 0)"),
         );
-        let start = before.find(&format!("{call}\nlet first")).unwrap() as u32;
+        let start = before.find(&format!("{call}\nlet first")).unwrap();
         let mut raw = zil_types::check(
             &expanded("structural-write-before-window", &before),
             &target,
@@ -420,12 +420,7 @@ fn actual_desc_structural_writes_survive_nested_helper_parameter_remapping() {
         let window = block
             .instructions
             .iter()
-            .position(|i| {
-                matches!(
-                    i.kind,
-                    InstructionKind::OwnedStoreBorrow { mutable: true, .. }
-                )
-            })
+            .position(|i| matches!(i.kind, InstructionKind::OwnedStoreBorrowMut { .. }))
             .unwrap();
         assert!(window >= at);
         block.instructions.insert(window + 1, instruction);
