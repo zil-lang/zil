@@ -1,6 +1,6 @@
 # ZIL 语言初稿开发预览
 
-状态：**有限 profile，实验性开发预览**。受支持环境为 Rust 1.99.1、LLVM 23.1.4、Linux x86_64。精确受测源码、独审、实际执行计数及恢复范围见[联合验收记录](https://github.com/zil-lang/zil/blob/goal/records/native-language-composition.json)。本页列出有限能力与边界；完整语言、B0、ZUI 和 Rust 产品目标分别验收。
+状态：**有限 profile，实验性开发预览**。受支持环境为 Rust 1.99.1、LLVM 23.1.4、Linux x86_64。精确受测源码、独审、实际执行计数及恢复范围见[联合验收记录](../../validation/native-language-composition.json)。本页列出有限能力与边界；完整语言、B0、ZUI 和 Rust 产品目标分别验收。
 
 当前有限拥有组合包括普通 POD、九种标量和完整 Copy Tuple/Array 的 Store、普通拥有父形状与自包含捕获。借入 dyn 支持固定标量/Unit 槽和共享/独占接收者。具体范围与限制如下。
 
@@ -34,7 +34,7 @@ mkdir -p out
 printf '10 20 -3\n' | ./out/stream
 ```
 
-该已存在的普通多模块样例预期输出为 `3 0 45`（含换行），退出 0；冻结验收已在远端重新拉取的同一源码与所标环境执行。组合样例在 `examples/mainline/draft_foundations/`，结合实际 std.store、trait 静态工厂、可变 helper 与显式失败处理。开发运行命令如下（冻结恢复实跑使用 release CLI）：
+该已存在的普通多模块样例预期输出为 `3 0 45`（含换行），退出 0；冻结验收已在远端重新拉取的同一源码与所标环境执行。组合样例在 `examples/mainline/draft_foundations/`，结合实际 std.store、trait 静态工厂、可变 helper 与显式失败处理。开发运行命令如下（本次冷恢复使用从源码新构建的 dev CLI）：
 
 ```sh
 ./target/debug/zil run examples/mainline/draft_foundations/main.zil --entry main

@@ -1,0 +1,947 @@
+{
+  "schema_version": 1,
+  "kind": "immutable source-bound native language acceptance",
+  "status": "Pass",
+  "scope": "The finite supported language profiles and source consumers of this tested revision. This record does not establish functional 1.0, B0, Windows/ZUI or product cost gates.",
+  "source": {
+    "commit": "263f11f3e3e0c0fc924b4f2573416e1fe1a0d755",
+    "tree": "1d41b502eb2af53a31bcada0f5afb3d452f73713",
+    "repository": "https://github.com/zil-lang/zil",
+    "clean_before_and_after": true,
+    "validation_revision": "e5400cfba036a46ca70677ca411abcd863466edf"
+  },
+  "target": "Linux x86_64",
+  "toolchain": {
+    "rust": "1.99.1",
+    "llvm": "23.1.4"
+  },
+  "default": {
+    "status": "Pass",
+    "passed": 5582,
+    "failed": 0,
+    "batches": 53,
+    "groups": 431,
+    "integration_target_names": 394,
+    "result": {
+      "path": "/workspace/.zil-env/release-foundations/native-language-common-default/default-result.json",
+      "sha256": "7774b23c6b14f6a195cc1dfa579b5d0e9a57fcb8a296819e5772df4c63ffe9d1"
+    },
+    "commands": {
+      "scope": "Every workspace library, binary, example, integration and doc target; no test filters.",
+      "integration_schedule": "sorted unique Cargo integration target names, all selected in batches of eight; shared build lock; scheduling and queueing are not cost measurements.",
+      "argv_prefix": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--no-fail-fast"
+      ]
+    },
+    "batch_log_hashes": [
+      {
+        "batch": 0,
+        "sha256": "5377121210949c3056d7ab3b84967a71d3e4d2be7c5854b60a2e9406b046321e",
+        "passed": 1341,
+        "failed": 0
+      },
+      {
+        "batch": 1,
+        "sha256": "484b96accfa169c6c252eb2fe15d4db06979fd25c8747f841061f528af1a8698",
+        "passed": 0,
+        "failed": 0
+      },
+      {
+        "batch": 2,
+        "sha256": "c7c7b8263b28eb78ae4c8f3ebd7924d7a61aef0251118a40eaf59b04727bb50b",
+        "passed": 391,
+        "failed": 0
+      },
+      {
+        "batch": 3,
+        "sha256": "12324a01b31bfde48f1deeb3a2c815ebcc355f54c4b4e2c483ef880072d5f97b",
+        "passed": 88,
+        "failed": 0
+      },
+      {
+        "batch": 4,
+        "sha256": "7cf9dd919f176496a1c157c9c04aafc7611926308fd5850c06b7f762c5563dcf",
+        "passed": 65,
+        "failed": 0
+      },
+      {
+        "batch": 5,
+        "sha256": "52ea12433e207a26c8cc1ee12c7d1ddcf3ee6bb4d1dc4b7c273416debd9860df",
+        "passed": 73,
+        "failed": 0
+      },
+      {
+        "batch": 6,
+        "sha256": "4851949ac50165dc24b936b2d7970bb3fff8ac1167ddf4b411a0d75c57f93ae3",
+        "passed": 83,
+        "failed": 0
+      },
+      {
+        "batch": 7,
+        "sha256": "c6fc58928649d55c614460ee86ac2c54f0349b51e7625ce363b6dcaaedb01822",
+        "passed": 85,
+        "failed": 0
+      },
+      {
+        "batch": 8,
+        "sha256": "4f113c9d250890a3835634603eb0c65de486c775b1c0579fc767c15ed0642d06",
+        "passed": 80,
+        "failed": 0
+      },
+      {
+        "batch": 9,
+        "sha256": "486ad1113a823f01d77ebc799fec50cbb23c2a11e8b8278d16111eb46f96f851",
+        "passed": 68,
+        "failed": 0
+      },
+      {
+        "batch": 10,
+        "sha256": "54b4c6d116c9cbc84ffe5851d241d26d24dc3c02da103915f3cca263a5e29d61",
+        "passed": 177,
+        "failed": 0
+      },
+      {
+        "batch": 11,
+        "sha256": "c13d7f1fbdc1758ac401d13128f7cfc9e7d742d7cbf45f741a6f410985328470",
+        "passed": 101,
+        "failed": 0
+      },
+      {
+        "batch": 12,
+        "sha256": "ffd0734279253d9311749624387256e275b603c5d12897d871821f14782d2844",
+        "passed": 53,
+        "failed": 0
+      },
+      {
+        "batch": 13,
+        "sha256": "96f7022b8babf01fb23762a559a7ab943594a8df2d5e370b65c221888340420c",
+        "passed": 94,
+        "failed": 0
+      },
+      {
+        "batch": 14,
+        "sha256": "043506b6d20fd01035fc479884ffea532950505182a912aea5c30e0ba56dbe17",
+        "passed": 74,
+        "failed": 0
+      },
+      {
+        "batch": 15,
+        "sha256": "d35dc6e3aa119892d6f567013c5a731d4882d09dbc99056980906967322e8129",
+        "passed": 46,
+        "failed": 0
+      },
+      {
+        "batch": 16,
+        "sha256": "8f7c3274e08547d55f2c40f421210abdb126178ae7ef7d0e7e6c0ac32c08521b",
+        "passed": 38,
+        "failed": 0
+      },
+      {
+        "batch": 17,
+        "sha256": "5eb097a53a00c161766d508d80c579485fcc59c641b3bdd3e33a8568496f3284",
+        "passed": 25,
+        "failed": 0
+      },
+      {
+        "batch": 18,
+        "sha256": "9756257fd0f229867e7b5fe298563da43ffab48c308d2d51ea43721755c716fb",
+        "passed": 71,
+        "failed": 0
+      },
+      {
+        "batch": 19,
+        "sha256": "d468678af1ca61dd98964b48bf337a8fcae901cae56c1eda4e6ee4dfe7bdb2d0",
+        "passed": 61,
+        "failed": 0
+      },
+      {
+        "batch": 20,
+        "sha256": "629e54ea20a707ed54f76d6a4087ef202667c2d4ff44e3dffedd007ad5101485",
+        "passed": 325,
+        "failed": 0
+      },
+      {
+        "batch": 21,
+        "sha256": "cb98345e17ffd381381f4507151f29af8639bad2f9317d36ec599057c1b44558",
+        "passed": 58,
+        "failed": 0
+      },
+      {
+        "batch": 22,
+        "sha256": "bcf5954381a5fafd701b90e3e212a06bccc4e6c1b121852215961877889b4c7d",
+        "passed": 67,
+        "failed": 0
+      },
+      {
+        "batch": 23,
+        "sha256": "b7dff8b344227a602ca8fc36e25d96d051d9f031a6b631f38adb581fb6d52fa4",
+        "passed": 97,
+        "failed": 0
+      },
+      {
+        "batch": 24,
+        "sha256": "3436cb52a81ce922942143c79063e13ff03037f9e7a10c66396bca365f2a16dd",
+        "passed": 49,
+        "failed": 0
+      },
+      {
+        "batch": 25,
+        "sha256": "6d5f2378e86cf6aa87ab87f8e546a0caebab4846a434345903ccad4c9679dc31",
+        "passed": 69,
+        "failed": 0
+      },
+      {
+        "batch": 26,
+        "sha256": "edecc4eb1d1d5bbed66fba083abb33c6a6c246913daa0a83c4329894d9a59178",
+        "passed": 78,
+        "failed": 0
+      },
+      {
+        "batch": 27,
+        "sha256": "0f6e4df93bedd11a8babfe49cdd175988eee0120b182c748ed7cc1b9838b9d3d",
+        "passed": 41,
+        "failed": 0
+      },
+      {
+        "batch": 28,
+        "sha256": "e313bae051c56eca7abff9d5b9192b933ac1864a9a824fc7cbb42b7f5420f260",
+        "passed": 73,
+        "failed": 0
+      },
+      {
+        "batch": 29,
+        "sha256": "17a3801865a9fdccb70a0542d6261551eb5b00a8bbbebd5808edf5c061b45ef1",
+        "passed": 212,
+        "failed": 0
+      },
+      {
+        "batch": 30,
+        "sha256": "91f62dad8c568a48f230d630bc377167964eb7236992da93272412b467194cd5",
+        "passed": 87,
+        "failed": 0
+      },
+      {
+        "batch": 31,
+        "sha256": "bee3d0ccb26acdfdb64205e3e24dbd3e330e20587566aa078f13813ece735d65",
+        "passed": 89,
+        "failed": 0
+      },
+      {
+        "batch": 32,
+        "sha256": "137d044ac73427fb7756db9c0d54b2cfba9b64128ce635c12f2db0b5608373c3",
+        "passed": 88,
+        "failed": 0
+      },
+      {
+        "batch": 33,
+        "sha256": "7e9381cc4828b453f2e4a0f4af5f40386057e02917a586e791b8710334c53052",
+        "passed": 42,
+        "failed": 0
+      },
+      {
+        "batch": 34,
+        "sha256": "7c4f5d043f383b7b1bb749aeb2497e30b1b9ab22d0b642d30b34e5f39b4a45dd",
+        "passed": 70,
+        "failed": 0
+      },
+      {
+        "batch": 35,
+        "sha256": "6b1d0a9ea7c48da9180ba81232b65cba87dabf168c4d509c02c505b66a37dd83",
+        "passed": 47,
+        "failed": 0
+      },
+      {
+        "batch": 36,
+        "sha256": "837879ce8a06d2762e816478ffbde0357ec801618c55d6439e2e53647d78b422",
+        "passed": 85,
+        "failed": 0
+      },
+      {
+        "batch": 37,
+        "sha256": "9edf57d368fe53a1225c7d60c37794661877ef7257c7f911479563095d8391e9",
+        "passed": 60,
+        "failed": 0
+      },
+      {
+        "batch": 38,
+        "sha256": "971d87121a41f4bb4d39a97a85c0468121b1a48a2495484aa5158a1736492ea4",
+        "passed": 57,
+        "failed": 0
+      },
+      {
+        "batch": 39,
+        "sha256": "dcd089e89a1e234e1ac1bc96f1e74a7d35b1e43e8b8ff55fee026e83258cc633",
+        "passed": 78,
+        "failed": 0
+      },
+      {
+        "batch": 40,
+        "sha256": "4d7b277b8dbded719cf69fc5f90b1cac4379f9546f8d4a48576c05ac5fe5fa18",
+        "passed": 31,
+        "failed": 0
+      },
+      {
+        "batch": 41,
+        "sha256": "7494444f8d639b8e0c4a24a3dea4148103ad7862c78158f40d915b71cc8aaab5",
+        "passed": 72,
+        "failed": 0
+      },
+      {
+        "batch": 42,
+        "sha256": "dcbfe96691bfa4b5c121a440d7879327ce24288c324d9a65274fef8c64256db6",
+        "passed": 62,
+        "failed": 0
+      },
+      {
+        "batch": 43,
+        "sha256": "0a98252f49f00988bcb1173aa3ac82129fe8ee17addc260299c9c6193033a305",
+        "passed": 94,
+        "failed": 0
+      },
+      {
+        "batch": 44,
+        "sha256": "074dd90452b2289add10c8e993a2e082c81db07337f0be97733647e9a626ff89",
+        "passed": 62,
+        "failed": 0
+      },
+      {
+        "batch": 45,
+        "sha256": "9db52367d48bb039a86728ccde1163292f525de41257fb848a17746ace8fa3e2",
+        "passed": 53,
+        "failed": 0
+      },
+      {
+        "batch": 46,
+        "sha256": "63229c9524e87f5b7cea09c0eb46c167f1afb40f6e424789d468a094188bda26",
+        "passed": 57,
+        "failed": 0
+      },
+      {
+        "batch": 47,
+        "sha256": "0973ccb1e88479a35d4136a9dacd8d98553e0c7896b5b4c3ad5c2953e6c482bb",
+        "passed": 92,
+        "failed": 0
+      },
+      {
+        "batch": 48,
+        "sha256": "8422b993565e79d0a5a81b4b44a4d90dd80059459a537c3e9603a3b2469e56db",
+        "passed": 122,
+        "failed": 0
+      },
+      {
+        "batch": 49,
+        "sha256": "65ff2b66f67b9b42e3d5ffe1010ade2f29b9d866c302639c45cedeb2c9c419e7",
+        "passed": 62,
+        "failed": 0
+      },
+      {
+        "batch": 50,
+        "sha256": "dd7c207a8b40f25fdafa2ee10412fe2f942fb62af037c10738f03fb78ff5fe4e",
+        "passed": 44,
+        "failed": 0
+      },
+      {
+        "batch": 51,
+        "sha256": "ed164f5c7597f9ccafc6bbc3b9b1ed0cd6ab862b13c21e042e395271f0d44853",
+        "passed": 39,
+        "failed": 0
+      },
+      {
+        "batch": 52,
+        "sha256": "c78ffc17484419ca8222de3ef02f4949150a3c7006156bbaebd131ae50a5fefa",
+        "passed": 6,
+        "failed": 0
+      }
+    ]
+  },
+  "reference": {
+    "status": "Pass for complete coverage after isolated test-only repair",
+    "single_full_run": false,
+    "full_base_run": {
+      "status": "Fail",
+      "passed": 5455,
+      "failed": 15,
+      "batches": 53,
+      "groups": 431,
+      "integration_target_names": 394,
+      "result": {
+        "path": "/workspace/.zil-env/release-foundations/native-language-common-reference/reference-result.json",
+        "sha256": "881a7a5eaa546f24c3603e1ad1ec4510edbdb6103238d0ce7afa89f829bb5d4f"
+      },
+      "commands": {
+        "scope": "Every workspace library, binary, example, integration and doc target; no test filters.",
+        "integration_schedule": "sorted unique Cargo integration target names, all selected in batches of eight; shared build lock; scheduling and queueing are not cost measurements.",
+        "argv_prefix": [
+          "cargo",
+          "test",
+          "--locked",
+          "--workspace",
+          "--no-fail-fast",
+          "--no-default-features"
+        ]
+      },
+      "batch_log_hashes": [
+        {
+          "batch": 0,
+          "sha256": "0736bd2f64564194ae209f3d031e1670891286513c6626324542801f05b4e85c",
+          "passed": 1335,
+          "failed": 0
+        },
+        {
+          "batch": 1,
+          "sha256": "1d76bea5debc89bb8c98290753ddc11d35dae3992f95f025402b41dca5fee8dd",
+          "passed": 0,
+          "failed": 0
+        },
+        {
+          "batch": 2,
+          "sha256": "91443578eb5ec47719a55a6bae0530fcb9f9d739a9028a7cb211f34e4279a491",
+          "passed": 391,
+          "failed": 0
+        },
+        {
+          "batch": 3,
+          "sha256": "7ce1f1680f38ee2d379c153ea8e22dcacab4b5009322380a353ab44ca553d266",
+          "passed": 88,
+          "failed": 0
+        },
+        {
+          "batch": 4,
+          "sha256": "da86b9cece2b2c2d2e0a9d470ae9bdf17ac9e46ac8f5df19557c3a98b61e213a",
+          "passed": 65,
+          "failed": 0
+        },
+        {
+          "batch": 5,
+          "sha256": "36053fc8633b25ca4d7a00c0c3919c9b5c29815e421564b365b003c923d99c46",
+          "passed": 73,
+          "failed": 0
+        },
+        {
+          "batch": 6,
+          "sha256": "dbb6048344c53e82b782e1f7f78550145332ab33986fefd4e1d3dde604e0264b",
+          "passed": 82,
+          "failed": 0
+        },
+        {
+          "batch": 7,
+          "sha256": "0e4ff6a1440910aabf7217d1122dabc29f6f7fb17fdf60382c904722b94b78f1",
+          "passed": 85,
+          "failed": 0
+        },
+        {
+          "batch": 8,
+          "sha256": "c4000cc70cdc59fbe70cc67741f47c3490d337d803ed04e4ad22215542d9596a",
+          "passed": 80,
+          "failed": 0
+        },
+        {
+          "batch": 9,
+          "sha256": "445d24dc4647eb17f27bfeae31e330b845f99103c7da0940a4588cbd2145597f",
+          "passed": 66,
+          "failed": 0
+        },
+        {
+          "batch": 10,
+          "sha256": "2fcc05b8227d8f067503de86691e5d6b04df4da0554c45f65c28af2afd02cfd8",
+          "passed": 177,
+          "failed": 0
+        },
+        {
+          "batch": 11,
+          "sha256": "32f0f95e90092e3cac986040027733021adc839e9e4a7e189bed1eb59c55246d",
+          "passed": 101,
+          "failed": 0
+        },
+        {
+          "batch": 12,
+          "sha256": "3f29a9f708355f55a15217a99744f3793fbf2fe3502fc81d97c5a03481f62b9a",
+          "passed": 55,
+          "failed": 0
+        },
+        {
+          "batch": 13,
+          "sha256": "07407586c04558f57a406ec815e666ae1afee46d5e66881a8d26bb7f386b50e9",
+          "passed": 94,
+          "failed": 0
+        },
+        {
+          "batch": 14,
+          "sha256": "3793e455a6f963e47b8768599f675ea8f40110cb6db298e889945e06bec49b18",
+          "passed": 73,
+          "failed": 0
+        },
+        {
+          "batch": 15,
+          "sha256": "d6021a9f4242c3e253256e50b2f42cfa89aa4b1f20d92b72083ee50b8edfeb6f",
+          "passed": 46,
+          "failed": 0
+        },
+        {
+          "batch": 16,
+          "sha256": "374711d75191ac691b11ca78a78c65e46ff773cdceb5f1978d23c792199097ff",
+          "passed": 34,
+          "failed": 0
+        },
+        {
+          "batch": 17,
+          "sha256": "a38f583e03f080f81a3944f8fd507286f32240f868ffe1b3b459b4c612c42082",
+          "passed": 24,
+          "failed": 0
+        },
+        {
+          "batch": 18,
+          "sha256": "8bfb92fbe62ef25b8a6ec0e15ed522c75f3cb9f5af9a67ed1c71949d09e14028",
+          "passed": 70,
+          "failed": 0
+        },
+        {
+          "batch": 19,
+          "sha256": "ada1b67c3e6d91b9bec1f1e9f24acf3678a1deb289e70ab856afa8a10eab9c6f",
+          "passed": 60,
+          "failed": 0
+        },
+        {
+          "batch": 20,
+          "sha256": "8b0cee2b7d5f5a70e620286720d1f30501802e95d3c8a95fa45d0532da8f857b",
+          "passed": 324,
+          "failed": 0
+        },
+        {
+          "batch": 21,
+          "sha256": "86fbc1a836c8fe10b3a36039d5fe05fbf3677ac736b3f22ee498cefebf8f2485",
+          "passed": 58,
+          "failed": 0
+        },
+        {
+          "batch": 22,
+          "sha256": "077a601896ed807f7010d2e165e988a2d0dbc23414d15d98ba54bda1cfac828f",
+          "passed": 67,
+          "failed": 0
+        },
+        {
+          "batch": 23,
+          "sha256": "41106bbb621370f32aa27becaceab4196af4587dda3bfbc1e99556ce395a87fe",
+          "passed": 97,
+          "failed": 0
+        },
+        {
+          "batch": 24,
+          "sha256": "ce6a87dfedba1f83c6ecac3845fc7d0c4a0db79932acde00e665ced11451c58b",
+          "passed": 38,
+          "failed": 0
+        },
+        {
+          "batch": 25,
+          "sha256": "b5141bb49042ba659e46026d8b66d91495ac22898f46bee14ef11f9cea2b7ae1",
+          "passed": 69,
+          "failed": 0
+        },
+        {
+          "batch": 26,
+          "sha256": "2a7ab46ac1397814e9744dae2c7029981aff6cde493749cb460ac4848f04e964",
+          "passed": 78,
+          "failed": 0
+        },
+        {
+          "batch": 27,
+          "sha256": "7669524942007986ce96a238d898e30d733ad14a60e1cc0d1d9c1b750dda0731",
+          "passed": 39,
+          "failed": 0
+        },
+        {
+          "batch": 28,
+          "sha256": "720d0e069174c4b3feb731a3d6b5bfd9596f476a881a503b485190029a70637e",
+          "passed": 47,
+          "failed": 0
+        },
+        {
+          "batch": 29,
+          "sha256": "36d9e29d963281a70c8fb7bb3d886e21026c624955d390099154d204a330666e",
+          "passed": 207,
+          "failed": 0
+        },
+        {
+          "batch": 30,
+          "sha256": "4f8c179134bda7ec7ead789ec381303cec5732884dfeebbae0430cc0a02d6ab3",
+          "passed": 87,
+          "failed": 0
+        },
+        {
+          "batch": 31,
+          "sha256": "5693945446d393ffb47ad8481d76e967e8e78866de849b4318709b3f1d267693",
+          "passed": 89,
+          "failed": 0
+        },
+        {
+          "batch": 32,
+          "sha256": "37ee69193a4430c2237ed42b3682348eb264db5abf079805d09f2be98e271e30",
+          "passed": 88,
+          "failed": 0
+        },
+        {
+          "batch": 33,
+          "sha256": "2928dedc7132799a1686fed6af0c16b4e6860c5ff3ed260c0e0d208f1bc68a69",
+          "passed": 40,
+          "failed": 0
+        },
+        {
+          "batch": 34,
+          "sha256": "ffb0100b4f49a7b3aae732de07979902a92d0afb83d3ec4613c224e13fbd4e4e",
+          "passed": 70,
+          "failed": 0
+        },
+        {
+          "batch": 35,
+          "sha256": "b9a2a0e6f06c678554263a8e8fc9d928d030e36ff38c13de13a4218f859070f4",
+          "passed": 46,
+          "failed": 0
+        },
+        {
+          "batch": 36,
+          "sha256": "e4670b9e894cc6f181d1c93614e590f706d8e2d5ff0a434bb1ddd0d090e5f8ce",
+          "passed": 85,
+          "failed": 0
+        },
+        {
+          "batch": 37,
+          "sha256": "b438f0b92be9f5843f7750885c3bb6530f5c83670d96c8eff930eb08300187fd",
+          "passed": 59,
+          "failed": 0
+        },
+        {
+          "batch": 38,
+          "sha256": "4c2fdb10c943f9e75e4e3de10761bd68497aa2ed6e3abc7e5a15eebac86959ae",
+          "passed": 57,
+          "failed": 0
+        },
+        {
+          "batch": 39,
+          "sha256": "49898ed848df311200ef62034ccefde93bd698aeb862cff542aa7aaedd807725",
+          "passed": 75,
+          "failed": 0
+        },
+        {
+          "batch": 40,
+          "sha256": "2c7de8cc15367485f100042f3e47d1ab07cbc73a331a5ce241aad9bbad1f291d",
+          "passed": 27,
+          "failed": 0
+        },
+        {
+          "batch": 41,
+          "sha256": "04f91ebbfa66acddba3addf37fb70ee91141f1427e0207c1e2119bc688a536d0",
+          "passed": 72,
+          "failed": 0
+        },
+        {
+          "batch": 42,
+          "sha256": "1c4a2c626a0076be770984eaee313c0775af7b0eaed0f60f1d42f560c4a90284",
+          "passed": 62,
+          "failed": 0
+        },
+        {
+          "batch": 43,
+          "sha256": "a051eb8c5519cac4026bcd3841635e630ed93c0e18e49961ac606d824e5bdb60",
+          "passed": 90,
+          "failed": 0
+        },
+        {
+          "batch": 44,
+          "sha256": "648aef4576d3aebb040d439bfe4867252ba3e8475cf56a0b021188404479fcf7",
+          "passed": 47,
+          "failed": 0
+        },
+        {
+          "batch": 45,
+          "sha256": "da6d988cd61ea817a25ad1d2341714af237ac57763fab9f2ffcdb5f93f8c7228",
+          "passed": 53,
+          "failed": 0
+        },
+        {
+          "batch": 46,
+          "sha256": "af453a3ac73d90ce8e7f609d6b1ec6b7b4746d317ccc39107f16982c40fa327a",
+          "passed": 57,
+          "failed": 0
+        },
+        {
+          "batch": 47,
+          "sha256": "3fa433d3fa8e95fc54c06c634a68186c49d5f29e3613662afa2beca660c0d798",
+          "passed": 92,
+          "failed": 0
+        },
+        {
+          "batch": 48,
+          "sha256": "ffae039ef960aedc68640a51f6ab1d367f8e96ff1317298c329fdcf1e4db6438",
+          "passed": 98,
+          "failed": 15
+        },
+        {
+          "batch": 49,
+          "sha256": "98430780ad9a7c022c435d70c731dc2c371c2b1964484e4c2f65f4eb795528ea",
+          "passed": 61,
+          "failed": 0
+        },
+        {
+          "batch": 50,
+          "sha256": "a2bcf5afbd361ca61c87a44998c73514d7023edfc0e70af00219b516d0accdca",
+          "passed": 32,
+          "failed": 0
+        },
+        {
+          "batch": 51,
+          "sha256": "ed180e923447c9cf48df95308064e2160ce216f439b2bff13f05b02aeaca5825",
+          "passed": 39,
+          "failed": 0
+        },
+        {
+          "batch": 52,
+          "sha256": "d22c118768969db766e2e58668e5b8a039caaa4b5b4bc0c2b23c9ab4b05dac9c",
+          "passed": 6,
+          "failed": 0
+        }
+      ]
+    },
+    "full_base_run_source": "263f11f3e3e0c0fc924b4f2573416e1fe1a0d755",
+    "repair_revision": "e5400cfba036a46ca70677ca411abcd863466edf",
+    "repair_scope": "Six inserted lines in two existing test helpers: use LLVM API only when compiled. No production, library, build or other test input changes. Clang O0/O2 still executes in the reference build.",
+    "affected_target_retests": [
+      {
+        "configuration": "reference",
+        "exit_code": 0,
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--no-default-features",
+          "--test",
+          "stored_environment_lending_raw"
+        ],
+        "passed": 64,
+        "failed": 0,
+        "log": "/workspace/.zil-env/release-foundations/backend-selection-final/reference.log",
+        "sha256": "2cb0970978784e876ca16785a9943032a155d78b2feb4b069001103362fe1702"
+      },
+      {
+        "configuration": "llvm-api",
+        "exit_code": 0,
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--features",
+          "llvm-api",
+          "--test",
+          "stored_environment_lending_raw"
+        ],
+        "passed": 64,
+        "failed": 0,
+        "log": "/workspace/.zil-env/release-foundations/backend-selection-final/llvm-api.log",
+        "sha256": "9f513425ae23c97eab3e423e2d2df38d5d3cceb649ca66a7cfccaa561551bd20"
+      }
+    ],
+    "coverage_passed": 5470,
+    "coverage_failed": 0,
+    "coverage_count_basis": "Replace only the affected target original49/15 with corrected64/0; all other full-suite results retained. Original full Fail is not rewritten as Pass."
+  },
+  "text_reference": {
+    "status": "Pass",
+    "passed": 70,
+    "failed": 0,
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "zil-llvm-api",
+      "--features",
+      "text-reference"
+    ],
+    "log": {
+      "path": "/workspace/.zil-env/release-foundations/final-composition-focus/text-reference-final.log",
+      "sha256": "d0f9cdb46001a3eeab22ced691f3d5b73c942b1df3822b292423ad21b6255025"
+    }
+  },
+  "strict_clippy": {
+    "status": "Pass",
+    "command": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--offline",
+      "--workspace",
+      "--all-targets",
+      "--features",
+      "llvm-api",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "log": {
+      "path": "/workspace/.zil-env/release-foundations/backend-selection-final/strict.log",
+      "sha256": "e9c8bdc7bfe8372d4e84a8b29d550a9ec53eb19784a7506fb3994734ee5699a8"
+    }
+  },
+  "structure": {
+    "ok": true,
+    "errors": [],
+    "checkedCrates": 15,
+    "checkedEdges": 38,
+    "layout_paths_at_tested_revision": 3923,
+    "toolchain_manifest": {
+      "path": "/workspace/.zil-env/release-foundations/final-composition-focus/toolchain.json",
+      "sha256": "adcc1bace79757f9ebb0182dc199c98096e9543666144f1a3d54b33c1f5fc739"
+    }
+  },
+  "cold_recovery": {
+    "status": "Pass",
+    "source_tree": "1d41b502eb2af53a31bcada0f5afb3d452f73713",
+    "source_clean_before_and_after": true,
+    "git_alternates": false,
+    "reused_infrastructure": [
+      "installed pinned Rust/LLVM toolchains",
+      "Cargo registry under inherited CARGO_HOME"
+    ],
+    "native_builds": 32,
+    "native_executions": 32,
+    "verify_runs_per_build": 1,
+    "command_count": 72,
+    "configurations": [
+      "clang/O0",
+      "clang/O2",
+      "llvm-api/O0",
+      "llvm-api/O2"
+    ],
+    "ordinary_main": true,
+    "entry_override": false,
+    "source_or_object_cache": false,
+    "backend_fallback": false,
+    "consumer_expectations": [
+      {
+        "name": "stream",
+        "path": "examples/mainline/stream/main.zil",
+        "stdin": "10 20 -3\n",
+        "stdout": "3 0 45\n",
+        "stderr": "",
+        "exit": 0
+      },
+      {
+        "name": "foundations",
+        "path": "examples/mainline/draft_foundations/main.zil",
+        "stdin": "",
+        "stdout": "",
+        "stderr": "",
+        "exit": 42
+      },
+      {
+        "name": "local-task-result",
+        "path": "tests/fixtures/task-borrow-results/local-create-poll.zil",
+        "stdin": "",
+        "stdout": "",
+        "stderr": "",
+        "exit": 0
+      },
+      {
+        "name": "owning-map-cleanup",
+        "path": "tests/fixtures/optional-store-address/owning-map-cleanup.zil",
+        "stdin": "",
+        "stdout": "CAB",
+        "stderr": "",
+        "exit": 0
+      },
+      {
+        "name": "error-union-definition-selected",
+        "path": "tests/fixtures/error-union-calls/definition-selected.zil",
+        "stdin": "",
+        "stdout": "",
+        "stderr": "",
+        "exit": 0
+      },
+      {
+        "name": "task-map-shared-result",
+        "path": "tests/fixtures/task-borrow-results/owning-map-lending.zil",
+        "stdin": "",
+        "stdout": "ABDEC",
+        "stderr": "",
+        "exit": 0
+      },
+      {
+        "name": "task-map-temporary-match",
+        "path": "tests/fixtures/task-borrow-results/owning-map-temporary-lending.zil",
+        "stdin": "",
+        "stdout": "ABDEC",
+        "stderr": "",
+        "exit": 0
+      },
+      {
+        "name": "task-map-conditional-source",
+        "path": "tests/fixtures/task-borrow-results/owning-map-conditional-lending.zil",
+        "stdin": "",
+        "stdout": "ABDEC",
+        "stderr": "",
+        "exit": 0
+      }
+    ],
+    "logs_and_stream_hashes_verified": true,
+    "fresh_target_initial_entries": 0,
+    "compiler_artifacts_reused": false,
+    "cli_sha256": "d5eb44f34b0af3d7512941e74af3ebe0e0845a31ce0c00d1eb5d88c92acdc02e",
+    "receipt_sha256": "26260406600e3aae56fd13307c084562290a4ba3dc56122e7de52d0251c6920d",
+    "summary": {
+      "path": "/workspace/.zil-env/release-foundations/accepted-source-cold-final/summary.json",
+      "sha256": "8fb38fb440090386f5a28356885f82700f6c30a0e6e976c83d597b24f379cfb9"
+    }
+  },
+  "kernel_controls": {
+    "source": [
+      "crates/zil-driver/tests/owning_map.rs",
+      "crates/zil-driver/tests/stored_environment_lending_raw.rs",
+      "crates/zil-driver/tests/generic_regressions.rs",
+      "crates/zil-driver/tests/synchronous_error_cleanup.rs"
+    ],
+    "conditions": [
+      "Source and independent raw/Wire rejection; default limits; N/N-1 and fresh requests",
+      "real calloc/realloc failure, no leaked live allocation and exactly-once cleanup",
+      "Task/Map lending and return-source conservation in one original CFG",
+      "original default-worker deep-call tests; stack and global Limits unchanged"
+    ],
+    "exact_mixed_verify_work": 5055410,
+    "exact_conditional_analyze_work": 5262500
+  },
+  "review": {
+    "method": "Non-author precise source review of implementation increments and root merge; author test evidence distinguished from read-only review.",
+    "accepted_increment_commits": [
+      "538f81656433ae8e07c8a18a700c9418317598ad",
+      "53634d78fb397086795841769e932188ec8d869d",
+      "b81ebd47c9cc6e6bcb0a44d6c7397749b1c34a23",
+      "206031ad8a0218f6fe0955f1b915ceb2949b1262",
+      "c5a20b26842033dd179a9cf2904c9e591a05d857",
+      "c8a79145c3e94b83efebb634c22663ca4a1cd84c",
+      "e042902d033de1f73bb689f55cc0801335dcf92b",
+      "10dd947a3053e5538c93d996238dfbb02a17e963",
+      "266b758efb7cb319a24b6f3f0d257307c9e5b930",
+      "e6b5fb0e5fd7638bc2e0ab73143da4561f0c8e0d"
+    ]
+  },
+  "evidence_retention": "Repository source, fixtures and compact acceptance record are durable. Referenced local logs are auxiliary and may require rerunning the recorded source after environment loss. Full derived phase dumps are not archived; original command/result logs, input and mutation fixtures, stream hashes and native cleanup assertions are retained.",
+  "validation_revision": "e5400cfba036a46ca70677ca411abcd863466edf",
+  "production_input_equivalence": {
+    "base": "263f11f3e3e0c0fc924b4f2573416e1fe1a0d755",
+    "revision": "e5400cfba036a46ca70677ca411abcd863466edf",
+    "git_diff_paths": [
+      "crates/zil-driver/tests/stored_environment_lending_raw.rs"
+    ],
+    "production_and_library_changes": false,
+    "explanation": "All compiler/library/build inputs and native fixtures are byte-identical. The only test changes select compiled backends; the changed target is rerun in both configurations. Original complete base results retain their actual source and status."
+  }
+}
