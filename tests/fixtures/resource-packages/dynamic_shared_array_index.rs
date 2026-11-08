@@ -2,6 +2,7 @@
 use super::*;
 const WINDOW: &str = include_str!("dynamic-shared-address-array.zil");
 const CLEANUP_SNAPSHOT: &str = "extern \"C\" fn putchar(c:i32)->i32;resource Mark{code:i32}impl Drop for Mark{fn drop(self:Self){unsafe{putchar(.code)}}}package Job<life a>{manages mark:Mark;items:[&'a i32;2]}fn snapshot<life a>(first:&'a i32,second:&'a i32)->[&'a i32;2]{let job=Job::<'a>{mark:Mark{code:82},items:[first,second]};let window=&job;return window.items}fn main()->i32{let first=7;let second=9;let items=snapshot(&first,&second);unsafe{putchar(86)}let index=1;return *items[index]-9}";
+const MIXED_COPY: &str = "struct Refs<life a>{pointer:&'a i32}fn make<life a>(pointer:&'a i32)->Refs<'a>{return Refs::<'a>{pointer:pointer}}fn observe(pointer:&i32)->i32{return *pointer}fn read<life a,life b>(left:Refs<'a>,right:Refs<'b>,index:i32)->i32{let items=[left.pointer,right.pointer];let pointer=items[index];let copied=pointer;let reborrowed=&*copied;return observe(reborrowed)}fn main()->i32{var first=7;var second=9;let value=read(make(&first),make(&second),1);first=11;second=12;return value-9}";
 
 fn verify_source(label: &str, program: &str) {
     let limits = Limits::default();
@@ -285,7 +286,7 @@ fn native_object_and_index_evaluate_once_in_order_and_bounds_trap() {
             continue;
         }
         for optimization in [Optimization::O0, Optimization::O2] {
-            for (label,program) in [("ordered",ordered.to_string()),("cleanup",CLEANUP_SNAPSHOT.to_string()),("negative","fn main()->i32{let first=7;let second=9;let items=[&first,&second];let index=-1;return *items[index]}".to_string()),("past-end","fn main()->i32{let first=7;let second=9;let items=[&first,&second];let index=2;return *items[index]}".to_string())] {
+            for (label,program) in [("ordered",ordered.to_string()),("cleanup",CLEANUP_SNAPSHOT.to_string()),("mixed",MIXED_COPY.to_string()),("negative","fn main()->i32{let first=7;let second=9;let items=[&first,&second];let index=-1;return *items[index]}".to_string()),("past-end","fn main()->i32{let first=7;let second=9;let items=[&first,&second];let index=2;return *items[index]}".to_string())] {
                 let dir=std::env::temp_dir().join(format!("zil-dynamic-shared-array-{}-{backend:?}-{optimization:?}-{label}",std::process::id()));std::fs::create_dir_all(&dir).unwrap();
                 let executable=dir.join("program");
                 let report=compile_source(&source(label,&program),&CompileOptions{stop_after:Stage::Build,backend,optimization,output:Some(executable.clone()),..CompileOptions::default()});
@@ -293,14 +294,14 @@ fn native_object_and_index_evaluate_once_in_order_and_bounds_trap() {
                 assert_eq!(report.verification_runs,1);
                 let native=report.native_codegen.as_ref().unwrap();assert_eq!(native.backend,backend);assert!(native.fallback.is_none());
                 let result=std::process::Command::new(&executable).output().unwrap();
-                if label=="ordered" || label=="cleanup" { assert_eq!(result.status.code(),Some(0),"{result:?}");let expected: &[u8]=if label=="ordered"{b"AI"}else{b"RV"};assert_eq!(result.stdout,expected);assert!(result.stderr.is_empty());runs+=1; }
+                if label=="ordered" || label=="cleanup" || label=="mixed" { assert_eq!(result.status.code(),Some(0),"{result:?}");let expected: &[u8]=if label=="ordered"{b"AI"}else if label=="cleanup"{b"RV"}else{b""};assert_eq!(result.stdout,expected);assert!(result.stderr.is_empty());runs+=1; }
                 else { assert_eq!(result.status.signal(),Some(4),"{label}: {result:?}");assert!(result.stdout.is_empty());traps+=1; }
                 std::fs::remove_dir_all(dir).unwrap();
             }
         }
     }
-    assert_eq!(runs, 4 + 4 * usize::from(cfg!(feature = "llvm-api")));
-    assert_eq!(traps, runs);
+    assert_eq!(runs, 6 + 6 * usize::from(cfg!(feature = "llvm-api")));
+    assert_eq!(traps, 4 + 4 * usize::from(cfg!(feature = "llvm-api")));
     println!(
         "dynamic Array: {runs} native once/order and cleanup successes and {traps} actual bounds traps"
     );
@@ -654,5 +655,64 @@ fn raw_and_wire_cannot_replace_a_declared_return_source_by_another_upper() {
     );
     println!(
         "actual b source inserted in a-returning dynamic selector: Analyze/Verify/Wire independent class rejection"
+    );
+}
+
+#[test]
+fn raw_and_wire_check_a_single_upper_against_the_real_stored_destination() {
+    let program = "struct Refs<life a>{pointer:&'a i32}fn write<life a,life b>(left:Refs<'a>,right:Refs<'b>,index:i32)->i32{let other=right.pointer;let items=[left.pointer,left.pointer];let pointer=items[index];var holder=Refs::<'a>{pointer:pointer};holder.pointer=left.pointer;return *holder.pointer}fn main()->i32{return 0}";
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let mut raw = typed_source("dynamic-actual-slot-upper", program, &target, &limits);
+    let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let f = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "write")
+        .unwrap();
+    let other = f.locals.iter().find(|l| l.name == "other").unwrap().id;
+    let source = f
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| {
+            if let zil_ir::InstructionKind::Store { local, value } = i.kind {
+                (local == other).then_some(value)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let stored = f
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| matches!(i.kind, zil_ir::InstructionKind::StoreStoredBorrow { .. }))
+        .unwrap();
+    let zil_ir::InstructionKind::StoreStoredBorrow { value, .. } = &mut stored.kind else {
+        unreachable!()
+    };
+    *value = source;
+    let errors = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d.message.contains("retained class")),
+        "{errors:?}"
+    );
+    plan.module_fingerprint = raw.fingerprint();
+    let errors =
+        zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d.message.contains("retained class")),
+        "{errors:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    let errors = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d.message.contains("retained class")),
+        "{errors:?}"
+    );
+    println!(
+        "single actual b replaces actual a destination: Analyze/Verify/Wire independent expected-class rejection"
     );
 }
