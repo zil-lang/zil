@@ -9458,3 +9458,6 @@ mod helper_life_completion_completion;
 
 #[path = "../../../tests/language-readiness/foreign-thread-registration/raw_holder.rs"]
 mod foreign_raw_holder;
+
+#[path = "../../../tests/fixtures/threading/mutex_worker_helpers.rs"]
+mod mutex_worker_helpers;

@@ -31,6 +31,13 @@ dependencies; `T:Share` alone is insufficient. A guard gains neither thread
 transfer nor suspension permission by being affine. These are distinct
 capabilities and require their own actual protocol and target evidence.
 
+A structured Mutex thread keeps its root `fn(Mutex<T>)->i32` ABI. Internal
+Direct helpers may return the existing finite thread scalar values
+(Unit/Bool/u8/u16/i32/i64/u64/usize) or an integer/Bool CAS pair. Each helper
+retains the complete actual parameter, Transfer, synchronous cleanup and
+call-graph checks. This does not admit address, Guard, owning or floating
+results, foreign/indirect execution, or suspension.
+
 Types constructs candidates. Analyze and Verify independently reconstruct
 ownership, initialization, origins, loans, effects and capability requirements,
 including raw/Wire inputs and unused declarations. Lower and each backend use
