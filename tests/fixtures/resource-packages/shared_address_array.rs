@@ -526,14 +526,14 @@ fn array_slots_and_actual_pointee_snapshot_budgets_are_exact_and_fresh() {
     assert_eq!(
         boundaries,
         vec![
-            [1638, 24787, 29335, 29335, 29335],
-            [2250, 73489, 86110, 86110, 86110],
-            [3990, 49818, 57237, 57237, 57237],
-            [5886, 50740, 58972, 58972, 58972],
-            [3396, 40233, 53885, 53885, 53885],
-            [4554, 89149, 125858, 125858, 125858],
-            [6098, 69191, 91202, 91202, 91202],
-            [8442, 75237, 100190, 100190, 100190],
+            [1702, 24787, 29335, 29335, 29335],
+            [2326, 73489, 86110, 86110, 86110],
+            [4229, 49818, 57237, 57237, 57237],
+            [6250, 50740, 58972, 58972, 58972],
+            [3576, 40233, 53885, 53885, 53885],
+            [4788, 89149, 125858, 125858, 125858],
+            [6481, 69191, 91202, 91202, 91202],
+            [8988, 75237, 100190, 100190, 100190],
         ]
     );
     println!("array complete boundaries: {boundaries:?}");
@@ -816,4 +816,164 @@ fn ordinary_array_assignment_and_if_results_keep_actual_elements() {
     zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
     let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
     zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+}
+
+#[test]
+fn whole_array_reference_patterns_preserve_real_sources() {
+    for body in [
+        "let ref whole=items;return *whole[1]-9",
+        "match items{ref whole=>{return *whole[1]-9}}",
+        "let window=&items;match *window{ref whole=>{return *whole[1]-9}}",
+    ] {
+        let program =
+            format!("fn main()->i32{{var first=7;var second=9;let items=[&first,&second];{body}}}");
+        let limits = Limits::default();
+        let target = TargetProfile::host_llvm();
+        let report = compile_source(
+            &source("array-reference-pattern", &program),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let raw = typed_source("array-reference-pattern", &program, &target, &limits);
+        let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+        zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+        let invalid = program.replace("return *whole[1]-9", "second=11;return *whole[1]-9");
+        let report = compile_source(
+            &source("array-reference-source-write", &invalid),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+    }
+    let program = "struct Batch<life a>{items:[&'a i32;2]}fn read<life a>(first:&'a i32,second:&'a i32)->i32{let ref whole=Batch::<'a>{items:[first,second]};return *whole.items[1]}fn main()->i32{let first=7;let second=9;return read(&first,&second)-9}";
+    let report = compile_source(
+        &source("array-reference-temporary", program),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn array_outer_scope_and_whole_reference_snapshot_costs_grow_before_cloning() {
+    let default = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let mut boundaries = Vec::new();
+    for (length, width, depth) in [(2, 1, 0), (8, 8, 1)] {
+        let fields = (0..width)
+            .map(|i| format!("v{i}:i32"))
+            .collect::<Vec<_>>()
+            .join(";");
+        let values = (0..width)
+            .map(|i| format!("v{i}:7"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let mut definitions = format!("struct Leaf{{{fields}}}");
+        let mut ty = "Leaf".to_string();
+        let mut value = format!("Leaf{{{values}}}");
+        let mut path = String::new();
+        for level in 0..depth {
+            let next = format!("Layer{level}");
+            definitions.push_str(&format!("struct {next}{{inner:{ty}}}"));
+            value = format!("{next}{{inner:{value}}}");
+            ty = next;
+            path.push_str(".inner");
+        }
+        let elements = std::iter::repeat_n("pointer", length)
+            .collect::<Vec<_>>()
+            .join(",");
+        // All headers stay scalar. Array creation in the first ordinary
+        // function enables the shared request ledger; the following closure
+        // has only a POD outer scope and captures nothing.
+        let program = format!(
+            "{definitions}fn array_before()->i32{{let value={value};let pointer=&value;let items=[{elements}];let ref window=items;let selected=window[0];return selected{path}.v0}}fn scoped()->i32{{let value={value};let unused=()=>0;return value{path}.v0}}fn main()->i32{{return 0}}"
+        );
+        let input = source("array-outer-snapshot", &program);
+        let syntax = zil_syntax::parse(&input).into_result().unwrap();
+        let core = zil_expand::expand_with_map_limits_target_context(
+            &input,
+            &syntax,
+            &default,
+            &target,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: input.module_id,
+                aliases: &Default::default(),
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .core;
+        let n = exact_array_budget(
+            &format!(
+                "Array whole reference and uncaptured outer scope len={length} width={width} depth={depth}"
+            ),
+            |n| {
+                array_budget_category(zil_types::check(
+                    &core,
+                    &target,
+                    &Limits {
+                        max_analysis_steps: n,
+                        ..default.clone()
+                    },
+                ))
+            },
+        );
+        boundaries.push(n);
+    }
+    assert!(boundaries[1] > boundaries[0]);
+    println!("Array auxiliary Types snapshot boundaries: {boundaries:?}");
+}
+
+#[test]
+fn array_closure_inference_keeps_its_existing_boundary() {
+    for program in [
+        "fn main()->i32{let n=7;let items=[&n,&n];let unused=()=>0;return *items[1]-7}",
+        "struct Batch<life a>{items:[&'a i32;2]}fn inspect<life a>(pointer:&'a i32)->i32{let items=Batch::<'a>{items:[pointer,pointer]};let unused=()=>0;return *items.items[1]}fn main()->i32{return 0}",
+    ] {
+        let report = compile_source(
+            &source("array-closure-frontier", program),
+            &CompileOptions {
+                stop_after: Stage::Types,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("shared address and scalar types differ")),
+            "{}",
+            report.to_json()
+        );
+    }
 }

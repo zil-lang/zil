@@ -15,9 +15,19 @@ impl<'a> Builder<'a, '_> {
             return Ok(self.known_type(e));
         }
         self.closures.array_billing = true;
-        if let Some(actual) = self.known_type_ref(e) {
-            let work = inference::type_snapshot_work(actual, e.span, self.limits)?;
-            self.closures.snapshot(work, e.span)?;
+        // Composite selectors use the recursive path below, which reserves
+        // the actual parent before a variable-sized field-table lookup.
+        let direct = matches!(
+            &e.kind,
+            CoreExprKind::Name(_) | CoreExprKind::Ascribed { .. } | CoreExprKind::Record { .. }
+        ) || matches!(&e.kind,CoreExprKind::Call {callee,..} if matches!(callee.kind,CoreExprKind::Name(_)));
+        if direct && let Some(actual) = self.known_type_ref(e) {
+            let before = self.closures.remaining_work();
+            let mut remaining = before;
+            let checked =
+                inference::charge_type_snapshot(actual, e.span, self.limits, &mut remaining, 1);
+            self.closures.snapshot(before - remaining, e.span)?;
+            checked?;
             return Ok(self.known_type_ref(e).cloned());
         }
         if let CoreExprKind::Call { callee, arguments } = &e.kind {
