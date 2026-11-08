@@ -2771,6 +2771,23 @@ fn step(
                     add_leaf(&mut out, &row.path, &permission, b)?;
                 }
             }
+            if let Some(result) = i.result
+                && let Type::Address { inner, .. } = vt(f, result)?
+                && shared_array_shape(inner, b)?
+            {
+                let Type::Array { length, .. } = inner.as_ref() else {
+                    unreachable!()
+                };
+                b.spend(*length as usize)?;
+                for index in 0..*length {
+                    let path = [PlaceProjection::Field(index)];
+                    // select pays each existing Source width; reserve the
+                    // appended physical ordinal independently before growth.
+                    b.spend(out.address.sources.len())?;
+                    let actual = select(state, &out.address, &path, b)?;
+                    add_leaf(&mut out, &path, &actual, b)?;
+                }
+            }
         }
         InstructionKind::ReborrowAddress { address, .. }
         | InstructionKind::AddressIndex { address, .. }

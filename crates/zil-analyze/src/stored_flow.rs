@@ -2759,6 +2759,26 @@ fn transfer(
                     )?;
                 }
             }
+            if let Some(result) = i.result
+                && let Type::Address { inner, .. } = value_type(f, result)?
+                && shared_array_shape(inner, b)?
+            {
+                let Type::Array { length, .. } = inner.as_ref() else {
+                    unreachable!()
+                };
+                fee(b, *length as usize)?;
+                for index in 0..*length {
+                    let path = vec![PlaceProjection::Field(index)];
+                    // select's legacy fee covers stored selectors. This new
+                    // projected child also prepays its inline clone/append.
+                    for root in &out.pointer.targets {
+                        fee(b, root.place.len().saturating_add(path.len()))?;
+                    }
+                    let actual = select(state, &out.pointer, &path, b)?;
+                    ordered(b, out.slots.len(), path.len())?;
+                    out.slots.insert(path, actual);
+                }
+            }
         }
         InstructionKind::ReborrowAddress { address, .. }
         | InstructionKind::AddressIndex { address, .. }
