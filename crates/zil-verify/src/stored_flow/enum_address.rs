@@ -96,7 +96,7 @@ pub(super) fn arguments(
     Ok(())
 }
 
-pub(super) fn shape(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
+pub(crate) fn shape(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
     if !candidate(ty) {
         return Ok(false);
     }

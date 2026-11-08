@@ -393,15 +393,124 @@ pub(super) enum Root {
     // Field identity is exact even while its package shell is only partly
     // populated. A later instance at the same physical slot cannot revive an
     // earlier live description across a Take/Drop/Store transition.
-    PackageField { local: LocalId, index: u32 },
-    ArrayElement { local: LocalId, index: u32 },
+    PackageField {
+        local: LocalId,
+        index: u32,
+    },
+    ArrayElement {
+        local: LocalId,
+        index: u32,
+    },
     Parameter(u32),
+    /// Exact checked Some(0) leaf of an Option input, without an owned debt.
+    InputPayload(u32),
     OwnedCapture(u32),
     BorrowedCapture(u32),
     StoreParent(StoreParentRoot),
     // Private effect only: an actual Commit ends an old Store field instance.
     // This is never an ordinary write row or a runtime description origin.
     InvalidatedStore(StoreParentRoot),
+}
+
+fn option_store_origin(
+    f: &TypedFunction,
+    source: &crate::stored_flow::Source,
+    budget: &mut Budget,
+) -> Check<Root> {
+    if source.retained_port.is_some() {
+        return Err(bad(
+            f.span,
+            "Option description has an unrelated retained port",
+        ));
+    }
+    if source.heap_element.is_none() {
+        return match (
+            source.base,
+            source.leaf.as_slice(),
+            source.inline.as_slice(),
+        ) {
+            (HoldRoot::Parameter(position), [zil_ir::PlaceProjection::Variant(selector)], [])
+                if selector.variant == 1 && selector.index == 0 =>
+            {
+                budget.spend(1)?;
+                Ok(Root::InputPayload(position))
+            }
+            _ => Err(bad(f.span, "Option description lacks a checked input leaf")),
+        };
+    }
+    if !source.leaf.is_empty() {
+        return Err(bad(f.span, "Store window has an unrelated stored selector"));
+    }
+    let (ty, root) = match source.base {
+        HoldRoot::Local(local) => (
+            &f.locals
+                .get(local.0 as usize)
+                .ok_or_else(|| bad(f.span, "Option manager local is absent"))?
+                .ty,
+            Root::Local(local),
+        ),
+        HoldRoot::Parameter(position) => {
+            let local = *f
+                .parameters
+                .get(position as usize)
+                .ok_or_else(|| bad(f.span, "Option manager parameter is absent"))?;
+            (&f.locals[local.0 as usize].ty, Root::Parameter(position))
+        }
+        HoldRoot::Capture(_) | HoldRoot::Static => {
+            return Err(bad(
+                f.span,
+                "Option description lacks an ordinary Store manager",
+            ));
+        }
+    };
+    let ty = if let Type::Address {
+        mutable: false,
+        inner,
+    } = ty
+    {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    let (head, root) = match source.inline.as_slice() {
+        [] => (ty, root),
+        [zil_ir::PlaceProjection::Field(index)] => {
+            let Type::Package { fields, .. } = ty else {
+                return Err(bad(
+                    f.span,
+                    "Option Store header is not an actual Package field",
+                ));
+            };
+            budget.spend(fields.len())?;
+            let field = &fields
+                .get(*index as usize)
+                .ok_or_else(|| bad(f.span, "Option Store header field is absent"))?
+                .1;
+            let root = match root {
+                Root::Local(local) => Root::PackageField {
+                    local,
+                    index: *index,
+                },
+                other => other,
+            };
+            (field, root)
+        }
+        _ => {
+            return Err(bad(
+                f.span,
+                "nested Option Store header is outside this profile",
+            ));
+        }
+    };
+    if !matches!(head, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
+    {
+        return Err(bad(
+            f.span,
+            "Option description header is not an actual owned Store",
+        ));
+    }
+    budget.spend(source.heap_element.as_ref().map_or(0, Vec::len))?;
+    Ok(root)
 }
 
 // Actual Store carrier descriptions remain distinct from descriptions derived
@@ -443,6 +552,7 @@ impl Root {
                 Self::StoreParent(StoreParentRoot::ArrayElement { local, index })
             }
             Self::Parameter(value) => Self::StoreParent(StoreParentRoot::Parameter(value)),
+            Self::InputPayload(_) => self,
             Self::OwnedCapture(value) => Self::StoreParent(StoreParentRoot::OwnedCapture(value)),
             Self::BorrowedCapture(value) => {
                 Self::StoreParent(StoreParentRoot::BorrowedCapture(value))
@@ -1034,7 +1144,7 @@ fn description_live(
                 slots.package_fields[local.0 as usize][*index as usize]
             }
             Root::OwnedCapture(index) => slots.capture_debt[*index as usize],
-            Root::Parameter(_) | Root::BorrowedCapture(_) => None,
+            Root::Parameter(_) | Root::InputPayload(_) | Root::BorrowedCapture(_) => None,
             Root::StoreParent(_) => unreachable!(),
             Root::InvalidatedStore(_) => {
                 return Err(bad(
@@ -1825,6 +1935,36 @@ impl Transfer<'_> {
                     if validate && state.debt[debt] != LIVE {
                         return Err(bad(span, "head address requires a live managed position"));
                     }
+                }
+                InstructionKind::ReadVariant {
+                    value,
+                    variant: 1,
+                    index: 0,
+                } if budget.store_option_results
+                    && instruction
+                        .result
+                        .and_then(|id| slots.desc_value[id.0 as usize])
+                        .is_some()
+                    && crate::stored_flow::option_address::shape(
+                        &f.values[value.0 as usize],
+                        &budget.limits.clone(),
+                        budget,
+                    )? =>
+                {
+                    let id = instruction
+                        .result
+                        .ok_or_else(|| bad(span, "Option payload has no result"))?;
+                    let checked = crate::stored_flow::option_sources_snapshot(f.id, id, budget)?;
+                    if checked.is_empty() {
+                        return Err(bad(span, "Option payload has no active Store window"));
+                    }
+                    budget.spend(checked.len())?;
+                    let mut origins = BTreeSet::new();
+                    for source in &checked {
+                        origins.insert(option_store_origin(f, source, budget)?);
+                    }
+                    let dst = slots.desc_value[id.0 as usize].unwrap();
+                    state.desc[dst] = origins;
                 }
                 InstructionKind::OwnedStoreBorrow { store, .. }
                 | InstructionKind::OwnedStoreBorrowMut { store, .. }

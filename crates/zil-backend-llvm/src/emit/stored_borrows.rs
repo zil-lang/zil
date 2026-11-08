@@ -267,9 +267,10 @@ pub(super) fn shared_pointer_enum(t: &Type) -> bool {
     !variants.is_empty()
         && variants.iter().all(|(_, fields)| {
             fields.iter().all(|field| {
-            field.is_copy_value()
-                || matches!(field, Type::Address { mutable: false, inner } if inner.is_copy_value())
-        })
+                field.is_copy_value()
+                    || matches!(field, Type::Address { mutable: false, inner }
+                    if inner.is_copy_value() || matches!(inner.as_ref(), Type::Package { .. }))
+            })
         })
 }
 
@@ -436,8 +437,12 @@ pub(super) fn reserve_binding(
                     InstructionKind::VariantTag { .. } | InstructionKind::ReadVariant { .. } => 1,
                     InstructionKind::ExtractField { .. }
                     | InstructionKind::ReadCapture { .. }
+                    | InstructionKind::BorrowPackageField { .. }
+                    | InstructionKind::DescribePackageField { .. }
                     | InstructionKind::BorrowCapture { .. }
                     | InstructionKind::WriteCapture { .. }
+                    | InstructionKind::OwnedStoreBorrow { .. }
+                    | InstructionKind::OwnedStoreBorrowMut { .. }
                     | InstructionKind::TakeLocal { .. }
                     | InstructionKind::TakeCapture { .. }
                     | InstructionKind::DescribeLocal { .. }
@@ -497,6 +502,12 @@ pub(super) fn reserve_binding(
                     | InstructionKind::UnsafeEnter { .. }
                     | InstructionKind::UnsafeExit { .. } => 1,
                     InstructionKind::MakeErrorUnion { .. }
+                    | InstructionKind::OwnedStoreNew { .. }
+                    | InstructionKind::OwnedStoreReserve { .. }
+                    | InstructionKind::OwnedStorePush { .. }
+                    | InstructionKind::OwnedStorePop { .. }
+                    | InstructionKind::OwnedStoreLen { .. }
+                    | InstructionKind::OwnedStoreCapacity { .. }
                     | InstructionKind::ErrorTag { .. }
                     | InstructionKind::ReadErrorUnion { .. }
                     | InstructionKind::TakeErrorUnion { .. }

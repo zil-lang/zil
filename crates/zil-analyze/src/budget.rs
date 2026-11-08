@@ -66,6 +66,12 @@ pub(super) struct Budget {
     pub(super) protocol_checked: bool,
     pub(super) stored_enum_addresses: bool,
     pub(super) task_borrowed_results: bool,
+    // Qualified Option with a shared owning Package pointee needs both the
+    // stored Sum proof and ordinary Store/resource proof on the same CFG.
+    pub(super) store_option_results: bool,
+    /// Private complete stored-target facts, published only after the stored
+    /// solver finishes every reachable CFG and signature relation.
+    pub(super) store_option_targets: Option<Vec<Vec<Vec<super::stored_flow::Target>>>>,
     pub(super) task_pointer_roots: Vec<Vec<Vec<zil_ir::HoldRoot>>>,
     pub(super) stored_borrows: bool,
     pub(super) stored_slot_updates: bool,
@@ -142,6 +148,8 @@ impl Budget {
             protocol_checked: false,
             stored_enum_addresses: false,
             task_borrowed_results: false,
+            store_option_results: false,
+            store_option_targets: None,
             task_pointer_roots: Vec::new(),
             stored_borrows: false,
             stored_slot_updates: false,
@@ -907,6 +915,11 @@ pub(super) fn preflight(
                 matches!(ty, Type::Task { retained_life, .. } if !retained_life.ports.is_empty());
             super::tasks::require_closed_context(ty)?;
             budget.task_borrowed_results |= matches!(ty, Type::Task { result, .. } if matches!(result.as_ref(), Type::Address { mutable: false, .. }));
+            budget.store_option_results |= matches!(ty, Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Enum { variants, .. }
+                    if matches!(variants.as_slice(), [(_, none), (_, some)]
+                        if none.is_empty() && matches!(some.as_slice(), [Type::Address { mutable: false, inner }]
+                            if matches!(inner.as_ref(), Type::Package { .. })))));
             if depth > limits.max_call_depth {
                 return Err(exhausted("aggregate nesting"));
             }

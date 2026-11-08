@@ -711,7 +711,7 @@ impl FunctionEmitter<'_> {
             Type::Address {
                 mutable: false,
                 inner,
-            } if inner.is_copy_value() => {
+            } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Package { .. }) => {
                 self.event(m::Event::Instruction(m::Inst::new(
                     None,
                     m::Op::Store {

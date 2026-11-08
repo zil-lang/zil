@@ -189,7 +189,8 @@ fn project(main: &str) -> ProjectSources {
 }
 
 fn directory(label: &str) -> PathBuf {
-    let base = std::env::var_os("TMPDIR")
+    let base = std::env::var_os("ZIL_TEST_REPORT_DIR")
+        .or_else(|| std::env::var_os("TMPDIR"))
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
     let path = base.join(format!(
@@ -589,5 +590,129 @@ fn allocator_failures_return_actual_entry_and_preserve_old_map() {
                 }
             }
         }
+    }
+}
+
+#[test]
+fn shared_owning_map_lookup_and_optional_helper_execute_on_both_backends() {
+    for (source, expected_output) in [
+        (
+            include_str!("../../../tests/fixtures/optional-store-address/owning-map.zil"),
+            "",
+        ),
+        (
+            include_str!("../../../tests/fixtures/optional-store-address/helper-input.zil"),
+            "",
+        ),
+        (
+            include_str!("../../../tests/fixtures/optional-store-address/identity.zil"),
+            "",
+        ),
+        (
+            include_str!("../../../tests/fixtures/optional-store-address/field-helper.zil"),
+            "",
+        ),
+        (
+            include_str!("../../../tests/fixtures/optional-store-address/separate-managers.zil"),
+            "",
+        ),
+        (
+            include_str!("../../../tests/fixtures/optional-store-address/owning-map-cleanup.zil"),
+            "CAB",
+        ),
+    ] {
+        for backend in backends() {
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let out = directory("shared-owning-lookup");
+                fs::write(out.join("main.zil"), source).unwrap();
+                let report = compile_project(
+                    &project(source),
+                    &CompileOptions {
+                        stop_after: Stage::Build,
+                        backend,
+                        optimization,
+                        output: Some(out.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                fs::write(out.join("compile.json"), report.to_json()).unwrap();
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+                let run = Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                fs::write(out.join("stdout"), &run.stdout).unwrap();
+                fs::write(out.join("stderr"), &run.stderr).unwrap();
+                assert_eq!(
+                    run.status.code(),
+                    Some(0),
+                    "{backend:?}/{optimization:?}: {run:?}"
+                );
+                assert_eq!(run.stdout, expected_output.as_bytes());
+                assert!(run.stderr.is_empty());
+            }
+        }
+    }
+}
+
+#[test]
+fn optional_store_some_blocks_mutation_and_owner_retirement_until_last_use() {
+    let source = include_str!("../../../tests/fixtures/optional-store-address/helper-input.zil");
+    for operation in [
+        "store_push(map.items,Item{data:bytes_new(),value:9})",
+        "store_reserve(map.items,20)",
+        "store_pop(map.items)",
+        "let retired=map",
+        "map.items=store_new()",
+        "map=Map{items:store_new()}",
+    ] {
+        let bad = source
+            .replace("let map=Map", "var map=Map")
+            .replace(
+                "    store_push(map.items,Item{data:bytes_new(),value:8})\n",
+                "",
+            )
+            .replace(
+                "    let observed=inspect(found)",
+                &format!("    {operation}\n    let observed=inspect(found)"),
+            );
+        let report = compile_project(
+            &project(&bad),
+            &CompileOptions {
+                stop_after: Stage::Analyze,
+                ..CompileOptions::default()
+            },
+        );
+        let out = directory("optional-live-some");
+        fs::write(out.join("main.zil"), &bad).unwrap();
+        fs::write(out.join("compile.json"), report.to_json()).unwrap();
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{operation}: {}",
+            report.to_json()
+        );
+        assert_eq!(
+            report.phase,
+            Phase::Analyze,
+            "{operation}: {}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-BORROW-CONFLICT"
+                    || d.message.contains("live child")
+                    || d.message.contains("actual stored target/parent loan")),
+            "{operation}: {}",
+            report.to_json()
+        );
     }
 }

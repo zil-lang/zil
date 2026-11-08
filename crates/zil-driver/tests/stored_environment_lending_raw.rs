@@ -2567,3 +2567,165 @@ fn analyzer_rejects_opaque_lending_mismatch_and_pays_nonempty_metadata() {
         .unwrap();
     }
 }
+
+#[test]
+fn optional_owned_store_inputs_and_identity_preserve_actual_sources() {
+    for source in [
+        include_str!("../../../tests/fixtures/optional-store-address/helper-input.zil"),
+        include_str!("../../../tests/fixtures/optional-store-address/identity.zil"),
+        include_str!("../../../tests/fixtures/optional-store-address/field-helper.zil"),
+        include_str!("../../../tests/fixtures/optional-store-address/separate-managers.zil"),
+    ] {
+        let module = typed_stored(source);
+        let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        zil_verify::verify_module(
+            module.clone(),
+            plan.clone(),
+            &module.target,
+            &Limits::default(),
+        )
+        .unwrap();
+        let bytes =
+            zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+        zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+    }
+}
+
+#[test]
+fn optional_owned_store_live_some_pins_manager_before_projection_raw_and_wire() {
+    let mut module = typed_stored(include_str!(
+        "../../../tests/fixtures/optional-store-address/separate-managers.zil"
+    ));
+    let mut plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let function = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "result")
+        .unwrap();
+    let map = function
+        .locals
+        .iter()
+        .position(|l| l.name == "map")
+        .unwrap();
+    let other = function
+        .locals
+        .iter()
+        .position(|l| l.name == "other")
+        .unwrap();
+    let mut changed = 0;
+    for instruction in function
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+    {
+        if let InstructionKind::DescribePackageField { local, .. } = &mut instruction.kind
+            && local.0 as usize == other
+        {
+            *local = zil_ir::LocalId(map as u32);
+            let value = instruction.result.unwrap();
+            plan.functions[function.id.0 as usize].holds[value.0 as usize].roots =
+                vec![zil_ir::HoldRoot::Local(zil_ir::LocalId(map as u32))];
+            changed += 1;
+        }
+    }
+    assert_eq!(changed, 1);
+    let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d.phase == Phase::Analyze
+            && d.category == ResultCategory::SafeReject
+            && (d.code == "E-BORROW-CONFLICT" || d.message.contains("live child"))),
+        "{errors:?}"
+    );
+    // The mutation changes only a weak description's actual manager. It keeps
+    // initialization and every public Hold claim valid, so those cannot hide
+    // the independent pre-projection live-Some conflict.
+    reject(
+        "optional-store-live-some-manager",
+        module,
+        plan,
+        "E-BORROW-CONFLICT",
+    );
+}
+
+#[test]
+fn optional_store_key_cannot_replace_the_actual_manager_source() {
+    let mut module = typed_stored(include_str!(
+        "../../../tests/fixtures/optional-store-address/key-source.zil"
+    ));
+    let mut plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let getter = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "get")
+        .unwrap();
+    let key = getter.parameters[2];
+    let key_value = getter
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| {
+            matches!(i.kind, InstructionKind::Load(local) if local == key)
+                .then_some(i.result)
+                .flatten()
+        })
+        .unwrap();
+    let mut changed = 0;
+    for instruction in getter.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+        if let InstructionKind::MakeVariant { variant: 1, fields } = &mut instruction.kind {
+            assert_eq!(fields.len(), 1);
+            fields[0] = key_value;
+            changed += 1;
+        }
+    }
+    assert_eq!(changed, 1);
+    let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.phase == Phase::Analyze && d.category == ResultCategory::SafeReject),
+        "{errors:?}"
+    );
+    plan.module_fingerprint = module.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    let decoded = zil_ir::wire::decode_module_candidate(&bytes, &Limits::default()).unwrap();
+    assert_eq!(decoded, (module.clone(), plan.clone()));
+    let results = [
+        zil_verify::verify_module(
+            module.clone(),
+            plan.clone(),
+            &module.target,
+            &Limits::default(),
+        )
+        .unwrap_err(),
+        zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap_err(),
+    ];
+    record("optional-store-key-source", &module, &plan, &results);
+    for errors in results {
+        assert!(
+            errors.iter().any(|d| d.phase == Phase::Verify
+                && d.category == ResultCategory::SafeReject
+                && d.code == "E-VERIFY-STORED"),
+            "{errors:?}"
+        );
+        assert!(
+            errors
+                .iter()
+                .all(|d| !d.code.contains("PLAN") && !d.code.contains("HOLD")),
+            "{errors:?}"
+        );
+    }
+}

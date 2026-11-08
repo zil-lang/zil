@@ -97,6 +97,48 @@ fn local_transfer(
     }
     Ok(())
 }
+
+/// Only the callee's independently solved actual Some-leaf sources select
+/// input loans. A second shared input such as a lookup key grants no result
+/// parent merely because its public lifetime class is compatible.
+fn option_call_inputs(
+    module: &TypedModule,
+    function: zil_ir::FunctionId,
+    budget: &mut Budget,
+) -> Check<BTreeSet<u32>> {
+    let callee = module
+        .functions
+        .get(function.0 as usize)
+        .ok_or_else(|| reject("E-VERIFY-STORE-WINDOW", None, "Option callee is absent"))?;
+    let mut selected = BTreeSet::new();
+    budget.spend(callee.blocks.len())?;
+    for block in &callee.blocks {
+        let Terminator::Return(Some(value)) = block.terminator else {
+            continue;
+        };
+        let sources = crate::stored_flow::option_sources_snapshot(function, value, budget)?;
+        budget.spend(sources.len())?;
+        for source in sources {
+            let HoldRoot::Parameter(position) = source.base else {
+                return Err(reject(
+                    "E-VERIFY-STORE-WINDOW",
+                    Some(callee.span),
+                    "Option return source is not an actual input",
+                ));
+            };
+            if position as usize >= callee.parameters.len() {
+                return Err(reject(
+                    "E-VERIFY-STORE-WINDOW",
+                    Some(callee.span),
+                    "Option return source input is absent",
+                ));
+            }
+            budget.spend(selected.len().saturating_add(1))?;
+            selected.insert(position);
+        }
+    }
+    Ok(selected)
+}
 fn reconstruct(
     module: &TypedModule,
     f: &TypedFunction,
@@ -196,7 +238,15 @@ fn reconstruct(
     }
     let mut initial = Locals::new();
     for (i, local) in f.parameters.iter().enumerate() {
-        if matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) {
+        if matches!(f.locals[local.0 as usize].ty, Type::Address { .. })
+            || budget.store_option_results
+                && matches!(f.locals[local.0 as usize].ty, Type::BorrowedStorage { .. })
+                && crate::stored_flow::option_address::shape(
+                    &f.locals[local.0 as usize].ty,
+                    &budget.limits.clone(),
+                    budget,
+                )?
+        {
             initial.insert(*local, Loans::from([v + i]));
         }
     }
@@ -390,6 +440,63 @@ fn reconstruct(
                             InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                                 if let Some(source) = state.get(local) {
                                     join(&mut row, source, budget)?;
+                                }
+                            }
+                            InstructionKind::MakeVariant { fields, .. }
+                                if budget.store_option_results
+                                    && crate::stored_flow::option_address::shape(
+                                        &f.values[id],
+                                        &budget.limits.clone(),
+                                        budget,
+                                    )? =>
+                            {
+                                if !facts.values[id].is_empty() {
+                                    row.insert(id);
+                                }
+                                budget.spend(fields.len())?;
+                                for field in fields {
+                                    join(&mut parents, &flow.values[field.0 as usize], budget)?;
+                                }
+                            }
+                            InstructionKind::ReadVariant {
+                                value,
+                                variant: 1,
+                                index: 0,
+                            } if budget.store_option_results
+                                && crate::stored_flow::option_address::shape(
+                                    &f.values[value.0 as usize],
+                                    &budget.limits.clone(),
+                                    budget,
+                                )?
+                                && !facts.values[id].is_empty() =>
+                            {
+                                row.insert(id);
+                                join(&mut parents, &flow.values[value.0 as usize], budget)?;
+                            }
+                            InstructionKind::Call {
+                                function,
+                                arguments,
+                            } if budget.store_option_results
+                                && crate::stored_flow::option_address::shape(
+                                    &f.values[id],
+                                    &budget.limits.clone(),
+                                    budget,
+                                )? =>
+                            {
+                                if !facts.values[id].is_empty() {
+                                    row.insert(id);
+                                }
+                                let selected = option_call_inputs(module, *function, budget)?;
+                                for position in selected {
+                                    let argument =
+                                        arguments.get(position as usize).ok_or_else(|| {
+                                            reject(
+                                                "E-VERIFY-STORE-WINDOW",
+                                                Some(instruction.span),
+                                                "Option actual manager argument is absent",
+                                            )
+                                        })?;
+                                    join(&mut parents, &flow.values[argument.0 as usize], budget)?;
                                 }
                             }
                             InstructionKind::TakeVariantField { local, path }
