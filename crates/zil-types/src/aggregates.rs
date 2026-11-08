@@ -2566,7 +2566,7 @@ impl<'a> Builder<'a, '_> {
     // retain their Managed-to-Desc projection and their existing lookup path.
     #[inline(never)]
     fn package_array_index_hint(&mut self, object: &CoreExpr) -> R<Option<Type>> {
-        if !self.closures.array_billing || self.known_type_ref(object).is_some() {
+        if !self.closures.array_billing {
             return Ok(None);
         }
         let CoreExprKind::Member { object: parent, .. } = &object.kind else {
@@ -2583,6 +2583,9 @@ impl<'a> Builder<'a, '_> {
         if !matches!(parent, Type::BorrowedStorage { storage, .. }
             if matches!(storage.as_ref(), Type::Package { .. }))
         {
+            return Ok(None);
+        }
+        if self.known_type_ref(object).is_some() {
             return Ok(None);
         }
         // known_type_checked prepays the complete actual parent before field
