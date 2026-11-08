@@ -1016,6 +1016,34 @@ impl Check<'_, '_, '_> {
         Ok(())
     }
 
+    pub(super) fn alias_store_field_slots(
+        &mut self,
+        object: &Expr,
+        member: &str,
+        state: &State,
+        span: Span,
+    ) -> R<BTreeSet<usize>> {
+        let origins = self.alias_origins(object, state, 0)?;
+        self.alias_fee(origins.len().saturating_add(1), span)?;
+        let mut slots = BTreeSet::new();
+        for origin in origins {
+            // Nested positions keep the existing conservative enclosing-field
+            // identity; this metadata invalidates descriptors, never grants
+            // access or ownership to a Package reference.
+            let owner = origin.position.field.unwrap_or(origin.position.owner);
+            let slot = self.field_slot(owner, member, span)?;
+            self.alias_fee(tree_work(slots.len()).saturating_add(1), span)?;
+            slots.insert(slot);
+        }
+        if slots.is_empty() {
+            return Err(unsupported(
+                span,
+                "borrowed Store field has no established actual Package source",
+            ));
+        }
+        Ok(slots)
+    }
+
     pub(super) fn alias_read_place(&mut self, expression: &Expr, state: &mut State) -> R<()> {
         if state.aliases.is_none() {
             return Ok(());

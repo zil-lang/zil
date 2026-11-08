@@ -4480,3 +4480,6 @@ fn trait_bound_scans_obey_actual_work_budget() {
 
 #[path = "../../../tests/language-readiness/borrowed-interface-flow/stdlib.rs"]
 mod trait_shared_lending_stdlib;
+
+#[path = "../../../tests/language-readiness/borrowed-store-field-replacement/consumers.rs"]
+mod borrowed_store_field_replacement;
