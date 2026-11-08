@@ -124,12 +124,13 @@ fn mutex_worker(
                 .saturating_add(module.resources.len()),
             "mutex worker actual inventory",
         )?;
-        if f.foreign.is_some()
+        if f.call_kind != CallKind::Direct
+            || f.foreign.is_some()
             || f.environment.is_some()
             || f.callable_contract.is_some()
             || f.callable_return_contract.is_some()
             || f.result_mode != PassingMode::Infer
-            || f.return_type != Type::I32
+            || !(scalar(&f.return_type) || cas_pair(&f.return_type))
             || f.locals.iter().try_fold(false, |bad, l| {
                 Ok::<_, Vec<Diagnostic>>(bad || !mutex_worker_type(&l.ty, payload, budget)?)
             })?
@@ -144,14 +145,15 @@ fn mutex_worker(
             ));
         }
         if id == root
-            && (f.parameters.len() != 1
+            && (f.return_type != Type::I32
+                || f.parameters.len() != 1
                 || f.locals
                     .get(f.parameters[0].0 as usize)
                     .is_none_or(|l| mutex_head(&l.ty) != Some(payload)))
         {
             return Err(reject(
                 span,
-                "mutex worker requires one actual shared mutex descriptor",
+                "mutex worker root requires one actual shared mutex descriptor and i32 result",
             ));
         }
         for block in &f.blocks {
