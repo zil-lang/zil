@@ -1,5 +1,7 @@
-//! LargeCopy ABI v1: source values stay values; physical pointers only name
+//! LargeCopy physical ABI v1: source values stay values; pointers only name
 //! independent snapshots, with a mandatory callee copy-in before source code.
+//! Owned Package transfers use the same machine convention without gaining
+//! language Copy or duplicating the verified cleanup obligation.
 use super::*;
 use copy_aggregates::{Slot, classify};
 use zil_base::Limits;

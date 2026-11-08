@@ -10,7 +10,9 @@ use std::{
     time::{Duration, Instant},
 };
 use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit, json_string};
-use zil_driver::{CompileOptions, Optimization, Stage, compile_path, compile_source};
+use zil_driver::{
+    CompileOptions, NativeBackend, Optimization, Stage, compile_path, compile_source,
+};
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
 struct Temp(PathBuf, bool);
@@ -44,6 +46,9 @@ fn root() -> PathBuf {
         .unwrap()
 }
 fn build(text: &str, level: Optimization, fault: bool) -> Temp {
+    build_backend(text, level, fault, NativeBackend::default())
+}
+fn build_backend(text: &str, level: Optimization, fault: bool, backend: NativeBackend) -> Temp {
     let temp = Temp::new();
     fs::write(temp.0.join("source.zil"), text).unwrap();
     let clang = fault.then(|| fault_clang(&temp.0));
@@ -60,6 +65,7 @@ fn build(text: &str, level: Optimization, fault: bool) -> Temp {
             output: Some(temp.0.join("program")),
             emit_dir: Some(temp.0.join("phases")),
             optimization: level,
+            backend,
             clang,
             ..CompileOptions::default()
         },
@@ -72,6 +78,15 @@ fn build(text: &str, level: Optimization, fault: bool) -> Temp {
         report.to_json()
     );
     assert_eq!(report.verification_runs, 1);
+    let native = report.native_codegen.as_ref().unwrap();
+    assert_eq!(native.backend, backend);
+    assert!(native.fallback.is_none());
+    if backend == NativeBackend::LlvmApi {
+        assert!(!native.object_reports.is_empty());
+        assert!(native.object_reports.iter().all(|record| {
+            record.contains("\"input_kind\":\"builder\"") && record.contains("\"parse_ns\":0")
+        }));
+    }
     let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
     assert!(llvm.contains("{ ptr, i64, i64 }"));
     assert!(!llvm.contains(" noalias "));
@@ -300,4 +315,227 @@ fn four_module_saved_state_consumer_matches_rust_on_binary_batches() {
             assert!(rust.stderr.is_empty());
         }
     }
+}
+
+// Compact source builds the same 16KiB Copy field as [i32;4096], without
+// spending the independent verifier's default budget on 4096 literal operands.
+fn large_owned_program(body: &str) -> String {
+    let mut ty = "i32".to_owned();
+    let mut init = "let a0=seed;".to_owned();
+    for level in 1..=12 {
+        ty = format!("[{ty};2]");
+        init.push_str(&format!("let a{level}=[a{},a{}];", level - 1, level - 1));
+    }
+    format!(
+        "{COUNTERS}{BUFFER}package Large{{manages bytes:ByteBuffer;values:{ty}}}fn make(seed:i32)->Large{{{init}return Large{{bytes:buf(u8(seed)),values:a12}}}}fn relay(p:Large)->Large{{return p}}{body}"
+    )
+}
+fn expect_large_owned(text: &str, expected: &str) {
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for level in [Optimization::O0, Optimization::O2] {
+            let temp = build_backend(text, level, true, backend);
+            let llvm = fs::read_to_string(temp.0.join("phases/llvm.ll")).unwrap();
+            assert!(llvm.contains(".lc1("));
+            assert!(llvm.contains("@zil.copy.bytes"));
+            assert!(!llvm.contains("insertvalue { { ptr, i64, i64 }, [2 x"));
+            // Every scratch/value slot is emitted in the entry block. Repeated
+            // construction/moves inside a loop must never grow its stack.
+            for function in llvm.split("define ").skip(1) {
+                if let Some((_, blocks)) = function.split_once("bb.") {
+                    assert!(!blocks.contains("alloca "), "{function}");
+                }
+            }
+            let output = run(&temp.0.join("program"), &[]);
+            assert!(output.status.success(), "{backend:?}/{level:?}: {output:?}");
+            assert_eq!(output.stdout, expected.as_bytes());
+            assert!(output.stderr.is_empty());
+        }
+    }
+}
+#[test]
+fn large_owned_package_move_call_return_fields_and_cleanup() {
+    let first = "[0]".repeat(12);
+    let text = large_owned_program(&format!(
+        "fn work()->i32{{var p=relay(make(3));let saved=p.values;let old=give p.bytes;p.bytes=buf(7u8);let donor=make(9);p.values=donor.values;let q=relay(p);let a=q.values;let b=donor.values;return saved{first}*1000+a{first}*100+b{first}*10+get(old)+get(q.bytes)+get(donor.bytes)}}fn value()->i32{{let answer=work();return answer+counts()}}"
+    ));
+    expect_large_owned(&text, "34309\n");
+}
+#[test]
+fn large_owned_package_failed_allocation_preserves_payload_and_single_cleanup() {
+    let first = "[0]".repeat(12);
+    let text = large_owned_program(&format!(
+        "fn failed(p:Large)->i32{{if bytes_reserve(p.bytes,13){{return -1}}let a=p.values;return a{first}+i32(bytes_len(p.bytes)+bytes_capacity(p.bytes))}}fn value()->i32{{let answer=failed(relay(make(3)));return answer+counts()}}"
+    ));
+    expect_large_owned(&text, "10212\n");
+}
+#[test]
+fn large_owned_package_loop_reuses_fixed_stack_slots() {
+    let first = "[0]".repeat(12);
+    let text = large_owned_program(&format!(
+        "fn work()->i32{{var n=0;var answer=0;while n<1024{{let p=relay(make(3));let a=p.values;answer+=a{first}+get(p.bytes);n+=1}}return answer}}fn value()->i32{{let answer=work();return answer+counts()}}"
+    ));
+    expect_large_owned(&text, "10348544\n");
+}
+#[test]
+fn large_owned_package_snapshot_does_not_grant_copy_or_end_live_borrows() {
+    use zil_base::Phase;
+    for (body, phase, code) in [
+        (
+            "fn value()->i32{let p=make(3);let a=relay(p);let b=relay(p);return 0}",
+            Phase::Analyze,
+            "E-UNINITIALIZED",
+        ),
+        (
+            "fn value()->i32{let p=make(3);let borrowed=&p.values;let moved=relay(p);return (*borrowed)[0][0][0][0][0][0][0][0][0][0][0][0]}",
+            Phase::Verify,
+            "E-BORROW-CONFLICT",
+        ),
+    ] {
+        let report = compile_source(
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "large_owned.zil",
+                large_owned_program(body),
+            ),
+            &CompileOptions::default(),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, phase, "{}", report.to_json());
+        assert_eq!(report.diagnostics[0].code, code, "{}", report.to_json());
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+}
+
+#[test]
+fn large_owned_package_codegen_budget_is_exact_and_request_local() {
+    use zil_base::{Limits, Phase, TargetProfile};
+    let src = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "large_owned.zil",
+        large_owned_program("fn value()->i32{let p=relay(make(3));return i32(bytes_len(p.bytes))}"),
+    );
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let target = TargetProfile::default();
+    let defaults = Limits::default();
+    let typed = zil_types::check(&core, &target, &defaults).unwrap();
+    let candidate = zil_analyze::analyze(&typed, &defaults).unwrap();
+    let emit = |steps| {
+        let limits = Limits {
+            max_analysis_steps: steps,
+            ..defaults.clone()
+        };
+        let verified =
+            zil_verify::verify_module(typed.clone(), candidate.clone(), &target, &limits)?;
+        let lir = zil_lower::lower(&verified)?;
+        zil_backend_llvm::emit(&verified, &lir)
+    };
+    let (mut low, mut high) = (1, defaults.max_analysis_steps);
+    assert!(emit(high).is_ok());
+    while low < high {
+        let middle = low + (high - low) / 2;
+        if emit(middle).is_ok() {
+            high = middle
+        } else {
+            low = middle + 1
+        }
+    }
+    let errors = emit(low - 1).unwrap_err();
+    assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
+    assert_eq!(errors[0].phase, Phase::Codegen);
+    let exact = emit(low).unwrap();
+    assert!(exact.contains(".lc1("));
+    assert_eq!(exact, emit(low).unwrap());
+    assert_eq!(exact, emit(defaults.max_analysis_steps).unwrap());
+    eprintln!("large owned Package exact Codegen budget: {low}");
+}
+
+#[test]
+fn large_owned_package_child_take_refill_and_multiple_live_arguments() {
+    let first = "[0]".repeat(12);
+    let text = large_owned_program(&format!(
+        "package Outer{{child:Large;mark:i32}}fn wrap(p:Large)->Outer{{return Outer{{child:p,mark:1}}}}fn outer_relay(p:Outer)->Outer{{return p}}fn unwrap(p:Outer)->Large{{let child=p.child;return child}}fn select(p:Large,q:Large)->Large{{if bytes_len(q.bytes)!=1{{return q}}return p}}fn work()->i32{{var outer=outer_relay(wrap(make(3)));let child=outer.child;outer.child=make(7);let returned=unwrap(outer_relay(outer));let a=child.values;let b=returned.values;let selected=select(child,returned);return a{first}*10+b{first}+get(selected.bytes)}}fn value()->i32{{let answer=work();return answer+counts()}}"
+    ));
+    expect_large_owned(&text, "20240\n");
+}
+
+#[test]
+fn large_owned_package_raw_and_wire_reject_duplicated_move_arguments() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_ir::InstructionKind;
+    let src = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "large_owned.zil",
+        large_owned_program(
+            "fn value()->i32{let p=relay(make(3));let q=relay(make(7));return i32(bytes_len(p.bytes)+bytes_len(q.bytes))}",
+        ),
+    );
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let verified =
+        zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let lir = zil_lower::lower(&verified).unwrap();
+    assert!(
+        zil_backend_llvm::emit(&verified, &lir)
+            .unwrap()
+            .contains(".lc1(")
+    );
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    let relay = typed
+        .functions
+        .iter()
+        .find(|f| f.name == "relay")
+        .unwrap()
+        .id;
+    let mut raw = typed;
+    let caller = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "value")
+        .unwrap();
+    let mut previous = None;
+    let mut changed = false;
+    for instruction in caller.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+        if let InstructionKind::Call {
+            function,
+            arguments,
+        } = &mut instruction.kind
+            && *function == relay
+        {
+            if let Some(first) = previous {
+                arguments[0] = first;
+                changed = true;
+                break;
+            }
+            previous = Some(arguments[0]);
+        }
+    }
+    assert!(changed);
+    let analyzed = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert_eq!(analyzed[0].category, ResultCategory::SafeReject);
+    let verified = zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits)
+        .err()
+        .unwrap();
+    assert_eq!(verified[0].category, ResultCategory::SafeReject);
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    let wire = zil_verify::verify_module_bytes(&bytes, &target, &limits)
+        .err()
+        .unwrap();
+    assert_eq!(wire[0].category, ResultCategory::SafeReject);
 }
