@@ -14,7 +14,7 @@
 
 本阶段先补普通数据模型、泛型库、模式、同步与标准库，再收动态抽象、图/外部生命周期和完整程序。必需能力全部进入P0；有普通合法程序仍被临时白名单或未实现组合阻挡，就保留缺口，不能靠缩小子项关闭父项。运行/编译成本和安全产品门保持原要求，功能就绪与正式发布分别验收。
 
-Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Package窗口的ByteBuffer长度/容量查询、Direct actual-read效应及按程序点保留/撤销的弱委派。默认整树单轮5659/0、参考相关四目标682/0、strict/格式/结构通过，GitHub独立冷构建16次执行及3项真实loan拒绝通过。[精确验收快照](https://github.com/zil-lang/zil/blob/53e3e092d45a19dcdcd01e88d2cc25e4f7670793/validation/native-language-composition.json)。新增初始化修复已合入main@b07b85dd4：相关690/0与全目标strict通过，见[限定验收](https://github.com/zil-lang/zil/blob/b07b85dd49b3df6f382734d509919a2a6013c97d/validation/shared-array-snapshot-initialization.json)。组合候选已备份至task/G10.6.3@b020d1223：拥有trait返回、泛型lending、回调、字段替换、动态数组及资源工作量修复已汇总，两核单测207/0、459/0。完整原消费者仍阻于拥有字段Byte视图，正在G3.4.22修复；未共同验收或宣称1.0。
+Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Package窗口的ByteBuffer长度/容量查询、Direct actual-read效应及按程序点保留/撤销的弱委派。默认整树单轮5659/0、参考相关四目标682/0、strict/格式/结构通过，GitHub独立冷构建16次执行及3项真实loan拒绝通过。[精确验收快照](https://github.com/zil-lang/zil/blob/53e3e092d45a19dcdcd01e88d2cc25e4f7670793/validation/native-language-composition.json)。新增初始化修复已合入main@b07b85dd4：相关690/0与全目标strict通过，见[限定验收](https://github.com/zil-lang/zil/blob/b07b85dd49b3df6f382734d509919a2a6013c97d/validation/shared-array-snapshot-initialization.json)。组合候选已备份至task/G10.6.3@ed8e3a5de：拥有trait返回、泛型lending、回调、字段替换、动态数组及资源工作量修复已汇总，两核单测207/0、459/0。完整原消费者仍阻于拥有字段Byte视图，正在G3.4.22修复；未共同验收或宣称1.0。
 
 ## G1 · 基础类型与模式
 
@@ -200,7 +200,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | G3.4.19 | 整共享地址数组读取逐实际根核初始化 | 已合入 | — | — | main@b07b85dd4；精确源码057308f16相关API四目标690/0、snapshot/Byte组92/0、全目标strict/fmt及结构3979通过；含4配置snapshot原生。新增全量/冷恢复未跑，不等于动态下标完成。 |
 | G3.4.20 | 借入泛型Package的Managed Store字段替换 | 待集成 | P0 | sol high · array_analysis_cost | f0ee4f821已获Sol精审接受；189/0、12原生、真实旧描述失效和新旧精确预算通过；root已合。只接实际可变Package的完整Store字段，不开放whole/capture。 |
 | G3.4.21 | 普通拥有字段Copy观察、共享错误臂及标量入口组合 | 待集成 | P0 | sol high · integration_audit；Astra审 | 7dd7bb0eb已获精确接受并合root；真实字段/tag/init/loan及Byte入口callee证明保留，相关10过/1后端失败；后端首阻断ReadPackageField由G10.3.5补接。 |
-| G3.4.22 | 存储借入程序中局部拥有ByteBuffer字段的共享字节视图 | 进行中 | P0 | sol high · array_analysis_cost；Astra判据 | 2e736bc8e阶段源码已备份；只接实际非参数局部拥有头、真实payload与新loan，保守阻断视图活跃时的未证明调用/退休。正在最小正反控与原4095消费者验证，未验收。 |
+| G3.4.22 | 存储借入程序中局部拥有ByteBuffer字段的共享字节视图 | 进行中 | P0 | sol high · array_analysis_cost；Astra判据 | 2e736bc8e阶段源码已备份；原4095已越过ByteBorrow Unsupported，现真实Analyze ResourceLimit。正以请求内实际SSA头索引减少重复扫描，保逐次loan/实例/资源检查；旧无ByteBorrow域精确费用保持，未验收。 |
 
 </details>
 
@@ -226,7 +226,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G3.5.1.1 | 无关closure不阻挡普通lending调用和借入Option模式 | 待集成 | P0 | sol high · borrowed_owned_callbacks | f46254b88已精审并合root；Direct完整签名与真实函数指针ABI分流，原lending/无关closure组合及4原生通过。与泛型fee修复共同相关378/0。 |
-| G3.5.1.2 | 存储借入CFG中的借入输入闭包与封闭拥有结果 | 待复核 | P0 | sol high · borrowed_owned_callbacks | 6a95603ed已备份，生产5deaa1fc6已合root；117所选与精确A/V预算、strict通过，Sol非作者精审中。真实捕获/输入/结果完整类型闭合，不以None当空关系。 |
+| G3.5.1.2 | 存储借入CFG中的借入输入闭包与封闭拥有结果 | 待集成 | P0 | sol high · borrowed_owned_callbacks | 6a95603ed已获Sol精审接受并合root，生产5deaa1fc6；117所选、精确A/V预算及strict通过，59项证据hash/原四Source已独立核。完整原生仍待G3.4.22。 |
 
 </details>
 
@@ -564,7 +564,8 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | G10.3.2 | 正常规模共享地址数组的独立两核分析成本 | 待集成 | P0 | sol high · array_analysis_cost | 19d929e03已精审接受；A205/V459、35专项与4个512原生通过，精确N4170159；root已整合。大型地址Array Package仍分析受限；一般大型拥有值物理ABI见G10.3.3。 |
 | G10.3.3 | 大型拥有Package物理snapshot和内部参数/返回ABI | 待集成 | P0 | sol high · large_owned_value_abi | 424791b53已精审接受并合root；239/0与16原生验证16KiB字段、移动/refill/固定栈循环，不授Copy。大型Closure三种签名仍Codegen Unsupported；地址Array Package分析边界保留。 |
 | G10.3.4 | 拥有借入与ErrorUnion组合的独立资源分析成本 | 待集成 | P0 | sol high · resource_sum_cost | 5cf970ba5已获Sol精审并合root；完整unknown/缺失alternative、循环固定点与最终检查保持，旧核预算不变。A实际CFG调度及V独立工作量修复，原Source默认额度过相关阶段。 |
-| G10.3.5 | 后端普通Package字段及Byte/Error消费者完整类型预付 | 进行中 | P0 | sol high · large_owned_value_abi | 511c32f06生产增量已获源码限定接受；预算单测过，实际相关9过/2原4095前端阻断，8次机器运行成功。测试导入修正后待冻结/strict，不算完整联合验收。 |
+| G10.3.5 | 后端普通Package字段及Byte/Error消费者完整类型预付 | 待集成 | P0 | sol high · large_owned_value_abi | 9f91ccc5e已精审并合root；完整actual type预付预算7/0及strict过，原四模块和ErrorArm两后端O0/O2共8原生成功。更大pipeline仍前端阻断，不冒称共同门完成。 |
+| G10.3.6 | 普通Closure的大型拥有参数/结果内部ABI | 进行中 | P0 | sol high · large_owned_value_abi；Astra审 | 已复现三种16KiB普通Closure签名在Codegen Unsupported；新分支基e0c3261d5，实施真实env/out/copy-in运输，保一次cleanup及旧小ABI。特殊raw callback/foreign仍另留边界；尚未验收。 |
 
 </details>
 
