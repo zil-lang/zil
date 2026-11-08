@@ -267,6 +267,8 @@ fn relation_inner(
         inputs: Option<(u32, u32)>,
         allow_callback: bool,
         captured: bool,
+        array_output_upper: Option<StorageBinder>,
+        array_result_input: bool,
         closures: &'a [ClosureDefinition],
     }
     impl Cursor<'_> {
@@ -339,6 +341,11 @@ fn relation_inner(
                         return Err(bad(
                             "array signature element binding differs from actual ordinal",
                         ));
+                    }
+                    if matches!(base, StorageBase::Parameter(_))
+                        && Some(row.binder) == self.array_output_upper
+                    {
+                        self.array_result_input = true;
                     }
                     self.borrow += 1;
                     self.binder(row.binder, false)?;
@@ -583,6 +590,17 @@ fn relation_inner(
         inputs: None,
         allow_callback,
         captured: captures.is_some(),
+        array_output_upper: match result {
+            Type::Address { mutable: false, .. } => c
+                .bindings
+                .last()
+                .filter(|row| {
+                    row.position.base == StorageBase::Result && row.position.path.is_empty()
+                })
+                .map(|row| row.binder),
+            _ => None,
+        },
+        array_result_input: false,
         closures,
     };
     for (i, p) in parameters.iter().enumerate() {
@@ -625,7 +643,8 @@ fn relation_inner(
                         Some(Type::Address { mutable: true, .. })
                     ))
                 && (!mutable || r.position.path.contains(&LifeTypeProjection::Pointee))
-        }) {
+        }) && !cursor.array_result_input
+        {
             return Err(bad(
                 "signature Address result has no eligible declared input",
             ));

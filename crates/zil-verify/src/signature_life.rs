@@ -278,6 +278,15 @@ fn relation_inner(
     if captures.is_none() && c.fixed_binder_count as usize > input_classes {
         return Err(invalid());
     }
+    let array_output_upper = match result {
+        Type::Address { mutable: false, .. } => c
+            .bindings
+            .last()
+            .filter(|row| row.position.base == StorageBase::Result && row.position.path.is_empty())
+            .map(|row| row.binder),
+        _ => None,
+    };
+    let mut array_result_input = false;
     let mut borrow = 0usize;
     let mut class = 0usize;
     let mut next = [0u32; 2];
@@ -347,6 +356,9 @@ fn relation_inner(
                         != [ContractProjection::Place(PlaceProjection::Field(index))]
                 {
                     return Err(invalid());
+                }
+                if !output && Some(row.binder) == array_output_upper {
+                    array_result_input = true;
                 }
                 borrow += 1;
                 visit(row.binder, false)?;
@@ -559,7 +571,7 @@ fn relation_inner(
                     ))
                 && (!mutable || r.position.path.contains(&LifeTypeProjection::Pointee))
         });
-        if !possible {
+        if !possible && !array_result_input {
             return Err(invalid());
         }
     }
