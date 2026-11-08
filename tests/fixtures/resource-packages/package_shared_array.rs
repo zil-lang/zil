@@ -590,3 +590,157 @@ fn byte_array_elements_keep_the_existing_relocation_rejection_in_both_kernels() 
         );
     }
 }
+
+const PACKAGE_MAPPING: &str = include_str!("owned-package-shared-array-class-mapping.zil");
+
+#[test]
+fn two_nonidentity_lifetime_arguments_keep_their_own_package_array_sources() {
+    let target = TargetProfile::host_llvm();
+    let limits = Limits::default();
+    let raw = typed_source("package-array-mapping", PACKAGE_MAPPING, &target, &limits);
+    let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    for (label, program, expected) in [
+        (
+            "mapped source",
+            PACKAGE_MAPPING.to_string(),
+            ResultCategory::Success,
+        ),
+        (
+            "actual mapped source write",
+            PACKAGE_MAPPING.replacen("first=11", "second=11", 1),
+            ResultCategory::SafeReject,
+        ),
+    ] {
+        let report = compile_source(
+            &source(label, &program),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(report.status, expected, "{label}: {}", report.to_json());
+    }
+    let mut forged = raw;
+    let row = forged
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "make")
+        .unwrap()
+        .storage_life
+        .as_mut()
+        .unwrap()
+        .classes
+        .iter_mut()
+        .find(|r| r.position.base == zil_ir::StorageBase::Result)
+        .unwrap();
+    let zil_ir::StorageBinder::Invocation(actual) = row.binder else {
+        panic!("actual invocation lifetime")
+    };
+    assert!(actual < 2);
+    row.binder = zil_ir::StorageBinder::Invocation(1 - actual);
+    plan.module_fingerprint = forged.fingerprint();
+    assert!(zil_analyze::analyze(&forged, &limits).is_err());
+    assert!(zil_verify::verify_module(forged.clone(), plan.clone(), &target, &limits).is_err());
+    let wire = zil_ir::wire::encode_module_candidate(&forged, &plan, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&wire, &target, &limits).is_err());
+}
+
+#[test]
+fn native_package_array_lifetime_permutation_matches_each_backend() {
+    let mut runs = 0;
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = std::env::temp_dir().join(format!(
+                "zil-package-array-mapping-{}-{backend:?}-{optimization:?}",
+                std::process::id()
+            ));
+            std::fs::create_dir_all(&dir).unwrap();
+            let executable = dir.join("program");
+            let report = compile_source(
+                &source("package-array-mapping", PACKAGE_MAPPING),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(executable.clone()),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let codegen = report.native_codegen.as_ref().unwrap();
+            assert_eq!(codegen.backend, backend);
+            assert!(codegen.fallback.is_none());
+            let run = std::process::Command::new(executable).output().unwrap();
+            assert_eq!(run.status.code(), Some(0), "{run:?}");
+            assert!(run.stdout.is_empty() && run.stderr.is_empty(), "{run:?}");
+            std::fs::remove_dir_all(dir).unwrap();
+            runs += 1;
+        }
+    }
+    assert_eq!(runs, 2 + 2 * usize::from(cfg!(feature = "llvm-api")));
+    println!("Package Array life permutation native executions: {runs}");
+}
+
+#[test]
+fn owning_package_stays_affine_and_its_live_view_pins_the_parent() {
+    let duplicate = PACKAGE_ARRAY.replacen(
+        "let window=identity(&job)",
+        "let duplicate=job;let window=identity(&job)",
+        1,
+    );
+    let moved_parent = PACKAGE_ARRAY.replacen(
+        "let pointer=window.items[1]",
+        "let moved=relay(job);let pointer=window.items[1]",
+        1,
+    );
+    for (label, program) in [
+        ("owning Package cannot Copy", duplicate),
+        ("live view pins whole owner", moved_parent),
+    ] {
+        let report = compile_source(
+            &source(label, &program),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{label}: {}",
+            report.to_json()
+        );
+    }
+    let program = PACKAGE_ARRAY
+        .replacen("fn main()", "fn discard<life b>(job:Job<'b>){}fn main()", 1)
+        .replacen("first=11", "discard(job);first=11", 1);
+    let report = compile_source(
+        &source(
+            "detached shared leaf survives owning container cleanup",
+            &program,
+        ),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
