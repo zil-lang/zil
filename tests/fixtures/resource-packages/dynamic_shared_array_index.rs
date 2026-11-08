@@ -449,17 +449,20 @@ fn dynamic_snapshot_and_alternative_budgets_are_exact_and_fresh() {
             }
         }
     }
+    // The integrated array equation solver charges actual balanced ancestry
+    // and small-to-large Verify work; these new dynamic pins include that path.
+    // The per-request N-1, fresh retry and growth checks above remain mandatory.
     assert_eq!(
         boundaries,
         vec![
-            [1844, 28930, 35093, 35093, 35093],
-            [2480, 90070, 123350, 123350, 123350],
-            [4420, 54955, 64969, 64969, 64969],
-            [6467, 58503, 70655, 70655, 70655],
-            [3622, 48038, 63653, 63653, 63653],
-            [4846, 122864, 188093, 188093, 188093],
-            [6576, 77990, 102944, 102944, 102944],
-            [9109, 87013, 116429, 116429, 116429],
+            [1844, 26431, 33109, 33109, 33109],
+            [2480, 65419, 100810, 100810, 100810],
+            [4420, 52456, 62985, 62985, 62985],
+            [6467, 55932, 68629, 68629, 68629],
+            [3622, 46920, 62887, 62887, 62887],
+            [4846, 114858, 181039, 181039, 181039],
+            [6576, 76872, 102178, 102178, 102178],
+            [9109, 85772, 115561, 115561, 115561],
         ]
     );
     println!("dynamic Array complete boundaries: {boundaries:?}");
@@ -939,6 +942,6 @@ fn rich_call_completeness_costs_grow_with_actual_input_and_output_ports() {
     for (larger, smaller) in boundaries[1].iter().zip(&boundaries[0]) {
         assert!(larger > smaller);
     }
-    assert_eq!(boundaries, [[26829, 30552, 30552], [84551, 104625, 104625]]);
+    assert_eq!(boundaries, [[24889, 29100, 29100], [63021, 85683, 85683]]);
     println!("rich-call complete input/output requirement boundaries: {boundaries:?}");
 }
