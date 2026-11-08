@@ -1,7 +1,7 @@
 //! Ordinary owner observations retain their independent lifetime and loans.
 use super::*;
 use zil_base::{Diagnostic, Phase};
-use zil_ir::{LocalId, TypedModule};
+use zil_ir::TypedModule;
 
 const MODEL: &str = include_str!("stored_composition/model.zil");
 const LIBRARY: &str = include_str!("stored_composition/library.zil");
@@ -33,7 +33,19 @@ fn flat(model: &str) -> String {
 fn typed(text: &str) -> TypedModule {
     let source = SourceUnit::new(FileId(0), ModuleId(0), "ordinary-package-fields.zil", text);
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
-    let core = zil_expand::expand(&source, &syntax).unwrap();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &source,
+        &syntax,
+        &Limits::default(),
+        &TargetProfile::host_llvm(),
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()
 }
 
@@ -215,7 +227,11 @@ fn ordinary_package_fields_raw_and_wire_keep_actual_shell_child_and_loans() {
 #[test]
 fn ordinary_package_fields_do_not_replace_qualified_leaf_transport() {
     let source = include_str!("../../../fixtures/resource-packages/qualified-record-getter.zil");
-    let module = typed(source);
+    let source = source.replace(
+        "if read(&job)==7{return 0}",
+        "let child=&job.refs;if *child.pointer==7{return 0}",
+    );
+    let module = typed(&source);
     let plan = control(&module);
     let mut raw = module.clone();
     let mut changed = false;

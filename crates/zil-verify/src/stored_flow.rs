@@ -3929,7 +3929,7 @@ fn windows(
                 InstructionKind::ReadPackageField { local, index }
                     if pure_copy::ordinary_package_read(f, i, b)? =>
                 {
-                    b.spend(1)?;
+                    b.spend(2)?;
                     let actual = Permission {
                         sources: vec![Source {
                             retained_port: None,
