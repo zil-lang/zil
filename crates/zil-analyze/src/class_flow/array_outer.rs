@@ -566,7 +566,7 @@ impl Flow {
                                     false,
                                     "dynamic closed Copy observation",
                                 )?;
-                                if f.values[id.0 as usize].is_copy_value() {
+                                if closed_copy(&f.values[id.0 as usize], b)? {
                                     consumer = Consumer::Observe;
                                 } else if super::super::stored_flow::shared_array_value(
                                     &f.values[id.0 as usize],
@@ -658,6 +658,7 @@ impl Flow {
                                             LifeTypeProjection::Place(PlaceProjection::Field(
                                                 index as u32,
                                             )),
+                                            true,
                                             b,
                                         )?;
                                     }
@@ -790,6 +791,7 @@ fn observer(f: &TypedFunction, b: &mut Budget) -> CompileResult<bool> {
         || f.call_kind != CallKind::Direct
         || f.storage_life.is_some()
         || f.callable_contract.is_some()
+        || f.callable_return_contract.is_some()
         || f.protocol_contract.is_some()
         || f.reference_return_bound.is_some()
     {
@@ -808,9 +810,45 @@ fn observer(f: &TypedFunction, b: &mut Budget) -> CompileResult<bool> {
                 mutable: false,
                 inner,
             } => {
-                if !inner.is_copy_value() {
+                if !closed_copy(inner, b)? {
                     return Ok(false);
                 }
+            }
+            ty if scalar(ty) => {}
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
+}
+
+fn closed_copy(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    work(b, 1)?;
+    let mut todo = vec![ty];
+    while let Some(ty) = todo.pop() {
+        work(b, 1)?;
+        match ty {
+            Type::Tuple(fields) => {
+                work(b, fields.len())?;
+                todo.extend(fields);
+            }
+            Type::Record { fields, .. } => {
+                work(b, fields.len())?;
+                todo.extend(fields.iter().map(|(_, ty)| ty));
+            }
+            Type::Array { element, .. } => {
+                work(b, 1)?;
+                todo.push(element);
+            }
+            Type::Enum { variants, .. } => {
+                work(b, variants.len())?;
+                for (_, fields) in variants {
+                    work(b, fields.len())?;
+                    todo.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                work(b, 2)?;
+                todo.extend([error.as_ref(), result.as_ref()]);
             }
             ty if scalar(ty) => {}
             _ => return Ok(false),
