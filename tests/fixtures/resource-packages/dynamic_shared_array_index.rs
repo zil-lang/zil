@@ -905,3 +905,24 @@ fn raw_and_wire_reject_unknown_incoming_upper_before_identity_binding() {
         "unknown incoming copy branch: Analyze/Verify/Wire independent completeness rejection"
     );
 }
+
+// Author-only replay of the original archived counterexample; remove this
+// evidence hook before delivering the reproducible semantic test fixture.
+#[test]
+fn replay_original_unknown_wrapper_wire() {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../out/runs/dynamic-shared-array/unknown-upper-reproducer/accepted.wire");
+    let wire = std::fs::read(path).expect("original pre-repair Wire must already exist");
+    let errors =
+        zil_verify::verify_module_bytes(&wire, &TargetProfile::host_llvm(), &Limits::default())
+            .unwrap_err();
+    assert!(
+        errors.iter().any(|d| d
+            .message
+            .contains("upper dependency has no complete actual source")),
+        "{errors:?}"
+    );
+    println!(
+        "original accepted rich-wrapper Wire with its original fresh candidate now independently rejects unknown upper dependency"
+    );
+}
