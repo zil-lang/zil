@@ -487,7 +487,7 @@ fn enum_verify_current_raw_wire_and_source_request_boundaries() {
                 low = mid + 1;
             }
         }
-        assert_eq!(low, 152_448, "independent Verify current work changed");
+        assert_eq!(low, 138_595, "independent Verify current work changed");
         let fingerprint = run(low).unwrap();
         for _ in 0..2 {
             assert!(run(low - 1).is_none());
@@ -531,7 +531,7 @@ fn enum_verify_current_raw_wire_and_source_request_boundaries() {
         assert_eq!(
             low,
             match kind {
-                "work" => 152_448,
+                "work" => 138_595,
                 "nodes" => 349,
                 "source_bytes" => 669,
                 _ => 11,

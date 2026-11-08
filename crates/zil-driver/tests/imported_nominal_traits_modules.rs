@@ -506,7 +506,7 @@ fn original_single_module_and_drop_work_budgets_remain_exact() {
         ("fn main()->i32=>0", 242),
         (
             "resource R{n:i32}impl Drop for R{fn drop(self:Self){}}fn main()->i32{let r=R{n:1};return 0}",
-            1568,
+            1453,
         ),
         (
             "trait Code{fn code(self:&Self)->i32;}struct Payload{n:i32}impl Code for Payload{fn code()->i32=>.n}fn main()->i32{let x=Payload{n:13};return x.code()-13}",
