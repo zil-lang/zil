@@ -4,7 +4,7 @@ const BATCH: &str = include_str!("fixed-shared-address-array.zil");
 const MAPPING: &str = include_str!("fixed-shared-address-array-mapping.zil");
 const WINDOW: &str = include_str!("fixed-shared-address-array-window.zil");
 const HELPER: &str = include_str!("fixed-shared-address-array-helper.zil");
-const LARGE: &str = include_str!("fixed-shared-address-array-512.zil");
+const LARGE: &str = include_str!("wide-shared-address-array.zil");
 
 #[test]
 fn source_raw_and_wire_preserve_each_array_element() {
@@ -606,7 +606,7 @@ fn array_slots_and_actual_pointee_snapshot_budgets_are_exact_and_fresh() {
 }
 
 #[test]
-fn ordinary_512_element_array_completes_source_raw_and_wire_verification() {
+fn ordinary_wide_array_completes_source_raw_and_wire_verification() {
     let program = LARGE;
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
