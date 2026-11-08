@@ -1889,7 +1889,42 @@ impl Check<'_, '_, '_> {
             )),
         }
     }
+    /// A tagged Store result transports its actual success producer. The
+    /// error alternative has no success Store; ordinary expression checking
+    /// still validates its full type, selected payload and consumption.
+    fn tagged_store_payload(expression: &Expr) -> Option<Option<&Expr>> {
+        let ExprKind::Call { callee, arguments } = &expression.kind else {
+            return None;
+        };
+        let ExprKind::TypeApply {
+            callee,
+            arguments: types,
+        } = &callee.kind
+        else {
+            return None;
+        };
+        let ExprKind::Name(name) = &callee.kind else {
+            return None;
+        };
+        let [GenericArg::Type(_), GenericArg::Type(result)] = types.as_slice() else {
+            return None;
+        };
+        let [payload] = arguments.as_slice() else {
+            return None;
+        };
+        if payload.spread || stores::element(result).is_none() {
+            return None;
+        }
+        match name.as_str() {
+            "error_ok" => Some(Some(&payload.value)),
+            "error_err" => Some(None),
+            _ => None,
+        }
+    }
     fn owning_store_expression(&self, expression: &Expr, state: &State) -> bool {
+        if let Some(payload) = Self::tagged_store_payload(expression) {
+            return payload.is_none_or(|payload| self.owning_store_expression(payload, state));
+        }
         match &expression.kind {
             ExprKind::Group(inner) | ExprKind::Ascribed { value: inner, .. } => {
                 self.owning_store_expression(inner, state)
@@ -1949,6 +1984,12 @@ impl Check<'_, '_, '_> {
     }
     fn fresh_store_expression(&mut self, expression: &Expr, state: &State) -> R<bool> {
         self.tick(expression.span)?;
+        if let Some(payload) = Self::tagged_store_payload(expression) {
+            return match payload {
+                Some(payload) => self.fresh_store_expression(payload, state),
+                None => Ok(true),
+            };
+        }
         match &expression.kind {
             ExprKind::Ascribed { ty, value } => {
                 self.budget.ty(ty)?;
