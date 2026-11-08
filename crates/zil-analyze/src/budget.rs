@@ -43,6 +43,8 @@ pub(super) struct Budget {
     pub(super) sum_functions: Vec<bool>,
     pub(super) addressed_sums: bool,
     pub(super) mixed_address_sums: bool,
+    // Reconstructed from actual owned-signature parameters, never a claim.
+    pub(super) borrowed_callback_inputs: bool,
     pub(super) owned_callbacks: BTreeSet<zil_ir::ClosureId>,
     pub(super) owned_callback_helpers: BTreeSet<zil_ir::FunctionId>,
     pub(super) owned_callback_window_functions: Vec<bool>,
@@ -135,6 +137,7 @@ impl Budget {
             sum_functions: Vec::new(),
             addressed_sums: false,
             mixed_address_sums: false,
+            borrowed_callback_inputs: false,
             owned_callbacks: BTreeSet::new(),
             owned_callback_helpers: BTreeSet::new(),
             owned_callback_window_functions: Vec::new(),
@@ -1594,7 +1597,22 @@ pub(super) fn preflight(
                 continue;
             }
             if owned_signature {
-                super::owned_callbacks::data(module, ty, budget)?;
+                if matches!(ty, Type::Address { .. }) {
+                    budget.type_work(&closure.result, true, "borrowed callback result profile")?;
+                    if !matches!(
+                        closure.result,
+                        Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+                    ) || closure.result.is_copy_value()
+                    {
+                        return Err(bad(
+                            "borrowed inputs in an owning callback require a closed owned result",
+                        ));
+                    }
+                    budget.borrowed_callback_inputs = true;
+                    super::owned_callbacks::input(module, ty, budget)?;
+                } else {
+                    super::owned_callbacks::data(module, ty, budget)?;
+                }
                 continue;
             }
             if let Type::Address { inner, .. } = ty

@@ -183,11 +183,23 @@ fn unused_owned_dispatch_definitions_are_checked_and_can_discard_the_callback() 
 }
 
 #[test]
-fn owned_signature_does_not_open_addresses_managed_roots_or_capture_profiles() {
+fn owned_signature_does_not_open_borrowed_results_managed_roots_or_capture_profiles() {
+    // These original declaration bytes now have independent per-input
+    // ownership/loan admission. A concrete invocation and the nearest
+    // overlapping owner/loan counterexample live in signature_admission.
+    let promoted = checked(&format!(
+        "{DATA}fn main(){{let f=(e:Event,n:&i32)->Reply=>{{return Reply{{payload:give e.payload,tag:e.tag}}}}}}"
+    ));
+    assert!(matches!(
+        promoted.closures[0].parameters[0],
+        Type::Package { .. }
+    ));
+    assert!(matches!(
+        promoted.closures[0].parameters[1],
+        Type::Address { mutable: false, .. }
+    ));
+    assert!(matches!(promoted.closures[0].result, Type::Package { .. }));
     for source in [
-        format!(
-            "{DATA}fn main(){{let f=(e:Event,n:&i32)->Reply=>{{return Reply{{payload:give e.payload,tag:e.tag}}}}}}"
-        ),
         format!(
             "{DATA}fn main(){{let f=(bytes:ByteBuffer)->Reply=>{{return Reply{{payload:give bytes,tag:1}}}}}}"
         ),

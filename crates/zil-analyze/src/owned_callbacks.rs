@@ -48,6 +48,26 @@ pub(super) fn data(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Comp
     }
 }
 
+/// Inspect the actual input pointee separately from closed result data. A loan
+/// remains an ordinary loan and is never part of the returned responsibility.
+pub(super) fn input(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<()> {
+    if let Type::Address { inner, .. } = ty {
+        budget.type_work(ty, false, "borrowed input owned-result callback")?;
+        match inner.as_ref() {
+            Type::Slice { element } => {
+                budget.type_work(element, true, "borrowed callback slice element")?;
+                if !element.is_copy_value() {
+                    return Err(bad("borrowed callback slice requires finite Copy elements"));
+                }
+                Ok(())
+            }
+            pointee => data(module, pointee, budget),
+        }
+    } else {
+        data(module, ty, budget)
+    }
+}
+
 pub(super) fn signature(
     module: &TypedModule,
     definition: &ClosureDefinition,
