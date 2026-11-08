@@ -316,7 +316,7 @@ pub(super) fn transfer(
             }
             out.creation_complete = Some(all_inputs);
             if matches!(target.return_type, Type::Address { mutable: false, .. }) {
-                resources::charge_payload(vt(f, produced)?, b)?;
+                super::super::tasks::charge_result_selection(vt(f, produced)?, b)?;
                 b.spend(port_bindings.len())?;
                 let mut allowed = Vec::new();
                 for row in port_bindings {
@@ -392,7 +392,7 @@ pub(super) fn transfer(
                 .is_some_and(|(result, _)| matches!(result, Type::Address { mutable: false, .. }))
             {
                 let (_, context) = task_type(vt(f, *task)?).unwrap();
-                resources::charge_payload(vt(f, *task)?, b)?;
+                super::super::tasks::charge_result_selection(vt(f, *task)?, b)?;
                 b.spend(context.ports.len())?;
                 let mut p = Permission::default();
                 for port in 0..context.ports.len() {

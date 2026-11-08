@@ -323,6 +323,7 @@ impl Budget {
         // A mismatch can stop the comparison early; an equal declaration is
         // the upper bound. Arrays compare their length once, not per element.
         self.spend(2 + usize::from(copy_check), context)?;
+        super::tasks::charge_result_context(ty, self)?;
         super::tasks::require_closed_context(ty)?;
         match ty {
             Type::Dyn { interface } | Type::OwnedDyn { interface } => {
@@ -918,6 +919,7 @@ pub(super) fn preflight(
             budget.task_origin_roots |= matches!(ty, Type::Task { .. });
             budget.borrowed_task_ports |=
                 matches!(ty, Type::Task { retained_life, .. } if !retained_life.ports.is_empty());
+            super::tasks::charge_result_context(ty, budget)?;
             super::tasks::require_closed_context(ty)?;
             budget.task_borrowed_results |= matches!(ty, Type::Task { result, .. } if matches!(result.as_ref(), Type::Address { mutable: false, .. }));
             budget.store_option_results |= matches!(ty, Type::BorrowedStorage { storage, .. }
@@ -1619,17 +1621,20 @@ pub(super) fn preflight(
         if let Some(contract) = &function.storage_life {
             if function.call_kind == zil_ir::CallKind::Suspend {
                 budget.spend(function.parameters.len(), "Suspend signature inputs")?;
-                let parameters = function
-                    .parameters
-                    .iter()
-                    .map(|id| {
-                        function
-                            .locals
-                            .get(id.0 as usize)
-                            .map(|local| local.ty.clone())
-                            .ok_or_else(|| bad("Suspend signature input absent"))
-                    })
-                    .collect::<CompileResult<Vec<_>>>()?;
+                let mut parameters = Vec::new();
+                for id in &function.parameters {
+                    let ty = &function
+                        .locals
+                        .get(id.0 as usize)
+                        .ok_or_else(|| bad("Suspend signature input absent"))?
+                        .ty;
+                    super::tasks::charge_result_selection(ty, budget)?;
+                    parameters.push(ty.clone());
+                }
+                for ty in &parameters {
+                    super::tasks::charge_result_selection(ty, budget)?;
+                }
+                super::tasks::charge_result_selection(&function.return_type, budget)?;
                 super::signature_life::charge(contract, budget)?;
                 super::signature_life::function_relation(
                     &parameters,

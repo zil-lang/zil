@@ -311,7 +311,7 @@ pub(super) fn transfer(
             }
             out.creation_complete = Some(complete);
             if matches!(worker.return_type, Type::Address { mutable: false, .. }) {
-                b.type_work(value_type(f, result)?, false, "Task result port selection")?;
+                super::super::tasks::charge_result_selection(value_type(f, result)?, b)?;
                 fee(b, port_bindings.len())?;
                 let mut allowed = Vec::new();
                 for row in port_bindings {
@@ -392,11 +392,7 @@ pub(super) fn transfer(
         InstructionKind::TaskPoll { task } if shape(value_type(f, *task)?).is_some() => {
             if shared_result(value_type(f, *task)?) {
                 let context = shape(value_type(f, *task)?).unwrap();
-                b.type_work(
-                    value_type(f, *task)?,
-                    false,
-                    "TaskPoll result port selection",
-                )?;
+                super::super::tasks::charge_result_selection(value_type(f, *task)?, b)?;
                 fee(b, context.ports.len())?;
                 let mut permission = Permission::default();
                 for port in 0..context.ports.len() {

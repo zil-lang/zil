@@ -520,6 +520,120 @@ fn task_multiport_result_budget_boundaries_are_repeatable_and_fresh() {
 }
 
 #[test]
+fn task_multiport_result_context_work_grows_with_actual_port_leaves() {
+    let mut growth = Vec::new();
+    for (width, depth, name_width) in [(2, 2, 8), (4, 6, 64)] {
+        let field = format!("field_{}", "x".repeat(name_width));
+        let mut ty = "i64".to_owned();
+        let mut value = "i64(1)".to_owned();
+        for _ in 0..depth {
+            ty = format!("(i64,{ty})");
+            value = format!("(i64(1),{value})");
+        }
+        let params = (0..width)
+            .map(|port| format!("scratch{port}:&'a Scratch"))
+            .chain(["result:&'b i32".to_owned()])
+            .collect::<Vec<_>>()
+            .join(",");
+        let args = (0..width)
+            .map(|_| "&scratch")
+            .chain(["&number"])
+            .collect::<Vec<_>>()
+            .join(",");
+        let context = (0..width)
+            .map(|_| "&'a Scratch")
+            .chain(["&'b i32"])
+            .collect::<Vec<_>>()
+            .join(",");
+        let source = r#"struct Scratch { @field@:@type@ }
+fn worker<life a,life b>(@params@)->&'b i32 { task_yield(); let observed=scratch0; return result }
+fn poll<life a,life b>(task:&mut Task<&'b i32,(@context@)>)->TaskPollState!Poll<&'b i32> {return task_poll(task)}
+fn main()->TaskCreateError!i32 {
+ let scratch=Scratch{@field@:@value@}
+ let number=42
+ var task=task_create(worker,@args@)?
+ match poll(&mut task){.ok(value)=>{match value{Poll.Pending()=>{},Poll.Ready(_)=>{return 1}}},.err(_)=>{return 2}}
+ match poll(&mut task){.ok(value)=>{match value{Poll.Pending()=>{return 3},Poll.Ready(pointer)=>{
+  match task_poll_close(&mut task){Poll.Pending()=>{return 4},Poll.Ready(_)=>{}}
+  task_finish_destroy(give task)
+  return *pointer-42
+ }}},.err(_)=>{return 5}}
+}"#.replace("@field@", &field).replace("@type@", &ty).replace("@value@", &value).replace("@params@", &params).replace("@args@", &args).replace("@context@", &context);
+        let module = typed_stored(&source);
+        let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        zil_verify::verify_module(
+            module.clone(),
+            plan.clone(),
+            &module.target,
+            &Limits::default(),
+        )
+        .unwrap();
+        let bytes =
+            zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+        zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+        let mut boundaries = Vec::new();
+        for verify in [false, true] {
+            let run = |n| {
+                let limits = Limits {
+                    max_analysis_steps: n,
+                    ..Limits::default()
+                };
+                if verify {
+                    zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits)
+                        .map(|_| ())
+                } else {
+                    zil_analyze::analyze(&module, &limits).map(|_| ())
+                }
+            };
+            let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+            while low + 1 < high {
+                let middle = low + (high - low) / 2;
+                match run(middle) {
+                    Ok(()) => high = middle,
+                    Err(ds) => {
+                        assert!(
+                            ds.iter()
+                                .all(|d| d.category == ResultCategory::ResourceLimit),
+                            "{ds:?}"
+                        );
+                        low = middle;
+                    }
+                }
+            }
+            run(high).unwrap();
+            assert!(
+                run(high - 1)
+                    .unwrap_err()
+                    .iter()
+                    .all(|d| d.category == ResultCategory::ResourceLimit)
+            );
+            run(high).unwrap();
+            let fresh = typed_stored(&source);
+            let fresh_plan = zil_analyze::analyze(&fresh, &Limits::default()).unwrap();
+            let limits = Limits {
+                max_analysis_steps: high,
+                ..Limits::default()
+            };
+            if verify {
+                zil_verify::verify_module(fresh.clone(), fresh_plan, &fresh.target, &limits)
+                    .unwrap();
+            } else {
+                zil_analyze::analyze(&fresh, &limits).unwrap();
+            }
+            eprintln!(
+                "multiport growth width={width} depth={depth} field_bytes={} verify={verify} N={high}/N-1/fresh",
+                field.len()
+            );
+            boundaries.push(high);
+        }
+        growth.push(boundaries);
+    }
+    for phase in 0..2 {
+        assert!(growth[1][phase] > growth[0][phase] + 1024, "{growth:?}");
+    }
+}
+
+#[test]
 fn task_borrowed_result_local_create_poll_has_no_header_dependency() {
     let source = include_str!("../../../tests/fixtures/task-borrow-results/local-create-poll.zil");
     for text in [
