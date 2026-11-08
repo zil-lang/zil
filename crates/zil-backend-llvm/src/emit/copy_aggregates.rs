@@ -65,7 +65,10 @@ pub(super) fn plan(
             // metadata clones before examining or retaining the complete shape.
             let before = work;
             reserve(ty, &mut work, 0, limits)?;
-            if !ty.is_copy_value() && !stored_borrows::pure_composite(ty) {
+            if !ty.is_copy_value()
+                && !stored_borrows::pure_composite(ty)
+                && !stored_borrows::shared_array_snapshot(ty)
+            {
                 continue;
             }
             let machine = llvm_type(ty)?;
@@ -359,7 +362,16 @@ pub(super) fn reserve(
             stored_borrows::shape(life, work)?;
             reserve(storage, work, depth + 1, limits)?;
         }
-        Type::Array { element, .. } => reserve(element, work, depth + 1, limits)?,
+        Type::Array { element, .. } => {
+            reserve(element, work, depth + 1, limits)?;
+            if let Type::Address {
+                mutable: false,
+                inner,
+            } = element.as_ref()
+            {
+                reserve(inner, work, depth + 2, limits)?;
+            }
+        }
         Type::Tuple(fields) => {
             for field in fields {
                 reserve(field, work, depth + 1, limits)?;
@@ -413,7 +425,10 @@ pub(super) fn classify(
     }
     let before = *work;
     reserve(ty, work, 0, limits)?;
-    if !ty.is_copy_value() && !stored_borrows::pure_composite(ty) {
+    if !ty.is_copy_value()
+        && !stored_borrows::pure_composite(ty)
+        && !stored_borrows::shared_array_snapshot(ty)
+    {
         return Ok(None);
     }
     let machine = llvm_type(ty)?;

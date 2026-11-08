@@ -2687,7 +2687,9 @@ fn transfer(
             {
                 task_address::merge(&mut out, held, b)?;
             }
-            if carrier(&f.locals[local.0 as usize].ty).is_some() {
+            if carrier(&f.locals[local.0 as usize].ty).is_some()
+                || shared_array_value(&f.locals[local.0 as usize].ty)
+            {
                 ordered(b, state.locals.len(), 0)?;
                 let held = state
                     .locals
@@ -2765,10 +2767,14 @@ fn transfer(
             task_address::merge(&mut out, get(*address)?, b)?;
             environment_merge(&mut out, get(*address)?, b)?;
             if matches!(i.kind, InstructionKind::ReborrowAddress { .. })
-                && pointed_carrier(value_type(f, *address)?).is_some()
+                && (pointed_carrier(value_type(f, *address)?).is_some()
+                    || matches!(value_type(f, *address)?, Type::Address { inner, .. }
+                        if shared_array_shape(inner, b)?))
             {
                 let actual = get(*address)?;
-                fee(b, actual.slots.len())?;
+                if pointed_carrier(value_type(f, *address)?).is_some() {
+                    fee(b, actual.slots.len())?;
+                }
                 for (path, permission) in &actual.slots {
                     ordered(b, out.slots.len(), path.len())?;
                     fee(b, path.len())?;

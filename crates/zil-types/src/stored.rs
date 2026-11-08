@@ -570,6 +570,11 @@ pub(super) fn shared_array_value(ty: &Type) -> bool {
         && matches!(element.as_ref(), Type::Address { mutable: false, .. }))
 }
 
+/// Billing dispatch only; never a Copy or access qualification.
+pub(super) fn shared_array_related(ty: &Type) -> bool {
+    shared_array_value(ty) || matches!(ty, Type::Address { inner, .. } if shared_array_value(inner))
+}
+
 pub(super) fn shared_array_shape(ty: &Type, left: &mut usize, limit: usize, span: Span) -> R<bool> {
     if !shared_array_value(ty) {
         return Ok(false);

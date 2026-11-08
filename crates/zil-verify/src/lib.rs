@@ -333,6 +333,7 @@ struct Budget {
     // Raw type roots that actually contain the new Store element family.
     // This is a work gate only; each consumer still checks the complete type.
     inline_store_roots: BTreeSet<usize>,
+    array_snapshot_roots: BTreeSet<usize>,
     inline_store_addresses: bool,
     inline_store_package_addresses: bool,
     sums: bool,
@@ -395,6 +396,7 @@ impl Budget {
             static_utf8: false,
             pod_stores: false,
             inline_store_roots: BTreeSet::new(),
+            array_snapshot_roots: BTreeSet::new(),
             inline_store_addresses: false,
             inline_store_package_addresses: false,
             sums: false,
@@ -467,6 +469,26 @@ impl Budget {
         self.spend(1)?;
         self.addressed_copy_sums.insert(key, copy);
         Ok(copy)
+    }
+    fn array_snapshot_root(&mut self, owner: &Type) -> Check<bool> {
+        if self.array_snapshot_roots.is_empty() {
+            return Ok(false);
+        }
+        self.spend(
+            self.array_snapshot_roots
+                .len()
+                .checked_ilog2()
+                .map_or(1, |n| n as usize + 2),
+        )?;
+        Ok(self
+            .array_snapshot_roots
+            .contains(&(owner as *const Type as usize)))
+    }
+    fn array_snapshot(&mut self, actual: &Type, owner: &Type) -> Check<()> {
+        if self.array_snapshot_root(owner)? {
+            stored_flow::type_work(actual, &self.limits.clone(), self)?;
+        }
+        Ok(())
     }
     fn inline_store_root(&mut self, ty: &Type) -> Check<bool> {
         if self.inline_store_roots.is_empty() {
@@ -1245,6 +1267,7 @@ fn check_type_shape(
     limits: &Limits,
     budget: &mut Budget,
 ) -> Check<()> {
+    let mut array_root = false;
     let mut first = Some((ty, 0usize, 0u8));
     let mut pending = Vec::new();
     let mut options = Vec::new();
@@ -1295,6 +1318,7 @@ fn check_type_shape(
         }
         if stored_flow::shared_array_value(ty) {
             budget.stored_borrows = true;
+            array_root = true;
         }
         match ty {
             Type::BorrowedStorage { storage, .. } => {
@@ -1442,6 +1466,18 @@ fn check_type_shape(
             }
             _ => {}
         }
+    }
+    if array_root {
+        budget.spend(
+            budget
+                .array_snapshot_roots
+                .len()
+                .checked_ilog2()
+                .map_or(2, |n| n as usize + 3),
+        )?;
+        budget
+            .array_snapshot_roots
+            .insert(ty as *const Type as usize);
     }
     // Unused local/SSA/signature/definition types receive the same independent
     // POD qualification, after the whole raw tree has passed the depth bound.
@@ -2614,6 +2650,7 @@ fn check_instruction(
                     "Managed positions require DescribeLocal or TakeLocal, never copying Load",
                 ));
             }
+            budget.array_snapshot(ty, ty)?;
             Some(ty.clone())
         }
         InstructionKind::TakeLocal { local } => {
@@ -2670,6 +2707,7 @@ fn check_instruction(
             } else {
                 check_type(inner, span)?;
             }
+            budget.array_snapshot(inner, inner)?;
             Some(Type::Address {
                 mutable: false,
                 inner: Box::new(inner.clone()),
@@ -2715,6 +2753,7 @@ fn check_instruction(
                     "exclusive borrow requires mutable storage",
                 ));
             }
+            budget.array_snapshot(inner, inner)?;
             Some(Type::Address {
                 mutable: true,
                 inner: Box::new(inner.clone()),
@@ -2739,6 +2778,7 @@ fn check_instruction(
                     "shared input cannot grant exclusive permission",
                 ));
             }
+            budget.array_snapshot(inner, value_type(function, *address, span)?)?;
             Some(Type::Address {
                 mutable: *mutable,
                 inner: inner.clone(),
@@ -2854,6 +2894,7 @@ fn check_instruction(
             } else {
                 check_type(field, span)?;
             }
+            budget.array_snapshot(field, value_type(function, *address, span)?)?;
             Some(Type::Address {
                 mutable: *mutable,
                 inner: Box::new(field.clone()),
@@ -2942,6 +2983,7 @@ fn check_instruction(
                     || stored_flow::pure_read(module, inner, budget)?
                     || stored_flow::pure_inline(module, inner, budget)? =>
             {
+                budget.array_snapshot(inner, value_type(function, *address, span)?)?;
                 Some(inner.as_ref().clone())
             }
             _ => {
@@ -3028,6 +3070,7 @@ fn check_instruction(
             if callee.return_type == Type::Unit {
                 None
             } else {
+                budget.array_snapshot(&callee.return_type, &callee.return_type)?;
                 Some(callee.return_type.clone())
             }
         }
@@ -3220,6 +3263,23 @@ fn check_instruction(
                 Type::BorrowedStorage { storage, .. } => storage.as_ref(),
                 other => other,
             };
+            if budget.array_snapshot_root(ty)? {
+                let count = match physical {
+                    Type::Array { length, .. } => usize::try_from(*length)
+                        .map_err(|_| limit("array ordinal count overflow"))?,
+                    Type::Record { fields, .. } | Type::Package { fields, .. } => fields.len(),
+                    Type::Tuple(fields) => fields.len(),
+                    _ => 0,
+                };
+                if fields.len() != count {
+                    return Err(reject(
+                        "E-VERIFY-AGGREGATE",
+                        span,
+                        "array aggregate field count mismatch",
+                    ));
+                }
+                budget.spend(count)?;
+            }
             let expected = physical.aggregate_fields().ok_or_else(|| {
                 reject(
                     "E-VERIFY-AGGREGATE",
@@ -3243,6 +3303,7 @@ fn check_instruction(
                     ));
                 }
             }
+            budget.array_snapshot(ty, ty)?;
             Some(ty.clone())
         }
         InstructionKind::MakeVariant { variant, fields } => {

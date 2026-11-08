@@ -3681,7 +3681,8 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
                     inner.as_ref(),
                     Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
                 )
-                || stored_borrows::pure_storage_address(ty) =>
+                || stored_borrows::pure_storage_address(ty)
+                || stored_borrows::shared_address_array_address(ty) =>
         {
             Ok("ptr".into())
         }
@@ -3909,7 +3910,8 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                     inner.as_ref(),
                     Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
                 )
-                || stored_borrows::pure_storage_address(ty) =>
+                || stored_borrows::pure_storage_address(ty)
+                || stored_borrows::shared_address_array_address(ty) =>
         {
             Ok(8)
         }

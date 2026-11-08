@@ -190,6 +190,10 @@ impl Builder<'_, '_> {
                     ty,
                 ));
             }
+            let actual = &self.function.locals[local.0 as usize].ty;
+            if stored::shared_array_related(actual) {
+                self.closures.snapshot_type(actual, 1, 0, e.span)?;
+            }
             let ty = self.function.locals[local.0 as usize].ty.clone();
             // A hygienic Sequence only preserves the value already evaluated
             // for a pipeline/spread. A fresh or explicitly given owner must
@@ -204,6 +208,9 @@ impl Builder<'_, '_> {
             {
                 if let Some(expected) = expected {
                     self.same(&ty, expected, e.span)?;
+                }
+                if stored::shared_array_related(&ty) {
+                    self.closures.snapshot_type(&ty, 1, 0, e.span)?;
                 }
                 return Ok((
                     self.value(InstructionKind::TakeLocal { local }, ty.clone(), e.span)?,
@@ -443,8 +450,13 @@ impl Builder<'_, '_> {
                     && matches!(actual, Type::Array { .. })
                     && !actual.is_copy_value()
                     && stored::pure_inline(actual, &mut self.match_work_left, self.limits, e.span)?;
-                if pure_array {
+                let address_array = stored::shared_array_related(actual);
+                if pure_array || address_array {
                     self.closures.snapshot_type(actual, 1, 0, e.span)?;
+                    if address_array {
+                        self.closures
+                            .snapshot(self.function.locals[local.0 as usize].name.len(), e.span)?;
+                    }
                 }
                 let decl = self.function.locals[local.0 as usize].clone();
                 if self.closure_slots.contains_key(&local) {
@@ -575,7 +587,7 @@ impl Builder<'_, '_> {
                 } else {
                     InstructionKind::BorrowLocal { local }
                 };
-                if pure_array {
+                if pure_array || address_array {
                     // The earlier snapshot pays for decl.clone(); this one
                     // pays the separate full Address result clone below.
                     self.closures.snapshot_type(&ty, 1, 0, e.span)?;

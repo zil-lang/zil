@@ -2737,6 +2737,7 @@ fn step(
                 task_address::join(&mut out, &state.locals[local.0 as usize], b)?;
             }
             if qualified(&f.locals[local.0 as usize].ty).is_some()
+                || shared_array_value(&f.locals[local.0 as usize].ty)
                 || fixed_environment(module, &f.locals[local.0 as usize].ty)
             {
                 for (path, p) in &state.locals[local.0 as usize].leaves {
@@ -2781,7 +2782,11 @@ fn step(
             if carrier_reborrow {
                 b.spend(val(*address)?.leaves.len())?;
             }
-            if fixed_environment(module, vt(f, *address)?) || carrier_reborrow {
+            if fixed_environment(module, vt(f, *address)?) || carrier_reborrow
+                || matches!(i.kind, InstructionKind::ReborrowAddress { .. })
+                    && matches!(vt(f, *address)?, Type::Address { inner, .. }
+                        if shared_array_shape(inner, b)?)
+            {
                 for (path, p) in &val(*address)?.leaves {
                     add_leaf(&mut out, path, p, b)?;
                 }
