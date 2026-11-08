@@ -446,5 +446,18 @@
     ],
     "live_worktrees_removed": false,
     "receipt": "/workspace/.zil-env/release-foundations/merged-task-ref-retirement.json"
+  },
+  "active_source_checkpoints": {
+    "G3.4.12": {
+      "source": "cb41e4792dc2f3b61e16067abfe6afdd89fef2cd",
+      "status": "WIP, not accepted; last auxiliary control separately repaired, complete matrix and independent review pending",
+      "remote_verified": true,
+      "worktree_clean_at_checkpoint": true
+    },
+    "G3.4.13": {
+      "source": "36246a106fb78b989e4faa17e699cacacccf7db8",
+      "status": "WIP, not accepted; original legal identity control passed, full semantic/native matrix pending",
+      "remote_verified": true
+    }
   }
 }
