@@ -1,6 +1,8 @@
 //! Independent stored-target reconstruction. Sorted vectors and batch CFG
 //! solving deliberately do not consume analyzer roots, summaries, or claims.
 use super::*;
+mod array_snapshot;
+mod byte_queries;
 #[path = "stored_flow_pure_copy.rs"]
 mod pure_copy;
 
@@ -349,6 +351,8 @@ struct Loan {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Summary {
+    byte_reads: Vec<Source>,
+    byte_covered: bool,
     result: Vec<(Path, Vec<Source>)>,
     task_ports: Vec<(Vec<ContractProjection>, Vec<Source>)>,
     external_after: Vec<(u32, Path, Vec<Source>)>,
@@ -1200,6 +1204,7 @@ pub(super) fn qualifications(
                     && !super::stored_callables::instruction(module, f, i)
                     && !owned_operation
                     && !enum_operation
+                    && byte_queries::query(&i.kind).is_none()
                     && !(b.task_borrowed_results && task_address::operation(&i.kind))
                     && !(b.store_option_results
                         && matches!(
@@ -1635,11 +1640,13 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             _ => Ok(false),
         }
     }
+    let mut byte_companion = false;
     for p in &f.parameters {
         b.spend(1)?;
         if f.locals.get(p.0 as usize).is_none() {
             return Err(err("signature parameter outside actual local table"));
         }
+        byte_companion |= byte_queries::is_description(&f.locals[p.0 as usize].ty);
     }
     let Some(c) = &f.storage_life else {
         if b.stored_enum_addresses
@@ -1766,7 +1773,21 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             }
         }
     }
-    super::signature_life::function_relation(
+    let byte_signature = byte_companion
+        && !byte_queries::legacy_task_signature(f)
+        && f.call_kind == CallKind::Direct
+        && f.foreign.is_none()
+        && f.environment.is_none()
+        && byte_queries::signature_presence(module, b)?;
+    if byte_signature {
+        b.spend(parameters.len())?;
+    }
+    let check = if byte_signature {
+        super::signature_life::function_relation_byte_inputs
+    } else {
+        super::signature_life::function_relation
+    };
+    check(
         module,
         &parameters,
         &f.return_type,
@@ -1828,14 +1849,7 @@ fn apart(
     }
     Ok(())
 }
-fn access(
-    p: &Permission,
-    write: bool,
-    active: &[usize],
-    loans: &[Loan],
-    requirements: &mut Vec<(Source, Source)>,
-    b: &mut Budget,
-) -> Check<()> {
+fn access_head(p: &Permission, write: bool, b: &mut Budget) -> Check<()> {
     if p.sources.is_empty() {
         return Err(err(
             "access has no independently grounded target permission",
@@ -1852,7 +1866,17 @@ fn access(
     {
         return Err(err("program-static text cannot authorize mutation"));
     }
-    let delegated = ancestry(&p.loans, loans, b)?;
+    Ok(())
+}
+fn access_tail(
+    p: &Permission,
+    write: bool,
+    active: &[usize],
+    loans: &[Loan],
+    delegated: &[usize],
+    requirements: &mut Vec<(Source, Source)>,
+    b: &mut Budget,
+) -> Check<()> {
     for id in active {
         b.spend(delegated.len().saturating_add(1))?;
         if delegated.contains(id) {
@@ -1869,6 +1893,29 @@ fn access(
     }
     Ok(())
 }
+fn access(
+    p: &Permission,
+    write: bool,
+    active: &[usize],
+    loans: &[Loan],
+    requirements: &mut Vec<(Source, Source)>,
+    b: &mut Budget,
+) -> Check<()> {
+    access_head(p, write, b)?;
+    let delegated = ancestry(&p.loans, loans, b)?;
+    access_tail(p, write, active, loans, &delegated, requirements, b)
+}
+fn query_access(
+    p: &Permission,
+    active: &[usize],
+    loans: &[Loan],
+    requirements: &mut Vec<(Source, Source)>,
+    b: &mut Budget,
+) -> Check<()> {
+    access_head(p, false, b)?;
+    access_tail(p, false, active, loans, &p.loans, requirements, b)
+}
+
 fn captured_definition<'a>(
     module: &'a TypedModule,
     f: &TypedFunction,
@@ -2551,7 +2598,10 @@ fn step(
             }
             add_loans(&mut out.address.loans, &description.loans, b)?;
         }
-        InstructionKind::ByteBufferNew | InstructionKind::DescribeAddress { .. } => {}
+        InstructionKind::ByteBufferNew
+        | InstructionKind::ByteBufferLen { .. }
+        | InstructionKind::ByteBufferCapacity { .. }
+        | InstructionKind::DescribeAddress { .. } => {}
         InstructionKind::ByteBufferPush { .. }
         | InstructionKind::ByteBufferReserve { .. }
         | InstructionKind::ByteBufferTruncate { .. } => {
@@ -3628,6 +3678,8 @@ fn check_call(
     active: &[usize],
     summaries: &[Summary],
     requirements: &mut Vec<(Source, Source)>,
+    byte_flow: Option<&byte_queries::Flow>,
+    byte_point: Option<&byte_queries::Point>,
     b: &mut Budget,
 ) -> Check<()> {
     let callee = module
@@ -3706,6 +3758,48 @@ fn check_call(
         }
     }
     for (a, z) in &summaries[function.0 as usize].apart {
+        let weak =
+            |source: &Source| match source.base {
+                HoldRoot::Parameter(position) => callee
+                    .parameters
+                    .get(position as usize)
+                    .is_some_and(|local| {
+                        byte_queries::is_description(&callee.locals[local.0 as usize].ty)
+                    }),
+                _ => false,
+            };
+        if b.byte_queries && (weak(a) || weak(z)) {
+            let flow =
+                byte_flow.ok_or_else(|| err("Byte separation has no covered origin flow"))?;
+            let left = flow.instantiate(
+                a,
+                callee,
+                arguments,
+                &solution.values,
+                state,
+                byte_point.ok_or_else(|| err("Byte separation has no current proof"))?,
+                b,
+            )?;
+            let right = flow.instantiate(
+                z,
+                callee,
+                arguments,
+                &solution.values,
+                state,
+                byte_point.ok_or_else(|| err("Byte separation has no current proof"))?,
+                b,
+            )?;
+            for a in &left {
+                for z in &right {
+                    for x in &a.sources {
+                        for y in &z.sources {
+                            apart(x, y, requirements, b)?;
+                        }
+                    }
+                }
+            }
+            continue;
+        }
         let a = instantiate(a, arguments, &solution.values, state, b)?;
         let z = instantiate(z, arguments, &solution.values, state, b)?;
         if a.sources.is_empty() || z.sources.is_empty() {
@@ -3720,6 +3814,7 @@ fn check_call(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn windows(
     module: &TypedModule,
     f: &TypedFunction,
@@ -3727,8 +3822,18 @@ fn windows(
     solution: &mut Solution,
     summaries: &[Summary],
     requirements: &mut Vec<(Source, Source)>,
+    byte_reads: &mut Vec<Source>,
     b: &mut Budget,
 ) -> Check<()> {
+    let byte_flow = byte_queries::Flow::solve(
+        module,
+        f,
+        g,
+        &solution.entry,
+        &solution.values,
+        summaries,
+        b,
+    )?;
     let output_live = live_out(module, f, g, b)?;
     for (bi, block) in f.blocks.iter().enumerate() {
         b.spend(1)?;
@@ -3754,6 +3859,10 @@ fn windows(
             after[at].clone_from(&live);
             reverse(module, f, i, &mut live, b)?;
         }
+        let mut byte_point = byte_flow
+            .as_ref()
+            .map(|flow| flow.input(f, bi, g, b))
+            .transpose()?;
         for (at, i) in block.instructions.iter().enumerate() {
             b.spend(width)?;
             let mut live = after[at].clone();
@@ -3761,10 +3870,6 @@ fn windows(
                 live[id.0 as usize] = false;
             }
             let mut active = live_loans(solution, &state, &live, b)?;
-            if let Some(id) = i.result {
-                b.spend(active.len())?;
-                active.retain(|x| *x != id.0 as usize);
-            }
             let pointer = |v: ValueId| -> Check<&Permission> {
                 solution
                     .values
@@ -3772,6 +3877,26 @@ fn windows(
                     .map(|v| &v.address)
                     .ok_or_else(|| err("address operand absent"))
             };
+            if let Some(flow) = &byte_flow {
+                for permission in flow.reads(
+                    module,
+                    i,
+                    &solution.values,
+                    &state,
+                    byte_point.as_ref().unwrap(),
+                    summaries,
+                    b,
+                )? {
+                    query_access(&permission, &active, &solution.loans, requirements, b)?;
+                    byte_queries::record(byte_reads, &permission, b)?;
+                }
+            }
+            // Query effects precede publication of this call's new result.
+            // Preserve the original result exclusion for ordinary accesses.
+            if let Some(id) = i.result {
+                b.spend(active.len())?;
+                active.retain(|x| *x != id.0 as usize);
+            }
             match &i.kind {
                 InstructionKind::MakeAggregate { fields }
                 | InstructionKind::MakePackage { fields }
@@ -4235,6 +4360,8 @@ fn windows(
                     &active,
                     summaries,
                     requirements,
+                    byte_flow.as_ref(),
+                    byte_point.as_ref(),
                     b,
                 )?,
                 _ => {}
@@ -4250,11 +4377,26 @@ fn windows(
                 &mut solution.loans,
                 b,
             )?;
+            if let Some(flow) = &byte_flow {
+                flow.advance(
+                    module,
+                    f,
+                    i,
+                    &solution.values,
+                    summaries,
+                    byte_point.as_mut().unwrap(),
+                    b,
+                )?;
+            }
         }
     }
     Ok(())
 }
 fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
+    if b.byte_queries {
+        source_work(&s.byte_reads, b)?;
+        b.spend(1)?;
+    }
     if !s.none_values.is_empty() {
         b.spend(s.none_values.len())?;
     }
@@ -4785,6 +4927,7 @@ fn solve_check(
     mask: Option<&[bool]>,
     b: &mut Budget,
 ) -> Check<()> {
+    byte_queries::inventory(module, graphs, mask, b)?;
     b.spend(module.functions.len().saturating_mul(2))?;
     let mut observed_none = false;
     let mut summaries = vec![Summary::default(); module.functions.len()];
@@ -4859,6 +5002,7 @@ fn solve_check(
             }
             observed_none |= !summary.none_values.is_empty();
             if summary.complete {
+                summary.byte_covered = b.byte_queries;
                 windows(
                     module,
                     f,
@@ -4866,6 +5010,7 @@ fn solve_check(
                     &mut solution,
                     &summaries,
                     &mut summary.apart,
+                    &mut summary.byte_reads,
                     b,
                 )?;
             }
@@ -4930,6 +5075,11 @@ fn solve_check(
                 });
             }
             continue;
+        }
+        if b.byte_queries && b.byte_query_functions[index] && !s.byte_covered {
+            return Err(err(
+                "Byte query function lacks complete actual read coverage",
+            ));
         }
         if !s.complete {
             return Err(err(

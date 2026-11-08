@@ -134,7 +134,7 @@ pub(super) fn relation(
     c: &StorageLifeContract,
     span: Option<Span>,
 ) -> Check<()> {
-    relation_inner(parameters, result, c, span, false, None, None)
+    relation_inner(parameters, result, c, span, false, None, None, false)
 }
 pub(super) fn function_relation(
     module: &TypedModule,
@@ -143,6 +143,27 @@ pub(super) fn function_relation(
     c: &StorageLifeContract,
     span: Option<Span>,
     allow_callback: bool,
+) -> Check<()> {
+    function_relation_inner(module, parameters, result, c, span, allow_callback, false)
+}
+pub(super) fn function_relation_byte_inputs(
+    module: &TypedModule,
+    parameters: &[Type],
+    result: &Type,
+    c: &StorageLifeContract,
+    span: Option<Span>,
+    allow_callback: bool,
+) -> Check<()> {
+    function_relation_inner(module, parameters, result, c, span, allow_callback, true)
+}
+fn function_relation_inner(
+    module: &TypedModule,
+    parameters: &[Type],
+    result: &Type,
+    c: &StorageLifeContract,
+    span: Option<Span>,
+    allow_callback: bool,
+    allow_byte_input: bool,
 ) -> Check<()> {
     if let Type::ErrorUnion {
         result: success, ..
@@ -228,6 +249,7 @@ pub(super) fn function_relation(
         allow_callback,
         None,
         Some(module),
+        allow_byte_input,
     )
 }
 pub(super) fn closure_relation(
@@ -237,7 +259,16 @@ pub(super) fn closure_relation(
     c: &StorageLifeContract,
     span: Option<Span>,
 ) -> Check<()> {
-    relation_inner(parameters, result, c, span, false, Some(captures), None)
+    relation_inner(
+        parameters,
+        result,
+        c,
+        span,
+        false,
+        Some(captures),
+        None,
+        false,
+    )
 }
 #[allow(clippy::too_many_arguments)]
 fn relation_inner(
@@ -248,6 +279,7 @@ fn relation_inner(
     allow_callback: bool,
     captures: Option<&[Type]>,
     module: Option<&TypedModule>,
+    allow_byte_input: bool,
 ) -> Check<()> {
     let invalid = || {
         reject(
@@ -538,6 +570,9 @@ fn relation_inner(
             t => {
                 if !(t.is_copy_value()
                     || pure_array_value(t)
+                    // This exact Direct-query input consumes no relation row.
+                    || allow_byte_input && !output && !capture && !pointee
+                        && matches!(ty,Type::Desc(payload) if payload.as_ref()==&Type::ByteBuffer)
                     || allow_callback && !output && matches!(t, Type::Closure(_)))
                 {
                     return Err(invalid());

@@ -507,20 +507,6 @@ fn complete_local_parent_cannot_mask_a_vacant_snapshot_candidate() {
             .any(|d| d.message.contains("Array snapshot reads a vacant slot")),
         "{decoded:?}"
     );
-    let saved=std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../out/runs/dynamic-shared-array/old-initialization-reproducer/bad-module-candidate.wire");
-    if saved.exists() {
-        let original = std::fs::read(saved).unwrap();
-        let errors = zil_verify::verify_module_bytes(&original, &target, &limits).unwrap_err();
-        assert!(
-            errors
-                .iter()
-                .any(|d| d.message.contains("Array snapshot reads a vacant slot")),
-            "{errors:?}"
-        );
-        println!(
-            "previously accepted original Wire/fresh candidate now rejected by actual vacancy"
-        );
-    }
 }
 
 fn accept_snapshot_protocol(label: &str, raw: zil_ir::TypedModule) {

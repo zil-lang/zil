@@ -368,6 +368,9 @@ struct Budget {
     task_borrowed_results: bool,
     store_option_results: bool,
     qualified_package_returns: bool,
+    byte_queries: bool,
+    byte_query_presence_checked: bool,
+    byte_query_functions: Vec<bool>,
     package_return_calls: Option<BTreeMap<(FunctionId, ValueId), u32>>,
     store_option_sources: Option<Vec<stored_flow::StoreOptionFunctionSources>>,
     task_stored_sources: Option<Vec<stored_flow::TaskFunctionSources>>,
@@ -428,6 +431,9 @@ impl Budget {
             task_borrowed_results: false,
             store_option_results: false,
             qualified_package_returns: false,
+            byte_queries: false,
+            byte_query_presence_checked: false,
+            byte_query_functions: Vec::new(),
             package_return_calls: None,
             store_option_sources: None,
             task_stored_sources: None,
@@ -2447,6 +2453,10 @@ fn check_instruction(
         | InstructionKind::ByteBufferLen { .. }
         | InstructionKind::ByteBufferCapacity { .. }
         | InstructionKind::ByteBufferBorrow { .. } => {
+            budget.byte_queries |= matches!(
+                instruction.kind,
+                InstructionKind::ByteBufferLen { .. } | InstructionKind::ByteBufferCapacity { .. }
+            );
             byte_buffers::check_instruction(module, function, instruction, budget)?
         }
         InstructionKind::BindPackageCapture { .. }

@@ -540,6 +540,8 @@ pub(super) fn reserve_binding(
                     | InstructionKind::ScopeEnter { .. }
                     | InstructionKind::ScopeExit { .. }
                     | InstructionKind::ByteBufferNew
+                    | InstructionKind::ByteBufferLen { .. }
+                    | InstructionKind::ByteBufferCapacity { .. }
                     | InstructionKind::ByteBufferBorrow { .. }
                     | InstructionKind::ByteBufferPush { .. }
                     | InstructionKind::ByteBufferReserve { .. }

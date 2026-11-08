@@ -135,7 +135,7 @@ pub(super) fn relation(
     result: &Type,
     c: &StorageLifeContract,
 ) -> CompileResult<()> {
-    relation_inner(parameters, None, result, c, false, &[])
+    relation_inner(parameters, None, result, c, false, &[], false)
 }
 pub(super) fn function_relation(
     parameters: &[Type],
@@ -143,6 +143,25 @@ pub(super) fn function_relation(
     c: &StorageLifeContract,
     allow_callback: bool,
     closures: &[ClosureDefinition],
+) -> CompileResult<()> {
+    function_relation_inner(parameters, result, c, allow_callback, closures, false)
+}
+pub(super) fn function_relation_byte_inputs(
+    parameters: &[Type],
+    result: &Type,
+    c: &StorageLifeContract,
+    allow_callback: bool,
+    closures: &[ClosureDefinition],
+) -> CompileResult<()> {
+    function_relation_inner(parameters, result, c, allow_callback, closures, true)
+}
+fn function_relation_inner(
+    parameters: &[Type],
+    result: &Type,
+    c: &StorageLifeContract,
+    allow_callback: bool,
+    closures: &[ClosureDefinition],
+    allow_byte_input: bool,
 ) -> CompileResult<()> {
     if let Type::ErrorUnion {
         result: success, ..
@@ -214,7 +233,15 @@ pub(super) fn function_relation(
         }
         return Ok(());
     }
-    relation_inner(parameters, None, result, c, allow_callback, closures)
+    relation_inner(
+        parameters,
+        None,
+        result,
+        c,
+        allow_callback,
+        closures,
+        allow_byte_input,
+    )
 }
 
 pub(super) fn capture_relation(
@@ -223,7 +250,7 @@ pub(super) fn capture_relation(
     result: &Type,
     c: &StorageLifeContract,
 ) -> CompileResult<()> {
-    relation_inner(parameters, Some(captures), result, c, false, &[])
+    relation_inner(parameters, Some(captures), result, c, false, &[], false)
 }
 fn relation_inner(
     parameters: &[Type],
@@ -232,6 +259,7 @@ fn relation_inner(
     c: &StorageLifeContract,
     allow_callback: bool,
     closures: &[ClosureDefinition],
+    allow_byte_input: bool,
 ) -> CompileResult<()> {
     if c.fixed_binder_count == 0 && c.invocation_binder_count == 0 {
         return Err(bad(
@@ -266,6 +294,7 @@ fn relation_inner(
         grounded: Vec<bool>,
         inputs: Option<(u32, u32)>,
         allow_callback: bool,
+        allow_byte_input: bool,
         captured: bool,
         array_output_upper: Option<StorageBinder>,
         array_result_input: bool,
@@ -560,6 +589,11 @@ fn relation_inner(
                 }
             } else if !(target.is_copy_value()
                 || pure_array_value(target)
+                // A proved query's exact weak input has no semantic class.
+                // It creates/grounds no row and is not an owning consumer.
+                || self.allow_byte_input && self.inputs.is_none()
+                    && matches!(base,StorageBase::Parameter(_))
+                    && matches!(ty,Type::Desc(payload) if payload.as_ref()==&Type::ByteBuffer)
                 // A direct owned field contributes no class/borrow position.
                 // Capture admission and the independent resource kernel still
                 // establish its finite payload, actual mode and responsibility.
@@ -589,6 +623,7 @@ fn relation_inner(
         grounded: vec![false; c.fixed_binder_count as usize],
         inputs: None,
         allow_callback,
+        allow_byte_input,
         captured: captures.is_some(),
         array_output_upper: match result {
             Type::Address { mutable: false, .. } => c
