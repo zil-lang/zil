@@ -8,7 +8,7 @@
 
 包含真实共享借入叶的 qualified Record 可作为有限拥有 Package 的字段，局部窗口和字段投影保留实际来源。这类父 Package 的同型整对象共享地址可经普通 helper 从唯一实际输入返回；来自多个输入的返回来源、投影实参仍有边界。已准入窗口及 Direct helper 支持 ByteBuffer 长度/容量查询，查询按实际来源与当前委派检查共享读取；见[查询合同](../../spec/borrowed-byte-metadata-queries.md)和[联合普通程序](../../tests/fixtures/resource-packages/package-array-byte-query.zil)。查询不延长拥有对象的生命，旧描述也不能豁免后来创建的独占窗口。
 
-拥有 Package 现在可直接保存固定共享地址数组，并通过实际字段、常量下标和普通 helper 取得借入元素；拥有责任与借入来源分别验证。见[普通程序](../../tests/fixtures/resource-packages/owned-package-shared-address-array.zil)和[限定合同](../../spec/qualified-package-shared-array.md)。大型拥有 Package 的 snapshot/原生 ABI 仍未验收。
+拥有 Package 现在可直接保存固定共享地址数组，并通过实际字段、常量下标和普通 helper 取得借入元素；拥有责任与借入来源分别验证。见[普通程序](../../tests/fixtures/resource-packages/owned-package-shared-address-array.zil)和[限定合同](../../spec/qualified-package-shared-array.md)。大型拥有 Package 的 snapshot/原生 ABI 仍未验收。 整个共享地址数组的读取按每个实际来源逐槽核初始化，不能由另一完整来源掩盖未补回槽；见[初始化验收](../../validation/shared-array-snapshot-initialization.json)。
 
 ## 支持矩阵
 

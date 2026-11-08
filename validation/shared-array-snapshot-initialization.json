@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "status": "Pass for whole shared-address Array snapshot initialization",
+  "source": {
+    "commit": "057308f1687f706ab2de08f9a2c3a947c28cea3b",
+    "tree": "879a66671acac16ac6b2fe58883a46efcc9cccf8",
+    "clean_during_validation": true
+  },
+  "scope": "Every actual source root and physical ordinal of a whole shared-address Array ReadAddress must be initialized and sourced before the existing shared-access check. Source/loan union from another root is insufficient. No dynamic indexing, lifetime meet or large owning-Package ABI extension.",
+  "independent_review": {
+    "author_commit": "56c48d6cab7138c6a96ffc8b60b2571fa59802e1",
+    "reviewer": "Astra, non-author",
+    "integration": "Root applied the four reviewed production changes to main and retained ByteBuffer query modules and current-point access ordering; deterministic tests do not depend on historical local artifacts."
+  },
+  "validation": {
+    "related_api_targets": {
+      "command": "cargo test --offline --locked -p zil-driver --features llvm-api --no-fail-fast --test aggregates --test generic_regressions --test owning_map --test stored_environment_lending_raw",
+      "passed": 690,
+      "failed": 0,
+      "per_target_passed": [
+        388,
+        210,
+        18,
+        74
+      ],
+      "log": {
+        "path": "out/runs/foundations-integration/snapshot-related.log",
+        "sha256": "6625b09276a0ceae919acbbc7a21f348cfffd4e8f5524c629f3e2cae2a781988"
+      }
+    },
+    "snapshot_and_query_controls": {
+      "passed": 92,
+      "failed": 0,
+      "native_snapshot_executions": 4,
+      "log": {
+        "path": "out/runs/foundations-integration/snapshot-and-byte-queries.log",
+        "sha256": "3c1853eea6dc7608a67e52b77a18c9d5675e66312959ca3759a52885c4e71e65"
+      }
+    },
+    "strict": {
+      "command": "cargo clippy --offline --locked --workspace --all-targets --features llvm-api -- -D warnings",
+      "exit_code": 0,
+      "log": {
+        "path": "out/runs/foundations-integration/snapshot-strict.log",
+        "sha256": "be105d05943e6657f5fbd2bb80a35bb2acf08d1e353d12ac567bc0c482f17b5a"
+      }
+    },
+    "format": "cargo fmt --all -- --check: exit 0",
+    "repository_layout": {
+      "checked_paths": 3979,
+      "command": "python3 tools/check-repository-layout.py --full --delivery",
+      "log": {
+        "path": "out/runs/foundations-integration/snapshot-layout.log",
+        "sha256": "05d5763d270ab21bef7f5c8acda0b5da84f55be8cbffdd9021a8c019b8fe41b0"
+      }
+    }
+  },
+  "safety_controls": [
+    "A complete candidate root cannot mask another root with a taken, unfilled slot",
+    "A complete CFG incoming path cannot mask a vacancy on another incoming path",
+    "Reading an independent complete root or an initialized individual leaf remains valid",
+    "A complete snapshot remains valid after later slot extraction or original owner cleanup",
+    "Analyze and independent Verify/Wire reject actual vacant snapshots",
+    "Actual root/ordinal/path/lookup work is charged before execution; N and N-1 controls retained"
+  ],
+  "previously_accepted_wire": {
+    "sha256": "0f615ba8c1eb0d41ea863d58fd7b4ba7f03df92ba7d15f788ad179a636fd1ff6",
+    "replay_source": "56c48d6cab7138c6a96ffc8b60b2571fa59802e1",
+    "result": "Rejected for an actual vacant slot by independent Verify",
+    "native_UB_claimed": false
+  },
+  "not_claimed": [
+    "A new full default or full reference workspace run",
+    "A new cold compiler restoration run",
+    "Dynamic Array selection or distinct-rigid lifetime meet",
+    "Large owning-Package snapshot/ABI acceptance",
+    "Full language 1.0, B0 or product acceptance"
+  ]
+}
