@@ -485,6 +485,12 @@ impl<'a> Engine<'a> {
                     && declaration.generics.is_empty()
                     && method.generics.is_empty()
                     && method.where_clause.is_empty()
+                    && function.generics.is_empty()
+                    && function.where_clause.is_empty()
+                    && function.contract.is_empty()
+                    && signature.generics.is_empty()
+                    && signature.where_clause.is_empty()
+                    && signature.contract.is_empty()
                 {
                     continue;
                 }

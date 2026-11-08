@@ -20,6 +20,17 @@ ordinary call/result path. Types checks the complete concrete result, Analyze
 and Verify independently check actual receiver permissions, result transfers
 and cleanup, and an error edge cleans only its real constructed temporaries.
 No new Core/Typed/Wire field, runtime dictionary or permission bit is introduced.
+
+An unrelated life-generic trait does not change the checking category of a
+concrete provider body. After the actual owner, premises, method set and complete
+signature are checked, an ordinary nonconditional implementation of a
+nongeneric trait keeps its closed method bodies on the ordinary Core/Types and
+independent Analyze/Verify path. These bodies remain present and checked even
+when unused. The original and aligned method headers must have no generics,
+where obligations or additional contracts; symbolic definitions retain their
+definition-time checker. Generic helper definitions and their selected error
+arms are checked and preserved independently of the concrete caller.
+
 The two immediate ErrorUnion children inspected by the new signature selector
 are prepaid on the existing request ledger. Default limits are unchanged.
 
