@@ -164,34 +164,43 @@ fn owning_trait_results_preserve_exclusive_receiver_and_shared_owner_permissions
         report.to_json()
     );
     assert_eq!(report.verification_runs, 1);
-    let bad = MODEL.replace(
-        "return Item{data:give bytes,tag:self.tag+1}",
-        "return Item{data:give self.data,tag:self.tag+1}",
-    );
-    let report = compile_project(
-        &project(&[
-            ("main", "fn main(){}"),
-            ("protocol", PROTOCOL),
-            ("library", LIBRARY),
-            ("model", &bad),
-        ]),
-        &CompileOptions::default(),
-    );
-    assert_eq!(
-        report.status,
-        ResultCategory::SafeReject,
-        "{}",
-        report.to_json()
-    );
-    assert_eq!(report.verification_runs, 0);
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.code == "E-ADDRESS-PERMISSION"),
-        "{}",
-        report.to_json()
-    );
+    for (bad, expected, code, reason) in [
+        (
+            MODEL.replace(
+                "return Item{data:give bytes,tag:self.tag+1}",
+                "return Item{data:give self.data,tag:self.tag+1}",
+            ),
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+            "give requires a managed local or a direct Managed package field",
+        ),
+        (
+            MODEL.replace("let bytes=bytes_new()", "self.tag=0;let bytes=bytes_new()"),
+            ResultCategory::SafeReject,
+            "E-ADDRESS-PERMISSION",
+            "",
+        ),
+    ] {
+        let report = compile_project(
+            &project(&[
+                ("main", "fn main(){}"),
+                ("protocol", PROTOCOL),
+                ("library", LIBRARY),
+                ("model", &bad),
+            ]),
+            &CompileOptions::default(),
+        );
+        assert_eq!(report.status, expected, "{}", report.to_json());
+        assert_eq!(report.verification_runs, 0);
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == code && d.message.contains(reason)),
+            "{}",
+            report.to_json()
+        );
+    }
 }
 
 #[test]
@@ -360,15 +369,24 @@ fn owning_trait_results_raw_and_wire_reject_repeated_transfer_and_wrong_nominal(
             };
             *value = calls[0].2;
         }
-        let errors =
-            zil_analyze::analyze(&forged, &limits).expect_err("actual owned result authority");
-        eprintln!("Analyze wrong_nominal={wrong_nominal}: {errors:?}");
-        assert!(
-            errors
-                .iter()
-                .any(|d| d.category == ResultCategory::SafeReject),
-            "{errors:?}"
-        );
+        let analyzed = zil_analyze::analyze(&forged, &limits);
+        if wrong_nominal {
+            // Analyze supplies an untrusted plan; Verify independently checks
+            // the complete actual call signature and nominal identity.
+            assert!(analyzed.is_ok(), "{analyzed:?}");
+        } else {
+            let errors = analyzed.expect_err("actual owned result authority");
+            eprintln!("Analyze repeated transfer: {errors:?}");
+            assert!(
+                errors
+                    .iter()
+                    .any(|d| d.category == ResultCategory::SafeReject
+                        && d.code == "E-ANALYZE-IR"
+                        && d.message
+                            .contains("responsibility was already consumed or absent")),
+                "{errors:?}"
+            );
+        }
         let mut claim = plan.clone();
         claim.module_fingerprint = forged.fingerprint();
         let wire = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
@@ -378,11 +396,15 @@ fn owning_trait_results_raw_and_wire_reject_repeated_transfer_and_wrong_nominal(
         ] {
             let errors = result.expect_err("independent owned result authority");
             eprintln!("Verify wrong_nominal={wrong_nominal}: {errors:?}");
+            let expected = if wrong_nominal {
+                "E-VERIFY-CALL"
+            } else {
+                "E-VERIFY-RESOURCE"
+            };
             assert!(
                 errors
                     .iter()
-                    .any(|d| d.category == ResultCategory::SafeReject
-                        && !d.code.starts_with("E-VERIFY-PLAN")),
+                    .any(|d| d.category == ResultCategory::SafeReject && d.code == expected),
                 "{errors:?}"
             );
         }
