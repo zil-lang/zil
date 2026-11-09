@@ -1,0 +1,121 @@
+name: Compiler cost native paired experiment
+on:
+  push:
+    branches: [task/G10.5.1]
+    paths:
+      - '.task/G10.5.1/measure.py'
+      - '.github/workflows/compiler-cost-native.yml'
+permissions:
+  contents: write
+concurrency:
+  group: compiler-cost-native-G10.5.1
+  cancel-in-progress: false
+jobs:
+  native:
+    if: github.repository == 'zil-lang/zil' && github.ref == 'refs/heads/task/G10.5.1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Prepare exact source and toolchains
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/compiler-cost-setup"
+          test -z "$(git status --porcelain)"
+          echo '0a1a406e8c4040bb8b30b8e28434efe5a5c8452a9935170568558e0d47e6ad7b  crates/zil-backend-llvm/src/machine_cgu.rs' | sha256sum -c -
+          rustup toolchain install 1.99.1 --profile minimal
+          cargo fetch --locked
+          sudo apt-get update
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/compiler-cost-llvm" 2>&1 | tee "$RUNNER_TEMP/compiler-cost-setup/llvm-install.log"
+          echo "ZIL_CLANG=$RUNNER_TEMP/compiler-cost-llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/compiler-cost-llvm/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/compiler-cost-llvm/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/compiler-cost-llvm/bin" >> "$GITHUB_PATH"
+          git fetch --no-tags --depth=1 origin 327eccfaf3169d1404534ddc16359310a21a40ad
+          git worktree add --detach "$RUNNER_TEMP/compiler-cost-base" 327eccfaf3169d1404534ddc16359310a21a40ad
+          git rev-parse HEAD > "$RUNNER_TEMP/compiler-cost-setup/candidate-commit.txt"
+          git -C "$RUNNER_TEMP/compiler-cost-base" rev-parse HEAD > "$RUNNER_TEMP/compiler-cost-setup/baseline-commit.txt"
+          rustc -vV > "$RUNNER_TEMP/compiler-cost-setup/rustc.txt"
+      - name: Build independent release compilers and run actual native partition controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/llvm/check_toolchain.py | tee "$RUNNER_TEMP/compiler-cost-setup/toolchain.json"
+          CARGO_TARGET_DIR="$RUNNER_TEMP/compiler-cost-base-target" cargo build --locked --offline --release --manifest-path "$RUNNER_TEMP/compiler-cost-base/Cargo.toml" -p zil-cli 2>&1 | tee "$RUNNER_TEMP/compiler-cost-setup/base-build.log"
+          CARGO_TARGET_DIR="$RUNNER_TEMP/compiler-cost-candidate-target" cargo build --locked --offline --release -p zil-cli 2>&1 | tee "$RUNNER_TEMP/compiler-cost-setup/candidate-build.log"
+          CARGO_TARGET_DIR="$RUNNER_TEMP/compiler-cost-native-tests" cargo test --locked --offline -p zil-backend-llvm --features llvm-api --lib machine_cgu -- --nocapture 2>&1 | tee "$RUNNER_TEMP/compiler-cost-setup/native-controls.log"
+          grep -E 'test result: ok\. [1-9][0-9]* passed; 0 failed;' "$RUNNER_TEMP/compiler-cost-setup/native-controls.log"
+      - name: Complete CLI paired histories and independent output oracle
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .task/G10.5.1/measure.py \
+            --repo "$GITHUB_WORKSPACE" \
+            --base "$RUNNER_TEMP/compiler-cost-base-target/release/zil" \
+            --candidate "$RUNNER_TEMP/compiler-cost-candidate-target/release/zil" \
+            --rustc "$(rustup which rustc)" \
+            --out "$RUNNER_TEMP/compiler-cost-native" \
+            --rounds 7 2>&1 | tee "$RUNNER_TEMP/compiler-cost-setup/measurement.log"
+      - name: Preserve this exact run including failures without merging main
+        if: ${{ always() }}
+        shell: bash
+        env:
+          EXPERIMENT_JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = 'refs/heads/task/G10.5.1'
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, shutil, tarfile
+          temp = pathlib.Path(os.environ['RUNNER_TEMP'])
+          evidence = pathlib.Path('.task/G10.5.1/native') / os.environ['GITHUB_RUN_ID']
+          evidence.mkdir(parents=True, exist_ok=False)
+          source = temp / 'compiler-cost-native'
+          for name in ('summary.json', 'manifest.json', 'rows.jsonl'):
+              if (source / name).is_file():
+                  shutil.copyfile(source / name, evidence / name)
+          archive = evidence / 'raw.tar.gz'
+          with tarfile.open(archive, 'w:gz') as tar:
+              for name in ('logs', 'corpus'):
+                  if (source / name).exists():
+                      tar.add(source / name, arcname=name)
+              setup = temp / 'compiler-cost-setup'
+              if setup.exists():
+                  tar.add(setup, arcname='setup')
+              install = temp / 'compiler-cost-llvm/install-receipt.json'
+              if install.is_file():
+                  tar.add(install, arcname='setup/llvm-install-receipt.json')
+          if archive.stat().st_size > 40 * 1024 * 1024:
+              raise RuntimeError('bounded evidence limit exceeded; do not silently omit records')
+          def sha(path):
+              with path.open('rb') as stream:
+                  return hashlib.file_digest(stream, 'sha256').hexdigest()
+          receipt = {
+              'source_commit': os.environ['GITHUB_SHA'],
+              'source_sha256': sha(pathlib.Path('crates/zil-backend-llvm/src/machine_cgu.rs')),
+              'run': os.environ['GITHUB_SERVER_URL'] + '/' + os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' + os.environ['GITHUB_RUN_ID'],
+              'job_status_before_preservation': os.environ['EXPERIMENT_JOB_STATUS'],
+              'files': {p.name: {'bytes': p.stat().st_size, 'sha256': sha(p)} for p in evidence.iterdir() if p.is_file()},
+              'independent_review': 'NotRun', 'merge_allowed': False,
+              'scope': 'two runtime-input trees, same-host full CLI; no full language or runtime-quality acceptance',
+          }
+          (evidence / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
+          print(json.dumps(receipt, indent=2))
+          if (evidence / 'summary.json').is_file():
+              print((evidence / 'summary.json').read_text())
+          PY
+          git fetch --no-tags origin refs/heads/task/G10.5.1
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git add -- ".task/G10.5.1/native/$GITHUB_RUN_ID"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Preserve compiler experiment $GITHUB_RUN_ID; acceptance remains pending"
+          git push origin HEAD:refs/heads/task/G10.5.1
+          git rev-parse HEAD
