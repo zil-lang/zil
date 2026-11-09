@@ -2,6 +2,7 @@
 //! This pass does not use a candidate, source label, or nominal name as a root.
 use super::*;
 
+mod array_index;
 mod array_snapshot;
 mod byte_queries;
 pub(super) mod enum_address;
@@ -3404,6 +3405,9 @@ fn transfer(
         _ if task_transfer.is_some() => {
             out = task_transfer.unwrap();
         }
+        InstructionKind::ExtractIndex { aggregate, .. } if array_index::candidate(f, i) => {
+            out.pointer = array_index::transfer(f, i, get(*aggregate)?, b)?;
+        }
         _ if pure_copy::operation(&i.kind) => {
             if !pure_copy::ordinary_owned_union(f, i, b)? {
                 pure_copy::types(f, i, b)?;
@@ -3905,6 +3909,38 @@ fn liveness(
     Ok(outputs)
 }
 
+/// Immutable instruction uses and the selected CFG determine these rows;
+/// permissions, loan generations and resource facts never enter this cache.
+/// A refined CFG gets a fresh table in its own derive_cfg invocation.
+struct WindowLiveness {
+    outputs: Vec<Vec<bool>>,
+    after: Vec<Option<Vec<Vec<bool>>>>,
+}
+fn instruction_live(
+    module: &TypedModule,
+    f: &TypedFunction,
+    bi: usize,
+    output: &[bool],
+    b: &mut Budget,
+) -> CompileResult<Vec<Vec<bool>>> {
+    let block = &f.blocks[bi];
+    let width = f.values.len().saturating_add(f.locals.len());
+    b.product(
+        block.instructions.len().saturating_add(1),
+        width,
+        1,
+        "stored instruction liveness snapshots",
+    )?;
+    let mut live = output.to_vec();
+    term_live(&block.terminator, &mut live);
+    let mut after = vec![vec![false; width]; block.instructions.len()];
+    for (position, i) in block.instructions.iter().enumerate().rev() {
+        after[position].clone_from(&live);
+        reverse(module, f, i, &mut live, b)?;
+    }
+    Ok(after)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn windows(
     module: &TypedModule,
@@ -3919,6 +3955,7 @@ fn windows(
     summaries: &[Facts],
     apart: &mut BTreeSet<(Target, Target)>,
     byte_reads: &mut Vec<Target>,
+    cached: &mut BTreeMap<FunctionId, WindowLiveness>,
     b: &mut Budget,
 ) -> CompileResult<()> {
     // A module marker only schedules this actual per-function inventory.
@@ -3935,7 +3972,28 @@ fn windows(
     let owned_byte_sites = owned_byte_views::Sites::collect(f, b)?;
     let byte_flow =
         byte_queries::Flow::solve(module, f, preds, reachable, entry, values, summaries, b)?;
-    let live_out = liveness(module, f, preds, reachable, b)?;
+    let mut cached = if owned_byte_sites.present() {
+        ordered(b, cached.len(), 0)?;
+        if !cached.contains_key(&f.id) {
+            fee(b, f.blocks.len())?;
+            let rows = WindowLiveness {
+                outputs: liveness(module, f, preds, reachable, b)?,
+                after: (0..f.blocks.len()).map(|_| None).collect(),
+            };
+            ordered(b, cached.len(), 0)?;
+            fee(b, 1)?;
+            cached.insert(f.id, rows);
+        }
+        ordered(b, cached.len(), 0)?;
+        cached.get_mut(&f.id)
+    } else {
+        None
+    };
+    let live_out = if cached.is_none() {
+        liveness(module, f, preds, reachable, b)?
+    } else {
+        Vec::new()
+    };
     for (bi, block) in f.blocks.iter().enumerate() {
         fee(b, 1)?;
         if !reachable[bi] {
@@ -3953,19 +4011,15 @@ fn windows(
             }
         }
         let width = f.values.len().saturating_add(f.locals.len());
-        b.product(
-            block.instructions.len().saturating_add(1),
-            width,
-            1,
-            "stored instruction liveness snapshots",
-        )?;
-        let mut live = live_out[bi].clone();
-        term_live(&block.terminator, &mut live);
-        let mut after = vec![vec![false; width]; block.instructions.len()];
-        for (position, i) in block.instructions.iter().enumerate().rev() {
-            after[position].clone_from(&live);
-            reverse(module, f, i, &mut live, b)?;
-        }
+        let after = if let Some(cache) = cached.as_mut() {
+            fee(b, 1)?;
+            if cache.after[bi].is_none() {
+                cache.after[bi] = Some(instruction_live(module, f, bi, &cache.outputs[bi], b)?);
+            }
+            std::borrow::Cow::Borrowed(cache.after[bi].as_ref().unwrap().as_slice())
+        } else {
+            std::borrow::Cow::Owned(instruction_live(module, f, bi, &live_out[bi], b)?)
+        };
         let mut byte_point = byte_flow
             .as_ref()
             .map(|flow| flow.input(f, bi, preds, reachable, b))
@@ -4199,6 +4253,12 @@ fn windows(
                     };
                     fee(b, 1)?;
                     use_permission(&actual, *mutable, &current, loans, apart, b)?;
+                }
+                InstructionKind::ExtractIndex { aggregate, .. } if array_index::candidate(f, i) => {
+                    let input = values
+                        .get(aggregate.0 as usize)
+                        .ok_or_else(|| failure("dynamic Array operand outside actual values"))?;
+                    array_index::check(f, i, input, &current, loans, apart, b)?;
                 }
                 InstructionKind::ReadAddress { address } => {
                     if let Type::Address { inner, .. } = value_type(f, *address)?
@@ -4585,6 +4645,7 @@ fn derive_cfg(
     let mut observed_none = false;
     fee(b, module.functions.len())?;
     let mut summaries = vec![Facts::default(); module.functions.len()];
+    let mut window_liveness = BTreeMap::new();
     loop {
         let mut changed = false;
         for (index, f) in module.functions.iter().enumerate() {
@@ -4965,6 +5026,7 @@ fn derive_cfg(
                     &summaries,
                     &mut actual.apart,
                     &mut actual.byte_reads,
+                    &mut window_liveness,
                     b,
                 )?;
             }
@@ -5627,7 +5689,15 @@ fn actual_instructions(
             if super::stored_callables::instruction(module, f, i) {
                 super::stored_callables::types(module, f, i, b)?;
             }
+            if array_index::candidate(f, i) {
+                array_index::types(f, i, b)?;
+                fee(b, b.array_outer_functions.len().saturating_add(1))?;
+                if !b.array_outer_functions.contains(&f.id) {
+                    b.array_outer_functions.push(f.id);
+                }
+            }
             if pure_copy::operation(&i.kind)
+                && !array_index::candidate(f, i)
                 && enum_address::types(module, f, i, b)?.is_none()
                 && option_address::types(module, f, i, b)?.is_none()
                 && !(b.task_borrowed_results && task_address::wrapper_instruction(f, i, b)?)

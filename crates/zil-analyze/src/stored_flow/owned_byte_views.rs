@@ -361,6 +361,9 @@ pub(super) struct Sites {
     ids: BTreeSet<usize>,
 }
 impl Sites {
+    pub(super) fn present(&self) -> bool {
+        !self.ids.is_empty()
+    }
     pub(super) fn collect(f: &TypedFunction, b: &mut Budget) -> CompileResult<Self> {
         if !b.shared_byte_borrow {
             return Ok(Self {

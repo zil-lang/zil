@@ -485,6 +485,7 @@ pub(super) fn reserve_binding(
                     InstructionKind::ExtractIndex { .. } => 2,
                     InstructionKind::VariantTag { .. } | InstructionKind::ReadVariant { .. } => 1,
                     InstructionKind::ExtractField { .. }
+                    | InstructionKind::ReadPackageField { .. }
                     | InstructionKind::ReadCapture { .. }
                     | InstructionKind::BorrowPackageField { .. }
                     | InstructionKind::DescribePackageField { .. }
@@ -631,17 +632,30 @@ fn operands(i: &InstructionKind) -> Vec<ValueId> {
         | InstructionKind::VariantTag { value }
         | InstructionKind::ReadVariant { value, .. }
         | InstructionKind::ReadDesc { desc: value, .. }
+        | InstructionKind::MakeErrorUnion { value, .. }
+        | InstructionKind::ErrorTag { value }
+        | InstructionKind::ReadErrorUnion { value, .. }
+        | InstructionKind::TakeErrorUnion { value, .. }
+        | InstructionKind::ByteBufferLen { buffer: value }
+        | InstructionKind::ByteBufferCapacity { buffer: value }
+        | InstructionKind::ByteBufferBorrow { buffer: value, .. }
         | InstructionKind::Store { value, .. }
         | InstructionKind::WriteCapture { value, .. }
         | InstructionKind::Unary { operand: value, .. }
         | InstructionKind::ConvertInteger { value, .. }
         | InstructionKind::ConvertNumber { value, .. } => vec![*value],
         InstructionKind::Binary { left, right, .. } => vec![*left, *right],
+        InstructionKind::ByteBufferReserve { buffer, capacity } => vec![*buffer, *capacity],
+        InstructionKind::ByteBufferPush { buffer, value } => vec![*buffer, *value],
+        InstructionKind::ByteBufferTruncate { buffer, length } => vec![*buffer, *length],
         InstructionKind::ExtractIndex { aggregate, index } => vec![*aggregate, *index],
         InstructionKind::ReadAddress { address }
         | InstructionKind::ReborrowAddress { address, .. }
         | InstructionKind::AddressField { address, .. }
         | InstructionKind::SliceLength { address }
+        | InstructionKind::DescribeAddress { address }
+        | InstructionKind::BorrowPlaceAddress { address, .. }
+        | InstructionKind::PlaceTagAddress { address, .. }
         | InstructionKind::LoadStoredBorrow {
             storage: address, ..
         } => vec![*address],
@@ -711,12 +725,20 @@ pub(super) fn reserve_emission(
                     .ok_or_else(exhausted)?;
                 pay(work, cost)?;
             }
+            // Local field/path consumers inspect the complete actual parent
+            // layout, not only their (possibly scalar) result. A stored module
+            // can contain ordinary Package/resource helpers as separate bodies.
             if let InstructionKind::CallClosureShared { callee, .. }
             | InstructionKind::CallClosureMut { callee, .. }
             | InstructionKind::TakeLocal { local: callee }
             | InstructionKind::DescribeLocal { local: callee }
             | InstructionKind::DropManaged { local: callee }
-            | InstructionKind::DropClosure { local: callee } = &i.kind
+            | InstructionKind::DropClosure { local: callee }
+            | InstructionKind::ReadPackageField { local: callee, .. }
+            | InstructionKind::BorrowPackageField { local: callee, .. }
+            | InstructionKind::DescribePackageField { local: callee, .. }
+            | InstructionKind::BorrowPlaceLocal { local: callee, .. }
+            | InstructionKind::PlaceTagLocal { local: callee, .. } = &i.kind
             {
                 type_work(&f.locals[callee.0 as usize].ty, work, limits, 0)?;
             }
@@ -1257,6 +1279,141 @@ mod tests {
             "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
         ));
     }
+    #[test]
+    fn ordinary_owner_byte_and_error_consumers_prepay_complete_actual_types() {
+        // Physical budget probes only. Real Source and independent Verify
+        // establish admission in the ordinary stored-composition consumers.
+        let limits = Limits::default();
+        let record = Type::Record {
+            name: "ActualErrorPayload".repeat(32),
+            fields: vec![("retained_field_name".repeat(32), Type::I64)],
+        };
+        let union = Type::ErrorUnion {
+            error: Box::new(record.clone()),
+            result: Box::new(Type::I64),
+        };
+        let package = Type::Package {
+            name: "ActualItem".repeat(32),
+            fields: vec![
+                ("data".into(), Type::Managed(Box::new(Type::ByteBuffer))),
+                ("tag".into(), Type::I64),
+                ("sibling".into(), record.clone()),
+            ],
+        };
+        let address = |ty| Type::Address {
+            mutable: false,
+            inner: Box::new(ty),
+        };
+        for (kind, input, output, local) in [
+            (
+                InstructionKind::ReadPackageField {
+                    local: LocalId(0),
+                    index: 1,
+                },
+                package,
+                Type::I64,
+                true,
+            ),
+            (
+                InstructionKind::ByteBufferBorrow {
+                    buffer: ValueId(0),
+                    mutable: false,
+                },
+                Type::Desc(Box::new(Type::ByteBuffer)),
+                address(Type::Slice {
+                    element: Box::new(Type::U8),
+                }),
+                false,
+            ),
+            (
+                InstructionKind::ReadErrorUnion {
+                    value: ValueId(0),
+                    is_error: true,
+                },
+                union.clone(),
+                record.clone(),
+                false,
+            ),
+            (
+                InstructionKind::BorrowPlaceLocal {
+                    local: LocalId(0),
+                    path: vec![PlaceProjection::ErrorArm(true)],
+                    mutable: false,
+                },
+                union.clone(),
+                address(record.clone()),
+                true,
+            ),
+            (
+                InstructionKind::BorrowPlaceAddress {
+                    address: ValueId(0),
+                    path: vec![PlaceProjection::ErrorArm(true)],
+                    mutable: false,
+                },
+                address(union),
+                address(record),
+                false,
+            ),
+        ] {
+            let mut module = fixture::module();
+            module.functions.truncate(1);
+            let f = &mut module.functions[0];
+            f.parameters.clear();
+            f.locals.truncate(1);
+            f.locals[0].ty = input.clone();
+            f.return_type = Type::Unit;
+            let result = if local { 0 } else { 1 };
+            f.values = if local {
+                vec![output.clone()]
+            } else {
+                vec![input.clone(), output.clone()]
+            };
+            f.blocks.truncate(1);
+            f.blocks[0].instructions = vec![fixture::instruction(Some(result), kind)];
+            f.blocks[0].terminator = Terminator::Return(None);
+            let view = LirView {
+                schema_version: module.schema_version,
+                module_id: module.module_id,
+                verified_fingerprint: zil_base::Fingerprint::ZERO,
+                target: &module.target,
+                functions: &module.functions,
+                closures: &[],
+                resources: &[],
+                layouts: std::borrow::Cow::Borrowed(&[]),
+            };
+            let mut types = usize::MAX;
+            type_work(&input, &mut types, &limits, 0).unwrap();
+            type_work(&output, &mut types, &limits, 0).unwrap();
+            // One function, one block and the existing fixed event reservation,
+            // plus the full actual input parent and complete result type.
+            let needed = (usize::MAX - types) + 37;
+            let mut exact = needed;
+            reserve_emission(&view, &limits, &BTreeMap::new(), &mut exact).unwrap();
+            assert_eq!(exact, 0);
+            let failed =
+                reserve_emission(&view, &limits, &BTreeMap::new(), &mut (needed - 1)).unwrap_err();
+            assert!(failed.iter().all(|d| d.phase == Phase::Codegen
+                && d.category == zil_base::ResultCategory::ResourceLimit));
+            let mut fresh = needed;
+            reserve_emission(&view, &limits, &BTreeMap::new(), &mut fresh).unwrap();
+            assert_eq!(fresh, 0);
+            // The same complete instruction also has an explicit, paid LIR
+            // comparison consumer before any separately supplied LIR is bound.
+            let mut available = usize::MAX;
+            reserve_binding(&module, &limits, &mut available).unwrap();
+            let binding = usize::MAX - available;
+            let mut exact_binding = binding;
+            reserve_binding(&module, &limits, &mut exact_binding).unwrap();
+            assert_eq!(exact_binding, 0);
+            assert!(
+                reserve_binding(&module, &limits, &mut (binding - 1))
+                    .unwrap_err()
+                    .iter()
+                    .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+            );
+        }
+    }
+
     #[test]
     fn snapshot_enum_canonical_store_is_reserved_once() {
         // Synthetic physical budgeting probe, not a verified source program.

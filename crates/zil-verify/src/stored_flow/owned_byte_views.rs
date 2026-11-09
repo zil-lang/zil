@@ -372,6 +372,9 @@ pub(super) struct Sites {
     values: Vec<usize>,
 }
 impl Sites {
+    pub(super) fn present(&self) -> bool {
+        !self.values.is_empty()
+    }
     pub(super) fn collect(f: &TypedFunction, b: &mut Budget) -> Check<Self> {
         if !b.shared_byte_borrow {
             return Ok(Self { values: Vec::new() });

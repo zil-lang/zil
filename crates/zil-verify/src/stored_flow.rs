@@ -1,6 +1,7 @@
 //! Independent stored-target reconstruction. Sorted vectors and batch CFG
 //! solving deliberately do not consume analyzer roots, summaries, or claims.
 use super::*;
+mod array_index;
 mod array_snapshot;
 mod byte_queries;
 mod leaf_rows;
@@ -1306,7 +1307,15 @@ pub(super) fn qualifications(
                 if super::stored_callables::instruction(module, f, i) {
                     super::stored_callables::types(module, f, i, b)?;
                 }
+                if array_index::candidate(f, i) {
+                    array_index::types(f, i, b)?;
+                    b.spend(b.array_outer_functions.len().saturating_add(1))?;
+                    if !b.array_outer_functions.contains(&f.id) {
+                        b.array_outer_functions.push(f.id);
+                    }
+                }
                 if pure_copy::operation(&i.kind)
+                    && !array_index::candidate(f, i)
                     && enum_address::types(module, f, i, b)?.is_none()
                     && option_address::types(module, f, i, b)?.is_none()
                     && !(b.task_borrowed_results && task_address::wrapper_instruction(f, i, b)?)
@@ -3189,6 +3198,9 @@ fn step(
         _ if task_transfer.is_some() => {
             out = task_transfer.clone().unwrap();
         }
+        InstructionKind::ExtractIndex { aggregate, .. } if array_index::candidate(f, i) => {
+            out.address = array_index::transfer(f, i, val(*aggregate)?, b)?;
+        }
         _ if pure_copy::operation(&i.kind) => {
             if !pure_copy::ordinary_owned_union(f, i, b)? {
                 pure_copy::types(f, i, b)?;
@@ -3835,6 +3847,41 @@ fn check_call(
     Ok(())
 }
 
+/// Only static instruction liveness over this invocation's exact graph.
+/// Each window check still reconstructs its current frame and active loans.
+struct WindowRows {
+    blocks: Vec<Vec<Vec<bool>>>,
+}
+impl WindowRows {
+    fn reconstruct(
+        module: &TypedModule,
+        f: &TypedFunction,
+        graph: &FunctionGraph,
+        b: &mut Budget,
+    ) -> Check<Self> {
+        let outputs = live_out(module, f, graph, b)?;
+        b.spend(f.blocks.len())?;
+        let mut blocks = Vec::with_capacity(f.blocks.len());
+        let width = f.values.len().saturating_add(f.locals.len());
+        for (bi, block) in f.blocks.iter().enumerate() {
+            if !graph.reachable[bi] {
+                blocks.push(Vec::new());
+                continue;
+            }
+            b.spend(amount(block.instructions.len().saturating_add(1), width)?)?;
+            let mut live = outputs[bi].clone();
+            term_live(&block.terminator, &mut live);
+            let mut rows = vec![vec![false; width]; block.instructions.len()];
+            for (position, instruction) in block.instructions.iter().enumerate().rev() {
+                rows[position].clone_from(&live);
+                reverse(module, f, instruction, &mut live, b)?;
+            }
+            blocks.push(rows);
+        }
+        Ok(Self { blocks })
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn windows(
     module: &TypedModule,
@@ -3844,6 +3891,7 @@ fn windows(
     summaries: &[Summary],
     requirements: &mut Vec<(Source, Source)>,
     byte_reads: &mut Vec<Source>,
+    cached: &mut std::collections::BTreeMap<FunctionId, WindowRows>,
     b: &mut Budget,
 ) -> Check<()> {
     // A module marker only schedules this actual per-function inventory.
@@ -3867,7 +3915,29 @@ fn windows(
         summaries,
         b,
     )?;
-    let output_live = live_out(module, f, g, b)?;
+    let cached = if owned_byte_sites.present() {
+        b.spend(cached.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
+        if !cached.contains_key(&f.id) {
+            let rows = WindowRows::reconstruct(module, f, g, b)?;
+            b.spend(
+                cached
+                    .len()
+                    .checked_ilog2()
+                    .map_or(1, |n| n as usize + 2)
+                    .saturating_add(1),
+            )?;
+            cached.insert(f.id, rows);
+        }
+        b.spend(cached.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
+        cached.get(&f.id)
+    } else {
+        None
+    };
+    let output_live = if cached.is_none() {
+        live_out(module, f, g, b)?
+    } else {
+        Vec::new()
+    };
     for (bi, block) in f.blocks.iter().enumerate() {
         b.spend(1)?;
         if !g.reachable[bi] {
@@ -3884,14 +3954,20 @@ fn windows(
             }
         }
         let width = f.values.len().saturating_add(f.locals.len());
-        b.spend(amount(block.instructions.len().saturating_add(1), width)?)?;
-        let mut live = output_live[bi].clone();
-        term_live(&block.terminator, &mut live);
-        let mut after = vec![vec![false; width]; block.instructions.len()];
-        for (at, i) in block.instructions.iter().enumerate().rev() {
-            after[at].clone_from(&live);
-            reverse(module, f, i, &mut live, b)?;
-        }
+        let after = if let Some(rows) = cached {
+            b.spend(1)?;
+            std::borrow::Cow::Borrowed(rows.blocks[bi].as_slice())
+        } else {
+            b.spend(amount(block.instructions.len().saturating_add(1), width)?)?;
+            let mut live = output_live[bi].clone();
+            term_live(&block.terminator, &mut live);
+            let mut after = vec![vec![false; width]; block.instructions.len()];
+            for (at, i) in block.instructions.iter().enumerate().rev() {
+                after[at].clone_from(&live);
+                reverse(module, f, i, &mut live, b)?;
+            }
+            std::borrow::Cow::Owned(after)
+        };
         let mut byte_point = byte_flow
             .as_ref()
             .map(|flow| flow.input(f, bi, g, b))
@@ -4149,6 +4225,13 @@ fn windows(
                         requirements,
                         b,
                     )?;
+                }
+                InstructionKind::ExtractIndex { aggregate, .. } if array_index::candidate(f, i) => {
+                    let input = solution
+                        .values
+                        .get(aggregate.0 as usize)
+                        .ok_or_else(|| err("dynamic Array operand outside actual values"))?;
+                    array_index::check(f, i, input, &active, &solution.loans, requirements, b)?;
                 }
                 InstructionKind::ReadAddress { address } => {
                     if let Type::Address { inner, .. } = vt(f, *address)?
@@ -5056,6 +5139,7 @@ fn solve_check(
         }
     }
     let mut solved: Vec<Option<Solution>> = (0..module.functions.len()).map(|_| None).collect();
+    let mut window_rows = std::collections::BTreeMap::new();
     loop {
         let mut changed = false;
         let mut pending = Vec::new();
@@ -5128,6 +5212,7 @@ fn solve_check(
                     &summaries,
                     &mut summary.apart,
                     &mut summary.byte_reads,
+                    &mut window_rows,
                     b,
                 )?;
             }

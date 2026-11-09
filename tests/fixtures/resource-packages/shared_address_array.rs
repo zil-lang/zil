@@ -4,7 +4,7 @@ const BATCH: &str = include_str!("fixed-shared-address-array.zil");
 const MAPPING: &str = include_str!("fixed-shared-address-array-mapping.zil");
 const WINDOW: &str = include_str!("fixed-shared-address-array-window.zil");
 const HELPER: &str = include_str!("fixed-shared-address-array-helper.zil");
-const LARGE: &str = include_str!("fixed-shared-address-array-512.zil");
+const LARGE: &str = include_str!("wide-shared-address-array.zil");
 
 #[test]
 fn source_raw_and_wire_preserve_each_array_element() {
@@ -120,7 +120,7 @@ fn direct_copied_and_explicitly_reborrowed_windows_are_ordinary_shared_values() 
 }
 
 #[test]
-fn dynamic_exclusive_and_empty_address_arrays_keep_their_boundary() {
+fn dynamic_indices_are_supported_while_exclusive_and_empty_arrays_remain_closed() {
     let dynamic = BATCH
         .replacen(
             "fn select<life a>(batch:&Batch<'a>)",
@@ -128,15 +128,29 @@ fn dynamic_exclusive_and_empty_address_arrays_keep_their_boundary() {
             1,
         )
         .replacen("batch.items[1]", "batch.items[index]", 1)
-        .replacen("select(&batch)", "select(&batch,1)", 1);
+        .replacen("select(&batch)", "select(&batch,1)", 1)
+        .replacen("first=11", "", 1);
     let exclusive = HELPER
         .replace("&'a i32", "&'a mut i32")
         .replace("&first", "&mut first")
         .replace("&second", "&mut second");
     let empty =
         "fn relay<life a>(items:[&'a i32;0])->[&'a i32;0]{return items}fn main()->i32{return 0}";
+    let report = compile_source(
+        &source("dynamic index", &dynamic),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
     for (label, program) in [
-        ("dynamic index", dynamic),
         ("exclusive Array copy", exclusive),
         ("empty physical address array", empty.to_string()),
     ] {
@@ -592,7 +606,7 @@ fn array_slots_and_actual_pointee_snapshot_budgets_are_exact_and_fresh() {
 }
 
 #[test]
-fn ordinary_512_element_array_completes_source_raw_and_wire_verification() {
+fn ordinary_wide_array_completes_source_raw_and_wire_verification() {
     let program = LARGE;
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
@@ -1075,3 +1089,6 @@ mod package_shared_array;
 
 #[path = "shared_array_snapshot_initialization.rs"]
 mod shared_array_snapshot_initialization;
+
+#[path = "dynamic_shared_array_index.rs"]
+mod dynamic_shared_array_index;
