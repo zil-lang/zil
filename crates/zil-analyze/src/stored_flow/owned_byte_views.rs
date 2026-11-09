@@ -156,7 +156,9 @@ pub(super) fn description_instruction(
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    if !b.shared_byte_borrow {
+    // The Option lane already authenticates this operation independently.
+    // A metadata-only description must not start an owned-view inventory.
+    if !b.shared_byte_borrow || b.store_option_results {
         return Ok(false);
     }
     if !matches!(i.kind, InstructionKind::DescribePackageField { .. }) {
@@ -365,7 +367,9 @@ impl Sites {
         !self.ids.is_empty()
     }
     pub(super) fn collect(f: &TypedFunction, b: &mut Budget) -> CompileResult<Self> {
-        if !b.shared_byte_borrow {
+        // Actual ByteBufferBorrow admission always reconstructs its head
+        // before the solver/window pass; an unrelated ordinary view does not.
+        if !b.shared_byte_borrow || b.owned_byte_heads.is_none() {
             return Ok(Self {
                 ids: BTreeSet::new(),
             });
