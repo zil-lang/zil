@@ -1,0 +1,169 @@
+{
+  "schema_version": 1,
+  "kind": "source-bound ordinary owned collection pipeline acceptance",
+  "status": "Pass for the complete four-module consumer and its allocation-failure matrix",
+  "scope": "Borrow a Store<Item> iterator element, duplicate an owning Package through trait methods, call a fallible FnMut borrowing Item and returning an owning Reply, collect Reply into a growing Store, and consume it through ordinary helpers. This is not complete iterator-adapter, language 1.0 or product-gate acceptance.",
+  "source": {
+    "commit": "f2cfb4d6bbd17b9325f58b78715b3fef8293ec13",
+    "tree": "72d630027fd467d2930855e3f9b3ac923a8bfd46",
+    "repository": "https://github.com/zil-lang/zil",
+    "clean_during_validation": true
+  },
+  "input": {
+    "fingerprint": "4011cf8d1255cbf085e02cce4cd9d9fc54c28797bebf9e61cd06bbfbc855dd7f",
+    "ordered_modules": [
+      "main",
+      "protocol",
+      "library",
+      "model"
+    ],
+    "files": [
+      {
+        "path": "tests/language-readiness/owning-trait-hosts/collected_pipeline/main.zil",
+        "sha256": "881fba7254f1a2914e41005d97302a3d26344b5f3abe64c5eab63886cf16143e",
+        "bytes": 51
+      },
+      {
+        "path": "tests/language-readiness/owning-trait-hosts/collected_pipeline/protocol.zil",
+        "sha256": "13b3484fbd554bd395baefcfeff7342e5cca567ed69579d382a74cc48cc5027c",
+        "bytes": 308
+      },
+      {
+        "path": "tests/language-readiness/owning-trait-hosts/collected_pipeline/library.zil",
+        "sha256": "1c199d422dd5233ce5fc56613d7fe4c928ee06f8957ab1ad847488328e830e51",
+        "bytes": 586
+      },
+      {
+        "path": "tests/language-readiness/owning-trait-hosts/collected_pipeline/model.zil",
+        "sha256": "38f4ba9012552c7a96f701949d1d227c1dd8882f0ecc073a9a0382e3188fdfa8",
+        "bytes": 6602
+      }
+    ],
+    "original_four_files_unchanged": true
+  },
+  "capabilities": [
+    "Duplicate::duplicate(&Self)->Self and a fallible owning trait result",
+    "Shared lending with life plus independent I/T binders and two unambiguous I bounds",
+    "FnMut(&Item)->Error!Reply with a ByteBuffer-owning ordinary Package result",
+    "Generic collect<T:StoreElement> preserves the incoming owner on reserve/push failure",
+    "Existing collection contents and the still-live input loan survive output collection",
+    "Helper consumption checks complete collected tag total45"
+  ],
+  "validation": {
+    "target": "Linux x86_64",
+    "rust": "1.99.1",
+    "llvm": "23.1.4",
+    "limits": "CompileOptions::default and Limits::default; no stack or analysis-budget override",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "zil-driver",
+      "--features",
+      "llvm-api",
+      "--test",
+      "nominal_trait_bounds",
+      "owning_trait_hosts::collected_pipeline",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "passed_tests": 3,
+    "failed_tests": 0,
+    "source_unchanged": true,
+    "log": "out/runs/ordinary-composition-joint-20261109-2/collected-pipeline.log",
+    "log_sha256": "42976c9a8df3ab3fdfa4e46833e2025834a145c47523e6eaccf2a7843f82407e"
+  },
+  "native": {
+    "executions": 56,
+    "configurations": {
+      "Clang/O0": 14,
+      "Clang/O2": 14,
+      "LlvmApi/O0": 14,
+      "LlvmApi/O2": 14
+    },
+    "cases_per_configuration": 14,
+    "verified_builds": 4,
+    "verification_runs_per_build": 1,
+    "backend_fallback": false,
+    "exact_exit_stdout_stderr": true,
+    "baseline_exit": 0,
+    "baseline_stdout": "13:12:12\n",
+    "injected_allocation_failures": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13
+    ],
+    "injected_failure_exits": [
+      1,
+      2,
+      3,
+      10,
+      14,
+      15,
+      30,
+      50,
+      20,
+      24,
+      25,
+      40,
+      51
+    ],
+    "failed_growth_checks": [
+      "First growth returns payload65/tag21 and keeps collection total0",
+      "Second growth returns payload66/tag24 and keeps collection total21"
+    ],
+    "evidence": "out/runs/ordinary-composition-joint-20261109-2/native",
+    "summary": "out/runs/ordinary-composition-joint-20261109-2/native-summary.json",
+    "summary_sha256": "d043ad7403f95ee5825107274ec30f3d1420735246fa03361229038d1ac5e348"
+  },
+  "nearest_negative": {
+    "change": "Advance the same mutable iterator before the original Item loan finishes, immediately before the first collect",
+    "status": "SafeReject",
+    "phase": "Analyze",
+    "code": "E-ANALYZE-IR",
+    "message": "stored target proof: simultaneously live access overlaps an actual stored target/parent loan",
+    "verification_runs": 0
+  },
+  "counter_oracle": {
+    "fields": [
+      "allocation_attempts",
+      "new_allocation_identities",
+      "releases"
+    ],
+    "existing_store_realloc": "Attempt13 grows allocation identity8 from32B to64B and creates no new allocation identity",
+    "baseline_new_allocation_identities": 12,
+    "baseline_releases": 12,
+    "first_failure_retained": "out/runs/collected-native-independent-20261109-1",
+    "first_failure_log_sha256": "c0b214b6fa34dc069347f62be8f0c45d12a173eae9d6181eb9a0e0cbc7b8c26a",
+    "diagnostic_pairs": 14,
+    "diagnostic_outstanding_blocks": 0,
+    "diagnostic_invalid_releases": 0,
+    "diagnostic_observer_sha256": "36c9fb6a17f9470d55102cb018f93d0316cef6a8894a3abca94a68ae871677ef",
+    "diagnostic_cases_sha256": "66e8b654babd05a6e12524b513ead64f33190726fdd921716d1838b2d4d2d5e5",
+    "test_only_fix": "b22fd7c54170f7744bf01030188dd61cf7a74f15"
+  },
+  "independent_component_review": {
+    "verify_sparse_rows": "b1019f67e3831490067b8c57df347d3d730e9db3",
+    "analyze_unknown_tag_idempotence": "05a0f34635ec7798d29053e4a4f5def90edbe6c2",
+    "counter_fix": "Root compared the original observer and independent allocation-identity trace, all14 original/trace exit and stdout pairs, and unchanged four-source bytes"
+  },
+  "boundaries": [
+    "This receipt does not claim full map/filter/iterator collect adapters or a generic owning HashSet",
+    "This receipt does not accept the separate large HashMap or owning512-address Package consumer",
+    "This receipt is not a whole-workspace or formal release-gate result",
+    "The earlier single-package run omitted llvm-api and executed only28 Clang cases; only the explicit-feature run above supplies all56 cases"
+  ]
+}
