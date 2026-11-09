@@ -1,0 +1,19 @@
+{
+  "version": "frequency-weighted-latency/2.1",
+  "parent_protocol_commit": "b51872b940489f9f971c049e187e3bd4cba4ecd3",
+  "baseline": "82a69812582856b012468db3d019930d8e390f64",
+  "pre_measurement_clarification": "Use the arithmetic mean for expected cumulative waiting time, because rare slow observations also consume time. Report frequency-weighted cell medians separately as a robust companion; neither average percentage speedups nor a geometric mean substitutes for total waiting. No candidate timing has been observed when this clarification is committed.",
+  "mode_weights": {"interactive": {"check": 0.30, "O0": 0.50, "O2": 0.20}, "release_heavy": {"check": 0.10, "O0": 0.20, "O2": 0.70}},
+  "request_weights": {"edit_loop": {"cold": 0.10, "warm": 0.20, "private": 0.50, "public": 0.10, "restore": 0.10}, "clean_heavy": {"cold": 0.70, "warm": 0.05, "private": 0.15, "public": 0.10, "restore": 0.0}},
+  "case_group_weights": {"small": 0.10, "medium": 0.20, "large": 0.35, "real_language": 0.35},
+  "weight_evidence": "Declared usage scenarios, NOT user telemetry; within-group cases equal; show all four profiles and cell deltas.",
+  "rounds": 7,
+  "warmup_histories": 1,
+  "severe_tail": {"ratio_above": 2.0, "extra_ms_above": 1000},
+  "runtime_screen_ratio": 1.10,
+  "bootstrap_replicates": 2000,
+  "bootstrap_unit": "paired cache history within case/mode; preserve its request sequence and both arms",
+  "confidence_scope": "Empirical small-sample interval, not an industrial-population guarantee",
+  "missing_cells": "Fail the aggregate; never silently renormalize",
+  "merge": "Requires correctness, weighted benefit, runtime-quality and non-author source review; this experiment alone does not auto-merge"
+}
