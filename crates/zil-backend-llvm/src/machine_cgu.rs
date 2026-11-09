@@ -191,11 +191,14 @@ pub(crate) fn partition_view_cached(
     (plan, pending)
 }
 
-// Complete implementation import is an optional optimization. A rejected copy
-// budget must not turn an already valid ordinary multi-unit plan into a single
-// expensive object. Reuse the original ordinary planner, without partial imports:
-// canonical calls, local-state components and current preflight stay intact.
-// Runtime quality is a separate acceptance gate for this experimental policy.
+// Import profitability never authorizes a validation shortcut. Both policies
+// consume the same immutable graph and emit through the same checked layout.
+#[derive(Clone, Copy)]
+enum ImportPolicy {
+    Disabled,
+    Complete { ordinary_on_cost: bool },
+}
+
 fn partition_view_recorded(
     module: Module,
     lir: &LirView<'_>,
@@ -205,38 +208,26 @@ fn partition_view_recorded(
     import_complete_call_closures: bool,
     recorded: &mut Option<layout::Layout>,
 ) -> Plan {
-    let plan = partition_view_once(
+    partition_view_planned(
         module,
         lir,
         entry,
         count,
         split_large_files,
-        import_complete_call_closures,
-        recorded,
-    );
-    if plan.fallback != Some("complete O2 call closure exceeds total copy cost") {
-        return plan;
-    }
-    // The budget rejection occurs before replay and returns the untouched model.
-    // Move it, rather than cloning or attempting to finish a partial import set.
-    assert_eq!(plan.units.len(), 1);
-    let module = plan
-        .units
-        .into_iter()
-        .next()
-        .expect("complete input module");
-    *recorded = None;
-    partition_view_once(
-        module,
-        lir,
-        entry,
-        count,
-        split_large_files,
-        false,
+        if import_complete_call_closures {
+            ImportPolicy::Complete {
+                ordinary_on_cost: true,
+            }
+        } else {
+            ImportPolicy::Disabled
+        },
         recorded,
     )
 }
 
+// Preserve the original non-adaptive planner as a test oracle. It shares only
+// unchanged planning primitives, not the adaptive fallback decision.
+#[cfg(test)]
 fn partition_view_once(
     module: Module,
     lir: &LirView<'_>,
@@ -246,6 +237,33 @@ fn partition_view_once(
     import_complete_call_closures: bool,
     recorded: &mut Option<layout::Layout>,
 ) -> Plan {
+    partition_view_planned(
+        module,
+        lir,
+        entry,
+        count,
+        split_large_files,
+        if import_complete_call_closures {
+            ImportPolicy::Complete {
+                ordinary_on_cost: false,
+            }
+        } else {
+            ImportPolicy::Disabled
+        },
+        recorded,
+    )
+}
+
+fn partition_view_planned(
+    module: Module,
+    lir: &LirView<'_>,
+    entry: EntryPoint,
+    count: usize,
+    split_large_files: bool,
+    import_policy: ImportPolicy,
+    recorded: &mut Option<layout::Layout>,
+) -> Plan {
+    let import_complete_call_closures = matches!(import_policy, ImportPolicy::Complete { .. });
     let fallback = |module, reason| Plan {
         units: vec![module],
         fallback: Some(reason),
@@ -393,6 +411,9 @@ fn partition_view_once(
         });
     }
     let mut owners = roots.iter().map(|r| buckets[r]).collect::<Vec<_>>();
+    // Only the optional small-caller policy changes ordinary ownership. Keep
+    // that small index vector when needed, never clone the machine bodies.
+    let ordinary_owners = caller_components.as_ref().map(|_| owners.clone());
     if let (Some(callers), Some(entry)) = (caller_components, entry_id) {
         let entry_owner = owners[entry];
         // Keep every ordinary definition's original owner, including chunks
@@ -442,7 +463,8 @@ fn partition_view_once(
             })
             .sum::<usize>();
         let mut copied_cost = 0usize;
-        for (&owner, definitions) in &members {
+        let mut over_budget = false;
+        'owners: for (&owner, definitions) in &members {
             let mut pending = definitions
                 .iter()
                 .flat_map(|&id| defs[id].calls.iter())
@@ -479,10 +501,12 @@ fn partition_view_once(
                     );
                 }
                 let Some(total) = copied_cost.checked_add(function.cost()) else {
-                    return fallback(module, "complete O2 call closure exceeds total copy cost");
+                    over_budget = true;
+                    break 'owners;
                 };
                 if total > original_cost {
-                    return fallback(module, "complete O2 call closure exceeds total copy cost");
+                    over_budget = true;
+                    break 'owners;
                 }
                 copied_cost = total;
                 imported.insert(id);
@@ -494,6 +518,27 @@ fn partition_view_once(
                 );
             }
             imports.insert(owner, imported);
+        }
+        if over_budget {
+            if !matches!(
+                import_policy,
+                ImportPolicy::Complete {
+                    ordinary_on_cost: true
+                }
+            ) {
+                return fallback(module, "complete O2 call closure exceeds total copy cost");
+            }
+            // No replay or mutation has happened. Discard every partial import
+            // and recover the exact ordinary owners; reuse symbol/reference,
+            // linkage and source indexes instead of scanning all IR again.
+            imports.clear();
+            if let Some(original) = ordinary_owners {
+                owners = original;
+                members.clear();
+                for (id, &owner) in owners.iter().enumerate() {
+                    members.entry(owner).or_default().push(id);
+                }
+            }
         }
     }
     for (&owner, imported) in &imports {
@@ -1231,6 +1276,73 @@ mod tests {
                     .count(),
                 1
             );
+        }
+    }
+
+    #[test]
+    fn adaptive_planner_matches_two_pass_oracle_across_graph_families() {
+        for shape in 0..5 {
+            let source = candidate_lir(&(0..768).collect::<Vec<_>>());
+            let items = (0..768)
+                .map(|id| {
+                    let target = match shape {
+                        0 => (id + 1) % 768,
+                        1 => (id * 17 + 257) % 768,
+                        2 => (id / 2 + 512) % 768,
+                        3 => (id + 256) % 768,
+                        _ => 511,
+                    };
+                    call_function(
+                        &format!("zil.fn.{id}"),
+                        Ty::Int(32),
+                        &format!("zil.fn.{target}"),
+                    )
+                })
+                .collect();
+            let module = m(items);
+            for count in [2, 3, 8, 17, 64] {
+                let mut old_layout = None;
+                let mut expected = partition_view_once(
+                    module.clone(),
+                    &source.as_view(),
+                    EntryPoint::None,
+                    count,
+                    true,
+                    true,
+                    &mut old_layout,
+                );
+                if expected.fallback == Some("complete O2 call closure exceeds total copy cost") {
+                    old_layout = None;
+                    expected = partition_view_once(
+                        module.clone(),
+                        &source.as_view(),
+                        EntryPoint::None,
+                        count,
+                        true,
+                        false,
+                        &mut old_layout,
+                    );
+                }
+                let mut new_layout = None;
+                let actual = partition_view_recorded(
+                    module.clone(),
+                    &source.as_view(),
+                    EntryPoint::None,
+                    count,
+                    true,
+                    true,
+                    &mut new_layout,
+                );
+                assert_eq!(
+                    actual.fallback, expected.fallback,
+                    "shape={shape} count={count}"
+                );
+                assert_eq!(actual.units, expected.units, "shape={shape} count={count}");
+                assert_eq!(new_layout, old_layout);
+                for unit in &actual.units {
+                    zil_llvm_api::validate_module(unit).unwrap();
+                }
+            }
         }
     }
 
