@@ -191,7 +191,46 @@ pub(crate) fn partition_view_cached(
     (plan, pending)
 }
 
+// A copy-cost rejection is a partitioning-policy failure, not a language or
+// machine-validation failure. Retry a geometrically smaller partition count
+// before abandoning parallel code generation. Every attempt still constructs a
+// complete call closure and applies the original total-copy-cost bound.
 fn partition_view_recorded(
+    mut module: Module,
+    lir: &LirView<'_>,
+    entry: EntryPoint,
+    mut count: usize,
+    split_large_files: bool,
+    import_complete_call_closures: bool,
+    recorded: &mut Option<layout::Layout>,
+) -> Plan {
+    loop {
+        *recorded = None;
+        let plan = partition_view_once(
+            module,
+            lir,
+            entry,
+            count,
+            split_large_files,
+            import_complete_call_closures,
+            recorded,
+        );
+        if count <= 2 || plan.fallback != Some("complete O2 call closure exceeds total copy cost") {
+            return plan;
+        }
+        // This rejection precedes replay: the sole unit is the untouched input,
+        // not a partial split. Move it into the next attempt without cloning IR.
+        assert_eq!(plan.units.len(), 1);
+        module = plan
+            .units
+            .into_iter()
+            .next()
+            .expect("complete input module");
+        count = count.div_ceil(2);
+    }
+}
+
+fn partition_view_once(
     module: Module,
     lir: &LirView<'_>,
     entry: EntryPoint,
@@ -1120,7 +1159,7 @@ mod tests {
     }
 
     #[test]
-    fn multiply_shared_closure_falls_back_before_copying_any_body() {
+    fn multiply_shared_closure_coarsens_without_weakening_copy_bound() {
         let source = candidate_lir(&(0..600).collect::<Vec<_>>());
         let module = m((0..600)
             .map(|id| {
@@ -1139,12 +1178,79 @@ mod tests {
             true,
             true,
         );
+        assert!(plan.fallback.is_none());
+        assert_eq!(plan.units.len(), 2);
+        for unit in &plan.units {
+            zil_llvm_api::validate_module(unit).unwrap();
+        }
+        // Preserve the old rejection as an explicit one-attempt oracle. The
+        // new behavior must not be obtained by raising the bound or truncating.
+        let mut recorded = None;
+        let rejected = partition_view_once(
+            module.clone(),
+            &source.as_view(),
+            EntryPoint::None,
+            8,
+            true,
+            true,
+            &mut recorded,
+        );
         assert_eq!(
-            plan.fallback,
+            rejected.fallback,
             Some("complete O2 call closure exceeds total copy cost")
         );
-        assert_eq!(plan.units, vec![module]);
-        zil_llvm_api::validate_module(&plan.units[0]).unwrap();
+        assert_eq!(rejected.units, vec![module.clone()]);
+        assert!(recorded.is_none());
+
+        let accepted = partition_view_recorded(
+            module.clone(),
+            &source.as_view(),
+            EntryPoint::None,
+            8,
+            true,
+            true,
+            &mut recorded,
+        );
+        assert_eq!(accepted.units, plan.units);
+        assert_eq!(recorded.unwrap().replay(module.clone()), plan.units);
+        let original_cost = module
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Function(function) => Some(function.cost()),
+                _ => None,
+            })
+            .sum::<usize>();
+        let copied_cost = plan
+            .units
+            .iter()
+            .flat_map(|unit| &unit.items)
+            .filter_map(|item| match item {
+                Item::Function(function)
+                    if function.blocks.is_some() && function.name.starts_with("zil.import.") =>
+                {
+                    Some(function.cost())
+                }
+                _ => None,
+            })
+            .sum::<usize>();
+        assert!(copied_cost <= original_cost);
+        for id in 0..600 {
+            let name = format!("zil.fn.{id}");
+            assert_eq!(
+                plan.units
+                    .iter()
+                    .flat_map(|unit| &unit.items)
+                    .filter(|item| matches!(item, Item::Function(function)
+                        if function.name == name && function.blocks.is_some()))
+                    .count(),
+                1
+            );
+        }
+        // Odd requests converge without skipping the two-unit candidate.
+        let odd = partition_view(module, &source.as_view(), EntryPoint::None, 3, true, true);
+        assert!(odd.fallback.is_none());
+        assert_eq!(odd.units, plan.units);
     }
 
     #[test]

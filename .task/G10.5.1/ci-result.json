@@ -1,0 +1,74 @@
+{
+  "status": "reference-controls-passed; NOT native/performance acceptance",
+  "recipe_commit": "f52b1f71380534cbe2a87e77fb1a1dddfa71ae96",
+  "source_sha256": "0a1a406e8c4040bb8b30b8e28434efe5a5c8452a9935170568558e0d47e6ad7b",
+  "reference_tests_passed": 21,
+  "reference_log_sha256": "3251cf53354152f26c35bfc979115a75b7fb409fa409318b27ce231d40735c2b",
+  "graph_model": {
+    "status": "Pass",
+    "scope": "finite graph model only; not Rust/native/compile-time evidence",
+    "checks": 20996,
+    "exhaustive_graphs": 512,
+    "random_graphs": 512,
+    "seed": 20261109,
+    "examples": [
+      {
+        "name": "independent",
+        "vertices": 96,
+        "baseline_units": 8,
+        "candidate_units": 8,
+        "attempts": [
+          8
+        ],
+        "copy_cost": 0,
+        "copy_bound": 96
+      },
+      {
+        "name": "chain",
+        "vertices": 96,
+        "baseline_units": 1,
+        "candidate_units": 2,
+        "attempts": [
+          8,
+          4,
+          2
+        ],
+        "copy_cost": 95,
+        "copy_bound": 96
+      },
+      {
+        "name": "cycle",
+        "vertices": 96,
+        "baseline_units": 1,
+        "candidate_units": 2,
+        "attempts": [
+          8,
+          4,
+          2
+        ],
+        "copy_cost": 96,
+        "copy_bound": 96
+      },
+      {
+        "name": "binary_tree",
+        "vertices": 127,
+        "baseline_units": 1,
+        "candidate_units": 2,
+        "attempts": [
+          8,
+          4,
+          2
+        ],
+        "copy_cost": 120,
+        "copy_bound": 127
+      }
+    ],
+    "script_sha256": "175f26a3a5888b8f1fa895fcb93cad96be7fd36f07421f1a8e81df6c128151a3"
+  },
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+  "run": "https://github.com/zil-lang/zil/actions/runs/42611549411",
+  "native": "NotRun",
+  "performance": "NotRun",
+  "independent_review": "NotRun",
+  "merge_allowed": false
+}
