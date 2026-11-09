@@ -1,0 +1,24 @@
+{
+  "status": "Pass for exact source, options and current warm-cache hits",
+  "measured_source": "287b392b3a78a936766e0497a17742ecd149a7a8",
+  "delivery_head": "da1e94124344c812e348bab131f03868de2dccc9",
+  "recipe": "14c3fd6adb196ba5fa3769b726f81fcabb5bdae9",
+  "warm_build_hits_checked": 320,
+  "controls": {
+    "setup/backend-tests.log": {
+      "passed": 182,
+      "sha256": "136345b36c2ece279d5b5c63b1b4e06c03616b3c13bfecc8cf923c382f39ed83"
+    },
+    "setup/clippy.log": {
+      "passed": 0,
+      "sha256": "6d38b55f4efbcb7ae699c9e5bf13daec24790078c62180b1c2f74664f32bae39"
+    },
+    "setup/llvm-tests.log": {
+      "passed": 30,
+      "sha256": "3a8ccc017fbcbecf3a21fcba9fd3a570371a99a6ed4adeb7b50a134c57fb6a69"
+    }
+  },
+  "runtime_screen_pass": true,
+  "independent_review": "NotRun",
+  "merge_allowed": false
+}

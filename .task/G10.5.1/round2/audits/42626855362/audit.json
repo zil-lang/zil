@@ -1,0 +1,323 @@
+{
+  "status": "Pass: raw evidence and weighted arithmetic consistent",
+  "scope": "implementation-authored mechanical audit; not non-author source review",
+  "compile_requests": 2400,
+  "formal_requests": 2100,
+  "matrix_native_checks": 3680,
+  "runtime_executions": 192,
+  "profiles": [
+    {
+      "profile": "interactive/edit_loop",
+      "weighted_mean_ms": {
+        "base": 412.14556218572636,
+        "cand": 272.8118780619527
+      },
+      "reduction": 0.33806911175956156,
+      "saved_seconds_per_1000_requests": 139.33368412377365,
+      "largest_savings": [
+        {
+          "cell": [
+            "tree1024x8",
+            "O2",
+            "private"
+          ],
+          "contribution_ms": 83.59164005833333
+        },
+        {
+          "cell": [
+            "tree256x8",
+            "O2",
+            "private"
+          ],
+          "contribution_ms": 21.182631073333333
+        },
+        {
+          "cell": [
+            "tree1024x8",
+            "O2",
+            "public"
+          ],
+          "contribution_ms": 15.609147285666667
+        },
+        {
+          "cell": [
+            "tree1024x8",
+            "O2",
+            "cold"
+          ],
+          "contribution_ms": 6.277722430666666
+        },
+        {
+          "cell": [
+            "tree32x8",
+            "O2",
+            "private"
+          ],
+          "contribution_ms": 5.596332100000001
+        }
+      ],
+      "largest_losses": [
+        {
+          "cell": [
+            "single8192",
+            "O2",
+            "private"
+          ],
+          "contribution_ms": -0.033338993333333566
+        },
+        {
+          "cell": [
+            "single8192",
+            "check",
+            "private"
+          ],
+          "contribution_ms": -0.04561983750000009
+        },
+        {
+          "cell": [
+            "single8192",
+            "O0",
+            "private"
+          ],
+          "contribution_ms": -0.26005168749999985
+        }
+      ]
+    },
+    {
+      "profile": "interactive/clean_heavy",
+      "weighted_mean_ms": {
+        "base": 553.9844033241726,
+        "cand": 445.8267158658782
+      },
+      "reduction": 0.19523597922485958,
+      "saved_seconds_per_1000_requests": 108.15768745829439,
+      "largest_savings": [
+        {
+          "cell": [
+            "tree1024x8",
+            "O2",
+            "cold"
+          ],
+          "contribution_ms": 43.944057014666654
+        },
+        {
+          "cell": [
+            "tree1024x8",
+            "O2",
+            "private"
+          ],
+          "contribution_ms": 25.07749201749999
+        },
+        {
+          "cell": [
+            "tree1024x8",
+            "O2",
+            "public"
+          ],
+          "contribution_ms": 15.609147285666667
+        },
+        {
+          "cell": [
+            "tree256x8",
+            "O2",
+            "cold"
+          ],
+          "contribution_ms": 7.879881788333334
+        },
+        {
+          "cell": [
+            "tree256x8",
+            "O2",
+            "private"
+          ],
+          "contribution_ms": 6.3547893219999985
+        }
+      ],
+      "largest_losses": [
+        {
+          "cell": [
+            "tree1024x8",
+            "check",
+            "cold"
+          ],
+          "contribution_ms": -0.11551552949999966
+        },
+        {
+          "cell": [
+            "tree1024x8",
+            "O0",
+            "cold"
+          ],
+          "contribution_ms": -0.19682254666666665
+        },
+        {
+          "cell": [
+            "single8192",
+            "check",
+            "cold"
+          ],
+          "contribution_ms": -0.2022577794999999
+        }
+      ]
+    },
+    {
+      "profile": "release_heavy/edit_loop",
+      "weighted_mean_ms": {
+        "base": 877.8134312007445,
+        "cand": 389.7589869266552
+      },
+      "reduction": 0.5559888091555956,
+      "saved_seconds_per_1000_requests": 488.0544442740893,
+      "largest_savings": [
+        {
+          "cell": [
+            "tree1024x8",
+            "O2",
+            "private"
+          ],
+          "contribution_ms": 292.5707402041666
+        },
+        {
+          "cell": [
+            "tree256x8",
+            "O2",
+            "private"
+          ],
+          "contribution_ms": 74.13920875666665
+        },
+        {
+          "cell": [
+            "tree1024x8",
+            "O2",
+            "public"
+          ],
+          "contribution_ms": 54.63201549983333
+        },
+        {
+          "cell": [
+            "tree1024x8",
+            "O2",
+            "cold"
+          ],
+          "contribution_ms": 21.972028507333327
+        },
+        {
+          "cell": [
+            "tree32x8",
+            "O2",
+            "private"
+          ],
+          "contribution_ms": 19.587162349999996
+        }
+      ],
+      "largest_losses": [
+        {
+          "cell": [
+            "single8192",
+            "O2",
+            "warm"
+          ],
+          "contribution_ms": -0.022105605666666805
+        },
+        {
+          "cell": [
+            "single8192",
+            "O0",
+            "private"
+          ],
+          "contribution_ms": -0.10402067500000023
+        },
+        {
+          "cell": [
+            "single8192",
+            "O2",
+            "private"
+          ],
+          "contribution_ms": -0.11668647666666665
+        }
+      ]
+    },
+    {
+      "profile": "release_heavy/clean_heavy",
+      "weighted_mean_ms": {
+        "base": 1193.6921758244173,
+        "cand": 813.6578618619591
+      },
+      "reduction": 0.31836877350728177,
+      "saved_seconds_per_1000_requests": 380.0343139624582,
+      "largest_savings": [
+        {
+          "cell": [
+            "tree1024x8",
+            "O2",
+            "cold"
+          ],
+          "contribution_ms": 153.80419955133323
+        },
+        {
+          "cell": [
+            "tree1024x8",
+            "O2",
+            "private"
+          ],
+          "contribution_ms": 87.77122206124999
+        },
+        {
+          "cell": [
+            "tree1024x8",
+            "O2",
+            "public"
+          ],
+          "contribution_ms": 54.63201549983333
+        },
+        {
+          "cell": [
+            "tree256x8",
+            "O2",
+            "cold"
+          ],
+          "contribution_ms": 27.579586259166664
+        },
+        {
+          "cell": [
+            "tree256x8",
+            "O2",
+            "private"
+          ],
+          "contribution_ms": 22.241762626999996
+        }
+      ],
+      "largest_losses": [
+        {
+          "cell": [
+            "tree1024x8",
+            "check",
+            "cold"
+          ],
+          "contribution_ms": -0.03850517649999996
+        },
+        {
+          "cell": [
+            "single8192",
+            "check",
+            "cold"
+          ],
+          "contribution_ms": -0.06741925983333319
+        },
+        {
+          "cell": [
+            "tree1024x8",
+            "O0",
+            "cold"
+          ],
+          "contribution_ms": -0.07872901866666648
+        }
+      ]
+    }
+  ],
+  "runtime_screen_pass": true,
+  "severe_tails": [],
+  "independent_review": "NotRun",
+  "merge_allowed": false,
+  "receipt_sha256": "2aa4bcc28d7c773bcdd19150d971df16896c94596590dd1f5be32fce732bcdc3"
+}
