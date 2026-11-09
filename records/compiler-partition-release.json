@@ -1,0 +1,272 @@
+{
+  "goal_read_sha": "aa96ce197d672f34ddb038f2f62462e0ed146138",
+  "updated_at": "2026-11-09T15:45:10.968812+00:00",
+  "main_modified": false,
+  "pr": 65,
+  "release": {
+    "pr": 65,
+    "head": "906940ea78dcd5298c9168c4d17197b5983bf954",
+    "tested_merge": "1c66e27f798c0e1eaecdacbb45f9031855abf077",
+    "tested_tree": "f85c6c456168caf0a1a3be101a97301c2ac40b4b",
+    "ci": [
+      {
+        "id": 42637553501,
+        "name": "Main source verification",
+        "head_sha": "906940ea78dcd5298c9168c4d17197b5983bf954",
+        "conclusion": "success",
+        "html_url": "https://github.com/zil-lang/zil/actions/runs/42637553501"
+      },
+      {
+        "id": 42637553555,
+        "name": "Research LLVM verification",
+        "head_sha": "906940ea78dcd5298c9168c4d17197b5983bf954",
+        "conclusion": "success",
+        "html_url": "https://github.com/zil-lang/zil/actions/runs/42637553555"
+      },
+      {
+        "id": 42637553818,
+        "name": "Repository structure",
+        "head_sha": "906940ea78dcd5298c9168c4d17197b5983bf954",
+        "conclusion": "success",
+        "html_url": "https://github.com/zil-lang/zil/actions/runs/42637553818"
+      }
+    ],
+    "full_results": {
+      "commit": "1c66e27f798c0e1eaecdacbb45f9031855abf077",
+      "steps": {
+        "fmt": "success",
+        "workspace": "success",
+        "reference": "success",
+        "consumer": "success",
+        "clippy": "success",
+        "text": "success",
+        "ci_test": "success"
+      },
+      "logs": {
+        "fmt": {
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "test_summaries": 0,
+          "totals": {
+            "passed": 0,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered": 0
+          }
+        },
+        "workspace": {
+          "sha256": "5d7a5b33f7c9cf60c78a7eb341f9d365bcb2fee059c5d7666cf844ed3df5dd3f",
+          "test_summaries": 428,
+          "totals": {
+            "passed": 5762,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered": 0
+          }
+        },
+        "reference": {
+          "sha256": "76c9428f168a979b35964f123392a103f64f043c346de233916258e9cf2c59b9",
+          "test_summaries": 428,
+          "totals": {
+            "passed": 5650,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered": 0
+          }
+        },
+        "clippy": {
+          "sha256": "6dfd6a0acc84d29da3a73d4701f506c44695d7fda049615f1803039b016e76dd",
+          "test_summaries": 0,
+          "totals": {
+            "passed": 0,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered": 0
+          }
+        },
+        "text-reference": {
+          "sha256": "707b5b788e0598cc5309dc7bad47b355b0e80c1e840b27ec735a58a62cb9d74d",
+          "test_summaries": 10,
+          "totals": {
+            "passed": 70,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered": 0
+          }
+        },
+        "migration-runner": {
+          "sha256": "e74e963093f9c841efb8f62d12942349e4ddb07a30514838ea63df7feb1c5a53",
+          "test_summaries": 0,
+          "totals": {
+            "passed": 0,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered": 0
+          }
+        }
+      }
+    },
+    "native_consumer": {
+      "status": "Pass",
+      "builds": 16,
+      "observations": 128,
+      "injected_failures": 56
+    },
+    "review_request_exit": 0,
+    "requested_reviewers": {
+      "users": [],
+      "teams": []
+    },
+    "reviews": [],
+    "non_author_review": "NotConfirmed",
+    "main_modified": false,
+    "merge_allowed": false,
+    "updated_at": "2026-11-09T15:35:08.503483+00:00",
+    "run": "https://github.com/zil-lang/zil/actions/runs/42646108993"
+  },
+  "continued_experiment": {
+    "source": "49889241d87cf67dba7f445e03293a9b3e446cb1",
+    "baseline": "906940ea78dcd5298c9168c4d17197b5983bf954",
+    "decision": "Hold: no material weighted latency benefit; do not merge index-reuse optimization",
+    "profiles": [
+      {
+        "profile": "interactive/edit",
+        "mean_ms": {
+          "base": 126.413376653175,
+          "cand": 126.5222483802
+        },
+        "reduction": -0.0008612358114892249,
+        "seconds_saved_per_1000": -0.10887172702499015,
+        "excess_wait_ms": {
+          "base": {
+            "100ms": 60.986700343,
+            "1000ms": 0.31211177939999996
+          },
+          "cand": {
+            "100ms": 61.042848137499995,
+            "1000ms": 0.3093911489999999
+          }
+        },
+        "group_saved_ms": {
+          "graph": 0.09283896809999778,
+          "trait": -0.011144123625000326,
+          "resource": -0.19056657150000075
+        },
+        "paired_bootstrap95": [
+          -0.005973474198384121,
+          0.004079922803445046
+        ],
+        "interval_scope": "post-hoc fixed-method audit of this run; not a population or industrial guarantee"
+      },
+      {
+        "profile": "interactive/clean",
+        "mean_ms": {
+          "base": 177.7996947274501,
+          "cand": 176.78028751469984
+        },
+        "reduction": 0.005733458734633379,
+        "seconds_saved_per_1000": 1.0194072127502523,
+        "excess_wait_ms": {
+          "base": {
+            "100ms": 105.64833689779998,
+            "1000ms": 2.1847824557999993
+          },
+          "cand": {
+            "100ms": 104.75301501489997,
+            "1000ms": 2.1657380429999993
+          }
+        },
+        "group_saved_ms": {
+          "graph": 1.0849499909999956,
+          "trait": -0.07721986949999965,
+          "resource": 0.011677091250001582
+        },
+        "paired_bootstrap95": [
+          -0.0015987105070498497,
+          0.013622626415500938
+        ],
+        "interval_scope": "post-hoc fixed-method audit of this run; not a population or industrial guarantee"
+      },
+      {
+        "profile": "release/edit",
+        "mean_ms": {
+          "base": 223.7727682373001,
+          "cand": 223.639792903025
+        },
+        "reduction": 0.000594242701301706,
+        "seconds_saved_per_1000": 0.1329753342751019,
+        "excess_wait_ms": {
+          "base": {
+            "100ms": 146.42797299515001,
+            "1000ms": 1.0923912278999999
+          },
+          "cand": {
+            "100ms": 146.2322909576,
+            "1000ms": 1.0828690214999999
+          }
+        },
+        "group_saved_ms": {
+          "graph": 0.8383664273999984,
+          "trait": -0.136509600375001,
+          "resource": -0.5688814927500017
+        },
+        "paired_bootstrap95": [
+          -0.008117694645404683,
+          0.008909847683913008
+        ],
+        "interval_scope": "post-hoc fixed-method audit of this run; not a population or industrial guarantee"
+      },
+      {
+        "profile": "release/clean",
+        "mean_ms": {
+          "base": 345.0255518362001,
+          "cand": 343.75419457957486
+        },
+        "reduction": 0.003684820587516513,
+        "seconds_saved_per_1000": 1.271357256625265,
+        "excess_wait_ms": {
+          "base": {
+            "100ms": 259.92935871835,
+            "1000ms": 7.646738595299999
+          },
+          "cand": {
+            "100ms": 258.67096827050005,
+            "1000ms": 7.580083150499998
+          }
+        },
+        "group_saved_ms": {
+          "graph": 2.042906023349996,
+          "trait": -0.753629793125,
+          "resource": -0.01791897359999555
+        },
+        "paired_bootstrap95": [
+          -0.003837603194218886,
+          0.011229322116328322
+        ],
+        "interval_scope": "post-hoc fixed-method audit of this run; not a population or industrial guarantee"
+      }
+    ],
+    "controls": {
+      "setup/backend-tests.log": 183,
+      "setup/llvm-tests.log": 30
+    },
+    "consumer": {
+      "builds": 16,
+      "observations": 128,
+      "injected_failures": 56
+    },
+    "runtime_code_identical_pairs": 504,
+    "independent_review": "NotRun",
+    "merge_allowed": false,
+    "coverage_gap": "Original upstream crates are Rust-only references; the paired graph/trait/resource cases are generated mechanisms, not full application ports. No industrial application equivalence claimed."
+  },
+  "research_evidence": "https://github.com/zil-lang/zil/tree/929417b0d48c43f59a8420ac5d6f3e3e8366d540/.task/G10.5.1.2/runs/42644730016",
+  "audit_recipe": "308aeccc9238f41186fa00ce807207b9ef629485",
+  "non_author_review": "NotConfirmed",
+  "merge_allowed": false
+}
