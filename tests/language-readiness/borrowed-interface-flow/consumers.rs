@@ -10,6 +10,9 @@ const CURSOR: &str = include_str!("project/cursor.zil");
 const CONSUMER: &str = include_str!("project/consumer.zil");
 const OTHER: &str = include_str!("project/other.zil");
 
+#[path = "generic_composition.rs"]
+mod generic_composition;
+
 fn files<'a>(
     main: &'a str,
     api: &'a str,
