@@ -2,7 +2,7 @@
   "date": "2026-11-09 09:04 Asia/Shanghai",
   "status": "resumed_not_accepted",
   "main": "b07b85dd49b3df6f382734d509919a2a6013c97d",
-  "goal_read": "3c2999938d40ff90bffb753f09ed13b0c70f3797",
+  "goal_read": "40a1d602641ab10247c025fc2ca666af885a55cc",
   "integration": "ed8e3a5de6befb15b515f6b124e992792414a8ca",
   "source_branches": {
     "root": "task/G10.6.3",
@@ -13,17 +13,17 @@
   "first_failure": "offline cargo dependency rustc_apfloat absent; no tests executed",
   "scope": "Continue original ordinary-library consumer and large owned closure transport; no release claim",
   "raw_logs": "out/runs/byte-views-baseline-20261109/ in task/G3.4.22 worktree",
-  "last_work": "2026-11-09 12:19 Asia/Shanghai",
-  "integration_remote": "fcc387b4cab91dc98cd27a14264769f21f75452e",
+  "last_work": "2026-11-09 12:37 Asia/Shanghai",
+  "integration_remote": "2cddb26ba9a9d7e0a441f8a7cad8afee25055b85",
   "large_closure_checkpoint": "dbd5c446a600eb26f34574748376a2b8e84fece8",
   "baseline_language_failure": "original four-module program: Analyze ResourceLimit / Sum terminal tag classification, 0 pass, 1 fail",
   "native_progress": "frozen ordinary local closure ABI: 48 native executions pass; opaque factories/generic callable helpers remain five explicit Types Unsupported boundaries",
-  "integration_local": "f2cfb4d6bbd17b9325f58b78715b3fef8293ec13",
-  "byte_views_checkpoint": "32fbce625213c897a73eca86fb987463c50378b3",
+  "integration_local": "04dce11a83d49f617651c278ea0a1baa22d49c63",
+  "byte_views_checkpoint": "a99ed1802bb93c8b03e1b4dc07f0b48b78f5ea2c",
   "growing_collections_checkpoint": "ae97936e1360e3c6a7295a19b1a181c84036850e",
   "original_pipeline": "Frozen Byte precise order main/model/protocol/library, fingerprint d9afb8c2667ac61471aa1f37bd2fb9277abcbab5df37090bf4f8f6b8d32ec676: A N7122869/V N7814112 with N-1/fresh/raw/Wire pass; original4095 native input order main/protocol/library/model:48 actual executions pass, identical source file bytes",
   "collections_progress": "05a0: Analyze237/0; original Map default Analyze ResourceLimit / Sum SSA page slot walk, verification_runs0; native remains60/64 from prior full matrix",
-  "collected_pipeline": "Fixed original4011 four modules at b101: default Analyze and Verify Success; native first Clang/O0 baseline executed once, zero accepted, observer expected13:13:13 vs actual13:12:12; independent realloc/ownership trace pending",
+  "collected_pipeline": "Fixed original4011 complete pipeline passes default Analyze/Verify and joint56 native cases on f2cfb4d6; exact receipt in validation/ordinary-owned-collection-pipeline.json",
   "build_window_policy": "one heavy build at a time, independent target per worktree, no raised analysis limits or thread stack",
   "byte_views_progress": "original Source/raw/Wire real loan/owner negatives and11byte groups pass; original48+local12 native pass; exact A/V pins belong to frozen Byte source and input order, not later integration",
   "generation_review": "Desc-first source/raw controls rejected by existing higher-level loan guards at e3; no demonstrated production wrong acceptance; local-parent generation defense reviewed separately",
@@ -81,7 +81,7 @@
     "logs": "out/runs/growing-input-effects-20261109-9",
     "next": "Complete SSA inventory paged COW design under independent review"
   },
-  "active_build_window": "Root frozen f2cfb4d6 fresh joint collected Source/negative/56-native gate; Byte ledger runtime only; Map static cost investigation",
+  "active_build_window": "Byte dc65 same-fee caller ledger; Map preparing preflight-published immutable carrier cache; root no heavy build",
   "workspace_core": {
     "source": "f160b74ffa01eab22714bed283ff4d2d9f6f9d50",
     "tree": "aae362b35e177ccfd7b072c43c2b11e5c4719058",
@@ -206,7 +206,7 @@
     "trace_sha256": "36c9fb6a17f9470d55102cb018f93d0316cef6a8894a3abca94a68ae871677ef",
     "cases_sha256": "66e8b654babd05a6e12524b513ead64f33190726fdd921716d1838b2d4d2d5e5",
     "logs": "out/runs/byte-views-collected-native-diagnosis-20261109",
-    "joint_native": "running; not yet accepted"
+    "joint_native": "Pass: f2cfb4d6 explicit llvm-api command,3 Rust tests,56 actual native cases"
   },
   "tag_index_regression": {
     "experiment": "8f3396753f03791c8f24ed93de999d8448404b3c",
@@ -237,5 +237,56 @@
     "owned_default": "Types Success; Analyze ResourceLimit / stored target CFG proof; verification_runs0",
     "logs": "out/runs/byte-views-array512-20261109",
     "next": "Actual caller cost ledger; complete original512 input and added whole-array snapshot gate; distinct from16KiB closed-payload ABI"
+  },
+  "collected_joint_native": {
+    "source": "f2cfb4d6bbd17b9325f58b78715b3fef8293ec13",
+    "tree": "72d630027fd467d2930855e3f9b3ac923a8bfd46",
+    "source_unchanged": true,
+    "command": "cargo test --locked --offline -p zil-driver --features llvm-api --test nominal_trait_bounds owning_trait_hosts::collected_pipeline -- --nocapture --test-threads=1",
+    "rust_passed": 3,
+    "rust_failed": 0,
+    "native_executions": 56,
+    "configurations": {
+      "Clang/O0": 14,
+      "Clang/O2": 14,
+      "LlvmApi/O0": 14,
+      "LlvmApi/O2": 14
+    },
+    "source_fingerprint": "4011cf8d1255cbf085e02cce4cd9d9fc54c28797bebf9e61cd06bbfbc855dd7f",
+    "source_files_unchanged": 4,
+    "verify_runs_per_build": 1,
+    "fallback": false,
+    "logs": "out/runs/ordinary-composition-joint-20261109-2",
+    "log_sha256": "42976c9a8df3ab3fdfa4e46833e2025834a145c47523e6eaccf2a7843f82407e",
+    "receipt": "validation/ordinary-owned-collection-pipeline.json",
+    "receipt_commit": "04dce11a83d49f617651c278ea0a1baa22d49c63",
+    "prior_clang_only": "run1 passed3 tests/28 native, omitted explicit llvm-api feature; not four-configuration acceptance"
+  },
+  "array512_linear_progress": {
+    "snapshot_source": "edad37e0cc1643025afc2e9a9b80fb9a52135d88",
+    "loan_only_source": "dc65c2356d757a17d2b1293a58c5cfd69fd47710",
+    "review": "Astra exact-source accepted; old implementations retained as full-state oracles",
+    "snapshot_filtered_passed": 6,
+    "active_filtered_passed": 4,
+    "full_analyze_passed": 228,
+    "full_analyze_failed": 1,
+    "remaining_core_failure": "old precise owned_fixed_once budget pin12870, actual dc65=12566; edad earlier actual13038 retained; final N/N-1/fresh pending",
+    "original_owned512_default": "Types Success then Analyze ResourceLimit / stored target CFG proof; no Verify result",
+    "ordinary512_and_small_package": "default Analyze/Verify Success",
+    "next": "same-default-fee dc65 caller ledger before a third production change",
+    "logs": [
+      "out/runs/byte-views-linear-snapshot-20261109",
+      "out/runs/byte-views-loan-only-20261109"
+    ]
+  },
+  "pod_admission_ledger": {
+    "source": "873e0fc9440f840d0d23a86e8511bec3b3780291",
+    "tree_equal": "05a0f34635ec7798d29053e4a4f5def90edbe6c2",
+    "layout_work": 154581,
+    "carrier_work": 972723,
+    "total_work": 1127304,
+    "original_fees_unchanged": true,
+    "logs": "out/runs/growing-input-effects-20261109-14",
+    "decision": "Complete positive carrier results may be published only by original successful preflight checks, keyed by actual module and actual element address in this Budget; all misses and temporary Type clones use original checks; implementation under review"
   }
 }
