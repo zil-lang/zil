@@ -1,0 +1,212 @@
+{
+  "schema_version": 1,
+  "status": "Pass for ordinary scalar results of internal Mutex worker helpers",
+  "source": {
+    "commit": "566064fd0867bf68a25257f37a7bcd6de3e9caec",
+    "tree": "c303ce3dc75aed0293272ffbd1e262f7e5c8abad",
+    "executed_local_commit": "137ea051da0022d6d8d00db9c8517742cef2289a",
+    "publication": "Identical complete tree; commit metadata differs. Parents preserve current main and the original reviewed task tip.",
+    "clean_during_validation": true
+  },
+  "scope": "The Mutex thread root keeps its i32 ABI. Actual Direct internal helpers may return the existing thread scalar types or integer/Bool CAS pair; all actual call graph, Transfer and synchronous cleanup checks remain.",
+  "independent_review": {
+    "reviewed_local_commit": "137ea051da0022d6d8d00db9c8517742cef2289a",
+    "reviewer": "Non-author integration reviewer",
+    "result": "Accepted exact production and test source; independently verified native matrix and failure controls."
+  },
+  "toolchain": {
+    "rust": "1.99.1",
+    "llvm_clang_lld": "23.1.4",
+    "host": "x86_64-unknown-linux-gnu",
+    "default_limits": true,
+    "increased_stack": false
+  },
+  "validation": {
+    "targeted-api": {
+      "source": "137ea051da0022d6d8d00db9c8517742cef2289a",
+      "tree": "c303ce3dc75aed0293272ffbd1e262f7e5c8abad",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "generic_regressions",
+        "mutex_worker_helpers",
+        "--",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-09T09:44:42.720644+00:00",
+      "elapsed_seconds": 46.297,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 1,
+      "tests": {
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 210
+      },
+      "failed_tests": [],
+      "log": "out/runs/worker-helper-returns-20261109-1/targeted-api.log",
+      "log_sha256": "9cb414e44240825a892a1a096aae5d03508e0cffbe214c2bd2b5b1608589c9d6"
+    },
+    "existing-mutex": {
+      "source": "137ea051da0022d6d8d00db9c8517742cef2289a",
+      "tree": "c303ce3dc75aed0293272ffbd1e262f7e5c8abad",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "generic_regressions",
+        "generic_mutex",
+        "--",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-09T09:49:21.114180+00:00",
+      "elapsed_seconds": 2.77,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 1,
+      "tests": {
+        "passed": 21,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 193
+      },
+      "failed_tests": [],
+      "log": "out/runs/worker-helper-returns-20261109-1/existing-mutex.log",
+      "log_sha256": "6789b365f391678d4a3125facb68e9242e9e314e881a7c7172400c944356bc20"
+    },
+    "strict": {
+      "source": "137ea051da0022d6d8d00db9c8517742cef2289a",
+      "tree": "c303ce3dc75aed0293272ffbd1e262f7e5c8abad",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--workspace",
+        "--all-targets",
+        "--features",
+        "zil-driver/llvm-api",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "started_utc": "2026-11-09T09:50:05.341100+00:00",
+      "elapsed_seconds": 61.764,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "log": "out/runs/worker-helper-returns-20261109-1/strict.log",
+      "log_sha256": "eea366cc1bbb51db5d1130d8790617ccadeda86df543a22201b6b254b3f6d143"
+    },
+    "format": {
+      "source": "137ea051da0022d6d8d00db9c8517742cef2289a",
+      "tree": "c303ce3dc75aed0293272ffbd1e262f7e5c8abad",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "started_utc": "2026-11-09T09:50:22.541020+00:00",
+      "elapsed_seconds": 7.756,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "log": "out/runs/worker-helper-returns-20261109-1/format.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "layout": {
+      "source": "137ea051da0022d6d8d00db9c8517742cef2289a",
+      "tree": "c303ce3dc75aed0293272ffbd1e262f7e5c8abad",
+      "source_unchanged": true,
+      "command": [
+        "python3",
+        "tools/check-repository-layout.py",
+        "--full",
+        "--delivery"
+      ],
+      "started_utc": "2026-11-09T09:51:45.697421+00:00",
+      "elapsed_seconds": 1.745,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "log": "out/runs/worker-helper-returns-20261109-1/layout.log",
+      "log_sha256": "4a188d837eab39b57142a463dffc9ceb91e2d342e19e85fc526e88207c570dce"
+    }
+  },
+  "native": {
+    "program": "tests/fixtures/threading/mutex-worker-helpers.zil",
+    "program_sha256": "1d3db8250f216e903c35c2e95df7c4b50dab97a1fb6b2e05a0720baa96c55530",
+    "executions": 4,
+    "matrix": [
+      "Clang O0",
+      "Clang O2",
+      "LLVM API O0",
+      "LLVM API O2"
+    ],
+    "assertions": [
+      "actual selected backend",
+      "no fallback",
+      "independent verification_runs = 1",
+      "exit 0",
+      "empty stdout and stderr"
+    ]
+  },
+  "negative_controls": [
+    "Non-i32 thread roots rejected in Source, Analyze, Verify and Wire",
+    "Reachable same-signature helper replacement with foreign or closure execution rejected",
+    "Suspend helper mutation rejected independently by Analyze, Verify and Wire"
+  ],
+  "not_claimed": [
+    "Owning, address, Guard or floating helper results",
+    "Guard suspension or arbitrary cross-thread borrowed environments",
+    "Full workspace test execution, full language or product acceptance"
+  ]
+}
