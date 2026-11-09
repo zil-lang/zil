@@ -386,14 +386,14 @@ fn ordinary_package_fields_have_exact_fresh_analysis_and_verification_work() {
                 .all(|d| d.category == ResultCategory::ResourceLimit)
         );
         run(high).unwrap();
-        // This control predates ordinary error-place scheduling; its actual
-        // independent work must remain unchanged.
+        // The raw fixture and complete boundary controls are unchanged.
+        // Each independent kernel pins its measured actual algorithm work.
         assert_eq!(
             high,
             if phase == Phase::Analyze {
-                417206
+                312594
             } else {
-                645564
+                543695
             }
         );
         eprintln!("ordinary Package Copy observation {phase:?} N={high}; N-1/fresh agree");
@@ -839,7 +839,7 @@ fn ordinary_package_fields_complete_project_has_exact_fresh_analysis_work() {
             assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
         }
     }
-    assert_eq!(high, 6682686);
+    assert_eq!(high, 4363432);
     eprintln!("ordinary Package four-module analysis N={high}; N-1/fresh agree");
 }
 
@@ -887,9 +887,9 @@ fn ordinary_error_places_have_exact_fresh_independent_resource_work() {
         assert_eq!(
             high,
             if phase == Phase::Analyze {
-                570159
+                442451
             } else {
-                648698
+                528952
             }
         );
         eprintln!("ordinary Error/Option resource {phase:?} N={high}; N-1/fresh agree");

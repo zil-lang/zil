@@ -582,14 +582,14 @@ fn array_slots_and_actual_pointee_snapshot_budgets_are_exact_and_fresh() {
     assert_eq!(
         boundaries,
         vec![
-            [1702, 22401, 27357, 27357, 27357],
-            [2326, 50265, 64126, 64126, 64126],
-            [4229, 47432, 55259, 55259, 55259],
-            [6250, 48219, 56877, 56877, 56877],
-            [3576, 40845, 54917, 54917, 54917],
-            [4788, 91115, 130856, 130856, 130856],
-            [6481, 69803, 92234, 92234, 92234],
-            [8988, 75594, 101001, 101001, 101001],
+            [1702, 19249, 24968, 24968, 24968],
+            [2326, 42627, 57024, 57024, 57024],
+            [4229, 36622, 44446, 44446, 44446],
+            [6250, 41365, 50591, 50591, 50591],
+            [3576, 36654, 51213, 51213, 51213],
+            [4788, 78320, 116810, 116810, 116810],
+            [6481, 57954, 80106, 80106, 80106],
+            [8988, 67581, 93154, 93154, 93154],
         ]
     );
     println!("array complete boundaries: {boundaries:?}");
@@ -643,7 +643,7 @@ fn ordinary_wide_array_completes_source_raw_and_wire_verification() {
         )
         .status
     });
-    assert_eq!(exact, 4_170_159);
+    assert_eq!(exact, 2_212_903);
     println!("512-slot Source/raw/Wire: independent Verify complete within default limits");
 }
 
@@ -836,7 +836,7 @@ fn array_billing_mode_is_consistent_across_scalar_reuse_and_function_order() {
         });
         // Scalar work is unchanged. Array equations now traverse balanced
         // actual components; their previous complete-request N was 16587.
-        assert_eq!(n, if label == "scalar" { 1543 } else { 15926 });
+        assert_eq!(n, if label == "scalar" { 1543 } else { 12354 });
         let mut warm = zil_driver::CompilationSession::default();
         for (limit, status) in [
             (n, ResultCategory::Success),

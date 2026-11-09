@@ -1,0 +1,926 @@
+{
+  "schema_version": 1,
+  "status": "Pass for the original owning shared-address Array programs and complete field snapshot within this scope",
+  "source": {
+    "commit": "ddfee9f845b979cb15cf4589d791811d40b5bd51",
+    "tree": "6b602cdf417454dfb76b6b806630f721afb1502c",
+    "published_same_tree_commit": "8b8aae04682b2e7dad4ad58fb64ec2ea66c33c9c",
+    "baseline_main": "82a69812582856b012468db3d019930d8e390f64",
+    "production_checkpoint": "e434fb3f07cc48f7ca3f1f487e1e50dc0ffa5697",
+    "clean_during_each_validation": true,
+    "publication": "The complete published tree is identical to the local final source. Commit metadata differs; no identical-commit claim is made."
+  },
+  "scope": "Complete the existing ordinary owning Package and shared-address Array path at 512 elements. Index and share immutable analysis facts while preserving complete source, initialization, loan ancestry and actual target checks. Analyze and independent Verify still derive and check their own results. Backend accounting follows the actual physical snapshot emission work without expanding the supported consumer profile.",
+  "implementation": {
+    "analyze": "Actual physical-slot and binding indexes, word-based liveness, complete immutable ancestry and instruction-local read candidates remove repeated lookup and temporary target work. Every retained-task, external and empty outer row is still charged and visited where required.",
+    "verify": "Independent word liveness, current-arena ancestry, ordered paid loan unions, complete leaf-path indexes, physical source/result relation indexes, immutable per-instruction read candidates and immutable SSA loan-sequence groups. Invalid or missing loan IDs retain rejection order; unsupported groups use complete scans. Locals, retained ports, external facts and write access retain their original checks.",
+    "backend": "Only Load and already materialized MakeAggregate/MakePackage snapshots use the actual machine-emission work calculation. Actual layout, complete metadata, source classification, allocation, clone, GEP, memcpy and typed loads/stores remain prepaid. Closure subtrees and other consumers retain the previous conservative path. Independent tests compare the complete old plan and machine module, not only hashes.",
+    "unchanged_contracts": [
+      "Default Limits and stack size",
+      "Full original input bytes, element counts and functions",
+      "Whole-array initialization from every actual source",
+      "Borrow origins, permission modes and complete loan ancestry",
+      "Managed ownership responsibility and cleanup",
+      "Actual callee and physical machine ABI checks",
+      "Independent raw and decoded Wire verification",
+      "Public IR schema and dependencies"
+    ]
+  },
+  "inputs": [
+    {
+      "path": "tests/fixtures/resource-packages/owned-package-wide-shared-address-array.zil",
+      "bytes": 4616,
+      "sha256": "95d6572a129f856a5b073de7cfa2aa9d2b730c0ff44b254fa6f9a3d8830299bb",
+      "acceptance": "Original owning Package with 512 shared-address slots; make, relay, snapshot and read through default Source, independent raw/Wire and native calls."
+    },
+    {
+      "path": "tests/fixtures/resource-packages/owned-package-shared-address-array-snapshot.zil",
+      "bytes": 4748,
+      "sha256": "59b8aaa8aa292c1e3921cfee638ef03598e1ffe62a3a4402d1e1542cc793ae66",
+      "acceptance": "Original full Array field snapshot; discard its Package owner before reading element 511 while the external referent remains alive."
+    },
+    {
+      "path": "tests/fixtures/resource-packages/wide-shared-address-array.zil",
+      "bytes": 4248,
+      "sha256": "2d3f439a9d135da66aad9d35b4bf89e647c8d76ce90129af3860b835d20a2332",
+      "acceptance": "Unchanged ordinary 512-array regression in the 55 selected array tests."
+    },
+    {
+      "path": "tests/fixtures/resource-packages/owned-package-shared-address-array.zil",
+      "bytes": 520,
+      "sha256": "be0fecd1b348c591e11dc3d5e8920c6ce79033df0cc4c14a97cca81172b81aad",
+      "acceptance": "Unchanged small owning-array regression."
+    }
+  ],
+  "native_scope": "Two original sources, each through Clang and LLVM API builder at O0/O2: eight actual executions, each exit 0 with empty stdout/stderr. These are the selected acceptance executions; broader trait and array regressions are not added to this count. The 512-input literal repeats one actual referent, so it does not alone establish distinct-origin indexing; existing dynamic-index and alias controls remain in the selected array suite.",
+  "field_snapshot_contract": "The copied shared-address Array contains every physical slot. Discarding its owning Package does not copy, move or prolong the external Leaf referent; that referent remains alive through the last snapshot read. The snapshot does not duplicate the Package's Managed cleanup responsibility. A missing initialized slot or invalid origin remains a rejection.",
+  "test_provenance": {
+    "full_regression_source": "6cfb6ae3acbe467094dcc4faae953755fe55ddc3",
+    "full_regression_tree": "39308efe888b4a90aef6b53732b09fb41b83e86a",
+    "retained_regression_tests": 998,
+    "retained_groups": [
+      "kernels",
+      "traits",
+      "arrays",
+      "legacy-budget"
+    ],
+    "final_source": "ddfee9f845b979cb15cf4589d791811d40b5bd51",
+    "affected_tests_rerun": 189,
+    "rerun_groups": [
+      "backend",
+      "native"
+    ],
+    "only_intervening_changes": "Two cfg(test) .err().expect() assertions become expect_err with identical messages, plus two native test declaration names change from owned512 to owned_wide. Complete inverse replacement restores both parent files. Non-test backend code, all other source, native_program body, both native test bodies, original inputs and the four retained regression groups are unchanged.",
+    "selected_distinct_test_coverage": 1187,
+    "counting": "998 retained tests at 6cfb plus 189 affected tests rerun at ddfee. This does not claim 1187 tests were rerun on ddfee, and earlier duplicate successful executions are not added again.",
+    "full_workspace_test_run": false,
+    "docs": "The documentation workflow checks layout, 14 Python tests, plan self-tests, 377 static conformance records and generated-index equality. Its 93 authored Source expectations are explicitly not compiler executions."
+  },
+  "validation": {
+    "kernels": {
+      "source": "6cfb6ae3acbe467094dcc4faae953755fe55ddc3",
+      "tree": "39308efe888b4a90aef6b53732b09fb41b83e86a",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-analyze",
+        "-p",
+        "zil-verify",
+        "--lib",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "started_utc": "2026-11-09T14:52:24.339981+00:00",
+      "elapsed_seconds": 5.33,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 2,
+      "tests": {
+        "passed": 723,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "out/runs/owned-array-snapshot-final-20261109-2/kernels.log",
+      "log_sha256": "c30487b8ed28985c92632b267b1299b05df88a08d4198428284aa4fc4e9e601d"
+    },
+    "traits": {
+      "source": "6cfb6ae3acbe467094dcc4faae953755fe55ddc3",
+      "tree": "39308efe888b4a90aef6b53732b09fb41b83e86a",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "nominal_trait_bounds",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "started_utc": "2026-11-09T14:52:29.726181+00:00",
+      "elapsed_seconds": 76.392,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 1,
+      "tests": {
+        "passed": 197,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "out/runs/owned-array-snapshot-final-20261109-2/traits.log",
+      "log_sha256": "e98678ed89bf956bf04a4cce24d82eef637f800f3b7a2cd29e59334d20141380"
+    },
+    "arrays": {
+      "source": "6cfb6ae3acbe467094dcc4faae953755fe55ddc3",
+      "tree": "39308efe888b4a90aef6b53732b09fb41b83e86a",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "aggregates",
+        "mixed_holder::shared_address_array::",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "started_utc": "2026-11-09T14:53:46.301884+00:00",
+      "elapsed_seconds": 43.312,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 1,
+      "tests": {
+        "passed": 55,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 353
+      },
+      "failed_tests": [],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "out/runs/owned-array-snapshot-final-20261109-2/arrays.log",
+      "log_sha256": "4d90edc71f5d0c9704865fcf9bc7d16911ca3171678d6497777a3f0f21af1e41"
+    },
+    "legacy-budget": {
+      "source": "6cfb6ae3acbe467094dcc4faae953755fe55ddc3",
+      "tree": "39308efe888b4a90aef6b53732b09fb41b83e86a",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "aggregates",
+        "budget",
+        "--",
+        "--skip",
+        "::",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "started_utc": "2026-11-09T14:54:29.668514+00:00",
+      "elapsed_seconds": 11.182,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 1,
+      "tests": {
+        "passed": 23,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 385
+      },
+      "failed_tests": [],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "out/runs/owned-array-snapshot-final-20261109-2/legacy-budget.log",
+      "log_sha256": "37e0802e8a6a796aa3280f6d8197bcbc916d69fb7bd5fbd921a1256472e9838b"
+    },
+    "backend": {
+      "source": "ddfee9f845b979cb15cf4589d791811d40b5bd51",
+      "tree": "6b602cdf417454dfb76b6b806630f721afb1502c",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "llvm-api",
+        "--lib",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "started_utc": "2026-11-09T14:57:15.509225+00:00",
+      "elapsed_seconds": 15.242,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 1,
+      "tests": {
+        "passed": 187,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "out/runs/owned-array-snapshot-final-20261109-3/backend.log",
+      "log_sha256": "272df9fc22149cf72276f3aa7c20e5f6ca116d4410425204b97570683b9675f7"
+    },
+    "native": {
+      "source": "ddfee9f845b979cb15cf4589d791811d40b5bd51",
+      "tree": "6b602cdf417454dfb76b6b806630f721afb1502c",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "snapshot_emission_work",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "started_utc": "2026-11-09T14:57:30.828358+00:00",
+      "elapsed_seconds": 22.692,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 1,
+      "tests": {
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "out/runs/owned-array-snapshot-final-20261109-3/native.log",
+      "log_sha256": "1af90f2d2e32495df003fbe7503e862d6bb11ec082eaac38d6940e5a0668fda0"
+    },
+    "fmt": {
+      "source": "ddfee9f845b979cb15cf4589d791811d40b5bd51",
+      "tree": "6b602cdf417454dfb76b6b806630f721afb1502c",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "started_utc": "2026-11-09T14:57:07.899434+00:00",
+      "elapsed_seconds": 7.546,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "out/runs/owned-array-snapshot-final-20261109-3/fmt.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "strict": {
+      "source": "ddfee9f845b979cb15cf4589d791811d40b5bd51",
+      "tree": "6b602cdf417454dfb76b6b806630f721afb1502c",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--workspace",
+        "--all-targets",
+        "--features",
+        "zil-driver/llvm-api",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "started_utc": "2026-11-09T14:57:53.596144+00:00",
+      "elapsed_seconds": 32.13,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "out/runs/owned-array-snapshot-final-20261109-3/strict.log",
+      "log_sha256": "afb44222f5cbdd527b11c3d5e9eb4497706d412a61cc6b780537fd3f8aa575ac"
+    },
+    "docs": {
+      "source": "ddfee9f845b979cb15cf4589d791811d40b5bd51",
+      "tree": "6b602cdf417454dfb76b6b806630f721afb1502c",
+      "source_unchanged": true,
+      "command": [
+        "bash",
+        "out/runs/owned-array-snapshot-analyze-final-20261109/docs.sh"
+      ],
+      "started_utc": "2026-11-09T14:58:25.778596+00:00",
+      "elapsed_seconds": 2.366,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "out/runs/owned-array-snapshot-final-20261109-3/docs.log",
+      "log_sha256": "9bb99f10d2173425abf5020d6392e6086ec7b698d91ccef2f1afce998f623c9c"
+    }
+  },
+  "native": {
+    "source": "ddfee9f845b979cb15cf4589d791811d40b5bd51",
+    "tree": "6b602cdf417454dfb76b6b806630f721afb1502c",
+    "status": "Pass",
+    "actual_executions": 8,
+    "complete_original_sources": true,
+    "entries": [
+      {
+        "source_sha256": "95d6572a129f856a5b073de7cfa2aa9d2b730c0ff44b254fa6f9a3d8830299bb",
+        "source_bytes": 4616,
+        "variant": "Clang-O0",
+        "backend": "clang",
+        "optimization": "O0",
+        "verification_runs": 1,
+        "actual_units": 1,
+        "cache_hit": false,
+        "fallback": null,
+        "exit_code": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0,
+        "report": "out/runs/owned-array-snapshot-final-20261109-3/native-reports/snapshot-emission-767-0/Clang-O0/compile.json",
+        "report_sha256": "c5e5bb0e4305bea50111b9abef1856d7830bb281146d964a0dc2f736a8df52d8",
+        "status_sha256": "6cc546a5638e984f9933ced3ab9a573a08d859ab2ef2ec3fbc35654829359190",
+        "executable_sha256": "74742232e732d091830a0780540b8de4523af82e2a7a3ad4fbe474ae7a413bce",
+        "execution_command_sha256": "4f964f5c69e7d7330aacc05176cc48ae0b2ac47cdbf70edab0a4247015494d67",
+        "builder_objects": []
+      },
+      {
+        "source_sha256": "95d6572a129f856a5b073de7cfa2aa9d2b730c0ff44b254fa6f9a3d8830299bb",
+        "source_bytes": 4616,
+        "variant": "Clang-O2",
+        "backend": "clang",
+        "optimization": "O2",
+        "verification_runs": 1,
+        "actual_units": 1,
+        "cache_hit": false,
+        "fallback": null,
+        "exit_code": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0,
+        "report": "out/runs/owned-array-snapshot-final-20261109-3/native-reports/snapshot-emission-767-0/Clang-O2/compile.json",
+        "report_sha256": "53fdc5e0f7ab9e9f52882abc5671278aa15dc7068e381d8567b9cedb824bb75d",
+        "status_sha256": "6cc546a5638e984f9933ced3ab9a573a08d859ab2ef2ec3fbc35654829359190",
+        "executable_sha256": "0758311e38711049ca04244452af12e9c1dc6ebbc8d9d5862a142cd2e6c2df92",
+        "execution_command_sha256": "f90e9ec43f6da7e612779497c18f0e7961d00d1ae9f15181916b6dcd55482438",
+        "builder_objects": []
+      },
+      {
+        "source_sha256": "95d6572a129f856a5b073de7cfa2aa9d2b730c0ff44b254fa6f9a3d8830299bb",
+        "source_bytes": 4616,
+        "variant": "LlvmApi-O0",
+        "backend": "llvm-api",
+        "optimization": "O0",
+        "verification_runs": 1,
+        "actual_units": 1,
+        "cache_hit": false,
+        "fallback": null,
+        "exit_code": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0,
+        "report": "out/runs/owned-array-snapshot-final-20261109-3/native-reports/snapshot-emission-767-0/LlvmApi-O0/compile.json",
+        "report_sha256": "e2bfab614655fb5d749e7f8f70c35035725d7832e2dbb3b80281e79a582e751e",
+        "status_sha256": "6cc546a5638e984f9933ced3ab9a573a08d859ab2ef2ec3fbc35654829359190",
+        "executable_sha256": "f08ee66063bcf866b67bf4b38bb6d475ca66a6cf00ac927b33610ee6c5fac7c2",
+        "execution_command_sha256": "d49ac28e46e0265b7c811cfdf1748127f974d5b3572ebb44986e767441d3f8c4",
+        "builder_objects": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 7888,
+            "input_kind": "builder",
+            "parse_ns": 0
+          }
+        ]
+      },
+      {
+        "source_sha256": "95d6572a129f856a5b073de7cfa2aa9d2b730c0ff44b254fa6f9a3d8830299bb",
+        "source_bytes": 4616,
+        "variant": "LlvmApi-O2",
+        "backend": "llvm-api",
+        "optimization": "O2",
+        "verification_runs": 1,
+        "actual_units": 1,
+        "cache_hit": false,
+        "fallback": null,
+        "exit_code": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0,
+        "report": "out/runs/owned-array-snapshot-final-20261109-3/native-reports/snapshot-emission-767-0/LlvmApi-O2/compile.json",
+        "report_sha256": "a4563955db2874a2e6e59276ac7f2196d380ad4119d592f13119aff9c0c50b89",
+        "status_sha256": "6cc546a5638e984f9933ced3ab9a573a08d859ab2ef2ec3fbc35654829359190",
+        "executable_sha256": "6728c4e57fe54df8eecf4c57fa128c52a85903af06c18960b4da1be8fafcbcce",
+        "execution_command_sha256": "d140d7c1177a4ebeee6551b1ccb22de752cf0df3514e693244559bd0538b4fb0",
+        "builder_objects": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 5736,
+            "input_kind": "builder",
+            "parse_ns": 0
+          }
+        ]
+      },
+      {
+        "source_sha256": "59b8aaa8aa292c1e3921cfee638ef03598e1ffe62a3a4402d1e1542cc793ae66",
+        "source_bytes": 4748,
+        "variant": "Clang-O0",
+        "backend": "clang",
+        "optimization": "O0",
+        "verification_runs": 1,
+        "actual_units": 1,
+        "cache_hit": false,
+        "fallback": null,
+        "exit_code": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0,
+        "report": "out/runs/owned-array-snapshot-final-20261109-3/native-reports/snapshot-emission-767-1/Clang-O0/compile.json",
+        "report_sha256": "88ab1caa9acd5623f6ff9ce3701a92d9384216f183ee0dfc190c5778fdb6e0d0",
+        "status_sha256": "6cc546a5638e984f9933ced3ab9a573a08d859ab2ef2ec3fbc35654829359190",
+        "executable_sha256": "59fa784d54106ede77083e4f195952e8ee3c644ac21a3a05ab5735291229fdff",
+        "execution_command_sha256": "094201906de74bb2404b626e52257dbf97f26e6da5b09bd1f55c0145fa30ce14",
+        "builder_objects": []
+      },
+      {
+        "source_sha256": "59b8aaa8aa292c1e3921cfee638ef03598e1ffe62a3a4402d1e1542cc793ae66",
+        "source_bytes": 4748,
+        "variant": "Clang-O2",
+        "backend": "clang",
+        "optimization": "O2",
+        "verification_runs": 1,
+        "actual_units": 1,
+        "cache_hit": false,
+        "fallback": null,
+        "exit_code": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0,
+        "report": "out/runs/owned-array-snapshot-final-20261109-3/native-reports/snapshot-emission-767-1/Clang-O2/compile.json",
+        "report_sha256": "cfd76c105e49a2317035a6daabc4f76d66ea3e68cd8719ac6ba496985e60c48b",
+        "status_sha256": "6cc546a5638e984f9933ced3ab9a573a08d859ab2ef2ec3fbc35654829359190",
+        "executable_sha256": "de1c48ee41181e344dd7498989786c2271bc171eaaccb6a929420ca57b332933",
+        "execution_command_sha256": "4b56ba329927a5f94ecb1c88575f7e687e37c2c115d049b13f2b85d33c4c9a9e",
+        "builder_objects": []
+      },
+      {
+        "source_sha256": "59b8aaa8aa292c1e3921cfee638ef03598e1ffe62a3a4402d1e1542cc793ae66",
+        "source_bytes": 4748,
+        "variant": "LlvmApi-O0",
+        "backend": "llvm-api",
+        "optimization": "O0",
+        "verification_runs": 1,
+        "actual_units": 1,
+        "cache_hit": false,
+        "fallback": null,
+        "exit_code": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0,
+        "report": "out/runs/owned-array-snapshot-final-20261109-3/native-reports/snapshot-emission-767-1/LlvmApi-O0/compile.json",
+        "report_sha256": "987bfe3373c014f1f958c988e406b0ba52f323627d1f541c8283ca47a87fe55e",
+        "status_sha256": "6cc546a5638e984f9933ced3ab9a573a08d859ab2ef2ec3fbc35654829359190",
+        "executable_sha256": "6cb772432509d7db1f5496d866c42aa130cb2e8a3541b32e291d5e3c738b9472",
+        "execution_command_sha256": "b594a55399a1552ef854b0314f8043419161323392b31bad3bb80377b9c272ec",
+        "builder_objects": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 8368,
+            "input_kind": "builder",
+            "parse_ns": 0
+          }
+        ]
+      },
+      {
+        "source_sha256": "59b8aaa8aa292c1e3921cfee638ef03598e1ffe62a3a4402d1e1542cc793ae66",
+        "source_bytes": 4748,
+        "variant": "LlvmApi-O2",
+        "backend": "llvm-api",
+        "optimization": "O2",
+        "verification_runs": 1,
+        "actual_units": 1,
+        "cache_hit": false,
+        "fallback": null,
+        "exit_code": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0,
+        "report": "out/runs/owned-array-snapshot-final-20261109-3/native-reports/snapshot-emission-767-1/LlvmApi-O2/compile.json",
+        "report_sha256": "cc39a8d077d2c68d9fa15deba526bd45e1a6d059d1354eca81bda92f0faf1c39",
+        "status_sha256": "6cc546a5638e984f9933ced3ab9a573a08d859ab2ef2ec3fbc35654829359190",
+        "executable_sha256": "03a00a22132704baed2be5d56a47d515ba0d111659b726b84faf50f66c8df782",
+        "execution_command_sha256": "cf647330db41ebc8f883e1e1718fda4f7e01e0598d4c4bd53b16a1d9e4a170ed",
+        "builder_objects": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 6008,
+            "input_kind": "builder",
+            "parse_ns": 0
+          }
+        ]
+      }
+    ]
+  },
+  "native_audit": {
+    "path": "out/runs/owned-array-snapshot-final-20261109-3/native-audit.json",
+    "sha256": "84f0a4990690ef11a87b029bbead1e4fb11d43119437297b0729c3342978ce08"
+  },
+  "independent_review": {
+    "result": "Non-author source, test-only delta and final execution evidence accepted with no remaining blocker within the recorded scope.",
+    "reports": [
+      {
+        "scope": "Analyze",
+        "report": "/workspace/scratch/36bf9939e558/wt-owned-array-snapshot-analyze-review/out/runs/owned-array-snapshot-analyze-independent-review-20261109-1/final-review.md",
+        "sha256": "2ba4560189ce198a76cc8316ccf17a350fc67baab2004edce5e11060b42d21e1"
+      },
+      {
+        "scope": "Verify core",
+        "report": "/workspace/scratch/36bf9939e558/wt-owned-array-snapshot-analyze-review/out/runs/owned-array-snapshot-verify-core-independent-review-20261109-1/review.md",
+        "sha256": "dcd0b16715ec32c3f471acc64b77b066ae0b0179fd44c1f06aacd85f11070c0f"
+      },
+      {
+        "scope": "Verify paths",
+        "report": "/workspace/scratch/36bf9939e558/wt-owned-array-snapshot-analyze-review/out/runs/owned-array-snapshot-verify-paths-independent-review-20261109-1/review.md",
+        "sha256": "59a2b43fad18367d181c0b6b071e59b553397ac20e6d939381cdf0da2a9475aa"
+      },
+      {
+        "scope": "Verify physical relations",
+        "report": "/workspace/scratch/36bf9939e558/wt-owned-array-snapshot-analyze-review/out/runs/owned-array-snapshot-physical-verify-independent-review-20261109-1/review.md",
+        "sha256": "6f7263760a0ab5ca8a881d95f6bc0a128497f7b1f582dce1f185e0c89d6d3fd2"
+      },
+      {
+        "scope": "Verify read access",
+        "report": "/workspace/scratch/36bf9939e558/wt-owned-array-snapshot-analyze-review/out/runs/owned-array-snapshot-read-access-independent-review-20261109-1/review.md",
+        "sha256": "0cffeef3e0459d8ce6f5196b284706bd219e4ae1e5345e6b266f5da72f396148"
+      },
+      {
+        "scope": "Verify SSA groups",
+        "report": "/workspace/scratch/36bf9939e558/wt-owned-array-snapshot-analyze-review/out/runs/owned-array-snapshot-ssa-groups-independent-review-20261109-1/review.md",
+        "sha256": "aec58868d8536ad52c159d482f364eff7098f3e5da56b5ad1bd55ba1f3d48b44"
+      },
+      {
+        "scope": "Backend work",
+        "report": "/workspace/scratch/36bf9939e558/wt-owned-array-snapshot-analyze-review/out/runs/owned-array-snapshot-backend-independent-review-20261109-1/review.md",
+        "sha256": "7d65356c674d260d0dec0b5a33a18cd87fb1f1284e2fbb48787648daa1de037b"
+      },
+      {
+        "scope": "Standard fixtures and measured work",
+        "report": "/workspace/scratch/36bf9939e558/wt-owned-array-snapshot-analyze-review/out/runs/owned-array-snapshot-standard-fixture-independent-review-20261109-1/review.md",
+        "sha256": "99b53430c87b778baa746c41c7d7f1bce4cfdd948560ea507755d0b72edf7946"
+      },
+      {
+        "scope": "Assertion formatting",
+        "report": "/workspace/scratch/36bf9939e558/wt-owned-array-snapshot-analyze-review/out/runs/owned-array-snapshot-format-independent-review-20261109-1/review.md",
+        "sha256": "49c751f1d2c889aa8e20207e555a39be2bc57459bcfd276a192cc3c9d4f9ca08"
+      },
+      {
+        "scope": "Final test-only delta and actual execution evidence",
+        "report": "/workspace/scratch/36bf9939e558/wt-owned-array-snapshot-analyze-review/out/runs/owned-array-snapshot-final-evidence-independent-review-20261109-1/review.md",
+        "sha256": "7ae234ab15f38d44c4420dfe46247b0e4213fbff973a64295cf8a90c2f8ce521"
+      }
+    ],
+    "final_evidence": "/workspace/scratch/36bf9939e558/wt-owned-array-snapshot-analyze-review/out/runs/owned-array-snapshot-final-evidence-independent-review-20261109-1/ddfee-final-evidence.json",
+    "final_evidence_sha256": "f2ac40de8d2ec68a218eb205c52900dc0db0161fc99d07325dbceb7453558e1e"
+  },
+  "budget_boundaries": {
+    "measurement": "Existing exact pins were changed only after the original failure log exposed the new measured work. No input, budget or validation path was weakened.",
+    "ordinary_array_source_work": 2212903,
+    "billing_work": {
+      "scalar": 1543,
+      "array_middle": 12354,
+      "array_first": 12354
+    },
+    "owning_trait_verify_work": {
+      "ordinary_Package": 543695,
+      "fallible_owned_result": 528952
+    },
+    "controls": "N succeeds, N-1 rejects, fresh sessions and exact cold/warm/reuse loops remain. The final array-first exact warm loop, previously after the old failing pin, executed successfully in the 55-test suite."
+  },
+  "preserved_failure_evidence": [
+    {
+      "source": "e434fb3f07cc48f7ca3f1f487e1e50dc0ffa5697",
+      "tree": "92f1c68a24bf93775f8d900e20bd3a4fa306b5b3",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "nominal_trait_bounds",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "started_utc": "2026-11-09T14:33:29.190779+00:00",
+      "elapsed_seconds": 78.75,
+      "exit_code": 101,
+      "status": "Fail",
+      "test_groups": 1,
+      "tests": {
+        "passed": 195,
+        "failed": 2,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [
+        "owning_trait_hosts::owned_results::stored_composition::ordinary_error_places_have_exact_fresh_independent_resource_work",
+        "owning_trait_hosts::owned_results::stored_composition::ordinary_package_fields_have_exact_fresh_analysis_and_verification_work"
+      ],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "out/runs/owned-array-snapshot-composition-first-20261109/all-traits.log",
+      "log_sha256": "d74beb390fe5cd8882552018335bb4f4f40c170f55b8187e05950bba3fa61c46"
+    },
+    {
+      "source": "e434fb3f07cc48f7ca3f1f487e1e50dc0ffa5697",
+      "tree": "92f1c68a24bf93775f8d900e20bd3a4fa306b5b3",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "aggregates",
+        "mixed_holder::shared_address_array::",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "started_utc": "2026-11-09T14:34:48.021280+00:00",
+      "elapsed_seconds": 40.768,
+      "exit_code": 101,
+      "status": "Fail",
+      "test_groups": 1,
+      "tests": {
+        "passed": 46,
+        "failed": 8,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 353
+      },
+      "failed_tests": [
+        "mixed_holder::shared_address_array::array_billing_mode_is_consistent_across_scalar_reuse_and_function_order",
+        "mixed_holder::shared_address_array::array_slots_and_actual_pointee_snapshot_budgets_are_exact_and_fresh",
+        "mixed_holder::shared_address_array::dynamic_shared_array_index::dynamic_snapshot_and_alternative_budgets_are_exact_and_fresh",
+        "mixed_holder::shared_address_array::dynamic_shared_array_index::rich_call_completeness_costs_grow_with_actual_input_and_output_ports",
+        "mixed_holder::shared_address_array::ordinary_wide_array_completes_source_raw_and_wire_verification",
+        "mixed_holder::shared_address_array::package_shared_array::large_package_array_reports_its_actual_default_source_work_boundary",
+        "mixed_holder::shared_address_array::package_shared_array::package_array_slots_pointee_and_parent_snapshot_budgets_are_exact_and_fresh",
+        "mixed_holder::shared_address_array::shared_array_snapshot_initialization::whole_snapshot_initialization_costs_grow_with_actual_roots_and_slots"
+      ],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "out/runs/owned-array-snapshot-composition-first-20261109/arrays.log",
+      "log_sha256": "62a8b5315bf12e1df590d574c6ce50615e45811e74c8cf18c8285569c40989c2"
+    },
+    {
+      "source": "128ea0a15e9801750af348bd7f98c8220d974773",
+      "tree": "96c55f9c8f568f66fe6bfd92e79b56a74e90e130",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "aggregates",
+        "mixed_holder::shared_address_array::array_billing_mode_is_consistent_across_scalar_reuse_and_function_order",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "started_utc": "2026-11-09T14:41:58.785126+00:00",
+      "elapsed_seconds": 5.234,
+      "exit_code": 101,
+      "status": "Fail",
+      "test_groups": 1,
+      "tests": {
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 407
+      },
+      "failed_tests": [
+        "mixed_holder::shared_address_array::array_billing_mode_is_consistent_across_scalar_reuse_and_function_order"
+      ],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "out/runs/owned-array-snapshot-billing-final-20261109-1/original-billing.log",
+      "log_sha256": "ac4065953459c85874dc69fd0b6cb18fa207cd3ffd8e6cab2b3b11570361a0e3"
+    },
+    {
+      "source": "a964b3de65c2aa68641a46c24e29f2126a97f4b6",
+      "tree": "a05b47f10e8cdaccaa95d9a62eb55ab9bc2094ff",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "started_utc": "2026-11-09T14:46:16.383766+00:00",
+      "elapsed_seconds": 7.501,
+      "exit_code": 1,
+      "status": "Fail",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "out/runs/owned-array-snapshot-final-20261109-1/fmt.log",
+      "log_sha256": "f5252ada8c886527902a8a6a3ff5aef32a91107b1be4dc510b9f044e6069a3a7"
+    },
+    {
+      "source": "6cfb6ae3acbe467094dcc4faae953755fe55ddc3",
+      "tree": "39308efe888b4a90aef6b53732b09fb41b83e86a",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--workspace",
+        "--all-targets",
+        "--features",
+        "zil-driver/llvm-api",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "started_utc": "2026-11-09T14:54:57.960173+00:00",
+      "elapsed_seconds": 44.419,
+      "exit_code": 101,
+      "status": "Fail",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "out/runs/owned-array-snapshot-final-20261109-2/strict.log",
+      "log_sha256": "1b4aeac3ba9c78166d2a5d11122fb590b26f34f1b6f2a6587d25fb01df4541db"
+    },
+    {
+      "source": "6cfb6ae3acbe467094dcc4faae953755fe55ddc3",
+      "tree": "39308efe888b4a90aef6b53732b09fb41b83e86a",
+      "source_unchanged": true,
+      "command": [
+        "bash",
+        "out/runs/owned-array-snapshot-analyze-final-20261109/docs.sh"
+      ],
+      "started_utc": "2026-11-09T14:55:42.440464+00:00",
+      "elapsed_seconds": 1.677,
+      "exit_code": 1,
+      "status": "Fail",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "out/runs/owned-array-snapshot-final-20261109-2/docs.log",
+      "log_sha256": "b4a71806a9fb70eed9eeeab4fc7d012cc681b4cadbdf9eb4d18857c98044c880"
+    }
+  ],
+  "prior_backend_boundary": {
+    "source": "43f2da9e8a12fe0929d67801e3b0190b626454f1",
+    "directory": "out/runs/owned-array-snapshot-wire-native-stop-20261109",
+    "status": "Eight actual Build attempts stopped at codegen ResourceLimit: Copy aggregate snapshot emission budget exceeded; zero machine executions at this stage. The required backend fix was selected only after this original-input failure.",
+    "later_production_success": "e434 completed the same Source/raw/Wire paths and eight machine executions; the standard ddfee native acceptance above independently repeats the original inputs."
+  },
+  "toolchain": {
+    "rust": "1.99.1",
+    "llvm_clang_lld": "23.1.4",
+    "host": "x86_64-unknown-linux-gnu",
+    "default_limits": true,
+    "increased_stack": false
+  },
+  "limitations": [
+    "Acceptance is limited to the recorded existing ordinary owning and shared-address Array profile and host/backend matrix.",
+    "Map growth and the original large Map default-Verify budget are separate acceptance work.",
+    "This receipt does not assert native undefined behavior for the earlier initialization defect.",
+    "This receipt does not close the language-completeness or 1.0 release gates."
+  ]
+}
