@@ -9,6 +9,83 @@ const WORK: &str = "POD Store admission";
 
 const PREFIX: &str = "@builtin:OwnedStore<";
 
+// Only preflight publishes successes for actual Type nodes borrowed from this
+// one immutable module. No state, resource debt or loan permission enters it.
+pub(super) struct CarrierCache {
+    module: usize,
+    complete: BTreeSet<usize>,
+}
+
+fn cached_carrier(
+    module: &TypedModule,
+    element: &Type,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    budget.spend(1, "POD carrier cache scope lookup")?;
+    let Some(cache) = &budget.pod_store_carriers else {
+        return Ok(false);
+    };
+    if cache.module != module as *const TypedModule as usize {
+        return Ok(false);
+    }
+    let len = cache.complete.len();
+    budget.lookup(len, "POD carrier cache actual element lookup")?;
+    Ok(budget
+        .pod_store_carriers
+        .as_ref()
+        .unwrap()
+        .complete
+        .contains(&(element as *const Type as usize)))
+}
+
+/// Called only by the completed raw-Type preflight, after the ORIGINAL complete
+/// carrier check succeeded for this actual module-owned element reference.
+/// All fees precede publication, including allocation of the first table.
+pub(super) fn publish_carrier(
+    module: &TypedModule,
+    element: &Type,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    budget.spend(1, "POD carrier preflight publication scope")?;
+    let module_key = module as *const TypedModule as usize;
+    if budget
+        .pod_store_carriers
+        .as_ref()
+        .is_some_and(|cache| cache.module != module_key)
+    {
+        return Err(bad("POD carrier preflight cache belongs to another module"));
+    }
+    let len = budget
+        .pod_store_carriers
+        .as_ref()
+        .map_or(0, |cache| cache.complete.len());
+    budget.lookup(len, "POD carrier preflight publication membership")?;
+    let key = element as *const Type as usize;
+    if budget
+        .pod_store_carriers
+        .as_ref()
+        .is_some_and(|cache| cache.complete.contains(&key))
+    {
+        return Ok(());
+    }
+    if budget.pod_store_carriers.is_none() {
+        budget.spend(1, "POD carrier preflight cache header")?;
+    }
+    // Membership and insertion are separate BTreeSet searches. Charge both
+    // actual traversals before changing the existing table or creating one.
+    budget.lookup(len, "POD carrier preflight entry insertion")?;
+    budget.spend(1, "POD carrier preflight cache entry")?;
+    budget
+        .pod_store_carriers
+        .get_or_insert_with(|| CarrierCache {
+            module: module_key,
+            complete: BTreeSet::new(),
+        })
+        .complete
+        .insert(key);
+    Ok(())
+}
+
 fn unsupported(message: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::unsupported(Phase::Analyze, message, None)]
 }
@@ -98,6 +175,21 @@ fn layout(ty: &Type, budget: &mut Budget) -> CompileResult<(u64, u64)> {
 /// Every new Store occurrence, including unused metadata and constructor-only
 /// elements, needs its exact complete sealed resource, independently of Types.
 pub(super) fn carrier(
+    module: &TypedModule,
+    element: &Type,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    if cached_carrier(module, element, budget)? {
+        return Ok(());
+    }
+    // A successful miss intentionally does not publish: the element may be a
+    // temporary clone whose address can be reused later in this same request.
+    carrier_uncached(module, element, budget)
+}
+
+// Frozen complete cold path. Its target/layout/canonical/related/type/teardown
+// checks and all original charges remain independent of the positive table.
+fn carrier_uncached(
     module: &TypedModule,
     element: &Type,
     budget: &mut Budget,
@@ -422,3 +514,7 @@ mod composite_root_tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "pod_store/cache_tests.rs"]
+mod cache_tests;

@@ -23,6 +23,7 @@ pub(super) struct Budget {
     // Derived from raw instructions; only avoids work in unaffected modules.
     pub(super) static_utf8: bool,
     pub(super) pod_stores: bool,
+    pub(super) pod_store_carriers: Option<super::pod_store::CarrierCache>,
     pub(super) dyn_interfaces: BTreeSet<zil_ir::DynInterfaceId>,
     pub(super) partial_depth: usize,
     pub(super) helper_nodes: usize,
@@ -126,6 +127,7 @@ impl Budget {
             addressed_copy_sums: BTreeMap::new(),
             static_utf8: false,
             pod_stores: false,
+            pod_store_carriers: None,
             dyn_interfaces: BTreeSet::new(),
             partial_depth: limits.max_call_depth,
             helper_nodes: limits.max_nodes,
@@ -1412,6 +1414,9 @@ pub(super) fn preflight(
     }
     for element in pod_store_elements {
         super::pod_store::carrier(module, element, budget)?;
+        // Actual references in this Vec come from the immutable raw module
+        // graph (including OwnedStoreNew). Publish only complete successes.
+        super::pod_store::publish_carrier(module, element, budget)?;
         // POD addresses use the existing actual-head/element loan machinery.
         // This private presence flag activates work; it grants no permission.
         budget.head_descriptions = true;
