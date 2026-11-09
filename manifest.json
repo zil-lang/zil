@@ -1,39 +1,40 @@
 {
   "format": 1,
-  "created_utc": "2026-11-09 11:20:47 UTC",
-  "prior_archive": "73ccc182350f573f009092a417ce32728ab6723a",
+  "created_utc": "2026-11-09 11:40:52 UTC",
+  "prior_archive": "9ed19a2952dcb42995b9cc4c725cb418e9fbd03c",
   "commit_parents": [
-    "73ccc182350f573f009092a417ce32728ab6723a",
-    "e3ce439c28348ea6599f1fb70b4fc08c3ef86ec3"
+    "9ed19a2952dcb42995b9cc4c725cb418e9fbd03c",
+    "5f6d885ed7e31e0d3b5db036db39636d84e84875"
   ],
   "commit_tips": [
-    "1fdd1b7467eeeb83e4745fab37a7817373d8d644",
-    "b3cc010149b93fc23909a0b82c9f4251e23cd0cf",
-    "e9db96c021e05cc7f355956abeca31265d5ed5b9",
-    "e3ce439c28348ea6599f1fb70b4fc08c3ef86ec3"
+    "9ed19a2952dcb42995b9cc4c725cb418e9fbd03c",
+    "5f6d885ed7e31e0d3b5db036db39636d84e84875",
+    "bbb2df1246719579c9ff6b506b3e2d80bd73d4af",
+    "7e83ea3408a7d674569e2b532061f4ba72c8ab35",
+    "424791b5367fbd4e290e8a6d790677615adc5758"
   ],
   "local_refs": {},
   "remote_refs": {
-    "refs/heads/archive/source-history": "73ccc182350f573f009092a417ce32728ab6723a",
-    "refs/heads/main": "e3ce439c28348ea6599f1fb70b4fc08c3ef86ec3",
-    "refs/heads/task/G3.4.17": "e9db96c021e05cc7f355956abeca31265d5ed5b9"
+    "refs/heads/archive/source-history": "9ed19a2952dcb42995b9cc4c725cb418e9fbd03c",
+    "refs/heads/main": "5f6d885ed7e31e0d3b5db036db39636d84e84875",
+    "refs/heads/task/G10.3.3": "bbb2df1246719579c9ff6b506b3e2d80bd73d4af"
   },
   "worktrees": [],
   "missing_commit_objects": [],
   "retirements": [
     {
-      "ref": "refs/heads/task/G3.4.17",
-      "head_before_retirement": "e9db96c021e05cc7f355956abeca31265d5ed5b9",
-      "original_task_tip": "1fdd1b7467eeeb83e4745fab37a7817373d8d644",
-      "accepted_main": "e3ce439c28348ea6599f1fb70b4fc08c3ef86ec3",
-      "pull_request": 61,
-      "remote_history_reachable_through_parent": "e3ce439c28348ea6599f1fb70b4fc08c3ef86ec3",
-      "published_source": "b3cc010149b93fc23909a0b82c9f4251e23cd0cf",
-      "source_tree": "df99e8e00a5aec6fc15d40522cb2fc1bb4dd6277",
+      "ref": "refs/heads/task/G10.3.3",
+      "head_before_retirement": "bbb2df1246719579c9ff6b506b3e2d80bd73d4af",
+      "original_task_tip": "424791b5367fbd4e290e8a6d790677615adc5758",
+      "accepted_main": "5f6d885ed7e31e0d3b5db036db39636d84e84875",
+      "pull_request": 62,
+      "remote_history_reachable_through_parent": "5f6d885ed7e31e0d3b5db036db39636d84e84875",
+      "published_source": "7e83ea3408a7d674569e2b532061f4ba72c8ab35",
+      "source_tree": "97a88ba9b6c9c4f05f1f77a7a52deeba5fefc5d0",
       "local_execution_identity": {
-        "source": "327927a24af6980b7dcff32ce4275f965272a26e",
-        "receipt_commit": "5f84350ffe16102d29c6a0d64fc46742eab2f18b",
-        "branch": "task/shared-array-dynamic",
+        "source": "47f7fdc9bbff576d0c6be77b856f9be48bd2acb1",
+        "receipt_commit": "f3e94adbf6b8f6859d15b211f3865b34526f9528",
+        "branch": "task/large-owned-abi",
         "branch_retained": true,
         "remote_commit_identity_claimed": false,
         "complete_trees_identical_to_remote": true
@@ -41,5 +42,5 @@
       "unique_uncommitted_source": false
     }
   ],
-  "scope": "Preserve the accepted dynamic shared-array selection task before retirement. The complete original 17-path task delta, original source/tests, and current initialization contracts are included; all remote history is reachable through actual commit parents. Large owning ABI and ongoing snapshot/collection work remain separate retained tasks."
+  "scope": "Preserve the accepted large ordinary owning Package snapshot/internal ABI task before retirement. The six original paths and all original programs/assertions are accepted; all remote source history remains reachable through actual commit parents. Ordinary Closure large ABI, owning shared-array snapshots and growing-collection work remain separate retained tasks."
 }
