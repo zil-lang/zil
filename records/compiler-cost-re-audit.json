@@ -1,0 +1,23 @@
+{
+  "status": "Research ongoing; first candidate NoGo/Hold, not integrated",
+  "task": "G10.5.1",
+  "goal_read_sha": "0b43c2f5d7b8294b6e7a41effdfe021b5faa869e",
+  "parent_status_before": "待执行",
+  "parent_status_after": "进行中; parent acceptance not closed",
+  "baseline": "327eccfaf3169d1404534ddc16359310a21a40ad",
+  "measured_source": "02c75de950b64339cdf6136331b8e685f65ccffe",
+  "delivery_head": "a8309e74744e24c979528b09b7823c32e9e5b10e",
+  "branch": "task/G10.5.1",
+  "compile_requests": 288,
+  "formal_requests": 252,
+  "native_output_checks": 864,
+  "current_zil_verifications": 192,
+  "performance_decision": "NoGo: large-case cold/warm/CPU/RSS/code-size regressions despite editing improvement",
+  "independent_review": "NotRun",
+  "runtime_quality": "NotRun",
+  "merge_allowed": false,
+  "evidence": "https://github.com/zil-lang/zil/tree/a8309e74744e24c979528b09b7823c32e9e5b10e/.task/G10.5.1",
+  "native_run": "https://github.com/zil-lang/zil/actions/runs/42612992774",
+  "goal_old_sha256": "1c6e1a074adaae3e6a543646d697a88cfc39a5c0f463c00274adf8e80314d639",
+  "goal_new_sha256": "75668a89a5547760e469b3b687e24c503819f1428b1ae92c18788d2dd44646b4"
+}
