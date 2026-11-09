@@ -7,6 +7,7 @@ use copy_aggregates::{Slot, classify};
 use zil_base::Limits;
 
 #[derive(Clone, Default)]
+#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 pub(super) struct Signature {
     pub(super) parameters: Vec<Option<Slot>>,
     pub(super) result: Option<Slot>,
@@ -18,6 +19,7 @@ impl Signature {
     }
 }
 #[derive(Default)]
+#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 pub(super) struct Plans {
     pub(super) remaining_work: usize,
     pub(super) values: BTreeMap<FunctionId, copy_aggregates::Plan>,

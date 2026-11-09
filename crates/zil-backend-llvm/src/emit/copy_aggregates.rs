@@ -3,10 +3,16 @@
 //! cleanup flags; copying their bytes never creates another cleanup obligation.
 use super::*;
 use zil_base::Limits;
+mod emission_work;
+#[cfg(test)]
+mod emission_work_tests;
+#[cfg(test)]
+mod max_plan_reference;
 
 const MIN_BYTES: u64 = 4096;
 
 #[derive(Clone)]
+#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 pub(super) struct Slot {
     pub(super) ty: m::Ty,
     pub(super) bytes: u64,
@@ -40,6 +46,10 @@ pub(super) fn plan(
     limits: &Limits,
     remaining_work: usize,
 ) -> CompileResult<super::large_copy_abi::Plans> {
+    #[cfg(test)]
+    if max_plan_reference::enabled() {
+        return max_plan_reference::plan(lir, limits, remaining_work);
+    }
     let mut work = remaining_work;
     let mut plans = BTreeMap::new();
     let store_protocols = dynamic_store::plan(lir.resources, limits, &mut work)?;
@@ -104,6 +114,9 @@ pub(super) fn plan(
             // operations before growing function event buffers. Use a paid
             // shape upper bound; wide construction/call operands count too.
             let shape = values.values().map(|slot| slot.work).max().unwrap();
+            // Keep complete source planning fees in Slot.work. Repeated
+            // physical consumers use a separately paid machine-clone metric.
+            let machines = emission_work::allocations(&values, &mut work, limits)?;
             for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
                 let operands = match &instruction.kind {
                     InstructionKind::MakeAggregate { fields }
@@ -119,9 +132,21 @@ pub(super) fn plan(
                     | InstructionKind::CallClosureOnce { arguments, .. } => arguments.len(),
                     _ => 2,
                 };
-                let cost = shape
-                    .saturating_mul(operands.saturating_add(4))
-                    .saturating_add(32);
+                let precise = emission_work::instruction(
+                    function,
+                    instruction,
+                    &values,
+                    &machines,
+                    &mut work,
+                    limits,
+                )?;
+                let cost = if precise {
+                    0
+                } else {
+                    shape
+                        .saturating_mul(operands.saturating_add(4))
+                        .saturating_add(32)
+                };
                 work = work.checked_sub(cost).ok_or_else(|| {
                     vec![Diagnostic::limit(
                         Phase::Codegen,
