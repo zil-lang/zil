@@ -33,8 +33,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g linux-tools-generic
           sudo sysctl -w kernel.perf_event_paranoid=1
-          PERF=$(find /usr/lib/linux-tools -name perf -type f | sort | tail -1)
+          PERF=''
+          for tool in /usr/lib/linux-tools-*/perf /usr/lib/linux-tools/*/perf; do
+            if [ -x "$tool" ]; then PERF=$(readlink -f "$tool"); break; fi
+          done
           test -n "$PERF"
+          "$PERF" --version | tee "$RUNNER_TEMP/compiler-profile-setup/perf-version.txt"
           echo "PERF=$PERF" >> "$GITHUB_ENV"
           git fetch --no-tags --depth=1 origin 82a69812582856b012468db3d019930d8e390f64
           git worktree add --detach "$RUNNER_TEMP/compiler-profile-source" 82a69812582856b012468db3d019930d8e390f64
