@@ -10,6 +10,8 @@ mod sorted_join_tests;
 mod ssa_values;
 #[cfg(test)]
 mod tag_forgetting_tests;
+#[cfg(test)]
+mod tagged_locals_tests;
 
 pub(crate) fn owned(ty: &Type) -> bool {
     match ty {
@@ -1032,7 +1034,8 @@ pub(super) struct Plan {
     // executed State, effect, permission or current tag fact enters this cache.
     initial_template: std::cell::RefCell<Option<Facts>>,
     // Immutable local indices whose exact Tree constructor contains tag state.
-    // None preserves the established scheduling/fees outside mixed consumers.
+    // Excluded Types receive their complete immutable qualification once in
+    // this request's Plan; only actual tagged Trees need dynamic invalidation.
     tagged_locals: Option<Vec<LocalId>>,
     partial: Option<partial_places::Meta>,
     observations: BTreeMap<ValueId, (LocalId, Vec<VariantProjection>)>,
@@ -1143,10 +1146,7 @@ impl Plan {
             }
         }
         let partial = partial || (address_tag && address_replacement);
-        let tagged_locals = if partial
-            && budget.store_option_results
-            && (budget.task_borrowed_results || budget.ordinary_error_places)
-        {
+        let tagged_locals = if partial {
             budget.spend(
                 f.locals.len().saturating_mul(2).saturating_add(1),
                 "mixed tag local index allocation",
@@ -1155,11 +1155,13 @@ impl Plan {
             for local in &f.locals {
                 budget.spend(1, "mixed tag local classification")?;
                 let mut pending = vec![&local.ty];
+                let mut has_tag = false;
                 while let Some(ty) = pending.pop() {
                     budget.spend(1, "mixed tag tree node classification")?;
                     match ty {
                         Type::Enum { .. } | Type::ErrorUnion { .. } => {
                             tagged.push(local.id);
+                            has_tag = true;
                             break;
                         }
                         Type::Tuple(fields) => {
@@ -1174,6 +1176,13 @@ impl Plan {
                         // neither stores tag knowledge or mutable route state.
                         _ => {}
                     }
+                }
+                if !has_tag {
+                    // The removed full-tree visit also qualified closed/dyn
+                    // context and set request-wide Task/Mutex/registration
+                    // presence. Preserve that complete static work once,
+                    // before publishing the Plan; no dynamic fact is cached.
+                    budget.type_work(&local.ty, true, "mutable local Enum tag knowledge")?;
                 }
             }
             Some(tagged)

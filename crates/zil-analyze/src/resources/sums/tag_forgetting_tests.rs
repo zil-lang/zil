@@ -97,7 +97,7 @@ fn scalar_enum(name: &str) -> Type {
     }
 }
 
-fn vary(tree: &mut Arc<Tree>, tags: usize, missing: usize, at: &mut usize) {
+pub(super) fn vary(tree: &mut Arc<Tree>, tags: usize, missing: usize, at: &mut usize) {
     let node = Arc::make_mut(tree);
     node.missing = missing & (1 << (*at % 8)) != 0;
     *at += 1;
