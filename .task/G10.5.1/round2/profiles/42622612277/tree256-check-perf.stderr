@@ -1,0 +1,2 @@
+[ perf record: Woken up 1 times to write data ]
+[ perf record: Captured and wrote 0.014 MB /home/runner/work/_temp/compiler-profile-data/tree256-check-perf.data (61 samples) ]

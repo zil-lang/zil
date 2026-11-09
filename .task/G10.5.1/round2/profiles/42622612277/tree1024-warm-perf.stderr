@@ -1,0 +1,2 @@
+[ perf record: Woken up 1 times to write data ]
+[ perf record: Captured and wrote 0.071 MB /home/runner/work/_temp/compiler-profile-data/tree1024-warm-perf.data (424 samples) ]

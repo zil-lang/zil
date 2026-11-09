@@ -1,0 +1,1215 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 348  of event 'cpu-clock:u'
+# Event count (approx.): 349047132
+#
+# Overhead  Command  Shared Object         Symbol                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
+# ........  .......  ....................  ............................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................
+#
+     4.02%  zil      libc.so.6             [.] 0x00000000001986a5
+            |
+            ---0x7f4f965986a5
+               |          
+               |--0.86%--_RNvCskZsULKPymvW_10zil_syntax28parse_with_attribute_context
+               |          _RNCNvNtCskisEDKHZPXH_10zil_driver7project12load_sourcess7_0B5_
+               |          _RNvNtCskisEDKHZPXH_10zil_driver7project12load_sources
+               |          _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               |          _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               |          _RNvCsetfMigruApW_3zil4main
+               |          _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               |          _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               |          _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               |          main
+               |          0x7f4f9642a1ca
+               |          __libc_start_main
+               |          _start
+               |          
+               |--0.57%--_RNvCsc5PQW4bWZlo_10zil_verify13verify_inputs.llvm.17971262986256161439
+               |          _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12finish_typed
+               |          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               |          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               |          _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               |          _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               |          _RNvCsetfMigruApW_3zil4main
+               |          _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               |          _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               |          _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               |          main
+               |          0x7f4f9642a1ca
+               |          __libc_start_main
+               |          _start
+               |          
+                --0.57%--_RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinesj_0EB8_
+                          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+                          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+                          _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+                          _RNvCskisEDKHZPXH_10zil_driver12compile_path
+                          _RNvCsetfMigruApW_3zil4main
+                          _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+                          _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+                          _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+                          main
+                          0x7f4f9642a1ca
+                          __libc_start_main
+                          _start
+
+     3.45%  zil      zil                   [.] _RNvMNtNtCs3gObxm39eny_10zil_expand8generics6budgetNtB2_6Budget4expr
+            |
+            ---_RNvMNtNtCs3gObxm39eny_10zil_expand8generics6budgetNtB2_6Budget4expr
+               |          
+               |--2.87%--_RNvMNtNtCs3gObxm39eny_10zil_expand8generics6budgetNtB2_6Budget4expr
+               |          |          
+               |          |--1.72%--_RNvMNtNtCs3gObxm39eny_10zil_expand8generics6budgetNtB2_6Budget9statement
+               |          |          _RNvMNtNtCs3gObxm39eny_10zil_expand8generics6budgetNtB2_6Budget5block
+               |          |          _RNvMNtNtCs3gObxm39eny_10zil_expand8generics6budgetNtB2_6Budget8function
+               |          |          _RNvMNtNtCs3gObxm39eny_10zil_expand8generics6budgetNtB2_6Budget7item_at
+               |          |          _RNvNtCs3gObxm39eny_10zil_expand7modules9normalize
+               |          |          _RNvCs3gObxm39eny_10zil_expand38expand_program_with_limits_target_impl.llvm.14741976037713575064
+               |          |          _RNCNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB6_7session18CompilationSession16project_pipelinese_0B6_
+               |          |          _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinese_0EB8_
+               |          |          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               |          |          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               |          |          _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               |          |          _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               |          |          _RNvCsetfMigruApW_3zil4main
+               |          |          _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               |          |          _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               |          |          _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               |          |          main
+               |          |          0x7f4f9642a1ca
+               |          |          __libc_start_main
+               |          |          _start
+               |          |          
+               |           --1.15%--_RNvMNtNtCs3gObxm39eny_10zil_expand8generics6budgetNtB2_6Budget4expr
+               |                     |          
+               |                      --0.86%--_RNvMNtNtCs3gObxm39eny_10zil_expand8generics6budgetNtB2_6Budget4expr
+               |                                _RNvMNtNtCs3gObxm39eny_10zil_expand8generics6budgetNtB2_6Budget4expr
+               |                                _RNvMNtNtCs3gObxm39eny_10zil_expand8generics6budgetNtB2_6Budget9statement
+               |                                _RNvMNtNtCs3gObxm39eny_10zil_expand8generics6budgetNtB2_6Budget5block
+               |                                _RNvMNtNtCs3gObxm39eny_10zil_expand8generics6budgetNtB2_6Budget8function
+               |                                _RNvMNtNtCs3gObxm39eny_10zil_expand8generics6budgetNtB2_6Budget7item_at
+               |                                _RNvNtCs3gObxm39eny_10zil_expand7modules9normalize
+               |                                _RNvCs3gObxm39eny_10zil_expand38expand_program_with_limits_target_impl.llvm.14741976037713575064
+               |                                _RNCNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB6_7session18CompilationSession16project_pipelinese_0B6_
+               |                                _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinese_0EB8_
+               |                                _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               |                                _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               |                                _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               |                                _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               |                                _RNvCsetfMigruApW_3zil4main
+               |                                _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               |                                _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               |                                _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               |                                main
+               |                                0x7f4f9642a1ca
+               |                                __libc_start_main
+               |                                _start
+               |          
+                --0.57%--_RNvMNtNtCs3gObxm39eny_10zil_expand8generics6budgetNtB2_6Budget9statement
+                          _RNvMNtNtCs3gObxm39eny_10zil_expand8generics6budgetNtB2_6Budget5block
+                          _RNvMNtNtCs3gObxm39eny_10zil_expand8generics6budgetNtB2_6Budget8function
+                          _RNvMNtNtCs3gObxm39eny_10zil_expand8generics6budgetNtB2_6Budget7item_at
+                          _RNvNtCs3gObxm39eny_10zil_expand7modules9normalize
+                          _RNvCs3gObxm39eny_10zil_expand38expand_program_with_limits_target_impl.llvm.14741976037713575064
+                          _RNCNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB6_7session18CompilationSession16project_pipelinese_0B6_
+                          _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinese_0EB8_
+                          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+                          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+                          _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+                          _RNvCskisEDKHZPXH_10zil_driver12compile_path
+                          _RNvCsetfMigruApW_3zil4main
+                          _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+                          _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+                          _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+                          main
+                          0x7f4f9642a1ca
+                          __libc_start_main
+                          _start
+
+     2.59%  zil      zil                   [.] _RNvMNtCs6SLt9Xd1Cef_8zil_base10source_mapNtB2_9SourceMap8validate
+            |
+            ---_RNvMNtCs6SLt9Xd1Cef_8zil_base10source_mapNtB2_9SourceMap8validate
+               _RNvCs3gObxm39eny_10zil_expand20expand_inner_project
+               _RNvCs3gObxm39eny_10zil_expand38expand_program_with_limits_target_impl.llvm.14741976037713575064
+               _RNCNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB6_7session18CompilationSession16project_pipelinese_0B6_
+               _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinese_0EB8_
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     2.01%  zil      libc.so.6             [.] 0x00000000000ab115
+            |
+            ---0x7f4f964ab115
+               cfree
+               |          
+               |--0.57%--_RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtCsaL74zRrgtH9_6zil_ir11TypedModuleECsc5PQW4bWZlo_10zil_verify
+               |          _RNvMsn_NtCsgFX3jaOk65H_5alloc4syncINtB5_3ArcNtNtCsaL74zRrgtH9_6zil_ir7program12TypedProgramE9drop_slowCsc5PQW4bWZlo_10zil_verify
+               |          _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueINtNtNtNtCsgFX3jaOk65H_5alloc11collections5btree3map8BTreeMapNtCsbPJhKKPmf2N_6zil_db8QueryKeyNtNtCskisEDKHZPXH_10zil_driver7session11RawSnapshotEEB2a_
+               |          _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtNtCskisEDKHZPXH_10zil_driver7session18CompilationSessionEBF_.llvm.934054822109850997
+               |          _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               |          _RNvCsetfMigruApW_3zil4main
+               |          _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               |          _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               |          _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               |          main
+               |          0x7f4f9642a1ca
+               |          __libc_start_main
+               |          _start
+               |          
+                --0.57%--_RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtCsaL74zRrgtH9_6zil_ir12CoreFunctionECskisEDKHZPXH_10zil_driver
+                          _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtCsaL74zRrgtH9_6zil_ir10CoreModuleECskisEDKHZPXH_10zil_driver
+                          _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueINtNtCsgFX3jaOk65H_5alloc3vec3VecNtNtCsaL74zRrgtH9_6zil_ir7program13ProgramModuleEECskisEDKHZPXH_10zil_driver
+                          _RNvMsn_NtCsgFX3jaOk65H_5alloc4syncINtB5_3ArcNtNtCsaL74zRrgtH9_6zil_ir7program11CoreProgramE9drop_slowCskisEDKHZPXH_10zil_driver
+                          _RNvMsn_NtCsgFX3jaOk65H_5alloc4syncINtB5_3ArcNtNtCs2UYEwBrnYjz_9zil_types11preparation15PreparedProgramE9drop_slowCskisEDKHZPXH_10zil_driver
+                          _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueINtNtNtNtCsgFX3jaOk65H_5alloc11collections5btree3map8BTreeMapNtCsbPJhKKPmf2N_6zil_db8QueryKeyNtNtCskisEDKHZPXH_10zil_driver7session11RawSnapshotEEB2a_
+                          _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtNtCskisEDKHZPXH_10zil_driver7session18CompilationSessionEBF_.llvm.934054822109850997
+                          _RNvCskisEDKHZPXH_10zil_driver12compile_path
+                          _RNvCsetfMigruApW_3zil4main
+                          _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+                          _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+                          _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+                          main
+                          0x7f4f9642a1ca
+                          __libc_start_main
+                          _start
+
+     2.01%  zil      zil                   [.] _RNvMNtCs2UYEwBrnYjz_9zil_types5namesNtB2_5Names4expr
+            |
+            ---_RNvMNtCs2UYEwBrnYjz_9zil_types5namesNtB2_5Names4expr
+               |          
+               |--1.15%--_RNvMNtCs2UYEwBrnYjz_9zil_types5namesNtB2_5Names9expr_pair
+               |          _RNvMNtCs2UYEwBrnYjz_9zil_types5namesNtB2_5Names9expr_pair
+               |          |          
+               |          |--0.57%--_RNvMNtCs2UYEwBrnYjz_9zil_types5namesNtB2_5Names9expr_pair
+               |          |          _RNvMNtCs2UYEwBrnYjz_9zil_types5namesNtB2_5Names5block
+               |          |          _RNvNtCs2UYEwBrnYjz_9zil_types9inference31infer_program_closures_borrowed.llvm.8680426074298322630
+               |          |          _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinesj_0EB8_
+               |          |          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               |          |          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               |          |          _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               |          |          _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               |          |          _RNvCsetfMigruApW_3zil4main
+               |          |          _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               |          |          _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               |          |          _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               |          |          main
+               |          |          0x7f4f9642a1ca
+               |          |          __libc_start_main
+               |          |          _start
+               |          |          
+               |           --0.57%--_RNvMNtCs2UYEwBrnYjz_9zil_types5namesNtB2_5Names5block
+               |                     _RINvNtCs2UYEwBrnYjz_9zil_types5names13check_modulesINtNtNtNtCskADBYZwJmSU_4core4iter8adapters3map3MapINtNtNtBW_5slice4iter4IterNtNtCsaL74zRrgtH9_6zil_ir7program13ProgramModuleENCNvNtB4_7program33check_resolved_program_with_reuses8_0EEB4_
+               |                     _RNvNtCs2UYEwBrnYjz_9zil_types7program33check_resolved_program_with_reuse.llvm.8680426074298322630
+               |                     _RNvMNtCs2UYEwBrnYjz_9zil_types11incrementalNtB2_15FunctionSession22check_prepared_program
+               |                     _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinesm_0EB8_
+               |                     _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               |                     _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               |                     _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               |                     _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               |                     _RNvCsetfMigruApW_3zil4main
+               |                     _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               |                     _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               |                     _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               |                     main
+               |                     0x7f4f9642a1ca
+               |                     __libc_start_main
+               |                     _start
+               |          
+                --0.57%--_RNvMNtCs2UYEwBrnYjz_9zil_types5namesNtB2_5Names9expr_call
+                          _RNvMNtCs2UYEwBrnYjz_9zil_types5namesNtB2_5Names5block
+
+     2.01%  zil      zil                   [.] _RNvNtCsgrNnBZsR7d6_11zil_analyze6budget9preflight
+            |
+            ---_RNvNtCsgrNnBZsR7d6_11zil_analyze6budget9preflight
+               _RNvCsgrNnBZsR7d6_11zil_analyze16analyze_budgeted
+               _RNvMNtCsgrNnBZsR7d6_11zil_analyze11incrementalNtB2_15AnalysisSession13analyze_input.llvm.1080555181016764749
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12finish_typed
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     1.72%  zil      libc.so.6             [.] cfree
+            |
+            ---cfree
+               |          
+                --0.86%--_RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtNtCskZsULKPymvW_10zil_syntax3ast8ExprKindECs3gObxm39eny_10zil_expand
+                          |          
+                           --0.57%--_RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtNtCskZsULKPymvW_10zil_syntax3ast8ExprKindECs3gObxm39eny_10zil_expand
+                                     _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtNtCskZsULKPymvW_10zil_syntax3ast8ExprKindECs3gObxm39eny_10zil_expand
+
+     1.72%  zil      libc.so.6             [.] 0x00000000000ac5fa
+            |
+            ---0x7f4f964ac5fa
+               |          
+               |--1.15%--0x7f4f964ad125
+               |          realloc
+               |          |          
+               |           --0.57%--_RNvMs5_NtCsgFX3jaOk65H_5alloc7raw_vecNtB5_11RawVecInner11finish_growCskZsULKPymvW_10zil_syntax
+               |          
+                --0.57%--malloc
+
+     1.72%  zil      zil                   [.] _RNvMs_NtCs3gObxm39eny_10zil_expand7modulesNtB4_7Visitor9expr_name
+            |
+            ---_RNvMs_NtCs3gObxm39eny_10zil_expand7modulesNtB4_7Visitor9expr_name
+               |          
+               |--0.86%--_RNvMs_NtCs3gObxm39eny_10zil_expand7modulesNtB4_7Visitor9expr_pair
+               |          _RNvMs_NtCs3gObxm39eny_10zil_expand7modulesNtB4_7Visitor13expr_children
+               |          |          
+               |           --0.57%--_RNvMs_NtCs3gObxm39eny_10zil_expand7modulesNtB4_7Visitor9expr_pair
+               |                     _RNvMs_NtCs3gObxm39eny_10zil_expand7modulesNtB4_7Visitor13expr_children
+               |          
+                --0.57%--_RNvMs_NtCs3gObxm39eny_10zil_expand7modulesNtB4_7Visitor9expr_call
+                          _RNvMs_NtCs3gObxm39eny_10zil_expand7modulesNtB4_7Visitor9statement
+                          _RNvMs_NtCs3gObxm39eny_10zil_expand7modulesNtB4_7Visitor5block
+                          _RNvMs_NtCs3gObxm39eny_10zil_expand7modulesNtB4_7Visitor4item
+                          _RNvNtCs3gObxm39eny_10zil_expand7modules9normalize
+                          _RNvCs3gObxm39eny_10zil_expand38expand_program_with_limits_target_impl.llvm.14741976037713575064
+                          _RNCNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB6_7session18CompilationSession16project_pipelinese_0B6_
+                          _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinese_0EB8_
+                          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+                          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+                          _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+                          _RNvCskisEDKHZPXH_10zil_driver12compile_path
+                          _RNvCsetfMigruApW_3zil4main
+                          _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+                          _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+                          _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+                          main
+                          0x7f4f9642a1ca
+                          __libc_start_main
+                          _start
+
+     1.72%  zil      zil                   [.] _RNvNtNtCs9pKAipXZTi8_4sha26sha2567x86_sha8compress
+            |
+            ---_RNvNtNtCs9pKAipXZTi8_4sha26sha2567x86_sha8compress
+               |          
+               |--0.57%--_RNvMs0_NtCs2UYEwBrnYjz_9zil_types11incrementalNtB5_7BodyKey4expr
+               |          _RNvMs0_NtCs2UYEwBrnYjz_9zil_types11incrementalNtB5_7BodyKey5block
+               |          _RNvMs_NtCs2UYEwBrnYjz_9zil_types11incrementalNtB4_5Reuse7prepare
+               |          _RNvNtCs2UYEwBrnYjz_9zil_types7program33check_resolved_program_with_reuse.llvm.8680426074298322630
+               |          _RNvMNtCs2UYEwBrnYjz_9zil_types11incrementalNtB2_15FunctionSession22check_prepared_program
+               |          _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinesm_0EB8_
+               |          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               |          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               |          _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               |          _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               |          _RNvCsetfMigruApW_3zil4main
+               |          _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               |          _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               |          _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               |          main
+               |          0x7f4f9642a1ca
+               |          __libc_start_main
+               |          _start
+               |          
+                --0.57%--_RNvMs9_Cs6SLt9Xd1Cef_8zil_baseNtB5_11Fingerprint2of
+
+     1.72%  zil      zil                   [.] _RNvXs2R_NtCskZsULKPymvW_10zil_syntax3astNtB6_8ExprKindNtNtCskADBYZwJmSU_4core5clone5Clone5clone
+            |
+            ---_RNvXs2R_NtCskZsULKPymvW_10zil_syntax3astNtB6_8ExprKindNtNtCskADBYZwJmSU_4core5clone5Clone5clone
+               |          
+               |--0.86%--_RNvXs2a_NtCskZsULKPymvW_10zil_syntax3astNtB6_8StmtKindNtNtCskADBYZwJmSU_4core5clone5Clone5clone
+               |          _RNvXsj_NtCskZsULKPymvW_10zil_syntax3astNtB5_8FunctionNtNtCskADBYZwJmSU_4core5clone5Clone5clone
+               |          _RNvXsb_NtCskZsULKPymvW_10zil_syntax3astNtB5_8ItemKindNtNtCskADBYZwJmSU_4core5clone5Clone5clone
+               |          _RNvNtCs3gObxm39eny_10zil_expand7modules9normalize
+               |          _RNvCs3gObxm39eny_10zil_expand38expand_program_with_limits_target_impl.llvm.14741976037713575064
+               |          _RNCNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB6_7session18CompilationSession16project_pipelinese_0B6_
+               |          _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinese_0EB8_
+               |          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               |          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               |          _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               |          _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               |          _RNvCsetfMigruApW_3zil4main
+               |          _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               |          _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               |          _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               |          main
+               |          0x7f4f9642a1ca
+               |          __libc_start_main
+               |          _start
+               |          
+                --0.86%--_RNvXs2R_NtCskZsULKPymvW_10zil_syntax3astNtB6_8ExprKindNtNtCskADBYZwJmSU_4core5clone5Clone5clone
+                          |          
+                           --0.57%--_RNvXs2a_NtCskZsULKPymvW_10zil_syntax3astNtB6_8StmtKindNtNtCskADBYZwJmSU_4core5clone5Clone5clone
+                                     _RNvXsj_NtCskZsULKPymvW_10zil_syntax3astNtB5_8FunctionNtNtCskADBYZwJmSU_4core5clone5Clone5clone
+                                     _RNvXsb_NtCskZsULKPymvW_10zil_syntax3astNtB5_8ItemKindNtNtCskADBYZwJmSU_4core5clone5Clone5clone
+                                     _RNvNtCs3gObxm39eny_10zil_expand7modules9normalize
+                                     _RNvCs3gObxm39eny_10zil_expand38expand_program_with_limits_target_impl.llvm.14741976037713575064
+                                     _RNCNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB6_7session18CompilationSession16project_pipelinese_0B6_
+                                     _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinese_0EB8_
+                                     _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+                                     _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+                                     _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+                                     _RNvCskisEDKHZPXH_10zil_driver12compile_path
+                                     _RNvCsetfMigruApW_3zil4main
+                                     _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+                                     _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+                                     _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+                                     main
+                                     0x7f4f9642a1ca
+                                     __libc_start_main
+                                     _start
+
+     1.44%  zil      libc.so.6             [.] 0x00000000001a16ac
+            |
+            ---0x7f4f965a16ac
+               |          
+                --0.57%--_RNvNtCs2UYEwBrnYjz_9zil_types9inference7headers
+                          _RNvNtCs2UYEwBrnYjz_9zil_types9inference31infer_program_closures_borrowed.llvm.8680426074298322630
+                          _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinesj_0EB8_
+                          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+                          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+                          _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+                          _RNvCskisEDKHZPXH_10zil_driver12compile_path
+                          _RNvCsetfMigruApW_3zil4main
+                          _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+                          _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+                          _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+                          main
+                          0x7f4f9642a1ca
+                          __libc_start_main
+                          _start
+
+     1.44%  zil      zil                   [.] _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtNtCskZsULKPymvW_10zil_syntax3ast8ExprKindECskisEDKHZPXH_10zil_driver
+            |
+            ---_RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtNtCskZsULKPymvW_10zil_syntax3ast8ExprKindECskisEDKHZPXH_10zil_driver
+               |          
+                --1.15%--_RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtNtCskZsULKPymvW_10zil_syntax3ast8ExprKindECskisEDKHZPXH_10zil_driver
+                          |          
+                           --0.86%--_RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtNtCskZsULKPymvW_10zil_syntax3ast8FunctionECskisEDKHZPXH_10zil_driver
+                                     _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtCskZsULKPymvW_10zil_syntax11ParseResultECskisEDKHZPXH_10zil_driver
+                                     _RNvMsn_NtCsgFX3jaOk65H_5alloc4syncINtB5_3ArcNtCskZsULKPymvW_10zil_syntax11ParseResultE9drop_slowCskisEDKHZPXH_10zil_driver
+                                     _RNvMsn_NtCsgFX3jaOk65H_5alloc4syncINtB5_3ArcNtNtCskisEDKHZPXH_10zil_driver7project13ProjectSyntaxE9drop_slowBK_
+                                     _RNvMsn_NtCsgFX3jaOk65H_5alloc4syncINtB5_3ArcNtNtCskisEDKHZPXH_10zil_driver7project15ExpandedProjectE9drop_slowBK_
+                                     _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueINtNtNtNtCsgFX3jaOk65H_5alloc11collections5btree3map8BTreeMapNtCsbPJhKKPmf2N_6zil_db8QueryKeyNtNtCskisEDKHZPXH_10zil_driver7session11RawSnapshotEEB2a_
+                                     _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtNtCskisEDKHZPXH_10zil_driver7session18CompilationSessionEBF_.llvm.934054822109850997
+                                     _RNvCskisEDKHZPXH_10zil_driver12compile_path
+                                     _RNvCsetfMigruApW_3zil4main
+                                     _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+                                     _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+                                     _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+                                     main
+                                     0x7f4f9642a1ca
+                                     __libc_start_main
+                                     _start
+
+     1.44%  zil      zil                   [.] _RNvNtCs1cN39q6uPRJ_6zil_ct6source25validate_unchanged_source
+            |
+            ---_RNvNtCs1cN39q6uPRJ_6zil_ct6source25validate_unchanged_source
+               _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinesj_0EB8_
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     1.44%  zil      zil                   [.] _RNvXNtNtCs3gObxm39eny_10zil_expand8generics7optionsNtB2_5ProbeNtNtB6_12ct_selection7Visitor10expression
+            |
+            ---_RNvXNtNtCs3gObxm39eny_10zil_expand8generics7optionsNtB2_5ProbeNtNtB6_12ct_selection7Visitor10expression
+               |          
+                --1.15%--_RNvXNtNtCs3gObxm39eny_10zil_expand8generics7optionsNtB2_5ProbeNtNtB6_12ct_selection7Visitor10expression
+                          _RNvYNtNtNtCs3gObxm39eny_10zil_expand8generics7options5ProbeNtNtB8_12ct_selection7Visitor9statementB8_
+                          _RNvYNtNtNtCs3gObxm39eny_10zil_expand8generics7options5ProbeNtNtB8_12ct_selection7Visitor5blockB8_
+                          _RNvYNtNtNtCs3gObxm39eny_10zil_expand8generics7options5ProbeNtNtB8_12ct_selection7Visitor4itemB8_
+                          _RNvNtCs3gObxm39eny_10zil_expand8generics32specialize_products_with_runtime
+                          _RNvNtCs3gObxm39eny_10zil_expand7modules9normalize
+                          _RNvCs3gObxm39eny_10zil_expand38expand_program_with_limits_target_impl.llvm.14741976037713575064
+                          _RNCNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB6_7session18CompilationSession16project_pipelinese_0B6_
+                          _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinese_0EB8_
+                          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+                          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+                          _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+                          _RNvCskisEDKHZPXH_10zil_driver12compile_path
+                          _RNvCsetfMigruApW_3zil4main
+                          _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+                          _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+                          _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+                          main
+                          0x7f4f9642a1ca
+                          __libc_start_main
+                          _start
+
+     1.15%  zil      libc.so.6             [.] malloc
+            |
+            ---malloc
+
+     1.15%  zil      libc.so.6             [.] 0x00000000000a9bdb
+            |
+            ---0x7f4f964a9bdb
+               |          
+               |--0.57%--0x7f4f964a9e0b
+               |          0x7f4f964aae85
+               |          cfree
+               |          
+                --0.57%--0x7f4f964a9dba
+
+     1.15%  zil      libc.so.6             [.] 0x00000000001a16c4
+            |
+            ---0x7f4f965a16c4
+               _RINvCsaL74zRrgtH9_6zil_ir13encode_moduleNtB2_17FingerprintStreamEB2_.llvm.18153262956867015237
+               |          
+               |--0.57%--_RNvMs6_CsaL74zRrgtH9_6zil_irNtB5_13CandidatePlan9empty_for
+               |          _RNvCsgrNnBZsR7d6_11zil_analyze16analyze_budgeted
+               |          _RNvMNtCsgrNnBZsR7d6_11zil_analyze11incrementalNtB2_15AnalysisSession13analyze_input.llvm.1080555181016764749
+               |          _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12finish_typed
+               |          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               |          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               |          _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               |          _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               |          _RNvCsetfMigruApW_3zil4main
+               |          _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               |          _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               |          _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               |          main
+               |          0x7f4f9642a1ca
+               |          __libc_start_main
+               |          _start
+               |          
+                --0.57%--_RNvMs5_CsaL74zRrgtH9_6zil_irNtB5_11TypedModule11fingerprint
+                          _RNvCsc5PQW4bWZlo_10zil_verify13verify_inputs.llvm.17971262986256161439
+                          _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12finish_typed
+                          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+                          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+                          _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+                          _RNvCskisEDKHZPXH_10zil_driver12compile_path
+                          _RNvCsetfMigruApW_3zil4main
+                          _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+                          _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+                          _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+                          main
+                          0x7f4f9642a1ca
+                          __libc_start_main
+                          _start
+
+     1.15%  zil      zil                   [.] _RINvMNtCskZsULKPymvW_10zil_syntax5lexerNtB3_5Lexer13consume_whileNvNtB5_7unicode15is_xid_continueEB5_
+            |
+            ---_RINvMNtCskZsULKPymvW_10zil_syntax5lexerNtB3_5Lexer13consume_whileNvNtB5_7unicode15is_xid_continueEB5_
+               _RNvNtCskZsULKPymvW_10zil_syntax5lexer15lex_with_limits
+               _RNvCskZsULKPymvW_10zil_syntax28parse_with_attribute_context
+               _RNCNvNtCskisEDKHZPXH_10zil_driver7project12load_sourcess7_0B5_
+               _RNvNtCskisEDKHZPXH_10zil_driver7project12load_sources
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     1.15%  zil      zil                   [.] _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtCsaL74zRrgtH9_6zil_ir12CoreExprKindECskisEDKHZPXH_10zil_driver
+            |
+            ---_RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtCsaL74zRrgtH9_6zil_ir12CoreExprKindECskisEDKHZPXH_10zil_driver
+               |          
+               |--0.57%--_RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtCsaL74zRrgtH9_6zil_ir12CoreFunctionECskisEDKHZPXH_10zil_driver
+               |          _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtCsaL74zRrgtH9_6zil_ir10CoreModuleECskisEDKHZPXH_10zil_driver
+               |          _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueINtNtCsgFX3jaOk65H_5alloc3vec3VecNtNtCsaL74zRrgtH9_6zil_ir7program13ProgramModuleEECskisEDKHZPXH_10zil_driver
+               |          _RNvMsn_NtCsgFX3jaOk65H_5alloc4syncINtB5_3ArcNtNtCsaL74zRrgtH9_6zil_ir7program11CoreProgramE9drop_slowCskisEDKHZPXH_10zil_driver
+               |          _RNvMsn_NtCsgFX3jaOk65H_5alloc4syncINtB5_3ArcNtNtCs2UYEwBrnYjz_9zil_types11preparation15PreparedProgramE9drop_slowCskisEDKHZPXH_10zil_driver
+               |          _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueINtNtNtNtCsgFX3jaOk65H_5alloc11collections5btree3map8BTreeMapNtCsbPJhKKPmf2N_6zil_db8QueryKeyNtNtCskisEDKHZPXH_10zil_driver7session11RawSnapshotEEB2a_
+               |          _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtNtCskisEDKHZPXH_10zil_driver7session18CompilationSessionEBF_.llvm.934054822109850997
+               |          _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               |          _RNvCsetfMigruApW_3zil4main
+               |          _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               |          _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               |          _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               |          main
+               |          0x7f4f9642a1ca
+               |          __libc_start_main
+               |          _start
+               |          
+                --0.57%--_RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtCsaL74zRrgtH9_6zil_ir12CoreExprKindECskisEDKHZPXH_10zil_driver
+                          _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtCsaL74zRrgtH9_6zil_ir12CoreExprKindECskisEDKHZPXH_10zil_driver
+
+     1.15%  zil      zil                   [.] _RINvNtNtNtCskADBYZwJmSU_4core4iter8adapters7flatten17and_then_or_clearINtNtB4_5chain5ChainINtNtB4_3map3MapIB17_IB17_INtNtNtB6_7sources4once4OnceRNtCsaL74zRrgtH9_6zil_ir4TypeEIB1r_INtNtNtB8_5slice4iter4IterNtB2l_9LocalDeclENCNCNvNtCsgrNnBZsR7d6_11zil_analyze6budget9preflight00EEIB2S_B2j_EENCB3A_s_0EINtNtB4_10filter_map9FilterMapINtB2_7FlatMapIB2S_NtB2l_10BasicBlockEIB2S_NtB2l_11InstructionENCB3A_s0_0ENCB3A_s1_0EETB2i_INtNtB8_6option6OptionB2i_EIB6L_NtB2l_9ClosureIdEbENvYB16_NtNtNtB6_6traits8iterator8Iterator4nextEB3G_
+            |
+            ---_RINvNtNtNtCskADBYZwJmSU_4core4iter8adapters7flatten17and_then_or_clearINtNtB4_5chain5ChainINtNtB4_3map3MapIB17_IB17_INtNtNtB6_7sources4once4OnceRNtCsaL74zRrgtH9_6zil_ir4TypeEIB1r_INtNtNtB8_5slice4iter4IterNtB2l_9LocalDeclENCNCNvNtCsgrNnBZsR7d6_11zil_analyze6budget9preflight00EEIB2S_B2j_EENCB3A_s_0EINtNtB4_10filter_map9FilterMapINtB2_7FlatMapIB2S_NtB2l_10BasicBlockEIB2S_NtB2l_11InstructionENCB3A_s0_0ENCB3A_s1_0EETB2i_INtNtB8_6option6OptionB2i_EIB6L_NtB2l_9ClosureIdEbENvYB16_NtNtNtB6_6traits8iterator8Iterator4nextEB3G_
+               _RINvNtNtNtCskADBYZwJmSU_4core4iter8adapters5chain17and_then_or_clearINtB2_5ChainINtNtB4_7flatten7FlatMapINtNtNtB8_5slice4iter4IterNtCsaL74zRrgtH9_6zil_ir13TypedFunctionEIB15_INtNtB4_3map3MapIB15_IB15_INtNtNtB6_7sources4once4OnceRNtB26_4TypeEIB2N_IB1F_NtB26_9LocalDeclENCNCNvNtCsgrNnBZsR7d6_11zil_analyze6budget9preflight00EEIB1F_B3F_EENCB4k_s_0EINtNtB4_10filter_map9FilterMapIB1h_IB1F_NtB26_10BasicBlockEIB1F_NtB26_11InstructionENCB4k_s0_0ENCB4k_s1_0EENCB4m_0EIB2N_IB1F_NtB26_18ResourceDefinitionENCB4m_s_0EETB3E_INtNtB8_6option6OptionB3E_EIB8g_NtB26_9ClosureIdEbENvYB14_NtNtNtB6_6traits8iterator8Iterator4nextEB4q_
+               _RNvNtCsgrNnBZsR7d6_11zil_analyze6budget9preflight
+               _RNvCsgrNnBZsR7d6_11zil_analyze16analyze_budgeted
+               _RNvMNtCsgrNnBZsR7d6_11zil_analyze11incrementalNtB2_15AnalysisSession13analyze_input.llvm.1080555181016764749
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12finish_typed
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     1.15%  zil      zil                   [.] _RNvCsc5PQW4bWZlo_10zil_verify17check_instruction
+            |
+            ---_RNvCsc5PQW4bWZlo_10zil_verify17check_instruction
+               _RNvCsc5PQW4bWZlo_10zil_verify14check_function
+               _RNvCsc5PQW4bWZlo_10zil_verify13verify_inputs.llvm.17971262986256161439
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12finish_typed
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     1.15%  zil      zil                   [.] _RNvMs0_NtCs2UYEwBrnYjz_9zil_types13managed_slotsNtB5_11BindingScan4expr
+            |
+            ---_RNvMs0_NtCs2UYEwBrnYjz_9zil_types13managed_slotsNtB5_11BindingScan4expr
+               |          
+                --0.86%--_RNvMs0_NtCs2UYEwBrnYjz_9zil_types13managed_slotsNtB5_11BindingScan9expr_pair
+                          |          
+                           --0.57%--_RNvMs0_NtCs2UYEwBrnYjz_9zil_types13managed_slotsNtB5_11BindingScan9expr_pair
+                                     _RNvMs0_NtCs2UYEwBrnYjz_9zil_types13managed_slotsNtB5_11BindingScan5block
+                                     _RNvMs_Cs2UYEwBrnYjz_9zil_typesNtB4_7Builder3new
+                                     _RNvNtCs2UYEwBrnYjz_9zil_types7program33check_resolved_program_with_reuse.llvm.8680426074298322630
+                                     _RNvMNtCs2UYEwBrnYjz_9zil_types11incrementalNtB2_15FunctionSession22check_prepared_program
+                                     _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinesm_0EB8_
+                                     _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+                                     _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+                                     _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+                                     _RNvCskisEDKHZPXH_10zil_driver12compile_path
+                                     _RNvCsetfMigruApW_3zil4main
+                                     _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+                                     _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+                                     _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+                                     main
+                                     0x7f4f9642a1ca
+                                     __libc_start_main
+                                     _start
+
+     1.15%  zil      zil                   [.] _RNvMs_NtCs1cN39q6uPRJ_6zil_ct6sourceNtB4_6Walker14unchanged_expr
+            |
+            ---_RNvMs_NtCs1cN39q6uPRJ_6zil_ct6sourceNtB4_6Walker14unchanged_expr
+               |          
+                --0.86%--_RNvMs_NtCs1cN39q6uPRJ_6zil_ct6sourceNtB4_6Walker14unchanged_expr
+                          |          
+                           --0.57%--_RNvMs_NtCs1cN39q6uPRJ_6zil_ct6sourceNtB4_6Walker15unchanged_block
+                                     _RNvNtCs1cN39q6uPRJ_6zil_ct6source25validate_unchanged_source
+                                     _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinesj_0EB8_
+                                     _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+                                     _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+                                     _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+                                     _RNvCskisEDKHZPXH_10zil_driver12compile_path
+                                     _RNvCsetfMigruApW_3zil4main
+                                     _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+                                     _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+                                     _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+                                     main
+                                     0x7f4f9642a1ca
+                                     __libc_start_main
+                                     _start
+
+     1.15%  zil      zil                   [.] _RNvNtCs2UYEwBrnYjz_9zil_types9inference22expression_has_closure
+            |
+            ---_RNvNtCs2UYEwBrnYjz_9zil_types9inference22expression_has_closure
+               |          
+               |--0.57%--_RNvNtCs2UYEwBrnYjz_9zil_types9inference29expression_has_closure_binary
+               |          _RNvNtCs2UYEwBrnYjz_9zil_types9inference29expression_has_closure_binary
+               |          
+                --0.57%--_RNvNtCs2UYEwBrnYjz_9zil_types9inference22expression_has_closure
+                          _RNvNtCs2UYEwBrnYjz_9zil_types9inference16contains_closure
+                          _RNvNtCs2UYEwBrnYjz_9zil_types9inference31infer_program_closures_borrowed.llvm.8680426074298322630
+                          _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinesj_0EB8_
+                          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+                          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+                          _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+                          _RNvCskisEDKHZPXH_10zil_driver12compile_path
+                          _RNvCsetfMigruApW_3zil4main
+                          _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+                          _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+                          _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+                          main
+                          0x7f4f9642a1ca
+                          __libc_start_main
+                          _start
+
+     1.15%  zil      zil                   [.] _RNvNtCsgrNnBZsR7d6_11zil_analyze6scopes5check
+            |
+            ---_RNvNtCsgrNnBZsR7d6_11zil_analyze6scopes5check
+               _RNvCsgrNnBZsR7d6_11zil_analyze16analyze_budgeted
+               _RNvMNtCsgrNnBZsR7d6_11zil_analyze11incrementalNtB2_15AnalysisSession13analyze_input.llvm.1080555181016764749
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12finish_typed
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     1.15%  zil      zil                   [.] _RNvNtCskZsULKPymvW_10zil_syntax7unicode12is_xid_start
+            |
+            ---_RNvNtCskZsULKPymvW_10zil_syntax7unicode12is_xid_start
+               _RNvNtCskZsULKPymvW_10zil_syntax5lexer15lex_with_limits
+               _RNvCskZsULKPymvW_10zil_syntax28parse_with_attribute_context
+               _RNCNvNtCskisEDKHZPXH_10zil_driver7project12load_sourcess7_0B5_
+               _RNvNtCskisEDKHZPXH_10zil_driver7project12load_sources
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     0.86%  zil      libc.so.6             [.] 0x00000000000a9d41
+            |
+            ---0x7f4f964a9d41
+               0x7f4f964aae85
+               cfree
+
+     0.86%  zil      libc.so.6             [.] 0x00000000000ab300
+            |
+            ---0x7f4f964ab300
+               cfree
+
+     0.86%  zil      libc.so.6             [.] 0x00000000001a19d2
+            |
+            ---0x7f4f965a19d2
+               realloc
+               |          
+                --0.57%--_RNvMs5_NtCsgFX3jaOk65H_5alloc7raw_vecNtB5_11RawVecInner11finish_growCs3gObxm39eny_10zil_expand
+                          _RNvMs4_NtCsgFX3jaOk65H_5alloc7raw_vecINtB5_6RawVecINtNtCskADBYZwJmSU_4core6option6OptionNtNtCskZsULKPymvW_10zil_syntax3ast7TypeRefEE8grow_oneCs3gObxm39eny_10zil_expand
+                          _RNvMNtCs3gObxm39eny_10zil_expand7mappingNtB4_8Expander8map_node
+
+     0.86%  zil      zil                   [.] _RINvCsaL74zRrgtH9_6zil_ir13encode_moduleNtB2_17FingerprintStreamEB2_.llvm.18153262956867015237
+            |
+            ---_RINvCsaL74zRrgtH9_6zil_ir13encode_moduleNtB2_17FingerprintStreamEB2_.llvm.18153262956867015237
+               _RNvMs6_CsaL74zRrgtH9_6zil_irNtB5_13CandidatePlan9empty_for
+               _RNvCsgrNnBZsR7d6_11zil_analyze16analyze_budgeted
+               _RNvMNtCsgrNnBZsR7d6_11zil_analyze11incrementalNtB2_15AnalysisSession13analyze_input.llvm.1080555181016764749
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12finish_typed
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     0.86%  zil      zil                   [.] _RNvCsc5PQW4bWZlo_10zil_verify13verify_inputs.llvm.17971262986256161439
+            |
+            ---_RNvCsc5PQW4bWZlo_10zil_verify13verify_inputs.llvm.17971262986256161439
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12finish_typed
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     0.86%  zil      zil                   [.] _RNvCsgrNnBZsR7d6_11zil_analyze16analyze_budgeted
+            |
+            ---_RNvCsgrNnBZsR7d6_11zil_analyze16analyze_budgeted
+               _RNvMNtCsgrNnBZsR7d6_11zil_analyze11incrementalNtB2_15AnalysisSession13analyze_input.llvm.1080555181016764749
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12finish_typed
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     0.86%  zil      zil                   [.] _RNvMNtCs2UYEwBrnYjz_9zil_types13scalar_shapesNtB2_6Walker4expr
+            |
+            ---_RNvMNtCs2UYEwBrnYjz_9zil_types13scalar_shapesNtB2_6Walker4expr
+               _RNvMNtCs2UYEwBrnYjz_9zil_types13scalar_shapesNtB2_6Walker4expr
+               |          
+                --0.57%--_RNvMNtCs2UYEwBrnYjz_9zil_types13scalar_shapesNtB2_6Walker5block
+                          _RNvNtCs2UYEwBrnYjz_9zil_types10aggregates24resolve_prepared_program
+                          _RNvMNtCs2UYEwBrnYjz_9zil_types11incrementalNtB2_15FunctionSession22check_prepared_program
+                          _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinesm_0EB8_
+                          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+                          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+                          _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+                          _RNvCskisEDKHZPXH_10zil_driver12compile_path
+                          _RNvCsetfMigruApW_3zil4main
+                          _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+                          _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+                          _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+                          main
+                          0x7f4f9642a1ca
+                          __libc_start_main
+                          _start
+
+     0.86%  zil      zil                   [.] _RNvMNtCs2UYEwBrnYjz_9zil_types8retainedNtB2_12Dependencies5block
+            |
+            ---_RNvMNtCs2UYEwBrnYjz_9zil_types8retainedNtB2_12Dependencies5block
+               _RNvNtCs2UYEwBrnYjz_9zil_types8retained19direct_dependencies
+               _RNvNtCs2UYEwBrnYjz_9zil_types9inference7prepare
+               _RNvNtCs2UYEwBrnYjz_9zil_types9inference31infer_program_closures_borrowed.llvm.8680426074298322630
+               _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinesj_0EB8_
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     0.86%  zil      zil                   [.] _RNvMs_Cs3gObxm39eny_10zil_expandNtB4_8Expander15lower_expr_call
+            |
+            ---_RNvMs_Cs3gObxm39eny_10zil_expandNtB4_8Expander15lower_expr_call
+               _RNvMs_Cs3gObxm39eny_10zil_expandNtB4_8Expander4stmt
+               _RNvMNtCs3gObxm39eny_10zil_expand9receiversNtB4_8Expander8function
+               _RNvCs3gObxm39eny_10zil_expand20expand_inner_project
+               _RNvCs3gObxm39eny_10zil_expand38expand_program_with_limits_target_impl.llvm.14741976037713575064
+               _RNCNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB6_7session18CompilationSession16project_pipelinese_0B6_
+               _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinese_0EB8_
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     0.86%  zil      zil                   [.] _RNvNtCs2UYEwBrnYjz_9zil_types5enums19project_definitions
+            |
+            ---_RNvNtCs2UYEwBrnYjz_9zil_types5enums19project_definitions
+               |          
+                --0.57%--_RNvNtCs2UYEwBrnYjz_9zil_types9inference31infer_program_closures_borrowed.llvm.8680426074298322630
+                          _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinesj_0EB8_
+                          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+                          _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+                          _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+                          _RNvCskisEDKHZPXH_10zil_driver12compile_path
+                          _RNvCsetfMigruApW_3zil4main
+                          _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+                          _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+                          _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+                          main
+                          0x7f4f9642a1ca
+                          __libc_start_main
+                          _start
+
+     0.86%  zil      zil                   [.] _RNvNtCs2UYEwBrnYjz_9zil_types5tasks13check_context
+            |
+            ---_RNvNtCs2UYEwBrnYjz_9zil_types5tasks13check_context
+               _RNvNtCs2UYEwBrnYjz_9zil_types12registration15add_definitions
+               _RNvNtCs2UYEwBrnYjz_9zil_types7program33check_resolved_program_with_reuse.llvm.8680426074298322630
+               _RNvMNtCs2UYEwBrnYjz_9zil_types11incrementalNtB2_15FunctionSession22check_prepared_program
+               _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinesm_0EB8_
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     0.57%  zil      libc.so.6             [.] 0x00000000000a9be1
+            |
+            ---0x7f4f964a9be1
+
+     0.57%  zil      libc.so.6             [.] 0x00000000000a9ce6
+            |
+            ---0x7f4f964a9ce6
+               0x7f4f964aae85
+               cfree
+               _RNvMsn_NtCsgFX3jaOk65H_5alloc4syncINtB5_3ArcNtNtCsaL74zRrgtH9_6zil_ir7program12TypedProgramE9drop_slowCsc5PQW4bWZlo_10zil_verify
+               _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueINtNtNtNtCsgFX3jaOk65H_5alloc11collections5btree3map8BTreeMapNtCsbPJhKKPmf2N_6zil_db8QueryKeyNtNtCskisEDKHZPXH_10zil_driver7session11RawSnapshotEEB2a_
+               _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtNtCskisEDKHZPXH_10zil_driver7session18CompilationSessionEBF_.llvm.934054822109850997
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     0.57%  zil      libc.so.6             [.] 0x0000000000198684
+            |
+            ---0x7f4f96598684
+
+     0.57%  zil      libc.so.6             [.] 0x00000000001a1653
+            |
+            ---0x7f4f965a1653
+
+     0.57%  zil      zil                   [.] _RINvMsi_NtNtNtCsgFX3jaOk65H_5alloc11collections5btree3mapINtB6_8BTreeMapNtCsbPJhKKPmf2N_6zil_db8QueryKeyNtNtB8_7set_val9SetValZSTE3getB18_EB1a_
+            |
+            ---_RINvMsi_NtNtNtCsgFX3jaOk65H_5alloc11collections5btree3mapINtB6_8BTreeMapNtCsbPJhKKPmf2N_6zil_db8QueryKeyNtNtB8_7set_val9SetValZSTE3getB18_EB1a_
+               _RNvMs1_CsbPJhKKPmf2N_6zil_dbNtB5_8Database10invalidate
+               _RNvMs1_CsbPJhKKPmf2N_6zil_dbNtB5_8Database7publish
+               _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession22query_with_dispositionNCNvMNtB8_7projectBG_16project_pipelines8_0EB8_
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     0.57%  zil      zil                   [.] _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueINtNtNtNtCsgFX3jaOk65H_5alloc11collections5btree3map8BTreeMapNtCs6SLt9Xd1Cef_8zil_base6FileIdRNtB1C_10SourceUnitEEB1C_
+            |
+            ---_RINvNtCskADBYZwJmSU_4core3ptr9drop_glueINtNtNtNtCsgFX3jaOk65H_5alloc11collections5btree3map8BTreeMapNtCs6SLt9Xd1Cef_8zil_base6FileIdRNtB1C_10SourceUnitEEB1C_
+               _RNvMNtCs6SLt9Xd1Cef_8zil_base10source_mapNtB2_9SourceMap8validate
+               _RNvCs3gObxm39eny_10zil_expand20expand_inner_project
+               _RNvCs3gObxm39eny_10zil_expand38expand_program_with_limits_target_impl.llvm.14741976037713575064
+               _RNCNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB6_7session18CompilationSession16project_pipelinese_0B6_
+               _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinese_0EB8_
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     0.57%  zil      zil                   [.] _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtCsaL74zRrgtH9_6zil_ir4TypeECs2UYEwBrnYjz_9zil_types
+            |
+            ---_RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtCsaL74zRrgtH9_6zil_ir4TypeECs2UYEwBrnYjz_9zil_types
+
+     0.57%  zil      zil                   [.] _RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtCsaL74zRrgtH9_6zil_ir4TypeECsc5PQW4bWZlo_10zil_verify
+            |
+            ---_RINvNtCskADBYZwJmSU_4core3ptr9drop_glueNtCsaL74zRrgtH9_6zil_ir4TypeECsc5PQW4bWZlo_10zil_verify
+
+     0.57%  zil      zil                   [.] _RNvCsc5PQW4bWZlo_10zil_verify14check_function
+            |
+            ---_RNvCsc5PQW4bWZlo_10zil_verify14check_function
+               _RNvCsc5PQW4bWZlo_10zil_verify13verify_inputs.llvm.17971262986256161439
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12finish_typed
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     0.57%  zil      zil                   [.] _RNvMNtCs2UYEwBrnYjz_9zil_types5namesNtB2_5Names5block
+            |
+            ---_RNvMNtCs2UYEwBrnYjz_9zil_types5namesNtB2_5Names5block
+
+     0.57%  zil      zil                   [.] _RNvMNtCs2UYEwBrnYjz_9zil_types8retainedNtB2_12Dependencies4expr
+            |
+            ---_RNvMNtCs2UYEwBrnYjz_9zil_types8retainedNtB2_12Dependencies4expr
+               _RNvMNtCs2UYEwBrnYjz_9zil_types8retainedNtB2_12Dependencies9expr_pair
+
+     0.57%  zil      zil                   [.] _RNvMNtCs3gObxm39eny_10zil_expand7mappingNtB4_8Expander8map_node
+            |
+            ---_RNvMNtCs3gObxm39eny_10zil_expand7mappingNtB4_8Expander8map_node
+
+     0.57%  zil      zil                   [.] _RNvMNtCskZsULKPymvW_10zil_syntax6parserNtB2_6Parser7at_word
+            |
+            ---_RNvMNtCskZsULKPymvW_10zil_syntax6parserNtB2_6Parser7at_word
+
+     0.57%  zil      zil                   [.] _RNvMs0_NtCs2UYEwBrnYjz_9zil_types11incrementalNtB5_7BodyKey4expr
+            |
+            ---_RNvMs0_NtCs2UYEwBrnYjz_9zil_types11incrementalNtB5_7BodyKey4expr
+               _RNvMs0_NtCs2UYEwBrnYjz_9zil_types11incrementalNtB5_7BodyKey4expr
+               _RNvMs0_NtCs2UYEwBrnYjz_9zil_types11incrementalNtB5_7BodyKey5block
+               _RNvMs_NtCs2UYEwBrnYjz_9zil_types11incrementalNtB4_5Reuse7prepare
+               _RNvNtCs2UYEwBrnYjz_9zil_types7program33check_resolved_program_with_reuse.llvm.8680426074298322630
+               _RNvMNtCs2UYEwBrnYjz_9zil_types11incrementalNtB2_15FunctionSession22check_prepared_program
+               _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinesm_0EB8_
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     0.57%  zil      zil                   [.] _RNvMs_Cs2UYEwBrnYjz_9zil_typesNtB4_7Builder14expr_call_body
+            |
+            ---_RNvMs_Cs2UYEwBrnYjz_9zil_typesNtB4_7Builder14expr_call_body
+               _RNCNvMs_Cs2UYEwBrnYjz_9zil_typesNtB6_7Builder4stmt0B6_
+               _RNvMs_Cs2UYEwBrnYjz_9zil_typesNtB4_7Builder5block
+               _RNvMs_Cs2UYEwBrnYjz_9zil_typesNtB4_7Builder6finish
+               _RNvNtCs2UYEwBrnYjz_9zil_types7program33check_resolved_program_with_reuse.llvm.8680426074298322630
+               _RNvMNtCs2UYEwBrnYjz_9zil_types11incrementalNtB2_15FunctionSession22check_prepared_program
+               _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinesm_0EB8_
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     0.57%  zil      zil                   [.] _RNvMs_Cs2UYEwBrnYjz_9zil_typesNtB4_7Builder4emit
+            |
+            ---_RNvMs_Cs2UYEwBrnYjz_9zil_typesNtB4_7Builder4emit
+
+     0.57%  zil      zil                   [.] _RNvMs_Cs3gObxm39eny_10zil_expandNtB4_8Expander13expr_expected
+            |
+            ---_RNvMs_Cs3gObxm39eny_10zil_expandNtB4_8Expander13expr_expected
+               _RNvMs_Cs3gObxm39eny_10zil_expandNtB4_8Expander17lower_expr_binary
+
+     0.57%  zil      zil                   [.] _RNvNtCs2UYEwBrnYjz_9zil_types5tasks14add_definition
+            |
+            ---_RNvNtCs2UYEwBrnYjz_9zil_types5tasks14add_definition
+               _RNvNtCs2UYEwBrnYjz_9zil_types7program33check_resolved_program_with_reuse.llvm.8680426074298322630
+               _RNvMNtCs2UYEwBrnYjz_9zil_types11incrementalNtB2_15FunctionSession22check_prepared_program
+               _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinesm_0EB8_
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     0.57%  zil      zil                   [.] _RNvNtCs2UYEwBrnYjz_9zil_types7program11imports_for
+            |
+            ---_RNvNtCs2UYEwBrnYjz_9zil_types7program11imports_for
+               _RNvNtCs2UYEwBrnYjz_9zil_types7program33check_resolved_program_with_reuse.llvm.8680426074298322630
+               _RNvMNtCs2UYEwBrnYjz_9zil_types11incrementalNtB2_15FunctionSession22check_prepared_program
+               _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinesm_0EB8_
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     0.57%  zil      zil                   [.] _RNvNtCs8ZKwes1zzDd_3std4path18compare_components
+            |
+            ---_RNvNtCs8ZKwes1zzDd_3std4path18compare_components
+               _RINvMsi_NtNtNtCsgFX3jaOk65H_5alloc11collections5btree3mapINtB6_8BTreeMapNtNtCs8ZKwes1zzDd_3std4path7PathBufNtCs6SLt9Xd1Cef_8zil_base8ModuleIdE3getB18_ECskisEDKHZPXH_10zil_driver
+               _RNvNtCskisEDKHZPXH_10zil_driver7project12load_sources
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     0.57%  zil      zil                   [.] _RNvNtCsc5PQW4bWZlo_10zil_verify7borrows20function_has_sources
+            |
+            ---_RNvNtCsc5PQW4bWZlo_10zil_verify7borrows20function_has_sources
+               _RNvNtCsc5PQW4bWZlo_10zil_verify7borrows5check
+               _RNvNtCsc5PQW4bWZlo_10zil_verify7borrows17check_module_mask
+               _RNvCsc5PQW4bWZlo_10zil_verify13verify_inputs.llvm.17971262986256161439
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12finish_typed
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     0.57%  zil      zil                   [.] _RNvXNvNtCs3gObxm39eny_10zil_expand9lifetimes8validateNtB2_4WalkNtNtB6_12ct_selection7Visitor10expression
+            |
+            ---_RNvXNvNtCs3gObxm39eny_10zil_expand9lifetimes8validateNtB2_4WalkNtNtB6_12ct_selection7Visitor10expression
+
+     0.57%  zil      zil                   [.] _RNvXNvNtCs3gObxm39eny_10zil_expand9lifetimes8validateNtB2_4WalkNtNtB6_12ct_selection7Visitor4item
+            |
+            ---_RNvXNvNtCs3gObxm39eny_10zil_expand9lifetimes8validateNtB2_4WalkNtNtB6_12ct_selection7Visitor4item
+               _RNvNtCs3gObxm39eny_10zil_expand8generics28specialize_products_prepared
+               _RNvNtCs3gObxm39eny_10zil_expand8generics32specialize_products_with_runtime
+               _RNvNtCs3gObxm39eny_10zil_expand7modules9normalize
+               _RNvCs3gObxm39eny_10zil_expand38expand_program_with_limits_target_impl.llvm.14741976037713575064
+               _RNCNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB6_7session18CompilationSession16project_pipelinese_0B6_
+               _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinese_0EB8_
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     0.57%  zil      zil                   [.] _RNvXs2a_NtCskZsULKPymvW_10zil_syntax3astNtB6_8StmtKindNtNtCskADBYZwJmSU_4core5clone5Clone5clone
+            |
+            ---_RNvXs2a_NtCskZsULKPymvW_10zil_syntax3astNtB6_8StmtKindNtNtCskADBYZwJmSU_4core5clone5Clone5clone
+               _RNvXsj_NtCskZsULKPymvW_10zil_syntax3astNtB5_8FunctionNtNtCskADBYZwJmSU_4core5clone5Clone5clone
+               _RNvXsb_NtCskZsULKPymvW_10zil_syntax3astNtB5_8ItemKindNtNtCskADBYZwJmSU_4core5clone5Clone5clone
+               _RNvNtCs3gObxm39eny_10zil_expand7modules9normalize
+               _RNvCs3gObxm39eny_10zil_expand38expand_program_with_limits_target_impl.llvm.14741976037713575064
+               _RNCNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB6_7session18CompilationSession16project_pipelinese_0B6_
+               _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinese_0EB8_
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     0.57%  zil      zil                   [.] _RNvXsP_NtCskZsULKPymvW_10zil_syntax3astNtB5_8TypeKindNtNtCskADBYZwJmSU_4core5clone5Clone5clone
+            |
+            ---_RNvXsP_NtCskZsULKPymvW_10zil_syntax3astNtB5_8TypeKindNtNtCskADBYZwJmSU_4core5clone5Clone5clone
+               _RNvXsj_NtCskZsULKPymvW_10zil_syntax3astNtB5_8FunctionNtNtCskADBYZwJmSU_4core5clone5Clone5clone
+               _RNvXsb_NtCskZsULKPymvW_10zil_syntax3astNtB5_8ItemKindNtNtCskADBYZwJmSU_4core5clone5Clone5clone
+               _RNvNtCs3gObxm39eny_10zil_expand7modules9normalize
+               _RNvCs3gObxm39eny_10zil_expand38expand_program_with_limits_target_impl.llvm.14741976037713575064
+               _RNCNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB6_7session18CompilationSession16project_pipelinese_0B6_
+               _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinese_0EB8_
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+     0.57%  zil      zil                   [.] _RNvXsj_NtCskZsULKPymvW_10zil_syntax3astNtB5_8FunctionNtNtCskADBYZwJmSU_4core5clone5Clone5clone
+            |
+            ---_RNvXsj_NtCskZsULKPymvW_10zil_syntax3astNtB5_8FunctionNtNtCskADBYZwJmSU_4core5clone5Clone5clone
+               _RNvXsb_NtCskZsULKPymvW_10zil_syntax3astNtB5_8ItemKindNtNtCskADBYZwJmSU_4core5clone5Clone5clone
+               _RNvNtCs3gObxm39eny_10zil_expand7modules9normalize
+               _RNvCs3gObxm39eny_10zil_expand38expand_program_with_limits_target_impl.llvm.14741976037713575064
+               _RNCNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB6_7session18CompilationSession16project_pipelinese_0B6_
+               _RINvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB6_18CompilationSession5queryNCNvMNtB8_7projectBG_16project_pipelinese_0EB8_
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession16project_pipeline
+               _RNvMNtCskisEDKHZPXH_10zil_driver7projectNtNtB4_7session18CompilationSession23compile_project_request
+               _RNvMs1_NtCskisEDKHZPXH_10zil_driver7sessionNtB5_18CompilationSession12compile_path
+               _RNvCskisEDKHZPXH_10zil_driver12compile_path
+               _RNvCsetfMigruApW_3zil4main
+               _RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsetfMigruApW_3zil
+               _RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0CsetfMigruApW_3zil
+               _RNvNtCs8ZKwes1zzDd_3std2rt19lang_start_internal
+               main
+               0x7f4f9642a1ca
+               __libc_start_main
+               _start
+
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#
