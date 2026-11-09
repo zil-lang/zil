@@ -1,0 +1,381 @@
+{
+  "schema_version": 1,
+  "status": "Pass for large ordinary owned Package physical snapshots and internal parameter/result ABI within the recorded scope",
+  "source": {
+    "commit": "47f7fdc9bbff576d0c6be77b856f9be48bd2acb1",
+    "tree": "97a88ba9b6c9c4f05f1f77a7a52deeba5fefc5d0",
+    "published_same_tree_commit": "7e83ea3408a7d674569e2b532061f4ba72c8ab35",
+    "baseline": "e3ce439c28348ea6599f1fb70b4fc08c3ef86ec3",
+    "original_task_tip": "424791b5367fbd4e290e8a6d790677615adc5758",
+    "publication": "Identical complete source tree, different commit metadata. Published parents preserve the baseline and complete original task tip.",
+    "clean_during_validation": true
+  },
+  "scope": "Verified ordinary Package values use independent physical snapshots and the existing .lc1 internal convention when their concrete layout reaches 4096 bytes. The callee copies large arguments into its own storage; results use independent caller slots. Construction and field access consume the physical layout. Existing verified moves and cleanup flags retain the single ownership obligation; byte copying grants no language Copy. Owned snapshots do not enter the Copy slot-reuse pool.",
+  "mechanical_scope": {
+    "changed_paths": [
+      "crates/zil-backend-llvm/src/emit.rs",
+      "crates/zil-backend-llvm/src/emit/copy_aggregates.rs",
+      "crates/zil-backend-llvm/src/emit/large_copy_abi.rs",
+      "crates/zil-backend-llvm/src/emit/packages.rs",
+      "crates/zil-driver/tests/owned_byte_composition_owned_bytes_native.rs",
+      "docs/guide/build.md"
+    ],
+    "all_six_files_equal_original_tip": true,
+    "source_programs_and_existing_assertions_unchanged": true,
+    "evidence": "out/runs/large-owned-abi-extraction-20261109-1/mechanical-check.json",
+    "evidence_sha256": "6e253dc5109f23b2ce9817a257e26c33a8b8b601ddf1e05b95b71ab8bae891e4"
+  },
+  "independent_review": {
+    "reviewed_source": "47f7fdc9bbff576d0c6be77b856f9be48bd2acb1",
+    "reviewer": "Non-author backend reviewer",
+    "status": "Accepted with no required correction",
+    "scope": "Concrete snapshot classification, Load/TakeLocal/Store and field transfer paths, unchanged cleanup-flag obligations, internal ABI isolation, and the explicit unresolved Named-layout boundary."
+  },
+  "validation_scope": "All seven gates used the source commit and tree above without tracked-source changes. The full owned-byte native target has 14 Rust tests, including seven large-Package tests; 16 large native executions are a subset of that target. Backend library, legacy top-level budgets and filtered shared-array tests are separate gates. No full aggregates/workspace test run is claimed.",
+  "validation_runner": {
+    "path": "out/runs/large-owned-abi-extraction-20261109-1/handoff-gates.sh",
+    "sha256": "b2ae259098f91c2dd65ab757a3cafcaa168f77d000d506c98d992c745c947f85",
+    "invocation": [
+      "bash",
+      "out/runs/large-owned-abi-extraction-20261109-1/handoff-gates.sh",
+      "<gate-name>"
+    ],
+    "command_record": "Each gate below expands the commands actually selected by this unchanged runner."
+  },
+  "validation": {
+    "native": {
+      "status": "Pass",
+      "exit_code": 0,
+      "commands": [
+        [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--features",
+          "llvm-api",
+          "--test",
+          "owned_byte_composition_owned_bytes_native",
+          "--",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      ],
+      "tests": {
+        "passed": 14,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "log": "out/runs/large-owned-abi-20261109-1/native.log",
+      "log_sha256": "fa3ca920f0771aa79265aaecaf9328e7f381d1f1e5aef54dad4d1100b1611448"
+    },
+    "backend": {
+      "status": "Pass",
+      "exit_code": 0,
+      "commands": [
+        [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-backend-llvm",
+          "--features",
+          "llvm-api",
+          "--lib",
+          "--",
+          "--test-threads=1"
+        ]
+      ],
+      "tests": {
+        "passed": 181,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "log": "out/runs/large-owned-abi-20261109-1/backend.log",
+      "log_sha256": "67ac82b30862ad2646bdeb8a3419d3a2f064027ab4fdc2230bb68e7462ec5986"
+    },
+    "legacy-budget": {
+      "status": "Pass",
+      "exit_code": 0,
+      "commands": [
+        [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--features",
+          "llvm-api",
+          "--test",
+          "aggregates",
+          "budget",
+          "--",
+          "--skip",
+          "::",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      ],
+      "tests": {
+        "passed": 23,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 384
+      },
+      "log": "out/runs/large-owned-abi-20261109-1/legacy-budget.log",
+      "log_sha256": "44c79a0c9495c75496b6d6cf3cbe44cd33dea28bf5bfd48d75154d89154f37b9"
+    },
+    "arrays": {
+      "status": "Pass",
+      "exit_code": 0,
+      "commands": [
+        [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--features",
+          "llvm-api",
+          "--test",
+          "aggregates",
+          "mixed_holder::shared_address_array::",
+          "--",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      ],
+      "tests": {
+        "passed": 54,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 353
+      },
+      "log": "out/runs/large-owned-abi-20261109-1/arrays.log",
+      "log_sha256": "0b8ce0bc978fa698634d3cc48acc9dba0e7c6b3cf4d36942e537baa4c4dd255d"
+    },
+    "strict": {
+      "status": "Pass",
+      "exit_code": 0,
+      "commands": [
+        [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--offline",
+          "--workspace",
+          "--all-targets",
+          "--features",
+          "zil-driver/llvm-api",
+          "--",
+          "-D",
+          "warnings"
+        ]
+      ],
+      "log": "out/runs/large-owned-abi-20261109-1/strict.log",
+      "log_sha256": "52e7514e3efdc67857a5cd8abd9d0a6c52cb1f211e631d8fbd5b0b1e7dc7c4df"
+    },
+    "fmt": {
+      "status": "Pass",
+      "exit_code": 0,
+      "commands": [
+        [
+          "cargo",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ]
+      ],
+      "log": "out/runs/large-owned-abi-20261109-1/fmt.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs": {
+      "status": "Pass",
+      "exit_code": 0,
+      "commands": [
+        [
+          "python3",
+          "tools/check-repository-layout.py",
+          "--full",
+          "--delivery"
+        ],
+        [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tools",
+          "-p",
+          "test_check_repository_layout.py"
+        ],
+        [
+          "python3",
+          "tools/check-plan.py",
+          "--self-test"
+        ],
+        [
+          "python3",
+          "tools/check-conformance.py"
+        ],
+        [
+          "python3",
+          "tools/update-indexes.py"
+        ],
+        [
+          "git",
+          "diff",
+          "--exit-code",
+          "--",
+          "conformance/index.json",
+          "spec/diagnostics.json",
+          "data/normative-inputs.json"
+        ]
+      ],
+      "log": "out/runs/large-owned-abi-20261109-1/docs.log",
+      "log_sha256": "d24cae63f4270b9064b4552850dea82f78444f041b7f1232666c0a47421912d7"
+    }
+  },
+  "native": {
+    "test_source": "crates/zil-driver/tests/owned_byte_composition_owned_bytes_native.rs",
+    "source_generator": "large_owned_program builds the unchanged original nested Array field with 4096 i32 elements (16384 bytes); four original program bodies are identified below by their emitted source bytes.",
+    "configurations": [
+      "clang/O0",
+      "clang/O2",
+      "llvm-api/O0",
+      "llvm-api/O2"
+    ],
+    "large_executions": 16,
+    "existing_zil_regression_executions": 32,
+    "total_zil_executions_in_native_target": 48,
+    "separate_rust_reference_executions": 10,
+    "all_large_compile_reports": {
+      "status": "Success",
+      "verification_runs": 1,
+      "actual_backend_matches_request": true,
+      "fallback": null
+    },
+    "llvm_api": {
+      "input_kind": "builder",
+      "parse_ns": 0,
+      "verify_before_after": true,
+      "requested_default_pipeline": true,
+      "positive_object_bytes": true
+    },
+    "clang": "Actual command lines contain the requested -O0 or -O2 flag.",
+    "programs": [
+      {
+        "case": "child-refill-live-arguments",
+        "source_bytes": 1483,
+        "source_sha256": "c66a8da4ac8713c508f868ebfe6e94c4932617756b3ccc69d2c69229d001f9ff",
+        "input_fingerprint": "c66a8da4ac8713c508f868ebfe6e94c4932617756b3ccc69d2c69229d001f9ff",
+        "stdout": "20240\n",
+        "executions": 4,
+        "exit_code": 0,
+        "stderr": "",
+        "expected_payload_result": 40,
+        "expected_allocator_counts": {
+          "attempts": 2,
+          "releases": 2,
+          "live": 0
+        }
+      },
+      {
+        "case": "failed-allocation",
+        "source_bytes": 1091,
+        "source_sha256": "0c830fa0ee3f27b5eb80859a07e51fc56fa60dbd8dc0fa9e6726b0eed54618e3",
+        "input_fingerprint": "0c830fa0ee3f27b5eb80859a07e51fc56fa60dbd8dc0fa9e6726b0eed54618e3",
+        "stdout": "10212\n",
+        "executions": 4,
+        "exit_code": 0,
+        "stderr": "",
+        "expected_payload_result": 12,
+        "expected_allocator_counts": {
+          "attempts": 2,
+          "releases": 1,
+          "live": 0
+        }
+      },
+      {
+        "case": "fixed-stack-loop",
+        "source_bytes": 1067,
+        "source_sha256": "a3f40decb435a708ce3fb1affbfa5801ae47ba19217edf181e5f5fcb71ea4d34",
+        "input_fingerprint": "a3f40decb435a708ce3fb1affbfa5801ae47ba19217edf181e5f5fcb71ea4d34",
+        "stdout": "10348544\n",
+        "executions": 4,
+        "exit_code": 0,
+        "stderr": "",
+        "expected_payload_result": 6144,
+        "expected_allocator_counts": {
+          "attempts": 1024,
+          "releases": 1024,
+          "live": 0
+        }
+      },
+      {
+        "case": "move-call-return-field-snapshots",
+        "source_bytes": 1262,
+        "source_sha256": "543c37ff1c5869cf7f67e8f2fff4d3b4e1cdcfc103993ed34ade31b33c8ccdf8",
+        "input_fingerprint": "543c37ff1c5869cf7f67e8f2fff4d3b4e1cdcfc103993ed34ade31b33c8ccdf8",
+        "stdout": "34309\n",
+        "executions": 4,
+        "exit_code": 0,
+        "stderr": "",
+        "expected_payload_result": 4009,
+        "expected_allocator_counts": {
+          "attempts": 3,
+          "releases": 3,
+          "live": 0
+        }
+      }
+    ],
+    "allocator_control": {
+      "path": "tools/byte-buffer/owned-storage-abi/fault-allocator.c",
+      "sha256": "658bad6fad8c799aabb976778781c0ec73e7048ad5a2131e602e388b3bfb2b7b",
+      "failure_size": 13,
+      "count_assertion": "Original output is payload_result + attempts*100 + releases*10000 + live*1000000. Expected component counts are recorded above; these are checked through the combined original output, not a separate counter trace."
+    },
+    "stack_control": "All emitted functions place alloca before their basic blocks; the unchanged 1024-iteration program executes in all four configurations. This is not a peak-stack measurement.",
+    "artifacts": "ZIL_TEST_REPORT_DIR preserved source.zil, compile.json, LLVM, and each execution command/stdin/stdout/stderr/status under out/runs/large-owned-abi-20261109-1/native-reports.",
+    "independent_evidence": "out/runs/large-owned-abi-20261109-1/root-native-check.json",
+    "independent_evidence_sha256": "71cb83014f566c66da94926de9bf185d310d1c27721490f86889352c858e3542",
+    "array_regression_scope": "The separate 54-test shared-array gate retains its own existing and dynamic native executions; those executions are not included in the 48 ZIL executions above."
+  },
+  "budget_and_layout_controls": {
+    "default_limits_changed": false,
+    "measured_codegen_N": 211800,
+    "N_minus_one": {
+      "category": "ResourceLimit",
+      "phase": "Codegen"
+    },
+    "N_and_fresh_retry": "Success with identical emitted IR",
+    "default_budget_retry": "Success with the same emitted IR",
+    "classifier_unit_control": {
+      "copy_field_bytes": 16384,
+      "complete_package_bytes": 16408,
+      "alignment": 8,
+      "grants_copy": false,
+      "exact_budget_and_N_minus_one_checked": true
+    }
+  },
+  "preserved_rejection_controls": [
+    "Source duplicate move remains SafeReject/E-UNINITIALIZED in Analyze.",
+    "Moving the Package while a field borrow remains live stays SafeReject/E-BORROW-CONFLICT in Verify.",
+    "Raw duplicate move arguments use a candidate rebound to the mutated module fingerprint; Analyze rejects consumed SSA responsibility and independent Verify/Wire reject a managed SSA value unavailable exactly once."
+  ],
+  "historical_count": "The prior goal note records 239/0 but supplies no recoverable command, target list or original log. That count is not reused or inferred here; the seven actual current gates above define this receipt.",
+  "not_claimed": [
+    "Language Copy for an owned Package or an additional cleanup obligation for copied snapshot bytes.",
+    "Large Packages carrying unresolved Named Closure layouts, ordinary Closure large-argument/result ABI, special helper conventions, or external/public ABI expansion.",
+    "Acceptance of the original owning shared-address Array program with source hash 95d6572a129f856a5b073de7cfa2aa9d2b730c0ff44b254fa6f9a3d8830299bb or the separate full owning-field snapshot program identified by 59b8.",
+    "Peak-stack measurement, full workspace test execution, or language/product release acceptance."
+  ]
+}
