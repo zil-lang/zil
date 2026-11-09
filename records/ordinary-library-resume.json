@@ -2,7 +2,7 @@
   "date": "2026-11-09 09:04 Asia/Shanghai",
   "status": "resumed_not_accepted",
   "main": "b07b85dd49b3df6f382734d509919a2a6013c97d",
-  "goal_read": "419ddc09599052bfd300ad698e8010f42ecc25c0",
+  "goal_read": "e187692762601594802998bbb9e08279c547f6cd",
   "integration": "ed8e3a5de6befb15b515f6b124e992792414a8ca",
   "source_branches": {
     "root": "task/G10.6.3",
@@ -13,12 +13,12 @@
   "first_failure": "offline cargo dependency rustc_apfloat absent; no tests executed",
   "scope": "Continue original ordinary-library consumer and large owned closure transport; no release claim",
   "raw_logs": "out/runs/byte-views-baseline-20261109/ in task/G3.4.22 worktree",
-  "last_work": "2026-11-09 16:12 Asia/Shanghai",
-  "integration_remote": "6187379e3b0c4ce0a7234190cc8e50b844decdcb",
-  "large_closure_checkpoint": "33269ee086fe33666019780e23be00706666a390",
+  "last_work": "2026-11-09 16:19 Asia/Shanghai",
+  "integration_remote": "428eb2c549f5285efc0b7921b380e2eff54f808b",
+  "large_closure_checkpoint": "1bd22f6ed801725de554f374af54b9d1b80a956b",
   "baseline_language_failure": "original four-module program: Analyze ResourceLimit / Sum terminal tag classification, 0 pass, 1 fail",
   "native_progress": "frozen ordinary local closure ABI: 48 native executions pass; opaque factories/generic callable helpers remain five explicit Types Unsupported boundaries",
-  "integration_local": "a917b19ff40bd85660950329b4fe55f86dbb8f09",
+  "integration_local": "b3a1e08cabfcb2f0cc06cdcf1e846b58da067d2d",
   "byte_views_checkpoint": "d2bc7accd3f092ad6879494d5e17fa842563cbdf",
   "growing_collections_checkpoint": "a4905432b882dab35a6d3842d6df75c6b99f2e8d",
   "original_pipeline": "Frozen Byte precise order main/model/protocol/library, fingerprint d9afb8c2667ac61471aa1f37bd2fb9277abcbab5df37090bf4f8f6b8d32ec676: A N7122869/V N7814112 with N-1/fresh/raw/Wire pass; original4095 native input order main/protocol/library/model:48 actual executions pass, identical source file bytes",
@@ -733,13 +733,13 @@
     "strict_rerun": "Not yet run after second preserved failure"
   },
   "latest_format": {
-    "source": "d3789634f5394f0a1f6d137ca750e0912eb65a0a",
-    "tree": "93bfed2a1ca060c8ea711b7de38aa6fa6a6d0b8f",
+    "source": "f687402f65ad00e05f64b678ceae8a6d23bbedb9",
+    "tree": "6d3e4bc7fb66fba75391a07e243f9fb741702e09",
     "status": "Pass",
     "source_unchanged": true,
-    "elapsed_seconds": 12.118,
-    "scope": "Formatting check only, no Rust or language tests",
-    "logs": "out/runs/ordinary-composition-static-20261109-2"
+    "elapsed_seconds": 17.487,
+    "scope": "Formatting only; before later mechanical test fixes",
+    "logs": "out/runs/ordinary-composition-static-20261109-3"
   },
   "final_relation_index": {
     "production": "7ac0ac90ab59ce611f5d04758ab65e197d5085db",
@@ -862,8 +862,15 @@
     "source": "40568f3cb7c95850615fee11d03f15cf957b1d8f",
     "remote": "e4d3d4a0dcc9218769a45d86dd80c903f0b195af",
     "review": "Astra exact source scope accepted; replace stale expected Analyze failure with original Source/defaultVerify and independent raw/Wire success, assert actual512SharedAddress slots; no native claim",
-    "execution": "Underlying frozen cb2 harness passed; formal changed Rust test not yet rerun",
-    "file": "tests/fixtures/resource-packages/package_shared_array.rs"
+    "execution": "Formal test actually passes at rootf687 after integrating Byte490, Mapc687 and backenda32; exact Source/raw/Wire,1 test/0 failure",
+    "file": "tests/fixtures/resource-packages/package_shared_array.rs",
+    "compiled_source": "f687402f65ad00e05f64b678ceae8a6d23bbedb9",
+    "published_source": "c8e51dfd16ca867439108d07d3ec13649e70a39d",
+    "tree": "6d3e4bc7fb66fba75391a07e243f9fb741702e09",
+    "source_unchanged": true,
+    "elapsed_seconds": 59.253,
+    "log_sha256": "6c96aa47d7d13c8bc394337d5007bf7de3951cf95364f0ed313896ba4ac16508",
+    "logs": "out/runs/ordinary-owned512-joint-20261109-2"
   },
   "verify_paged_values_design": {
     "baseline": "6ad37d6324769f06e5a3e4848d94d108eb0bcbdb",
@@ -920,7 +927,18 @@
       "out/runs/snapshot-emission-oracle-20261109-1",
       "out/runs/snapshot-emission-native-20261109-1"
     ],
-    "scope": "Exact original owning512 passes native matrix; independent report review and existing exact-budget regression gates pending. Separate59b whole-field snapshot remains Analyze blocked."
+    "scope": "Exact original owning512 passes native matrix; independent report review and existing exact-budget regression gates pending. Separate59b whole-field snapshot remains Analyze blocked.",
+    "independent_actual_review": "Astra checked exact4616B95d, all4 compile reports, API builder/parse_ns0, nofallback, actual4 ELF exec status0 and empty outputs, log hashes and identical local/remote tree",
+    "exact_budget_regressions": {
+      "Package_N": 192770,
+      "Closure_N": 99747,
+      "Enum_Error_N": 816765,
+      "N_minus_one_Codegen_ResourceLimit": true,
+      "Package_Closure_fresh_full_IR_equal": true,
+      "Enum_fresh_full_IR_equal_claim": false,
+      "Enum_extra": "Existing API cold/warm cache and failed low-budget no executable checks passed"
+    },
+    "integrated": true
   },
   "byte_shared_read_tail": {
     "source": "490d42ea3dcee0aa7daf24b20644846fda2d0526",
@@ -935,7 +953,7 @@
     "original_95d": "Analyze/Verify Success",
     "original_59b": "Analyze ResourceLimit, verification_runs0",
     "logs": "out/runs/byte-views-shared-read-tail-20261109",
-    "integrated": false
+    "integrated": true
   },
   "verify_paged_values": {
     "production": "b42d5b954097e3fc22e51d1c6e73199b5d001a63",
@@ -955,7 +973,7 @@
     "nearest_Source_raw_Wire_passed": 7,
     "logs": "out/runs/growing-input-effects-20261109-28",
     "first_run27": "6 component and498 full Verify passed; original Map compiler interrupted by agent ending turn, no map.exit and no language outcome",
-    "integrated": false
+    "integrated": true
   },
   "map_verify_ledger_29": {
     "source": "c687bcda71ad147f38ad252cc9a0d15129137be1",
@@ -972,5 +990,56 @@
     "mixed_cost_is_attributable_to_outer_COW": false,
     "next": "Astra qualified exact outer fixedpoint check only after original forget and complete copy qualification; author implementing complete old Flow::block and whole State+Bridge oracle",
     "logs": "out/runs/growing-input-effects-20261109-29"
+  },
+  "strict_third_failure": {
+    "source": "f687402f65ad00e05f64b678ceae8a6d23bbedb9",
+    "tree": "6d3e4bc7fb66fba75391a07e243f9fb741702e09",
+    "source_unchanged": true,
+    "status": "Fail",
+    "elapsed_seconds": 94.92,
+    "reason": "2 err_expect lints in backend snapshot budget tests",
+    "logs": "out/runs/ordinary-composition-strict-20261109-3",
+    "log_sha256": "00f3d1819365893792f400e7806026bdcf20d7a8fee516ff167974a8dadb4c77",
+    "fix_source": "55b64663f83c5f4b405085f0a73c68d3a600b728",
+    "fix_remote": "1bd22f6ed801725de554f374af54b9d1b80a956b",
+    "review": "Root exact diff accepted; let Err else panic retains complete assertions and production unchanged"
+  },
+  "strict_fourth_failure": {
+    "source": "b3a1e08cabfcb2f0cc06cdcf1e846b58da067d2d",
+    "tree": "140cdece39186ee75812cd47f5eb95a5958fedd9",
+    "source_unchanged": true,
+    "status": "Fail",
+    "elapsed_seconds": 72.674,
+    "reason": "Reached Verify ancestry range loop and sum fixture modulo generators, Analyze sum fixture modulo and collapsible match;8 test-only lints",
+    "logs": "out/runs/ordinary-composition-strict-20261109-4",
+    "log_sha256": "006829f7412eb11d11ff6bbd1c84522901ecdfec97a50777b41c68494e9edd69",
+    "mechanical_fixes": [
+      "9c8dcf084596aded12515412d8b53f6f95b65af7",
+      "774b6c9341bfcefedcc760f10fab9f23ba9bb871"
+    ],
+    "language_executions": 0
+  },
+  "byte_snapshot_ledger_2": {
+    "source": "490d42ea3dcee0aa7daf24b20644846fda2d0526",
+    "tree": "6f1148b441c4dd75df2bbfd6a939a006925053ea",
+    "fees_unchanged": true,
+    "production_restored_and_clean": true,
+    "source_fingerprint": "59b8aaa8aa292c1e3921cfee638ef03598e1ffe62a3a4402d1e1542cc793ae66",
+    "attempted_work": 10000002,
+    "result": "Analyze ResourceLimit, verification_runs0",
+    "first_complete_main_windows_work": 3018094,
+    "same_main_previous_tail_work": 4233296,
+    "same_main_new_lookup_work": 2117676,
+    "same_main_new_fallback_work": 7191,
+    "same_main_tail_saved": 2108429,
+    "failure_position": "second main derive, before entering its windows",
+    "next": "Eliminate repeated read-only immutable-loan scans across physical leaf checks using actual fixed loan table and active set, with original write/head/ancestry/invalid controls preserved; design pending",
+    "logs": "out/runs/byte-views-field-snapshot-analyze-ledger-20261109-2"
+  },
+  "map_outer_cow_candidate": {
+    "source": "cd853024eb074090524d9865f3d4aa68489b1b46",
+    "lint_followup": "774b6c9341bfcefedcc760f10fab9f23ba9bb871",
+    "status": "Frozen, independent exact source review and5/fullVerify/originalMap execution pending",
+    "contract": "Only shared Arc rootSum direct Enum/ErrorUnion; original copy qualification before complete fixedpoint; false full old eager path; whole oldFlow and completeState/Bridge oracle"
   }
 }
