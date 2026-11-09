@@ -1,46 +1,46 @@
 {
   "format": 1,
-  "created_utc": "2026-11-09 11:40:52 UTC",
-  "prior_archive": "9ed19a2952dcb42995b9cc4c725cb418e9fbd03c",
+  "created_utc": "2026-11-09 12:10:39 UTC",
+  "prior_archive": "981de0fd5682db7829c79dc683c568c3ea448e64",
   "commit_parents": [
-    "9ed19a2952dcb42995b9cc4c725cb418e9fbd03c",
-    "5f6d885ed7e31e0d3b5db036db39636d84e84875"
+    "981de0fd5682db7829c79dc683c568c3ea448e64",
+    "b4b6718359849c9ddb6e4ba8ebea4181a36e374c"
   ],
   "commit_tips": [
-    "9ed19a2952dcb42995b9cc4c725cb418e9fbd03c",
-    "5f6d885ed7e31e0d3b5db036db39636d84e84875",
-    "bbb2df1246719579c9ff6b506b3e2d80bd73d4af",
-    "7e83ea3408a7d674569e2b532061f4ba72c8ab35",
-    "424791b5367fbd4e290e8a6d790677615adc5758"
+    "981de0fd5682db7829c79dc683c568c3ea448e64",
+    "b4b6718359849c9ddb6e4ba8ebea4181a36e374c",
+    "08fefa7ad4497c4bcffa38d39cb7a52a8061912a",
+    "82dd18302b092b640b70f1bb68da0e4a1b96b4ab"
   ],
   "local_refs": {},
   "remote_refs": {
-    "refs/heads/archive/source-history": "9ed19a2952dcb42995b9cc4c725cb418e9fbd03c",
-    "refs/heads/main": "5f6d885ed7e31e0d3b5db036db39636d84e84875",
-    "refs/heads/task/G10.3.3": "bbb2df1246719579c9ff6b506b3e2d80bd73d4af"
+    "refs/heads/archive/source-history": "981de0fd5682db7829c79dc683c568c3ea448e64",
+    "refs/heads/main": "b4b6718359849c9ddb6e4ba8ebea4181a36e374c",
+    "refs/heads/task/ordinary-closure-abi": "08fefa7ad4497c4bcffa38d39cb7a52a8061912a"
   },
   "worktrees": [],
   "missing_commit_objects": [],
   "retirements": [
     {
-      "ref": "refs/heads/task/G10.3.3",
-      "head_before_retirement": "bbb2df1246719579c9ff6b506b3e2d80bd73d4af",
-      "original_task_tip": "424791b5367fbd4e290e8a6d790677615adc5758",
-      "accepted_main": "5f6d885ed7e31e0d3b5db036db39636d84e84875",
-      "pull_request": 62,
-      "remote_history_reachable_through_parent": "5f6d885ed7e31e0d3b5db036db39636d84e84875",
-      "published_source": "7e83ea3408a7d674569e2b532061f4ba72c8ab35",
-      "source_tree": "97a88ba9b6c9c4f05f1f77a7a52deeba5fefc5d0",
+      "ref": "refs/heads/task/ordinary-closure-abi",
+      "head_before_retirement": "08fefa7ad4497c4bcffa38d39cb7a52a8061912a",
+      "accepted_main": "b4b6718359849c9ddb6e4ba8ebea4181a36e374c",
+      "pull_request": 63,
+      "remote_history_reachable_through_parent": "b4b6718359849c9ddb6e4ba8ebea4181a36e374c",
+      "published_source": "82dd18302b092b640b70f1bb68da0e4a1b96b4ab",
+      "source_tree": "8d53572d235c616a381cb56b251a906844d47293",
       "local_execution_identity": {
-        "source": "47f7fdc9bbff576d0c6be77b856f9be48bd2acb1",
-        "receipt_commit": "f3e94adbf6b8f6859d15b211f3865b34526f9528",
-        "branch": "task/large-owned-abi",
+        "source": "70b16089e595a64632fbf1d3f4981e9bb9e78486",
+        "receipt_commit": "ce05ae5fc0ca2afd4e6c8b2b23c8624bbe6c1e71",
+        "validation_receipt_commit": "15e474af4424299b54c9c619be3fb6ef1bf2be9e",
+        "branch": "task/ordinary-closure-abi",
         "branch_retained": true,
         "remote_commit_identity_claimed": false,
         "complete_trees_identical_to_remote": true
       },
-      "unique_uncommitted_source": false
+      "unique_uncommitted_source": false,
+      "known_author_outputs": "Two first-attempt aggregate outputs are preserved with exact hashes outside source control; the independently validated tree is clean. No unique uncommitted source is being discarded."
     }
   ],
-  "scope": "Preserve the accepted large ordinary owning Package snapshot/internal ABI task before retirement. The six original paths and all original programs/assertions are accepted; all remote source history remains reachable through actual commit parents. Ordinary Closure large ABI, owning shared-array snapshots and growing-collection work remain separate retained tasks."
+  "scope": "Preserve the accepted extracted ordinary Closure large owned parameter/result ABI before retiring its completed publication branch. The older task/G10.3.6 and its later emission-fee and owning-array work remain retained and are not claimed as accepted by this extraction."
 }
