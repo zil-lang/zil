@@ -1,0 +1,90 @@
+name: Compiler cost candidate reference controls
+on:
+  push:
+    branches: [task/G10.5.1]
+    paths:
+      - '.task/G10.5.1/apply.py'
+      - '.task/G10.5.1/model.py'
+      - '.github/workflows/compiler-cost-candidate.yml'
+permissions:
+  contents: write
+concurrency:
+  group: compiler-cost-candidate-G10.5.1
+  cancel-in-progress: false
+jobs:
+  reference:
+    if: github.repository == 'zil-lang/zil' && github.ref == 'refs/heads/task/G10.5.1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Install exact Rust toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          rustc -vV
+          echo "CARGO_TARGET_DIR=$RUNNER_TEMP/compiler-cost-target" >> "$GITHUB_ENV"
+      - name: Apply exact candidate and independent finite graph oracle
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          python3 .task/G10.5.1/model.py --out "$RUNNER_TEMP/compiler-cost-model.json"
+          python3 .task/G10.5.1/apply.py --apply
+          rustfmt --edition 2024 --config skip_children=true crates/zil-backend-llvm/src/machine_cgu.rs
+          test "$(git diff --name-only)" = 'crates/zil-backend-llvm/src/machine_cgu.rs'
+          git diff --check
+          git diff -- crates/zil-backend-llvm/src/machine_cgu.rs
+      - name: Reference partition and layout controls must really execute
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --locked --offline -p zil-backend-llvm --no-default-features --lib machine_cgu -- --nocapture 2>&1 | tee "$RUNNER_TEMP/compiler-cost-reference.log"
+          grep -E 'test result: ok\. [1-9][0-9]* passed; 0 failed;' "$RUNNER_TEMP/compiler-cost-reference.log"
+          grep -E 'multiply_shared_closure_coarsens_without_weakening_copy_bound .*ok' "$RUNNER_TEMP/compiler-cost-reference.log"
+          cargo clippy --locked --offline -p zil-backend-llvm --no-default-features --lib --tests -- -D warnings
+          cargo fmt -p zil-backend-llvm -- --check
+      - name: Record limited validation and publish only this task branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = 'refs/heads/task/G10.5.1'
+          test "$(git diff --name-only)" = 'crates/zil-backend-llvm/src/machine_cgu.rs'
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, re, subprocess
+          temp = pathlib.Path(os.environ['RUNNER_TEMP'])
+          log = (temp / 'compiler-cost-reference.log').read_text()
+          counts = re.findall(r'test result: ok\. (\d+) passed; 0 failed;', log)
+          assert counts and sum(map(int, counts)) > 0
+          source = pathlib.Path('crates/zil-backend-llvm/src/machine_cgu.rs').read_bytes()
+          receipt = {
+              'status': 'reference-controls-passed; NOT native/performance acceptance',
+              'recipe_commit': os.environ['GITHUB_SHA'],
+              'source_sha256': hashlib.sha256(source).hexdigest(),
+              'reference_tests_passed': sum(map(int, counts)),
+              'reference_log_sha256': hashlib.sha256(log.encode()).hexdigest(),
+              'graph_model': json.loads((temp / 'compiler-cost-model.json').read_text()),
+              'rustc': subprocess.check_output(['rustc', '-vV'], text=True),
+              'run': os.environ['GITHUB_SERVER_URL'] + '/' + os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' + os.environ['GITHUB_RUN_ID'],
+              'native': 'NotRun', 'performance': 'NotRun', 'independent_review': 'NotRun',
+              'merge_allowed': False,
+          }
+          pathlib.Path('.task/G10.5.1/ci-result.json').write_text(json.dumps(receipt, indent=2) + '\n')
+          print(json.dumps(receipt, indent=2))
+          PY
+          git fetch --no-tags origin refs/heads/task/G10.5.1
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git add -- crates/zil-backend-llvm/src/machine_cgu.rs .task/G10.5.1/ci-result.json
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Implement bounded CGU coarsening candidate; reference controls only'
+          git push origin HEAD:refs/heads/task/G10.5.1
+          git rev-parse HEAD
+          echo 'Candidate source published to task/G10.5.1 only. Native, performance and independent review remain NotRun; no main merge.' >> "$GITHUB_STEP_SUMMARY"
