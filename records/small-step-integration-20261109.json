@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-09T15:18:14Z",
+  "recorded_utc": "2026-11-09T15:34:00Z",
   "status": "Eleven scoped batches accepted and completed task refs retired; Map and the original pipeline continue separately.",
   "accepted_main": "d813da9307f4e174a5f16bc127c267ca438be589",
   "accepted_tree": "73bae4bcc113d6a4d9a6eb07996955ad95781133",
@@ -651,11 +651,56 @@
   },
   "pipeline_followup": {
     "owner": "byte_view_composition",
+    "reviewer": "stored_composition_review",
     "branch": "task/owned-pipeline-composition",
     "baseline": "d813da9307f4e174a5f16bc127c267ca438be589",
-    "status": "Inspect exact minimal extraction and original 4011-byte consumer; no new acceptance claim.",
-    "original_history": "f2cfb4d6, three tests / 56 native history retained separately.",
-    "whole_package_merge": false
+    "source": "27915d2f75ed2892a4400ead5138351011825e9c",
+    "tree": "fe51c598ebb2a15c049b8b71d7940ab08a89517e",
+    "published": "98c3842ff36ed472c1fe8d05696c860fe2d5584e",
+    "production_changed": false,
+    "inputs": {
+      "owned_pipeline": {
+        "files": 4,
+        "bytes": 6052,
+        "project_fingerprint": "d9afb8c2667ac61471aa1f37bd2fb9277abcbab5df37090bf4f8f6b8d32ec676",
+        "historical_native_cases": 48
+      },
+      "collected_pipeline": {
+        "files": 4,
+        "bytes": 7547,
+        "project_fingerprint": "4011cf8d1255cbf085e02cce4cd9d9fc54c28797bebf9e61cd06bbfbc855dd7f",
+        "historical_native_cases": 56
+      }
+    },
+    "correction": "4011 is the prefix of the original collected project fingerprint, not its byte length.",
+    "test_extraction": "Five complete original tests and eight original source files; no production changes or changed source/cleanup assertions.",
+    "baseline_gate": {
+      "status": "Fail as reproduced",
+      "owned": {
+        "selected": 1,
+        "passed": 0,
+        "failed": 1,
+        "phase": "analyze",
+        "category": "Unsupported",
+        "verification_runs": 0,
+        "log_sha256": "49b73f41b5db833ef33a8128f47cabcd0292c0fbed9dbffa35aaf727ca3d8846"
+      },
+      "collected": {
+        "selected": 1,
+        "passed": 0,
+        "failed": 1,
+        "phase": "analyze",
+        "category": "Unsupported",
+        "verification_runs": 0,
+        "log_sha256": "0c04282c7957253f9f14f803c3214fb95d8ab69798890099fdd5033d53b3a7ee"
+      },
+      "diagnostic": "owned or opaque value has no actual stored permission integration",
+      "evidence": "wt-owned-pipeline-composition/out/runs/owned-pipeline-baseline-20261109-1",
+      "source_unchanged": true
+    },
+    "next": "Only complete borrowed-owned callable qualification and actual entry authentication in both kernels, including masked/no-Option cases. Determine later ByteBufferBorrow and any further cost dependencies from actual next failures.",
+    "whole_package_merge": false,
+    "new_native_acceptance": "NotRun"
   },
   "previous_batch": {
     "source": "7dc17ebeb1ab1899048ec2686d52f156ad97ac95",
