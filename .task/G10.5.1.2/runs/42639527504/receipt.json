@@ -1,0 +1,48 @@
+{
+  "status_before_preservation": "failure",
+  "recipe": "c2d7bb4382027290649046e6e426f62a885561ab",
+  "measured_source": "b19762d6ea4f02332336fd0fed44a1cdcfb87b35",
+  "baseline": "906940ea78dcd5298c9168c4d17197b5983bf954",
+  "source_sha256": "990e53b5f9aa279e2f9cf10ed98afcae11bbffeafc95087dc9716c28de259678",
+  "files": {
+    "failures.json": {
+      "bytes": 15434,
+      "sha256": "473253efbeedcb16f6a4592515dc045f18f579e89c20b9aaf7ce938b722ecb4f"
+    },
+    "manifest.json": {
+      "bytes": 9019,
+      "sha256": "c1873c2565e8255c6888ae9b6f6e971c6407773a2bcef614fab3843ea89bf951"
+    },
+    "consumer.json": {
+      "bytes": 76932,
+      "sha256": "5c572ba7ebf9458ea97387f27d7d91569f3f625a2e70add90be3474c14aede57"
+    },
+    "equivalence.json": {
+      "bytes": 16919,
+      "sha256": "afa7c6173133e7fd73970da5cac530cf04fd7e54d4b7b9ff63e9ddd27c8cd9d3"
+    },
+    "rows.jsonl": {
+      "bytes": 979537,
+      "sha256": "14af90fff990f2f077c370118549d2ef540a374235bcd3c13842fb66fdb18d38"
+    },
+    "raw.tar.gz": {
+      "bytes": 430118,
+      "sha256": "771d847ce08dae0c665acf79ced24ff9abf86f1d7ddb14703ba55b6f682f5144"
+    },
+    "summary.json": {
+      "bytes": 325,
+      "sha256": "669046013f6477735e0cb4a7d144175186050ef9ceb687b9ff04b2ef14d41e38"
+    },
+    "cells.json": {
+      "bytes": 30373,
+      "sha256": "e25c25c82ade57e29806d39cc6f9a40240d5ecfa390d0ba93e020250f2cecdbf"
+    },
+    "upstream.json": {
+      "bytes": 27768,
+      "sha256": "52e37ce3802489640ed7b5985433a0f85a5ff01470453e9e2a0a87176ecbcb5c"
+    }
+  },
+  "independent_review": "NotRun",
+  "merge_allowed": false,
+  "run": "https://github.com/zil-lang/zil/actions/runs/42639527504"
+}
