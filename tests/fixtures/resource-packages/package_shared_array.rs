@@ -761,8 +761,10 @@ fn owning_package_stays_affine_and_its_live_view_pins_the_parent() {
 }
 
 #[test]
-fn large_package_array_reports_its_actual_default_source_work_boundary() {
+fn owning_wide_package_array_completes_source_raw_and_wire_verification() {
     let program = include_str!("owned-package-wide-shared-address-array.zil");
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
     let report = compile_source(
         &source("large-package-array-default-work", program),
         &CompileOptions {
@@ -770,32 +772,50 @@ fn large_package_array_reports_its_actual_default_source_work_boundary() {
             ..CompileOptions::default()
         },
     );
-    println!(
-        "512-element Package Array default Source: {}",
-        report.to_json()
+    println!("512-element owning Package Source: {}", report.to_json());
+    assert_eq!(
+        report.input_fingerprint.to_string(),
+        "95d6572a129f856a5b073de7cfa2aa9d2b730c0ff44b254fa6f9a3d8830299bb",
+        "the original complete literal, owner, constructor and argument/result paths"
     );
     assert_eq!(
         report.status,
-        ResultCategory::ResourceLimit,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .all(|d| d.category == ResultCategory::ResourceLimit)
+    assert_eq!(report.verification_runs, 1);
+    let raw = typed_source(
+        "large-package-array-default-work",
+        program,
+        &target,
+        &limits,
     );
-    assert_eq!(report.phase, zil_base::Phase::Analyze);
-    assert_eq!(report.verification_runs, 0);
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.message == "analysis budget exceeded during stored path comparison/search")
+    let make = raw.functions.iter().find(|f| f.name == "make").unwrap();
+    let zil_ir::Type::BorrowedStorage { storage, life } = &make.return_type else {
+        panic!("owning Package must retain its actual qualified type");
+    };
+    assert!(matches!(storage.as_ref(), zil_ir::Type::Package { .. }));
+    assert_eq!(
+        life.slots.len(),
+        512,
+        "512 real address slots, not ordinary payload padding"
     );
-    assert!(report.native_codegen.is_none());
+    for (ordinal, slot) in life.slots.iter().enumerate() {
+        assert_eq!(
+            slot.path,
+            [
+                zil_ir::PlaceProjection::Field(1),
+                zil_ir::PlaceProjection::Field(ordinal as u32)
+            ]
+        );
+        assert_eq!(slot.mode, zil_ir::StoredBorrowMode::SharedAddress);
+    }
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
     println!(
-        "Large Package Source still reaches its stored-path budget boundary; its snapshot/native ABI remains unimplemented"
+        "owning Package512 Source/raw/Wire accepted; native and whole-field snapshots have separate gates"
     );
 }
