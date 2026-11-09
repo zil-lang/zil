@@ -626,6 +626,7 @@ fn compare_replacement_schedulers(module: &TypedModule, graphs: &[(Vec<Vec<usize
         }
     };
     assert_eq!(run(true), run(false));
+    compare_complete_schedulers(module, graphs);
 }
 
 #[test]
@@ -931,4 +932,420 @@ fn initial_order_pays_an_exact_fresh_request_boundary() {
     );
     assert_eq!(run(lo).unwrap(), order);
     println!("Replacement initial fair order N={lo}; N-1 rejects/fresh N repeats");
+}
+
+fn public_callback_input_fixture() -> TypedModule {
+    use zil_ir::{
+        CallEvent, CallableCleanup, CallableExit, CallableParameterContract, CallableRole,
+        CallableTrace, CallableTraces, LocalDecl, ReservationId,
+    };
+    let mut module = fixture::module();
+    let template = module.functions.remove(0);
+    let target = template.locals[0].ty.clone();
+    let resource = template.locals[1].ty.clone();
+    let Type::Managed(payload) = &resource else {
+        unreachable!()
+    };
+    let desc = Type::Desc(payload.clone());
+    let callback_address = Type::Address {
+        mutable: true,
+        inner: Box::new(Type::Closure(ClosureId(0))),
+    };
+    let mut callback = template.clone();
+    callback.id = FunctionId(2);
+    callback.name = "actual_callback_entry".into();
+    callback.parameters.clear();
+    callback.locals.clear();
+    callback.environment = Some(ClosureId(0));
+    callback.return_type = Type::I32;
+    callback.result_mode = PassingMode::Infer;
+    callback.values = vec![desc.clone(), Type::I32];
+    callback.blocks[0].instructions = vec![
+        fixture::instruction(Some(ValueId(0)), InstructionKind::ReadCapture { index: 0 }),
+        fixture::instruction(
+            Some(ValueId(1)),
+            InstructionKind::ReadDesc {
+                desc: ValueId(0),
+                index: 0,
+            },
+        ),
+    ];
+    callback.blocks[0].terminator = Terminator::Return(Some(ValueId(1)));
+    let mut helper = template.clone();
+    helper.id = FunctionId(1);
+    helper.name = "ordinary_input_and_callback".into();
+    helper.parameters = vec![LocalId(0), LocalId(1), LocalId(2)];
+    helper.locals = vec![callback_address.clone(), target.clone(), resource.clone()]
+        .into_iter()
+        .enumerate()
+        .map(|(index, ty)| LocalDecl {
+            id: LocalId(index as u32),
+            name: format!("input{index}"),
+            ty,
+            mutable: true,
+            span: template.span,
+        })
+        .collect();
+    helper.values = vec![callback_address, target, resource, Type::I32];
+    helper.return_type = Type::I32;
+    helper.result_mode = PassingMode::Infer;
+    helper.callable_contract = Some(CallableParameterContract {
+        roles: vec![CallableRole {
+            life: None,
+            parameter: 0,
+            closure: ClosureId(0),
+            kind: CallableKind::FnMut,
+            hold: vec![],
+            call: vec![0],
+            writes: vec![],
+            cleanup: CallableCleanup::Borrowed,
+        }],
+        traces: CallableTraces::Finite(vec![CallableTrace {
+            calls: vec![CallEvent {
+                parameter: 0,
+                kind: CallableKind::FnMut,
+            }],
+            exit: CallableExit::Return,
+        }]),
+    });
+    helper.blocks[0].instructions = vec![
+        fixture::instruction(Some(ValueId(0)), InstructionKind::Load(LocalId(0))),
+        fixture::instruction(Some(ValueId(1)), InstructionKind::Load(LocalId(1))),
+        fixture::instruction(
+            Some(ValueId(2)),
+            InstructionKind::TakeLocal { local: LocalId(2) },
+        ),
+        fixture::instruction(
+            None,
+            InstructionKind::ReservePlaceAddress {
+                reservation: ReservationId(71),
+                address: ValueId(1),
+                path: vec![PlaceProjection::Field(0)],
+            },
+        ),
+        fixture::instruction(
+            None,
+            InstructionKind::CommitPlaceReplace {
+                reservation: ReservationId(71),
+                value: ValueId(2),
+            },
+        ),
+        fixture::instruction(
+            Some(ValueId(3)),
+            InstructionKind::CallClosureBorrowed {
+                callee: ValueId(0),
+                kind: CallableKind::FnMut,
+                arguments: vec![],
+            },
+        ),
+    ];
+    helper.blocks[0].terminator = Terminator::Return(Some(ValueId(3)));
+    let mut forward = helper.clone();
+    forward.id = FunctionId(0);
+    forward.name = "forward_public_helper".into();
+    forward.blocks[0].instructions.truncate(3);
+    forward.blocks[0].instructions.push(fixture::instruction(
+        Some(ValueId(3)),
+        InstructionKind::Call {
+            function: FunctionId(1),
+            arguments: vec![ValueId(0), ValueId(1), ValueId(2)],
+        },
+    ));
+    module.functions = vec![forward, helper, callback];
+    module.closures = vec![ClosureDefinition {
+        storage_life: None,
+        id: ClosureId(0),
+        function: FunctionId(2),
+        captures: vec![desc],
+        parameters: vec![],
+        result: Type::I32,
+        kind: CallableKind::FnMut,
+        lending_captures: vec![],
+    }];
+    module
+}
+#[test]
+fn actual_callback_entry_and_helper_input_have_callee_order_and_complete_retirement_pairs() {
+    let module = public_callback_input_fixture();
+    let graphs = vec![(vec![vec![]], vec![true]); 3];
+    let mut b = Budget::new(&Limits::default());
+    b.head_descriptions = true;
+    let edges = effect_consumers_with_public(&module, &graphs, true, &mut b).unwrap();
+    assert!(edges[2].contains(&0) && edges[2].contains(&1) && edges[1].contains(&0));
+    let order = initial_callee_order(&edges, &mut b).unwrap();
+    assert!(order.iter().position(|id| *id == 2) < order.iter().position(|id| *id == 1));
+    assert!(order.iter().position(|id| *id == 1) < order.iter().position(|id| *id == 0));
+    let old = complete_scheduler_run(&module, &graphs, 1).unwrap();
+    assert!(
+        old.1.iter().any(|pairs| !pairs.is_empty()),
+        "real callback reads impose actual symbolic separation obligations"
+    );
+    for mode in [0, 2] {
+        assert_eq!(complete_scheduler_run(&module, &graphs, mode).unwrap(), old);
+    }
+}
+
+fn old_descriptor_fixture() -> TypedModule {
+    let mut module = fixture::module();
+    let f = &mut module.functions[0];
+    let resource = f.locals[1].ty.clone();
+    let payload = if let Type::Managed(payload) = &resource {
+        payload.clone()
+    } else {
+        unreachable!()
+    };
+    f.values.extend([
+        Type::Address {
+            mutable: true,
+            inner: Box::new(resource),
+        },
+        Type::Desc(payload),
+        Type::I32,
+    ]);
+    f.blocks[0].instructions.splice(
+        1..1,
+        vec![
+            fixture::instruction(
+                Some(ValueId(2)),
+                InstructionKind::AddressField {
+                    address: ValueId(0),
+                    index: 0,
+                },
+            ),
+            fixture::instruction(
+                Some(ValueId(3)),
+                InstructionKind::DescribeAddress {
+                    address: ValueId(2),
+                },
+            ),
+        ],
+    );
+    f.blocks[0].instructions.push(fixture::instruction(
+        Some(ValueId(4)),
+        InstructionKind::ReadDesc {
+            desc: ValueId(3),
+            index: 0,
+        },
+    ));
+    module
+}
+#[test]
+fn final_old_descriptor_retirement_remains_a_real_rejection_under_every_initial_order() {
+    let module = old_descriptor_fixture();
+    let graphs = vec![(vec![vec![]], vec![true])];
+    for mode in [0, 1, 2] {
+        let errors = complete_scheduler_run(&module, &graphs, mode).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.category == zil_base::ResultCategory::SafeReject)
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("description is required later")),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn callback_capture_replacement_propagates_through_the_real_public_helper_chain() {
+    let mut module = public_callback_input_fixture();
+    let address = module.functions[1].locals[1].ty.clone();
+    let resource = module.functions[1].locals[2].ty.clone();
+    module.closures[0].captures = vec![address.clone()];
+    for f in &mut module.functions[..2] {
+        let role = &mut f.callable_contract.as_mut().unwrap().roles[0];
+        role.hold = vec![0];
+        role.writes = vec![0];
+    }
+    let entry = &mut module.functions[2];
+    entry.values = vec![address, Type::I32, resource];
+    entry.blocks[0].instructions = vec![
+        fixture::instruction(Some(ValueId(0)), InstructionKind::ReadCapture { index: 0 }),
+        fixture::instruction(
+            Some(ValueId(1)),
+            InstructionKind::Constant(Constant::I32(7)),
+        ),
+        fixture::instruction(
+            Some(ValueId(2)),
+            InstructionKind::MakeManaged {
+                fields: vec![ValueId(1)],
+            },
+        ),
+        fixture::instruction(
+            None,
+            InstructionKind::ReservePlaceAddress {
+                reservation: zil_ir::ReservationId(71),
+                address: ValueId(0),
+                path: vec![PlaceProjection::Field(0)],
+            },
+        ),
+        fixture::instruction(
+            None,
+            InstructionKind::CommitPlaceReplace {
+                reservation: zil_ir::ReservationId(71),
+                value: ValueId(2),
+            },
+        ),
+    ];
+    entry.blocks[0].terminator = Terminator::Return(Some(ValueId(1)));
+    let graphs = vec![(vec![vec![]], vec![true]); 3];
+    let old = complete_scheduler_run(&module, &graphs, 1).unwrap();
+    assert!(
+        old.0[0]
+            .replacements
+            .keys()
+            .any(|target| matches!(target.root, origins::Root::ParameterCapture(0, 0)))
+    );
+    assert!(
+        old.0[0]
+            .replacements
+            .keys()
+            .any(|target| matches!(target.root, origins::Root::Parameter(1)))
+    );
+    for mode in [0, 2] {
+        assert_eq!(complete_scheduler_run(&module, &graphs, mode).unwrap(), old);
+    }
+}
+
+#[test]
+fn missing_initialization_and_unpaid_temporary_keep_exact_final_resource_rejections() {
+    let mut uninitialized = fixture::module();
+    uninitialized.functions[0].parameters.pop();
+    for mode in [0, 1, 2] {
+        let errors = complete_scheduler_run(&uninitialized, &[(vec![vec![]], vec![true])], mode)
+            .unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.category == zil_base::ResultCategory::SafeReject)
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("move requires a live owned local")),
+            "{errors:?}"
+        );
+    }
+    let mut module = copy_result_helper(3);
+    module.functions[1].result_mode = PassingMode::Give;
+    let graphs = vec![(vec![vec![]], vec![true]); 2];
+    let old = complete_scheduler_run(&module, &graphs, 1).unwrap();
+    for mode in [0, 2] {
+        assert_eq!(complete_scheduler_run(&module, &graphs, mode).unwrap(), old);
+    }
+    module.functions[0].blocks[0]
+        .instructions
+        .retain(|i| !matches!(i.kind, InstructionKind::DropManaged { .. }));
+    for mode in [0, 1, 2] {
+        let errors = complete_scheduler_run(&module, &graphs, mode).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.category == zil_base::ResultCategory::SafeReject)
+        );
+        assert!(
+            errors.iter().any(|d| d
+                .message
+                .contains("normal return leaves a responsibility unpaid")),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn actual_same_input_and_callback_descriptor_cannot_hide_behind_two_summaries() {
+    use zil_ir::LocalDecl;
+    let mut module = public_callback_input_fixture();
+    let callback = Type::Closure(ClosureId(0));
+    let resource = module.functions[0].locals[2].ty.clone();
+    let payload = if let Type::Managed(payload) = &resource {
+        payload.clone()
+    } else {
+        unreachable!()
+    };
+    let caller = &mut module.functions[0];
+    caller.callable_contract = None;
+    caller.locals.push(LocalDecl {
+        id: LocalId(3),
+        name: "actual_callback".into(),
+        ty: callback.clone(),
+        mutable: true,
+        span: caller.span,
+    });
+    caller.values.extend([
+        Type::Address {
+            mutable: true,
+            inner: Box::new(resource),
+        },
+        Type::Desc(payload),
+        callback,
+        Type::Address {
+            mutable: true,
+            inner: Box::new(Type::Closure(ClosureId(0))),
+        },
+    ]);
+    caller.blocks[0].instructions = vec![
+        fixture::instruction(Some(ValueId(1)), InstructionKind::Load(LocalId(1))),
+        fixture::instruction(
+            Some(ValueId(2)),
+            InstructionKind::TakeLocal { local: LocalId(2) },
+        ),
+        fixture::instruction(
+            Some(ValueId(4)),
+            InstructionKind::AddressField {
+                address: ValueId(1),
+                index: 0,
+            },
+        ),
+        fixture::instruction(
+            Some(ValueId(5)),
+            InstructionKind::DescribeAddress {
+                address: ValueId(4),
+            },
+        ),
+        fixture::instruction(
+            Some(ValueId(6)),
+            InstructionKind::MakeClosure {
+                closure: ClosureId(0),
+                captures: vec![ValueId(5)],
+            },
+        ),
+        fixture::instruction(
+            None,
+            InstructionKind::Store {
+                local: LocalId(3),
+                value: ValueId(6),
+            },
+        ),
+        fixture::instruction(
+            Some(ValueId(7)),
+            InstructionKind::BorrowLocalMut { local: LocalId(3) },
+        ),
+        fixture::instruction(
+            Some(ValueId(3)),
+            InstructionKind::Call {
+                function: FunctionId(1),
+                arguments: vec![ValueId(7), ValueId(1), ValueId(2)],
+            },
+        ),
+        fixture::instruction(None, InstructionKind::DropClosure { local: LocalId(3) }),
+    ];
+    let graphs = vec![(vec![vec![]], vec![true]); 3];
+    for mode in [0, 1, 2] {
+        let errors = complete_scheduler_run(&module, &graphs, mode).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.category == zil_base::ResultCategory::SafeReject)
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("description is required later")),
+            "{errors:?}"
+        );
+    }
 }
