@@ -393,7 +393,7 @@ fn ordinary_package_fields_have_exact_fresh_analysis_and_verification_work() {
             if phase == Phase::Analyze {
                 312594
             } else {
-                645564
+                543695
             }
         );
         eprintln!("ordinary Package Copy observation {phase:?} N={high}; N-1/fresh agree");
@@ -889,7 +889,7 @@ fn ordinary_error_places_have_exact_fresh_independent_resource_work() {
             if phase == Phase::Analyze {
                 442451
             } else {
-                648698
+                528952
             }
         );
         eprintln!("ordinary Error/Option resource {phase:?} N={high}; N-1/fresh agree");

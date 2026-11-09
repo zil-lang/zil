@@ -13,6 +13,11 @@ static NEXT: AtomicU64 = AtomicU64::new(0);
 const PROGRAM: &str = include_str!(
     "../../../tests/fixtures/resource-packages/owned-package-wide-shared-address-array.zil"
 );
+const FIELD_SNAPSHOT: &str = include_str!(
+    "../../../tests/fixtures/resource-packages/owned-package-shared-address-array-snapshot.zil"
+);
+const SNAPSHOT_FINGERPRINT: &str =
+    "59b8aaa8aa292c1e3921cfee638ef03598e1ffe62a3a4402d1e1542cc793ae66";
 const FINGERPRINT: &str = "95d6572a129f856a5b073de7cfa2aa9d2b730c0ff44b254fa6f9a3d8830299bb";
 struct Temp(PathBuf, bool);
 impl Temp {
@@ -37,17 +42,16 @@ impl Drop for Temp {
         }
     }
 }
-#[test]
-fn ordinary_owned512_snapshot_runs_both_backends_at_both_optimizations() {
+fn native_program(program: &str, fingerprint: &str) {
     let temp = Temp::new();
     let source = SourceUnit::new(
         FileId(0),
         ModuleId(0),
         "large-package-array-default-work",
-        PROGRAM,
+        program,
     );
-    assert_eq!(source.fingerprint().to_hex(), FINGERPRINT);
-    fs::write(temp.0.join("source.zil"), PROGRAM).unwrap();
+    assert_eq!(source.fingerprint().to_hex(), fingerprint);
+    fs::write(temp.0.join("source.zil"), program).unwrap();
     let mut executed = 0;
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
         for optimization in [Optimization::O0, Optimization::O2] {
@@ -71,7 +75,7 @@ fn ordinary_owned512_snapshot_runs_both_backends_at_both_optimizations() {
                 "{}",
                 report.to_json()
             );
-            assert_eq!(report.input_fingerprint.to_hex(), FINGERPRINT);
+            assert_eq!(report.input_fingerprint.to_hex(), fingerprint);
             assert_eq!(report.verification_runs, 1);
             assert!(!report.commands.is_empty());
             let native = report.native_codegen.as_ref().unwrap();
@@ -104,5 +108,14 @@ fn ordinary_owned512_snapshot_runs_both_backends_at_both_optimizations() {
         }
     }
     assert_eq!(executed, 4);
-    eprintln!("original owning512 source={FINGERPRINT} actual native executions={executed}");
+    eprintln!("original owning512 source={fingerprint} actual native executions={executed}");
+}
+
+#[test]
+fn ordinary_owned512_snapshot_runs_both_backends_at_both_optimizations() {
+    native_program(PROGRAM, FINGERPRINT);
+}
+#[test]
+fn whole_owned512_array_field_snapshot_runs_after_owner_cleanup() {
+    native_program(FIELD_SNAPSHOT, SNAPSHOT_FINGERPRINT);
 }

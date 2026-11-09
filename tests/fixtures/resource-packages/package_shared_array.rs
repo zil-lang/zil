@@ -529,10 +529,10 @@ fn package_array_slots_pointee_and_parent_snapshot_budgets_are_exact_and_fresh()
     assert_eq!(
         boundaries,
         vec![
-            [4018, 43671, 71270, 71270, 71270],
-            [5206, 88369, 155291, 155291, 155291],
-            [7021, 65992, 112304, 112304, 112304],
-            [9484, 76101, 121431, 121431, 121431],
+            [4018, 43671, 65446, 65446, 65446],
+            [5206, 88369, 135808, 135808, 135808],
+            [7021, 65992, 97272, 97272, 97272],
+            [9484, 76101, 111080, 111080, 111080],
         ]
     );
     for kernel in 0..5 {
@@ -760,42 +760,86 @@ fn owning_package_stays_affine_and_its_live_view_pins_the_parent() {
     assert_eq!(report.verification_runs, 1);
 }
 
-#[test]
-fn large_package_array_reports_its_actual_default_source_work_boundary() {
-    let program = include_str!("owned-package-wide-shared-address-array.zil");
+fn wide_package_source_raw_and_wire(program: &str, fingerprint: &str, snapshot: bool) {
+    let input = source("large-package-array-default-work", program);
+    assert_eq!(input.fingerprint().to_hex(), fingerprint);
     let report = compile_source(
-        &source("large-package-array-default-work", program),
+        &input,
         &CompileOptions {
             stop_after: Stage::Verify,
             ..CompileOptions::default()
         },
     );
-    println!(
-        "512-element Package Array default Source: {}",
-        report.to_json()
-    );
+    println!("512-address owning Package Source: {}", report.to_json());
     assert_eq!(
         report.status,
-        ResultCategory::ResourceLimit,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .all(|d| d.category == ResultCategory::ResourceLimit)
+    assert_eq!(report.verification_runs, 1);
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let raw = typed_source(
+        "large-package-array-default-work",
+        program,
+        &target,
+        &limits,
     );
-    assert_eq!(report.phase, zil_base::Phase::Analyze);
-    assert_eq!(report.verification_runs, 0);
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.message == "analysis budget exceeded during stored path comparison/search")
+    let make = raw.functions.iter().find(|f| f.name == "make").unwrap();
+    let zil_ir::Type::BorrowedStorage { storage, life } = &make.return_type else {
+        panic!("the actual owning Package retains its complete qualification");
+    };
+    assert!(matches!(storage.as_ref(), zil_ir::Type::Package { .. }));
+    assert_eq!(
+        life.slots.len(),
+        512,
+        "real address slots rather than scalar padding"
     );
-    assert!(report.native_codegen.is_none());
-    println!(
-        "Large Package Source still reaches its stored-path budget boundary; its snapshot/native ABI remains unimplemented"
+    for (ordinal, slot) in life.slots.iter().enumerate() {
+        assert_eq!(
+            slot.path,
+            [
+                zil_ir::PlaceProjection::Field(1),
+                zil_ir::PlaceProjection::Field(ordinal as u32)
+            ]
+        );
+        assert_eq!(slot.mode, zil_ir::StoredBorrowMode::SharedAddress);
+    }
+    if snapshot {
+        assert!(raw.functions.iter().any(|f| f.name == "discard"));
+        let main = raw.functions.iter().find(|f| f.name == "main").unwrap();
+        assert!(
+            main.blocks.iter().flat_map(|b| &b.instructions).any(|i| {
+                matches!(i.kind, zil_ir::InstructionKind::ReadAddress { .. })
+                    && i.result.is_some_and(|id| {
+                        matches!(&main.values[id.0 as usize],
+                    zil_ir::Type::Array { element, length: 512 } if matches!(element.as_ref(),
+                        zil_ir::Type::Address { mutable: false, .. }))
+                    })
+            }),
+            "the whole field is copied before the owner is discharged"
+        );
+    }
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    println!("owning Package512 complete Source/raw/Wire passed; full-field snapshot={snapshot}");
+}
+#[test]
+fn owning_wide_package_array_completes_source_raw_and_wire_verification() {
+    wide_package_source_raw_and_wire(
+        include_str!("owned-package-wide-shared-address-array.zil"),
+        "95d6572a129f856a5b073de7cfa2aa9d2b730c0ff44b254fa6f9a3d8830299bb",
+        false,
+    );
+}
+#[test]
+fn whole_shared_array_field_snapshot_survives_owner_cleanup_with_every_source() {
+    wide_package_source_raw_and_wire(
+        include_str!("owned-package-shared-address-array-snapshot.zil"),
+        "59b8aaa8aa292c1e3921cfee638ef03598e1ffe62a3a4402d1e1542cc793ae66",
+        true,
     );
 }
