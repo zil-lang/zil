@@ -193,24 +193,26 @@
     "remote_identity_claimed_for_local_commit": false
   },
   "preservation": "Every exact local execution commit remains at its detached worktree with all files and logs. Each complete accepted tree matches an archived main commit; local commit metadata is not represented as remotely identical. Two known original Closure test outputs are preserved, not unique source.",
-  "current_batch_receipt": "https://github.com/zil-lang/zil/blob/82a69812582856b012468db3d019930d8e390f64/validation/stored-owned-observations.json",
+  "current_batch_receipt": "https://github.com/zil-lang/zil/blob/d813da9307f4e174a5f16bc127c267ca438be589/validation/owned-shared-array-scale.json",
   "current_batch": {
-    "source": "7dc17ebeb1ab1899048ec2686d52f156ad97ac95",
-    "source_tree": "f89f668b861d574f69ce7903ddc9a5ed35c793ae",
-    "published_source": "b20fb4149d6681354ae5b0c73b88d246e6f555f7",
-    "published_receipt": "97ef745821548fe0b299919622b8cb2ad73df8b0",
+    "source": "ddfee9f845b979cb15cf4589d791811d40b5bd51",
+    "source_tree": "6b602cdf417454dfb76b6b806630f721afb1502c",
+    "published_source": "8b8aae04682b2e7dad4ad58fb64ec2ea66c33c9c",
+    "published_receipt": "27b47a11433004c39da51c9e107b544544819e15",
+    "accepted_main": "d813da9307f4e174a5f16bc127c267ca438be589",
     "tests": {
+      "analyze": 225,
+      "verify": 498,
       "traits": 197,
-      "analyze": 207,
-      "verify": 459,
-      "llvm_backend": 182,
+      "arrays": 55,
       "legacy_budget": 23,
-      "shared_arrays": 54
+      "llvm_backend": 187,
+      "native_tests": 2
     },
-    "focused_12_included_in_traits": true,
+    "actual_source_groups": "998 unchanged regression tests at 6cfb plus 189 affected tests rerun at ddfee; not all rerun on ddfee.",
     "selected_native": 8,
     "strict_fmt_docs": "Pass",
-    "root_native_check_sha256": "076a18f8c053c0d7d64ca6862f3b4aee914e729561077a56001388c376ba523d"
+    "root_native_check_sha256": "84f0a4990690ef11a87b029bbead1e4fb11d43119437297b0729c3342978ce08"
   },
   "remaining": {
     "arrays": "43f2 V10 passes 7 selected oracles, full Verify 498/0 and independent source review (100 checks). Original 95d/59b default Source, raw Verify and Wire all pass. Eight Clang/API O0/O2 builds all stop in codegen with Copy aggregate snapshot emission budget exceeded; actual executions are zero. Only the named eight-path emission-work correction is being integrated; native/final driver acceptance remains pending.",
@@ -529,7 +531,7 @@
       "log_sha256": "c30487b8ed28985c92632b267b1299b05df88a08d4198428284aa4fc4e9e601d"
     },
     "fmt": "Pass",
-    "remaining_gates": "Full traits, shared arrays, legacy budgets, standard native consumer tests, backend, strict and docs are running; no final merge claim.",
+    "remaining_gates": "Closed by the final source and receipt identities under owned_array_acceptance; prior entries retain their actual historical test source.",
     "evidence": "wt-owned-array-snapshot/out/runs/owned-array-snapshot-final-20261109-2",
     "original_first_failures_preserved": true,
     "status": "Accepted by PR66; see owned_array_acceptance for final test-only/receipt commits and exact validation groups."
@@ -654,5 +656,24 @@
     "status": "Inspect exact minimal extraction and original 4011-byte consumer; no new acceptance claim.",
     "original_history": "f2cfb4d6, three tests / 56 native history retained separately.",
     "whole_package_merge": false
-  }
+  },
+  "previous_batch": {
+    "source": "7dc17ebeb1ab1899048ec2686d52f156ad97ac95",
+    "source_tree": "f89f668b861d574f69ce7903ddc9a5ed35c793ae",
+    "published_source": "b20fb4149d6681354ae5b0c73b88d246e6f555f7",
+    "published_receipt": "97ef745821548fe0b299919622b8cb2ad73df8b0",
+    "tests": {
+      "traits": 197,
+      "analyze": 207,
+      "verify": 459,
+      "llvm_backend": 182,
+      "legacy_budget": 23,
+      "shared_arrays": 54
+    },
+    "focused_12_included_in_traits": true,
+    "selected_native": 8,
+    "strict_fmt_docs": "Pass",
+    "root_native_check_sha256": "076a18f8c053c0d7d64ca6862f3b4aee914e729561077a56001388c376ba523d"
+  },
+  "previous_batch_receipt": "https://github.com/zil-lang/zil/blob/82a69812582856b012468db3d019930d8e390f64/validation/stored-owned-observations.json"
 }
