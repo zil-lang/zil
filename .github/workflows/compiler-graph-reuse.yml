@@ -1,0 +1,121 @@
+name: Compiler graph index reuse and expanded coverage
+on:
+  push:
+    branches: [task/G10.5.1.2]
+    paths:
+      - '.task/G10.5.1.2/*.py'
+      - '.github/workflows/compiler-graph-reuse.yml'
+permissions:
+  contents: write
+concurrency:
+  group: compiler-graph-reuse-G10.5.1.2
+  cancel-in-progress: false
+jobs:
+  experiment:
+    if: github.repository == 'zil-lang/zil' && github.ref == 'refs/heads/task/G10.5.1.2'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Prepare exact baseline and supported LLVM
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/graph-setup"
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          cargo fetch --locked
+          sudo apt-get update
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/graph-llvm" 2>&1 | tee "$RUNNER_TEMP/graph-setup/llvm.log"
+          echo "ZIL_CLANG=$RUNNER_TEMP/graph-llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/graph-llvm/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/graph-llvm/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/graph-llvm/bin" >> "$GITHUB_PATH"
+          git fetch --depth=1 --no-tags origin 906940ea78dcd5298c9168c4d17197b5983bf954
+          git worktree add --detach "$RUNNER_TEMP/graph-base" 906940ea78dcd5298c9168c4d17197b5983bf954
+      - name: Freeze candidate and run full affected controls
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile .task/G10.5.1.2/*.py
+          python3 .task/G10.5.1.2/apply.py --apply
+          rustfmt --edition 2024 --config skip_children=true crates/zil-backend-llvm/src/machine_cgu.rs
+          test "$(git diff --name-only)" = 'crates/zil-backend-llvm/src/machine_cgu.rs'
+          git diff --check
+          git diff > "$RUNNER_TEMP/graph-setup/candidate.patch"
+          git add -- crates/zil-backend-llvm/src/machine_cgu.rs
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Reuse immutable partition indexes on import-cost fallback; pending acceptance'
+          git rev-parse HEAD > "$RUNNER_TEMP/graph-setup/source-commit.txt"
+          rustc -vV > "$RUNNER_TEMP/graph-setup/rustc.txt"
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/graph-tests"
+          cargo test --locked --offline -p zil-backend-llvm --features llvm-api --lib 2>&1 | tee "$RUNNER_TEMP/graph-setup/backend-tests.log"
+          grep -E 'test result: ok\. [1-9][0-9]* passed; 0 failed;' "$RUNNER_TEMP/graph-setup/backend-tests.log"
+          grep -E 'adaptive_planner_matches_two_pass_oracle_across_graph_families .*ok' "$RUNNER_TEMP/graph-setup/backend-tests.log"
+          cargo test --locked --offline -p zil-llvm-api --features native --lib 2>&1 | tee "$RUNNER_TEMP/graph-setup/llvm-tests.log"
+          cargo clippy --locked --offline -p zil-backend-llvm --features llvm-api --lib --tests -- -D warnings 2>&1 | tee "$RUNNER_TEMP/graph-setup/clippy.log"
+          cargo fmt -p zil-backend-llvm -- --check
+      - name: Build separate identical-profile release compilers
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+          CARGO_TARGET_DIR="$RUNNER_TEMP/graph-base-target" cargo build --locked --offline --release --manifest-path "$RUNNER_TEMP/graph-base/Cargo.toml" -p zil-cli 2>&1 | tee "$RUNNER_TEMP/graph-setup/base-build.log"
+          CARGO_TARGET_DIR="$RUNNER_TEMP/graph-candidate-target" cargo build --locked --offline --release -p zil-cli 2>&1 | tee "$RUNNER_TEMP/graph-setup/candidate-build.log"
+      - name: Expanded paired history and compute-bound runtime matrix
+        id: paired
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .task/G10.5.1.2/measure.py --base "$RUNNER_TEMP/graph-base-target/release/zil" --candidate "$RUNNER_TEMP/graph-candidate-target/release/zil" --out "$RUNNER_TEMP/graph-data" --rounds 5 2>&1 | tee "$RUNNER_TEMP/graph-setup/paired.log"
+      - name: Original upstream Rust library coverage without false equivalence
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .task/G10.5.1.2/upstream.py --out "$RUNNER_TEMP/graph-upstream" 2>&1 | tee "$RUNNER_TEMP/graph-setup/upstream.log"
+      - name: Existing resource allocation-failure consumer
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/research/native-api-validation/validate.py --repo "$GITHUB_WORKSPACE" --cli "$RUNNER_TEMP/graph-candidate-target/release/zil" --clang "$ZIL_CLANG" --out "$RUNNER_TEMP/graph-consumer" 2>&1 | tee "$RUNNER_TEMP/graph-setup/consumer.log"
+      - name: Preserve exact source and all observed results only on research branch
+        if: ${{ always() }}
+        shell: bash
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = 'refs/heads/task/G10.5.1.2'
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,shutil,tarfile
+          P=pathlib.Path; temp=P(os.environ['RUNNER_TEMP']); dst=P('.task/G10.5.1.2/runs')/os.environ['GITHUB_RUN_ID'];dst.mkdir(parents=True,exist_ok=False)
+          src=temp/'graph-data'
+          for name in ('manifest.json','summary.json','rows.jsonl','cells.json','failures.json','equivalence.json','runtime.jsonl'):
+              if (src/name).is_file():shutil.copyfile(src/name,dst/name)
+          for folder,name in [('graph-upstream','upstream.json'),('graph-consumer','consumer.json')]:
+              if (temp/folder/'summary.json').is_file():shutil.copyfile(temp/folder/'summary.json',dst/name)
+          with tarfile.open(dst/'raw.tar.gz','w:gz') as tar:
+              for path,label in [(src/'logs','logs'),(src/'runtime-logs','runtime-logs'),(src/'corpus','corpus'),(temp/'graph-setup','setup'),(temp/'graph-upstream','upstream')]:
+                  if path.exists():tar.add(path,arcname=label)
+          if (dst/'raw.tar.gz').stat().st_size>48*1024*1024:raise RuntimeError('evidence archive exceeds bound; do not omit silently')
+          files={p.name:{'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in dst.iterdir() if p.is_file()}
+          frozen=temp/'graph-setup/source-commit.txt'
+          receipt={'status_before_preservation':os.environ['PRIOR_STATUS'],'recipe':os.environ['GITHUB_SHA'],'measured_source':frozen.read_text().strip() if frozen.exists() else None,'baseline':'906940ea78dcd5298c9168c4d17197b5983bf954','source_sha256':hashlib.sha256(P('crates/zil-backend-llvm/src/machine_cgu.rs').read_bytes()).hexdigest(),'files':files,'independent_review':'NotRun','merge_allowed':False,'run':'https://github.com/zil-lang/zil/actions/runs/'+os.environ['GITHUB_RUN_ID']}
+          (dst/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt,indent=2))
+          if (dst/'summary.json').is_file():print((dst/'summary.json').read_text())
+          PY
+          git fetch --no-tags origin refs/heads/task/G10.5.1.2
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git add -- ".task/G10.5.1.2/runs/$GITHUB_RUN_ID"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Preserve expanded compiler experiment $GITHUB_RUN_ID; acceptance pending"
+          git push origin HEAD:refs/heads/task/G10.5.1.2
