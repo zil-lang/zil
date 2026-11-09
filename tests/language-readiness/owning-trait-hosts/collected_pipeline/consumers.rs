@@ -33,7 +33,10 @@ fn growing_collection_returns_the_incoming_owner_on_every_allocation_failure() {
     owning_trait_native_cleanup(
         &files(MODEL),
         &[
-            (None, 0, b"13:13:13\n"),
+            // Observer fields are attempts:new_allocations:releases. The
+            // second collect grows an existing Store buffer with realloc:
+            // 13 attempts create 12 allocation identities, all released.
+            (None, 0, b"13:12:12\n"),
             (Some("1"), 1, b"1:0:0\n"),
             (Some("2"), 2, b"2:1:1\n"),
             (Some("3"), 3, b"3:2:2\n"),
