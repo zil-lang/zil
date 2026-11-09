@@ -7,6 +7,8 @@ mod array_index;
 mod array_snapshot;
 mod byte_queries;
 mod leaf_rows;
+mod live_words;
+use live_words::WordRow;
 pub(super) mod owned_byte_views;
 #[path = "stored_flow_pure_copy.rs"]
 mod pure_copy;
@@ -3562,6 +3564,106 @@ fn reverse(
     module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
+    live: &mut WordRow,
+    b: &mut Budget,
+) -> Check<()> {
+    b.spend(1)?;
+    if let Some(v) = i.result {
+        live.assign(v.0 as usize, false)?;
+    }
+    match i.kind {
+        InstructionKind::Store { local, .. }
+        | InstructionKind::StorageLive(local)
+        | InstructionKind::StorageDead(local) => {
+            live.assign(f.values.len() + local.0 as usize, false)?
+        }
+        InstructionKind::Load(local)
+        | InstructionKind::BorrowPlaceLocal { local, .. }
+        | InstructionKind::BorrowLocal { local }
+        | InstructionKind::BorrowLocalMut { local } => {
+            live.assign(f.values.len() + local.0 as usize, true)?
+        }
+        InstructionKind::TakeLocal { local }
+        | InstructionKind::TakePackageField { local, .. }
+        | InstructionKind::DropPackageField { local, .. }
+        | InstructionKind::StorePackageField { local, .. }
+            if qualified(&f.locals[local.0 as usize].ty).is_some()
+                || matches!(i.kind, InstructionKind::TakeLocal { .. })
+                    && matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) =>
+        {
+            live.assign(f.values.len() + local.0 as usize, true)?;
+        }
+        InstructionKind::CallClosureShared { callee, .. }
+        | InstructionKind::CallClosureMut { callee, .. }
+            if fixed_environment(module, &f.locals[callee.0 as usize].ty) =>
+        {
+            live.assign(f.values.len() + callee.0 as usize, true)?;
+        }
+        _ => {}
+    }
+    for v in instruction_operands(&i.kind) {
+        b.spend(1)?;
+        live.assign(v.0 as usize, true)?;
+    }
+    Ok(())
+}
+fn term_live(t: &Terminator, live: &mut WordRow) -> Check<()> {
+    match t {
+        Terminator::Return(Some(v)) | Terminator::Branch { condition: v, .. } => {
+            live.assign(v.0 as usize, true)?
+        }
+        _ => {}
+    }
+    Ok(())
+}
+fn live_out(
+    module: &TypedModule,
+    f: &TypedFunction,
+    g: &FunctionGraph,
+    b: &mut Budget,
+) -> Check<Vec<WordRow>> {
+    let width = f
+        .values
+        .len()
+        .checked_add(f.locals.len())
+        .ok_or_else(|| limit("stored liveness width overflow"))?;
+    let units = WordRow::work_for(width);
+    b.spend(amount(amount(f.blocks.len(), units)?, 2)?)?;
+    let mut inputs = vec![WordRow::empty(width); f.blocks.len()];
+    let mut outputs = inputs.clone();
+    let mut dirty: Vec<_> = (0..f.blocks.len()).filter(|i| g.reachable[*i]).collect();
+    b.spend(f.blocks.len())?;
+    while let Some(bi) = dirty.pop() {
+        b.spend(units)?;
+        let mut out = WordRow::empty(width);
+        for child in &g.successors[bi] {
+            out.union(&inputs[*child], b)?;
+        }
+        b.spend(units)?;
+        outputs[bi].clone_from(&out);
+        term_live(&f.blocks[bi].terminator, &mut out)?;
+        for i in f.blocks[bi].instructions.iter().rev() {
+            reverse(module, f, i, &mut out, b)?;
+        }
+        b.spend(units)?;
+        if inputs[bi] != out {
+            inputs[bi] = out;
+            for pred in &g.predecessors[bi] {
+                b.spend(dirty.len().saturating_add(1))?;
+                if !dirty.contains(pred) {
+                    dirty.push(*pred);
+                }
+            }
+        }
+    }
+    Ok(outputs)
+}
+
+#[cfg(test)]
+fn reverse_bool(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
     live: &mut [bool],
     b: &mut Budget,
 ) -> Check<()> {
@@ -3603,7 +3705,8 @@ fn reverse(
     }
     Ok(())
 }
-fn term_live(t: &Terminator, live: &mut [bool]) {
+#[cfg(test)]
+fn term_live_bool(t: &Terminator, live: &mut [bool]) {
     match t {
         Terminator::Return(Some(v)) | Terminator::Branch { condition: v, .. } => {
             live[v.0 as usize] = true
@@ -3611,7 +3714,8 @@ fn term_live(t: &Terminator, live: &mut [bool]) {
         _ => {}
     }
 }
-fn live_out(
+#[cfg(test)]
+fn live_out_bool(
     module: &TypedModule,
     f: &TypedFunction,
     g: &FunctionGraph,
@@ -3638,9 +3742,9 @@ fn live_out(
         }
         b.spend(width)?;
         outputs[bi].clone_from(&out);
-        term_live(&f.blocks[bi].terminator, &mut out);
+        term_live_bool(&f.blocks[bi].terminator, &mut out);
         for i in f.blocks[bi].instructions.iter().rev() {
-            reverse(module, f, i, &mut out, b)?;
+            reverse_bool(module, f, i, &mut out, b)?;
         }
         b.spend(width)?;
         if inputs[bi] != out {
@@ -3671,7 +3775,7 @@ fn contributing_values(payloads: &[Payload], b: &mut Budget) -> Check<Vec<usize>
 fn live_loans(
     solution: &Solution,
     state: &Frame,
-    live: &[bool],
+    live: &WordRow,
     definition: Option<ValueId>,
     indexed: Option<&[usize]>,
     b: &mut Budget,
@@ -3681,7 +3785,7 @@ fn live_loans(
     }))?;
     let mut loans = Vec::new();
     let mut collect = |id: usize| -> Check<()> {
-        if !live[id] || definition.is_some_and(|value| value.0 as usize == id) {
+        if !live.is_live(id)? || definition.is_some_and(|value| value.0 as usize == id) {
             return Ok(());
         }
         let payload = if id < solution.values.len() {
@@ -3879,10 +3983,35 @@ fn check_call(
     Ok(())
 }
 
+fn instruction_rows(
+    module: &TypedModule,
+    f: &TypedFunction,
+    block: usize,
+    output: &WordRow,
+    b: &mut Budget,
+) -> Check<Vec<WordRow>> {
+    let block = &f.blocks[block];
+    // Pay the output copy, every snapshot's word copy and row record,
+    // and the empty placeholder records even if the logical width is zero.
+    b.spend(amount(
+        block.instructions.len().saturating_add(1),
+        output.work(),
+    )?)?;
+    b.spend(block.instructions.len())?;
+    let mut live = output.clone();
+    term_live(&block.terminator, &mut live)?;
+    let mut rows = vec![WordRow::empty(0); block.instructions.len()];
+    for (position, instruction) in block.instructions.iter().enumerate().rev() {
+        rows[position] = live.clone();
+        reverse(module, f, instruction, &mut live, b)?;
+    }
+    Ok(rows)
+}
+
 /// Only static instruction liveness over this invocation's exact graph.
 /// Each window check still reconstructs its current frame and active loans.
 struct WindowRows {
-    blocks: Vec<Vec<Vec<bool>>>,
+    blocks: Vec<Vec<WordRow>>,
 }
 impl WindowRows {
     fn reconstruct(
@@ -3894,21 +4023,12 @@ impl WindowRows {
         let outputs = live_out(module, f, graph, b)?;
         b.spend(f.blocks.len())?;
         let mut blocks = Vec::with_capacity(f.blocks.len());
-        let width = f.values.len().saturating_add(f.locals.len());
-        for (bi, block) in f.blocks.iter().enumerate() {
+        for (bi, _block) in f.blocks.iter().enumerate() {
             if !graph.reachable[bi] {
                 blocks.push(Vec::new());
                 continue;
             }
-            b.spend(amount(block.instructions.len().saturating_add(1), width)?)?;
-            let mut live = outputs[bi].clone();
-            term_live(&block.terminator, &mut live);
-            let mut rows = vec![vec![false; width]; block.instructions.len()];
-            for (position, instruction) in block.instructions.iter().enumerate().rev() {
-                rows[position].clone_from(&live);
-                reverse(module, f, instruction, &mut live, b)?;
-            }
-            blocks.push(rows);
+            blocks.push(instruction_rows(module, f, bi, &outputs[bi], b)?);
         }
         Ok(Self { blocks })
     }
@@ -3989,20 +4109,11 @@ fn windows(
                 join_frame(&mut state, &solution.outputs[*pred], b)?;
             }
         }
-        let width = f.values.len().saturating_add(f.locals.len());
         let after = if let Some(rows) = cached {
             b.spend(1)?;
             std::borrow::Cow::Borrowed(rows.blocks[bi].as_slice())
         } else {
-            b.spend(amount(block.instructions.len().saturating_add(1), width)?)?;
-            let mut live = output_live[bi].clone();
-            term_live(&block.terminator, &mut live);
-            let mut after = vec![vec![false; width]; block.instructions.len()];
-            for (at, i) in block.instructions.iter().enumerate().rev() {
-                after[at].clone_from(&live);
-                reverse(module, f, i, &mut live, b)?;
-            }
-            std::borrow::Cow::Owned(after)
+            std::borrow::Cow::Owned(instruction_rows(module, f, bi, &output_live[bi], b)?)
         };
         let mut byte_point = byte_flow
             .as_ref()
@@ -4022,10 +4133,10 @@ fn windows(
                     b,
                 )?
             } else {
-                b.spend(width)?;
+                b.spend(after[at].work())?;
                 let mut live = after[at].clone();
                 if let Some(id) = i.result {
-                    live[id.0 as usize] = false;
+                    live.assign(id.0 as usize, false)?;
                 }
                 live_loans(solution, &state, &live, None, None, b)?
             };
