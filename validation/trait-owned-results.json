@@ -1,0 +1,245 @@
+{
+  "schema_version": 1,
+  "status": "Pass for ordinary owning Package trait results and closed concrete provider checking",
+  "source": {
+    "commit": "702f1bea1923dd725e6f7eae0fee88e49f752c9a",
+    "tree": "d7b325dd8435ff703932a9783e517db86180c8ae",
+    "executed_local_commit": "5d0dc1fada5f57fbf99b365e3817d2fa81455013",
+    "publication": "Identical complete source tree; commit metadata differs. Original owning-result task tip remains a real ancestor.",
+    "clean_during_validation": true
+  },
+  "scope": "Concrete ordinary owning Package trait methods can return Self or nominal Error!Self. Closed concrete provider bodies retain complete ordinary Core/Types/Analyze/Verify checking after conformance; symbolic definitions keep their existing checker.",
+  "independent_review": {
+    "reviewed_local_commit": "5d0dc1fada5f57fbf99b365e3817d2fa81455013",
+    "reviewer": "Non-author integration reviewer",
+    "result": "Accepted exact ten-file source. Original seven tests preserved verbatim, five provider controls retained, complete provider checking independently traced."
+  },
+  "toolchain": {
+    "rust": "1.99.1",
+    "llvm_clang_lld": "23.1.4",
+    "host": "x86_64-unknown-linux-gnu",
+    "default_limits": true,
+    "increased_stack": false
+  },
+  "validation": {
+    "owning-trait-targeted": {
+      "source": "5d0dc1fada5f57fbf99b365e3817d2fa81455013",
+      "tree": "d7b325dd8435ff703932a9783e517db86180c8ae",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "nominal_trait_bounds",
+        "owning_trait_hosts",
+        "--",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-09T09:55:51.675291+00:00",
+      "elapsed_seconds": 51.378,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 1,
+      "tests": {
+        "passed": 28,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 149
+      },
+      "failed_tests": [],
+      "log": "out/runs/owning-trait-results-20261109-1/owning-trait-targeted.log",
+      "log_sha256": "1333631561b7c8518eca9c23f92ec75a8b5c6d15149bb32be769eebceaada665"
+    },
+    "nominal-traits-full": {
+      "source": "5d0dc1fada5f57fbf99b365e3817d2fa81455013",
+      "tree": "d7b325dd8435ff703932a9783e517db86180c8ae",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "nominal_trait_bounds",
+        "--",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-09T09:57:43.276476+00:00",
+      "elapsed_seconds": 47.524,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 1,
+      "tests": {
+        "passed": 177,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "log": "out/runs/owning-trait-results-20261109-1/nominal-traits-full.log",
+      "log_sha256": "7a5ed5aee147eabdd02f0d07987c019d28853ce96e6cf58459d0e96ae5cbea9b"
+    },
+    "expand-related": {
+      "source": "5d0dc1fada5f57fbf99b365e3817d2fa81455013",
+      "tree": "d7b325dd8435ff703932a9783e517db86180c8ae",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-expand",
+        "--test",
+        "project_trait_imports",
+        "--test",
+        "member_owner_preservation",
+        "--",
+        "--test-threads=1"
+      ],
+      "started_utc": "2026-11-09T09:57:10.744415+00:00",
+      "elapsed_seconds": 0.559,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 2,
+      "tests": {
+        "passed": 12,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "log": "out/runs/owning-trait-results-20261109-1/expand-related.log",
+      "log_sha256": "7e2f01e789ca159e5c674f1726b16dd3a1594d655147250a769a149101592aa0"
+    },
+    "strict": {
+      "source": "5d0dc1fada5f57fbf99b365e3817d2fa81455013",
+      "tree": "d7b325dd8435ff703932a9783e517db86180c8ae",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--workspace",
+        "--all-targets",
+        "--features",
+        "zil-driver/llvm-api",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "started_utc": "2026-11-09T09:59:11.492968+00:00",
+      "elapsed_seconds": 59.967,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "log": "out/runs/owning-trait-results-20261109-1/strict.log",
+      "log_sha256": "14199458af4e80fad34a7b7beda938e64a5631066064f3596b6cfec5a62f47fb"
+    },
+    "format": {
+      "source": "5d0dc1fada5f57fbf99b365e3817d2fa81455013",
+      "tree": "d7b325dd8435ff703932a9783e517db86180c8ae",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "started_utc": "2026-11-09T09:58:50.395501+00:00",
+      "elapsed_seconds": 7.315,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "log": "out/runs/owning-trait-results-20261109-1/format.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "layout": {
+      "source": "5d0dc1fada5f57fbf99b365e3817d2fa81455013",
+      "tree": "d7b325dd8435ff703932a9783e517db86180c8ae",
+      "source_unchanged": true,
+      "command": [
+        "python3",
+        "tools/check-repository-layout.py",
+        "--full",
+        "--delivery"
+      ],
+      "started_utc": "2026-11-09T09:58:57.770962+00:00",
+      "elapsed_seconds": 1.53,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "log": "out/runs/owning-trait-results-20261109-1/layout.log",
+      "log_sha256": "73760c09492faedb66a6661c249542890d7a56b6034e51e2020f903dcd72da1b"
+    }
+  },
+  "native": {
+    "scope": "owned_results submodule only; no total claimed for its parent suite",
+    "executions_per_complete_target_run": 80,
+    "matrix": [
+      "Clang O0",
+      "Clang O2",
+      "LLVM API O0",
+      "LLVM API O2"
+    ],
+    "includes": "Original owning-result consumers and closed-provider variants, including allocation-failure paths",
+    "assertions": [
+      "actual selected backend",
+      "no fallback",
+      "expected process status",
+      "complete expected output and cleanup counters"
+    ]
+  },
+  "negative_controls": [
+    "Actual owner identity, signature and complete trait conformance retained",
+    "Symbolic generic, where-bound and extra-contract headers keep their existing body checker",
+    "Bodies with forbidden permissions and wrong error results rejected",
+    "Unused concrete methods and actual generic helper calls remain checked"
+  ],
+  "not_claimed": [
+    "Arbitrary trait or dyn result shapes",
+    "Opaque or generic owning closure factory outputs",
+    "Full default/reference workspace tests or full language/product acceptance"
+  ]
+}

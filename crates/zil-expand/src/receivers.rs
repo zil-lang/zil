@@ -504,6 +504,10 @@ pub(super) fn substitute_self(ty: Type, host: Option<&Type>) -> Type {
                 .map(|t| substitute_self(t, host))
                 .collect(),
         ),
+        Type::ErrorUnion { error, result } => Type::ErrorUnion {
+            error: Box::new(substitute_self(*error, host)),
+            result: Box::new(substitute_self(*result, host)),
+        },
         Type::ForeignCallback { parameters, result } => Type::ForeignCallback {
             parameters: parameters
                 .into_iter()
