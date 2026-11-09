@@ -54,7 +54,7 @@ def source_text(root,case,snapshot,arm):
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('--base',type=Path,required=True);ap.add_argument('--candidate',type=Path,required=True);ap.add_argument('--out',type=Path,required=True);ap.add_argument('--rounds',type=int,default=5)
     a=ap.parse_args();out=a.out.resolve();out.mkdir(parents=True);cpus=sorted(os.sched_getaffinity(0))[:2];assert len(cpus)==2;os.sched_setaffinity(0,cpus)
-    tools={'base':a.base.resolve(),'cand':a.candidate.resolve(),'rust':Path(shutil.which('rustc')).resolve()}
+    tools={'base':a.base.resolve(),'cand':a.candidate.resolve(),'rust':Path(subprocess.check_output(['rustup','which','rustc'],text=True).strip())}
     cases=corpus.generate(out/'corpus');rows=[];runtime=[];failures=[];equivalence=[]
     manifest={'baseline':'906940ea78dcd5298c9168c4d17197b5983bf954','candidate':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'cases':cases,'tools':{k:sha(v) for k,v in tools.items()},'cpus':cpus,'rounds':a.rounds,'request_weights':PROFILES,'mode_weights':MODE_WEIGHTS,'weights':'predeclared assumptions, not telemetry','upstream_original_crates':'separate unpaired lane, excluded from paired aggregate; no substitution claimed','boundary':'fresh process through link; project caches retained only within one history; OS caches retained; no Cargo Fresh in paired rows','source_hashes':{str(p.relative_to(out)):sha(p) for p in (out/'corpus').rglob('*') if p.is_file()}}
     dump(out/'manifest.json',manifest)

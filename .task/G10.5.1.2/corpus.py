@@ -40,16 +40,16 @@ def graph(name,n,lang,edit):
         else: targets=[] if i>=n//2 else [n//2+i%(n//2),n//2+(i*17+1)%(n//2)]
         body=f'if d<=0 {{return (x+{bias})%65521;}} '
         if targets:
-            body+=f'let a=f{targets[0]}((x*x+{bias})%65521,d-1); '
-            if len(targets)==2: body+=f'let b=f{targets[1]}((a+x+3)%65521,d-1); return (b*31+x+{bias})%65521;'
+            body+=f'let a=graph_fn{targets[0]}((x*x+{bias})%65521,d-1); '
+            if len(targets)==2: body+=f'let b=graph_fn{targets[1]}((a+x+3)%65521,d-1); return (b*31+x+{bias})%65521;'
             else: body+=f'return (a*31+x+{bias})%65521;'
         else: body+=f'return (x*x+{bias})%65521;'
-        rows.append(f'fn f{i}(x:i64,d:i32)->i64 {{ {body} }}\n')
+        rows.append(f'fn graph_fn{i}(x:i64,d:i32)->i64 {{ {body} }}\n')
     mut='var' if lang=='zil' else 'let mut'
     # Every function is explicitly called, in addition to graph edges. The
     # input-driven nonlinear recurrence prevents constant/affine collapse.
     run=f'fn run(x:i64,d:i32)->i64 {{ {mut} y=x; '
-    for i in range(n): run+=f'y=f{i}(y,d); '
+    for i in range(n): run+=f'y=graph_fn{i}(y,d); '
     return ''.join(rows)+run+'return y; }\n'
 
 def traits(n,lang,edit):
