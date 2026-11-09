@@ -53,6 +53,24 @@ impl Index {
     ) -> Check<Result<usize, usize>> {
         b.spend(1)?;
         let children = &self.nodes[node].children;
+        b.spend(1)?;
+        if children.len() >= INDEX_THRESHOLD {
+            // This is only a position hint. Authenticate the actual full key
+            // before returning; sparse or mixed children still use binary search.
+            b.spend(2)?;
+            if let (PlaceProjection::Field(first), PlaceProjection::Field(wanted)) =
+                (&children[0].0, step)
+            {
+                b.spend(1)?;
+                if let Some(offset) = wanted.checked_sub(*first) {
+                    b.spend(2)?;
+                    let at = offset as usize;
+                    if children.get(at).is_some_and(|(key, _)| key == step) {
+                        return Ok(Ok(at));
+                    }
+                }
+            }
+        }
         let (mut low, mut high) = (0usize, children.len());
         while low < high {
             let mid = low + (high - low) / 2;
@@ -304,7 +322,9 @@ mod tests {
             ..Limits::default()
         });
         assert!(old.position(&path, &mut short).is_err());
-        for steps in [69, 68, 69] {
+        // Each of the 17 child lookups now prepays its actual probe
+        // eligibility check: the previous trie work 69 plus 17 is 86.
+        for steps in [86, 85, 86] {
             let result = rows.position(
                 &path,
                 &mut Budget::new(&Limits {
@@ -312,7 +332,7 @@ mod tests {
                     ..Limits::default()
                 }),
             );
-            if steps == 69 {
+            if steps == 86 {
                 assert_eq!(result.unwrap(), Some(0));
             } else {
                 assert_eq!(
@@ -330,3 +350,10 @@ mod oracle;
 #[cfg(test)]
 #[path = "leaf_rows_trie_tests.rs"]
 mod trie_tests;
+
+#[cfg(test)]
+#[path = "leaf_rows_probe_oracle.rs"]
+mod probe_oracle;
+#[cfg(test)]
+#[path = "leaf_rows_probe_tests.rs"]
+mod probe_tests;
