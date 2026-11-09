@@ -1,70 +1,73 @@
 {
   "format": 1,
-  "created_utc": "2026-11-09 16:27:17 UTC",
-  "prior_archive": "afecce60a16f225ad4b670e5ec872a7466495385",
+  "created_utc": "2026-11-09 17:56:13 UTC",
+  "prior_archive": "3aba8ab5dfc939a13acfdf664a7e7adef8368f3f",
   "commit_parents": [
-    "afecce60a16f225ad4b670e5ec872a7466495385",
-    "6e27d4da55ad627b49c0ad148eb65225a1413132"
+    "3aba8ab5dfc939a13acfdf664a7e7adef8368f3f",
+    "fc18d05d59321423570bb46123c756f2ad7e2e88"
   ],
   "commit_tips": [
-    "afecce60a16f225ad4b670e5ec872a7466495385",
-    "6e27d4da55ad627b49c0ad148eb65225a1413132",
-    "b972d1c7babd52e996ec0fb8c0cfcc009f44f4b0"
+    "3aba8ab5dfc939a13acfdf664a7e7adef8368f3f",
+    "fc18d05d59321423570bb46123c756f2ad7e2e88",
+    "be9751ecd6f5265240c1e565add0097faa7f96a7"
   ],
   "local_refs": {
-    "refs/heads/task/current-budget-boundaries": "9bdea108913746f92a814bb4dff7735bbc3f5027"
+    "refs/heads/task/owned-pipeline-acceptance": "e711aca01f9714e28786275ff4874583bf69686c"
   },
   "remote_refs": {
-    "refs/heads/archive/source-history": "afecce60a16f225ad4b670e5ec872a7466495385",
-    "refs/heads/main": "6e27d4da55ad627b49c0ad148eb65225a1413132",
-    "refs/heads/task/current-budget-boundaries": "b972d1c7babd52e996ec0fb8c0cfcc009f44f4b0"
+    "refs/heads/archive/source-history": "3aba8ab5dfc939a13acfdf664a7e7adef8368f3f",
+    "refs/heads/main": "fc18d05d59321423570bb46123c756f2ad7e2e88",
+    "refs/heads/task/owned-pipeline-acceptance": "be9751ecd6f5265240c1e565add0097faa7f96a7"
   },
   "worktrees": [],
   "missing_commit_objects": [],
   "retirements": [
     {
-      "ref": "refs/heads/task/current-budget-boundaries",
-      "head_before_retirement": "b972d1c7babd52e996ec0fb8c0cfcc009f44f4b0",
-      "accepted_main": "6e27d4da55ad627b49c0ad148eb65225a1413132",
-      "pull_request": 67,
-      "remote_history_reachable_through_parent": "6e27d4da55ad627b49c0ad148eb65225a1413132",
-      "accepted_tree": "fe1ee13f0334518c257cb260a5a9bf0f86601d98",
+      "ref": "refs/heads/task/owned-pipeline-acceptance",
+      "head_before_retirement": "be9751ecd6f5265240c1e565add0097faa7f96a7",
+      "accepted_main": "fc18d05d59321423570bb46123c756f2ad7e2e88",
+      "pull_request": 68,
+      "remote_history_reachable_through_parent": "fc18d05d59321423570bb46123c756f2ad7e2e88",
+      "accepted_tree": "44324e1c7a023ed91dc7f063febac330cf631e26",
       "local_execution_identity": {
-        "observation_source": "40cdd950bbbefc82d1fa5ca0439b6859f1c371ad",
-        "tested_source": "116cda19e9fcaabf2f0e872ade0a4594662b35ee",
-        "tested_tree": "3de9a68ebad3eae392505f2282f76df884860ca8",
-        "receipt_commit": "99a3943250d735a1becc23b62585b90d7a69cf3a",
-        "final_receipt_commit": "9bdea108913746f92a814bb4dff7735bbc3f5027",
-        "branch": "task/current-budget-boundaries",
+        "production_and_initial_tests": "9be93aab658e08f1bc7008971398ffae39fc8998",
+        "tested_source": "2dd71f2eb33d080eb48bb5677dcc7633ebb1cbfb",
+        "tested_tree": "316ea033db029af7bc0025084382863b36396413",
+        "final_receipt_commit": "e711aca01f9714e28786275ff4874583bf69686c",
+        "branch": "task/owned-pipeline-acceptance",
         "branch_retained_at_manifest_creation": true,
         "remote_commit_identity_claimed": false,
         "complete_final_tree_identical_to_remote": true,
-        "worktree": "/workspace/scratch/36bf9939e558/wt-current-budget-boundaries",
-        "preservation": "Keep the exact local final receipt and complete local ancestry in the detached worktree. Preserve all original CI failures, diagnostic before-images/patch, final logs and independent reviews under out/runs."
+        "worktree": "/workspace/scratch/36bf9939e558/wt-owned-pipeline-acceptance",
+        "preservation": "Keep the exact local final receipt and complete local ancestry in the detached worktree. Preserve all original failures, temporary cost-measurement before-images and restored assertions, final logs and independent reviews under out/runs."
       },
       "receipt": {
-        "path": "validation/stored-flow-budget-boundaries.json",
-        "sha256": "fc2a4ff653080fe8be0941277b71eca4ece3aefd280515304a2c33ece7b575a2"
+        "path": "validation/stored-owned-callback-pipeline.json",
+        "sha256": "8c981bd7eabf09b89573eba7abb4f057d40d8358aa94371c4902a57054dcf825"
       },
       "independent_review": {
-        "test_source": "116cda19e9fcaabf2f0e872ade0a4594662b35ee",
-        "checks": 26,
-        "report_sha256": "366c0e5f9dca29af83c904174cff2c6cbd90a41b95e6f526a3803473da699d7b",
-        "receipt_checks": 63,
-        "receipt_identity_sha256": "479557aa98729275b8580a5bb8708aa5a37bba416598a3d0cd2c508a93c70106"
+        "delta_checks": 572,
+        "delta_report_sha256": "e4a521fe43f2e81f560137efc6b8d7405940efddef656ed9c29a012a065d6e53",
+        "receipt_fact_report_sha256": "7c28adb110b1776b8b66a10811036adb6ee6ba1b6f759ff70c6274889fe11a0c",
+        "final_receipt_checks": 32,
+        "final_receipt_report_sha256": "07b2459d237993e897ac63886b9cfc10cceda847dabee0e9ebf3b43f5e54df06"
       },
       "validation": {
-        "default_tests": 4,
-        "reference_tests": 4,
-        "failed": 0,
+        "original_source_bytes": 6052,
+        "native_executions": 48,
+        "kernel_tests": 728,
+        "default_budget_tests": 8,
+        "reference_budget_tests": 8,
+        "failed_final_gates": 0,
         "format": "Pass",
         "affected_target_clippy": "Pass",
         "documentation": "Pass",
-        "documentation_log_sha256": "b0a7aaf75c4ac5c1e6744d6a056ed6e2f642be4cd1924e14570b1d291d763cd1",
-        "whole_workspace_rerun": false
+        "documentation_log_sha256": "d1c8bb3a4fddf6ed8aff4cb51d46179374b286db14ce2496ffebc0f08fd7d3e0",
+        "whole_workspace_rerun": false,
+        "new_main_ci": "in progress at archive creation; not counted as accepted evidence"
       },
       "unique_uncommitted_source": false
     }
   ],
-  "scope": "Preserve the twelfth accepted scoped batch before retiring the completed budget-boundary branch. It changes four test anchors and their historical-limit expectations, with all original semantics and default budgets retained. Earlier archive manifests remain reachable through the prior parent; active pipeline and Map branches remain retained."
+  "scope": "Preserve the thirteenth accepted scoped batch before retiring its completed delivery branch. Accept the original complete owned callback pipeline, independent raw/Wire and native cleanup within its recorded scope. Earlier archive manifests remain reachable through the prior parent; the larger collected and growing Map author branches remain active."
 }
