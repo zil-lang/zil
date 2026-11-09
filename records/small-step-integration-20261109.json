@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-09T14:53:36Z",
-  "status": "Ten scoped batches merged; their completed remote and local branch refs retired. Array and Map work remains active.",
-  "accepted_main": "82a69812582856b012468db3d019930d8e390f64",
-  "accepted_tree": "fab0e0363c2a46050f14740a5ad8ce5287db8df7",
-  "archive": "8493b709158052265e9f5085c2b0c01eea223b25",
+  "recorded_utc": "2026-11-09T15:18:14Z",
+  "status": "Eleven scoped batches accepted and completed task refs retired; Map and the original pipeline continue separately.",
+  "accepted_main": "d813da9307f4e174a5f16bc127c267ca438be589",
+  "accepted_tree": "73bae4bcc113d6a4d9a6eb07996955ad95781133",
+  "archive": "afecce60a16f225ad4b670e5ec872a7466495385",
   "remote_retirements": [
     {
       "pr": 55,
@@ -280,33 +280,29 @@
     "acceptance": "Checkpoint only; parent task remains in progress."
   },
   "main_ci": {
-    "head": "82a69812582856b012468db3d019930d8e390f64",
+    "source": "d813da9307f4e174a5f16bc127c267ca438be589",
+    "observed_utc": "2026-11-09 15:18:14 UTC",
     "checks": [
       {
-        "id": 129172463351,
         "name": "documentation",
         "status": "completed",
         "conclusion": "success",
-        "url": "https://github.com/zil-lang/zil/actions/runs/42620900830/job/129172463351",
-        "completed_at": "2026-11-09T12:55:24Z"
+        "url": "https://github.com/zil-lang/zil/actions/runs/42641988917/job/129245182189"
       },
       {
-        "id": 129172463108,
         "name": "workspace",
-        "status": "completed",
-        "conclusion": "success",
-        "url": "https://github.com/zil-lang/zil/actions/runs/42620900859/job/129172463108",
-        "completed_at": "2026-11-09T13:22:26Z"
+        "status": "in_progress",
+        "conclusion": null,
+        "url": "https://github.com/zil-lang/zil/actions/runs/42641988893/job/129245181555"
       },
       {
-        "id": 129172462846,
         "name": "workspace",
-        "status": "completed",
-        "conclusion": "success",
-        "url": "https://github.com/zil-lang/zil/actions/runs/42620900627/job/129172462846",
-        "completed_at": "2026-11-09T13:32:23Z"
+        "status": "in_progress",
+        "conclusion": null,
+        "url": "https://github.com/zil-lang/zil/actions/runs/42641988876/job/129245181482"
       }
-    ]
+    ],
+    "all_success": false
   },
   "array_verifier_checkpoints": {
     "scope": "Task checkpoints only, not main acceptance; physical module and source inputs are unchanged.",
@@ -535,15 +531,128 @@
     "fmt": "Pass",
     "remaining_gates": "Full traits, shared arrays, legacy budgets, standard native consumer tests, backend, strict and docs are running; no final merge claim.",
     "evidence": "wt-owned-array-snapshot/out/runs/owned-array-snapshot-final-20261109-2",
-    "original_first_failures_preserved": true
+    "original_first_failures_preserved": true,
+    "status": "Accepted by PR66; see owned_array_acceptance for final test-only/receipt commits and exact validation groups."
   },
   "map_retirement_candidate": {
     "source": "c6ff7168af5692e00ae471a8ff43447372eb2c78",
     "tree": "f94fb8e749a8cf87e5f1ab5d7259bc47e4e47060",
     "scope": "Only State.retirement uses small Dense or 16-row Arc pages. Clone pays actual reference copying; merge retains full source-state cost and original ordinal Sources.merge, plus actual COW and cleanup work.",
-    "root_tests": "NotRun",
+    "root_tests": {
+      "page_oracles": 5,
+      "verify": 551,
+      "callable_effects": 7,
+      "original_map_passed": 0,
+      "original_map_failed": 1
+    },
     "new_oracles": 5,
-    "independent_review": "InProgress",
-    "original_map_default_budget": "Not established for this candidate."
+    "independent_review": {
+      "checks": 19,
+      "blockers": 0,
+      "report_sha256": "ec14230cf615383c64bf7da6918ea23a2a2028bc2cfdad224b5665041351789f"
+    },
+    "original_map_default_budget": "Verify ResourceLimit; original module7a299 and std6fbc unchanged.",
+    "published": "287859f529b8d4e0c0e60d36a14c04ec9181db72",
+    "evidence": "wt-map-scheduler-validation/out/runs/map-retirement-pages-20261109-1",
+    "original_map_log_sha256": "f8c87813abfaf6741fe76e12b444cbc80b800fee9a0c98f510ad11b4f3c9591b",
+    "diagnostic_ledger_9": {
+      "evidence": "wt-growing-collections/out/runs/map-scheduler-verify-ledger-20261109-9",
+      "trace_sha256": "edf3ff6b5da534e1a5277467c8c1d44425cc91690fbf22b9f7009ad3d20082bd",
+      "patch_sha256": "8ba44c60755881f71002684d3007007892154956c1eee4f7ecf8c8817a4c4307",
+      "source_restored": true,
+      "known_alias_preserved_by_exact_hash": true,
+      "complete_unchanged_scopes": 180,
+      "complete_replacement_work": 4517438,
+      "complete_records_three_calls": 3830989,
+      "partial_resource_summary": "347927 available; request stops at actual.rs:59, remaining0 amount1; no whole-program net saving inferred.",
+      "cost_review_sha256": "5a9947123634512da0c3f3eb1180a058a280ecb8344d4565ba14fd2949bdfa81",
+      "next": "Design stable fixedpoint input reuse with complete dependency versions, original final validation and full cache/COW/cleanup work accounting."
+    }
+  },
+  "previous_accepted_main": "82a69812582856b012468db3d019930d8e390f64",
+  "previous_accepted_tree": "fab0e0363c2a46050f14740a5ad8ce5287db8df7",
+  "previous_archive": "8493b709158052265e9f5085c2b0c01eea223b25",
+  "owned_array_acceptance": {
+    "pull_request": 66,
+    "url": "https://github.com/zil-lang/zil/pull/66",
+    "main": "d813da9307f4e174a5f16bc127c267ca438be589",
+    "tree": "73bae4bcc113d6a4d9a6eb07996955ad95781133",
+    "regression_source": "6cfb6ae3acbe467094dcc4faae953755fe55ddc3",
+    "source": "ddfee9f845b979cb15cf4589d791811d40b5bd51",
+    "published_source": "8b8aae04682b2e7dad4ad58fb64ec2ea66c33c9c",
+    "receipt_commit": "ad166b835d8fdf134c8edcfae8860a9ed347007b",
+    "published_receipt": "27b47a11433004c39da51c9e107b544544819e15",
+    "receipt_path": "validation/owned-shared-array-scale.json",
+    "receipt_sha256": "e112d446dd850acf6a4ce106ff8c0cbae0dcaba4182e405b2e5c36154a5f7ec4",
+    "tests": {
+      "analyze": 225,
+      "verify": 498,
+      "traits": 197,
+      "arrays": 55,
+      "legacy_budget": 23,
+      "llvm_backend": 187,
+      "native_tests": 2
+    },
+    "counting": "998 unchanged regression tests at 6cfb plus 189 affected tests rerun at ddfee; not all rerun on ddfee.",
+    "selected_actual_native": 8,
+    "strict_fmt_docs": "Pass",
+    "native_audit_sha256": "84f0a4990690ef11a87b029bbead1e4fb11d43119437297b0729c3342978ce08",
+    "final_source_review_sha256": "7ae234ab15f38d44c4420dfe46247b0e4213fbff973a64295cf8a90c2f8ce521",
+    "final_receipt_review_sha256": "7b4e829c75c9d2382d4aa1b0f9c05ad177ed9e6576cc51be2ab1d95d5b31e50b",
+    "receipt_docs_log_sha256": "8dc4b7cbb14fc611faf05062f81fddf911f38bb229aaf076fd87caca2ddd6181",
+    "remote_branch_deleted": true,
+    "deleted_ref": "refs/heads/task/owned-array-snapshot",
+    "api_absence": "404 Not Found after visible Delete/Restore branch outcome",
+    "local_task_ref_retired": true,
+    "local_review_ref_retired": true,
+    "exact_detached_execution_and_review_trees_preserved": true,
+    "archive": "afecce60a16f225ad4b670e5ec872a7466495385",
+    "archive_manifest_sha256": "b14de9cb242c27c12a8556025483a023b8bfbb80e7fed91949e3b5f2d05baf89",
+    "git_connectivity_check": "Pass",
+    "local_retirement_receipt": "setup-tmp/local-owned-array-branch-retirement-20261109.json",
+    "local_retirement_receipt_sha256": "5333930fe49e028ba8fb1bbbf9609f46fdabc193919222ba7a6714b7a5b1ef3b",
+    "branch_cleanup_image": "/workspace/scratch/zil-pr66-branch-deletion-verified-20261109.jpg"
+  },
+  "completed_task_ref_counts": {
+    "remote": 11,
+    "local": 11,
+    "additional_array_review_local": 1
+  },
+  "previous_main_ci": {
+    "head": "82a69812582856b012468db3d019930d8e390f64",
+    "checks": [
+      {
+        "id": 129172463351,
+        "name": "documentation",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/zil-lang/zil/actions/runs/42620900830/job/129172463351",
+        "completed_at": "2026-11-09T12:55:24Z"
+      },
+      {
+        "id": 129172463108,
+        "name": "workspace",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/zil-lang/zil/actions/runs/42620900859/job/129172463108",
+        "completed_at": "2026-11-09T13:22:26Z"
+      },
+      {
+        "id": 129172462846,
+        "name": "workspace",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/zil-lang/zil/actions/runs/42620900627/job/129172462846",
+        "completed_at": "2026-11-09T13:32:23Z"
+      }
+    ]
+  },
+  "pipeline_followup": {
+    "owner": "byte_view_composition",
+    "branch": "task/owned-pipeline-composition",
+    "baseline": "d813da9307f4e174a5f16bc127c267ca438be589",
+    "status": "Inspect exact minimal extraction and original 4011-byte consumer; no new acceptance claim.",
+    "original_history": "f2cfb4d6, three tests / 56 native history retained separately.",
+    "whole_package_merge": false
   }
 }
