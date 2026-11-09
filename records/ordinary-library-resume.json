@@ -13,7 +13,7 @@
   "first_failure": "offline cargo dependency rustc_apfloat absent; no tests executed",
   "scope": "Continue original ordinary-library consumer and large owned closure transport; no release claim",
   "raw_logs": "out/runs/byte-views-baseline-20261109/ in task/G3.4.22 worktree",
-  "last_work": "2026-11-09 10:22 Asia/Shanghai",
+  "last_work": "2026-11-09 10:42 Asia/Shanghai",
   "integration_remote": "e21d9684ed45a5f0c31c7e764f87a008d054d9a8",
   "large_closure_checkpoint": "dbd5c446a600eb26f34574748376a2b8e84fece8",
   "baseline_language_failure": "original four-module program: Analyze ResourceLimit / Sum terminal tag classification, 0 pass, 1 fail",
@@ -21,13 +21,14 @@
   "integration_local": "089e790fb39d3cec8e89e9064f284a37379a28af",
   "byte_views_checkpoint": "f509f4a1383b61170702d90a7ce89846d7ad1854",
   "growing_collections_checkpoint": "77029ec52f4cffc888330e2be514b162eae2a323",
-  "original_pipeline": "Analyze succeeds within default 10M at 9,632,895; Verify still ResourceLimit; no full pipeline acceptance",
-  "collections_progress": "fifth fresh run Analyze lib212 pass,7 consumer pass4 fail; Set allocation28 native executions pass, full64 incomplete",
-  "collected_pipeline": "fixed source4011cf8d: default Analyze ResourceLimit description liveness instruction under compiler472+diagnostic, verification_runs0; output13 allocation cases not executed",
+  "original_pipeline": "fixed four Source: A N7122869/V N7814112, N-1/fresh/raw/Wire pass;48 native executions pass with exact allocator outputs",
+  "collections_progress": "joint537 Analyze218 pass;growing9 pass2 fail;60/64 native true pass;ecdb checked linear cells join independently reviewed, pending execution",
+  "collected_pipeline": "fixed4011cf8d under joint537: Analyze advanced beyond former liveness to owned callback address boundary classification ResourceLimit;no Verify/native result",
   "build_window_policy": "one heavy build at a time, independent target per worktree, no raised analysis limits or thread stack",
   "byte_views_progress": "11 Source/raw/Wire groups,12 native executions,6 existing exact-fee controls and4 independent full-scan oracle cases pass; original full Verify remains ResourceLimit",
   "generation_review": "Desc-first source/raw controls rejected by existing higher-level loan guards at e3; no demonstrated production wrong acceptance; local-parent generation defense reviewed separately",
   "infrastructure": "Repeated Rust StableCrateId collisions on reused outputs retained as compilation failures; fresh debug0/strip/incremental0 target first build succeeded. No collision run counted as language execution.",
   "verify_bitmap_local": "a0e27293a0913b649d6fe60d076bbe663e60aa4b",
-  "verify_bitmap_oracle": "three full bool reference tests pass under fresh target; source independent review accepted; original full consumer pending"
+  "verify_bitmap_oracle": "three full bool reference tests pass under fresh target; source independent review accepted; original full consumer pending",
+  "byte_native_progress": "48 original pipeline +12 local byteviews native pass,11byte and original Source/raw/Wire counterexamples pass"
 }

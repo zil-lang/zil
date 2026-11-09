@@ -200,7 +200,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | G3.4.19 | 整共享地址数组读取逐实际根核初始化 | 已合入 | — | — | main@b07b85dd4；精确源码057308f16相关API四目标690/0、snapshot/Byte组92/0、全目标strict/fmt及结构3979通过；含4配置snapshot原生。新增全量/冷恢复未跑，不等于动态下标完成。 |
 | G3.4.20 | 借入泛型Package的Managed Store字段替换 | 待集成 | P0 | sol high · array_analysis_cost | f0ee4f821已获Sol精审接受；189/0、12原生、真实旧描述失效和新旧精确预算通过；root已合。只接实际可变Package的完整Store字段，不开放whole/capture。 |
 | G3.4.21 | 普通拥有字段Copy观察、共享错误臂及标量入口组合 | 待集成 | P0 | sol high · integration_audit；Astra审 | 7dd7bb0eb已获精确接受并合root；真实字段/tag/init/loan及Byte入口callee证明保留，相关10过/1后端失败；后端首阻断ReadPackageField由G10.3.5补接。 |
-| G3.4.22 | 存储借入程序中局部拥有ByteBuffer字段的共享字节视图 | 进行中 | P0 | sol high · byte_view_composition；Astra复核 | 远端f509f4a13已过11组Source/raw/Wire、12原生、6旧费；后续a0e27293a把两套V普通liveness改u64 words，保alive/affine状态和动态贷款独立检查；独审接受、3项完整bool oracle实跑通过，正跑原四模块默认V及native。 |
+| G3.4.22 | 存储借入程序中局部拥有ByteBuffer字段的共享字节视图 | 进行中 | P0 | sol high · byte_view_composition；Astra复核 | 远端c19d452b9库实现冻结；原四Source精确A/V N=7,122,869/7,814,112，各N-1/fresh和V raw/Wire过；原48native与byte12native全过，原Source/raw/Wire实际来源及loan反例过，11byte组重过。独立bool oracle3/0，旧budget按真实下降重固定；待联合全门。 |
 
 </details>
 
@@ -420,7 +420,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | sol high · growing_collections | 远端77029ec52冻结线性Sum合流；fresh第五轮Analyze lib212/0、growing7过4失败：大Map仍A预算，Set和Map allocation到V预算；Set allocation已双后端O0/O2共28次实际故障执行全过。完整64未过。f442已修真实拒绝断言，正做A逆CFG描述liveness调度。 |
+| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | sol high · growing_collections | 远端44489afb1后联合537：Analyze218/0、growing9过2失败；Set功能4、Map分配失败28、Set分配失败28共60/64原生真过。大Map仍A resource join lookup；ecdbbe9c3的完整key核对cells线性合流及全State旧算法oracle已独审，无额度/类型特例，正冷编。 |
 
 </details>
 
@@ -526,7 +526,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | --- | --- | --- | --- | --- | --- |
 | G10.6.1 | 语言初稿开发预览：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 已合入 | — | — | [PR51 验收][e-pr51]：精确源码 `a8c7953e7` 默认5190/0、参考5078/0、文本70/0；双严格检查、release、10项工程门及远端源码恢复构建运行通过。有限预览不替代 B0/完整语言。 |
 | G10.6.2 | 通用 Native 库与异步资源联合验收：精确源码、真实消费者、独审和远端恢复 | 已合入 | — | — | `main@e800b39d5`：默认5269/0、参考5157/0、文本70/0；真实联合双后端 O0/O2、3735文件远端恢复/空缓存构建、16次 API 构建/128次运行/56次故障注入均通过。[本批记录][e-native-foundations]。 |
-| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | 北京时间最后施工 2026-11-09 10:22；远端e21d9684e后本地089e790fb已合集合77029ec52。collected四模块实跑默认A在description liveness instruction超额（4011cf8d），不缩程序；继续真实算法修复。原pipeline/完整MapSet联合门仍未闭，未改Limits/栈或宣称1.0。 |
+| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | 北京时间最后施工 2026-11-09 10:42；远端9b83875be保联合基础。原四模块默认A/V、精确预算与48原生全过；集合联合537有218个Analyze单测通过、60/64原生过，仅大Map剩A cells join预算。collected仍A后续holds预算；ecdb通用cells线性合流独审通过，正新运行，未整体发布验收。 |
 | G10.6.4 | 全量回归中的旧Store/实际callback Package准入 | 已合入 | — | — | `6c1ac6fdf`已合候选；恢复旧flat callback/Store真实root快路，保留新borrowed Product分类，84项与原CLI/window正反例专项通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.5 | 新共享构造检查的两核实际独占loan发现与旧fee保持 | 已合入 | — | — | `e5c52c936/396c183c`已合：复用付费建表，无额外扫描，原两预算控制恢复原值、28独占构造/slot控制通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.6 | 默认worker深调用与life组合栈溢出 | 已合入 | — | — | 既有递归帧修复由main@222e550af验收；source_life合流回归的子项也已由main@0e770a26e交付。原默认栈/深调用/费用控制保留。 |
@@ -541,7 +541,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G10.6.6.1 | 普通trait/lending合流后source life深调用保持默认线程栈 | 已合入 | — | — | main@0e770a26e；source_life递归帧13880→1832B；原104默认worker请求和回归通过，未增栈、Limits或弱化断言。 |
-| G10.6.7 | 拥有lending、trait拥有返回与借入回调的同CFG联合消费者 | 进行中 | P0 | root · 联合验收 | 原四模块与48原生矩阵完整保留；原A已过，V正在位图修复后复验。扩展collected消费者（拥有结果入增长Store、失败返还payload与旧元素、helper消费）Types过，实际默认A在description liveness超额，56原生未执行；由真实程序继续驱动优化。 |
+| G10.6.7 | 拥有lending、trait拥有返回与借入回调的同CFG联合消费者 | 进行中 | P0 | root · 联合验收 | 原四模块默认A/V、48原生/11分配失败槽全部通过，Scope/affine及raw/Wire来源近反通过。扩展collected四Source4011cf8d在537中越过afters，仍A owned callback address boundary classification预算；56原生未达，保持完整固定Source继续核。 |
 
 </details>
 
