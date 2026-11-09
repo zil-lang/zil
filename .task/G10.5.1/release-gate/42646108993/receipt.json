@@ -1,0 +1,126 @@
+{
+  "pr": 65,
+  "head": "906940ea78dcd5298c9168c4d17197b5983bf954",
+  "tested_merge": "1c66e27f798c0e1eaecdacbb45f9031855abf077",
+  "tested_tree": "f85c6c456168caf0a1a3be101a97301c2ac40b4b",
+  "ci": [
+    {
+      "id": 42637553501,
+      "name": "Main source verification",
+      "head_sha": "906940ea78dcd5298c9168c4d17197b5983bf954",
+      "conclusion": "success",
+      "html_url": "https://github.com/zil-lang/zil/actions/runs/42637553501"
+    },
+    {
+      "id": 42637553555,
+      "name": "Research LLVM verification",
+      "head_sha": "906940ea78dcd5298c9168c4d17197b5983bf954",
+      "conclusion": "success",
+      "html_url": "https://github.com/zil-lang/zil/actions/runs/42637553555"
+    },
+    {
+      "id": 42637553818,
+      "name": "Repository structure",
+      "head_sha": "906940ea78dcd5298c9168c4d17197b5983bf954",
+      "conclusion": "success",
+      "html_url": "https://github.com/zil-lang/zil/actions/runs/42637553818"
+    }
+  ],
+  "full_results": {
+    "commit": "1c66e27f798c0e1eaecdacbb45f9031855abf077",
+    "steps": {
+      "fmt": "success",
+      "workspace": "success",
+      "reference": "success",
+      "consumer": "success",
+      "clippy": "success",
+      "text": "success",
+      "ci_test": "success"
+    },
+    "logs": {
+      "fmt": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "test_summaries": 0,
+        "totals": {
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        }
+      },
+      "workspace": {
+        "sha256": "5d7a5b33f7c9cf60c78a7eb341f9d365bcb2fee059c5d7666cf844ed3df5dd3f",
+        "test_summaries": 428,
+        "totals": {
+          "passed": 5762,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        }
+      },
+      "reference": {
+        "sha256": "76c9428f168a979b35964f123392a103f64f043c346de233916258e9cf2c59b9",
+        "test_summaries": 428,
+        "totals": {
+          "passed": 5650,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        }
+      },
+      "clippy": {
+        "sha256": "6dfd6a0acc84d29da3a73d4701f506c44695d7fda049615f1803039b016e76dd",
+        "test_summaries": 0,
+        "totals": {
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        }
+      },
+      "text-reference": {
+        "sha256": "707b5b788e0598cc5309dc7bad47b355b0e80c1e840b27ec735a58a62cb9d74d",
+        "test_summaries": 10,
+        "totals": {
+          "passed": 70,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        }
+      },
+      "migration-runner": {
+        "sha256": "e74e963093f9c841efb8f62d12942349e4ddb07a30514838ea63df7feb1c5a53",
+        "test_summaries": 0,
+        "totals": {
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        }
+      }
+    }
+  },
+  "native_consumer": {
+    "status": "Pass",
+    "builds": 16,
+    "observations": 128,
+    "injected_failures": 56
+  },
+  "review_request_exit": 0,
+  "requested_reviewers": {
+    "users": [],
+    "teams": []
+  },
+  "reviews": [],
+  "non_author_review": "NotConfirmed",
+  "main_modified": false,
+  "merge_allowed": false,
+  "updated_at": "2026-11-09T15:35:08.503483+00:00",
+  "run": "https://github.com/zil-lang/zil/actions/runs/42646108993"
+}
