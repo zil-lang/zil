@@ -187,5 +187,113 @@ fn dense(
     Ok(History::Dense(after))
 }
 
+// One immutable actual function/selected graph for this resource-check request.
+// Slots themselves are always rebuilt; only an exactly matching description
+// coordinate inventory can reuse this permission-free after table.
+pub(super) struct Binding<'a> {
+    f: &'a TypedFunction,
+    graph: &'a FunctionGraph,
+    entry: Option<Entry>,
+}
+struct Entry {
+    count: usize,
+    local: Vec<Option<usize>>,
+    value: Vec<Option<usize>>,
+    history: History,
+}
+pub(super) enum After<'a> {
+    Owned(History),
+    Borrowed(&'a History),
+}
+impl After<'_> {
+    pub(super) fn history(&self) -> &History {
+        match self {
+            Self::Owned(history) => history,
+            Self::Borrowed(history) => history,
+        }
+    }
+}
+impl<'a> Binding<'a> {
+    pub(super) fn new(f: &'a TypedFunction, graph: &'a FunctionGraph) -> Self {
+        Self {
+            f,
+            graph,
+            entry: None,
+        }
+    }
+    pub(super) fn function(&self) -> &'a TypedFunction {
+        self.f
+    }
+    pub(super) fn graph(&self) -> &'a FunctionGraph {
+        self.graph
+    }
+    pub(super) fn after(&mut self, slots: &Slots, b: &mut Budget) -> Check<After<'_>> {
+        b.spend(1)?; // actual small-domain dispatch; no hidden per-call work
+        if slots.desc_count <= SMALL {
+            return Ok(After::Owned(liveness(self.f, self.graph, slots, b)?));
+        }
+        b.spend(1)?; // entry presence
+        let matches = if let Some(entry) = &self.entry {
+            b.spend(3)?; // count and both complete vector lengths
+            if entry.count != slots.desc_count
+                || entry.local.len() != slots.desc_local.len()
+                || entry.value.len() != slots.desc_value.len()
+            {
+                false
+            } else {
+                let mut matches = true;
+                for (old, new) in entry
+                    .local
+                    .iter()
+                    .zip(&slots.desc_local)
+                    .chain(entry.value.iter().zip(&slots.desc_value))
+                {
+                    b.spend(3)?; // two Option discriminants and comparison
+                    match (old, new) {
+                        (Some(old), Some(new)) => {
+                            b.spend(3)?; // two actual ordinal reads and comparison
+                            matches &= old == new;
+                        }
+                        (None, None) => {}
+                        _ => matches = false,
+                    }
+                }
+                matches
+            }
+        } else {
+            false
+        };
+        b.spend(1)?; // actual entry/history borrow, before any publication
+        if !matches {
+            // Full original solve/build remains at the original after position.
+            // Publication and all key allocations follow complete success.
+            let history = liveness(self.f, self.graph, slots, b)?;
+            let words = std::mem::size_of::<Option<usize>>().div_ceil(std::mem::size_of::<usize>());
+            b.spend(
+                slots
+                    .desc_local
+                    .len()
+                    .saturating_add(slots.desc_value.len())
+                    .saturating_mul(words.saturating_mul(2))
+                    .saturating_add(10),
+            )?;
+            // Copy each primitive key word, two Vec allocation/release headers,
+            // record construction/publication and old-record release. History
+            // is uniquely moved; its original build already funds its release.
+            let entry = Entry {
+                count: slots.desc_count,
+                local: slots.desc_local.clone(),
+                value: slots.desc_value.clone(),
+                history,
+            };
+            self.entry = Some(entry);
+        }
+        Ok(After::Borrowed(&self.entry.as_ref().unwrap().history))
+    }
+}
+
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod reuse_tests;

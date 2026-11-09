@@ -2936,19 +2936,28 @@ fn run_function_with_sums(
     sum_rows: Option<&[Vec<sums::Bridge>]>,
     budget: &mut Budget,
 ) -> Check<BTreeSet<Root>> {
-    run_function_data(module, f, graph, effects, validate, sum_rows, budget, None)
+    run_function_data(
+        module,
+        &mut desc_liveness::Binding::new(f, graph),
+        effects,
+        validate,
+        sum_rows,
+        budget,
+        None,
+    )
 }
 #[allow(clippy::too_many_arguments)]
 fn run_function_data(
     module: &TypedModule,
-    f: &TypedFunction,
-    graph: &FunctionGraph,
+    binding: &mut desc_liveness::Binding<'_>,
     effects: &[BTreeSet<Root>],
     validate: bool,
     sum_rows: Option<&[Vec<sums::Bridge>]>,
     budget: &mut Budget,
     replacements: Option<&replacements::Plan>,
 ) -> Check<BTreeSet<Root>> {
+    let f = binding.function();
+    let graph = binding.graph();
     if f.foreign.is_some() {
         return Ok(BTreeSet::new());
     }
@@ -2964,7 +2973,7 @@ fn run_function_data(
     } else {
         BTreeSet::new()
     };
-    let after = liveness(f, graph, &slots, budget)?;
+    let after = binding.after(&slots, budget)?;
     let mut initial = slots.empty(budget)?;
     // Charge actual initialization work, including the old Managed-only scan.
     budget.spend(slots.capture_debt.len())?;
@@ -3024,7 +3033,7 @@ fn run_function_data(
         module,
         f,
         slots: &slots,
-        after: &after,
+        after: after.history(),
         effects,
         sum_rows,
         replacements,
@@ -3164,19 +3173,50 @@ pub(super) fn effect_closure_target(module: &TypedModule, ty: &Type, span: Span)
     Ok(entry.0 as usize)
 }
 
+fn liveness_bindings<'a>(
+    module: &'a TypedModule,
+    graphs: &'a [FunctionGraph],
+    refined: Option<&'a BTreeMap<usize, FunctionGraph>>,
+    b: &mut Budget,
+) -> Check<Vec<desc_liveness::Binding<'a>>> {
+    let words =
+        std::mem::size_of::<desc_liveness::Binding<'_>>().div_ceil(std::mem::size_of::<usize>());
+    b.spend(
+        module
+            .functions
+            .len()
+            .saturating_mul(words)
+            .saturating_add(2),
+    )?;
+    let mut bindings = Vec::with_capacity(module.functions.len());
+    for (index, f) in module.functions.iter().enumerate() {
+        b.spend(3)?; // actual function/graph ordinal reads and binding write
+        let graph = if let Some(rows) = refined {
+            b.spend(rows.len().saturating_add(1))?;
+            rows.get(&index).unwrap_or(&graphs[index])
+        } else {
+            &graphs[index]
+        };
+        bindings.push(desc_liveness::Binding::new(f, graph));
+    }
+    Ok(bindings)
+}
+
+#[cfg(test)]
 fn infer_effects(
     module: &TypedModule,
     graphs: &[FunctionGraph],
     budget: &mut Budget,
 ) -> Check<Vec<BTreeSet<Root>>> {
-    infer_effects_data(module, graphs, budget, None, None)
+    let mut bindings = liveness_bindings(module, graphs, None, budget)?;
+    infer_effects_data(module, graphs, budget, None, &mut bindings)
 }
 fn infer_effects_data(
     module: &TypedModule,
     graphs: &[FunctionGraph],
     budget: &mut Budget,
     replacements: Option<&replacements::Plan>,
-    refined: Option<&BTreeMap<usize, FunctionGraph>>,
+    bindings: &mut [desc_liveness::Binding<'_>],
 ) -> Check<Vec<BTreeSet<Root>>> {
     budget.spend(module.functions.len())?;
     let mut effects = vec![BTreeSet::new(); module.functions.len()];
@@ -3192,16 +3232,9 @@ fn infer_effects_data(
             scheduled[index] = false;
             #[cfg(test)]
             TEST_EFFECT_SOLVES.with(|value| value.set(value.get() + 1));
-            let graph = if let Some(rows) = refined {
-                budget.spend(rows.len().saturating_add(1))?;
-                rows.get(&index).unwrap_or(&graphs[index])
-            } else {
-                &graphs[index]
-            };
             let found = run_function_data(
                 module,
-                &module.functions[index],
-                graph,
+                &mut bindings[index],
                 &effects,
                 false,
                 None,
@@ -3385,28 +3418,13 @@ pub(super) fn check_module(
             budget,
         )?)
     };
-    let effects = if replacements.is_some() || refined.is_some() {
-        infer_effects_data(
-            module,
-            graphs,
-            budget,
-            replacements.as_ref(),
-            refined.as_ref(),
-        )?
-    } else {
-        infer_effects(module, graphs, budget)?
-    };
-    for (function, graph) in module.functions.iter().zip(graphs) {
-        let graph = if let Some(rows) = &refined {
-            budget.spend(rows.len().saturating_add(1))?;
-            rows.get(&(function.id.0 as usize)).unwrap_or(graph)
-        } else {
-            graph
-        };
+    let mut bindings = liveness_bindings(module, graphs, refined.as_ref(), budget)?;
+    let effects = infer_effects_data(module, graphs, budget, replacements.as_ref(), &mut bindings)?;
+    for binding in &mut bindings {
+        let function = binding.function();
         run_function_data(
             module,
-            function,
-            graph,
+            binding,
             &effects,
             true,
             sum_proofs
