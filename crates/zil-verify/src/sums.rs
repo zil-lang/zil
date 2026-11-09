@@ -1112,22 +1112,22 @@ fn forget_shared_copy_tags(
         // charge_payload rejects invalid Task contexts before any shape proof.
         budget.spend(1)?;
         let actual = shared_enum_physical(ty, budget)?;
-        let copy_sum = if indexed_invalidation(budget) {
-            budget.addressed_copy_sum(actual)?
+        let unknown = if let Some((cache, local)) = cached
+            && indexed_invalidation(budget)
+        {
+            budget.spend(1)?; // actual RefCell borrow before its slot work
+            cache.borrow_mut().known(local, value, actual, budget)?
         } else {
-            resources::charge_payload(actual, budget)?;
-            actual.is_copy_value()
-        };
-        if copy_sum {
-            let unknown = if let Some((cache, local)) = cached {
-                budget.spend(1)?; // actual RefCell borrow before its slot work
-                cache.borrow_mut().known(local, value, actual, budget)?
+            let copy_sum = if indexed_invalidation(budget) {
+                budget.addressed_copy_sum(actual)?
             } else {
-                value.tags_unknown(actual, budget)?
+                resources::charge_payload(actual, budget)?;
+                actual.is_copy_value()
             };
-            if unknown {
-                return Ok(());
-            }
+            copy_sum && value.tags_unknown(actual, budget)?
+        };
+        if unknown {
+            return Ok(());
         }
     }
     value.cost(budget)?;
