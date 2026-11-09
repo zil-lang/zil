@@ -1,0 +1,50 @@
+{
+  "status": "Complete finite paired matrix",
+  "compile_requests": 1764,
+  "formal_requests": 1470,
+  "native_output_checks": 3780,
+  "text_pairs": 504,
+  "text_pairs_equal": true,
+  "runtime_requests": 252,
+  "profiles": [
+    {
+      "profile": "interactive/edit",
+      "mean_ms": {
+        "base": 126.413376653175,
+        "cand": 126.52224838020001
+      },
+      "reduction": -0.0008612358114894469,
+      "seconds_saved_per_1000": -0.10887172702500436
+    },
+    {
+      "profile": "interactive/clean",
+      "mean_ms": {
+        "base": 177.79969472744997,
+        "cand": 176.78028751469998
+      },
+      "reduction": 0.0057334587346319354,
+      "seconds_saved_per_1000": 1.0194072127499965
+    },
+    {
+      "profile": "release/edit",
+      "mean_ms": {
+        "base": 223.7727682373,
+        "cand": 223.639792903025
+      },
+      "reduction": 0.0005942427013012619,
+      "seconds_saved_per_1000": 0.1329753342749882
+    },
+    {
+      "profile": "release/clean",
+      "mean_ms": {
+        "base": 345.02555183619995,
+        "cand": 343.75419457957497
+      },
+      "reduction": 0.003684820587515625,
+      "seconds_saved_per_1000": 1.271357256624981
+    }
+  ],
+  "failures": 0,
+  "independent_review": "NotRun",
+  "merge_allowed": false
+}
