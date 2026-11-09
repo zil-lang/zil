@@ -2,7 +2,7 @@
   "date": "2026-11-09 09:04 Asia/Shanghai",
   "status": "resumed_not_accepted",
   "main": "b07b85dd49b3df6f382734d509919a2a6013c97d",
-  "goal_read": "be8f0aa92da2f6b490b87b4e22cb252cde287c35",
+  "goal_read": "25f7bdfbbe678e50a1295a1c418ea39dfeb82469",
   "integration": "ed8e3a5de6befb15b515f6b124e992792414a8ca",
   "source_branches": {
     "root": "task/G10.6.3",
@@ -13,7 +13,7 @@
   "first_failure": "offline cargo dependency rustc_apfloat absent; no tests executed",
   "scope": "Continue original ordinary-library consumer and large owned closure transport; no release claim",
   "raw_logs": "out/runs/byte-views-baseline-20261109/ in task/G3.4.22 worktree",
-  "last_work": "2026-11-09 14:34 Asia/Shanghai",
+  "last_work": "2026-11-09 14:43 Asia/Shanghai",
   "integration_remote": "01d00af2822140263c503f71cb16993e48e00ce0",
   "large_closure_checkpoint": "dbd5c446a600eb26f34574748376a2b8e84fece8",
   "baseline_language_failure": "original four-module program: Analyze ResourceLimit / Sum terminal tag classification, 0 pass, 1 fail",
@@ -22,7 +22,7 @@
   "byte_views_checkpoint": "bb2db64be61704715630a3b996ce182d47acdda9",
   "growing_collections_checkpoint": "5c596767764e23d56d0e234583557c093c008e52",
   "original_pipeline": "Frozen Byte precise order main/model/protocol/library, fingerprint d9afb8c2667ac61471aa1f37bd2fb9277abcbab5df37090bf4f8f6b8d32ec676: A N7122869/V N7814112 with N-1/fresh/raw/Wire pass; original4095 native input order main/protocol/library/model:48 actual executions pass, identical source file bytes",
-  "collections_progress": "05a0: Analyze237/0; original Map default Analyze ResourceLimit / Sum SSA page slot walk, verification_runs0; native remains60/64 from prior full matrix",
+  "collections_progress": "Initial callee order52b plus complete tests7b: Analyze259/0; latest joint7931 original Map still Analyze ResourceLimit in scoped actual delegation producer, Verify0; run22 shows full resources check_module completed before budget cutoff. Native remains historical60/64.",
   "collected_pipeline": "Fixed original4011 complete pipeline passes default Analyze/Verify and joint56 native cases on f2cfb4d6; exact receipt in validation/ordinary-owned-collection-pipeline.json",
   "build_window_policy": "one heavy build at a time, independent target per worktree, no raised analysis limits or thread stack",
   "byte_views_progress": "original Source/raw/Wire real loan/owner negatives and11byte groups pass; original48+local12 native pass; exact A/V pins belong to frozen Byte source and input order, not later integration",
@@ -81,7 +81,7 @@
     "logs": "out/runs/growing-input-effects-20261109-9",
     "next": "Complete SSA inventory paged COW design under independent review"
   },
-  "active_build_window": "Root joint Map probe7931; Byte local physical-slot lookup writing, Map basic ledger preparation only",
+  "active_build_window": "Byte d9de field-ordinal full-old-branch oracle, full Verify and original owning512 default probe; Map run22 completed and diagnostic sources restored",
   "workspace_core": {
     "source": "05ea3549a58554de0eeb45661179b24012e42030",
     "tree": "4064bb591b10a0f928bf2a91c4cad821f8215044",
@@ -578,8 +578,46 @@
   "joint_map_probe_latest": {
     "compiler": "7931c464e2e7d9ed10d2cafa41914b0994054ac6",
     "tree": "52b1336457d854ab76b369acedb92f728a94b628",
-    "status": "Running; not accepted",
+    "status": "Fail:0 passed/1 failed; source unchanged",
     "logs": "out/runs/ordinary-composition-map-joint-20261109-2",
-    "scope": "Exact original Map at latest joint A/V source; before next V physical lookup repair"
+    "scope": "Exact original Map at latest joint A/V source; before next V physical lookup repair",
+    "phase": "Analyze",
+    "category": "ResourceLimit",
+    "diagnostic": "analysis budget exceeded during scoped actual delegation producer",
+    "verification_runs": 0,
+    "elapsed_seconds": 46.059,
+    "log_sha256": "6070a95f2596996afc5f7f9d0d182b863dfbb0da1c0e9fa7884566b711b29458"
+  },
+  "map_ledger_22": {
+    "source": "7b546d26ef14bebf45187d660c04b004669c55e1",
+    "production": "52b5f84d6b5b8bc0d59318d1398775f7aba83798",
+    "production_restored": true,
+    "fees_unchanged": true,
+    "initial_remaining": 8664723,
+    "initial_frontier_end_remaining": 6110053,
+    "stable_sweep_end_remaining": 3564135,
+    "records_may_work": [
+      2141240,
+      2135909
+    ],
+    "records_check_work": 2657576,
+    "resource_check_entries": 34,
+    "resource_nonempty_end_markers": 30,
+    "empty_or_external_early_returns": 4,
+    "last_resource_check_remaining": 243966,
+    "resources_check_module_completed": true,
+    "reason": "All nonempty checks end; later holds failure is after resources::check_module and close_retirement_pairs return",
+    "sum_instruction_index_reserve_work": 2013528,
+    "sum_instruction_index_reserve_calls": 199824,
+    "scoped_actual_delegation_producer_work": 6469,
+    "scoped_actual_delegation_producer_calls": 672,
+    "scope": "Default original Map still rejects at Analyze budget; no inference of total work beyond cutoff; final diagnostic label is not the dominant hotspot",
+    "logs": "out/runs/growing-input-effects-20261109-22"
+  },
+  "verify_address_field_candidate": {
+    "source": "d9de415fd513ddfb69aa89c6f134d65b5a88824f",
+    "tree": "3c162279fcf8128dbdbf773ea6d2f8ab187beda0",
+    "status": "Frozen; independent source review and tests running, not accepted",
+    "contract": "Private complete AddressField helper; local first-row ordinal table; original missing diagnostics, transport and link order; full old branch Equations/Flow oracle"
   }
 }

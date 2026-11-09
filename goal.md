@@ -200,7 +200,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | G3.4.19 | 整共享地址数组读取逐实际根核初始化 | 已合入 | — | — | main@b07b85dd4；精确源码057308f16相关API四目标690/0、snapshot/Byte组92/0、全目标strict/fmt及结构3979通过；含4配置snapshot原生。新增全量/冷恢复未跑，不等于动态下标完成。 |
 | G3.4.20 | 借入泛型Package的Managed Store字段替换 | 待集成 | P0 | sol high · array_analysis_cost | f0ee4f821已获Sol精审接受；189/0、12原生、真实旧描述失效和新旧精确预算通过；root已合。只接实际可变Package的完整Store字段，不开放whole/capture。 |
 | G3.4.21 | 普通拥有字段Copy观察、共享错误臂及标量入口组合 | 待集成 | P0 | sol high · integration_audit；Astra审 | 7dd7bb0eb已获精确接受并合root；真实字段/tag/init/loan及Byte入口callee证明保留，相关10过/1后端失败；后端首阻断ReadPackageField由G10.3.5补接。 |
-| G3.4.22 | 存储借入程序中局部拥有ByteBuffer字段的共享字节视图 | 进行中 | P0 | sol high · byte_view_composition；Astra复核 | trie18d38精审/发布bb2db64be并合root，leaf6/0、全V484/0；原95d仍A过/V限额。ledger6同f3 solve净省803,656（含完整建表/clone，36build/18432insert/28clone），已进第三轮f0 windows；完整Source总成本仍未知。下一V AddressField局部row-ordinal表资格已审，保原missing/first/约束顺序，不动Summary调度。512 snapshot/native仍未闭。 |
+| G3.4.22 | 存储借入程序中局部拥有ByteBuffer字段的共享字节视图 | 进行中 | P0 | sol high · byte_view_composition；Astra复核 | trie18d38精审/发布bb2db64be并合root，leaf6/0、全V484/0；原95d仍A过/V限额。ledger6同f3 solve净省803,656。下一AddressField局部首row-ordinal表已冻d9de415f，精审和完整旧branch/Equations/Flow对照、全V及原95d默认probe正跑；不改Summary调度，512 snapshot/native仍未闭。 |
 
 </details>
 
@@ -420,7 +420,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | sol high · growing_collections | 初始callee-first生产52b+必要近控7b已精审/发布5c5967677并合root；run21完整Program18/18、全A259/0，真实public entry/helper/forward+Fresh/capture/input/old-desc/实际同源capture/init/unpaid均过，后续dirty/stable/must/终检不变。原Map作者仍A(scoped actual delegation producer)/V0；root最新7931共同probe运行中，后续基础ledger准备，native仍60/64。 |
+| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | sol high · growing_collections | 生产52b+必要近控7b已精审/发布5c5967677并合root；完整Program18/18、全A259/0。root7931原Map仍A预算/V0。run22同费ledger证34个终检进入、30非空END，resources整体完成余243,966；records仅2次may，末尾holds标签仅6,469，继续按实际热点修复。native仍历史60/64。 |
 
 </details>
 
@@ -526,7 +526,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | --- | --- | --- | --- | --- | --- |
 | G10.6.1 | 语言初稿开发预览：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 已合入 | — | — | [PR51 验收][e-pr51]：精确源码 `a8c7953e7` 默认5190/0、参考5078/0、文本70/0；双严格检查、release、10项工程门及远端源码恢复构建运行通过。有限预览不替代 B0/完整语言。 |
 | G10.6.2 | 通用 Native 库与异步资源联合验收：精确源码、真实消费者、独审和远端恢复 | 已合入 | — | — | `main@e800b39d5`：默认5269/0、参考5157/0、文本70/0；真实联合双后端 O0/O2、3735文件远端恢复/空缓存构建、16次 API 构建/128次运行/56次故障注入均通过。[本批记录][e-native-foundations]。 |
-| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | 北京时间最后施工 2026-11-09 14:34；联合7931c464e/tree52b1已发布01d00af28，含7b及18d38；root正跑最新共同原Map默认probe。此前05ea/tree4064完整workspace --lib实过1425/0(14组)；f2cfb4d6 collected四配置56及精确收据通过。own512仍V、Map作者仍A，本批全workspace integration/native共同门/main未完成，main仍b07b85dd4。 |
+| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | 北京时间最后施工 2026-11-09 14:43；联合7931c464e/tree52b1已发布01d00af28，原Map共同probe0/1仍Analyze预算/V0，失败日志已保留。此前05ea/tree4064完整workspace --lib实过1425/0(14组)；f2cfb4d6 collected四配置56及精确收据通过。Byte d9de独立精审/测试中，own512仍V未闭；本批全workspace共同门/main未完成，main仍b07b85dd4。 |
 | G10.6.4 | 全量回归中的旧Store/实际callback Package准入 | 已合入 | — | — | `6c1ac6fdf`已合候选；恢复旧flat callback/Store真实root快路，保留新borrowed Product分类，84项与原CLI/window正反例专项通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.5 | 新共享构造检查的两核实际独占loan发现与旧fee保持 | 已合入 | — | — | `e5c52c936/396c183c`已合：复用付费建表，无额外扫描，原两预算控制恢复原值、28独占构造/slot控制通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.6 | 默认worker深调用与life组合栈溢出 | 已合入 | — | — | 既有递归帧修复由main@222e550af验收；source_life合流回归的子项也已由main@0e770a26e交付。原默认栈/深调用/费用控制保留。 |
@@ -541,7 +541,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G10.6.6.1 | 普通trait/lending合流后source life深调用保持默认线程栈 | 已合入 | — | — | main@0e770a26e；source_life递归帧13880→1832B；原104默认worker请求和回归通过，未增栈、Limits或弱化断言。 |
-| G10.6.7 | 拥有lending、trait拥有返回与借入回调的同CFG联合消费者 | 进行中 | P0 | root · 联合验收 | 原四模块默认A/V、48原生/11分配失败槽全部通过，Scope/affine及raw/Wire来源近反通过。扩展collected四Source4011cf8d在537中越过afters，仍A owned callback address boundary classification预算；56原生未达，保持完整固定Source继续核。 |
+| G10.6.7 | 拥有lending、trait拥有返回与借入回调的同CFG联合消费者 | 待联合验收 | P0 | root · 联合验收 | 原四模块默认A/V与48原生通过；扩展collected原四Source4011完全不变，联合f2cfb4d6显式llvm-api已3/0及四配置56原生通过，13分配失败槽责任返还与旧parent负控通过。首次计数失配已独立追踪为已有块realloc，baseline仅修为13:12:12；精确收据与发布源码等价映射已提交，未替代最新共同全门。 |
 
 </details>
 
