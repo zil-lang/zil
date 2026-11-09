@@ -5,10 +5,12 @@ use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit, TargetProfi
 use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_project};
 use zil_ir::{Instruction, InstructionKind, ValueId};
 
-#[path = "owned_results/consumers.rs"]
-mod owned_results;
+#[path = "collected_pipeline/consumers.rs"]
+mod collected_pipeline;
 #[path = "owned_pipeline/consumers.rs"]
 mod owned_pipeline;
+#[path = "owned_results/consumers.rs"]
+mod owned_results;
 
 const KEY_EQ: &str = "pub trait KeyEq { fn same(self:&Self,other:&Self)->bool; }";
 const QUERY: &str =

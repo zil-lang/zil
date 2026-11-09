@@ -65,10 +65,26 @@ fn current_ssa_loan_index_equals_full_live_scan_with_nested_rows_and_aliases() {
                 if let Some(id) = excluded {
                     reference[id.0 as usize] = false;
                 }
-                let expected =
-                    active(&values, &state, &reference, None, None, &loans, &mut b).unwrap();
-                let indexed =
-                    active(&values, &state, &live, excluded, Some(&ids), &loans, &mut b).unwrap();
+                let expected = active(
+                    &values,
+                    &state,
+                    &LiveRow::from_flags(&reference),
+                    None,
+                    None,
+                    &loans,
+                    &mut b,
+                )
+                .unwrap();
+                let indexed = active(
+                    &values,
+                    &state,
+                    &LiveRow::from_flags(&live),
+                    excluded,
+                    Some(&ids),
+                    &loans,
+                    &mut b,
+                )
+                .unwrap();
                 assert_eq!(indexed, expected);
                 if inactive != Some(3) && excluded == Some(ValueId(0)) {
                     assert!(
@@ -96,14 +112,23 @@ fn current_ssa_index_rebuilds_for_each_latest_solution() {
         let indexed = active(
             &values,
             &state,
-            &[true, true],
+            &LiveRow::from_flags(&[true, true]),
             None,
             Some(&ids),
             &loans,
             &mut b,
         )
         .unwrap();
-        let reference = active(&values, &state, &[true, true], None, None, &loans, &mut b).unwrap();
+        let reference = active(
+            &values,
+            &state,
+            &LiveRow::from_flags(&[true, true]),
+            None,
+            None,
+            &loans,
+            &mut b,
+        )
+        .unwrap();
         assert_eq!(indexed, reference);
         assert_eq!(indexed, BTreeSet::from([generation]));
     }
