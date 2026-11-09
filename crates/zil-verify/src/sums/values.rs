@@ -56,6 +56,19 @@ impl Values {
         }
         Ok(())
     }
+    // A saved input can own the final Content cleanup. Validate every page
+    // before visiting it, and pay every reference even if roots are shared.
+    pub(super) fn retained_cleanup(&self, budget: &mut Budget) -> Check<()> {
+        self.validate(budget)?;
+        budget.spend(self.pages.len().saturating_add(1))?;
+        for page in &self.pages {
+            budget.spend(page.roots.len())?;
+            for root in &page.roots {
+                root.cost(budget)?;
+            }
+        }
+        Ok(())
+    }
     fn check_index(&self, index: usize, budget: &mut Budget) -> Check<usize> {
         // One checked page lookup here, then the caller's page and slot
         // lookups. Prepay all three before any lookup or mutation.

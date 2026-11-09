@@ -3,6 +3,7 @@
 use super::*;
 use crate::place_replacements::{Inventory, actual};
 use std::cell::RefCell;
+pub(super) mod checkpoint;
 #[cfg(test)]
 mod helper_result_tests;
 mod ordered;
@@ -1152,6 +1153,9 @@ pub(super) fn check(
         result.push(content(&f.return_type, None, &mut Vec::new(), true, b)?);
     }
     let mut ordered = ordered::Ordered::new(module.functions.len(), b)?;
+    // No retention work on the first round. Only a repeated actual solve
+    // can produce a checkpoint; versions start at this request's second round.
+    let mut checkpoints: Option<checkpoint::Cache<'_>> = None;
     loop {
         for (index, (f, graph)) in module.functions.iter().zip(graphs).enumerate() {
             b.spend(1)?;
@@ -1170,21 +1174,29 @@ pub(super) fn check(
                 store_calls: &store_calls,
                 observed: Some(RefCell::new(BTreeSet::new())),
             };
-            let (found, _, _) =
-                run_with_replacements(module, f, graph, &result, false, b, Some(&context))?;
+            let retain = if let Some(cache) = &mut checkpoints {
+                cache.begin(index, b)?
+            } else {
+                false
+            };
+            let ((found, _, _), checkpoint) =
+                run_retaining(module, f, graph, &result, false, b, Some(&context), retain)?;
             let rows = context.written.into_inner();
-            ordered.observe(
-                index,
-                context
-                    .observed
-                    .expect("inference observes its actual reads")
-                    .into_inner(),
-                b,
-            )?;
+            let reads = context
+                .observed
+                .expect("inference observes its actual reads")
+                .into_inner();
+            if let Some(cache) = &mut checkpoints {
+                cache.publish(index, checkpoint, &reads, b)?;
+            }
+            ordered.observe(index, reads, b)?;
             let mut changed = result[f.id.0 as usize].merge(&found, b)?;
             b.spend(rows.len())?;
             for (target, payload) in rows {
                 changed |= merge_row(&mut effects[f.id.0 as usize], &target, &payload, b)?;
+            }
+            if let Some(cache) = &mut checkpoints {
+                cache.published(index, b)?;
             }
             if changed {
                 ordered.changed(index, b)?;
@@ -1195,25 +1207,41 @@ pub(super) fn check(
         if !ordered.advance(b)? {
             break;
         }
+        if checkpoints.is_none() {
+            checkpoints = Some(checkpoint::Cache::new(module.functions.len(), b)?);
+        }
     }
     let mut rows = Vec::with_capacity(module.functions.len());
     let mut excluded_edges = BTreeMap::new();
-    for (f, graph) in module.functions.iter().zip(graphs) {
+    for (index, (f, graph)) in module.functions.iter().zip(graphs).enumerate() {
         if f.foreign.is_some() {
             rows.push(Vec::new());
             continue;
         }
+        let mut saved = if let Some(cache) = &mut checkpoints {
+            cache.take(index, module, f, graph, b)?
+        } else {
+            None
+        };
+        let written = if let Some(entry) = &mut saved {
+            entry.written(b)?
+        } else {
+            Rows::new()
+        };
         let context = Context {
             actual: &actual,
             places: &places,
             summaries: &effects,
             whole_must: &whole_must_rows,
-            written: RefCell::new(Rows::new()),
+            written: RefCell::new(written),
             store_calls: &store_calls,
             observed: None,
         };
-        let (_, bridges, excluded) =
-            run_with_replacements(module, f, graph, &result, true, b, Some(&context))?;
+        let (_, bridges, excluded) = if let Some(entry) = saved {
+            entry.replay(&result, Some(&context), b)?
+        } else {
+            run_with_replacements(module, f, graph, &result, true, b, Some(&context))?
+        };
         rows.push(bridges);
         if !excluded.is_empty() {
             b.spend(excluded_edges.len().saturating_add(1))?;
