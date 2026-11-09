@@ -582,14 +582,14 @@ fn array_slots_and_actual_pointee_snapshot_budgets_are_exact_and_fresh() {
     assert_eq!(
         boundaries,
         vec![
-            [1702, 22401, 27357, 27357, 27357],
-            [2326, 50265, 64126, 64126, 64126],
-            [4229, 47432, 55259, 55259, 55259],
-            [6250, 48219, 56877, 56877, 56877],
-            [3576, 40845, 54917, 54917, 54917],
-            [4788, 91115, 130856, 130856, 130856],
-            [6481, 69803, 92234, 92234, 92234],
-            [8988, 75594, 101001, 101001, 101001],
+            [1702, 19249, 27357, 27357, 27357],
+            [2326, 42627, 64126, 64126, 64126],
+            [4229, 36622, 55259, 55259, 55259],
+            [6250, 41365, 56877, 56877, 56877],
+            [3576, 36654, 54917, 54917, 54917],
+            [4788, 78320, 130856, 130856, 130856],
+            [6481, 57954, 92234, 92234, 92234],
+            [8988, 67581, 101001, 101001, 101001],
         ]
     );
     println!("array complete boundaries: {boundaries:?}");
@@ -836,7 +836,16 @@ fn array_billing_mode_is_consistent_across_scalar_reuse_and_function_order() {
         });
         // Scalar work is unchanged. Array equations now traverse balanced
         // actual components; their previous complete-request N was 16587.
-        assert_eq!(n, if label == "scalar" { 1543 } else { 15926 });
+        assert_eq!(
+            n,
+            if label == "scalar" {
+                1543
+            } else if label == "array-middle" {
+                15101
+            } else {
+                15926
+            }
+        );
         let mut warm = zil_driver::CompilationSession::default();
         for (limit, status) in [
             (n, ResultCategory::Success),

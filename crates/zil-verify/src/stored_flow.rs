@@ -5,6 +5,15 @@ mod array_index;
 mod array_snapshot;
 mod byte_queries;
 mod leaf_rows;
+mod live_words;
+use live_words::WordRow;
+#[cfg(test)]
+mod ancestry_tests;
+#[cfg(test)]
+mod live_loan_cost_tests;
+mod live_loan_ids;
+#[cfg(test)]
+mod loan_union_tests;
 #[path = "stored_flow_pure_copy.rs"]
 mod pure_copy;
 
@@ -487,7 +496,84 @@ fn add_sources(to: &mut Vec<Source>, from: &[Source], b: &mut Budget) -> Check<b
     to.sort();
     Ok(changed)
 }
+fn sort_loan_ids(to: &mut [usize], b: &mut Budget) -> Check<()> {
+    // Most callers already produced canonical rows. Check the actual row,
+    // rather than assuming an invariant for every internal construction path.
+    let mut ordered = true;
+    for pair in to.windows(2) {
+        b.spend(1)?;
+        if pair[0] > pair[1] {
+            ordered = false;
+            break;
+        }
+    }
+    if ordered {
+        return Ok(());
+    }
+    b.spend(to.len().saturating_add(1))?;
+    let mut scratch = vec![0; to.len()];
+    let mut run = 1usize;
+    while run < to.len() {
+        let mut start = 0usize;
+        while start < to.len() {
+            let mid = start.saturating_add(run).min(to.len());
+            let end = mid.saturating_add(run).min(to.len());
+            let (mut left, mut right, mut out) = (start, mid, start);
+            while left < mid && right < end {
+                b.spend(2)?; // one actual integer comparison and output cell
+                if to[left] <= to[right] {
+                    scratch[out] = to[left];
+                    left += 1;
+                } else {
+                    scratch[out] = to[right];
+                    right += 1;
+                }
+                out += 1;
+            }
+            b.spend((mid - left).saturating_add(end - right))?;
+            scratch[out..out + mid - left].copy_from_slice(&to[left..mid]);
+            out += mid - left;
+            scratch[out..out + end - right].copy_from_slice(&to[right..end]);
+            start = end;
+        }
+        b.spend(to.len())?;
+        to.copy_from_slice(&scratch);
+        run = run.saturating_mul(2);
+    }
+    Ok(())
+}
 fn add_loans(to: &mut Vec<usize>, from: &[usize], b: &mut Budget) -> Check<bool> {
+    b.spend(1)?;
+    sort_loan_ids(to, b)?;
+    let mut changed = false;
+    for id in from {
+        let (mut low, mut high) = (0usize, to.len());
+        let mut found = false;
+        while low < high {
+            b.spend(1)?;
+            let mid = low + (high - low) / 2;
+            match to[mid].cmp(id) {
+                std::cmp::Ordering::Less => low = mid + 1,
+                std::cmp::Ordering::Greater => high = mid,
+                std::cmp::Ordering::Equal => {
+                    found = true;
+                    break;
+                }
+            }
+        }
+        if !found {
+            b.spend(to.len().saturating_sub(low).saturating_add(1))?;
+            if to.len() == to.capacity() {
+                b.spend(to.len().saturating_add(1))?;
+            }
+            to.insert(low, *id);
+            changed = true;
+        }
+    }
+    Ok(changed)
+}
+#[cfg(test)]
+fn add_loans_by_scan(to: &mut Vec<usize>, from: &[usize], b: &mut Budget) -> Check<bool> {
     let mut changed = false;
     b.spend(amount(
         to.len().saturating_add(from.len()).saturating_add(1),
@@ -1812,6 +1898,46 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
 }
 
 fn ancestry(ids: &[usize], loans: &[Loan], b: &mut Budget) -> Check<Vec<usize>> {
+    // Empty roots have an empty closure without inspecting the arena.
+    b.spend(1)?;
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    b.spend(ids.len().saturating_add(1))?;
+    let mut todo = ids.to_vec();
+    b.spend(WordRow::work_for(loans.len()))?;
+    let mut visited = WordRow::empty(loans.len());
+    let mut count = 0usize;
+    while let Some(id) = todo.pop() {
+        b.spend(1)?;
+        // Preserve the original diagnostic before any bounded bit access.
+        let row = loans
+            .get(id)
+            .ok_or_else(|| err("loan parent outside actual arena"))?;
+        b.spend(1)?;
+        if visited.is_live(id)? {
+            continue;
+        }
+        b.spend(1)?;
+        visited.assign(id, true)?;
+        count += 1;
+        b.spend(row.parents.len())?;
+        if todo.capacity().saturating_sub(todo.len()) < row.parents.len() {
+            b.spend(todo.len().saturating_add(1))?;
+        }
+        // Same LIFO traversal and parent discovery order as the original DFS.
+        todo.extend(&row.parents);
+    }
+    // Scan actual words, clear each enumerated bit and store every result ID.
+    // Enumeration is already ascending; no comparison sort is performed.
+    b.spend(visited.work())?;
+    b.spend(amount(count, 2)?.saturating_add(1))?;
+    let mut result = Vec::with_capacity(count);
+    result.extend(visited.ones());
+    Ok(result)
+}
+#[cfg(test)]
+fn ancestry_by_linear_set(ids: &[usize], loans: &[Loan], b: &mut Budget) -> Check<Vec<usize>> {
     b.spend(ids.len())?;
     let mut todo = ids.to_vec();
     let mut result = Vec::new();
@@ -3542,6 +3668,54 @@ fn reverse(
     module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
+    live: &mut WordRow,
+    b: &mut Budget,
+) -> Check<()> {
+    b.spend(1)?;
+    if let Some(v) = i.result {
+        live.assign(v.0 as usize, false)?;
+    }
+    match i.kind {
+        InstructionKind::Store { local, .. }
+        | InstructionKind::StorageLive(local)
+        | InstructionKind::StorageDead(local) => {
+            live.assign(f.values.len() + local.0 as usize, false)?
+        }
+        InstructionKind::Load(local)
+        | InstructionKind::BorrowPlaceLocal { local, .. }
+        | InstructionKind::BorrowLocal { local }
+        | InstructionKind::BorrowLocalMut { local } => {
+            live.assign(f.values.len() + local.0 as usize, true)?
+        }
+        InstructionKind::TakeLocal { local }
+        | InstructionKind::TakePackageField { local, .. }
+        | InstructionKind::DropPackageField { local, .. }
+        | InstructionKind::StorePackageField { local, .. }
+            if qualified(&f.locals[local.0 as usize].ty).is_some()
+                || matches!(i.kind, InstructionKind::TakeLocal { .. })
+                    && matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) =>
+        {
+            live.assign(f.values.len() + local.0 as usize, true)?;
+        }
+        InstructionKind::CallClosureShared { callee, .. }
+        | InstructionKind::CallClosureMut { callee, .. }
+            if fixed_environment(module, &f.locals[callee.0 as usize].ty) =>
+        {
+            live.assign(f.values.len() + callee.0 as usize, true)?;
+        }
+        _ => {}
+    }
+    for v in instruction_operands(&i.kind) {
+        b.spend(1)?;
+        live.assign(v.0 as usize, true)?;
+    }
+    Ok(())
+}
+#[cfg(test)]
+fn reverse_bool(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
     live: &mut [bool],
     b: &mut Budget,
 ) -> Check<()> {
@@ -3583,7 +3757,17 @@ fn reverse(
     }
     Ok(())
 }
-fn term_live(t: &Terminator, live: &mut [bool]) {
+fn term_live(t: &Terminator, live: &mut WordRow) -> Check<()> {
+    match t {
+        Terminator::Return(Some(v)) | Terminator::Branch { condition: v, .. } => {
+            live.assign(v.0 as usize, true)?
+        }
+        _ => {}
+    }
+    Ok(())
+}
+#[cfg(test)]
+fn term_live_bool(t: &Terminator, live: &mut [bool]) {
     match t {
         Terminator::Return(Some(v)) | Terminator::Branch { condition: v, .. } => {
             live[v.0 as usize] = true
@@ -3592,6 +3776,49 @@ fn term_live(t: &Terminator, live: &mut [bool]) {
     }
 }
 fn live_out(
+    module: &TypedModule,
+    f: &TypedFunction,
+    g: &FunctionGraph,
+    b: &mut Budget,
+) -> Check<Vec<WordRow>> {
+    let width = f
+        .values
+        .len()
+        .checked_add(f.locals.len())
+        .ok_or_else(|| limit("stored liveness width overflow"))?;
+    let units = WordRow::work_for(width);
+    b.spend(amount(amount(f.blocks.len(), units)?, 2)?)?;
+    let mut inputs = vec![WordRow::empty(width); f.blocks.len()];
+    let mut outputs = inputs.clone();
+    let mut dirty: Vec<_> = (0..f.blocks.len()).filter(|i| g.reachable[*i]).collect();
+    b.spend(f.blocks.len())?;
+    while let Some(bi) = dirty.pop() {
+        b.spend(units)?;
+        let mut out = WordRow::empty(width);
+        for child in &g.successors[bi] {
+            out.union(&inputs[*child], b)?;
+        }
+        b.spend(units)?;
+        outputs[bi].clone_from(&out);
+        term_live(&f.blocks[bi].terminator, &mut out)?;
+        for i in f.blocks[bi].instructions.iter().rev() {
+            reverse(module, f, i, &mut out, b)?;
+        }
+        b.spend(units)?;
+        if inputs[bi] != out {
+            inputs[bi] = out;
+            for pred in &g.predecessors[bi] {
+                b.spend(dirty.len().saturating_add(1))?;
+                if !dirty.contains(pred) {
+                    dirty.push(*pred);
+                }
+            }
+        }
+    }
+    Ok(outputs)
+}
+#[cfg(test)]
+fn live_out_bool(
     module: &TypedModule,
     f: &TypedFunction,
     g: &FunctionGraph,
@@ -3618,9 +3845,9 @@ fn live_out(
         }
         b.spend(width)?;
         outputs[bi].clone_from(&out);
-        term_live(&f.blocks[bi].terminator, &mut out);
+        term_live_bool(&f.blocks[bi].terminator, &mut out);
         for i in f.blocks[bi].instructions.iter().rev() {
-            reverse(module, f, i, &mut out, b)?;
+            reverse_bool(module, f, i, &mut out, b)?;
         }
         b.spend(width)?;
         if inputs[bi] != out {
@@ -3635,7 +3862,99 @@ fn live_out(
     }
     Ok(outputs)
 }
+
+fn instruction_rows(
+    module: &TypedModule,
+    f: &TypedFunction,
+    block: usize,
+    output: &WordRow,
+    b: &mut Budget,
+) -> Check<Vec<WordRow>> {
+    let block = &f.blocks[block];
+    // Pay the output copy, every snapshot's word copy and row record,
+    // and the empty placeholder records even if the logical width is zero.
+    b.spend(amount(
+        block.instructions.len().saturating_add(1),
+        output.work(),
+    )?)?;
+    b.spend(block.instructions.len())?;
+    let mut live = output.clone();
+    term_live(&block.terminator, &mut live)?;
+    let mut rows = vec![WordRow::empty(0); block.instructions.len()];
+    for (position, instruction) in block.instructions.iter().enumerate().rev() {
+        rows[position] = live.clone();
+        reverse(module, f, instruction, &mut live, b)?;
+    }
+    Ok(rows)
+}
 fn live_loans(
+    solution: &Solution,
+    state: &Frame,
+    live: &WordRow,
+    definition: Option<ValueId>,
+    indexed: Option<&[usize]>,
+    b: &mut Budget,
+) -> Check<Vec<usize>> {
+    b.spend(indexed.map_or(live.len(), |ids| {
+        ids.len().saturating_add(live.len() - solution.values.len())
+    }))?;
+    let mut loans = live_loan_ids::SortedLoanIds::default();
+    let mut collect = |id: usize| -> Check<()> {
+        if !live.is_live(id)? || definition.is_some_and(|value| value.0 as usize == id) {
+            return Ok(());
+        }
+        let payload = if id < solution.values.len() {
+            &solution.values[id]
+        } else {
+            &state.locals[id - solution.values.len()]
+        };
+        loans.add(&payload.address.loans, b)?;
+        if b.task_borrowed_results {
+            for (_, p) in &payload.task_ports {
+                loans.add(&p.loans, b)?;
+            }
+        }
+        for (_, p) in &payload.leaves {
+            loans.add(&p.loans, b)?;
+        }
+        Ok(())
+    };
+    if let Some(ids) = indexed {
+        for &id in ids {
+            collect(id)?;
+        }
+        for id in solution.values.len()..live.len() {
+            collect(id)?;
+        }
+    } else {
+        for id in 0..live.len() {
+            collect(id)?;
+        }
+    }
+    if b.task_borrowed_results {
+        // The actual frame retains its inputs until its owning carrier moves
+        // or is discharged; dead SSA uses of a head do not discharge a frame.
+        b.spend(state.locals.len())?;
+        for payload in &state.locals {
+            for (_, permission) in &payload.task_ports {
+                loans.add(&permission.loans, b)?;
+            }
+        }
+    }
+    // Only an actual slot write can create a new external loan that is not
+    // already represented by the original parameter relation.
+    if b.stored_slot_updates {
+        b.spend(state.external.len())?;
+        for holder in &state.external {
+            for (_, p) in &holder.leaves {
+                loans.add(&p.loans, b)?;
+            }
+        }
+    }
+    ancestry(loans.as_slice(), &solution.loans, b)
+}
+#[cfg(test)]
+fn live_loans_main_fullscan(
     solution: &Solution,
     state: &Frame,
     live: &[bool],
@@ -3652,14 +3971,14 @@ fn live_loans(
         } else {
             &state.locals[id - solution.values.len()]
         };
-        add_loans(&mut loans, &payload.address.loans, b)?;
+        add_loans_by_scan(&mut loans, &payload.address.loans, b)?;
         if b.task_borrowed_results {
             for (_, p) in &payload.task_ports {
-                add_loans(&mut loans, &p.loans, b)?;
+                add_loans_by_scan(&mut loans, &p.loans, b)?;
             }
         }
         for (_, p) in &payload.leaves {
-            add_loans(&mut loans, &p.loans, b)?;
+            add_loans_by_scan(&mut loans, &p.loans, b)?;
         }
     }
     if b.task_borrowed_results {
@@ -3667,7 +3986,7 @@ fn live_loans(
         // or is discharged; dead SSA uses of a head do not discharge a frame.
         for payload in &state.locals {
             for (_, permission) in &payload.task_ports {
-                add_loans(&mut loans, &permission.loans, b)?;
+                add_loans_by_scan(&mut loans, &permission.loans, b)?;
             }
         }
     }
@@ -3676,11 +3995,11 @@ fn live_loans(
     if b.stored_slot_updates {
         for holder in &state.external {
             for (_, p) in &holder.leaves {
-                add_loans(&mut loans, &p.loans, b)?;
+                add_loans_by_scan(&mut loans, &p.loans, b)?;
             }
         }
     }
-    ancestry(&loans, &solution.loans, b)
+    ancestry_by_linear_set(&loans, &solution.loans, b)
 }
 #[allow(clippy::too_many_arguments)]
 fn check_call(
@@ -3876,26 +4195,18 @@ fn windows(
                 join_frame(&mut state, &solution.outputs[*pred], b)?;
             }
         }
-        let width = f.values.len().saturating_add(f.locals.len());
-        b.spend(amount(block.instructions.len().saturating_add(1), width)?)?;
-        let mut live = output_live[bi].clone();
-        term_live(&block.terminator, &mut live);
-        let mut after = vec![vec![false; width]; block.instructions.len()];
-        for (at, i) in block.instructions.iter().enumerate().rev() {
-            after[at].clone_from(&live);
-            reverse(module, f, i, &mut live, b)?;
-        }
+        let after = instruction_rows(module, f, bi, &output_live[bi], b)?;
         let mut byte_point = byte_flow
             .as_ref()
             .map(|flow| flow.input(f, bi, g, b))
             .transpose()?;
         for (at, i) in block.instructions.iter().enumerate() {
-            b.spend(width)?;
+            b.spend(after[at].work())?;
             let mut live = after[at].clone();
             if let Some(id) = i.result {
-                live[id.0 as usize] = false;
+                live.assign(id.0 as usize, false)?;
             }
-            let mut active = live_loans(solution, &state, &live, b)?;
+            let mut active = live_loans(solution, &state, &live, None, None, b)?;
             let pointer = |v: ValueId| -> Check<&Permission> {
                 solution
                     .values

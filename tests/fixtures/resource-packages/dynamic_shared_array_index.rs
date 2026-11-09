@@ -470,14 +470,14 @@ fn dynamic_snapshot_and_alternative_budgets_are_exact_and_fresh() {
     assert_eq!(
         boundaries,
         vec![
-            [1844, 26431, 33109, 33109, 33109],
-            [2480, 65419, 100810, 100810, 100810],
-            [4420, 52456, 62985, 62985, 62985],
-            [6467, 55932, 68629, 68629, 68629],
-            [3622, 46920, 62887, 62887, 62887],
-            [4846, 114858, 181039, 181039, 181039],
-            [6576, 76872, 102178, 102178, 102178],
-            [9109, 85772, 115561, 115561, 115561],
+            [1844, 22761, 33109, 33109, 33109],
+            [2480, 56007, 100810, 100810, 100810],
+            [4420, 41128, 62985, 62985, 62985],
+            [6467, 48440, 68629, 68629, 68629],
+            [3622, 41925, 62887, 62887, 62887],
+            [4846, 99447, 181039, 181039, 181039],
+            [6576, 64219, 102178, 102178, 102178],
+            [9109, 76835, 115561, 115561, 115561],
         ]
     );
     println!("dynamic Array complete boundaries: {boundaries:?}");
@@ -957,6 +957,6 @@ fn rich_call_completeness_costs_grow_with_actual_input_and_output_ports() {
     for (larger, smaller) in boundaries[1].iter().zip(&boundaries[0]) {
         assert!(larger > smaller);
     }
-    assert_eq!(boundaries, [[24889, 29100, 29100], [63021, 85683, 85683]]);
+    assert_eq!(boundaries, [[21499, 29100, 29100], [53749, 85683, 85683]]);
     println!("rich-call complete input/output requirement boundaries: {boundaries:?}");
 }
