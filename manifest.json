@@ -1,73 +1,61 @@
 {
   "format": 1,
-  "created_utc": "2026-11-09 17:56:13 UTC",
-  "prior_archive": "3aba8ab5dfc939a13acfdf664a7e7adef8368f3f",
+  "created_utc": "2026-11-09 19:05:34 UTC",
+  "prior_archive": "5bb9798f935fe10742588fbe96a2efa471f1a424",
   "commit_parents": [
-    "3aba8ab5dfc939a13acfdf664a7e7adef8368f3f",
-    "fc18d05d59321423570bb46123c756f2ad7e2e88"
+    "5bb9798f935fe10742588fbe96a2efa471f1a424",
+    "b9ea50ff53b370180a43af282948195e7d1498cf",
+    "f942fb506f0a9579e1af69a4a9d7cdde9593ebcd"
   ],
   "commit_tips": [
-    "3aba8ab5dfc939a13acfdf664a7e7adef8368f3f",
-    "fc18d05d59321423570bb46123c756f2ad7e2e88",
-    "be9751ecd6f5265240c1e565add0097faa7f96a7"
+    "b9ea50ff53b370180a43af282948195e7d1498cf",
+    "f942fb506f0a9579e1af69a4a9d7cdde9593ebcd"
   ],
   "local_refs": {
-    "refs/heads/task/owned-pipeline-acceptance": "e711aca01f9714e28786275ff4874583bf69686c"
+    "refs/heads/task/collected-pipeline-acceptance": "9534e59a93ea7f7801245d24f7e3115b9706bc49",
+    "refs/heads/task/owned-pipeline-composition": "e86084a5a2bca3a5e05f4d4db5bec674f9abac01"
   },
   "remote_refs": {
-    "refs/heads/archive/source-history": "3aba8ab5dfc939a13acfdf664a7e7adef8368f3f",
     "refs/heads/main": "fc18d05d59321423570bb46123c756f2ad7e2e88",
-    "refs/heads/task/owned-pipeline-acceptance": "be9751ecd6f5265240c1e565add0097faa7f96a7"
+    "refs/heads/task/collected-pipeline-acceptance": "b9ea50ff53b370180a43af282948195e7d1498cf",
+    "refs/heads/task/owned-pipeline-composition": "f942fb506f0a9579e1af69a4a9d7cdde9593ebcd"
   },
   "worktrees": [],
   "missing_commit_objects": [],
   "retirements": [
     {
-      "ref": "refs/heads/task/owned-pipeline-acceptance",
-      "head_before_retirement": "be9751ecd6f5265240c1e565add0097faa7f96a7",
-      "accepted_main": "fc18d05d59321423570bb46123c756f2ad7e2e88",
-      "pull_request": 68,
-      "remote_history_reachable_through_parent": "fc18d05d59321423570bb46123c756f2ad7e2e88",
-      "accepted_tree": "44324e1c7a023ed91dc7f063febac330cf631e26",
+      "ref": "refs/heads/task/collected-pipeline-acceptance",
+      "head_before_retirement": "b9ea50ff53b370180a43af282948195e7d1498cf",
+      "pull_request": 69,
+      "retirement_completed": false,
+      "reason": "Final code, exact receipt, independent review and local gates passed; wait for GitHub's in-progress merge to become confirmed, then retire remote and local refs.",
+      "source_tree": "bd1f082e40280d17265624090618fe0b834bd1fa",
       "local_execution_identity": {
-        "production_and_initial_tests": "9be93aab658e08f1bc7008971398ffae39fc8998",
-        "tested_source": "2dd71f2eb33d080eb48bb5677dcc7633ebb1cbfb",
-        "tested_tree": "316ea033db029af7bc0025084382863b36396413",
-        "final_receipt_commit": "e711aca01f9714e28786275ff4874583bf69686c",
-        "branch": "task/owned-pipeline-acceptance",
-        "branch_retained_at_manifest_creation": true,
+        "final": "9534e59a93ea7f7801245d24f7e3115b9706bc49",
+        "source_raw_wire_native": "1a69f9da79debd6d0de42de8a7a51c3eb645c7d3",
+        "final_code": "1b96bfbf3d7bbcb7563a1c9900b829e5c50f2a73",
+        "same_complete_final_tree": true,
         "remote_commit_identity_claimed": false,
-        "complete_final_tree_identical_to_remote": true,
-        "worktree": "/workspace/scratch/36bf9939e558/wt-owned-pipeline-acceptance",
-        "preservation": "Keep the exact local final receipt and complete local ancestry in the detached worktree. Preserve all original failures, temporary cost-measurement before-images and restored assertions, final logs and independent reviews under out/runs."
-      },
-      "receipt": {
-        "path": "validation/stored-owned-callback-pipeline.json",
-        "sha256": "8c981bd7eabf09b89573eba7abb4f057d40d8358aa94371c4902a57054dcf825"
-      },
-      "independent_review": {
-        "delta_checks": 572,
-        "delta_report_sha256": "e4a521fe43f2e81f560137efc6b8d7405940efddef656ed9c29a012a065d6e53",
-        "receipt_fact_report_sha256": "7c28adb110b1776b8b66a10811036adb6ee6ba1b6f759ff70c6274889fe11a0c",
-        "final_receipt_checks": 32,
-        "final_receipt_report_sha256": "07b2459d237993e897ac63886b9cfc10cceda847dabee0e9ebf3b43f5e54df06"
-      },
-      "validation": {
-        "original_source_bytes": 6052,
-        "native_executions": 48,
-        "kernel_tests": 728,
-        "default_budget_tests": 8,
-        "reference_budget_tests": 8,
-        "failed_final_gates": 0,
-        "format": "Pass",
-        "affected_target_clippy": "Pass",
-        "documentation": "Pass",
-        "documentation_log_sha256": "d1c8bb3a4fddf6ed8aff4cb51d46179374b286db14ce2496ffebc0f08fd7d3e0",
-        "whole_workspace_rerun": false,
-        "new_main_ci": "in progress at archive creation; not counted as accepted evidence"
-      },
-      "unique_uncommitted_source": false
+        "receipt_sha256": "956076d593779d26a708e979a9efa34b029b65ac99c2e98ab555bbf14d52bb38",
+        "final_review_sha256": "e5332c9d360508434aa261101d13298761491e6ad83060793323b39e10134fe8",
+        "worktree": "/workspace/scratch/36bf9939e558/wt-collected-pipeline-acceptance"
+      }
+    },
+    {
+      "ref": "refs/heads/task/owned-pipeline-composition",
+      "head_before_retirement": "f942fb506f0a9579e1af69a4a9d7cdde9593ebcd",
+      "source_tree": "db19d9ac683054a93da72df2ba85b3b31a6499d2",
+      "retirement_completed": false,
+      "reason": "All unique production and original collected input/tests are covered by PR68 and PR69; retire only after PR69's merge is confirmed.",
+      "local_execution_identity": {
+        "final": "e86084a5a2bca3a5e05f4d4db5bec674f9abac01",
+        "same_complete_final_tree": true,
+        "remote_commit_identity_claimed": false,
+        "worktree": "/workspace/scratch/36bf9939e558/wt-owned-pipeline-composition",
+        "coverage_audit_sha256": "be70843c3a75d60d707f27b2a544b3fe2a6de91022c05d7a051faede32d2feb1",
+        "native_audit_sha256": "cd34a04e74dbe0b763e6dbc0c1328dd2ad19c4f347ef9add4a5bc6dead729a98"
+      }
     }
   ],
-  "scope": "Preserve the thirteenth accepted scoped batch before retiring its completed delivery branch. Accept the original complete owned callback pipeline, independent raw/Wire and native cleanup within its recorded scope. Earlier archive manifests remain reachable through the prior parent; the larger collected and growing Map author branches remain active."
+  "scope": "Preserve both complete source histories before cleanup. Main acceptance, remote deletion and local deletion are separate facts. The sandbox became unavailable before local bundle/detach/delete; no local cleanup is claimed. Earlier retirements remain reachable through prior_archive."
 }
