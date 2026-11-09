@@ -200,7 +200,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | G3.4.19 | 整共享地址数组读取逐实际根核初始化 | 已合入 | — | — | main@b07b85dd4；精确源码057308f16相关API四目标690/0、snapshot/Byte组92/0、全目标strict/fmt及结构3979通过；含4配置snapshot原生。新增全量/冷恢复未跑，不等于动态下标完成。 |
 | G3.4.20 | 借入泛型Package的Managed Store字段替换 | 待集成 | P0 | sol high · array_analysis_cost | f0ee4f821已获Sol精审接受；189/0、12原生、真实旧描述失效和新旧精确预算通过；root已合。只接实际可变Package的完整Store字段，不开放whole/capture。 |
 | G3.4.21 | 普通拥有字段Copy观察、共享错误臂及标量入口组合 | 待集成 | P0 | sol high · integration_audit；Astra审 | 7dd7bb0eb已获精确接受并合root；真实字段/tag/init/loan及Byte入口callee证明保留，相关10过/1后端失败；后端首阻断ReadPackageField由G10.3.5补接。 |
-| G3.4.22 | 存储借入程序中局部拥有ByteBuffer字段的共享字节视图 | 进行中 | P0 | sol high · byte_view_composition；独立复核 | final relation7ac/真实512fixture修cb2已精审并合root；新3/0、全V490/0，实际512关系1573888→43628。原95d Source默认A/V、raw/Wire均完整过；native首Clang/O0在Codegen copy aggregate snapshot预算拒绝、执行0。新增完整field snapshot59b8在作者A预算拒绝；root最新联合正在复验两项，未宣称ABI/snapshot闭合。 |
+| G3.4.22 | 存储借入程序中局部拥有ByteBuffer字段的共享字节视图 | 进行中 | P0 | sol high · byte_view_composition；独立复核 | 原95d Source/defaultA/V及raw/Wire已过；正式正控405已独审/发布e4d3d4a0d（未重跑该Rusttest）。root072b已复现native Codegen预算/执行0及完整field snapshot59b8 Analyze预算。作者已合精确42b7保405，当前A同费trace fresh已编成，固定59b8和后续完整使用不改，按真实热点继续。 |
 
 </details>
 
@@ -420,7 +420,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | sol high · growing_collections | 原Map已过默认A，joint40c1仍V限额。V固定点6ad已精审/发布fde7870c4/合root：新5/0、全V492/0、既有Source/raw/Wire近控7/0；run26首次records摘要完整用3025226，首轮34摘要完成，第二轮records从1191904余量在State整表copy耗尽。下一独立V分页共享设计，原64native仍未验。 |
+| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | sol high · growing_collections | 原Map默认A过，V固定点6ad已精审/合root，全V492/0及近控7/0。run26首次records摘要3025226后首轮34个完成，第二轮State整表copy触限；独立V分页共享设计已精审，638SSA/20页，作者实现完整旧flat State oracle与双层COW，未冻结/未验。64native仍未执行。 |
 
 </details>
 
@@ -526,7 +526,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | --- | --- | --- | --- | --- | --- |
 | G10.6.1 | 语言初稿开发预览：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 已合入 | — | — | [PR51 验收][e-pr51]：精确源码 `a8c7953e7` 默认5190/0、参考5078/0、文本70/0；双严格检查、release、10项工程门及远端源码恢复构建运行通过。有限预览不替代 B0/完整语言。 |
 | G10.6.2 | 通用 Native 库与异步资源联合验收：精确源码、真实消费者、独审和远端恢复 | 已合入 | — | — | `main@e800b39d5`：默认5269/0、参考5157/0、文本70/0；真实联合双后端 O0/O2、3735文件远端恢复/空缓存构建、16次 API 构建/128次运行/56次故障注入均通过。[本批记录][e-native-foundations]。 |
-| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | 北京时间最后施工 2026-11-09 15:20；联合072b4171/tree2c75已发布42b7b949d，包含6ad与7ac/cb2。原own512已Source/raw/Wire过，现native Codegen预算和新增field snapshot A预算待joint复验；root fresh driver/API正在编。Map原A过/V仍预算，继续实计数修复。此前core1443/0、collected56native保留精确旧源码口径；全共同门/main未完成，main仍b07b85dd4。 |
+| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | 北京时间最后施工 2026-11-09 15:37；联合072b4171/tree2c75已发布42b7b949d，fresh driver/API75.283s通过。原own512已Source/raw/Wire过；root联合实证native Codegen预算/0执行、59b8字段snapshot A预算。Map原A过/V仍成本修复；V页及后端窄计费均已资格审核各自实现。core1443/0、collected56是精确旧源码证据；本批全共同门/main未完成，main仍b07b85dd4。 |
 | G10.6.4 | 全量回归中的旧Store/实际callback Package准入 | 已合入 | — | — | `6c1ac6fdf`已合候选；恢复旧flat callback/Store真实root快路，保留新borrowed Product分类，84项与原CLI/window正反例专项通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.5 | 新共享构造检查的两核实际独占loan发现与旧fee保持 | 已合入 | — | — | `e5c52c936/396c183c`已合：复用付费建表，无额外扫描，原两预算控制恢复原值、28独占构造/slot控制通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.6 | 默认worker深调用与life组合栈溢出 | 已合入 | — | — | 既有递归帧修复由main@222e550af验收；source_life合流回归的子项也已由main@0e770a26e交付。原默认栈/深调用/费用控制保留。 |
@@ -565,7 +565,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | G10.3.3 | 大型拥有Package物理snapshot和内部参数/返回ABI | 待集成 | P0 | sol high · large_owned_value_abi | 424791b53已精审并合root；239/0与16原生验证16KiB字段、移动/refill/固定栈循环，不授Copy。普通局部Closure大型参数/结果已由G10.3.6补齐；大型地址Array Package分析边界保留。 |
 | G10.3.4 | 拥有借入与ErrorUnion组合的独立资源分析成本 | 待集成 | P0 | sol high · resource_sum_cost | 5cf970ba5已获Sol精审并合root；完整unknown/缺失alternative、循环固定点与最终检查保持，旧核预算不变。A实际CFG调度及V独立工作量修复，原Source默认额度过相关阶段。 |
 | G10.3.5 | 后端普通Package字段及Byte/Error消费者完整类型预付 | 待集成 | P0 | sol high · large_owned_value_abi | 9f91ccc5e已精审并合root；完整actual type预付预算7/0及strict过，原四模块和ErrorArm四配置8原生通过。完整pipeline已由G3.4.22通过48原生，待共同门。 |
-| G10.3.6 | 普通Closure的大型拥有参数/结果内部ABI | 进行中 | P0 | sol high · large_closure_abi；独立复核 | 原dbd5c446a已合联合分支，原范围48native和Codegen N111300已验。现原作者只读接办512拥有Package Codegen Copy aggregate snapshot预算：joint686四个backend文件与原c04逐字相同，不是漏合；需证明真实source/machine clone费用后修，暂未改/编。原opaque factory5个Types边界仍单列。 |
+| G10.3.6 | 普通Closure的大型拥有参数/结果内部ABI | 进行中 | P0 | sol high · large_closure_abi；独立复核 | 原范围48native/N111300保留。root072b复现原512 Codegen预算；七backend文件与原c04相同。实际Array2machine节点被无关Batch life2566污染，make旧重复费10135976。Astra已审窄版exact Load及snapshot构造计费，完整source/life/Enum/ABI及stored_borrows费保原；作者合42b7后实施，未新验native。 |
 
 </details>
 

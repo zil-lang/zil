@@ -2,7 +2,7 @@
   "date": "2026-11-09 09:04 Asia/Shanghai",
   "status": "resumed_not_accepted",
   "main": "b07b85dd49b3df6f382734d509919a2a6013c97d",
-  "goal_read": "d5d6825ab590d2542ec7bdf7d521057d35114456",
+  "goal_read": "419ddc09599052bfd300ad698e8010f42ecc25c0",
   "integration": "ed8e3a5de6befb15b515f6b124e992792414a8ca",
   "source_branches": {
     "root": "task/G10.6.3",
@@ -13,7 +13,7 @@
   "first_failure": "offline cargo dependency rustc_apfloat absent; no tests executed",
   "scope": "Continue original ordinary-library consumer and large owned closure transport; no release claim",
   "raw_logs": "out/runs/byte-views-baseline-20261109/ in task/G3.4.22 worktree",
-  "last_work": "2026-11-09 15:20 Asia/Shanghai",
+  "last_work": "2026-11-09 15:37 Asia/Shanghai",
   "integration_remote": "42b7b949da5a3b0968302228058e80686a9ca5af",
   "large_closure_checkpoint": "dbd5c446a600eb26f34574748376a2b8e84fece8",
   "baseline_language_failure": "original four-module program: Analyze ResourceLimit / Sum terminal tag classification, 0 pass, 1 fail",
@@ -81,7 +81,7 @@
     "logs": "out/runs/growing-input-effects-20261109-9",
     "next": "Complete SSA inventory paged COW design under independent review"
   },
-  "active_build_window": "Root latest joint fresh driver/API for owning512 native and whole-field snapshot; Byte formal Source/raw/Wire tests; Map V page design; original large_closure_abi author read-only backend actual clone-cost diagnosis",
+  "active_build_window": "Byte current snapshot trace compiled and released; root preparing integrated formal512 Source/raw/Wire gate; Map V pages and closure backend narrow fee implementation on separate branches",
   "workspace_core": {
     "source": "e70b53b7e98b2523dc58443d4a32af01945f40cd",
     "published_source": "f69601082736703331fe303179ee84998a893eb9",
@@ -791,7 +791,7 @@
     "source_input_fingerprint": "59b8aaa8aa292c1e3921cfee638ef03598e1ffe62a3a4402d1e1542cc793ae66",
     "source_change": "Original512 literal/make/relay/read retained; add discard helper and whole items snapshot, clean owner and read snapshot",
     "default_result": "Analyze ResourceLimit during stored path comparison/search; verification_runs0",
-    "latest_joint_reproduction": "Pending; author branch lacks latest Map Analyze changes",
+    "latest_joint_reproduction": "Confirmed at072b/tree2c75 with exact59b8 input; same Analyze default ResourceLimit",
     "logs": "out/runs/byte-views-final-relations-20261109/snapshot.log",
     "source": "out/runs/byte-views-final-relations-20261109/whole-field-snapshot.zil"
   },
@@ -834,7 +834,65 @@
     "source": "072b41715f4b2d53892ad33d51fa8defd0bc1e61",
     "remote": "42b7b949da5a3b0968302228058e80686a9ca5af",
     "tree": "2c75d88c026e8710e43b412eeeaa5fdc0e512e52",
-    "status": "Fresh driver/API building; native and complete-field snapshot not yet run",
-    "logs": "out/runs/ordinary-owned512-joint-20261109-1"
+    "status": "Fresh driver/API built successfully at exact072b; both real downstream failures reproduced with source unchanged",
+    "logs": "out/runs/ordinary-owned512-joint-20261109-1",
+    "build_seconds": 75.283,
+    "native": {
+      "phase": "Codegen",
+      "status": "ResourceLimit",
+      "message": "Copy aggregate snapshot emission budget exceeded",
+      "source_input_fingerprint": "95d6572a129f856a5b073de7cfa2aa9d2b730c0ff44b254fa6f9a3d8830299bb",
+      "verification_runs": 1,
+      "commands": 0,
+      "native_executions": 0,
+      "seconds": 1.558,
+      "log_sha256": "7cd26208a8d947378dfe85f7d74ee518b2f3393d6bc9b8cd8d826de24b21941c"
+    },
+    "whole_field_snapshot": {
+      "phase": "Analyze",
+      "status": "ResourceLimit",
+      "message": "stored path comparison/search",
+      "source_input_fingerprint": "59b8aaa8aa292c1e3921cfee638ef03598e1ffe62a3a4402d1e1542cc793ae66",
+      "verification_runs": 0,
+      "seconds": 1.08,
+      "log_sha256": "6471a69a23bfb4edebed1fdb6623bf655c0f70c002a772354e34f696a495811e"
+    }
+  },
+  "formal_owning512_test": {
+    "source": "40568f3cb7c95850615fee11d03f15cf957b1d8f",
+    "remote": "e4d3d4a0dcc9218769a45d86dd80c903f0b195af",
+    "review": "Astra exact source scope accepted; replace stale expected Analyze failure with original Source/defaultVerify and independent raw/Wire success, assert actual512SharedAddress slots; no native claim",
+    "execution": "Underlying frozen cb2 harness passed; formal changed Rust test not yet rerun",
+    "file": "tests/fixtures/resource-packages/package_shared_array.rs"
+  },
+  "verify_paged_values_design": {
+    "baseline": "6ad37d6324769f06e5a3e4848d94d108eb0bcbdb",
+    "status": "Astra design qualified; author implementing, no frozen code or execution claim yet",
+    "actual_records_ssa": 638,
+    "pages": 20,
+    "contract": "Independent full SSA representation; preserve other.cost/partial/initialized/locals order; validate both page shapes before identity; page and Content COW independent; real cloning/scans/validation paid; complete frozen flat State oracle",
+    "design": "out/runs/growing-input-effects-20261109-26/v-paged-ssa-design.md"
+  },
+  "backend_512_design": {
+    "baseline": "c04d10aad3ec1093a62e555c497ccf2b89ffff81",
+    "joint": "072b41715f4b2d53892ad33d51fa8defd0bc1e61",
+    "backend_files_equal": 7,
+    "status": "Astra exact-consumer design qualified; original author merging42b7 baseline and implementing narrow version; no code accepted or native success yet",
+    "scope": "Only exact Load and snapshot-handled MakeAggregate/MakePackage repeated fees; full source/type/life/planning and stored_borrows::reserve_emission preserved; Enum/Call/Closure/Store/TakeLocal/unknown original fallback",
+    "actual_max_slot_work": 2694,
+    "life_work_in_max": 2566,
+    "type_work_in_max": 128,
+    "actual_array_machine_nodes": 2,
+    "actual_batch_machine_nodes": 7,
+    "before_construct_522_instruction_fee": 8454312,
+    "construct_512_fee": 1390136,
+    "old_make_total_snapshot_emission_fee": 10135976,
+    "design": "out/runs/ordinary-owned512-joint-20261109-1/backend-readonly-design.md"
+  },
+  "byte_snapshot_trace": {
+    "baseline_merge": "b39649711fbf60e377274d01ec3f7a0aa676179f",
+    "joint_baseline": "42b7b949da5a3b0968302228058e80686a9ca5af",
+    "status": "Fresh current-Budget diagnostic build complete; fixed59b8 run and interpretation pending",
+    "first_infrastructure_failure": "Old instrumentation patch did not match current Budget; first1m03 build was uninstrumented baseline, preserved and not counted as measured ledger"
   }
 }
