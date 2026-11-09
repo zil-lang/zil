@@ -1,0 +1,26 @@
+{
+  "version": "compiler-cost-frequency-weighted/2",
+  "baseline": "82a69812582856b012468db3d019930d8e390f64",
+  "previous_candidate": "02c75de950b64339cdf6136331b8e685f65ccffe",
+  "weight_status": "Explicit workload assumptions, NOT measured user telemetry. Freeze before candidate measurements and report sensitivity; never choose weights after seeing results.",
+  "primary_metric": "expected_wall_ms = sum(case_weight * mode_weight * request_weight * median_full_request_ms); improvement = 1 - candidate_expected_ms / baseline_expected_ms",
+  "absolute_metric": "saved seconds per 1000 requests = baseline_expected_ms - candidate_expected_ms",
+  "pain_metrics": ["weighted time above 100 ms", "weighted time above 1000 ms", "per-cell absolute delta ms and paired distribution", "number and cost of newly crossed 1000 ms boundaries"],
+  "mode_weights": {"interactive": {"check": 0.30, "O0": 0.50, "O2": 0.20}, "release_heavy": {"check": 0.10, "O0": 0.20, "O2": 0.70}},
+  "request_weights": {"edit_loop": {"cold": 0.10, "warm": 0.20, "private": 0.50, "public": 0.10, "restore": 0.10}, "clean_heavy": {"cold": 0.70, "warm": 0.05, "private": 0.15, "public": 0.10, "restore": 0.00}},
+  "case_group_weights": {"small": 0.10, "medium": 0.20, "large": 0.35, "real_language": 0.35},
+  "case_scope": {
+    "small": ["minimal source", "small runtime-input tree"],
+    "medium": ["tree32x8"],
+    "large": ["tree256x8", "tree1024x8", "single large module"],
+    "real_language": ["owned buffer or closure", "generic trait", "compile-time computation", "aggregate and borrow composition"]
+  },
+  "within_group": "Equal weight per admitted case; more tests must not silently increase a group's total weight. Preflight failures are retained and disclosed, never reported as faster compilation.",
+  "coverage": "Finite representative matrix, not all programs. A missing cell invalidates that profile; no silent renormalization. Explicitly scoped screening matrices may be reported separately.",
+  "quality_constraints": ["current independent Verify retained", "no acceptance-set or budget relaxation", "same optimization and codegen options in baseline/candidate", "native results and error cases checked", "changed generated code needs runtime-quality checks; byte-identical emitted LLVM can support a narrower no-codegen-change claim"],
+  "decision": "Do not reject merely because any one case regresses. Require weighted net benefit and meaningful absolute waiting-time savings, report assumption sensitivity, material regressions and severe tails separately. A correctness failure is a hard rejection.",
+  "severe_tail_guard": "Flag any reproducible per-cell increase exceeding BOTH 2x and 1000 ms; no automatic acceptance until investigated. Lesser regressions are explicitly included in the weighted sum.",
+  "sampling": "At least seven paired formal histories for final acceptance, one warmup history; alternate or randomize arms; same host and affinity; separate independent compiler/cache outputs. Exploratory profiles are not acceptance timing.",
+  "statistics": "Report medians plus all raw values, paired wins, bootstrap interval for weighted totals, and median absolute savings. Small-sample maximum is not a stable p95 estimate.",
+  "source_sync": "Use the pinned new main for both arms; preserve the old candidate and negative results in Git history. No main merge without exact-source verification and review."
+}
