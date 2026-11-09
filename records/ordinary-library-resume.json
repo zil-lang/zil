@@ -1,0 +1,15 @@
+{
+  "date": "2026-11-09 09:04 Asia/Shanghai",
+  "status": "resumed_not_accepted",
+  "main": "b07b85dd49b3df6f382734d509919a2a6013c97d",
+  "goal_read": "95b00bdc2e3a230b05b8f2ad632ef679ca49c1ab",
+  "integration": "ed8e3a5de6befb15b515f6b124e992792414a8ca",
+  "source_branches": {
+    "root": "task/G10.6.3",
+    "byte_view_composition": "task/G3.4.22",
+    "large_closure_abi": "task/G10.3.6"
+  },
+  "first_failure": "offline cargo dependency rustc_apfloat absent; no tests executed",
+  "scope": "Continue original ordinary-library consumer and large owned closure transport; no release claim",
+  "raw_logs": "out/runs/byte-views-baseline-20261109/ in task/G3.4.22 worktree"
+}

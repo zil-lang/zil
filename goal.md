@@ -200,7 +200,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | G3.4.19 | 整共享地址数组读取逐实际根核初始化 | 已合入 | — | — | main@b07b85dd4；精确源码057308f16相关API四目标690/0、snapshot/Byte组92/0、全目标strict/fmt及结构3979通过；含4配置snapshot原生。新增全量/冷恢复未跑，不等于动态下标完成。 |
 | G3.4.20 | 借入泛型Package的Managed Store字段替换 | 待集成 | P0 | sol high · array_analysis_cost | f0ee4f821已获Sol精审接受；189/0、12原生、真实旧描述失效和新旧精确预算通过；root已合。只接实际可变Package的完整Store字段，不开放whole/capture。 |
 | G3.4.21 | 普通拥有字段Copy观察、共享错误臂及标量入口组合 | 待集成 | P0 | sol high · integration_audit；Astra审 | 7dd7bb0eb已获精确接受并合root；真实字段/tag/init/loan及Byte入口callee证明保留，相关10过/1后端失败；后端首阻断ReadPackageField由G10.3.5补接。 |
-| G3.4.22 | 存储借入程序中局部拥有ByteBuffer字段的共享字节视图 | 进行中 | P0 | sol high · array_analysis_cost；Astra判据 | 2e736bc8e阶段源码已备份；原4095已越过ByteBorrow Unsupported，现真实Analyze ResourceLimit。正以请求内实际SSA头索引减少重复扫描，保逐次loan/实例/资源检查；旧无ByteBorrow域精确费用保持，未验收。 |
+| G3.4.22 | 存储借入程序中局部拥有ByteBuffer字段的共享字节视图 | 进行中 | P0 | sol high · byte_view_composition；Astra复核 | 接续远端d5565a56d（含7af06a6e实际头索引与别名/重定位反例），独立worktree重跑原四模块。旧2e736的ResourceLimit记录保留；本次首次构建因缺rustc_apfloat未执行测试，补齐环境后复验，未验收。 |
 
 </details>
 
@@ -526,7 +526,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | --- | --- | --- | --- | --- | --- |
 | G10.6.1 | 语言初稿开发预览：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 已合入 | — | — | [PR51 验收][e-pr51]：精确源码 `a8c7953e7` 默认5190/0、参考5078/0、文本70/0；双严格检查、release、10项工程门及远端源码恢复构建运行通过。有限预览不替代 B0/完整语言。 |
 | G10.6.2 | 通用 Native 库与异步资源联合验收：精确源码、真实消费者、独审和远端恢复 | 已合入 | — | — | `main@e800b39d5`：默认5269/0、参考5157/0、文本70/0；真实联合双后端 O0/O2、3735文件远端恢复/空缓存构建、16次 API 构建/128次运行/56次故障注入均通过。[本批记录][e-native-foundations]。 |
-| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | 本批main@53e3e092d字节query合流已交付：默认单轮5659/0、参考相关682/0、冷执行16次及strict通过。动态索引、大ABI及更广父能力未关闭，不宣称功能1.0。 |
+| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | 北京时间最后施工 2026-11-09 09:04；新沙盒接续task/G10.6.3@ed8e3a5de，main实际b07b85dd4。一代理一源码分支/worktree；先闭合G3.4.22及G10.3.6，再跑原联合消费者和共同门。保留已交付范围，未宣称功能1.0。 |
 | G10.6.4 | 全量回归中的旧Store/实际callback Package准入 | 已合入 | — | — | `6c1ac6fdf`已合候选；恢复旧flat callback/Store真实root快路，保留新borrowed Product分类，84项与原CLI/window正反例专项通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.5 | 新共享构造检查的两核实际独占loan发现与旧fee保持 | 已合入 | — | — | `e5c52c936/396c183c`已合：复用付费建表，无额外扫描，原两预算控制恢复原值、28独占构造/slot控制通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.6 | 默认worker深调用与life组合栈溢出 | 已合入 | — | — | 既有递归帧修复由main@222e550af验收；source_life合流回归的子项也已由main@0e770a26e交付。原默认栈/深调用/费用控制保留。 |
@@ -541,7 +541,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G10.6.6.1 | 普通trait/lending合流后source life深调用保持默认线程栈 | 已合入 | — | — | main@0e770a26e；source_life递归帧13880→1832B；原104默认worker请求和回归通过，未增栈、Limits或弱化断言。 |
-| G10.6.7 | 拥有lending、trait拥有返回与借入回调的同CFG联合消费者 | 进行中 | P0 | sol high · lending_generic_composition | 4095e7431四模块原Source未改，48原生矩阵待执行；已修trait/Direct/Copy字段/ErrorArm/callback/资源成本根因。现阻于G3.4.22实际ByteBufferBorrow，继而接G10.3.5后端预付消费者；诊断近控不替代完整验收。 |
+| G10.6.7 | 拥有lending、trait拥有返回与借入回调的同CFG联合消费者 | 进行中 | P0 | root · 联合验收 | 原4095e7431四模块及48原生矩阵保留，接续当前联合候选与G3.4.22最新远端；先复验Byte视图和实际分析成本，再核双后端/失败清理，不以近控替代完整程序。 |
 
 </details>
 
@@ -565,7 +565,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | G10.3.3 | 大型拥有Package物理snapshot和内部参数/返回ABI | 待集成 | P0 | sol high · large_owned_value_abi | 424791b53已精审接受并合root；239/0与16原生验证16KiB字段、移动/refill/固定栈循环，不授Copy。大型Closure三种签名仍Codegen Unsupported；地址Array Package分析边界保留。 |
 | G10.3.4 | 拥有借入与ErrorUnion组合的独立资源分析成本 | 待集成 | P0 | sol high · resource_sum_cost | 5cf970ba5已获Sol精审并合root；完整unknown/缺失alternative、循环固定点与最终检查保持，旧核预算不变。A实际CFG调度及V独立工作量修复，原Source默认额度过相关阶段。 |
 | G10.3.5 | 后端普通Package字段及Byte/Error消费者完整类型预付 | 待集成 | P0 | sol high · large_owned_value_abi | 9f91ccc5e已精审并合root；完整actual type预付预算7/0及strict过，原四模块和ErrorArm两后端O0/O2共8原生成功。更大pipeline仍前端阻断，不冒称共同门完成。 |
-| G10.3.6 | 普通Closure的大型拥有参数/结果内部ABI | 进行中 | P0 | sol high · large_owned_value_abi；Astra审 | 已复现三种16KiB普通Closure签名在Codegen Unsupported；新分支基e0c3261d5，实施真实env/out/copy-in运输，保一次cleanup及旧小ABI。特殊raw callback/foreign仍另留边界；尚未验收。 |
+| G10.3.6 | 普通Closure的大型拥有参数/结果内部ABI | 进行中 | P0 | sol high · large_closure_abi；Astra复核 | 新沙盒独立task/G10.3.6基ed8e3a5de接续；archive未找到旧Closure WIP。补16KiB Large→i32、i32→Large、Large→Large统一env/out/copy-in，保一次cleanup和旧小ABI；特殊callback/foreign仍保留边界，未验收。 |
 
 </details>
 
