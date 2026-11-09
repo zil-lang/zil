@@ -1,4 +1,5 @@
 use super::*;
+#[allow(dead_code)]
 mod fixture {
     include!(concat!(
         env!("CARGO_MANIFEST_DIR"),
