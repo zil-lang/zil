@@ -511,13 +511,28 @@ fn package_array_slots_pointee_and_parent_snapshot_budgets_are_exact_and_fresh()
         assert_eq!(verify, decoded);
         boundaries.push([types, analyze, verify, decoded, whole]);
     }
+    // Only actual equation work changes: balanced parent visits and smaller
+    // representative components. Keep the previous exact receipt alongside
+    // the new N/N-1 and fresh/warm checks; ownership and Types fees are intact.
+    let previous = [
+        [4018, 50794, 71998, 71998, 71998],
+        [5206, 111074, 160717, 160717, 160717],
+        [7021, 81557, 113032, 113032, 113032],
+        [9484, 87685, 122380, 122380, 122380],
+    ];
+    for (before, after) in previous.iter().zip(&boundaries) {
+        assert_eq!(before[0], after[0]);
+        for kernel in 1..5 {
+            assert!(after[kernel] < before[kernel]);
+        }
+    }
     assert_eq!(
         boundaries,
         vec![
-            [4018, 50794, 71998, 71998, 71998],
-            [5206, 111074, 160717, 160717, 160717],
-            [7021, 81557, 113032, 113032, 113032],
-            [9484, 87685, 122380, 122380, 122380],
+            [4018, 49850, 71270, 71270, 71270],
+            [5206, 105048, 155291, 155291, 155291],
+            [7021, 80613, 112304, 112304, 112304],
+            [9484, 86486, 121431, 121431, 121431],
         ]
     );
     for kernel in 0..5 {
@@ -747,9 +762,9 @@ fn owning_package_stays_affine_and_its_live_view_pins_the_parent() {
 
 #[test]
 fn large_package_array_reports_its_actual_default_source_work_boundary() {
-    let program = package_budget_model(512, 1, 0);
+    let program = include_str!("owned-package-wide-shared-address-array.zil");
     let report = compile_source(
-        &source("large-package-array-default-work", &program),
+        &source("large-package-array-default-work", program),
         &CompileOptions {
             stop_after: Stage::Verify,
             ..CompileOptions::default()
@@ -777,10 +792,10 @@ fn large_package_array_reports_its_actual_default_source_work_boundary() {
         report
             .diagnostics
             .iter()
-            .any(|d| d.message == "analysis budget exceeded during class variable ancestry")
+            .any(|d| d.message == "analysis budget exceeded during stored path comparison/search")
     );
     assert!(report.native_codegen.is_none());
     println!(
-        "Only default Source budget termination is proved here; large Package snapshot/native ABI is untested"
+        "Large Package Source still reaches its stored-path budget boundary; its snapshot/native ABI remains unimplemented"
     );
 }
