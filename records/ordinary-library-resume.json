@@ -2,7 +2,7 @@
   "date": "2026-11-09 09:04 Asia/Shanghai",
   "status": "resumed_not_accepted",
   "main": "b07b85dd49b3df6f382734d509919a2a6013c97d",
-  "goal_read": "bf057c4cffff2bc98f7d3e80cb9c0168906d3c14",
+  "goal_read": "514b00c06a0eedcc62ca6bb37910303dbdbb2a11",
   "integration": "ed8e3a5de6befb15b515f6b124e992792414a8ca",
   "source_branches": {
     "root": "task/G10.6.3",
@@ -13,14 +13,14 @@
   "first_failure": "offline cargo dependency rustc_apfloat absent; no tests executed",
   "scope": "Continue original ordinary-library consumer and large owned closure transport; no release claim",
   "raw_logs": "out/runs/byte-views-baseline-20261109/ in task/G3.4.22 worktree",
-  "last_work": "2026-11-09 11:30 Asia/Shanghai",
-  "integration_remote": "f331a08bf4a338e690c3b32776aff36b3a40a605",
+  "last_work": "2026-11-09 11:49 Asia/Shanghai",
+  "integration_remote": "355b2fa33abaabc8a3c9f11f3a3d09510a91d90f",
   "large_closure_checkpoint": "dbd5c446a600eb26f34574748376a2b8e84fece8",
   "baseline_language_failure": "original four-module program: Analyze ResourceLimit / Sum terminal tag classification, 0 pass, 1 fail",
   "native_progress": "frozen ordinary local closure ABI: 48 native executions pass; opaque factories/generic callable helpers remain five explicit Types Unsupported boundaries",
-  "integration_local": "f160b74ffa01eab22714bed283ff4d2d9f6f9d50",
-  "byte_views_checkpoint": "1e26138165b4cfb8a11edc849ce113f9d2a04443",
-  "growing_collections_checkpoint": "7184898c503d66f96a992d21954623951443d5fc",
+  "integration_local": "2c83e98bf820ee0808b6a2540ce0b57e8adc2084",
+  "byte_views_checkpoint": "838deb1de99a6d6086f8488111f099c3d3c45c8e",
+  "growing_collections_checkpoint": "b2c1a0eee301762353d72869a6133f80f70e1e92",
   "original_pipeline": "Frozen Byte precise order main/model/protocol/library, fingerprint d9afb8c2667ac61471aa1f37bd2fb9277abcbab5df37090bf4f8f6b8d32ec676: A N7122869/V N7814112 with N-1/fresh/raw/Wire pass; original4095 native input order main/protocol/library/model:48 actual executions pass, identical source file bytes",
   "collections_progress": "run7/d887: Analyze221/0, growing9/2;60/64 native pass; Map functional four configurations still Analyze ResourceLimit / Sum alternatives allocation",
   "collected_pipeline": "fixed4011cf8d under d887: Analyze ResourceLimit / owned callback address boundary classification; no Verify or native result",
@@ -81,7 +81,7 @@
     "logs": "out/runs/growing-input-effects-20261109-9",
     "next": "Complete SSA inventory paged COW design under independent review"
   },
-  "active_build_window": "Byte: V1cc oracle/core/default collected; next Map:f065 paged oracle/core/default Map; root library gate finished",
+  "active_build_window": "Map05a0 fullA/default Map; Byte implementing V sparse local Rows; root no heavy build",
   "workspace_core": {
     "source": "f160b74ffa01eab22714bed283ff4d2d9f6f9d50",
     "tree": "aae362b35e177ccfd7b072c43c2b11e5c4719058",
@@ -115,5 +115,42 @@
     "preserved_point_shift_work": 898784,
     "head_access_generic_charge_not_folded": 3511268,
     "next": "V independent word rows1cc under build; no broad fee reduction"
+  },
+  "verify_word_receipt": {
+    "source": "1ccbc8cbecac37ff45267444f3ee858e767943a4",
+    "independent_bool_oracles": 3,
+    "full_verify_passed": 467,
+    "failed": 0,
+    "byte_safety_groups": 11,
+    "original_source_negative": 1,
+    "original_raw_wire_negative": 1,
+    "original_verify_N": 6607859,
+    "edges": "N/N-1/fresh pass; actual Verify phase at N-1",
+    "collected_default": "Analyze Success then Verify ResourceLimit, verification_runs1",
+    "logs": "out/runs/byte-views-verify-words-20261109/receipt.json"
+  },
+  "paged_sum_joint": {
+    "source": "052b39dce9c85bcdb23d5e998d60a7728aefed24",
+    "full_analyze_passed": 235,
+    "failed": 0,
+    "safety_groups": 9,
+    "map_default": "Analyze ResourceLimit / resource fact, verification_runs0",
+    "source_unchanged": true,
+    "first_main_may_work": 3520284,
+    "second_main_may_work": 3569513,
+    "sum_state_tables_work": 276368,
+    "logs": "out/runs/growing-input-effects-20261109-11",
+    "next": "05a0f346 exact unknown-tag idempotence under build; independent old reconstruction oracle"
+  },
+  "verify_ledger_2": {
+    "logs": "out/runs/byte-views-verify-ledger-20261109-2",
+    "actual_function": 13,
+    "body_calls": 2,
+    "rounds_per_call": 42,
+    "blocks": 186,
+    "logical_locals": 68,
+    "empty_table_init_compare_work": 3187296,
+    "sum_state_cost": 232719,
+    "decision": "Sparse nonempty local Rows only; dense SSA and both fixedpoint schedules unchanged; retain paths with empty constraints and all permissions"
   }
 }
