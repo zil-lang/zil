@@ -68,4 +68,13 @@ fn collecting_fresh_outputs_does_not_release_the_input_iterator_loan() {
     );
     assert_eq!(report.phase, zil_base::Phase::Analyze);
     assert_eq!(report.verification_runs, 0);
+    assert!(
+        report.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "E-ANALYZE-IR"
+                && diagnostic.message
+                    == "stored target proof: simultaneously live access overlaps an actual stored target/parent loan"
+        }),
+        "{}",
+        report.to_json()
+    );
 }
