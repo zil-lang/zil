@@ -2,7 +2,7 @@
   "date": "2026-11-09 09:04 Asia/Shanghai",
   "status": "resumed_not_accepted",
   "main": "b07b85dd49b3df6f382734d509919a2a6013c97d",
-  "goal_read": "e2f8ef9d4f086d3361113c68db5c4eeb6c19e33c",
+  "goal_read": "8514c1d137185a3c748ce603c9fc0f48ef3d4020",
   "integration": "ed8e3a5de6befb15b515f6b124e992792414a8ca",
   "source_branches": {
     "root": "task/G10.6.3",
@@ -13,14 +13,14 @@
   "first_failure": "offline cargo dependency rustc_apfloat absent; no tests executed",
   "scope": "Continue original ordinary-library consumer and large owned closure transport; no release claim",
   "raw_logs": "out/runs/byte-views-baseline-20261109/ in task/G3.4.22 worktree",
-  "last_work": "2026-11-09 11:02 Asia/Shanghai",
+  "last_work": "2026-11-09 11:14 Asia/Shanghai",
   "integration_remote": "186c64aa6fce9531d3d02da76933eeae7fba642a",
   "large_closure_checkpoint": "dbd5c446a600eb26f34574748376a2b8e84fece8",
   "baseline_language_failure": "original four-module program: Analyze ResourceLimit / Sum terminal tag classification, 0 pass, 1 fail",
   "native_progress": "frozen ordinary local closure ABI: 48 native executions pass; opaque factories/generic callable helpers remain five explicit Types Unsupported boundaries",
   "integration_local": "0918414c71b8b0b96c8a9f3f9bada70db6950a59",
   "byte_views_checkpoint": "d14677a605fdd136fbe4ec792d924952f285c768",
-  "growing_collections_checkpoint": "9369428793e7248225d3ec9b804c96f798f67665",
+  "growing_collections_checkpoint": "7184898c503d66f96a992d21954623951443d5fc",
   "original_pipeline": "Frozen Byte precise order main/model/protocol/library, fingerprint d9afb8c2667ac61471aa1f37bd2fb9277abcbab5df37090bf4f8f6b8d32ec676: A N7122869/V N7814112 with N-1/fresh/raw/Wire pass; original4095 native input order main/protocol/library/model:48 actual executions pass, identical source file bytes",
   "collections_progress": "run7/d887: Analyze221/0, growing9/2;60/64 native pass; Map functional four configurations still Analyze ResourceLimit / Sum alternatives allocation",
   "collected_pipeline": "fixed4011cf8d under d887: Analyze ResourceLimit / owned callback address boundary classification; no Verify or native result",
@@ -70,5 +70,16 @@
     "failed": 0,
     "scope": "Python CI evidence scripts, not ZIL language execution",
     "logs": "out/runs/ordinary-composition-ci-evidence-20261109-1"
-  }
+  },
+  "sum_template_checkpoint": {
+    "source": "eb8eeeccf2367c95ebf661e94025e1b011c6c5c5",
+    "remote": "7184898c503d66f96a992d21954623951443d5fc",
+    "review": "Astra accepted exact source; no budget/profile/Summary change",
+    "new_tests_passed": 3,
+    "new_tests_failed": 0,
+    "map_probe": "Analyze ResourceLimit / Sum state tables, verification_runs=0",
+    "logs": "out/runs/growing-input-effects-20261109-9",
+    "next": "Complete SSA inventory paged COW design under independent review"
+  },
+  "active_build_window": "byte_view_composition: Analyze live-word oracles/core and fixed collected probe; Map only implementation/read-only, root no heavy build"
 }
