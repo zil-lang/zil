@@ -6,6 +6,8 @@ use super::*;
 mod active_index_tests;
 mod array_index;
 mod array_snapshot;
+#[cfg(test)]
+mod binding_index_tests;
 mod byte_queries;
 mod live_words;
 #[cfg(test)]
@@ -1279,6 +1281,108 @@ pub(super) fn inventory(
 }
 
 fn binding(
+    f: &TypedFunction,
+    base: StorageBase,
+    path: &[PlaceProjection],
+    b: &mut Budget,
+) -> CompileResult<StorageBinder> {
+    let c = f
+        .storage_life
+        .as_ref()
+        .ok_or_else(|| failure("stored signature lacks complete relation"))?;
+    if path.is_empty() {
+        fee(b, c.bindings.len())?;
+        return super::signature_life::outer(c, base)
+            .ok_or_else(|| failure("signature omits actual outer borrow"));
+    }
+    let ty = match base {
+        StorageBase::Parameter(i) => f
+            .parameters
+            .get(i as usize)
+            .and_then(|l| f.locals.get(l.0 as usize))
+            .map(|l| &l.ty),
+        StorageBase::Result => Some(&f.return_type),
+        StorageBase::Capture(_) => None,
+    }
+    .ok_or_else(|| failure("stored relation base is absent"))?;
+    let array = if let Type::Address { inner, .. } = ty {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    if shared_array_shape(array, b)? {
+        let Type::Array { length, .. } = array else {
+            unreachable!()
+        };
+        if !matches!(path, [PlaceProjection::Field(index)] if *index < *length) {
+            return Err(failure("array relation has no actual bounded element"));
+        }
+        fee(b, c.bindings.len().saturating_mul(2))?;
+        return c.bindings.iter().find(|row| row.position.base == base
+            && matches!(row.position.path.as_slice(), [ContractProjection::Place(step)] if *step == path[0]))
+            .map(|row| row.binder).ok_or_else(|| failure("array element lacks its actual signature binding"));
+    }
+    let mut boundary = ty;
+    let mut leaf_path = path;
+    let mut class_path = Vec::new();
+    if b.stored_enum_addresses {
+        while let Type::ErrorUnion { error, result } = boundary {
+            fee(b, 1)?;
+            let Some(PlaceProjection::ErrorArm(arm)) = leaf_path.first() else {
+                return Err(failure(
+                    "stored sum relation omits its actual ErrorArm boundary",
+                ));
+            };
+            class_path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(*arm)));
+            boundary = if *arm {
+                error.as_ref()
+            } else {
+                result.as_ref()
+            };
+            leaf_path = &leaf_path[1..];
+        }
+    }
+    let ((_, shape), pointee) = if let Some(q) = carrier(boundary) {
+        (q, false)
+    } else {
+        (
+            pointed_carrier(boundary)
+                .ok_or_else(|| failure("physical leaf has no actual qualified boundary"))?,
+            true,
+        )
+    };
+    let (local, duplicate) = b
+        .physical_slot(shape, leaf_path)?
+        .ok_or_else(|| failure("relation selected an absent physical stored leaf"))?;
+    if duplicate {
+        return Err(failure("duplicate actual stored leaf"));
+    }
+    if pointee && !class_path.is_empty() {
+        class_path.insert(0, LifeTypeProjection::Pointee);
+    }
+    fee(b, c.classes.len())?;
+    for row in &c.classes {
+        fee(b, row.position.path.len().saturating_add(1))?;
+        if row.position.base == base
+            && row.position.class == local
+            && if class_path.is_empty() {
+                if pointee {
+                    row.position.path.as_slice() == [LifeTypeProjection::Pointee]
+                } else {
+                    row.position.path.is_empty()
+                }
+            } else {
+                row.position.path == class_path
+            }
+        {
+            return Ok(row.binder);
+        }
+    }
+    Err(failure("signature omits actual qualified local class"))
+}
+
+#[cfg(test)]
+fn binding_by_scan(
     f: &TypedFunction,
     base: StorageBase,
     path: &[PlaceProjection],
