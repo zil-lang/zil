@@ -2,7 +2,7 @@
   "date": "2026-11-09 09:04 Asia/Shanghai",
   "status": "resumed_not_accepted",
   "main": "b07b85dd49b3df6f382734d509919a2a6013c97d",
-  "goal_read": "25f7bdfbbe678e50a1295a1c418ea39dfeb82469",
+  "goal_read": "3d50789eee3a915de7c16674ef87dcf0c55ded4e",
   "integration": "ed8e3a5de6befb15b515f6b124e992792414a8ca",
   "source_branches": {
     "root": "task/G10.6.3",
@@ -13,13 +13,13 @@
   "first_failure": "offline cargo dependency rustc_apfloat absent; no tests executed",
   "scope": "Continue original ordinary-library consumer and large owned closure transport; no release claim",
   "raw_logs": "out/runs/byte-views-baseline-20261109/ in task/G3.4.22 worktree",
-  "last_work": "2026-11-09 14:43 Asia/Shanghai",
-  "integration_remote": "01d00af2822140263c503f71cb16993e48e00ce0",
+  "last_work": "2026-11-09 14:53 Asia/Shanghai",
+  "integration_remote": "670961f96d9aea72658fa43caed85130f7093f69",
   "large_closure_checkpoint": "dbd5c446a600eb26f34574748376a2b8e84fece8",
   "baseline_language_failure": "original four-module program: Analyze ResourceLimit / Sum terminal tag classification, 0 pass, 1 fail",
   "native_progress": "frozen ordinary local closure ABI: 48 native executions pass; opaque factories/generic callable helpers remain five explicit Types Unsupported boundaries",
-  "integration_local": "7931c464e2e7d9ed10d2cafa41914b0994054ac6",
-  "byte_views_checkpoint": "bb2db64be61704715630a3b996ce182d47acdda9",
+  "integration_local": "f1ca28e30d8eeaee0d61a2244d28b821f83b4afd",
+  "byte_views_checkpoint": "b42247510256611a5e82180b3450aa23d6a2456e",
   "growing_collections_checkpoint": "5c596767764e23d56d0e234583557c093c008e52",
   "original_pipeline": "Frozen Byte precise order main/model/protocol/library, fingerprint d9afb8c2667ac61471aa1f37bd2fb9277abcbab5df37090bf4f8f6b8d32ec676: A N7122869/V N7814112 with N-1/fresh/raw/Wire pass; original4095 native input order main/protocol/library/model:48 actual executions pass, identical source file bytes",
   "collections_progress": "Initial callee order52b plus complete tests7b: Analyze259/0; latest joint7931 original Map still Analyze ResourceLimit in scoped actual delegation producer, Verify0; run22 shows full resources check_module completed before budget cutoff. Native remains historical60/64.",
@@ -81,19 +81,20 @@
     "logs": "out/runs/growing-input-effects-20261109-9",
     "next": "Complete SSA inventory paged COW design under independent review"
   },
-  "active_build_window": "Byte d9de field-ordinal full-old-branch oracle, full Verify and original owning512 default probe; Map run22 completed and diagnostic sources restored",
+  "active_build_window": "Map a1b direct-index first oracle/full Analyze/original Map; Byte final relation index qualification and mechanical test-only Clippy fix",
   "workspace_core": {
-    "source": "05ea3549a58554de0eeb45661179b24012e42030",
-    "tree": "4064bb591b10a0f928bf2a91c4cad821f8215044",
+    "source": "e70b53b7e98b2523dc58443d4a32af01945f40cd",
+    "published_source": "f69601082736703331fe303179ee84998a893eb9",
+    "tree": "f9ebd31625fe6cf3f4a1a383bf1685dd2652251c",
     "source_unchanged": true,
     "command": "cargo test --locked --offline --workspace --lib --no-fail-fast",
-    "passed": 1425,
+    "passed": 1443,
     "failed": 0,
     "groups": 14,
-    "elapsed_seconds": 92.515,
-    "log": "out/runs/ordinary-composition-core-20261109-2/workspace-libs.log",
-    "sha256": "285078db3e92a502fe39cafa00756a72b5e3859296e8465b76388dd3834896b4",
-    "scope": "Full workspace library tests at05ea, before ae470; not complete workspace integration/native or1.0 acceptance"
+    "elapsed_seconds": 94.882,
+    "log": "out/runs/ordinary-composition-core-20261109-3/workspace-libs.log",
+    "sha256": "e89e99eb3887ea1f6a4aa88bee17494c451c6a58aa913fb524ef01fd85eba1ac",
+    "scope": "Complete workspace libraries at e70b, before mechanical Clippy fix a90; not full workspace integration/native or1.0 acceptance"
   },
   "analyze_word_receipt": {
     "source": "670b52a30c48406a9ce342e40a706969fb107e17",
@@ -617,7 +618,76 @@
   "verify_address_field_candidate": {
     "source": "d9de415fd513ddfb69aa89c6f134d65b5a88824f",
     "tree": "3c162279fcf8128dbdbf773ea6d2f8ab187beda0",
-    "status": "Frozen; independent source review and tests running, not accepted",
-    "contract": "Private complete AddressField helper; local first-row ordinal table; original missing diagnostics, transport and link order; full old branch Equations/Flow oracle"
+    "status": "Exact source independently accepted and integrated; component3/0 and full Verify487/0; original owning512 still Verify ResourceLimit",
+    "contract": "Private complete AddressField helper; local first-row ordinal table; original missing diagnostics, transport and link order; full old branch Equations/Flow oracle",
+    "published_source": "6b81fe196603d7eef035f18a3b3301609f0e7490",
+    "component_old_work": 793120,
+    "component_new_work": 11297,
+    "metadata_old_work": 786944,
+    "metadata_new_work": 5121,
+    "exact_N_N_minus_one_fresh": true,
+    "full_verify_passed": 487,
+    "failed": 0,
+    "original_owned512_default": "Analyze Success then Verify ResourceLimit, verification_runs1",
+    "controls": "ordinary512 and small Package Analyze/Verify Success",
+    "logs": "out/runs/byte-views-field-ordinals-20261109"
+  },
+  "previous_workspace_core": {
+    "source": "05ea3549a58554de0eeb45661179b24012e42030",
+    "tree": "4064bb591b10a0f928bf2a91c4cad821f8215044",
+    "source_unchanged": true,
+    "command": "cargo test --locked --offline --workspace --lib --no-fail-fast",
+    "passed": 1425,
+    "failed": 0,
+    "groups": 14,
+    "elapsed_seconds": 92.515,
+    "log": "out/runs/ordinary-composition-core-20261109-2/workspace-libs.log",
+    "sha256": "285078db3e92a502fe39cafa00756a72b5e3859296e8465b76388dd3834896b4",
+    "scope": "Full workspace library tests at05ea, before ae470; not complete workspace integration/native or1.0 acceptance"
+  },
+  "verify_ledger_7": {
+    "source": "d9de415fd513ddfb69aa89c6f134d65b5a88824f",
+    "fees_unchanged": true,
+    "production_restored": true,
+    "full_solve_calls_completed": 12,
+    "full_summary_calls_completed": 12,
+    "windows_completed": 11,
+    "final_relation_function": 0,
+    "final_relation_initial_remaining": 397799,
+    "final_relation_completed": 258,
+    "final_relation_exhausted": 1,
+    "each_nonempty_relation_work": 3074,
+    "each_empty_relation_work": 1,
+    "scope": "Three reverse stored batches completed; request now reaches final f0 relation validation; work beyond cutoff unknown",
+    "logs": "out/runs/byte-views-owned512-verify-ledger-20261109-7",
+    "next": "Only actual physical shape path index qualified for consideration; preserve exact selected-path duplicate/absence and original class first semantics; no Summary schedule change"
+  },
+  "strict_first_failure": {
+    "source": "e70b53b7e98b2523dc58443d4a32af01945f40cd",
+    "tree": "f9ebd31625fe6cf3f4a1a383bf1685dd2652251c",
+    "status": "Fail",
+    "elapsed_seconds": 24.133,
+    "log": "out/runs/ordinary-composition-strict-20261109-1/clippy.log",
+    "sha256": "4200a9e16558a480899e83ec0bc8c03269f528d8dfbf1e63323dd1c2ff966d64",
+    "diagnostics": [
+      "class_flow::address_field too_many_arguments",
+      "stored_flow::live_words manual_is_multiple_of"
+    ],
+    "language_tests_executed": 0
+  },
+  "strict_mechanical_fix": {
+    "source": "a90c28b9ad6283d4f420ad267634f2c63128cd43",
+    "remote": "b42247510256611a5e82180b3450aa23d6a2456e",
+    "tree": "13e4efb65b04d3bf97dfd056e5e805fc30b7a391",
+    "review": "Root independently reviewed exact diff; local proof-helper allowance, fixture include dead-code allowance, equivalent divisibility expressions; no language or budget change",
+    "integrated_source": "f1ca28e30d8eeaee0d61a2244d28b821f83b4afd",
+    "rerun_status": "Fail: prior two lints cleared; reached driver test filter_map_bool_then in owned-byte-views consumers",
+    "rerun_logs": "out/runs/ordinary-composition-strict-20261109-2",
+    "rerun_log_sha256": "3bf4cf1f4ce7096bc4ea26002633592fae967eedd0ee4ce04ec2bc17e3e38a4f"
+  },
+  "map_direct_index_candidate": {
+    "source": "a1b07545a7b4afe9da2b822a008ba77fef6b4e0d",
+    "status": "Frozen; precise source review and first builds running; not accepted",
+    "contract": "Canonical full LocalId Vec, sparse full-SSA observations Option table and occupied count; direct fee only proven simple branches, nonmanaged outputs, partialNone or resultNone; complex original8 lookups preserved; complete old BTreeMap representation oracle"
   }
 }
