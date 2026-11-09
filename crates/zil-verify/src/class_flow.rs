@@ -88,16 +88,23 @@ fn pure_class_keys(
     Ok(())
 }
 // Verify uses explicit representative substitution, not Analyze's parent arena.
+// Array equations keep member lists so only the smaller component is rewritten.
 struct Equations {
     representative: Vec<usize>,
+    members: Option<Vec<Vec<usize>>>,
     rigid: Vec<Option<usize>>,
     grounded: Option<Vec<bool>>,
     next_rigid: usize,
 }
+
 impl Equations {
     fn fresh(&mut self, rigid: bool, b: &mut Budget) -> Check<usize> {
         b.spend(3)?;
         let id = self.representative.len();
+        if let Some(members) = &mut self.members {
+            b.spend(2)?;
+            members.push(vec![id]);
+        }
         self.representative.push(id);
         if let Some(grounded) = &mut self.grounded {
             b.spend(1)?;
@@ -113,14 +120,16 @@ impl Equations {
         Ok(id)
     }
     fn equal(&mut self, a: usize, z: usize, b: &mut Budget) -> Check<()> {
-        b.spend(
+        b.spend(if self.members.is_some() {
+            3
+        } else {
             self.representative
                 .len()
                 .saturating_mul(2)
-                .saturating_add(1),
-        )?;
-        let a = self.representative[a];
-        let z = self.representative[z];
+                .saturating_add(1)
+        })?;
+        let mut a = self.representative[a];
+        let mut z = self.representative[z];
         if a == z {
             return Ok(());
         }
@@ -129,9 +138,36 @@ impl Equations {
                 "actual retained class equality is not universally valid",
             ));
         }
-        for row in &mut self.representative {
-            if *row == z {
-                *row = a;
+        if let Some(members) = &mut self.members {
+            b.spend(2)?;
+            let mut a_count = members[a].len();
+            let mut z_count = members[z].len();
+            if a_count < z_count {
+                std::mem::swap(&mut a, &mut z);
+                std::mem::swap(&mut a_count, &mut z_count);
+            }
+            b.spend(1)?;
+            let grow = members[a].capacity().saturating_sub(a_count) < z_count;
+            b.spend(
+                z_count
+                    .saturating_mul(3)
+                    .saturating_add(1)
+                    .saturating_add(if grow { a_count } else { 0 }),
+            )?;
+            if grow {
+                // Pay copying the existing larger component before reserve;
+                // none of the following member pushes can reallocate.
+                members[a].reserve(z_count);
+            }
+            for member in std::mem::take(&mut members[z]) {
+                self.representative[member] = a;
+                members[a].push(member);
+            }
+        } else {
+            for row in &mut self.representative {
+                if *row == z {
+                    *row = a;
+                }
             }
         }
         self.rigid[a] = self.rigid[a].or(self.rigid[z]);
@@ -173,6 +209,14 @@ impl Equations {
         }
         let mut array_elements = Vec::new();
         if super::stored_flow::shared_array_value(ty) {
+            if self.members.is_none() {
+                b.spend(self.representative.len().saturating_mul(3))?;
+                let mut members = vec![Vec::new(); self.representative.len()];
+                for (variable, representative) in self.representative.iter().enumerate() {
+                    members[*representative].push(variable);
+                }
+                self.members = Some(members);
+            }
             let Type::Array { length, .. } = ty else {
                 unreachable!()
             };
@@ -630,6 +674,7 @@ fn check_with(
 ) -> Check<()> {
     let mut e = Equations {
         representative: Vec::new(),
+        members: None,
         rigid: Vec::new(),
         grounded: None,
         next_rigid: 0,
@@ -1427,4 +1472,69 @@ pub(super) fn pointer_types(
         _ => {}
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod equation_tests {
+    use super::*;
+
+    #[test]
+    fn merge_prepays_copying_a_full_larger_component() {
+        let mut b = Budget::new(&Limits::default());
+        let mut e = Equations {
+            representative: Vec::new(),
+            members: Some(Vec::new()),
+            rigid: Vec::new(),
+            grounded: None,
+            next_rigid: 0,
+        };
+        let a = e.fresh(false, &mut b).unwrap();
+        let z = e.fresh(false, &mut b).unwrap();
+        e.equal(a, z, &mut b).unwrap();
+        let extra = e.fresh(false, &mut b).unwrap();
+        e.members.as_mut().unwrap()[a].shrink_to_fit();
+        // Representative reads/compare (3), sizes (2), capacity (1), one
+        // transferred row (3), take (1), and copying two existing rows (2).
+        let mut short = Budget::new(&Limits {
+            max_analysis_steps: 11,
+            ..Limits::default()
+        });
+        assert!(e.equal(a, extra, &mut short).is_err());
+        assert_eq!(e.representative[extra], extra);
+        let mut exact = Budget::new(&Limits {
+            max_analysis_steps: 12,
+            ..Limits::default()
+        });
+        e.equal(a, extra, &mut exact).unwrap();
+        assert_eq!(e.representative[extra], e.representative[z]);
+    }
+
+    #[test]
+    fn member_substitution_preserves_rigid_conflicts_and_actual_grounding() {
+        let mut b = Budget::new(&Limits::default());
+        let mut e = Equations {
+            representative: Vec::new(),
+            members: Some(Vec::new()),
+            rigid: Vec::new(),
+            grounded: None,
+            next_rigid: 0,
+        };
+        let a = e.fresh(false, &mut b).unwrap();
+        let z = e.fresh(false, &mut b).unwrap();
+        e.equal(a, z, &mut b).unwrap();
+        let rigid = e.fresh(true, &mut b).unwrap();
+        e.track_grounding(&mut b).unwrap();
+        e.equal(rigid, a, &mut b).unwrap();
+        e.freeze(&[z], &mut b).unwrap();
+        let other = e.fresh(true, &mut b).unwrap();
+        assert!(e.equal(z, other, &mut b).is_err());
+
+        let x = e.fresh(false, &mut b).unwrap();
+        let y = e.fresh(false, &mut b).unwrap();
+        e.equal(x, y, &mut b).unwrap();
+        assert!(e.freeze(&[y], &mut b).is_err());
+        e.ground_address(Some(y), &mut b).unwrap();
+        e.freeze(&[y], &mut b).unwrap();
+        assert!(e.equal(x, a, &mut b).is_err());
+    }
 }

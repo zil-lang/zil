@@ -624,13 +624,26 @@ fn whole_snapshot_initialization_costs_grow_with_actual_roots_and_slots() {
     assert!(boundaries[2][1] > boundaries[0][1]);
     assert!(boundaries[3][0] > boundaries[2][0]);
     assert!(boundaries[3][1] > boundaries[2][1]);
+    // Complete per-root/per-ordinal checks remain active. Actual class
+    // equation work decreases under the independently optimized solvers.
+    let previous = [
+        [31697, 44433, 44433],
+        [67795, 99702, 99702],
+        [47566, 71365, 71365],
+        [104426, 174010, 174010],
+    ];
+    for (before, after) in previous.iter().zip(&boundaries) {
+        for kernel in 0..3 {
+            assert!(after[kernel] < before[kernel]);
+        }
+    }
     assert_eq!(
         boundaries,
         vec![
-            [31697, 44433, 44433],
-            [67795, 99702, 99702],
-            [47566, 71365, 71365],
-            [104426, 174010, 174010],
+            [30032, 43038, 43038],
+            [60280, 92825, 92825],
+            [44823, 68963, 68963],
+            [95017, 165310, 165310],
         ]
     );
     println!("whole Array initialization exact boundaries: {boundaries:?}");

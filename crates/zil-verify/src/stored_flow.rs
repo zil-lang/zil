@@ -3,6 +3,7 @@
 use super::*;
 mod array_snapshot;
 mod byte_queries;
+mod leaf_rows;
 #[path = "stored_flow_pure_copy.rs"]
 mod pure_copy;
 
@@ -332,7 +333,7 @@ struct Payload {
     // For a concrete Fixed environment only, a private Field(capture) prefix
     // retains its actual outer address and pointee leaves. It grants no public
     // projection, is never a signature class selector, and is not serialized.
-    leaves: Vec<(Path, Permission)>,
+    leaves: leaf_rows::Rows,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Frame {
@@ -429,6 +430,7 @@ fn payload_work(p: &Payload, b: &mut Budget) -> Check<()> {
     permission_work(&p.address, b)?;
     permission_work(&p.store_description, b)?;
     task_address::work(p, b)?;
+    p.leaves.copy_work(b)?;
     b.spend(p.leaves.len())?;
     for (path, p) in &p.leaves {
         b.spend(path.len())?;
@@ -499,11 +501,7 @@ fn leaf<'a>(
     path: &[PlaceProjection],
     b: &mut Budget,
 ) -> Check<Option<&'a Permission>> {
-    b.spend(amount(
-        p.leaves.len().saturating_add(1),
-        path.len().saturating_add(1),
-    )?)?;
-    Ok(p.leaves.iter().find(|(p, _)| p == path).map(|(_, p)| p))
+    Ok(p.leaves.position(path, b)?.map(|row| &p.leaves[row].1))
 }
 fn add_leaf(
     to: &mut Payload,
@@ -511,16 +509,12 @@ fn add_leaf(
     from: &Permission,
     b: &mut Budget,
 ) -> Check<bool> {
-    b.spend(amount(
-        to.leaves.len().saturating_add(1),
-        path.len().saturating_add(1),
-    )?)?;
-    if let Some((_, p)) = to.leaves.iter_mut().find(|(p, _)| p == path) {
-        join_permission(p, from, b)
+    if let Some(row) = to.leaves.position(path, b)? {
+        join_permission(to.leaves.permission_mut(row), from, b)
     } else {
         b.spend(path.len())?;
         permission_work(from, b)?;
-        to.leaves.push((path.to_vec(), from.clone()));
+        to.leaves.push((path.to_vec(), from.clone()), b)?;
         Ok(true)
     }
 }
@@ -528,15 +522,15 @@ fn take_package_field_leaves(holder: &mut Payload, index: u32, b: &mut Budget) -
     b.spend(holder.leaves.len())?;
     let mut result = Payload::default();
     let mut retained = Vec::new();
-    for (path, permission) in std::mem::take(&mut holder.leaves) {
+    for (path, permission) in std::mem::take(&mut holder.leaves).into_vec(b)? {
         b.spend(path.len().saturating_add(1))?;
         if path.first() == Some(&PlaceProjection::Field(index)) {
-            result.leaves.push((path[1..].to_vec(), permission));
+            result.leaves.push((path[1..].to_vec(), permission), b)?;
         } else {
             retained.push((path, permission));
         }
     }
-    holder.leaves = retained;
+    holder.leaves = leaf_rows::Rows::from_vec(retained, b)?;
     Ok(result)
 }
 fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool> {
@@ -1955,7 +1949,9 @@ fn seed_environment(
     for (index, ty) in d.captures.iter().enumerate() {
         let capture = seed_payload(ty, base, loans, b)?;
         let prefix = vec![PlaceProjection::Field(index as u32)];
-        for (tail, mut p) in std::iter::once((Vec::new(), capture.address)).chain(capture.leaves) {
+        for (tail, mut p) in
+            std::iter::once((Vec::new(), capture.address)).chain(capture.leaves.into_vec(b)?)
+        {
             if p.sources.is_empty() {
                 continue;
             }
@@ -2088,13 +2084,16 @@ fn seed_payload(
                 exclusive: slot.mode == StoredBorrowMode::ExclusiveAddress,
             });
             b.stored_exclusive_loans |= slot.mode == StoredBorrowMode::ExclusiveAddress;
-            p.leaves.push((
-                slot.path.clone(),
-                Permission {
-                    sources: vec![source],
-                    loans: vec![id],
-                },
-            ));
+            p.leaves.push(
+                (
+                    slot.path.clone(),
+                    Permission {
+                        sources: vec![source],
+                        loans: vec![id],
+                    },
+                ),
+                b,
+            )?;
         }
     }
     if matches!(ty, Type::Desc(_)) {
@@ -2958,7 +2957,9 @@ fn step(
                 };
                 if let Some(holder) = holder {
                     b.spend(holder.leaves.len())?;
-                    holder.leaves.retain(|(path, _)| path != &position.inline);
+                    holder
+                        .leaves
+                        .retain(|(path, _)| path != &position.inline, b)?;
                 }
                 add_sources(&mut state.vacant, &[position], b)?;
             }
@@ -2989,19 +2990,11 @@ fn step(
                 HoldRoot::Static | HoldRoot::Capture(_) => None,
             }
             .ok_or_else(|| err("replacement carrier location is absent"))?;
-            b.spend(amount(
-                holder.leaves.len().saturating_add(1),
-                actual_path.len().saturating_add(1),
-            )?)?;
-            if let Some((_, leaf)) = holder
-                .leaves
-                .iter_mut()
-                .find(|(existing, _)| existing == &actual_path)
-            {
-                *leaf = new;
+            if let Some(row) = holder.leaves.position(&actual_path, b)? {
+                *holder.leaves.permission_mut(row) = new;
             } else {
                 b.spend(actual_path.len().saturating_add(1))?;
-                holder.leaves.push((actual_path, new));
+                holder.leaves.push((actual_path, new), b)?;
             }
             if !state.vacant.is_empty() {
                 let position = slot_position(&val(*storage)?.address, path, b)?;
@@ -3136,19 +3129,11 @@ fn step(
                     HoldRoot::Static | HoldRoot::Capture(_) => None,
                 }
                 .ok_or_else(|| err("updated caller carrier location is absent"))?;
-                b.spend(amount(
-                    holder.leaves.len().saturating_add(1),
-                    path.len().saturating_add(1),
-                )?)?;
-                if let Some((_, leaf)) = holder
-                    .leaves
-                    .iter_mut()
-                    .find(|(existing, _)| existing == &path)
-                {
-                    *leaf = permission;
+                if let Some(row) = holder.leaves.position(&path, b)? {
+                    *holder.leaves.permission_mut(row) = permission;
                 } else {
                     b.spend(path.len().saturating_add(1))?;
-                    holder.leaves.push((path, permission));
+                    holder.leaves.push((path, permission), b)?;
                 }
             }
         }
@@ -3316,15 +3301,8 @@ fn step(
         }
         let (_, shape) = qualified(vt(f, id)?).ok_or_else(|| err("stored result has no shape"))?;
         for declaration in &shape.slots {
-            b.spend(amount(
-                out.leaves.len().saturating_add(1),
-                declaration.path.len().saturating_add(1),
-            )?)?;
-            if let Some((_, p)) = out
-                .leaves
-                .iter_mut()
-                .find(|(path, _)| path == &declaration.path)
-            {
+            if let Some(ordinal) = out.leaves.position(&declaration.path, b)? {
+                let p = out.leaves.permission_mut(ordinal);
                 let row = loans
                     .get_mut(loan_id)
                     .ok_or_else(|| err("stored result loan outside actual arena"))?;
