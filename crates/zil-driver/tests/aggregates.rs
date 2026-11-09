@@ -5011,7 +5011,7 @@ fn large_copy_abi_copy_in_and_rhs_order() {
 }
 
 #[test]
-fn large_copy_abi_special_closure_is_explicitly_unsupported() {
+fn large_copy_abi_ordinary_closure_entries_and_special_boundaries() {
     // Match the ordinary CLI's 8 MiB main-thread stack. The recursive closure
     // metadata check exceeds Rust's smaller default test-worker stack.
     std::thread::Builder::new()
@@ -5023,21 +5023,32 @@ fn large_copy_abi_special_closure_is_explicitly_unsupported() {
         )
         .spawn(|| {
             let first = "[0]".repeat(13);
-            for (prefix, body) in [
-                ("", "let f=(value:Big)->Big=>value;return 0;".to_owned()),
-                ("", format!("let f=move()=>i32(a12{first});return f();")),
+            for (prefix, body, accepted) in [
+                (
+                    "",
+                    "let f=(value:Big)->Big=>value;return 0;".to_owned(),
+                    true,
+                ),
+                (
+                    "",
+                    format!("let f=move()=>i32(a12{first});return f();"),
+                    false,
+                ),
                 (
                     "",
                     "let f=(pointer:fn(Big,i32)->i32)->i32=>0;return 0;".to_owned(),
+                    true,
                 ),
                 (
                     "",
                     "let pointer=inspect;let f=()=>{let held=pointer;return 0};return f();"
                         .to_owned(),
+                    false,
                 ),
                 (
                     "resource Holder{call:fn(Big,i32)->i32}",
                     "let holder=Holder{call:inspect};return 0;".to_owned(),
+                    false,
                 ),
             ] {
                 let text = format!("{prefix}{}", large_copy_program(&body));
@@ -5053,14 +5064,25 @@ fn large_copy_abi_special_closure_is_explicitly_unsupported() {
                     verified.to_json()
                 );
                 eprintln!("333 capture probe: Verify API completed; Build API begins");
+                let out = Temp::new();
                 let report = compile_source(
                     &source(&text),
                     &CompileOptions {
                         entry: Some("result".into()),
                         stop_after: Stage::Build,
+                        output: Some(out.0.join("program")),
                         ..CompileOptions::default()
                     },
                 );
+                if accepted {
+                    assert_eq!(
+                        report.status,
+                        ResultCategory::Success,
+                        "{}",
+                        report.to_json()
+                    );
+                    continue;
+                }
                 assert_eq!(
                     report.status,
                     ResultCategory::Unsupported,

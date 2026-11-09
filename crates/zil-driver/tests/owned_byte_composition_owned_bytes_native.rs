@@ -340,6 +340,29 @@ fn expect_large_owned(text: &str, expected: &str) {
             let llvm = fs::read_to_string(temp.0.join("phases/llvm.ll")).unwrap();
             assert!(llvm.contains(".lc1("));
             assert!(llvm.contains("@zil.copy.bytes"));
+            if text.contains("f=move(") {
+                let entries = llvm
+                    .lines()
+                    .filter(|line| {
+                        line.starts_with("define ")
+                            && line.contains("%env")
+                            && line.contains(".lc1(")
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(entries.len(), 1, "{llvm}");
+                assert!(
+                    entries[0].contains("ptr %arg.") || entries[0].contains("ptr %lc1.result"),
+                    "{}",
+                    entries[0]
+                );
+                if let Some((before_env, _)) = entries[0].split_once("%env") {
+                    assert!(
+                        !before_env.contains("%lc1.result"),
+                        "environment must precede output: {}",
+                        entries[0]
+                    );
+                }
+            }
             assert!(!llvm.contains("insertvalue { { ptr, i64, i64 }, [2 x"));
             // Every scratch/value slot is emitted in the entry block. Repeated
             // construction/moves inside a loop must never grow its stack.
@@ -561,4 +584,224 @@ fn large_owned_package_raw_and_wire_reject_duplicated_move_arguments() {
         wire[0].message,
         "managed SSA value was not available exactly once"
     );
+}
+
+// A shallow 16^3 field keeps this ABI probe independent of recursive frontend
+// stack depth while retaining a real 16KiB owned argument/result.
+fn large_closure_program(body: &str) -> String {
+    let mut ty = "i32".to_owned();
+    let mut init = "let a0=seed;".to_owned();
+    for level in 1..=3 {
+        ty = format!("[{ty};16]");
+        let fields = vec![format!("a{}", level - 1); 16].join(",");
+        init.push_str(&format!("let a{level}=[{fields}];"));
+    }
+    format!(
+        "{COUNTERS}{BUFFER}package Large{{manages bytes:ByteBuffer;values:{ty}}}fn make(seed:i32)->Large{{{init}return Large{{bytes:buf(u8(seed)),values:a3}}}}{body}"
+    )
+}
+
+#[test]
+fn large_owned_closure_parameter_result_and_roundtrip_use_real_environments() {
+    let first = "[0]".repeat(3);
+    for (work, expected) in [
+        (
+            format!("fn work()->i32{{let bias=7;let f=move(p:Large)->i32=>{{let a=p.values;return a{first}+get(p.bytes)+bias}};return f(make(3))}}"),
+            "10113\n",
+        ),
+        (
+            "fn work()->i32{let bias=2;let f=move(seed:i32)->Large=>make(seed+bias);let p=f(3);let a=p.values;return get(p.bytes)+a[0][0][0]}".into(),
+            "10110\n",
+        ),
+        (
+            "fn work()->i32{let bias=2;let f=move(p:Large)->Large=>{var q=p;q.bytes=buf(u8(bias));return q};let p=f(make(3));let a=p.values;return get(p.bytes)+a[0][0][0]}".into(),
+            "20205\n",
+        ),
+    ] {
+        let text = large_closure_program(&format!("{work}fn value()->i32{{let answer=work();return answer+counts()}}"));
+        expect_large_owned(&text, expected);
+    }
+}
+
+#[test]
+fn large_owned_mutable_closure_borrowed_calls_reuse_fixed_stack_slots() {
+    let first = "[0]".repeat(3);
+    let text = large_closure_program(&format!(
+        "fn work()->i32{{var calls=0;var f=move(p:Large)->Large=>{{calls+=1;bytes_push(p.bytes,u8(calls%200));return p}};var n=0;var answer=0;while n<1024{{let borrowed=&mut f;let p=borrowed(make(3));let a=p.values;answer+=a{first}+get(p.bytes)+i32(bytes_len(p.bytes));n+=1}}return answer}}fn value()->i32{{let answer=work();return answer+counts()}}"
+    ));
+    expect_large_owned(&text, "10350592\n");
+}
+
+#[test]
+fn large_owned_once_closure_result_and_error_clean_each_owner_once() {
+    let first = "[0]".repeat(3);
+    for (body, expected) in [
+        (
+            format!("fn work()->i32{{let b=buf(7u8);let f=move(p:Large)->Large=>{{var q=p;let old=give q.bytes;q.bytes=give b;return q}};let p=f(make(3));let a=p.values;return a{first}+get(p.bytes)}}"),
+            "20210\n",
+        ),
+        (
+            "enum Fault{Stop}fn fail()->Fault!i32{return Fault.Stop}fn work(){let b=buf(7u8);let f=move(p:Large)->Fault!i32=>{let old=give p.bytes;let captured=give b;return fail()?+get(old)+get(captured)};let result=f(make(3))}".into(),
+            "20200\n",
+        ),
+        (
+            format!("fn work()->i32{{let bias=1;let f=move(p:Large)->i32=>{{if bytes_reserve(p.bytes,13){{return -1}}let a=p.values;return a{first}+i32(bytes_len(p.bytes)+bytes_capacity(p.bytes))+bias}};return f(make(3))}}"),
+            "10213\n",
+        ),
+    ] {
+        let value = if expected == "20200\n" {
+            "fn value()->i32{work();return counts()}"
+        } else {
+            "fn value()->i32{let answer=work();return answer+counts()}"
+        };
+        expect_large_owned(&large_closure_program(&format!("{body}{value}")), expected);
+    }
+}
+
+#[test]
+fn large_owned_closure_factory_and_generic_parameter_boundaries_remain_explicit() {
+    use zil_base::Phase;
+    let first = "[0]".repeat(3);
+    // The first three sources retain the initial failing probes byte for byte.
+    // Their fingerprints bind the preserved Types failure to the real input.
+    for (label, body, fingerprint, message) in [
+        (
+            "opaque-parameter",
+            format!("fn factory()->impl Fn(Large)->i32{{let bias=7;return move(p)=>{{let a=p.values;return a{first}+get(p.bytes)+bias}}}}fn work()->i32{{let f=factory();return f(make(3))}}fn value()->i32{{let answer=work();return answer+counts()}}"),
+            Some("0f38d27d2c7361bafec7b9713a4a14aad2a9e2efa7f86c6c171fb6a5cd804e07"),
+            "opaque callable factories require",
+        ),
+        (
+            "opaque-and-generic",
+            format!("fn factory()->impl FnMut(Large)->Large{{var calls=0;return move(p)=>{{calls+=1;bytes_push(p.bytes,u8(calls%200));return p}}}}fn invoke<F:FnMut(Large)->Large>(f:&mut F,p:Large)->Large{{return f(p)}}fn work()->i32{{var f=factory();var n=0;var answer=0;while n<1024{{let p=invoke(&mut f,make(3));let a=p.values;answer+=a{first}+get(p.bytes)+i32(bytes_len(p.bytes));n+=1}}return answer}}fn value()->i32{{let answer=work();return answer+counts()}}"),
+            Some("2bd33276f522f6808e74772cf1f66ff8ea11fc33f6be174eaff9ba7f3c289021"),
+            "opaque callable factories require",
+        ),
+        (
+            "opaque-once",
+            format!("fn factory()->impl FnOnce(Large)->Large{{let b=buf(7u8);return move(p)=>{{var q=p;let old=give q.bytes;q.bytes=give b;return q}}}}fn work()->i32{{let f=factory();let p=f(make(3));let a=p.values;return a{first}+get(p.bytes)}}fn value()->i32{{let answer=work();return answer+counts()}}"),
+            Some("2bed2c26198efa2fb4e6f88de8761effe65edeea4463e3efe3d6403ec0c57540"),
+            "opaque callable factories require",
+        ),
+        (
+            "opaque-result",
+            "fn factory()->impl Fn(i32)->Large{let bias=2;return move(seed)=>make(seed+bias)}fn value()->i32{return 0}".into(),
+            None,
+            "opaque callable factories require",
+        ),
+        (
+            "generic-borrowed-parameter",
+            "fn invoke<F:FnMut(Large)->Large>(f:&mut F,p:Large)->Large{return f(p)}fn value()->i32{return 0}".into(),
+            None,
+            "finite nonescaping callable roles",
+        ),
+    ] {
+        let temp = Temp::new();
+        let text = large_closure_program(&body);
+        fs::write(temp.0.join(format!("{label}.zil")), &text).unwrap();
+        let report = compile_source(
+            &SourceUnit::new(FileId(0), ModuleId(0), "owned_byte_composition_owned_bytes_native.zil", text),
+            &CompileOptions { stop_after: Stage::Types, ..CompileOptions::default() },
+        );
+        fs::write(temp.0.join("compile.json"), report.to_json()).unwrap();
+        if let Some(expected) = fingerprint {
+            assert_eq!(report.input_fingerprint.to_hex(), expected, "{label}");
+        }
+        assert_eq!(report.status, ResultCategory::Unsupported, "{}", report.to_json());
+        assert_eq!(report.phase, Phase::Types);
+        assert!(report.diagnostics.iter().any(|diagnostic| diagnostic.code == "E-UNSUPPORTED" && diagnostic.message.contains(message)), "{}", report.to_json());
+        assert_eq!(report.verification_runs, 0);
+        assert!(!report.artifacts.contains_key("llvm"));
+    }
+}
+
+#[test]
+fn small_ordinary_closure_keeps_environment_and_scalar_calling_convention() {
+    let text = format!(
+        "{COUNTERS}{BUFFER}fn work()->i32{{let b=buf(9u8);let bias=7;let f=move(n:i32)->i32=>n+bias;return f(3)+get(b)-9}}fn value()->i32{{let answer=work();return answer+counts()}}"
+    );
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for level in [Optimization::O0, Optimization::O2] {
+            let temp = build_backend(&text, level, true, backend);
+            let llvm = fs::read_to_string(temp.0.join("phases/llvm.ll")).unwrap();
+            let entries = llvm
+                .lines()
+                .filter(|line| {
+                    line.starts_with("define ")
+                        && line.contains("@zil.fn.")
+                        && line.contains("%env")
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(entries.len(), 1);
+            assert!(!entries[0].contains(".lc1("), "{}", entries[0]);
+            assert!(entries[0].contains("i32 %arg.0"), "{}", entries[0]);
+            assert!(!llvm.contains("%lc1.result"));
+            let output = run(&temp.0.join("program"), &[]);
+            assert!(output.status.success(), "{output:?}");
+            assert_eq!(output.stdout, b"10110\n");
+            assert!(output.stderr.is_empty());
+        }
+    }
+}
+
+#[test]
+fn large_owned_closure_codegen_budget_is_exact_and_request_local() {
+    use zil_base::{Limits, Phase, TargetProfile};
+    let temp = Temp::new();
+    let text = large_closure_program(
+        "fn value()->i32{let bias=2;let f=move(p:Large)->Large=>{var q=p;q.bytes=buf(u8(bias));return q};let p=f(make(3));return get(p.bytes)}",
+    );
+    fs::write(temp.0.join("source.zil"), &text).unwrap();
+    let src = SourceUnit::new(FileId(0), ModuleId(0), "large_owned_closure.zil", text);
+    let defaults = Limits::default();
+    let target = TargetProfile::default();
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let core = zil_types::infer_source_closures(&core, &defaults).unwrap();
+    let core = zil_ct::evaluate_source_constants(&core, &target, &defaults).unwrap();
+    let typed = zil_types::check(&core, &target, &defaults).unwrap();
+    let candidate = zil_analyze::analyze(&typed, &defaults).unwrap();
+    let emit = |steps| {
+        let limits = Limits {
+            max_analysis_steps: steps,
+            ..defaults.clone()
+        };
+        let verified =
+            zil_verify::verify_module(typed.clone(), candidate.clone(), &target, &limits)?;
+        let lir = zil_lower::lower(&verified)?;
+        zil_backend_llvm::emit(&verified, &lir)
+    };
+    let (mut low, mut high) = (1, defaults.max_analysis_steps);
+    let default_ir = emit(high).unwrap();
+    while low < high {
+        let middle = low + (high - low) / 2;
+        if emit(middle).is_ok() {
+            high = middle
+        } else {
+            low = middle + 1
+        }
+    }
+    let errors = emit(low - 1).unwrap_err();
+    assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
+    assert_eq!(errors[0].phase, Phase::Codegen);
+    let exact = emit(low).unwrap();
+    assert!(exact.lines().any(|line| line.starts_with("define ")
+        && line.contains(".lc1(")
+        && line.contains("%env, ptr %lc1.result, ptr %arg.0")));
+    assert_eq!(exact, emit(low).unwrap());
+    assert_eq!(exact, default_ir);
+    fs::write(temp.0.join("exact.ll"), exact).unwrap();
+    fs::write(
+        temp.0.join("budget.txt"),
+        format!(
+            "source={}\nexact={low}\nbelow={}\nfailure={errors:#?}\n",
+            src.fingerprint().to_hex(),
+            low - 1
+        ),
+    )
+    .unwrap();
+    eprintln!("large owned Closure exact Codegen budget: {low}");
 }

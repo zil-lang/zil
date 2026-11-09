@@ -1,0 +1,659 @@
+{
+  "schema_version": 1,
+  "status": "Pass for ordinary concrete Closure large owned parameter/result transport within the recorded scope",
+  "source": {
+    "commit": "70b16089e595a64632fbf1d3f4981e9bb9e78486",
+    "tree": "8d53572d235c616a381cb56b251a906844d47293",
+    "published_same_tree_commit": "82dd18302b092b640b70f1bb68da0e4a1b96b4ab",
+    "baseline": "5f6d885ed7e31e0d3b5db036db39636d84e84875",
+    "publication": "The published source has the identical complete tree and the actual accepted main baseline as its parent; commit metadata differs.",
+    "clean_during_validation": true,
+    "validation_workspace": "An independent clean validation worktree at the exact tested commit, separate from the author worktree with two known untracked outputs from the first special gate."
+  },
+  "scope": "Ordinary concrete Closure entries reuse the existing .lc1 physical convention for admitted large value parameters and results. The actual environment precedes the hidden large-result output pointer and source argument mapping. Callees copy large inputs into their own local carriers; results use independent caller slots. Fn/FnMut/FnOnce keep their original access, consumption, loan and cleanup obligations. Private byte transport grants neither language Copy nor additional cleanup responsibility; small signatures retain their prior calling convention.",
+  "mechanical_scope": {
+    "original_patches": [
+      "57df31aa781ba72cadf1418e20dcefeaa6e65ee1",
+      "dbd5c446a600eb26f34574748376a2b8e84fece8"
+    ],
+    "six_path_extraction_commit": "a7d140457573b345f9bc72c717e6d8ceb58186f7",
+    "six_complete_preimages_equal_original_base": true,
+    "six_complete_postimages_equal_original_tip_before_test_output_fix": true,
+    "production_paths": [
+      "crates/zil-backend-llvm/src/emit.rs",
+      "crates/zil-backend-llvm/src/emit/copy_aggregates.rs",
+      "crates/zil-backend-llvm/src/emit/large_copy_abi.rs",
+      "crates/zil-backend-llvm/src/emit/resource_closures.rs"
+    ],
+    "test_paths": [
+      "crates/zil-driver/tests/aggregates.rs",
+      "crates/zil-driver/tests/owned_byte_composition_owned_bytes_native.rs"
+    ],
+    "docs_only_commit": "5acb93f55d542fd81721576e0f9185f7d79cb41f",
+    "test_only_output_fix": {
+      "commit": "70b16089e595a64632fbf1d3f4981e9bb9e78486",
+      "path": "crates/zil-driver/tests/aggregates.rs",
+      "added_lines": 2,
+      "change": "Create the existing Temp per special case and set its Build output explicitly. No Source, assertion, stack setting, limit or production code changed."
+    }
+  },
+  "independent_review": {
+    "reviewed_production_source": "5acb93f55d542fd81721576e0f9185f7d79cb41f",
+    "reviewers": "Root integrator and independent backend reviewer",
+    "status": "Accepted with no required production correction; the later test-only output hygiene correction preserves all semantic checks.",
+    "evidence": "out/runs/ordinary-closure-abi-20261109-2/root-native-check.json",
+    "evidence_sha256": "843de1237a6c5d6550d5528f4baf2891432bc38dc6167594491534a3d31dd5a0"
+  },
+  "validation_scope": "The native driver target ran 20 Rust tests; its full 80 ZIL executions include the selected 48-execution matrix and another 32 existing regression executions. Ten Rust reference executions are separate. The special, backend, top-level budget and old-closure targets are separately recorded. All eight current gates used the exact tested source/tree unchanged; no full workspace test run is claimed.",
+  "validation_runner": {
+    "path": "out/runs/ordinary-closure-abi-20261109-2/handoff-gates.sh",
+    "sha256": "4dd685ace3dffeb10ebfaaecff1a467a07716900fe35fe3f741e6d3e4108cc87",
+    "invocation": [
+      "bash",
+      "out/runs/ordinary-closure-abi-20261109-2/handoff-gates.sh",
+      "<gate-name>"
+    ],
+    "command_record": "Commands below expand the actual selected gate. The docs gate used the separately preserved docs.sh.",
+    "docs_runner": "out/runs/ordinary-closure-abi-20261109-2/docs.sh",
+    "docs_runner_sha256": "aa674256947c386b61dd760a8281ba4d3e46c2f7bdc07fbd9bf755748ffc4794"
+  },
+  "validation": {
+    "native": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_unchanged": true,
+      "commands": [
+        [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--features",
+          "llvm-api",
+          "--test",
+          "owned_byte_composition_owned_bytes_native",
+          "--",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      ],
+      "log": "out/runs/ordinary-closure-abi-20261109-2/native.log",
+      "log_sha256": "1edee43a55a09686f0b6dc9bb876e4f59d5a5844725b4d548a0addac2e8c51a3",
+      "tests": {
+        "passed": 20,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      }
+    },
+    "special": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_unchanged": true,
+      "commands": [
+        [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--features",
+          "llvm-api",
+          "--test",
+          "aggregates",
+          "large_copy_abi_ordinary_closure_entries_and_special_boundaries",
+          "--",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      ],
+      "log": "out/runs/ordinary-closure-abi-20261109-2/special.log",
+      "log_sha256": "c321dd28bc4647d35baccf5b6ee260b9faec8d506c6506dde4ee1bee1f195e6c",
+      "tests": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 406
+      }
+    },
+    "backend": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_unchanged": true,
+      "commands": [
+        [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-backend-llvm",
+          "--features",
+          "llvm-api",
+          "--lib",
+          "--",
+          "--test-threads=1"
+        ]
+      ],
+      "log": "out/runs/ordinary-closure-abi-20261109-2/backend.log",
+      "log_sha256": "059dccae40c75e4d8cb05d02b5b6bc644589a41f71d37abe3064a55ad3a8acd7",
+      "tests": {
+        "passed": 181,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      }
+    },
+    "legacy-budget": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_unchanged": true,
+      "commands": [
+        [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--features",
+          "llvm-api",
+          "--test",
+          "aggregates",
+          "budget",
+          "--",
+          "--skip",
+          "::",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      ],
+      "log": "out/runs/ordinary-closure-abi-20261109-2/legacy-budget.log",
+      "log_sha256": "5eb79bd1577fc9dc5d048f7634636a97f1466f8fbc3be6a2a36e3496ffd10e2c",
+      "tests": {
+        "passed": 23,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 384
+      }
+    },
+    "old-closure": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_unchanged": true,
+      "commands": [
+        [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--features",
+          "llvm-api",
+          "--test",
+          "closures_native",
+          "--",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      ],
+      "log": "out/runs/ordinary-closure-abi-20261109-2/old-closure.log",
+      "log_sha256": "8e0dccfe59dba03c4abe588f0015726cd79e491da406e2ff2cd75e3493251192",
+      "tests": {
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      }
+    },
+    "strict": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_unchanged": true,
+      "commands": [
+        [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--offline",
+          "--workspace",
+          "--all-targets",
+          "--features",
+          "zil-driver/llvm-api",
+          "--",
+          "-D",
+          "warnings"
+        ]
+      ],
+      "log": "out/runs/ordinary-closure-abi-20261109-2/strict.log",
+      "log_sha256": "23d38714b8f9769ed3c0cc57701e59fb5158a4ab7a6a8b349b13148250fc49fc"
+    },
+    "fmt": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_unchanged": true,
+      "commands": [
+        [
+          "cargo",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ]
+      ],
+      "log": "out/runs/ordinary-closure-abi-20261109-2/fmt.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_unchanged": true,
+      "commands": [
+        [
+          "python3",
+          "tools/check-repository-layout.py",
+          "--full",
+          "--delivery"
+        ],
+        [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tools",
+          "-p",
+          "test_check_repository_layout.py"
+        ],
+        [
+          "python3",
+          "tools/check-plan.py",
+          "--self-test"
+        ],
+        [
+          "python3",
+          "tools/check-conformance.py"
+        ],
+        [
+          "python3",
+          "tools/update-indexes.py"
+        ],
+        [
+          "git",
+          "diff",
+          "--exit-code",
+          "--",
+          "conformance/index.json",
+          "spec/diagnostics.json",
+          "data/normative-inputs.json"
+        ]
+      ],
+      "log": "out/runs/ordinary-closure-abi-20261109-2/docs.log",
+      "log_sha256": "deed82bd169a0e0d0c333e640de2d7b6564f73f175ee504adfb38c0088777997"
+    }
+  },
+  "native": {
+    "test_source": "crates/zil-driver/tests/owned_byte_composition_owned_bytes_native.rs",
+    "source_generator": "large_closure_program preserves three nested 16-element Array layers: 4096 i32 elements, a real 16384-byte field plus the owning ByteBuffer header. Package controls preserve their original source generator.",
+    "selected_new_large_closure_executions": 28,
+    "selected_small_closure_controls": 4,
+    "selected_prior_large_package_controls": 16,
+    "selected_total": 48,
+    "other_existing_zil_regression_executions": 32,
+    "all_zil_executions_in_native_target": 80,
+    "separate_rust_reference_executions": 10,
+    "successful_compile_reports": 72,
+    "configurations": [
+      "clang/O0",
+      "clang/O2",
+      "llvm-api/O0",
+      "llvm-api/O2"
+    ],
+    "llvm_api": {
+      "input_kind": "builder",
+      "parse_ns": 0,
+      "verify_before_after": true,
+      "positive_object_bytes": true,
+      "requested_default_pipeline": true
+    },
+    "programs": [
+      {
+        "case": "closure-allocation-failure",
+        "source_bytes": 1017,
+        "source_sha256": "af662c483fdeefd96313acdcd3c8d0f38350eec20717ba039c61e2d90b342fad",
+        "stdout": "10213\n",
+        "executions": 4,
+        "configurations": [
+          "clang/O0",
+          "clang/O2",
+          "llvm-api/O0",
+          "llvm-api/O2"
+        ],
+        "exit_code": 0,
+        "stderr": ""
+      },
+      {
+        "case": "closure-mutable-loop",
+        "source_bytes": 1097,
+        "source_sha256": "9eff7c36505e93a3643fe544aba2714de95ad0206bd5515365797a53610b3ae4",
+        "stdout": "10350592\n",
+        "executions": 4,
+        "configurations": [
+          "clang/O0",
+          "clang/O2",
+          "llvm-api/O0",
+          "llvm-api/O2"
+        ],
+        "exit_code": 0,
+        "stderr": ""
+      },
+      {
+        "case": "closure-once-error",
+        "source_bytes": 1017,
+        "source_sha256": "4606be5065ddb2c8b927461e476d34dcdcafb2997a6f14c292ad13658f3ab1ea",
+        "stdout": "20200\n",
+        "executions": 4,
+        "configurations": [
+          "clang/O0",
+          "clang/O2",
+          "llvm-api/O0",
+          "llvm-api/O2"
+        ],
+        "exit_code": 0,
+        "stderr": ""
+      },
+      {
+        "case": "closure-once-result",
+        "source_bytes": 996,
+        "source_sha256": "4299886363d31b1e998cb73079b9e452c2faaff8c6532e840d99163ab3de5999",
+        "stdout": "20210\n",
+        "executions": 4,
+        "configurations": [
+          "clang/O0",
+          "clang/O2",
+          "llvm-api/O0",
+          "llvm-api/O2"
+        ],
+        "exit_code": 0,
+        "stderr": ""
+      },
+      {
+        "case": "closure-parameter",
+        "source_bytes": 943,
+        "source_sha256": "c235ed609f19da71047193340ba7ebc75a393b82d01b53246ed9b50dcdf673da",
+        "stdout": "10113\n",
+        "executions": 4,
+        "configurations": [
+          "clang/O0",
+          "clang/O2",
+          "llvm-api/O0",
+          "llvm-api/O2"
+        ],
+        "exit_code": 0,
+        "stderr": ""
+      },
+      {
+        "case": "closure-result",
+        "source_bytes": 948,
+        "source_sha256": "d16364364ffd5d6d58c9f0ea69adcf2254344a509550a1207ed011213a39b14c",
+        "stdout": "10110\n",
+        "executions": 4,
+        "configurations": [
+          "clang/O0",
+          "clang/O2",
+          "llvm-api/O0",
+          "llvm-api/O2"
+        ],
+        "exit_code": 0,
+        "stderr": ""
+      },
+      {
+        "case": "closure-roundtrip",
+        "source_bytes": 978,
+        "source_sha256": "1019115ab27da46040716dc6992d52c367c83337126a3ec8f61fed89442ece58",
+        "stdout": "20205\n",
+        "executions": 4,
+        "configurations": [
+          "clang/O0",
+          "clang/O2",
+          "llvm-api/O0",
+          "llvm-api/O2"
+        ],
+        "exit_code": 0,
+        "stderr": ""
+      },
+      {
+        "case": "package-child-refill-live-arguments",
+        "source_bytes": 1483,
+        "source_sha256": "c66a8da4ac8713c508f868ebfe6e94c4932617756b3ccc69d2c69229d001f9ff",
+        "stdout": "20240\n",
+        "executions": 4,
+        "configurations": [
+          "clang/O0",
+          "clang/O2",
+          "llvm-api/O0",
+          "llvm-api/O2"
+        ],
+        "exit_code": 0,
+        "stderr": ""
+      },
+      {
+        "case": "package-failed-allocation",
+        "source_bytes": 1091,
+        "source_sha256": "0c830fa0ee3f27b5eb80859a07e51fc56fa60dbd8dc0fa9e6726b0eed54618e3",
+        "stdout": "10212\n",
+        "executions": 4,
+        "configurations": [
+          "clang/O0",
+          "clang/O2",
+          "llvm-api/O0",
+          "llvm-api/O2"
+        ],
+        "exit_code": 0,
+        "stderr": ""
+      },
+      {
+        "case": "package-fixed-stack-loop",
+        "source_bytes": 1067,
+        "source_sha256": "a3f40decb435a708ce3fb1affbfa5801ae47ba19217edf181e5f5fcb71ea4d34",
+        "stdout": "10348544\n",
+        "executions": 4,
+        "configurations": [
+          "clang/O0",
+          "clang/O2",
+          "llvm-api/O0",
+          "llvm-api/O2"
+        ],
+        "exit_code": 0,
+        "stderr": ""
+      },
+      {
+        "case": "package-move-call-return-field-snapshots",
+        "source_bytes": 1262,
+        "source_sha256": "543c37ff1c5869cf7f67e8f2fff4d3b4e1cdcfc103993ed34ade31b33c8ccdf8",
+        "stdout": "34309\n",
+        "executions": 4,
+        "configurations": [
+          "clang/O0",
+          "clang/O2",
+          "llvm-api/O0",
+          "llvm-api/O2"
+        ],
+        "exit_code": 0,
+        "stderr": ""
+      },
+      {
+        "case": "small-closure-scalar",
+        "source_bytes": 596,
+        "source_sha256": "9f1d72799afa1d08b4039c89885c9238e81734c513c3ec634738fab92243af90",
+        "stdout": "10110\n",
+        "executions": 4,
+        "configurations": [
+          "clang/O0",
+          "clang/O2",
+          "llvm-api/O0",
+          "llvm-api/O2"
+        ],
+        "exit_code": 0,
+        "stderr": ""
+      }
+    ],
+    "allocator_control": {
+      "path": "tools/byte-buffer/owned-storage-abi/fault-allocator.c",
+      "sha256": "658bad6fad8c799aabb976778781c0ec73e7048ad5a2131e602e388b3bfb2b7b",
+      "failure_size": 13,
+      "count_assertion": "The original stdout combines payload_result + attempts*100 + releases*10000 + live*1000000. These combined original assertions are preserved; they are not a separate allocator trace."
+    },
+    "stack_control": "Selected emitted functions keep alloca before source basic blocks, and the original 1024-iteration programs execute in all four configurations. No native stack or default compiler limit is raised. The special test retains its pre-existing 8 MiB Rust test-thread setting; this is not a new native stack setting or a peak-stack measurement.",
+    "artifacts": "out/runs/ordinary-closure-abi-20261109-2/native-reports",
+    "independent_evidence": "out/runs/ordinary-closure-abi-20261109-2/root-native-check.json",
+    "independent_evidence_sha256": "843de1237a6c5d6550d5528f4baf2891432bc38dc6167594491534a3d31dd5a0",
+    "successful_native_compile_reports": {
+      "status": "Success",
+      "verification_runs": 1,
+      "actual_backend_matches_request": true,
+      "fallback": null
+    }
+  },
+  "preserved_types_boundaries": [
+    {
+      "case": "opaque-parameter",
+      "source_sha256": "0f38d27d2c7361bafec7b9713a4a14aad2a9e2efa7f86c6c171fb6a5cd804e07",
+      "status": "Unsupported",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "compile_report_sha256": "21877cde509197bec07a2cf99ab3353d0fd0a7e63df52025713d8a9ebd9eb700",
+      "verification_runs": 0,
+      "llvm_or_executable_published": false
+    },
+    {
+      "case": "opaque-and-generic",
+      "source_sha256": "2bd33276f522f6808e74772cf1f66ff8ea11fc33f6be174eaff9ba7f3c289021",
+      "status": "Unsupported",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED",
+        "E-UNSUPPORTED"
+      ],
+      "compile_report_sha256": "f0b26d8c4ab89b83fd5cd5d36fe80fe798c7a959621d5735bb96070fbed376c6",
+      "verification_runs": 0,
+      "llvm_or_executable_published": false
+    },
+    {
+      "case": "opaque-once",
+      "source_sha256": "2bed2c26198efa2fb4e6f88de8761effe65edeea4463e3efe3d6403ec0c57540",
+      "status": "Unsupported",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "compile_report_sha256": "c0705f44ec16d2d25b0e653d662122ef9071fbdc03a6bfc1e5b3cc62c84ae0ba",
+      "verification_runs": 0,
+      "llvm_or_executable_published": false
+    },
+    {
+      "case": "opaque-result",
+      "source_sha256": "08d32dcf501e98ad0bd030a6612d6d42cb3aeffbcb48bb162316e0b8e3c9fdf9",
+      "status": "Unsupported",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "compile_report_sha256": "4f8273047a3559c5f599de12d1ad081d07de6c3644b388b375e6ddf39e6d8caa",
+      "verification_runs": 0,
+      "llvm_or_executable_published": false
+    },
+    {
+      "case": "generic-borrowed-parameter",
+      "source_sha256": "7e93d8633dda42e3dcee0ad731452e46ba8d2e001d6f71ac8631b2d5d439be62",
+      "status": "Unsupported",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "compile_report_sha256": "d89349f2c55f4a41ad4a7d1b2231c44e7817849fa1ccbd38c965155efc53556c",
+      "verification_runs": 0,
+      "llvm_or_executable_published": false
+    }
+  ],
+  "budget_controls": {
+    "default_limits_changed": false,
+    "ordinary_closure": {
+      "source_sha256": "0ded4ea8490e71de7966374da4f06e08ffc48651d2f6d047e6d4a18dd7b3381c",
+      "measured_codegen_N": 111300,
+      "N_minus_one": 111299,
+      "failure_category": "ResourceLimit",
+      "failure_phase": "Codegen",
+      "N_and_fresh_retry": "Success with identical complete emitted IR",
+      "default_budget_retry": "Success with the same complete emitted IR",
+      "measurement": "Measured again in this run; the numerical equality to a historical observation is not a reused constant.",
+      "budget_report_sha256": "6f30d28fbfd09f113f6f488f07190211bc9c6b4ebe49e62aa80757a429b7faf4",
+      "exact_ir_sha256": "b199e9ec1fbd3f5bdec15782f497799bd29bafad5b1a568e5e32ab730a47fb83"
+    },
+    "prior_package": {
+      "measured_codegen_N": 211800,
+      "N_minus_one": 211799,
+      "failure_category": "ResourceLimit",
+      "failure_phase": "Codegen",
+      "N_and_fresh_default_retry": "Success with identical emitted IR"
+    },
+    "legacy_scope": "The separate 23-test top-level budget target preserves its existing Source/raw/Wire, fresh/warm and N-1 assertions; its actual log is linked above."
+  },
+  "special_boundaries": {
+    "test": "large_copy_abi_ordinary_closure_entries_and_special_boundaries",
+    "source_cases": 5,
+    "build_successes": 2,
+    "codegen_unsupported_cases": 3,
+    "assertions": "All five original Sources reach Verify; admitted ordinary entry signatures build, while original large capture/function-pointer environment/resource-helper restrictions remain Codegen Unsupported with no LLVM or executable artifact.",
+    "execution_scope": "Build-only special cases; not included in native process-execution counts."
+  },
+  "preserved_first_attempt": {
+    "source": "5acb93f55d542fd81721576e0f9185f7d79cb41f",
+    "tree": "5e9a1bb96eed32a86fd195e93cb70d47d90cd5de",
+    "gates": {
+      "native": {
+        "status": "Pass",
+        "exit_code": 0,
+        "source_unchanged": true,
+        "tests": {
+          "passed": 20,
+          "failed": 0,
+          "ignored": 0,
+          "filtered": 0
+        },
+        "log": "out/runs/ordinary-closure-abi-20261109-1/native.log",
+        "log_sha256": "00681b68bebdfaf7d933ec32dae1a1dc31a27c47546ab2c336996caa4ff2a497"
+      },
+      "special": {
+        "status": "Fail",
+        "exit_code": 0,
+        "source_unchanged": false,
+        "tests": {
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0,
+          "filtered": 406
+        },
+        "log": "out/runs/ordinary-closure-abi-20261109-1/special.log",
+        "log_sha256": "22b3aa4906787c358235dc18444835949d3ba8cdfc671b580e4618097486a6f4"
+      }
+    },
+    "reason": "The special Rust test passed 1/0, but its two newly accepted Build requests omitted output and wrote aggregate/aggregate.ll under crates/zil-driver. The clean-source gate therefore correctly failed (source_unchanged=false); this is not recorded as a successful gate.",
+    "preserved_artifact_manifest": "out/runs/ordinary-closure-abi-20261109-1/special-generated-artifacts/manifest.json",
+    "preserved_artifact_manifest_sha256": "53c846dd0fd4b734d0a2ae4e9651edc26b24141f1f94a83d51342f432c387407",
+    "correction": "The two-line test-only fix uses Temp/program. Every current gate was rerun from a separate clean validation worktree. Known author-worktree artifact synchronization does not establish that the author worktree is clean."
+  },
+  "not_claimed": [
+    "Opaque factory or borrowed generic helper support for these large owned signatures; all five Types Unsupported controls remain explicit.",
+    "Large captured environment layouts, new capture permissions, special callback/registration/thread/sync-cell bridges, or external ABI expansion.",
+    "The later snapshot emission fee algorithms or acceptance of the owning-array Sources identified by 95d6572a129f856a5b073de7cfa2aa9d2b730c0ff44b254fa6f9a3d8830299bb or 59b8.",
+    "Peak-stack measurement, complete workspace test execution, complete Closure composition, or language/product release acceptance."
+  ]
+}
