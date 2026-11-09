@@ -818,12 +818,66 @@ fn bind_lir(
             .parameters
             .iter()
             .any(|ty| callback_data_shape(ty) && !ty.is_copy_value());
+        let mut complete_parameters = false;
+        if (owning_result || owning_parameters) && (closure.result.is_copy_value() || owning_result)
+        {
+            complete_parameters = true;
+            for ty in &closure.parameters {
+                if ty.is_copy_value()
+                    || (callback_data_shape(ty) && drop_plan::value_type(ty, lir.resources))
+                {
+                    continue;
+                }
+                if owning_result && let Type::Address { inner, .. } = ty {
+                    // This is still an input pointer, including its original
+                    // mutability. Rebuild the complete pointee representation
+                    // after exact binding to the current verifier capability.
+                    let before = *remaining_work;
+                    copy_aggregates::reserve_enum_metadata(
+                        inner,
+                        remaining_work,
+                        0,
+                        verified.limits(),
+                    )?;
+                    let shape_work = before - *remaining_work;
+                    let mut resource_work = 0usize;
+                    for resource in lir.resources {
+                        let before = *remaining_work;
+                        copy_aggregates::reserve_enum_metadata(
+                            &resource.payload,
+                            remaining_work,
+                            0,
+                            verified.limits(),
+                        )?;
+                        resource_work = resource_work.saturating_add(before - *remaining_work);
+                    }
+                    let scans = shape_work.saturating_mul(resource_work.saturating_add(3));
+                    *remaining_work = remaining_work.checked_sub(scans).ok_or_else(|| {
+                        vec![Diagnostic::limit(
+                            Phase::Codegen,
+                            "borrowed callback pointee representation work exceeded",
+                            None,
+                        )]
+                    })?;
+                    let supported = match inner.as_ref() {
+                        Type::Slice { element } => element.is_copy_value(),
+                        pointee => {
+                            pointee.is_copy_value()
+                                || (callback_data_shape(pointee)
+                                    && drop_plan::value_type(pointee, lir.resources))
+                        }
+                    };
+                    if supported {
+                        continue;
+                    }
+                }
+                complete_parameters = false;
+                break;
+            }
+        }
         let owning_signature = (owning_result || owning_parameters)
             && (closure.result.is_copy_value() || owning_result)
-            && closure.parameters.iter().all(|ty| {
-                ty.is_copy_value()
-                    || (callback_data_shape(ty) && drop_plan::value_type(ty, lir.resources))
-            });
+            && complete_parameters;
         // Actual retained Fixed metadata is already independently proved. This
         // only admits the existing shared pointer ABI after capability binding.
         let captured_fixed_signature = verified.uses_stored_borrows()

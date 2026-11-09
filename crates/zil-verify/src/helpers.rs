@@ -728,7 +728,7 @@ fn owned_dispatch(
     claim: &CallableParameterContract,
     budget: &mut Budget,
 ) -> Check<bool> {
-    let [(_, id, false, _)] = parameters else {
+    let [(_, id, borrowed, _)] = parameters else {
         return Ok(false);
     };
     let definition = closures::definition(module, *id, Some(function.span))?;
@@ -738,8 +738,19 @@ fn owned_dispatch(
     {
         return Ok(false);
     }
+    let borrowed_input_result = if *borrowed || claim.roles[0].kind != CallableKind::FnOnce {
+        budget.spend(definition.parameters.len())?;
+        resources::charge_payload(&definition.result, budget)?;
+        owned_callbacks::root(&definition.result)
+            && definition
+                .parameters
+                .iter()
+                .any(|ty| matches!(ty, Type::Address { .. }))
+    } else {
+        false
+    };
     if claim.roles.len() != 1
-        || claim.roles[0].kind != CallableKind::FnOnce
+        || (!borrowed_input_result && (*borrowed || claim.roles[0].kind != CallableKind::FnOnce))
         || !definition.lending_captures.is_empty()
     {
         return Err(bad(
@@ -753,7 +764,22 @@ fn owned_dispatch(
             continue;
         }
         let actual = &function.locals[local.0 as usize].ty;
-        if owned_callbacks::root(actual) {
+        if matches!(actual, Type::Address { .. }) {
+            budget.spend(definition.parameters.len())?;
+            resources::charge_payload(&definition.result, budget)?;
+            if !owned_callbacks::root(&definition.result)
+                || !definition
+                    .parameters
+                    .iter()
+                    .any(|ty| matches!(ty, Type::Address { .. }))
+            {
+                return Err(bad(
+                    function,
+                    "borrowed helper companions require a borrowed-input owned-result callback",
+                ));
+            }
+            owned_callbacks::input(module, actual, budget)?;
+        } else if owned_callbacks::root(actual) {
             owned_callbacks::value(module, actual, Some(function.span), budget)?;
         } else {
             check_function_signature_type(module, actual, Some(function.span), budget)?;

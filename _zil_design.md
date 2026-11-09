@@ -680,9 +680,9 @@ Address 的捕获在首次地址解引用处截断，包括 `move`；例如 `sel
 
 ### 9.3.1 同步拥有值回调签名
 
-具体闭包允许以Value接收和返回§8.1.5已经准入的完整、封闭、有限普通拥有Product、Enum和ErrorUnion；其中Managed及Store叶仍按实际定义与原槽资格核验。参数可同列既有有限Copy值，不新增裸资源R/ByteBuffer的拥有解释或give形参语法；裸资源仍为Desc，拥有字段的manages/create/give不变。新拥有签名不混入显式地址/Desc参数或借入结果，既有Copy及同步Copy-address签名保持原能力。已有直接Managed成功侧错误联合例外不扩大，其它非Copy错误联合槽仍只能为完整Product/Enum。
+具体闭包允许以Value接收和返回§8.1.5已经准入的完整、封闭、有限普通拥有Product、Enum和ErrorUnion；其中Managed及Store叶仍按实际定义与原槽资格核验。参数可同列既有有限Copy值，不新增裸资源R/ByteBuffer的拥有解释或give形参语法；裸资源仍为Desc，拥有字段的manages/create/give不变。同步拥有结果签名可以同列既有有限Copy、完整封闭拥有数据及其共享/独占地址、Copy slice地址输入；各实参的责任与loan分别核验，结果仍为完整封闭拥有数据，不混入Desc参数或借入结果。既有Copy及同步Copy-address签名保持原能力。详情见spec/borrowed-input-owned-callbacks.md。已有直接Managed成功侧错误联合例外不扩大，其它非Copy错误联合槽仍只能为完整Product/Enum。
 
-普通自由函数允许唯一F、按值FnOnce的封闭签名入口，例如`fn dispatch<F:FnOnce(Event)->Reply>(handler:F,event:Event)->Reply{return handler(event)}`。普通数据参数、结果和callback签名必须分别核实真实完整类型；未调用模板也检查。首片不新增普通T组合、借入F/FnMut公共入口、多F/State、opaque工厂、callback容器/数组、thin/FFI、lending、CT或异步资格；既有各profile不回退。具体Fn/FnMut/FnOnce调用同批支持新的数据签名，消费每次新Event不改变环境的调用模式：模式只由真实捕获访问与剩余责任决定，Fn/FnMut的可重复性和声明FnOnce的消费适配保持。
+普通自由函数允许唯一F、按值FnOnce的封闭签名入口，例如`fn dispatch<F:FnOnce(Event)->Reply>(handler:F,event:Event)->Reply{return handler(event)}`。普通数据参数、结果和callback签名必须分别核实真实完整类型；未调用模板也检查。对于包含上述同步借入输入且callback返回完整封闭拥有数据的唯一F入口，另允许Fn通过共享或拥有F、FnMut通过独占F、FnOnce通过拥有F调用；未使用定义与实际CFG、环境和实参窗口各自核验。首片不新增普通T组合、其它借入F/FnMut公共入口、多F/State、opaque工厂、callback容器/数组、thin/FFI、lending、CT或异步资格；既有各profile不回退。具体Fn/FnMut/FnOnce调用同批支持新的数据签名，消费每次新Event不改变环境的调用模式：模式只由真实捕获访问与剩余责任决定，Fn/FnMut的可重复性和声明FnOnce的消费适配保持。
 
 参数按callee先求值、实参从左到右完整准备，各拥有值只转交一次。后项准备失败时逆成功准备序清理已有临时，未进入body不得伪造捕获消费。返回值先完整准备再清局部、defer及FnOnce剩余捕获，已经转入结果的责任不得再次清理。所有正常、错误、提前退出与未调用销毁必须结清真实剩余责任；FnOnce仍是至多一次，不新增必须调用义务。公共helper的实际调用次数、顺序和清理由真实CFG及原roles/traces合同核验，不以bound名称或候选摘要授信。
 
@@ -748,7 +748,7 @@ opaque 返回只隐藏具体类型名；Hold、Call、Cleanup、Resume、来源�
 
 Value 准备保留既有 Copy/Move：合格具体 Copy 环境复制为独立实参位置，调用者原位置继续有效；非 Copy 实际值以及未获 Copy 能力的符号 F 位置按移动准备。F bound 自身不授 Copy。返回关系绑定本次实际参数位置，不能把 Copy 原位置和副本合并。返回到调用者后恢复传入前该值位置的声明模式及能力来源：具体 Fn 经过 FnOnce keep 仍为具体 Fn；外层声明 FnOnce 的位置即使实例化为实际 Copy Fn，也不能经 keep 升级为 Fn/Copy。FnMut 的可写位置要求不变。
 
-F 环境及拥有 child 环境必须递归自含，不携外部 Address/Desc 或未结 Hold/Call 来源。调用签名分别复用既有有限 Copy、既有一层同步 Copy/slice Address 参数到 Copy/Unit，以及 §9.3.1 闭合拥有数据签名；不新增借入或 lending 结果。拥有 callback 参数列表仍不混显式 Address/Desc。签名中的未来地址实参不等于环境借入；原值返回不能延长某次调用地址参数的借期、保存该参数或省略窗口核验。
+F 环境及拥有 child 环境必须递归自含，不携外部 Address/Desc 或未结 Hold/Call 来源。调用签名分别复用既有有限 Copy、既有一层同步 Copy/slice Address 参数到 Copy/Unit，以及 §9.3.1 闭合拥有数据签名；不新增借入或 lending 结果。本原值返回 profile 的拥有 callback 参数列表仍不混显式 Address/Desc。签名中的未来地址实参不等于环境借入；原值返回不能延长某次调用地址参数的借期、保存该参数或省略窗口核验。
 
 普通伴参允许有限 Copy 和 §8.1.5 已准入的完整闭合 Product/Enum/ErrorUnion，包括既有合法 Store 字段组合，逐项独立核实际完整类型。伴参不夹 F/Closure、opaque 环境、Address/Desc 或未恢复责任，不新开裸资源的拥有参数解释、give 形参、State/容器/数组捕获资格。旧无环境函数指针沿原 Copy/FFI 许可。F 的旧 Address 调用签名可以与独立合法拥有伴参同列，不把 callback 参数规则误用于伴参。
 
