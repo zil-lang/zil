@@ -1,0 +1,288 @@
+{
+  "schema_version": 1,
+  "status": "Pass for ordinary fixed shared-address arrays at 512 elements",
+  "source": {
+    "commit": "5d30effaa6aebd8e0e8b38f1eed888f1b6fb071a",
+    "tree": "f1b65d71ecf209d4bdadcbc97d474661e1969302",
+    "executed_local_commit": "0b171ed311f129272fd4939ead94f2a158851716",
+    "original_task_tip": "19d929e0399120fafd8a5ef77a84e01b74d15d05",
+    "publication": "Identical complete tree; commit metadata differs. The original task tip is an actual parent of the published source.",
+    "clean_during_validation": true
+  },
+  "scope": "Bound class-equation and complete leaf-path lookup work under unchanged limits. Analyze uses balanced parent components; Verify independently rewrites the smaller representative component and indexes complete leaf paths while preserving row order and first-match semantics. Actual comparisons, shifts, allocations and member-vector growth are prepaid. Whole-array reads still require initialization from every actual source.",
+  "inputs": [
+    {
+      "path": "tests/fixtures/resource-packages/wide-shared-address-array.zil",
+      "bytes": 4248,
+      "sha256": "2d3f439a9d135da66aad9d35b4bf89e647c8d76ce90129af3860b835d20a2332",
+      "acceptance": "Default Source, independent raw and Wire, plus Clang/LLVM API at O0/O2."
+    },
+    {
+      "path": "tests/fixtures/resource-packages/owned-package-wide-shared-address-array.zil",
+      "bytes": 4616,
+      "sha256": "95d6572a129f856a5b073de7cfa2aa9d2b730c0ff44b254fa6f9a3d8830299bb",
+      "acceptance": "Retained original boundary control. This slice still reports its default Analyze ResourceLimit; large owning ABI is a separate candidate."
+    }
+  ],
+  "independent_review": {
+    "reviewed_local_commit": "0b171ed311f129272fd4939ead94f2a158851716",
+    "reviewer": "Non-author integration reviewer",
+    "result": "Accepted exact source, unchanged fixture bytes and assertions, all final gate identities/hashes, and the four original 512 native reports and executions."
+  },
+  "toolchain": {
+    "rust": "1.99.1",
+    "llvm_clang_lld": "23.1.4",
+    "host": "x86_64-unknown-linux-gnu",
+    "default_limits": true,
+    "increased_stack": false
+  },
+  "validation": {
+    "both-kernel-libraries": {
+      "source": "0b171ed311f129272fd4939ead94f2a158851716",
+      "tree": "f1b65d71ecf209d4bdadcbc97d474661e1969302",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-analyze",
+        "-p",
+        "zil-verify",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "started_utc": "2026-11-09T10:45:54.452923+00:00",
+      "elapsed_seconds": 18.42,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 2,
+      "tests": {
+        "passed": 664,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "log": "out/runs/ordinary-array-scale-20261109-2/both-kernel-libraries.log",
+      "log_sha256": "73a5d514385a33d22dd12267e42e46b796dc42b088f796322e8f3689c9ff5f42"
+    },
+    "shared-array-consumers": {
+      "source": "0b171ed311f129272fd4939ead94f2a158851716",
+      "tree": "f1b65d71ecf209d4bdadcbc97d474661e1969302",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "aggregates",
+        "mixed_holder::shared_address_array::",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "started_utc": "2026-11-09T10:46:12.959077+00:00",
+      "elapsed_seconds": 28.44,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 1,
+      "tests": {
+        "passed": 35,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 353
+      },
+      "failed_tests": [],
+      "log": "out/runs/ordinary-array-scale-20261109-2/shared-array-consumers.log",
+      "log_sha256": "cc4dd49f9ac5d6368250f5d90f39581746a5e212a1dec7d88259cf852731668d"
+    },
+    "strict": {
+      "source": "0b171ed311f129272fd4939ead94f2a158851716",
+      "tree": "f1b65d71ecf209d4bdadcbc97d474661e1969302",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--workspace",
+        "--all-targets",
+        "--features",
+        "zil-driver/llvm-api",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "started_utc": "2026-11-09T10:46:41.459885+00:00",
+      "elapsed_seconds": 57.512,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "log": "out/runs/ordinary-array-scale-20261109-2/strict.log",
+      "log_sha256": "73ec6f31874ddb48f48f1b2d7ca6ccbb0e26d59f933b9080ee42013c0f33668c"
+    },
+    "format": {
+      "source": "0b171ed311f129272fd4939ead94f2a158851716",
+      "tree": "f1b65d71ecf209d4bdadcbc97d474661e1969302",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "started_utc": "2026-11-09T10:47:22.452266+00:00",
+      "elapsed_seconds": 7.499,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "log": "out/runs/ordinary-array-scale-20261109-2/format.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "complete-documentation-workflow": {
+      "source": "0b171ed311f129272fd4939ead94f2a158851716",
+      "tree": "f1b65d71ecf209d4bdadcbc97d474661e1969302",
+      "source_unchanged": true,
+      "command": [
+        "bash",
+        "-c",
+        "set -euo pipefail\npython3 tools/check-repository-layout.py --full --delivery\npython3 -m unittest discover -s tools -p test_check_repository_layout.py\npython3 tools/check-plan.py --self-test\npython3 tools/check-conformance.py\npython3 tools/update-indexes.py\ngit diff --exit-code -- conformance/index.json spec/diagnostics.json data/normative-inputs.json"
+      ],
+      "started_utc": "2026-11-09T10:47:30.018899+00:00",
+      "elapsed_seconds": 2.332,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "log": "out/runs/ordinary-array-scale-20261109-2/complete-documentation-workflow.log",
+      "log_sha256": "1d217cd7067fbbaa50971eb4e39791e5ffa889429e7d01408756900db2764af1"
+    }
+  },
+  "native": {
+    "ordinary_array_executions": 20,
+    "ordinary_512_subset": [
+      {
+        "backend": "clang",
+        "optimization": "O0",
+        "status": "Success",
+        "verification_runs": 1,
+        "fallback": null,
+        "llvm_api_builder": false,
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "backend": "clang",
+        "optimization": "O2",
+        "status": "Success",
+        "verification_runs": 1,
+        "fallback": null,
+        "llvm_api_builder": false,
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "backend": "llvm-api",
+        "optimization": "O0",
+        "status": "Success",
+        "verification_runs": 1,
+        "fallback": null,
+        "llvm_api_builder": true,
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "backend": "llvm-api",
+        "optimization": "O2",
+        "status": "Success",
+        "verification_runs": 1,
+        "fallback": null,
+        "llvm_api_builder": true,
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    ],
+    "additional_package_controls": {
+      "lifetime_permutation": 4,
+      "normal_error_allocation_failure": 16,
+      "scope": "Small Package arrays; these executions do not validate the 4616-byte owning 512 program."
+    },
+    "evidence": "The final consumer log retains complete original-512 compile JSON and actual execution records; the existing tests remove temporary native directories after successful assertions."
+  },
+  "budget_controls": {
+    "ordinary_source_boundary_N": 4170159,
+    "assertions": [
+      "N success",
+      "N-1 ResourceLimit",
+      "fresh/retry success",
+      "Cold/warm original cost and complete type-snapshot accounting controls"
+    ],
+    "default_limits_changed": false
+  },
+  "preserved_negative_controls": [
+    "One complete incoming source cannot conceal a missing array slot from another source",
+    "Actual source identity, leaf ordinal, lifetime mapping and whole-input obligations remain independently checked",
+    "Rigid-class conflict and grounded-origin requirements remain enforced",
+    "Index order and duplicate first-match semantics survive cloning, deletion and reinsertion",
+    "Failed index growth and component expansion cannot publish unpaid partial state"
+  ],
+  "integration_corrections": [
+    {
+      "issue": "The original task's numeric fixture/test names fail current repository delivery naming rules.",
+      "change": "Rename two inputs and update their includes, links and one test name. Both input byte sequences and all semantic assertions remain identical.",
+      "first_log": "out/runs/ordinary-array-scale-20261109-1/initial-layout.log",
+      "first_log_sha256": "363d6b3bee32010b51850b49087e5268b6560afaa24f3e02060a7c75a37c7f37"
+    },
+    {
+      "issue": "A pre-existing forged callback test still expects the old non-Copy admission diagnostic after borrowed-input support was accepted.",
+      "change": "Apply the existing test-only 1e55996b5774173fafcb99f6416e23513321cc74 correction. Keep the actual extra-parameter mutation and both raw/Wire rejection assertions; require the concrete entry-signature mismatch diagnostic.",
+      "first_log": "out/runs/ordinary-array-scale-20261109-1/both-kernel-libraries.log",
+      "first_log_sha256": "04a459ceb970ce01a99757fde596460fe1f776a06e643072f53320a7a71d50e9",
+      "first_result": "663 pass, one diagnostic-expectation failure; final full two-kernel rerun 664/0."
+    }
+  ],
+  "not_claimed": [
+    "Dynamic shared-array indexing",
+    "Default acceptance or native ABI of the larger owning Package 512 input",
+    "Full owning-field snapshot program with fingerprint 59b8",
+    "Full workspace test execution or language/product release acceptance"
+  ]
+}
