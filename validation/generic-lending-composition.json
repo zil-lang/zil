@@ -1,0 +1,232 @@
+{
+  "schema_version": 1,
+  "status": "Pass for ordinary generic lending composition",
+  "source": {
+    "commit": "eed27573fa4ab5513d2da8eace4bf48bbfe9ffff",
+    "tree": "c99ca4c962370ac4b781c43ccfdf374376cdda38",
+    "executed_local_commit": "7b84c25661fb42c81c1bd533ab9c6c67751551f1",
+    "publication": "Identical complete tree; commit metadata differs. Original lending task tip remains an actual ancestor.",
+    "clean_during_validation": true
+  },
+  "scope": "Existing shared lending helpers compose with independent Copy type parameters and a second unambiguous nominal constraint. Actual method/Item ambiguity, receiver source identity and lifetime obligations remain checked. Ordinary non-lending Copy queries keep their previous boundary and fee.",
+  "independent_review": {
+    "reviewed_local_commit": "7b84c25661fb42c81c1bd533ab9c6c67751551f1",
+    "reviewer": "Non-author integration reviewer",
+    "result": "Accepted exact five-file change and full original/new controls, including unchanged old Copy budget boundaries."
+  },
+  "toolchain": {
+    "rust": "1.99.1",
+    "llvm_clang_lld": "23.1.4",
+    "host": "x86_64-unknown-linux-gnu",
+    "default_limits": true,
+    "increased_stack": false
+  },
+  "validation": {
+    "lending-targeted": {
+      "source": "7b84c25661fb42c81c1bd533ab9c6c67751551f1",
+      "tree": "c99ca4c962370ac4b781c43ccfdf374376cdda38",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "nominal_trait_bounds",
+        "trait_shared_lending_consumers",
+        "--",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-09T10:05:10.397460+00:00",
+      "elapsed_seconds": 46.646,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 1,
+      "tests": {
+        "passed": 21,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 164
+      },
+      "failed_tests": [],
+      "log": "out/runs/generic-lending-composition-20261109-1/lending-targeted.log",
+      "log_sha256": "484b8db83b682d76781791745c57e234f1a8a92fd92c4b58df513924c3b6542f"
+    },
+    "copy-helper-exact-budget": {
+      "source": "7b84c25661fb42c81c1bd533ab9c6c67751551f1",
+      "tree": "c99ca4c962370ac4b781c43ccfdf374376cdda38",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "owning_callback_frontend",
+        "registered_copy_helper_costs_and_old_flat_control_have_exact_fresh_boundaries",
+        "--",
+        "--exact",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-09T10:06:52.162792+00:00",
+      "elapsed_seconds": 0.525,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 1,
+      "tests": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 11
+      },
+      "failed_tests": [],
+      "log": "out/runs/generic-lending-composition-20261109-1/copy-helper-exact-budget.log",
+      "log_sha256": "95f85ff2eaf17fd0123211f443a0295608cac39184bf522510da56983fc48901"
+    },
+    "strict": {
+      "source": "7b84c25661fb42c81c1bd533ab9c6c67751551f1",
+      "tree": "c99ca4c962370ac4b781c43ccfdf374376cdda38",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--workspace",
+        "--all-targets",
+        "--features",
+        "zil-driver/llvm-api",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "started_utc": "2026-11-09T10:07:06.776491+00:00",
+      "elapsed_seconds": 67.505,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "log": "out/runs/generic-lending-composition-20261109-1/strict.log",
+      "log_sha256": "33986bf7b68335ad6fffdadf5e2edfadc8991f3cdeedc596be2eb1385ca6264c"
+    },
+    "format": {
+      "source": "7b84c25661fb42c81c1bd533ab9c6c67751551f1",
+      "tree": "c99ca4c962370ac4b781c43ccfdf374376cdda38",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "started_utc": "2026-11-09T10:07:06.777964+00:00",
+      "elapsed_seconds": 9.547,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "log": "out/runs/generic-lending-composition-20261109-1/format.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "layout": {
+      "source": "7b84c25661fb42c81c1bd533ab9c6c67751551f1",
+      "tree": "c99ca4c962370ac4b781c43ccfdf374376cdda38",
+      "source_unchanged": true,
+      "command": [
+        "python3",
+        "tools/check-repository-layout.py",
+        "--full",
+        "--delivery"
+      ],
+      "started_utc": "2026-11-09T10:07:16.407248+00:00",
+      "elapsed_seconds": 1.803,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "log": "out/runs/generic-lending-composition-20261109-1/layout.log",
+      "log_sha256": "835908abfaced4f03905fced81b0b556c1d6ad5a8363a39b9d01a881a51ccd9b"
+    }
+  },
+  "native": {
+    "scope": "new generic_composition consumer",
+    "executions": 4,
+    "matrix": [
+      "Clang O0",
+      "Clang O2",
+      "LLVM API O0",
+      "LLVM API O2"
+    ],
+    "assertions": [
+      "actual selected backend",
+      "no fallback",
+      "verification_runs = 1",
+      "exit 0",
+      "stdout 42 newline",
+      "empty stderr"
+    ]
+  },
+  "budget_controls": {
+    "new_lending_expand": 123511,
+    "old_copy_expand": [
+      827,
+      1106
+    ],
+    "old_copy_types": [
+      596,
+      887
+    ],
+    "boundary_assertions": [
+      "N success",
+      "N-1 ResourceLimit",
+      "fresh recomputation",
+      "complete Core equality and original Origin table dimensions"
+    ]
+  },
+  "negative_controls": [
+    "Unused helper cannot conflate distinct input lifetimes",
+    "Live returned Option/reference keeps its actual receiver loan",
+    "Every definition and instance bound remains required",
+    "Duplicate matching next or Item across bounds is rejected",
+    "Forged actual receiver independently rejected by Analyze, Verify and Wire"
+  ],
+  "not_claimed": [
+    "GAT or unrestricted higher-ranked/generic lending",
+    "Expanded dyn slots or cross-thread borrowed environments",
+    "Full workspace test execution or language/product acceptance"
+  ]
+}

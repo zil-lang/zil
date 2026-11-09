@@ -488,9 +488,9 @@ pub(super) fn store_element_life(function: &s::Function) -> bool {
     (1..=2).contains(&types) && lives == 1
 }
 
-/// Ordinary nominal bounds do not imply Copy. A mixed helper may forward a
-/// shared result under its own life binders; definition and instance checking
-/// still establish the nominal premises and actual return sources.
+/// Ordinary nominal bounds do not imply Copy. Independent bounded type
+/// parameters may accompany a lending receiver; definition and instance
+/// checking still establish every premise and actual return source.
 pub(super) fn nominal_life(
     function: &s::Function,
     budget: &mut generics::Budget<'_>,
@@ -504,36 +504,77 @@ fn nominal_life_charged(
 ) -> Result<bool, Diagnostic> {
     let mut types = 0;
     let mut lives = 0;
+    let mut nominal = false;
     for parameter in &function.generics {
         charge(1, parameter.span)?;
         match &parameter.kind {
             s::GenericParamKind::Lifetime => lives += 1,
             s::GenericParamKind::Type(bounds) => {
                 charge(bounds.len(), parameter.span)?;
-                let [bound] = bounds.as_slice() else {
-                    return Ok(false);
-                };
-                let s::TypeKind::Named { path, args } = &bound.kind else {
-                    return Ok(false);
-                };
-                if path.is_empty() || !args.is_empty() {
+                if bounds.is_empty() {
                     return Ok(false);
                 }
-                for name in path {
-                    charge(name.len().saturating_add(1), bound.span)?;
-                    if matches!(
-                        name.as_str(),
-                        "Copy" | "StoreElement" | "Fn" | "FnMut" | "FnOnce" | "ThreadCallable"
-                    ) {
+                for bound in bounds {
+                    let s::TypeKind::Named { path, args } = &bound.kind else {
+                        return Ok(false);
+                    };
+                    if path.is_empty() || !args.is_empty() {
                         return Ok(false);
                     }
+                    let copy = path.as_slice() == ["Copy"];
+                    for name in path {
+                        charge(name.len().saturating_add(1), bound.span)?;
+                        if !copy
+                            && matches!(
+                                name.as_str(),
+                                "Copy"
+                                    | "StoreElement"
+                                    | "Fn"
+                                    | "FnMut"
+                                    | "FnOnce"
+                                    | "ThreadCallable"
+                            )
+                        {
+                            return Ok(false);
+                        }
+                    }
+                    // Copy used to end this query at the paid bound name.
+                    // Continue into companion bounds only for a possible
+                    // lending result. This fixed-depth shape dispatch traverses
+                    // no names or vectors; the complete result and bounds
+                    // retain their charged validation below.
+                    if copy
+                        && !function.return_type.as_ref().is_some_and(|result| {
+                            let payload = match &result.kind {
+                                s::TypeKind::Reference { .. } => result,
+                                s::TypeKind::Named { args, .. } => {
+                                    let [s::GenericArg::Type(payload)] = args.as_slice() else {
+                                        return false;
+                                    };
+                                    payload
+                                }
+                                _ => return false,
+                            };
+                            matches!(
+                                payload.kind,
+                                s::TypeKind::Reference {
+                                    mutable: false,
+                                    lifetime: Some(_),
+                                    ..
+                                }
+                            )
+                        })
+                    {
+                        return Ok(false);
+                    }
+                    nominal |= !copy;
                 }
                 types += 1;
             }
             _ => return Ok(false),
         }
     }
-    if types != 1 || lives == 0 {
+    if types == 0 || !nominal || lives == 0 {
         return Ok(false);
     }
     let Some(result) = &function.return_type else {
@@ -557,16 +598,14 @@ fn nominal_life_charged(
         }
         _ => return Ok(false),
     };
-    Ok(types == 1
-        && lives > 0
-        && matches!(
-            payload.kind,
-            s::TypeKind::Reference {
-                mutable: false,
-                lifetime: Some(_),
-                ..
-            }
-        ))
+    Ok(matches!(
+        payload.kind,
+        s::TypeKind::Reference {
+            mutable: false,
+            lifetime: Some(_),
+            ..
+        }
+    ))
 }
 
 /// This spelling is created only by the method lift; source identifiers cannot
