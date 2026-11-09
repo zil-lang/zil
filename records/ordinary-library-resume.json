@@ -2,7 +2,7 @@
   "date": "2026-11-09 09:04 Asia/Shanghai",
   "status": "resumed_not_accepted",
   "main": "b07b85dd49b3df6f382734d509919a2a6013c97d",
-  "goal_read": "6a247e03a623bcd4f4a8330774fb0f7c450848eb",
+  "goal_read": "be8f0aa92da2f6b490b87b4e22cb252cde287c35",
   "integration": "ed8e3a5de6befb15b515f6b124e992792414a8ca",
   "source_branches": {
     "root": "task/G10.6.3",
@@ -13,14 +13,14 @@
   "first_failure": "offline cargo dependency rustc_apfloat absent; no tests executed",
   "scope": "Continue original ordinary-library consumer and large owned closure transport; no release claim",
   "raw_logs": "out/runs/byte-views-baseline-20261109/ in task/G3.4.22 worktree",
-  "last_work": "2026-11-09 14:13 Asia/Shanghai",
-  "integration_remote": "e4b8cbc208960aa157f6093fbd421513f4c30eef",
+  "last_work": "2026-11-09 14:34 Asia/Shanghai",
+  "integration_remote": "01d00af2822140263c503f71cb16993e48e00ce0",
   "large_closure_checkpoint": "dbd5c446a600eb26f34574748376a2b8e84fece8",
   "baseline_language_failure": "original four-module program: Analyze ResourceLimit / Sum terminal tag classification, 0 pass, 1 fail",
   "native_progress": "frozen ordinary local closure ABI: 48 native executions pass; opaque factories/generic callable helpers remain five explicit Types Unsupported boundaries",
-  "integration_local": "4eea5d07f3fbb265dc21c8d766bbcf7f7ef90f5b",
-  "byte_views_checkpoint": "aee109002256c34fd78004278dbc7c61ed2f1ae8",
-  "growing_collections_checkpoint": "d7cea1177298a74ddcba8ccdff6b256d1cfafd1e",
+  "integration_local": "7931c464e2e7d9ed10d2cafa41914b0994054ac6",
+  "byte_views_checkpoint": "bb2db64be61704715630a3b996ce182d47acdda9",
+  "growing_collections_checkpoint": "5c596767764e23d56d0e234583557c093c008e52",
   "original_pipeline": "Frozen Byte precise order main/model/protocol/library, fingerprint d9afb8c2667ac61471aa1f37bd2fb9277abcbab5df37090bf4f8f6b8d32ec676: A N7122869/V N7814112 with N-1/fresh/raw/Wire pass; original4095 native input order main/protocol/library/model:48 actual executions pass, identical source file bytes",
   "collections_progress": "05a0: Analyze237/0; original Map default Analyze ResourceLimit / Sum SSA page slot walk, verification_runs0; native remains60/64 from prior full matrix",
   "collected_pipeline": "Fixed original4011 complete pipeline passes default Analyze/Verify and joint56 native cases on f2cfb4d6; exact receipt in validation/ordinary-owned-collection-pipeline.json",
@@ -81,7 +81,7 @@
     "logs": "out/runs/growing-input-effects-20261109-9",
     "next": "Complete SSA inventory paged COW design under independent review"
   },
-  "active_build_window": "Available to frozen Map initial-order candidate; Byte trie writing only",
+  "active_build_window": "Root joint Map probe7931; Byte local physical-slot lookup writing, Map basic ledger preparation only",
   "workspace_core": {
     "source": "05ea3549a58554de0eeb45661179b24012e42030",
     "tree": "4064bb591b10a0f928bf2a91c4cad821f8215044",
@@ -227,7 +227,7 @@
     "logs": "out/runs/growing-input-effects-20261109-13"
   },
   "array512_current": {
-    "compiler": "ae470909772312820d3fda778bebf55e2ecac174",
+    "compiler": "18d38e92e94cdd111ea7c4a36e7b9f4fe42e8bcd",
     "source_unchanged": true,
     "ordinary_bytes": 4248,
     "ordinary_sha256": "2d3f439a9d135da66aad9d35b4bf89e647c8d76ce90129af3860b835d20a2332",
@@ -235,8 +235,8 @@
     "owned_bytes": 4616,
     "owned_sha256": "95d6572a129f856a5b073de7cfa2aa9d2b730c0ff44b254fa6f9a3d8830299bb",
     "owned_default": "Types/Analyze Success, then Verify ResourceLimit, verification_runs1",
-    "logs": "out/runs/byte-views-result-index-20261109",
-    "next": "Qualified private leaf index trie implementation; original512 and full-array snapshot/native still required"
+    "logs": "out/runs/byte-views-leaf-trie-20261109",
+    "next": "Qualified V AddressField local exact two-Field path to first slot ordinal table; preserve full constraints and query-order missing diagnostic"
   },
   "collected_joint_native": {
     "source": "f2cfb4d6bbd17b9325f58b78715b3fef8293ec13",
@@ -518,5 +518,68 @@
     "progress": "Already enters third reverse stored batch; final batches/checks beyond cutoff remain unmeasured",
     "logs": "out/runs/byte-views-owned512-verify-ledger-20261109-5",
     "next": "Only private leaf Index flat arena trie qualified; preserve full Projection keys, first ordinal, Rows order, threshold32, original permissions and solver schedule; complete suffix prepayment before mutation"
+  },
+  "leaf_path_trie": {
+    "source": "18d38e92e94cdd111ea7c4a36e7b9f4fe42e8bcd",
+    "remote": "bb2db64be61704715630a3b996ce182d47acdda9",
+    "review": "Astra exact source accepted; complete old Rows/Index verbatim oracle; full suffix prepaid before publication, true arena/edges clone fee",
+    "leaf_tests_passed": 6,
+    "full_verify_passed": 484,
+    "failed": 0,
+    "original_owned512_default": "Analyze Success then Verify ResourceLimit, verification_runs1",
+    "single_deep17_query_old_N": 36,
+    "single_deep17_query_new_N": 69,
+    "deep_flat_path": 4097,
+    "logs": "out/runs/byte-views-leaf-trie-20261109",
+    "integrated": true
+  },
+  "verify_ledger_6": {
+    "source": "18d38e92e94cdd111ea7c4a36e7b9f4fe42e8bcd",
+    "fees_unchanged": true,
+    "production_restored": true,
+    "attempted_work": 10000001,
+    "same_f3_solve_index_work": 1259512,
+    "previous_same_f3_solve_index_work": 2063168,
+    "same_f3_saved": 803656,
+    "same_f3_builds": 36,
+    "same_f3_inserts": 18432,
+    "same_f3_metadata_clones": 28,
+    "same_f3_clone_old_work": 43008,
+    "same_f3_clone_new_work": 28784,
+    "truncated_leaf_total": 3834723,
+    "previous_truncated_leaf_total": 4709967,
+    "truncated_totals_comparable": false,
+    "result_rows_reached": 3072,
+    "previous_result_rows_reached": 2048,
+    "summarize_calls": 12,
+    "progress": "Third reverse stored batch f0 windows; later final checks beyond cutoff unmeasured",
+    "physical_class_field_work": 786944,
+    "logs": "out/runs/byte-views-owned512-verify-ledger-20261109-6"
+  },
+  "initial_callee_order": {
+    "production": "52b5f84d6b5b8bc0d59318d1398775f7aba83798",
+    "complete_tests": "7b546d26ef14bebf45187d660c04b004669c55e1",
+    "remote": "5c596767764e23d56d0e234583557c093c008e52",
+    "review": "Astra exact source and necessary tests accepted; original dirty loop/stable sweep/must publication/final check/retirement preserved",
+    "complete_program_group_passed": 18,
+    "full_analyze_passed": 259,
+    "failed": 0,
+    "order_N": 54,
+    "order_N_minus_one": 53,
+    "fresh_N_success": true,
+    "nearest_controls": "Actual public entry/helper/forward, true success and nonempty retirement pairs, Fresh capture and ordinary input effects, old desc, actual MakeClosure same origin, missing live-owner initialization, unpaid after removing Drop",
+    "original_map_default": "Analyze ResourceLimit / scoped actual delegation producer, verification_runs0",
+    "logs": [
+      "out/runs/growing-input-effects-20261109-20",
+      "out/runs/growing-input-effects-20261109-21"
+    ],
+    "integrated": true
+  },
+  "joint_map_probe_latest": {
+    "compiler": "7931c464e2e7d9ed10d2cafa41914b0994054ac6",
+    "tree": "52b1336457d854ab76b369acedb92f728a94b628",
+    "status": "Running; not accepted",
+    "logs": "out/runs/ordinary-composition-map-joint-20261109-2",
+    "scope": "Exact original Map at latest joint A/V source; before next V physical lookup repair"
   }
 }
