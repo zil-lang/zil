@@ -710,3 +710,225 @@ fn dirty_replacement_summaries_match_exhaustive_rows_through_recursive_calls() {
         compare_replacement_schedulers(&module, &vec![(vec![vec![]], vec![true]); 2]);
     }
 }
+
+fn complete_scheduler_run(
+    module: &TypedModule,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    mode: u8,
+) -> CompileResult<(Vec<Effect>, Vec<retirement::Pairs>)> {
+    let mut b = Budget::new(&Limits::default());
+    b.head_descriptions = true;
+    // These raw component fixtures explicitly contain the actual producer
+    // instructions; final validation/pair closure must not be disabled merely
+    // because this helper bypasses the full public Analyze preflight wrapper.
+    b.replacement_functions = module
+        .functions
+        .iter()
+        .filter(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .any(|i| matches!(i.kind, InstructionKind::CommitPlaceReplace { .. }))
+        })
+        .map(|f| f.id)
+        .collect();
+    let program = Program::new(module, graphs, &mut b)?;
+    let effects = match mode {
+        0 => infer(module, graphs, &program, &mut b)?,
+        1 => infer_full_scan(module, graphs, &program, &mut b)?,
+        _ => {
+            fee(&mut b, module.functions.len())?;
+            let mut missing = effect_consumers_with_public(module, graphs, true, &mut b)?;
+            // Deliberately lose every notification, including the ordering
+            // hint. Only the original complete stable sweep can repair it.
+            for row in &mut missing {
+                row.clear();
+            }
+            infer_from_consumers(
+                module,
+                graphs,
+                &program,
+                vec![Effect::default(); module.functions.len()],
+                missing,
+                &mut b,
+            )?
+        }
+    };
+    for (f, (_, reachable)) in module.functions.iter().zip(graphs) {
+        analyze_function_program(
+            module,
+            f,
+            reachable,
+            &effects,
+            true,
+            &mut b,
+            None,
+            Some(&program),
+        )?;
+    }
+    program.close_retirement_pairs(module, graphs, &mut b)?;
+    let pairs = program.retirement_pairs.borrow().clone();
+    Ok((effects, pairs))
+}
+fn compare_complete_schedulers(module: &TypedModule, graphs: &[(Vec<Vec<usize>>, Vec<bool>)]) {
+    let old = complete_scheduler_run(module, graphs, 1);
+    for mode in [0, 2] {
+        let new = complete_scheduler_run(module, graphs, mode);
+        match (&new, &old) {
+            (Ok(a), Ok(b)) => assert_eq!(a, b, "complete effects/must/final retirement pairs"),
+            (Err(a), Err(b)) => {
+                assert!(
+                    a.iter()
+                        .chain(b)
+                        .all(|d| d.category != zil_base::ResultCategory::ResourceLimit),
+                    "a shared budget failure is not semantic equivalence"
+                );
+                assert_eq!(
+                    a.iter()
+                        .map(|d| format!("{:?}", d.category))
+                        .collect::<BTreeSet<_>>(),
+                    b.iter()
+                        .map(|d| format!("{:?}", d.category))
+                        .collect::<BTreeSet<_>>()
+                );
+            }
+            _ => panic!("new={new:?} old={old:?}"),
+        }
+    }
+}
+#[test]
+fn initial_callee_order_is_a_complete_fair_permutation_for_every_small_graph() {
+    for count in 0..=3 {
+        for mask in 0..(1usize << (count * count)) {
+            let mut graph = vec![Vec::new(); count];
+            for (callee, callers) in graph.iter_mut().enumerate() {
+                for caller in 0..count {
+                    if mask & (1 << (callee * count + caller)) != 0 {
+                        callers.push(caller);
+                    }
+                }
+            }
+            let order = initial_callee_order(&graph, &mut Budget::new(&Limits::default())).unwrap();
+            assert_eq!(order.len(), count);
+            assert_eq!(
+                order.iter().copied().collect::<BTreeSet<_>>(),
+                (0..count).collect()
+            );
+        }
+    }
+    let dag = vec![vec![], vec![0], vec![1], vec![1]];
+    assert_eq!(
+        initial_callee_order(&dag, &mut Budget::new(&Limits::default())).unwrap(),
+        VecDeque::from([2, 3, 1, 0])
+    );
+    // Self/mutual cycles and a caller waiting on the cycle all remain present
+    // in original ID order; no new SCC solver or missed-function assumption.
+    let cyclic = vec![vec![1], vec![0, 2], vec![], vec![3]];
+    assert_eq!(
+        initial_callee_order(&cyclic, &mut Budget::new(&Limits::default())).unwrap(),
+        VecDeque::from([0, 1, 2, 3])
+    );
+    assert!(initial_callee_order(&[vec![9]], &mut Budget::new(&Limits::default())).is_err());
+}
+#[test]
+fn callee_order_complete_validation_and_pair_closure_match_the_exhaustive_oracle() {
+    for fresh in [false, true] {
+        let original = with_caller(fresh);
+        let mut reverse = original.clone();
+        reverse.functions = original.functions.iter().rev().cloned().collect();
+        let count = reverse.functions.len();
+        for (index, f) in reverse.functions.iter_mut().enumerate() {
+            f.id = FunctionId(index as u32);
+            for block in &mut f.blocks {
+                for i in &mut block.instructions {
+                    if let InstructionKind::Call { function, .. } = &mut i.kind {
+                        function.0 = (count - 1 - function.0 as usize) as u32;
+                    }
+                }
+            }
+        }
+        for module in [original, reverse] {
+            if fresh {
+                let graphs = vec![(vec![vec![]], vec![true]); module.functions.len()];
+                for mode in [0, 1, 2] {
+                    complete_scheduler_run(&module, &graphs, mode).unwrap();
+                }
+            }
+            let graphs = vec![(vec![vec![]], vec![true]); module.functions.len()];
+            compare_complete_schedulers(&module, &graphs);
+        }
+    }
+    for incoming in [false, true] {
+        let module = whole_helper(incoming, false);
+        compare_complete_schedulers(&module, &vec![(vec![vec![]], vec![true]); 2]);
+    }
+}
+#[test]
+fn captured_replacement_and_ordinary_rhs_keep_the_final_authority_rejection() {
+    for kind in [CallableKind::Fn, CallableKind::FnMut] {
+        let mut module = fixture::module();
+        let address = module.functions[0].locals[0].ty.clone();
+        let resource = module.functions[0].locals[1].ty.clone();
+        let f = &mut module.functions[0];
+        f.parameters = vec![LocalId(1)];
+        f.environment = Some(ClosureId(0));
+        f.blocks[0].instructions[0].kind = InstructionKind::ReadCapture { index: 0 };
+        module.closures.push(ClosureDefinition {
+            storage_life: None,
+            id: ClosureId(0),
+            function: FunctionId(0),
+            captures: vec![address],
+            parameters: vec![resource],
+            result: Type::Unit,
+            kind,
+            lending_captures: vec![],
+        });
+        compare_complete_schedulers(&module, &[(vec![vec![]], vec![true])]);
+        if kind == CallableKind::FnMut {
+            for mode in [0, 1, 2] {
+                complete_scheduler_run(&module, &[(vec![vec![]], vec![true])], mode).unwrap();
+            }
+        }
+        if kind == CallableKind::Fn {
+            assert!(
+                complete_scheduler_run(&module, &[(vec![vec![]], vec![true])], 0)
+                    .unwrap_err()
+                    .iter()
+                    .any(|d| d.message.contains("shared Fn entry cannot replace"))
+            );
+        }
+    }
+}
+
+#[test]
+fn initial_order_pays_an_exact_fresh_request_boundary() {
+    let graph = vec![vec![], vec![0], vec![1], vec![1, 4], vec![3]];
+    let run = |steps| {
+        initial_callee_order(
+            &graph,
+            &mut Budget::new(&Limits {
+                max_analysis_steps: steps,
+                ..Limits::default()
+            }),
+        )
+    };
+    let (mut lo, mut hi) = (1, Limits::default().max_analysis_steps);
+    while lo < hi {
+        let mid = lo + (hi - lo) / 2;
+        if run(mid).is_ok() {
+            hi = mid
+        } else {
+            lo = mid + 1
+        }
+    }
+    let order = run(lo).unwrap();
+    assert_eq!(order.len(), graph.len());
+    assert!(
+        run(lo - 1)
+            .unwrap_err()
+            .iter()
+            .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+    );
+    assert_eq!(run(lo).unwrap(), order);
+    println!("Replacement initial fair order N={lo}; N-1 rejects/fresh N repeats");
+}
