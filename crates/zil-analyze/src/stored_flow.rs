@@ -6474,17 +6474,16 @@ mod tests {
             }
         }
         assert_eq!(
-            // Two complete nominal rows add 74; fifteen actual retained
-            // boundary scans add 45. The prior N remains a limit control.
+            // Actual bounded-word copies/joins replace the dense Boolean
+            // rows; all target/loan and retained-boundary work remains paid.
             low,
-            14_077 + 74 + 15 * 3,
+            12_870,
             "bounded actual identity/ownership work changed"
         );
-        assert!(
-            super::super::analyze(&m, &limits(14_077))
-                .unwrap_err()
-                .iter()
-                .any(|d| d.code == "E-RESOURCE-LIMIT")
+        // The previous dense-row boundary now succeeds through less work.
+        assert_eq!(
+            super::super::analyze(&m, &limits(14_077)).unwrap(),
+            expected
         );
         let mut session = super::super::AnalysisSession::default();
         for warm in [false, true] {
