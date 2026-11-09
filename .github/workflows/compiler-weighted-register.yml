@@ -1,0 +1,97 @@
+name: Register weighted compiler experiment
+on:
+  push:
+    branches: [task/G10.5.1]
+    paths: ['.github/workflows/compiler-weighted-register.yml']
+permissions:
+  contents: write
+jobs:
+  register:
+    if: github.repository == 'zil-lang/zil' && github.ref == 'refs/heads/task/G10.5.1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Preserve the actual decision and update only compiler task rows
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import datetime,hashlib,json,os,pathlib,re,statistics,subprocess
+          from zoneinfo import ZoneInfo
+          P=pathlib.Path; root=P.cwd(); auditroot=root/'.task/G10.5.1/round2/audits/42626855362'
+          summary=json.loads((auditroot/'summary.json').read_text()); audit=json.loads((auditroot/'audit.json').read_text()); controls=json.loads((auditroot/'source-and-controls.json').read_text()); receipt=json.loads((auditroot/'receipt.json').read_text()); cells=json.loads((auditroot/'cells.json').read_text())
+          assert audit['status'].startswith('Pass:') and controls['status'].startswith('Pass for')
+          assert summary['compile_requests']==2400 and summary['formal_requests']==2100 and summary['runtime_screen_pass']
+          assert all(p['reduction']>0 and p['bootstrap_95_reduction'][0]>0 for p in summary['profiles'])
+          production='287b392b3a78a936766e0497a17742ecd149a7a8'; delivery='da1e94124344c812e348bab131f03868de2dccc9'
+          assert receipt['measured_source']==production and controls['delivery_head']==delivery
+          by_mode={}
+          for mode in ('check','O0','O2'):
+              rows=[c for c in cells if c['mode']==mode]
+              by_mode[mode]={'cells':len(rows),'slower_mean_cells':sum(c['saved_mean_ms']<0 for c in rows),
+                  'worst_extra_ms':max(-c['saved_mean_ms'] for c in rows),
+                  'largest_absolute_regressions':sorted(rows,key=lambda c:c['saved_mean_ms'])[:3]}
+          stamp=datetime.datetime.now(ZoneInfo('Asia/Shanghai')).isoformat(timespec='seconds')
+          record={
+             'status':'Measured weighted benefit on the declared finite matrix; implementation pending independent source review',
+             'task':'G10.5.1.1','updated_at':stamp,'baseline':receipt['baseline'],'measured_source':production,'delivery_head':delivery,
+             'branch':'task/G10.5.1.1','evidence_parent_commit':'6e5c3fa69b50be55113606ad7726b2e4ba965b3d',
+             'scope':'Explicit incremental O2 copy-cost fallback; ordinary CLI defaults unchanged; not a general frontend rewrite',
+             'weights':'Frozen usage hypotheses, not observed user frequencies; all four profiles retained',
+             'primary_metric':'sum(frequency * arithmetic mean full CLI milliseconds); absolute saved seconds per 1000 requests',
+             'profiles':summary['profiles'],'by_mode':by_mode,
+             'compile_requests':2400,'formal_requests':2100,'native_output_checks':3716,'runtime_executions':192,'negative_and_restore_requests':40,
+             'current_matrix_verify_runs':2400,'backend_controls':182,'llvm_controls':30,'warm_build_cache_hits_checked':320,
+             'ownership_consumer':json.loads((auditroot/'ownership-consumer.json').read_text())['status'],
+             'runtime_screen_pass':True,'runtime_scope':'Six runtime-input tree/snapshot cells, seven formal pairs each; no general throughput/memory guarantee',
+             'ordinary_O2_comparison':'All six checked candidate and ordinary O2 executable .text sections match; this repairs strategy selection, not proof of beating the prior manually selected fast path',
+             'mechanical_audit':'Pass; implementation-authored and not a non-author source review',
+             'independent_review':'NotRun','merged_to_main':False,'merge_allowed':False,
+             'remaining':['Non-author review on exact production source','Integration against the then-current main without task/CI experiment baggage','Broader real application and resource/trait/CT-heavy performance coverage','Historical Stage15 frontend regression bisection and build-layer unchanged shortcut are still open'],
+             'evidence':'https://github.com/zil-lang/zil/tree/'+delivery+'/.task/G10.5.1.1/runs/42626855362',
+             'report':'https://github.com/zil-lang/zil/blob/6e5c3fa69b50be55113606ad7726b2e4ba965b3d/.task/G10.5.1/round2/audits/42626855362/RESULTS.md',
+             'measurement_run':'https://github.com/zil-lang/zil/actions/runs/42626855362','audit_run':'https://github.com/zil-lang/zil/actions/runs/42630785031',
+             'old_candidate_reinterpretation':'Old 256-module O2 case under the declared edit-loop assumptions saved 10.8%, under clean-heavy assumptions cost 3.7% more. Post-hoc sensitivity only, not new full-matrix evidence; adverse cells are not an automatic veto.'}
+          evidence=root/'.task/G10.5.1/round2/weighted-decision.json'; evidence.write_text(json.dumps(record,ensure_ascii=False,indent=2)+'\n')
+          prefix='| G10.5.1 |'
+          parent='| G10.5.1 | 编译效率复核、近期算法研究与动态分区增量优化 | 进行中 | P1 | 编译专项·20261109 | 首候选与负结果保留；按频率及绝对等待重新验收。第二候选G10.5.1.1已完成10语料/3模式/5请求矩阵，冻结四假设组合净省19.5%–55.6%；非作者独审和主线集成未完，不关闭父门。见[加权记录](records/compiler-cost-weighted.json)。 |'
+          child='| G10.5.1.1 | 有界O2导入超成本时保留普通多分区，以及频率加权性能验收 | 实现待验 | P1 | 编译专项·20261109 | 受测287b392b3，远端da1e94124；2400编译/2100正式、3716输出/192运行/40拒绝恢复，182backend+30LLVM和真实资源故障控制通过，机械证据审计通过。编辑型412.1→272.8ms（−33.8%，139秒/1000请求），秒级动态树编辑减少约74%；六组运行筛查通过。仅显式策略；独审NotRun、未合main。见[记录](records/compiler-cost-weighted.json)。 |'
+          for attempt in range(3):
+              subprocess.run(['git','fetch','--no-tags','--depth=1','origin','refs/heads/goal'],check=True)
+              read_sha=subprocess.check_output(['git','rev-parse','FETCH_HEAD'],text=True).strip()
+              work=P(os.environ['RUNNER_TEMP'])/f'weighted-goal-{attempt}'; subprocess.run(['git','worktree','add','--detach',str(work),read_sha],check=True)
+              path=work/'goal.md'; before=path.read_text(); lines=before.splitlines(); positions=[i for i,line in enumerate(lines) if line.startswith(prefix)]
+              assert len(positions)==1,'compiler task must be found exactly once'
+              i=positions[0]; old=lines[i]; assert '编译效率复核' in old
+              lines[i]=parent
+              existing=[j for j,line in enumerate(lines) if line.startswith('| G10.5.1.1 |')]
+              assert len(existing)<=1
+              if existing: lines[existing[0]]=child
+              else: lines.insert(i+1,child)
+              after='\n'.join(lines)+'\n'; path.write_text(after)
+              changed=record|{'goal_read_sha':read_sha,'goal_old_sha256':hashlib.sha256(before.encode()).hexdigest(),'goal_new_sha256':hashlib.sha256(after.encode()).hexdigest(),'previous_task_row':old}
+              dest=work/'records/compiler-cost-weighted.json'; dest.parent.mkdir(exist_ok=True); dest.write_text(json.dumps(changed,ensure_ascii=False,indent=2)+'\n')
+              subprocess.run(['git','diff','--check'],cwd=work,check=True)
+              subprocess.run(['git','add','--','goal.md','records/compiler-cost-weighted.json'],cwd=work,check=True)
+              subprocess.run(['git','-c','user.name=github-actions[bot]','-c','user.email=41898282+github-actions[bot]@users.noreply.github.com','commit','-m','Record frequency-weighted compiler improvement; independent review pending'],cwd=work,check=True)
+              pushed=subprocess.run(['git','push','origin','HEAD:refs/heads/goal'],cwd=work)
+              if pushed.returncode==0:
+                  published=subprocess.check_output(['git','rev-parse','HEAD'],cwd=work,text=True).strip()
+                  subprocess.run(['git','fetch','--no-tags','origin','refs/heads/goal'],check=True)
+                  remote=subprocess.check_output(['git','rev-parse','FETCH_HEAD'],text=True).strip()
+                  text=subprocess.check_output(['git','show',remote+':goal.md'],text=True)
+                  assert parent in text and child in text
+                  (root/'.task/G10.5.1/round2/goal-update.json').write_text(json.dumps({'published_commit':published,'remote_readback':remote,'task':'G10.5.1.1','main_modified':False,'goal_parent_and_child_rows_confirmed':True,'updated_at':stamp},indent=2)+'\n')
+                  break
+          else: raise RuntimeError('goal changed concurrently on all three attempts; no force push')
+          print(json.dumps(record,ensure_ascii=False,indent=2))
+          PY
+          git fetch --no-tags origin refs/heads/task/G10.5.1
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git add -- .task/G10.5.1/round2/weighted-decision.json .task/G10.5.1/round2/goal-update.json
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Preserve weighted decision and verified goal registration'
+          git push origin HEAD:refs/heads/task/G10.5.1
