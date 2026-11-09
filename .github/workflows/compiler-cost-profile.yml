@@ -1,0 +1,79 @@
+name: Compiler cost current-source profile
+on:
+  push:
+    branches: [task/G10.5.1]
+    paths: ['.task/G10.5.1/round2/profile.py', '.github/workflows/compiler-cost-profile.yml']
+permissions:
+  contents: write
+concurrency:
+  group: compiler-cost-profile-G10.5.1
+  cancel-in-progress: false
+jobs:
+  profile:
+    if: github.repository == 'zil-lang/zil' && github.ref == 'refs/heads/task/G10.5.1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: 'line-tables-only'
+      RUSTFLAGS: '-C force-frame-pointers=yes'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Prepare pinned baseline and sampling tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/compiler-profile-setup"
+          rustup toolchain install 1.99.1 --profile minimal
+          cargo fetch --locked
+          sudo apt-get update
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g linux-tools-generic
+          sudo sysctl -w kernel.perf_event_paranoid=1
+          PERF=$(find /usr/lib/linux-tools -name perf -type f | sort | tail -1)
+          test -n "$PERF"
+          echo "PERF=$PERF" >> "$GITHUB_ENV"
+          git fetch --no-tags --depth=1 origin 82a69812582856b012468db3d019930d8e390f64
+          git worktree add --detach "$RUNNER_TEMP/compiler-profile-source" 82a69812582856b012468db3d019930d8e390f64
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/compiler-profile-llvm" 2>&1 | tee "$RUNNER_TEMP/compiler-profile-setup/llvm-install.log"
+          echo "ZIL_CLANG=$RUNNER_TEMP/compiler-profile-llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/compiler-profile-llvm/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/compiler-profile-llvm/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/compiler-profile-llvm/bin" >> "$GITHUB_PATH"
+      - name: Build unmodified current compiler for exploratory profiling
+        shell: bash
+        run: |
+          set -euo pipefail
+          CARGO_TARGET_DIR="$RUNNER_TEMP/compiler-profile-target" cargo build --locked --release --manifest-path "$RUNNER_TEMP/compiler-profile-source/Cargo.toml" -p zil-cli 2>&1 | tee "$RUNNER_TEMP/compiler-profile-setup/build.log"
+          test -z "$(git -C "$RUNNER_TEMP/compiler-profile-source" status --porcelain)"
+          python3 .task/G10.5.1/round2/profile.py --repo "$RUNNER_TEMP/compiler-profile-source" --cli "$RUNNER_TEMP/compiler-profile-target/release/zil" --perf "$PERF" --out "$RUNNER_TEMP/compiler-profile-data" 2>&1 | tee "$RUNNER_TEMP/compiler-profile-setup/profile.log"
+      - name: Preserve results including failures only on this task branch
+        if: ${{ always() }}
+        shell: bash
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = 'refs/heads/task/G10.5.1'
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,shutil,tarfile
+          p=pathlib.Path; temp=p(os.environ['RUNNER_TEMP']); dst=p('.task/G10.5.1/round2/profiles')/os.environ['GITHUB_RUN_ID']; dst.mkdir(parents=True)
+          src=temp/'compiler-profile-data'
+          if src.exists():
+              for f in src.iterdir():
+                  if f.is_file(): shutil.copyfile(f,dst/f.name)
+          with tarfile.open(dst/'sources-and-setup.tar.gz','w:gz') as a:
+              for root,name in ((src/'corpus','corpus'),(temp/'compiler-profile-setup','setup')):
+                  if root.exists(): a.add(root,arcname=name)
+          files={f.name:{'bytes':f.stat().st_size,'sha256':hashlib.sha256(f.read_bytes()).hexdigest()} for f in dst.iterdir() if f.is_file()}
+          (dst/'receipt.json').write_text(json.dumps({'status':os.environ['PRIOR_STATUS'],'recipe':os.environ['GITHUB_SHA'],'baseline':'82a69812582856b012468db3d019930d8e390f64','files':files,'scope':'exploratory profile only; not candidate acceptance'},indent=2)+'\n')
+          print((dst/'receipt.json').read_text())
+          PY
+          git fetch --no-tags origin refs/heads/task/G10.5.1
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git add -- ".task/G10.5.1/round2/profiles/$GITHUB_RUN_ID"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Preserve exploratory current-compiler profile $GITHUB_RUN_ID"
+          git push origin HEAD:refs/heads/task/G10.5.1
