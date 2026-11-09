@@ -165,7 +165,10 @@ fn zero_option_masked_owned_entry_rechecks_actual_bounds_and_parameters() {
         .unwrap_err();
         if attack == "environment" {
             assert_eq!(error.code, "E-VERIFY-STORED");
-            assert_eq!(error.message, "callback function environment is absent");
+            assert_eq!(
+                error.message,
+                "stored target proof: callback function environment is absent"
+            );
         } else {
             assert_eq!(
                 error.code, "E-VERIFY-QUALIFIED-CALLABLE",
