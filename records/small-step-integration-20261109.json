@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-09T15:34:00Z",
+  "recorded_utc": "2026-11-09 15:54:30 UTC",
   "status": "Eleven scoped batches accepted and completed task refs retired; Map and the original pipeline continue separately.",
   "accepted_main": "d813da9307f4e174a5f16bc127c267ca438be589",
   "accepted_tree": "73bae4bcc113d6a4d9a6eb07996955ad95781133",
@@ -215,8 +215,10 @@
     "root_native_check_sha256": "84f0a4990690ef11a87b029bbead1e4fb11d43119437297b0729c3342978ce08"
   },
   "remaining": {
-    "arrays": "43f2 V10 passes 7 selected oracles, full Verify 498/0 and independent source review (100 checks). Original 95d/59b default Source, raw Verify and Wire all pass. Eight Clang/API O0/O2 builds all stop in codegen with Copy aggregate snapshot emission budget exceeded; actual executions are zero. Only the named eight-path emission-work correction is being integrated; native/final driver acceptance remains pending.",
-    "map": "54b passes the five history oracles, full Verify 546/0 and seven effect controls. Original 5008-byte Map still reaches default Verify ResourceLimit. Diagnostic ledger 8 restores exact original sources; previously complete scopes have unchanged work. State-cost visits in the partial resource summary advance from 272 to 496, and the next narrow copy/merge change is being designed from actual callers. No quota increase or Map success claim."
+    "arrays": "Accepted by PR66 at main d813 with original default Source/raw/Wire and eight actual native executions; subsequent full CI exposed four existing consumer cost expectations, tracked separately as current_budget_boundaries.",
+    "map": "c6ff page retirement representation passes five oracles, full Verify 551 and seven effects; original 5008B Map still defaults to Verify ResourceLimit. The reviewed stable-input checkpoint is being implemented with complete dependency/mode guards, solver-only written, full final replay and charged cleanup. No net saving or Map acceptance yet.",
+    "pipeline": "P1 complete qualification and actual selection passed targeted raw/Wire and masked-entry controls. Both unchanged original Source projects now stop at ByteBufferBorrow profile admission; six-path P2 is being implemented.",
+    "ci": "Both d813 workspace jobs failed in the same four cost-boundary tests, in default and reference modes. A separate task preserves all semantic assertions and measures current exact work before updating stale fixed thresholds."
   },
   "release_scope": "No full local workspace test or 1.0 claim; main82 remote documentation succeeds while two workspace checks are still running.",
   "array_analysis_checkpoint": {
@@ -283,7 +285,7 @@
   },
   "main_ci": {
     "source": "d813da9307f4e174a5f16bc127c267ca438be589",
-    "observed_utc": "2026-11-09 15:18:14 UTC",
+    "observed_utc": "2026-11-09 15:54:30 UTC",
     "checks": [
       {
         "name": "documentation",
@@ -293,14 +295,14 @@
       },
       {
         "name": "workspace",
-        "status": "in_progress",
-        "conclusion": null,
+        "status": "completed",
+        "conclusion": "failure",
         "url": "https://github.com/zil-lang/zil/actions/runs/42641988893/job/129245181555"
       },
       {
         "name": "workspace",
-        "status": "in_progress",
-        "conclusion": null,
+        "status": "completed",
+        "conclusion": "failure",
         "url": "https://github.com/zil-lang/zil/actions/runs/42641988876/job/129245181482"
       }
     ],
@@ -654,10 +656,10 @@
     "reviewer": "stored_composition_review",
     "branch": "task/owned-pipeline-composition",
     "baseline": "d813da9307f4e174a5f16bc127c267ca438be589",
-    "source": "27915d2f75ed2892a4400ead5138351011825e9c",
-    "tree": "fe51c598ebb2a15c049b8b71d7940ab08a89517e",
-    "published": "98c3842ff36ed472c1fe8d05696c860fe2d5584e",
-    "production_changed": false,
+    "source": "eb956cafbd9ee284d075020a6599d252059e36d2",
+    "tree": "3f232855e77c4909a3b014fabeeb6a225d62453a",
+    "published": "82e671e8e29e0d1d46cf8f315a703b9c670d9df9",
+    "production_changed": true,
     "inputs": {
       "owned_pipeline": {
         "files": 4,
@@ -698,9 +700,65 @@
       "evidence": "wt-owned-pipeline-composition/out/runs/owned-pipeline-baseline-20261109-1",
       "source_unchanged": true
     },
-    "next": "Only complete borrowed-owned callable qualification and actual entry authentication in both kernels, including masked/no-Option cases. Determine later ByteBufferBorrow and any further cost dependencies from actual next failures.",
+    "next": "P2 limited to six production paths for actual owned ByteBuffer heads, current-frame Sites, profile/value/loan/window/drop wiring; eleven precise local-field/desc/parent/identity controls. Preserve current main SSA/Access/ErrorArm/ancestry algorithms and original eight Sources/five tests. No Types explicit dereference assignment or unrelated historical cost changes.",
     "whole_package_merge": false,
-    "new_native_acceptance": "NotRun"
+    "new_native_acceptance": "NotRun",
+    "test_extraction_source": "27915d2f75ed2892a4400ead5138351011825e9c",
+    "test_extraction_tree": "fe51c598ebb2a15c049b8b71d7940ab08a89517e",
+    "test_extraction_published": "98c3842ff36ed472c1fe8d05696c860fe2d5584e",
+    "p1": {
+      "production": "d697104be161b1b2075018cc85c3881f30036d07",
+      "production_tree": "dd4b710a48a6118b8efb5f784061687d1b2b19cd",
+      "published_production": "5bb265c50a2f729daf9e2c1d461222527df4e559",
+      "independent_review_checks": 47,
+      "review_sha256": "81064333470bf73f502ac04b8f0331ee430c6d8d13935f3c0b372c58647cdfc4",
+      "review_identity_sha256": "3d46df7329cf20131b3385e6162fcf657e5d1092d69ac1b3144f224035707bf2",
+      "raw_control": {
+        "passed": 1,
+        "failed": 0,
+        "log_sha256": "f930ba58043e7cb9a3a13babe869e96720f2b74f86497b74ea32cfada58451e6"
+      },
+      "masked_entry": {
+        "first_source": "d697104be161b1b2075018cc85c3881f30036d07",
+        "first_failed": 1,
+        "first_log_sha256": "5b108514b6c1fbb5ee6b005da49aed5ac6cd756319920ad033af5578a980ac65",
+        "test_only_diagnostic_correction": "eb956cafbd9ee284d075020a6599d252059e36d2",
+        "passed": 1,
+        "failed": 0,
+        "log_sha256": "4d24ae81699ed6ffe4b137f773c79d1418b816413fa264d301eeeca3e7966a95"
+      },
+      "owned_source": {
+        "passed": 0,
+        "failed": 1,
+        "phase": "analyze",
+        "category": "Unsupported",
+        "verification_runs": 0,
+        "span": {
+          "file": 1,
+          "start": 3546,
+          "end": 3568
+        },
+        "log_sha256": "f3a02c6bb6047fef7d0c1d11205ccd05fc4b34ad70e5f9cb56ccb3692cd767f1"
+      },
+      "collected_source": {
+        "passed": 0,
+        "failed": 1,
+        "phase": "analyze",
+        "category": "Unsupported",
+        "verification_runs": 0,
+        "span": {
+          "file": 3,
+          "start": 3852,
+          "end": 3874
+        },
+        "log_sha256": "7489822170bacbb0dc402f37abc0154eec1009fc3cfb2807a03f84fe71b6c1eb"
+      },
+      "source_diagnostic": "instruction is outside the actual stored profile, including in unreachable blocks",
+      "evidence": [
+        "wt-owned-pipeline-composition/out/runs/owned-pipeline-p1-root-20261109-1",
+        "wt-owned-pipeline-composition/out/runs/owned-pipeline-p1-root-20261109-2"
+      ]
+    }
   },
   "previous_batch": {
     "source": "7dc17ebeb1ab1899048ec2686d52f156ad97ac95",
@@ -720,5 +778,45 @@
     "strict_fmt_docs": "Pass",
     "root_native_check_sha256": "076a18f8c053c0d7d64ca6862f3b4aee914e729561077a56001388c376ba523d"
   },
-  "previous_batch_receipt": "https://github.com/zil-lang/zil/blob/82a69812582856b012468db3d019930d8e390f64/validation/stored-owned-observations.json"
+  "previous_batch_receipt": "https://github.com/zil-lang/zil/blob/82a69812582856b012468db3d019930d8e390f64/validation/stored-owned-observations.json",
+  "map_checkpoint_design": {
+    "baseline": "c6ff7168af5692e00ae471a8ff43447372eb2c78",
+    "plan_sha256": "fd4408b5d449e8267eb477dbb50b77060d36b3514142a337cdd5dbfb9279899c",
+    "independent_review_sha256": "53bab8121127b46440fcec74d2dcb3459839898245df59b64a0a518022d3d829",
+    "review_identity_sha256": "f6888ee55a69da43934f8025f438f3a2feb01ff36a4b4309539840e2a3df22d1",
+    "mode": [
+      "pod_stores",
+      "store_option_results",
+      "ordinary_error_places",
+      "task_borrowed_results",
+      "stored_enum_addresses",
+      "pure_nominal",
+      "sums",
+      "tasks",
+      "registrations",
+      "stored_exclusive_shapes"
+    ],
+    "status": "Implementation authorized after independent qualification; not yet frozen or executed",
+    "required": "Full observed-summary versions before publication; every publication changes version; self-read conservative fallback; exact stable incoming/excluded/solver-only written; same-request immutable roots and limits; preserve all final replay/Bridge/return/capture and current sum_functions/store history outputs; all snapshot/COW/cleanup costs paid, no page dedup in first version."
+  },
+  "current_budget_boundaries": {
+    "branch": "task/current-budget-boundaries",
+    "owner": "build_environment",
+    "baseline": "d813da9307f4e174a5f16bc127c267ca438be589",
+    "tree": "73bae4bcc113d6a4d9a6eb07996955ad95781133",
+    "status": "Four CI cost-boundary failures reproduced remotely; exact measurement and test-only repair in progress, no final acceptance",
+    "first_failure_directory": "wt-current-budget-boundaries/out/runs/current-budget-boundaries-ci-first-failure-20261109-1",
+    "failure_manifest_sha256": "5962a476ae27c2dc6cc6f15f2cb391fecf44b75e33c329a1b6dc969865be2508",
+    "logs": [
+      {
+        "job": 129245181555,
+        "sha256": "342a17f1ff62e5b6cc8f3003c0d4ea50d6295c2c56895c13288d299c3f76a060"
+      },
+      {
+        "job": 129245181482,
+        "sha256": "6b2f31933510d0441ebdcb9f882e3cf38df4f5839576beb4b386b4800348ebb5"
+      }
+    ],
+    "constraints": "No production, default budget, stack, original input or semantic assertion changes. Diagnostic cost observation is not acceptance; restore and independently review complete assertions before final gates."
+  }
 }

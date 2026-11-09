@@ -200,7 +200,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | G3.4.19 | 整共享地址数组读取逐实际根核初始化 | 已合入 | — | — | main@b07b85dd4；精确源码057308f16相关API四目标690/0、snapshot/Byte组92/0、全目标strict/fmt及结构3979通过；含4配置snapshot原生。新增全量/冷恢复未跑，不等于动态下标完成。 |
 | G3.4.20 | 借入泛型Package的Managed Store字段替换 | 待集成 | P0 | sol high · array_analysis_cost | f0ee4f821已获Sol精审接受；189/0、12原生、真实旧描述失效和新旧精确预算通过；root已合。只接实际可变Package的完整Store字段，不开放whole/capture。 |
 | G3.4.21 | 普通拥有字段Copy观察、共享错误臂及标量入口组合 | 已合入 | — | root · 独立复核 | PR64/main82a698125，受测7dc17/treef89f668b同树发布b20fb414，收据97ef7458/treefab0e036。原四Source/21完整函数/12tests/五硬pin保留；traits197含12、A207/V459/backend182/旧预算23/数组54、strict/fmt/docs全过，8次选定native逐报告核实。独审无blocker，直接共享pure Copy ErrorArm与普通Package成功侧限定明确；完成分支已归档8493b709并删除。pipeline另批。 |
-| G3.4.22 | 存储借入程序中局部拥有ByteBuffer字段的共享字节视图 | 进行中 | P0 | byte_view_composition · task/owned-pipeline-composition；独立复核 | 原数组子问题已PR66验收。新main d813上27915纯测试提取/treefe51c同树发布98c3842：owned四源6052B与collected四源7547B（历史项目指纹4011…），原2+3 tests/48与56 native历史分开。root两Source各实际1test，均Analyze Unsupported/V0，原8源未改；先只修两核borrowed-owned callable完整资格/actual entry，之后按首败判ByteBufferBorrow实际head/loan接线，未搬历史成本或Types赋值补丁。 |
+| G3.4.22 | 存储借入程序中局部拥有ByteBuffer字段的共享字节视图 | 进行中 | P0 | byte_view_composition · task/owned-pipeline-composition；独立复核 | 原数组已PR66验收。d697完整borrowed-owned资格+实际mask经47项独审，同树发布5bb265c；eb956只修完整诊断前缀，同树82e671e。raw/Wire原四攻击1/0、实际mask零Option近控重跑1/0；原owned6052B/collected7547B两Source各1test仍Analyze Unsupported/V0，已前进至bytes_view实际指令profile。按首败提取两核owned_byte_views的6路径最窄head/loan接线及11最近反例；8原源5tests、默认额度、历史48/56原生分开，未据P1控称全程序完成。 |
 
 </details>
 
@@ -420,7 +420,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | growing_collections · task/G9.3.11.1；独立复核 | c6ff/treef94fb8 retirement页表示已独审19项、5oracle/全V551/7effects全过，同树发布287859f5；原5008B Map仍默认Verify限额。diag9已实际运行与精确恢复，180个完成scope同费，records三次replacement调用3830989，当前f0 resource为截断前缀，不能据此宣称全请求净省。作者与非作者转向评估稳定fixedpoint inputs供最终完整validate重放，缓存保存/依赖guard/COW/清理均须计费；原输入、独立求证与默认额度不变。 |
+| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | growing_collections · task/G9.3.11.1；独立复核 | c6ff/treef94fb8已独审、5oracle/全V551/7effects通过，同树287859f5；原5008B Map仍默认Verify限额。diag9完整180scope同费，records三次3830989，resource仍截断不能外推净省。独审闭合10bool模式、完整实际summary版本、solver-only written、同请求稳定输入供最终完整validate重放；首版全量有偿cleanup不做页去重，作者按最窄写集实施，保存/guard/Arc/COW/清理全收费，待原请求裁决。 |
 
 </details>
 
@@ -578,6 +578,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | G10.3.5 | 后端普通Package字段及Byte/Error消费者完整类型预付 | 已合入 | — | root · PR64 | 511c32f06后端完整blob8f8c05fa与受测7dc一致，9f91ccc5e ErrorArm native函数完整保留。backend182/旧预算23/数组54及两组原消费者四配置8native过；完整actual parent/operand预付与原drop_plan保持。main82a/treefab0已读回，收据与完成分支均归档。 |
 | G10.3.6 | 普通Closure的大型拥有参数/结果内部ABI | 进行中 | P0 | large_closure_abi · 原后续分支保留；root集成 | 具体Closure范围已由PR63合mainb4b671835：受测70b160/tree8d53572d，同树发布82dd183，收据08fefa7/tree2e74b628；20native目标/1special/181backend/23budget/4old与strict/docs全过，实际80 ZIL+10 Rust，选定48=新大28+小4+前Package16。N111300/N−1/fresh/default完整IR核实；5Types Unsupported保留。首轮输出污染Fail与两行Temp修复分别记录；新完成分支已归档删除，旧task/G10.3.6@1bd22f6e含a32/95d后续完整保留。 |
 | G10.3.7 | 拥有512数组与完整字段snapshot的默认两核及后端实际工作 | 已合入 | — | root · PR66 | main d813da930/tree73bae4；源码ddfee同树8b8aae、最终收据ad166同树27b47a。原95d/完整59b默认Source、独立raw/Wire及Clang/API×O0/O2共8次真实执行通过；6cfb的998项未变回归+ddfee重跑189项，strict/fmt/docs全过，最终语义收据98项独审通过。见validation/owned-shared-array-scale.json，费用、源字节、whole-field与owner清理合同保留。分支归档afecce60并删除，工作树和所有首败/成功日志保留。 |
+| G10.3.8 | 算法更新后的完整消费者精确预算锚 | 进行中 | P0 | build_environment · task/current-budget-boundaries；root验收 | main d813两CI均完成failure，同4预算测试在default/reference复现：Record getter旧window限额、nested field summary、captured helper Source、old-tail helper旧绝对阈值。原日志已保，实际费下降需核因；只调整测试当前锚/历史限额关系，原输入和语义、N/N−1/fresh/warm、raw/Wire/native断言保留，禁止改生产或提高预算。先可逆观测取得全数，再恢复完整断言独审/实测后立即小PR。 |
 
 </details>
 
