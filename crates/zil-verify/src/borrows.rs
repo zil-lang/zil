@@ -393,8 +393,9 @@ fn check(
         .checked_add(m)
         .ok_or_else(|| limit("borrow liveness width overflow"))?;
     let units = liveness::Bits::word_count(width);
-    reserve(budget, &[n, units, 2])?;
-    let mut live_in = vec![liveness::Bits::new(width); n];
+    budget.spend(2)?; // Both outer row containers, including logical width zero.
+    reserve(budget, &[n, units + 1, 2])?;
+    let mut live_in: Vec<_> = (0..n).map(|_| liveness::Bits::new(width)).collect();
     let mut live_out = live_in.clone();
     loop {
         let mut changed = false;
@@ -403,11 +404,12 @@ fn check(
             if !reachable[b] {
                 continue;
             }
-            budget.spend(units.saturating_mul(2))?;
+            budget.spend(units + 1)?;
             let mut live = liveness::Bits::new(width);
             for &next in &successors[b] {
                 live.join(&live_in[next], budget)?;
             }
+            budget.spend(live.work())?;
             live_out[b].clone_from(&live);
             live.term_use(&f.blocks[b].terminator)?;
             for (position, instruction) in f.blocks[b].instructions.iter().enumerate().rev() {
@@ -415,7 +417,7 @@ fn check(
                 live.reverse(instruction, v)?;
                 live.retain(schedule, b, position, budget)?;
             }
-            budget.spend(units)?;
+            budget.spend(live.work())?;
             if live != live_in[b] {
                 live_in[b] = live;
                 changed = true;
@@ -495,11 +497,15 @@ fn check(
         if !reachable[b] {
             continue;
         }
-        reserve(budget, &[block.instructions.len().saturating_add(1), units])?;
-        let mut after = vec![liveness::Bits::new(0); block.instructions.len()];
+        // Placeholder records and full snapshots are both prepaid.
+        budget.spend(1)?;
+        reserve(budget, &[block.instructions.len(), units + 2])?;
+        let mut after = vec![liveness::Bits::default(); block.instructions.len()];
+        budget.spend(live_out[b].work())?;
         let mut live = live_out[b].clone();
         live.term_use(&block.terminator)?;
         for (i, instruction) in block.instructions.iter().enumerate().rev() {
+            budget.spend(1 + instruction_operands(&instruction.kind).count())?;
             after[i] = live.clone();
             live.reverse(instruction, v)?;
             live.retain(schedule, b, i, budget)?;
@@ -619,9 +625,8 @@ fn check(
                 _ => None,
             };
             if let Some(root) = invalidated {
-                budget.spend(after[i].units())?;
-                for carrier in after[i].ones() {
-                    budget.spend(1)?;
+                let mut live = after[i].paid_ones(budget)?;
+                while let Some(carrier) = live.next(budget)? {
                     let ty = if carrier < v {
                         &f.values[carrier]
                     } else {

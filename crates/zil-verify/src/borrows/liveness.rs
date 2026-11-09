@@ -2,7 +2,7 @@
 //! only storage copies, union and enumeration operate on actual u64 words.
 use super::*;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct Bits {
     width: usize,
     words: Vec<u64>,
@@ -20,6 +20,9 @@ impl Bits {
     }
     pub(super) fn units(&self) -> usize {
         self.words.len()
+    }
+    pub(super) fn work(&self) -> usize {
+        self.units() + 1
     }
     pub(super) fn get(&self, index: usize) -> Option<bool> {
         (index < self.width).then(|| self.words[index / 64] & (1u64 << (index % 64)) != 0)
@@ -58,7 +61,7 @@ impl Bits {
                 "liveness rows have different actual widths",
             ));
         }
-        b.spend(self.units())?;
+        b.spend(self.work())?;
         let mut changed = false;
         for (to, from) in self.words.iter_mut().zip(&from.words) {
             let merged = *to | *from;
@@ -119,6 +122,16 @@ impl Bits {
         }
         Ok(())
     }
+    pub(super) fn paid_ones(&self, b: &mut Budget) -> Check<Ones<'_>> {
+        b.spend(self.work())?;
+        Ok(Ones {
+            words: self.words.iter().enumerate(),
+            pending: 0,
+            word: 0,
+            width: self.width,
+        })
+    }
+    #[cfg(test)]
     pub(super) fn ones(&self) -> impl Iterator<Item = usize> + '_ {
         self.words
             .iter()
@@ -135,6 +148,33 @@ impl Bits {
                 })
             })
             .take_while(move |&index| index < self.width)
+    }
+}
+
+// Word visits are prepaid on construction; each extracted bit is prepaid before
+// trailing_zeros/clear, including a final local encountered by an SSA-only scan.
+pub(super) struct Ones<'a> {
+    words: std::iter::Enumerate<std::slice::Iter<'a, u64>>,
+    pending: u64,
+    word: usize,
+    width: usize,
+}
+impl Ones<'_> {
+    pub(super) fn next(&mut self, b: &mut Budget) -> Check<Option<usize>> {
+        loop {
+            if self.pending != 0 {
+                b.spend(1)?;
+                let bit = self.pending.trailing_zeros() as usize;
+                self.pending &= self.pending - 1;
+                let index = self.word * 64 + bit;
+                return Ok((index < self.width).then_some(index));
+            }
+            let Some((word, &bits)) = self.words.next() else {
+                return Ok(None);
+            };
+            self.word = word;
+            self.pending = bits;
+        }
     }
 }
 
@@ -431,3 +471,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "liveness_tests.rs"]
+mod solver_tests;
