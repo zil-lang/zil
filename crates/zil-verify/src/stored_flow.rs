@@ -9,6 +9,7 @@ mod array_index;
 mod array_snapshot;
 mod byte_queries;
 mod leaf_rows;
+mod live_loan_ids;
 mod live_words;
 #[cfg(test)]
 mod loan_union_tests;
@@ -3906,7 +3907,7 @@ fn live_loans(
     b.spend(indexed.map_or(live.len(), |ids| {
         ids.len().saturating_add(live.len() - solution.values.len())
     }))?;
-    let mut loans = Vec::new();
+    let mut loans = live_loan_ids::SortedLoanIds::default();
     let mut collect = |id: usize| -> Check<()> {
         if !live.is_live(id)? || definition.is_some_and(|value| value.0 as usize == id) {
             return Ok(());
@@ -3916,14 +3917,14 @@ fn live_loans(
         } else {
             &state.locals[id - solution.values.len()]
         };
-        add_loans(&mut loans, &payload.address.loans, b)?;
+        loans.add(&payload.address.loans, b)?;
         if b.task_borrowed_results {
             for (_, p) in &payload.task_ports {
-                add_loans(&mut loans, &p.loans, b)?;
+                loans.add(&p.loans, b)?;
             }
         }
         for (_, p) in &payload.leaves {
-            add_loans(&mut loans, &p.loans, b)?;
+            loans.add(&p.loans, b)?;
         }
         Ok(())
     };
@@ -3944,7 +3945,7 @@ fn live_loans(
         // or is discharged; dead SSA uses of a head do not discharge a frame.
         for payload in &state.locals {
             for (_, permission) in &payload.task_ports {
-                add_loans(&mut loans, &permission.loans, b)?;
+                loans.add(&permission.loans, b)?;
             }
         }
     }
@@ -3953,11 +3954,11 @@ fn live_loans(
     if b.stored_slot_updates {
         for holder in &state.external {
             for (_, p) in &holder.leaves {
-                add_loans(&mut loans, &p.loans, b)?;
+                loans.add(&p.loans, b)?;
             }
         }
     }
-    ancestry(&loans, &solution.loans, b)
+    ancestry(loans.as_slice(), &solution.loans, b)
 }
 #[allow(clippy::too_many_arguments)]
 fn check_call(
