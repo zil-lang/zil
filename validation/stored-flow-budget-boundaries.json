@@ -1,0 +1,738 @@
+{
+  "schema_version": 1,
+  "scope": "Four complete-consumer budget regressions after the paid stored-flow algorithms changed. Only test anchors, historical-limit expectations and explanatory comments change.",
+  "acceptance": "Eight exact tests on the final source, four with llvm-api and four with no default features, plus full format checking and strict Clippy for the three affected test targets.",
+  "source": {
+    "base": "d813da9307f4e174a5f16bc127c267ca438be589",
+    "commit": "116cda19e9fcaabf2f0e872ade0a4594662b35ee",
+    "tree": "3de9a68ebad3eae392505f2282f76df884860ca8",
+    "clean_during_validation": true
+  },
+  "unchanged": [
+    "All production code and default Limits",
+    "All original source inputs and generators",
+    "Independent raw and Wire requests and full result/fingerprint comparisons",
+    "Default success and N/N-1/fresh/retry/warm-session checks",
+    "Record Types pins and width/depth cost monotonicity",
+    "Captured Fn/FnMut/FnOnce native execution and output assertions",
+    "The old-tail callable inventory assertion of 16 actual local/SSA slots"
+  ],
+  "fee_migration": [
+    {
+      "kernel": "Analyze",
+      "paths": [
+        "crates/zil-analyze/src/stored_flow.rs",
+        "crates/zil-analyze/src/stored_flow/live_words.rs",
+        "crates/zil-analyze/src/stored_flow/permission_access.rs",
+        "crates/zil-analyze/src/budget/physical_slots.rs"
+      ],
+      "reason": "Complete ordered snapshot copies replace repeated insertion; active collection retains required loans without building unused target unions. Bounded word liveness, complete physical-path indexes and instruction-local read candidates charge their actual copies, comparisons and construction while keeping origin, ancestry, initialization and write checks."
+    },
+    {
+      "kernel": "Verify",
+      "paths": [
+        "crates/zil-verify/src/stored_flow.rs",
+        "crates/zil-verify/src/stored_flow/live_words.rs",
+        "crates/zil-verify/src/stored_flow/live_loan_ids.rs",
+        "crates/zil-verify/src/stored_flow/leaf_rows.rs",
+        "crates/zil-verify/src/stored_flow/relation_index.rs",
+        "crates/zil-verify/src/stored_flow/access_candidates.rs",
+        "crates/zil-verify/src/stored_flow/ssa_loan_groups.rs"
+      ],
+      "reason": "Independent bounded word liveness, current-arena ancestry, paid ordered loan unions, complete path indexes and current-instruction candidate/SSA contribution inventories replace repeated dense copies, searches and sorting. Existing nominal and retained-leaf proofs remain; historical added fees do not sum to the new complete-request boundary."
+    }
+  ],
+  "boundaries": {
+    "record_getter": {
+      "test": "mixed_holder::borrowed_record::qualified_record_getter_width_and_depth_budgets_are_exact_and_fresh",
+      "phase_order": [
+        "Types",
+        "Analyze",
+        "Verify raw",
+        "Verify Wire",
+        "Source"
+      ],
+      "historical_phase_order": [
+        "Analyze",
+        "Verify raw",
+        "Verify Wire",
+        "Source"
+      ],
+      "cases": [
+        {
+          "width": 1,
+          "depth": 0,
+          "old_complete": [
+            3220,
+            33852,
+            46364,
+            46364,
+            46364
+          ],
+          "current_complete": [
+            3220,
+            31059,
+            43867,
+            43867,
+            43867
+          ],
+          "historical_limits": [
+            32911,
+            45276,
+            45276,
+            45276
+          ],
+          "historical_expected": [
+            "Success",
+            "Success",
+            "Success",
+            "Success"
+          ]
+        },
+        {
+          "width": 8,
+          "depth": 0,
+          "old_complete": [
+            6111,
+            108455,
+            157530,
+            157530,
+            157530
+          ],
+          "current_complete": [
+            6111,
+            93974,
+            137924,
+            137924,
+            137924
+          ],
+          "historical_limits": [
+            97665,
+            142372,
+            142372,
+            142372
+          ],
+          "historical_expected": [
+            "Success",
+            "Success",
+            "Success",
+            "Success"
+          ]
+        },
+        {
+          "width": 1,
+          "depth": 2,
+          "old_complete": [
+            19476,
+            162051,
+            197646,
+            197646,
+            197646
+          ],
+          "current_complete": [
+            19476,
+            155222,
+            189511,
+            189511,
+            189511
+          ],
+          "historical_limits": [
+            159886,
+            195052,
+            195052,
+            195052
+          ],
+          "historical_expected": [
+            "Success",
+            "Success",
+            "Success",
+            "Success"
+          ]
+        },
+        {
+          "width": 8,
+          "depth": 2,
+          "old_complete": [
+            37767,
+            440018,
+            581116,
+            581116,
+            581116
+          ],
+          "current_complete": [
+            37767,
+            411827,
+            549673,
+            549673,
+            549673
+          ],
+          "historical_limits": [
+            415174,
+            542990,
+            542990,
+            542990
+          ],
+          "historical_expected": [
+            "Success",
+            "ResourceLimit",
+            "ResourceLimit",
+            "ResourceLimit"
+          ]
+        }
+      ]
+    },
+    "optional_store": {
+      "test": "optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets",
+      "phase_order": [
+        "Analyze",
+        "Verify raw = Wire"
+      ],
+      "cases": [
+        {
+          "depth": 0,
+          "old_complete": [
+            152794,
+            294517
+          ],
+          "current_complete": [
+            118945,
+            258986
+          ]
+        },
+        {
+          "depth": 4,
+          "old_complete": [
+            240953,
+            513354
+          ],
+          "current_complete": [
+            193808,
+            463816
+          ]
+        },
+        {
+          "depth": 12,
+          "old_complete": [
+            458355,
+            1027003
+          ],
+          "current_complete": [
+            377066,
+            932245
+          ]
+        }
+      ]
+    },
+    "captured_helper": {
+      "test": "captured_helper_source_captured_source_native_full_results_and_budget",
+      "phase": "Complete Source through Lower; observed limiting phase Verify",
+      "cases": [
+        {
+          "case": "fn",
+          "old_complete": 24903,
+          "current_complete": 24145,
+          "historical_limits": [
+            24224,
+            24513
+          ],
+          "historical_expected": [
+            "Success",
+            "Success"
+          ]
+        },
+        {
+          "case": "fnmut-two-calls",
+          "old_complete": 35525,
+          "current_complete": 31367,
+          "historical_limits": [
+            34804,
+            35099
+          ],
+          "historical_expected": [
+            "Success",
+            "Success"
+          ]
+        },
+        {
+          "case": "fnonce",
+          "old_complete": 37450,
+          "current_complete": 32776,
+          "historical_limits": [
+            36926,
+            37090
+          ],
+          "historical_expected": [
+            "Success",
+            "Success"
+          ]
+        }
+      ]
+    },
+    "dag_helper": {
+      "test": "helper_cfg_join_cfg::actual_dag_budget_boundaries_and_old_tail_fees",
+      "phase_order": [
+        "Analyze",
+        "Verify raw",
+        "Verify Wire"
+      ],
+      "cases": [
+        {
+          "case": "new-transfer",
+          "old_complete": null,
+          "current_complete": [
+            57084,
+            59332,
+            59332
+          ]
+        },
+        {
+          "case": "old-tail",
+          "old_complete": [
+            54108,
+            52667,
+            52667
+          ],
+          "current_complete": [
+            45624,
+            46922,
+            46922
+          ]
+        }
+      ],
+      "old_tail_historical_limits": {
+        "base": [
+          53167,
+          51600,
+          51600
+        ],
+        "physical_on_64bit": [
+          53407,
+          51840,
+          51840
+        ],
+        "retained": [
+          53580,
+          52141,
+          52141
+        ]
+      },
+      "old_tail_historical_expected": "All nine original requests succeed at these historical limits; current N-1 independently remains ResourceLimit."
+    }
+  },
+  "historical_probes": {
+    "preserved_requests": 31,
+    "expected_success": 28,
+    "expected_resource_limit": 3,
+    "classification": "Each expectation uses a fixed current anchor, never the low value discovered by the same run. The Record width=8/depth=2 raw Verify, Wire and Source probes at 542990 still require ResourceLimit."
+  },
+  "first_failure_evidence": {
+    "source": "d813da9307f4e174a5f16bc127c267ca438be589",
+    "summary": "out/runs/current-budget-boundaries-ci-first-failure-20261109-1/failures.json",
+    "summary_sha256": "5962a476ae27c2dc6cc6f15f2cb391fecf44b75e33c329a1b6dc969865be2508",
+    "scope": "The same four named tests failed in default and reference sections of both completed remote jobs. All original logs remain retained.",
+    "jobs": [
+      {
+        "job": 129245181482,
+        "log": "out/runs/current-budget-boundaries-ci-first-failure-20261109-1/job-129245181482.log",
+        "log_sha256": "6b2f31933510d0441ebdcb9f882e3cf38df4f5839576beb4b386b4800348ebb5"
+      },
+      {
+        "job": 129245181555,
+        "log": "out/runs/current-budget-boundaries-ci-first-failure-20261109-1/job-129245181555.log",
+        "log_sha256": "342a17f1ff62e5b6cc8f3003c0d4ea50d6295c2c56895c13288d299c3f76a060"
+      }
+    ],
+    "failures": [
+      {
+        "test": "qualified_record_getter_width_and_depth_budgets_are_exact_and_fresh",
+        "first_failure": "A historical window allowance returned Success while the old assertion required ResourceLimit."
+      },
+      {
+        "test": "optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets",
+        "first_failure": "Analyze depth=0 measured 118945 against the old fixed pin 152794."
+      },
+      {
+        "test": "captured_helper_source_captured_source_native_full_results_and_budget",
+        "first_failure": "Fn Source measured 24145 against the old fixed pin 24903."
+      },
+      {
+        "test": "actual_dag_budget_boundaries_and_old_tail_fees",
+        "first_failure": "An old-tail historical allowance returned Ok while the old assertion called unwrap_err."
+      }
+    ]
+  },
+  "diagnostic_observation": {
+    "source": "40cdd950bbbefc82d1fa5ca0439b6859f1c371ad",
+    "tree": "4074ad8a1b6213df6a653932a008f22bf763946e",
+    "acceptance": false,
+    "scope": "Only stale fixed pins/historical-limit assertions were replaced by printing; every other assertion still ran. Complete originals were hash-checked and restored before applying the final change.",
+    "gates": [
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--features",
+          "llvm-api",
+          "--test",
+          "aggregates",
+          "mixed_holder::borrowed_record::qualified_record_getter_width_and_depth_budgets_are_exact_and_fresh",
+          "--",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "log": "out/runs/current-budget-boundaries-root-observation-20261109-1/observation-1-aggregates.log",
+        "log_sha256": "2c7d5851dcd92ecb6eb7d307b568382d013924770621ea670cc91c3492913c0d",
+        "exit_code": 0,
+        "selected_tests": 1,
+        "acceptance": false
+      },
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--features",
+          "llvm-api",
+          "--test",
+          "cross_function_borrows",
+          "optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets",
+          "--",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "log": "out/runs/current-budget-boundaries-root-observation-20261109-1/observation-2-cross_function_borrows.log",
+        "log_sha256": "f22ff26d2ddd16189da44ee5cb2ab68285cc55167de4f71b710293f6c8ad2a9b",
+        "exit_code": 0,
+        "selected_tests": 1,
+        "acceptance": false
+      },
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--features",
+          "llvm-api",
+          "--test",
+          "generic_regressions",
+          "captured_helper_source_captured_source_native_full_results_and_budget",
+          "--",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "log": "out/runs/current-budget-boundaries-root-observation-20261109-1/observation-3-generic_regressions.log",
+        "log_sha256": "4a55d98604187f640e4d996c2d0291fcf0a957c20f80d3b0d2989556f364953c",
+        "exit_code": 0,
+        "selected_tests": 1,
+        "acceptance": false
+      },
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--features",
+          "llvm-api",
+          "--test",
+          "generic_regressions",
+          "helper_cfg_join_cfg::actual_dag_budget_boundaries_and_old_tail_fees",
+          "--",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "log": "out/runs/current-budget-boundaries-root-observation-20261109-1/observation-4-generic_regressions.log",
+        "log_sha256": "ccf02d990fc1651e7ed86be5cec74a00973299216c32b8c0f9e3b7295be8fd57",
+        "exit_code": 0,
+        "selected_tests": 1,
+        "acceptance": false
+      }
+    ]
+  },
+  "mechanical_check": {
+    "path": "out/runs/current-budget-boundaries-final-20261109-1/mechanical-check.json",
+    "sha256": "cb61f4525d576c95fcf6dfdd643c2d796c05a456c5851dcfbc9b735d34d9f767",
+    "baseline_diff_sha256": "2d15de1164c351eb762cf869ac23876d46ceb19e43b1d63bb44eef68c76281d6"
+  },
+  "final_gates": [
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "aggregates",
+        "--test",
+        "cross_function_borrows",
+        "--test",
+        "generic_regressions",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "source_unchanged": true,
+      "log": "out/runs/current-budget-boundaries-root-final-20261109-1/clippy.log",
+      "log_sha256": "38a4ec6e5000326ee2834a80464bf8dcb06ae2ff71688fd9c0937483852b03da"
+    },
+    {
+      "name": "default-1-aggregates",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "aggregates",
+        "mixed_holder::borrowed_record::qualified_record_getter_width_and_depth_budgets_are_exact_and_fresh",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "source_unchanged": true,
+      "log": "out/runs/current-budget-boundaries-root-final-20261109-1/default-1-aggregates.log",
+      "log_sha256": "75fec1bff5cf1e22568a7835e775e8c66d187175a72b905324db7d505bf2dc04",
+      "passed": 1,
+      "failed": 0,
+      "configuration": "llvm-api enabled"
+    },
+    {
+      "name": "default-2-cross_function_borrows",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "cross_function_borrows",
+        "optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "source_unchanged": true,
+      "log": "out/runs/current-budget-boundaries-root-final-20261109-1/default-2-cross_function_borrows.log",
+      "log_sha256": "45e1cb1fc70131f693af3fb8e6774dda5e11eb07ae916eaefdeb39c5c094948c",
+      "passed": 1,
+      "failed": 0,
+      "configuration": "llvm-api enabled"
+    },
+    {
+      "name": "default-3-generic_regressions",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "generic_regressions",
+        "captured_helper_source_captured_source_native_full_results_and_budget",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "source_unchanged": true,
+      "log": "out/runs/current-budget-boundaries-root-final-20261109-1/default-3-generic_regressions.log",
+      "log_sha256": "0086ca958d7113ba5393c60897465cb6dac49a11d9ceab47a3bccf60bc6e8937",
+      "passed": 1,
+      "failed": 0,
+      "configuration": "llvm-api enabled"
+    },
+    {
+      "name": "default-4-generic_regressions",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "generic_regressions",
+        "helper_cfg_join_cfg::actual_dag_budget_boundaries_and_old_tail_fees",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "source_unchanged": true,
+      "log": "out/runs/current-budget-boundaries-root-final-20261109-1/default-4-generic_regressions.log",
+      "log_sha256": "9a0c529f03e2412b11514323e7d72e40b555e2f0c9e2ccff8acf2e7437530d80",
+      "passed": 1,
+      "failed": 0,
+      "configuration": "llvm-api enabled"
+    },
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "source_unchanged": true,
+      "log": "out/runs/current-budget-boundaries-root-final-20261109-1/fmt.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "reference-1-aggregates",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--no-default-features",
+        "--test",
+        "aggregates",
+        "mixed_holder::borrowed_record::qualified_record_getter_width_and_depth_budgets_are_exact_and_fresh",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "source_unchanged": true,
+      "log": "out/runs/current-budget-boundaries-root-final-20261109-1/reference-1-aggregates.log",
+      "log_sha256": "8ec764e0289a8c29faee06808e03da8a1193a64313862a51ca1fbfdb345481d2",
+      "passed": 1,
+      "failed": 0,
+      "configuration": "reference: --no-default-features"
+    },
+    {
+      "name": "reference-2-cross_function_borrows",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--no-default-features",
+        "--test",
+        "cross_function_borrows",
+        "optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "source_unchanged": true,
+      "log": "out/runs/current-budget-boundaries-root-final-20261109-1/reference-2-cross_function_borrows.log",
+      "log_sha256": "58585fbb62b34f367e9f07f1315516741f89a5c93907c97b98cfe4deea9c2963",
+      "passed": 1,
+      "failed": 0,
+      "configuration": "reference: --no-default-features"
+    },
+    {
+      "name": "reference-3-generic_regressions",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--no-default-features",
+        "--test",
+        "generic_regressions",
+        "captured_helper_source_captured_source_native_full_results_and_budget",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "source_unchanged": true,
+      "log": "out/runs/current-budget-boundaries-root-final-20261109-1/reference-3-generic_regressions.log",
+      "log_sha256": "1173a411336d538b41c779046614bd3fbb49b8a7816145216490bc65a3db3dc9",
+      "passed": 1,
+      "failed": 0,
+      "configuration": "reference: --no-default-features"
+    },
+    {
+      "name": "reference-4-generic_regressions",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--no-default-features",
+        "--test",
+        "generic_regressions",
+        "helper_cfg_join_cfg::actual_dag_budget_boundaries_and_old_tail_fees",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "source_unchanged": true,
+      "log": "out/runs/current-budget-boundaries-root-final-20261109-1/reference-4-generic_regressions.log",
+      "log_sha256": "c8b69f1752821ff7e966d14ac4670b0b41d4552e0de753856f8ef581f4ce9aaf",
+      "passed": 1,
+      "failed": 0,
+      "configuration": "reference: --no-default-features"
+    }
+  ],
+  "limits": "Only the four selected tests were executed in both configurations. Native assertions inside the captured-helper test remain active; no historical native totals are added. This receipt does not claim a whole-workspace rerun, new language support, changed default budgets or release acceptance.",
+  "status": "Pass for current stored-flow budget boundaries",
+  "independent_review": {
+    "reviewer": "root, non-author",
+    "source": "116cda19e9fcaabf2f0e872ade0a4594662b35ee",
+    "checks_passed": 26,
+    "report": "out/runs/current-budget-boundaries-root-review-20261109-1/review.md",
+    "report_sha256": "366c0e5f9dca29af83c904174cff2c6cbd90a41b95e6f526a3803473da699d7b",
+    "identity": "out/runs/current-budget-boundaries-root-review-20261109-1/identity.json",
+    "identity_sha256": "a6543140c300362f72208cc39e80bf82057bb1227d67908b2a69e45b3fcca89f"
+  }
+}

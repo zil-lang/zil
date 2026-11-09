@@ -109,12 +109,13 @@ fn actual_source_prebranch_diamonds_and_honest_raw_wire() {
 fn actual_dag_budget_boundaries_and_old_tail_fees() {
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
-    for (label, text, known) in [
-        ("new-transfer", CASES[4].1, None),
+    for (label, text, known, expected) in [
+        ("new-transfer", CASES[4].1, None, [57_084, 59_332, 59_332]),
         (
             "old-tail",
             include_str!("../fnonce-helper-next/helper-tail-true.zil"),
             Some([53167, 51600, 51600]),
+            [45_624, 46_922, 46_922],
         ),
     ] {
         let raw = zil_types::check(&shared_helper_life_core(text), &target, &limits).unwrap();
@@ -160,11 +161,13 @@ fn actual_dag_budget_boundaries_and_old_tail_fees() {
                     );
                 }
             }
+            assert_eq!(low, expected[phase], "{label}/{phase}");
             if let Some(known) = known {
                 // closure environment.10 replaces u8 marks by a pointer-sized actual-role key
                 // plus flags. This exact old source has one 4-local/12-SSA
                 // table in each independent helper consumer: 16 * 15 = 240
-                // added physical units on this 64-bit host. Keep old N red.
+                // added physical units on this 64-bit host. Keep these old
+                // limits as probes, separate from the current complete costs.
                 let slots: usize = raw
                     .functions
                     .iter()
@@ -173,38 +176,28 @@ fn actual_dag_budget_boundaries_and_old_tail_fees() {
                     .sum();
                 assert_eq!(slots, 16);
                 let physical_delta = slots * (std::mem::size_of::<(usize, u8)>() - 1);
-                assert!(
-                    check(known[phase])
-                        .unwrap_err()
-                        .iter()
-                        .any(|d| d.category == ResultCategory::ResourceLimit)
-                );
-                // G4's complete nominal graph checks add 98/178 work in
-                // these independent kernels. Actual retained-boundary scans
-                // add 25*3 / 41*3 respectively; neither is staged CFG work.
+                // These deltas describe the historical probes. The current
+                // word rows and loan/path indexes have different actual costs;
+                // the nominal graph and retained-boundary proofs still run.
                 let nominal_delta = if phase == 0 { 98 } else { 178 };
                 let retained_delta = if phase == 0 { 25 * 3 } else { 41 * 3 };
-                // The actual Tag windows now carry their source permissions
-                // through reborrows, including downstream snapshots/liveness.
-                let window_delta = if phase == 0 { 528 } else { 526 };
                 let prior = known[phase] + physical_delta + nominal_delta + retained_delta;
-                assert_eq!(low, prior + window_delta, "{label}/{phase}");
-                assert!(
-                    check(prior)
-                        .unwrap_err()
-                        .iter()
-                        .any(|d| d.category == ResultCategory::ResourceLimit)
-                );
-                assert!(
-                    check(known[phase] + physical_delta)
-                        .unwrap_err()
-                        .iter()
-                        .any(|d| d.category == ResultCategory::ResourceLimit)
-                );
-                eprintln!(
-                    "HELPER_CFG_JOIN old-tail phase{phase} prior N={} now ResourceLimit; Origin +{physical_delta}, nominal graph +{nominal_delta}, retained scans +{retained_delta}",
-                    known[phase],
-                );
+                for historical in [known[phase], prior, known[phase] + physical_delta] {
+                    if historical < expected[phase] {
+                        assert!(
+                            check(historical)
+                                .unwrap_err()
+                                .iter()
+                                .any(|d| d.category == ResultCategory::ResourceLimit)
+                        );
+                    } else {
+                        check(historical).unwrap();
+                    }
+                    eprintln!(
+                        "HELPER_CFG_JOIN old-tail phase{phase} historical limit={historical}; current fixed N={}",
+                        expected[phase],
+                    );
+                }
             }
             eprintln!("HELPER_CFG_JOIN {label} phase{phase} N={low}/N-1/fresh/retry");
         }
