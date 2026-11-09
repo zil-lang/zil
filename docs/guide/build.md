@@ -18,7 +18,7 @@
 - 原生边界：`zil-llvm-api/src/native.rs`及私有`native/builder.rs`。每个单元有独立Context/Module/Builder/TargetMachine，先声明类型与符号，再构造定义和phi回边。原生句柄不在线程间传递，成功返回拥有的对象字节。
 - 调度与发布：`zil-backend-llvm/src/build.rs`及driver。有界工人、统一链接、阶段取消与失败清理。所有API单元进入原生Builder前都执行完整机器预检；不存在另一份重复整模块预检。
 
-普通已核Package达到4096字节时，后端使用私有完整值快照及既有`.lc1`生成函数约定：大参数先复制到callee自己的局部载体，大结果写入caller的独立结果槽。构造与字段读写直接消费目标布局内存，所有快照槽在入口分配；整值移动和字段take/refill仍按已核IR更新原有清理责任，字节复制不授予语言Copy。拥有快照不参加Copy槽复用。具名Closure环境、特殊helper及外部ABI仍须各自完整适配；此路径不授予新的语言组合资格，也不提高默认限额。
+普通已核Package达到4096字节时，后端使用私有完整值快照及既有`.lc1`生成函数约定：大参数先复制到callee自己的局部载体，大结果写入caller的独立结果槽。普通Closure的五种调用入口复用同一运输协议，实际环境参数位于结果槽与源参数之前；小值调用约定保持不变。构造与字段读写直接消费目标布局内存，所有快照槽在入口分配；整值移动和字段take/refill仍按已核IR更新原有清理责任，字节复制不授予语言Copy。拥有快照不参加Copy槽复用。大型捕获环境、特殊callback/thread/cell桥及外部ABI仍保留各自边界；本路径不扩展opaque工厂或泛型callable的前端准入，也不提高默认限额。
 
 LLVM verifier只负责LLVM约束，不能替代每次请求的独立ZIL Verify。语言安全、预算、溢出、清理顺序及ABI规则未改，不新增默认noalias或dereferenceable。目标和布局必须明确，不使用宿主布局冒充交叉目标。
 
