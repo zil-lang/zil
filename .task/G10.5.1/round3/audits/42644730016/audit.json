@@ -1,0 +1,519 @@
+{
+  "status": "Pass for complete finite evidence",
+  "source": "49889241d87cf67dba7f445e03293a9b3e446cb1",
+  "baseline": "906940ea78dcd5298c9168c4d17197b5983bf954",
+  "receipt_sha256": "f122bdbf7f6d86e6d2a968cd7d2b9a3480eda403ae9538ced1aea1ddee368173",
+  "compile_requests": 1764,
+  "expected": 1764,
+  "formal_requests": 1470,
+  "current_verify_runs": 1512,
+  "native_checks": 3780,
+  "text_pairs": 504,
+  "runtime_requests": 252,
+  "profiles": [
+    {
+      "profile": "interactive/edit",
+      "mean_ms": {
+        "base": 126.413376653175,
+        "cand": 126.5222483802
+      },
+      "reduction": -0.0008612358114892249,
+      "seconds_saved_per_1000": -0.10887172702499015,
+      "excess_wait_ms": {
+        "base": {
+          "100ms": 60.986700343,
+          "1000ms": 0.31211177939999996
+        },
+        "cand": {
+          "100ms": 61.042848137499995,
+          "1000ms": 0.3093911489999999
+        }
+      },
+      "group_saved_ms": {
+        "graph": 0.09283896809999778,
+        "trait": -0.011144123625000326,
+        "resource": -0.19056657150000075
+      },
+      "paired_bootstrap95": [
+        -0.005973474198384121,
+        0.004079922803445046
+      ],
+      "interval_scope": "post-hoc fixed-method audit of this run; not a population or industrial guarantee"
+    },
+    {
+      "profile": "interactive/clean",
+      "mean_ms": {
+        "base": 177.7996947274501,
+        "cand": 176.78028751469984
+      },
+      "reduction": 0.005733458734633379,
+      "seconds_saved_per_1000": 1.0194072127502523,
+      "excess_wait_ms": {
+        "base": {
+          "100ms": 105.64833689779998,
+          "1000ms": 2.1847824557999993
+        },
+        "cand": {
+          "100ms": 104.75301501489997,
+          "1000ms": 2.1657380429999993
+        }
+      },
+      "group_saved_ms": {
+        "graph": 1.0849499909999956,
+        "trait": -0.07721986949999965,
+        "resource": 0.011677091250001582
+      },
+      "paired_bootstrap95": [
+        -0.0015987105070498497,
+        0.013622626415500938
+      ],
+      "interval_scope": "post-hoc fixed-method audit of this run; not a population or industrial guarantee"
+    },
+    {
+      "profile": "release/edit",
+      "mean_ms": {
+        "base": 223.7727682373001,
+        "cand": 223.639792903025
+      },
+      "reduction": 0.000594242701301706,
+      "seconds_saved_per_1000": 0.1329753342751019,
+      "excess_wait_ms": {
+        "base": {
+          "100ms": 146.42797299515001,
+          "1000ms": 1.0923912278999999
+        },
+        "cand": {
+          "100ms": 146.2322909576,
+          "1000ms": 1.0828690214999999
+        }
+      },
+      "group_saved_ms": {
+        "graph": 0.8383664273999984,
+        "trait": -0.136509600375001,
+        "resource": -0.5688814927500017
+      },
+      "paired_bootstrap95": [
+        -0.008117694645404683,
+        0.008909847683913008
+      ],
+      "interval_scope": "post-hoc fixed-method audit of this run; not a population or industrial guarantee"
+    },
+    {
+      "profile": "release/clean",
+      "mean_ms": {
+        "base": 345.0255518362001,
+        "cand": 343.75419457957486
+      },
+      "reduction": 0.003684820587516513,
+      "seconds_saved_per_1000": 1.271357256625265,
+      "excess_wait_ms": {
+        "base": {
+          "100ms": 259.92935871835,
+          "1000ms": 7.646738595299999
+        },
+        "cand": {
+          "100ms": 258.67096827050005,
+          "1000ms": 7.580083150499998
+        }
+      },
+      "group_saved_ms": {
+        "graph": 2.042906023349996,
+        "trait": -0.753629793125,
+        "resource": -0.01791897359999555
+      },
+      "paired_bootstrap95": [
+        -0.003837603194218886,
+        0.011229322116328322
+      ],
+      "interval_scope": "post-hoc fixed-method audit of this run; not a population or industrial guarantee"
+    }
+  ],
+  "runtime": [
+    {
+      "case": "ring768",
+      "snapshot": "base",
+      "median_ms": {
+        "base": 395.472425,
+        "cand": 392.694952,
+        "rust": 389.909517
+      },
+      "candidate_over_base": 0.9929768225938889
+    },
+    {
+      "case": "ring768",
+      "snapshot": "private",
+      "median_ms": {
+        "base": 394.855706,
+        "cand": 393.969236,
+        "rust": 384.136058
+      },
+      "candidate_over_base": 0.9977549520330347
+    },
+    {
+      "case": "shared1024",
+      "snapshot": "base",
+      "median_ms": {
+        "base": 176.173935,
+        "cand": 174.86675,
+        "rust": 173.403468
+      },
+      "candidate_over_base": 0.9925801452978842
+    },
+    {
+      "case": "shared1024",
+      "snapshot": "private",
+      "median_ms": {
+        "base": 175.751739,
+        "cand": 175.24491,
+        "rust": 175.034052
+      },
+      "candidate_over_base": 0.9971162219908392
+    },
+    {
+      "case": "diamond768",
+      "snapshot": "base",
+      "median_ms": {
+        "base": 375.370048,
+        "cand": 374.889842,
+        "rust": 373.820576
+      },
+      "candidate_over_base": 0.9987207130601959
+    },
+    {
+      "case": "diamond768",
+      "snapshot": "private",
+      "median_ms": {
+        "base": 374.391292,
+        "cand": 373.734369,
+        "rust": 372.959137
+      },
+      "candidate_over_base": 0.9982453571596425
+    },
+    {
+      "case": "trait32",
+      "snapshot": "base",
+      "median_ms": {
+        "base": 2.12384,
+        "cand": 2.115337,
+        "rust": 2.261248
+      },
+      "candidate_over_base": 0.9959964027422027
+    },
+    {
+      "case": "trait32",
+      "snapshot": "private",
+      "median_ms": {
+        "base": 2.069959,
+        "cand": 2.055337,
+        "rust": 2.193866
+      },
+      "candidate_over_base": 0.9929360919709039
+    },
+    {
+      "case": "trait128",
+      "snapshot": "base",
+      "median_ms": {
+        "base": 6.526344,
+        "cand": 6.472923,
+        "rust": 6.663026
+      },
+      "candidate_over_base": 0.9918145595757747
+    },
+    {
+      "case": "trait128",
+      "snapshot": "private",
+      "median_ms": {
+        "base": 6.709971,
+        "cand": 6.715591,
+        "rust": 6.828721
+      },
+      "candidate_over_base": 1.000837559506591
+    },
+    {
+      "case": "owned8",
+      "snapshot": "base",
+      "median_ms": {
+        "base": 2.871059,
+        "cand": 2.867054,
+        "rust": 3.28223
+      },
+      "candidate_over_base": 0.9986050443407817
+    },
+    {
+      "case": "owned8",
+      "snapshot": "private",
+      "median_ms": {
+        "base": 2.958582,
+        "cand": 2.983489,
+        "rust": 3.352107
+      },
+      "candidate_over_base": 1.0084185599723112
+    },
+    {
+      "case": "owned32",
+      "snapshot": "base",
+      "median_ms": {
+        "base": 11.694095,
+        "cand": 10.666151,
+        "rust": 12.017423
+      },
+      "candidate_over_base": 0.9120971738300397
+    },
+    {
+      "case": "owned32",
+      "snapshot": "private",
+      "median_ms": {
+        "base": 11.177725,
+        "cand": 11.153708,
+        "rust": 12.760597
+      },
+      "candidate_over_base": 0.9978513516838176
+    }
+  ],
+  "severe_tails": [],
+  "upstream_originals": [
+    {
+      "crate": "bitmaps-3.2.1",
+      "source_commit": "c0f257113ccc6e6e0742b318006eef2787c3d4c5",
+      "status": "Pass",
+      "rust_source_files": 3,
+      "rust_source_bytes": 68219,
+      "zil_equivalent": "NotImplemented",
+      "timings": [
+        {
+          "mode": "check",
+          "scenario": "project-cold",
+          "wall_ms": 314.4774510000161,
+          "exit": 0,
+          "argv": [
+            "cargo",
+            "check",
+            "--locked",
+            "--offline",
+            "--manifest-path",
+            "/home/runner/work/_temp/graph-upstream/upstream/collector/compile-benchmarks/bitmaps-3.2.1/Cargo.toml"
+          ],
+          "log": "bitmaps-3.2.1-check-project-cold.log",
+          "count": 1,
+          "purpose": "coverage/profiling only, no statistical speedup claim"
+        },
+        {
+          "mode": "check",
+          "scenario": "unchanged-cargo",
+          "wall_ms": 63.84898900000735,
+          "exit": 0,
+          "argv": [
+            "cargo",
+            "check",
+            "--locked",
+            "--offline",
+            "--manifest-path",
+            "/home/runner/work/_temp/graph-upstream/upstream/collector/compile-benchmarks/bitmaps-3.2.1/Cargo.toml"
+          ],
+          "log": "bitmaps-3.2.1-check-unchanged-cargo.log",
+          "count": 1,
+          "purpose": "coverage/profiling only, no statistical speedup claim"
+        },
+        {
+          "mode": "build-release",
+          "scenario": "project-cold",
+          "wall_ms": 414.6151219999865,
+          "exit": 0,
+          "argv": [
+            "cargo",
+            "build",
+            "--locked",
+            "--offline",
+            "--manifest-path",
+            "/home/runner/work/_temp/graph-upstream/upstream/collector/compile-benchmarks/bitmaps-3.2.1/Cargo.toml",
+            "--release"
+          ],
+          "log": "bitmaps-3.2.1-build-release-project-cold.log",
+          "count": 1,
+          "purpose": "coverage/profiling only, no statistical speedup claim"
+        },
+        {
+          "mode": "build-release",
+          "scenario": "unchanged-cargo",
+          "wall_ms": 63.81491799993455,
+          "exit": 0,
+          "argv": [
+            "cargo",
+            "build",
+            "--locked",
+            "--offline",
+            "--manifest-path",
+            "/home/runner/work/_temp/graph-upstream/upstream/collector/compile-benchmarks/bitmaps-3.2.1/Cargo.toml",
+            "--release"
+          ],
+          "log": "bitmaps-3.2.1-build-release-unchanged-cargo.log",
+          "count": 1,
+          "purpose": "coverage/profiling only, no statistical speedup claim"
+        }
+      ]
+    },
+    {
+      "crate": "syn-2.0.101",
+      "source_commit": "c0f257113ccc6e6e0742b318006eef2787c3d4c5",
+      "status": "Pass",
+      "rust_source_files": 96,
+      "rust_source_bytes": 2160949,
+      "zil_equivalent": "NotImplemented",
+      "timings": [
+        {
+          "mode": "check",
+          "scenario": "project-cold",
+          "wall_ms": 1015.9813419999182,
+          "exit": 0,
+          "argv": [
+            "cargo",
+            "check",
+            "--locked",
+            "--offline",
+            "--manifest-path",
+            "/home/runner/work/_temp/graph-upstream/upstream/collector/compile-benchmarks/syn-2.0.101/Cargo.toml"
+          ],
+          "log": "syn-2.0.101-check-project-cold.log",
+          "count": 1,
+          "purpose": "coverage/profiling only, no statistical speedup claim"
+        },
+        {
+          "mode": "check",
+          "scenario": "unchanged-cargo",
+          "wall_ms": 63.80644499995469,
+          "exit": 0,
+          "argv": [
+            "cargo",
+            "check",
+            "--locked",
+            "--offline",
+            "--manifest-path",
+            "/home/runner/work/_temp/graph-upstream/upstream/collector/compile-benchmarks/syn-2.0.101/Cargo.toml"
+          ],
+          "log": "syn-2.0.101-check-unchanged-cargo.log",
+          "count": 1,
+          "purpose": "coverage/profiling only, no statistical speedup claim"
+        },
+        {
+          "mode": "build-release",
+          "scenario": "project-cold",
+          "wall_ms": 4424.684153000044,
+          "exit": 0,
+          "argv": [
+            "cargo",
+            "build",
+            "--locked",
+            "--offline",
+            "--manifest-path",
+            "/home/runner/work/_temp/graph-upstream/upstream/collector/compile-benchmarks/syn-2.0.101/Cargo.toml",
+            "--release"
+          ],
+          "log": "syn-2.0.101-build-release-project-cold.log",
+          "count": 1,
+          "purpose": "coverage/profiling only, no statistical speedup claim"
+        },
+        {
+          "mode": "build-release",
+          "scenario": "unchanged-cargo",
+          "wall_ms": 63.85913000008259,
+          "exit": 0,
+          "argv": [
+            "cargo",
+            "build",
+            "--locked",
+            "--offline",
+            "--manifest-path",
+            "/home/runner/work/_temp/graph-upstream/upstream/collector/compile-benchmarks/syn-2.0.101/Cargo.toml",
+            "--release"
+          ],
+          "log": "syn-2.0.101-build-release-unchanged-cargo.log",
+          "count": 1,
+          "purpose": "coverage/profiling only, no statistical speedup claim"
+        }
+      ]
+    },
+    {
+      "crate": "regex-automata-0.4.8",
+      "source_commit": "c0f257113ccc6e6e0742b318006eef2787c3d4c5",
+      "status": "Pass",
+      "rust_source_files": 96,
+      "rust_source_bytes": 2634416,
+      "zil_equivalent": "NotImplemented",
+      "timings": [
+        {
+          "mode": "check",
+          "scenario": "project-cold",
+          "wall_ms": 2068.910886000026,
+          "exit": 0,
+          "argv": [
+            "cargo",
+            "check",
+            "--locked",
+            "--offline",
+            "--manifest-path",
+            "/home/runner/work/_temp/graph-upstream/upstream/collector/compile-benchmarks/regex-automata-0.4.8/Cargo.toml"
+          ],
+          "log": "regex-automata-0.4.8-check-project-cold.log",
+          "count": 1,
+          "purpose": "coverage/profiling only, no statistical speedup claim"
+        },
+        {
+          "mode": "check",
+          "scenario": "unchanged-cargo",
+          "wall_ms": 63.86489999999867,
+          "exit": 0,
+          "argv": [
+            "cargo",
+            "check",
+            "--locked",
+            "--offline",
+            "--manifest-path",
+            "/home/runner/work/_temp/graph-upstream/upstream/collector/compile-benchmarks/regex-automata-0.4.8/Cargo.toml"
+          ],
+          "log": "regex-automata-0.4.8-check-unchanged-cargo.log",
+          "count": 1,
+          "purpose": "coverage/profiling only, no statistical speedup claim"
+        },
+        {
+          "mode": "build-release",
+          "scenario": "project-cold",
+          "wall_ms": 9889.28380099992,
+          "exit": 0,
+          "argv": [
+            "cargo",
+            "build",
+            "--locked",
+            "--offline",
+            "--manifest-path",
+            "/home/runner/work/_temp/graph-upstream/upstream/collector/compile-benchmarks/regex-automata-0.4.8/Cargo.toml",
+            "--release"
+          ],
+          "log": "regex-automata-0.4.8-build-release-project-cold.log",
+          "count": 1,
+          "purpose": "coverage/profiling only, no statistical speedup claim"
+        },
+        {
+          "mode": "build-release",
+          "scenario": "unchanged-cargo",
+          "wall_ms": 63.882003999992776,
+          "exit": 0,
+          "argv": [
+            "cargo",
+            "build",
+            "--locked",
+            "--offline",
+            "--manifest-path",
+            "/home/runner/work/_temp/graph-upstream/upstream/collector/compile-benchmarks/regex-automata-0.4.8/Cargo.toml",
+            "--release"
+          ],
+          "log": "regex-automata-0.4.8-build-release-unchanged-cargo.log",
+          "count": 1,
+          "purpose": "coverage/profiling only, no statistical speedup claim"
+        }
+      ]
+    }
+  ],
+  "originals_in_paired_weights": false,
+  "non_author_review": "NotRun",
+  "merge_allowed": false
+}
