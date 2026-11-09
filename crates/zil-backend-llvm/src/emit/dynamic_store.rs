@@ -23,6 +23,7 @@ pub(super) fn inline_protocol_element(ty: &Type) -> bool {
 
 /// Private representation plans, built only after exact verified-LIR binding.
 /// Classify each complete protocol rather than assuming the element size.
+#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 pub(super) struct Protocols {
     push: Option<copy_aggregates::Slot>,
     pop: Option<copy_aggregates::Slot>,

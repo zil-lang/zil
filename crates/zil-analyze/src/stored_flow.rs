@@ -10,6 +10,7 @@ mod array_snapshot;
 mod binding_index_tests;
 mod byte_queries;
 mod live_words;
+mod permission_access;
 #[cfg(test)]
 mod permission_queries_tests;
 #[cfg(test)]
@@ -4470,247 +4471,285 @@ fn windows(
                 current.remove(&(v.0 as usize));
             }
             owned_byte_sites.check(module, f, i, &state, values, &current, loans, apart, b)?;
-            match &i.kind {
-                InstructionKind::MakeAggregate { fields }
-                | InstructionKind::MakePackage { fields }
-                    if b.stored_exclusive_loans =>
-                {
-                    let result = i.result.ok_or_else(|| failure("aggregate lacks result"))?;
-                    if let Some((_, shape)) = carrier(value_type(f, result)?) {
-                        for (index, slot) in shape.slots.iter().enumerate() {
-                            fee(b, slot.path.len().saturating_add(1))?;
-                            let Some((PlaceProjection::Field(field), tail)) =
-                                slot.path.split_first()
-                            else {
-                                return Err(failure("constructor slot has no input field"));
-                            };
-                            let source = &values[fields[*field as usize].0 as usize];
-                            let permission = if tail.is_empty() {
-                                &source.pointer
-                            } else {
-                                ordered(b, source.slots.len(), tail.len())?;
-                                source.slots.get(tail).ok_or_else(|| {
-                                    failure("constructor has no actual input leaf")
-                                })?
-                            };
-                            let exclusive = slot.mode == StoredBorrowMode::ExclusiveAddress;
-                            use_permission(permission, exclusive, &current, loans, apart, b)?;
-                            for previous in &shape.slots[..index] {
-                                fee(b, 1)?;
-                                if exclusive || previous.mode == StoredBorrowMode::ExclusiveAddress
-                                {
-                                    ordered(
-                                        b,
-                                        values[result.0 as usize].slots.len(),
-                                        previous.path.len(),
-                                    )?;
-                                    let other = values[result.0 as usize]
-                                        .slots
-                                        .get(&previous.path)
-                                        .ok_or_else(|| {
-                                            failure("constructor has no prior stored leaf")
-                                        })?;
-                                    for left in &permission.targets {
-                                        for right in &other.targets {
-                                            separate(left, right, apart, b)?;
+            {
+                let mut access = permission_access::Access::new(&current, loans, b)?;
+                match &i.kind {
+                    InstructionKind::MakeAggregate { fields }
+                    | InstructionKind::MakePackage { fields }
+                        if b.stored_exclusive_loans =>
+                    {
+                        let result = i.result.ok_or_else(|| failure("aggregate lacks result"))?;
+                        if let Some((_, shape)) = carrier(value_type(f, result)?) {
+                            for (index, slot) in shape.slots.iter().enumerate() {
+                                fee(b, slot.path.len().saturating_add(1))?;
+                                let Some((PlaceProjection::Field(field), tail)) =
+                                    slot.path.split_first()
+                                else {
+                                    return Err(failure("constructor slot has no input field"));
+                                };
+                                let source = &values[fields[*field as usize].0 as usize];
+                                let permission = if tail.is_empty() {
+                                    &source.pointer
+                                } else {
+                                    ordered(b, source.slots.len(), tail.len())?;
+                                    source.slots.get(tail).ok_or_else(|| {
+                                        failure("constructor has no actual input leaf")
+                                    })?
+                                };
+                                let exclusive = slot.mode == StoredBorrowMode::ExclusiveAddress;
+                                access.check(permission, exclusive, apart, b)?;
+                                for previous in &shape.slots[..index] {
+                                    fee(b, 1)?;
+                                    if exclusive
+                                        || previous.mode == StoredBorrowMode::ExclusiveAddress
+                                    {
+                                        ordered(
+                                            b,
+                                            values[result.0 as usize].slots.len(),
+                                            previous.path.len(),
+                                        )?;
+                                        let other = values[result.0 as usize]
+                                            .slots
+                                            .get(&previous.path)
+                                            .ok_or_else(|| {
+                                                failure("constructor has no prior stored leaf")
+                                            })?;
+                                        for left in &permission.targets {
+                                            for right in &other.targets {
+                                                separate(left, right, apart, b)?;
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                }
-                InstructionKind::BorrowPlaceLocal { local, path, .. }
-                    if ordinary_error_borrow(f, i, b)? =>
-                {
-                    fee(b, path.len().saturating_add(1))?;
-                    let actual = Permission {
-                        targets: BTreeSet::from([Target {
-                            retained_port: None,
-                            base: HoldRoot::Local(*local),
-                            stored: Vec::new(),
-                            place: path.clone(),
-                            heap_element: None,
-                        }]),
-                        loans: Loans::new(),
-                    };
-                    use_permission(&actual, false, &current, loans, apart, b)?;
-                }
-                InstructionKind::TakeVariantField { local, path } if ordinary_error_places => {
-                    fee(b, path.len().saturating_add(1))?;
-                    let actual = Permission {
-                        targets: BTreeSet::from([Target {
-                            retained_port: None,
-                            base: HoldRoot::Local(*local),
-                            stored: Vec::new(),
-                            place: path.clone(),
-                            heap_element: None,
-                        }]),
-                        loans: Loans::new(),
-                    };
-                    use_permission(&actual, true, &current, loans, apart, b)?;
-                }
-                InstructionKind::DropErrorUnion { local } if ordinary_error_places => {
-                    fee(b, 1)?;
-                    let actual = Permission {
-                        targets: BTreeSet::from([Target {
-                            retained_port: None,
-                            base: HoldRoot::Local(*local),
-                            stored: Vec::new(),
-                            place: Vec::new(),
-                            heap_element: None,
-                        }]),
-                        loans: Loans::new(),
-                    };
-                    use_permission(&actual, true, &current, loans, apart, b)?;
-                }
-                InstructionKind::ReadPackageField { local, index }
-                    if pure_copy::ordinary_package_read(f, i, b)? =>
-                {
-                    fee(b, 2)?;
-                    let actual = Permission {
-                        targets: BTreeSet::from([Target {
-                            retained_port: None,
-                            base: HoldRoot::Local(*local),
-                            stored: Vec::new(),
-                            place: vec![PlaceProjection::Field(*index)],
-                            heap_element: None,
-                        }]),
-                        loans: Loans::new(),
-                    };
-                    use_permission(&actual, false, &current, loans, apart, b)?;
-                }
-                InstructionKind::TakePackageField { local, index }
-                | InstructionKind::DropPackageField { local, index }
-                | InstructionKind::StorePackageField { local, index, .. } => {
-                    if matches!(i.kind, InstructionKind::TakePackageField { .. }) {
-                        fee(b, state.vacant.len())?;
-                        if state.vacant.iter().any(|target| {
-                            target.base == HoldRoot::Local(*local)
-                                && target.place.first() == Some(&PlaceProjection::Field(*index))
-                        }) {
-                            return Err(failure("child Package move has a vacant stored slot"));
-                        }
-                    }
-                    let actual = Permission {
-                        targets: BTreeSet::from([Target {
-                            retained_port: None,
-                            base: HoldRoot::Local(*local),
-                            stored: Vec::new(),
-                            place: vec![PlaceProjection::Field(*index)],
-                            heap_element: None,
-                        }]),
-                        loans: Loans::new(),
-                    };
-                    fee(b, 1)?;
-                    use_permission(&actual, true, &current, loans, apart, b)?;
-                }
-                InstructionKind::Load(local) => {
-                    fee(b, state.vacant.len())?;
-                    if state
-                        .vacant
-                        .iter()
-                        .any(|target| target.base == HoldRoot::Local(*local))
+                    InstructionKind::BorrowPlaceLocal { local, path, .. }
+                        if ordinary_error_borrow(f, i, b)? =>
                     {
-                        return Err(failure("whole carrier copy has a vacant stored slot"));
+                        fee(b, path.len().saturating_add(1))?;
+                        let actual = Permission {
+                            targets: BTreeSet::from([Target {
+                                retained_port: None,
+                                base: HoldRoot::Local(*local),
+                                stored: Vec::new(),
+                                place: path.clone(),
+                                heap_element: None,
+                            }]),
+                            loans: Loans::new(),
+                        };
+                        access.check(&actual, false, apart, b)?;
                     }
-                    if matches!(
-                        f.locals[local.0 as usize].ty,
-                        Type::Address { mutable: true, .. }
-                    ) {
-                        ordered(b, state.locals.len(), 0)?;
-                        let source = state
-                            .locals
-                            .get(local)
-                            .ok_or_else(|| failure("exclusive address local is unavailable"))?;
-                        use_permission(&source.pointer, true, &current, loans, apart, b)?;
+                    InstructionKind::TakeVariantField { local, path } if ordinary_error_places => {
+                        fee(b, path.len().saturating_add(1))?;
+                        let actual = Permission {
+                            targets: BTreeSet::from([Target {
+                                retained_port: None,
+                                base: HoldRoot::Local(*local),
+                                stored: Vec::new(),
+                                place: path.clone(),
+                                heap_element: None,
+                            }]),
+                            loans: Loans::new(),
+                        };
+                        access.check(&actual, true, apart, b)?;
                     }
-                }
-                InstructionKind::BorrowLocal { local }
-                | InstructionKind::BorrowLocalMut { local }
-                | InstructionKind::Store { local, .. }
-                | InstructionKind::StorageDead(local)
-                | InstructionKind::TakeLocal { local }
-                | InstructionKind::DropClosure { local } => {
-                    if matches!(i.kind, InstructionKind::TakeLocal { .. }) {
+                    InstructionKind::DropErrorUnion { local } if ordinary_error_places => {
+                        fee(b, 1)?;
+                        let actual = Permission {
+                            targets: BTreeSet::from([Target {
+                                retained_port: None,
+                                base: HoldRoot::Local(*local),
+                                stored: Vec::new(),
+                                place: Vec::new(),
+                                heap_element: None,
+                            }]),
+                            loans: Loans::new(),
+                        };
+                        access.check(&actual, true, apart, b)?;
+                    }
+                    InstructionKind::ReadPackageField { local, index }
+                        if pure_copy::ordinary_package_read(f, i, b)? =>
+                    {
+                        fee(b, 2)?;
+                        let actual = Permission {
+                            targets: BTreeSet::from([Target {
+                                retained_port: None,
+                                base: HoldRoot::Local(*local),
+                                stored: Vec::new(),
+                                place: vec![PlaceProjection::Field(*index)],
+                                heap_element: None,
+                            }]),
+                            loans: Loans::new(),
+                        };
+                        access.check(&actual, false, apart, b)?;
+                    }
+                    InstructionKind::TakePackageField { local, index }
+                    | InstructionKind::DropPackageField { local, index }
+                    | InstructionKind::StorePackageField { local, index, .. } => {
+                        if matches!(i.kind, InstructionKind::TakePackageField { .. }) {
+                            fee(b, state.vacant.len())?;
+                            if state.vacant.iter().any(|target| {
+                                target.base == HoldRoot::Local(*local)
+                                    && target.place.first() == Some(&PlaceProjection::Field(*index))
+                            }) {
+                                return Err(failure("child Package move has a vacant stored slot"));
+                            }
+                        }
+                        let actual = Permission {
+                            targets: BTreeSet::from([Target {
+                                retained_port: None,
+                                base: HoldRoot::Local(*local),
+                                stored: Vec::new(),
+                                place: vec![PlaceProjection::Field(*index)],
+                                heap_element: None,
+                            }]),
+                            loans: Loans::new(),
+                        };
+                        fee(b, 1)?;
+                        access.check(&actual, true, apart, b)?;
+                    }
+                    InstructionKind::Load(local) => {
                         fee(b, state.vacant.len())?;
                         if state
                             .vacant
                             .iter()
                             .any(|target| target.base == HoldRoot::Local(*local))
                         {
-                            return Err(failure("whole carrier move has a vacant stored slot"));
+                            return Err(failure("whole carrier copy has a vacant stored slot"));
+                        }
+                        if matches!(
+                            f.locals[local.0 as usize].ty,
+                            Type::Address { mutable: true, .. }
+                        ) {
+                            ordered(b, state.locals.len(), 0)?;
+                            let source = state
+                                .locals
+                                .get(local)
+                                .ok_or_else(|| failure("exclusive address local is unavailable"))?;
+                            access.check(&source.pointer, true, apart, b)?;
                         }
                     }
-                    let mut actual = Permission::default();
-                    actual.targets.insert(Target {
-                        retained_port: None,
-                        base: HoldRoot::Local(*local),
-                        stored: Vec::new(),
-                        place: Vec::new(),
-                        heap_element: None,
-                    });
-                    let write = !matches!(i.kind, InstructionKind::BorrowLocal { .. });
-                    use_permission(&actual, write, &current, loans, apart, b)?;
-                }
-                InstructionKind::BorrowCapture { index, mutable } => {
-                    let actual = Permission {
-                        targets: BTreeSet::from([Target {
+                    InstructionKind::BorrowLocal { local }
+                    | InstructionKind::BorrowLocalMut { local }
+                    | InstructionKind::Store { local, .. }
+                    | InstructionKind::StorageDead(local)
+                    | InstructionKind::TakeLocal { local }
+                    | InstructionKind::DropClosure { local } => {
+                        if matches!(i.kind, InstructionKind::TakeLocal { .. }) {
+                            fee(b, state.vacant.len())?;
+                            if state
+                                .vacant
+                                .iter()
+                                .any(|target| target.base == HoldRoot::Local(*local))
+                            {
+                                return Err(failure("whole carrier move has a vacant stored slot"));
+                            }
+                        }
+                        let mut actual = Permission::default();
+                        actual.targets.insert(Target {
                             retained_port: None,
-                            base: HoldRoot::Capture(*index),
-                            stored: vec![],
-                            place: vec![],
+                            base: HoldRoot::Local(*local),
+                            stored: Vec::new(),
+                            place: Vec::new(),
                             heap_element: None,
-                        }]),
-                        loans: Loans::new(),
-                    };
-                    fee(b, 1)?;
-                    use_permission(&actual, *mutable, &current, loans, apart, b)?;
-                }
-                InstructionKind::ExtractIndex { aggregate, .. } if array_index::candidate(f, i) => {
-                    let input = values
-                        .get(aggregate.0 as usize)
-                        .ok_or_else(|| failure("dynamic Array operand outside actual values"))?;
-                    array_index::check(f, i, input, &current, loans, apart, b)?;
-                }
-                InstructionKind::ReadAddress { address } => {
-                    if let Type::Address { inner, .. } = value_type(f, *address)?
-                        && shared_array_value(inner)
-                        && let Type::Array { length, .. } = inner.as_ref()
-                    {
-                        array_snapshot::check(&state, pointer(*address)?, *length, b)?;
+                        });
+                        let write = !matches!(i.kind, InstructionKind::BorrowLocal { .. });
+                        access.check(&actual, write, apart, b)?;
                     }
-                    use_permission(pointer(*address)?, false, &current, loans, apart, b)?;
-                }
-                InstructionKind::SliceLength { address }
-                | InstructionKind::ReborrowAddress {
-                    address,
-                    mutable: false,
-                } => use_permission(pointer(*address)?, false, &current, loans, apart, b)?,
-                InstructionKind::AddressIndex { address, .. }
-                | InstructionKind::AddressSlice { address, .. }
-                | InstructionKind::AddressField { address, .. } => {
-                    let write = i.result.is_some_and(|v| {
-                        matches!(f.values[v.0 as usize], Type::Address { mutable: true, .. })
-                    });
-                    use_permission(pointer(*address)?, write, &current, loans, apart, b)?;
-                }
-                InstructionKind::LoadStoredBorrow {
-                    storage,
-                    path,
-                    mode,
-                } => {
-                    require_filled(&state, pointer(*storage)?, path, b)?;
-                    let exclusive = matches!(
+                    InstructionKind::BorrowCapture { index, mutable } => {
+                        let actual = Permission {
+                            targets: BTreeSet::from([Target {
+                                retained_port: None,
+                                base: HoldRoot::Capture(*index),
+                                stored: vec![],
+                                place: vec![],
+                                heap_element: None,
+                            }]),
+                            loans: Loans::new(),
+                        };
+                        fee(b, 1)?;
+                        access.check(&actual, *mutable, apart, b)?;
+                    }
+                    InstructionKind::ExtractIndex { aggregate, .. }
+                        if array_index::candidate(f, i) =>
+                    {
+                        let input = values.get(aggregate.0 as usize).ok_or_else(|| {
+                            failure("dynamic Array operand outside actual values")
+                        })?;
+                        array_index::check(f, i, input, &current, loans, apart, b)?;
+                    }
+                    InstructionKind::ReadAddress { address } => {
+                        if let Type::Address { inner, .. } = value_type(f, *address)?
+                            && shared_array_value(inner)
+                            && let Type::Array { length, .. } = inner.as_ref()
+                        {
+                            array_snapshot::check(&state, pointer(*address)?, *length, b)?;
+                        }
+                        access.check(pointer(*address)?, false, apart, b)?;
+                    }
+                    InstructionKind::SliceLength { address }
+                    | InstructionKind::ReborrowAddress {
+                        address,
+                        mutable: false,
+                    } => access.check(pointer(*address)?, false, apart, b)?,
+                    InstructionKind::AddressIndex { address, .. }
+                    | InstructionKind::AddressSlice { address, .. }
+                    | InstructionKind::AddressField { address, .. } => {
+                        let write = i.result.is_some_and(|v| {
+                            matches!(f.values[v.0 as usize], Type::Address { mutable: true, .. })
+                        });
+                        access.check(pointer(*address)?, write, apart, b)?;
+                    }
+                    InstructionKind::LoadStoredBorrow {
+                        storage,
+                        path,
                         mode,
-                        StoredBorrowLoad::Reborrow { mutable: true } | StoredBorrowLoad::Take
-                    );
-                    if !b.stored_projected_slots {
-                        use_permission(pointer(*storage)?, exclusive, &current, loans, apart, b)?;
-                    } else {
-                        // The physical pointer slot is an inline field. A sibling
-                        // mutable slot remains accessible while its child is live;
-                        // the carrier's parent loans still accompany this access.
+                    } => {
+                        require_filled(&state, pointer(*storage)?, path, b)?;
+                        let exclusive = matches!(
+                            mode,
+                            StoredBorrowLoad::Reborrow { mutable: true } | StoredBorrowLoad::Take
+                        );
+                        if !b.stored_projected_slots {
+                            access.check(pointer(*storage)?, exclusive, apart, b)?;
+                        } else {
+                            // The physical pointer slot is an inline field. A sibling
+                            // mutable slot remains accessible while its child is live;
+                            // the carrier's parent loans still accompany this access.
+                            let mut slot = Permission {
+                                targets: BTreeSet::new(),
+                                loans: pointer(*storage)?.loans.clone(),
+                            };
+                            for root in &pointer(*storage)?.targets {
+                                fee(b, target_width(root).saturating_add(path.len()))?;
+                                let mut target = root.clone();
+                                target.place.extend(path);
+                                ordered(b, slot.targets.len(), target_width(&target))?;
+                                slot.targets.insert(target);
+                            }
+                            access.check(&slot, exclusive, apart, b)?;
+                        }
+                        let actual = select(&state, pointer(*storage)?, path, b)?;
+                        let target_write = if matches!(mode, StoredBorrowLoad::Take) {
+                            i.result.is_some_and(|id| {
+                                matches!(
+                                    f.values[id.0 as usize],
+                                    Type::Address { mutable: true, .. }
+                                )
+                            })
+                        } else {
+                            exclusive
+                        };
+                        access.check(&actual, target_write, apart, b)?;
+                    }
+                    InstructionKind::StoreStoredBorrow {
+                        storage,
+                        path,
+                        value,
+                    } => {
+                        let exclusive =
+                            matches!(value_type(f, *value)?, Type::Address { mutable: true, .. });
                         let mut slot = Permission {
                             targets: BTreeSet::new(),
                             loans: pointer(*storage)?.loans.clone(),
@@ -4722,303 +4761,274 @@ fn windows(
                             ordered(b, slot.targets.len(), target_width(&target))?;
                             slot.targets.insert(target);
                         }
-                        use_permission(&slot, exclusive, &current, loans, apart, b)?;
-                    }
-                    let actual = select(&state, pointer(*storage)?, path, b)?;
-                    let target_write = if matches!(mode, StoredBorrowLoad::Take) {
-                        i.result.is_some_and(|id| {
-                            matches!(f.values[id.0 as usize], Type::Address { mutable: true, .. })
-                        })
-                    } else {
-                        exclusive
-                    };
-                    use_permission(&actual, target_write, &current, loans, apart, b)?;
-                }
-                InstructionKind::StoreStoredBorrow {
-                    storage,
-                    path,
-                    value,
-                } => {
-                    let exclusive =
-                        matches!(value_type(f, *value)?, Type::Address { mutable: true, .. });
-                    let mut slot = Permission {
-                        targets: BTreeSet::new(),
-                        loans: pointer(*storage)?.loans.clone(),
-                    };
-                    for root in &pointer(*storage)?.targets {
-                        fee(b, target_width(root).saturating_add(path.len()))?;
-                        let mut target = root.clone();
-                        target.place.extend(path);
-                        ordered(b, slot.targets.len(), target_width(&target))?;
-                        slot.targets.insert(target);
-                    }
-                    use_permission(&slot, true, &current, loans, apart, b)?;
-                    let previous = select(&state, pointer(*storage)?, path, b)?;
-                    if previous.targets.is_empty() {
-                        let position = slot_position(pointer(*storage)?, path, b)?;
-                        if target_width(&position) != 0 {
-                            ordered(b, state.vacant.len(), target_width(&position))?;
+                        access.check(&slot, true, apart, b)?;
+                        let previous = select(&state, pointer(*storage)?, path, b)?;
+                        if previous.targets.is_empty() {
+                            let position = slot_position(pointer(*storage)?, path, b)?;
+                            if target_width(&position) != 0 {
+                                ordered(b, state.vacant.len(), target_width(&position))?;
+                            }
+                            if !state.vacant.contains(&position) {
+                                return Err(failure(
+                                    "replacement has neither a live slot nor an extracted hole",
+                                ));
+                            }
+                        } else {
+                            access.check(&previous, exclusive, apart, b)?;
                         }
-                        if !state.vacant.contains(&position) {
-                            return Err(failure(
-                                "replacement has neither a live slot nor an extracted hole",
-                            ));
-                        }
-                    } else {
-                        use_permission(&previous, exclusive, &current, loans, apart, b)?;
+                        access.check(pointer(*value)?, exclusive, apart, b)?;
                     }
-                    use_permission(pointer(*value)?, exclusive, &current, loans, apart, b)?;
-                }
-                InstructionKind::WriteAddress { address, .. }
-                | InstructionKind::ReborrowAddress {
-                    address,
-                    mutable: true,
-                } => use_permission(pointer(*address)?, true, &current, loans, apart, b)?,
-                InstructionKind::CallIndirect { arguments, .. }
-                | InstructionKind::CallClosure { arguments, .. }
-                | InstructionKind::CallClosureBorrowed { arguments, .. }
-                | InstructionKind::CallClosureShared { arguments, .. }
-                | InstructionKind::CallClosureMut { arguments, .. }
-                | InstructionKind::CallClosureOnce { arguments, .. } => {
-                    let mut all: Vec<(Permission, bool)> = Vec::new();
-                    match &i.kind {
-                        InstructionKind::CallClosureBorrowed { callee, .. } => {
-                            let mut p = Permission::default();
-                            union(&mut p, pointer(*callee)?, b)?;
-                            fee(b, 1)?;
-                            all.push((
-                                p,
-                                matches!(
-                                    i.kind,
-                                    InstructionKind::CallClosureBorrowed {
-                                        kind: CallableKind::FnMut,
-                                        ..
-                                    }
-                                ),
-                            ));
+                    InstructionKind::WriteAddress { address, .. }
+                    | InstructionKind::ReborrowAddress {
+                        address,
+                        mutable: true,
+                    } => access.check(pointer(*address)?, true, apart, b)?,
+                    InstructionKind::CallIndirect { arguments, .. }
+                    | InstructionKind::CallClosure { arguments, .. }
+                    | InstructionKind::CallClosureBorrowed { arguments, .. }
+                    | InstructionKind::CallClosureShared { arguments, .. }
+                    | InstructionKind::CallClosureMut { arguments, .. }
+                    | InstructionKind::CallClosureOnce { arguments, .. } => {
+                        let mut all: Vec<(Permission, bool)> = Vec::new();
+                        match &i.kind {
+                            InstructionKind::CallClosureBorrowed { callee, .. } => {
+                                let mut p = Permission::default();
+                                union(&mut p, pointer(*callee)?, b)?;
+                                fee(b, 1)?;
+                                all.push((
+                                    p,
+                                    matches!(
+                                        i.kind,
+                                        InstructionKind::CallClosureBorrowed {
+                                            kind: CallableKind::FnMut,
+                                            ..
+                                        }
+                                    ),
+                                ));
+                            }
+                            InstructionKind::CallClosureShared { callee, .. }
+                            | InstructionKind::CallClosureMut { callee, .. } => {
+                                fee(b, 2)?;
+                                all.push((
+                                    Permission {
+                                        targets: BTreeSet::from([Target {
+                                            retained_port: None,
+                                            base: HoldRoot::Local(*callee),
+                                            stored: vec![],
+                                            place: vec![],
+                                            heap_element: None,
+                                        }]),
+                                        loans: Loans::new(),
+                                    },
+                                    matches!(i.kind, InstructionKind::CallClosureMut { .. }),
+                                ));
+                            }
+                            _ => {}
                         }
-                        InstructionKind::CallClosureShared { callee, .. }
-                        | InstructionKind::CallClosureMut { callee, .. } => {
-                            fee(b, 2)?;
-                            all.push((
-                                Permission {
-                                    targets: BTreeSet::from([Target {
-                                        retained_port: None,
-                                        base: HoldRoot::Local(*callee),
-                                        stored: vec![],
-                                        place: vec![],
-                                        heap_element: None,
-                                    }]),
-                                    loans: Loans::new(),
-                                },
-                                matches!(i.kind, InstructionKind::CallClosureMut { .. }),
-                            ));
-                        }
-                        _ => {}
-                    }
 
-                    let receiver_held = match &i.kind {
-                        InstructionKind::CallClosureShared { callee, .. }
-                        | InstructionKind::CallClosureMut { callee, .. }
-                            if super::stored_callables::fixed_value(
-                                module,
-                                &f.locals[callee.0 as usize].ty,
-                            ) =>
+                        let receiver_held = match &i.kind {
+                            InstructionKind::CallClosureShared { callee, .. }
+                            | InstructionKind::CallClosureMut { callee, .. }
+                                if super::stored_callables::fixed_value(
+                                    module,
+                                    &f.locals[callee.0 as usize].ty,
+                                ) =>
+                            {
+                                ordered(b, state.locals.len(), 0)?;
+                                state.locals.get(callee).map(|v| &v.held)
+                            }
+                            InstructionKind::CallClosure { callee, .. }
+                            | InstructionKind::CallClosureBorrowed { callee, .. }
+                            | InstructionKind::CallClosureOnce { callee, .. } => {
+                                Some(&values[callee.0 as usize].held)
+                            }
+                            _ => None,
+                        };
+                        if let Some(held) = receiver_held
+                            && !held.targets.is_empty()
                         {
-                            ordered(b, state.locals.len(), 0)?;
-                            state.locals.get(callee).map(|v| &v.held)
-                        }
-                        InstructionKind::CallClosure { callee, .. }
-                        | InstructionKind::CallClosureBorrowed { callee, .. }
-                        | InstructionKind::CallClosureOnce { callee, .. } => {
-                            Some(&values[callee.0 as usize].held)
-                        }
-                        _ => None,
-                    };
-                    if let Some(held) = receiver_held
-                        && !held.targets.is_empty()
-                    {
-                        let mut p = Permission::default();
-                        union(&mut p, held, b)?;
-                        fee(b, 1)?;
-                        all.push((p, false));
-                    }
-                    for argument in arguments {
-                        let actual = &values[argument.0 as usize];
-                        if let Type::Address { mutable, .. } = value_type(f, *argument)? {
                             let mut p = Permission::default();
-                            union(&mut p, &actual.pointer, b)?;
-                            fee(b, 1)?;
-                            all.push((p, *mutable));
-                        }
-                        for leaf in actual.slots.values() {
-                            let mut p = Permission::default();
-                            union(&mut p, leaf, b)?;
+                            union(&mut p, held, b)?;
                             fee(b, 1)?;
                             all.push((p, false));
                         }
-                        if let Some((_, shape)) = pointed_carrier(value_type(f, *argument)?) {
-                            for slot in &shape.slots {
-                                let p = select(&state, &actual.pointer, &slot.path, b)?;
+                        for argument in arguments {
+                            let actual = &values[argument.0 as usize];
+                            if let Type::Address { mutable, .. } = value_type(f, *argument)? {
+                                let mut p = Permission::default();
+                                union(&mut p, &actual.pointer, b)?;
+                                fee(b, 1)?;
+                                all.push((p, *mutable));
+                            }
+                            for leaf in actual.slots.values() {
+                                let mut p = Permission::default();
+                                union(&mut p, leaf, b)?;
                                 fee(b, 1)?;
                                 all.push((p, false));
                             }
-                        }
-                    }
-                    for (index, (permission, write)) in all.iter().enumerate() {
-                        use_permission(permission, *write, &current, loans, apart, b)?;
-                        for (other, other_write) in &all[..index] {
-                            if *write || *other_write {
-                                for a in &permission.targets {
-                                    for z in &other.targets {
-                                        separate(a, z, apart, b)?;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                InstructionKind::Call {
-                    function,
-                    arguments,
-                } => {
-                    let callee = &module.functions[function.0 as usize];
-                    for (a, (argument, parameter)) in
-                        arguments.iter().zip(&callee.parameters).enumerate()
-                    {
-                        let actual = &values[argument.0 as usize];
-                        let ty = &callee.locals[parameter.0 as usize].ty;
-                        if let Some((_, shape)) = pointed_carrier(ty) {
-                            for slot in &shape.slots {
-                                require_filled(&state, &actual.pointer, &slot.path, b)?;
-                            }
-                        }
-                        if let Type::Address { mutable, .. } = ty {
-                            use_permission(&actual.pointer, *mutable, &current, loans, apart, b)?;
-                            if *mutable && let Some((_, shape)) = pointed_carrier(ty) {
+                            if let Some((_, shape)) = pointed_carrier(value_type(f, *argument)?) {
                                 for slot in &shape.slots {
-                                    let held = select(&state, &actual.pointer, &slot.path, b)?;
-                                    use_permission(
-                                        &held,
-                                        slot.mode == StoredBorrowMode::ExclusiveAddress,
-                                        &current,
-                                        loans,
-                                        apart,
-                                        b,
-                                    )?;
+                                    let p = select(&state, &actual.pointer, &slot.path, b)?;
+                                    fee(b, 1)?;
+                                    all.push((p, false));
                                 }
                             }
                         }
-                        for leaf in actual.slots.values() {
-                            use_permission(leaf, false, &current, loans, apart, b)?;
-                        }
-                        if !actual.held.targets.is_empty() {
-                            use_permission(&actual.held, false, &current, loans, apart, b)?;
-                        }
-                        for other in &arguments[..a] {
-                            let right = &values[other.0 as usize];
-                            let write = matches!(
-                                value_type(f, *argument)?,
-                                Type::Address { mutable: true, .. }
-                            ) || matches!(
-                                value_type(f, *other)?,
-                                Type::Address { mutable: true, .. }
-                            );
-                            if write {
-                                for x in &actual.pointer.targets {
-                                    for y in &right.pointer.targets {
-                                        separate(x, y, apart, b)?;
-                                    }
-                                }
-                            }
-                            if matches!(
-                                value_type(f, *argument)?,
-                                Type::Address { mutable: true, .. }
-                            ) {
-                                for leaf in right
-                                    .slots
-                                    .values()
-                                    .chain((!right.held.targets.is_empty()).then_some(&right.held))
-                                {
-                                    for x in &actual.pointer.targets {
-                                        for y in &leaf.targets {
-                                            separate(x, y, apart, b)?;
+                        for (index, (permission, write)) in all.iter().enumerate() {
+                            access.check(permission, *write, apart, b)?;
+                            for (other, other_write) in &all[..index] {
+                                if *write || *other_write {
+                                    for a in &permission.targets {
+                                        for z in &other.targets {
+                                            separate(a, z, apart, b)?;
                                         }
                                     }
                                 }
                             }
-                            if matches!(value_type(f, *other)?, Type::Address { mutable: true, .. })
-                            {
-                                for leaf in actual.slots.values().chain(
-                                    (!actual.held.targets.is_empty()).then_some(&actual.held),
-                                ) {
-                                    for x in &leaf.targets {
+                        }
+                    }
+                    InstructionKind::Call {
+                        function,
+                        arguments,
+                    } => {
+                        let callee = &module.functions[function.0 as usize];
+                        for (a, (argument, parameter)) in
+                            arguments.iter().zip(&callee.parameters).enumerate()
+                        {
+                            let actual = &values[argument.0 as usize];
+                            let ty = &callee.locals[parameter.0 as usize].ty;
+                            if let Some((_, shape)) = pointed_carrier(ty) {
+                                for slot in &shape.slots {
+                                    require_filled(&state, &actual.pointer, &slot.path, b)?;
+                                }
+                            }
+                            if let Type::Address { mutable, .. } = ty {
+                                access.check(&actual.pointer, *mutable, apart, b)?;
+                                if *mutable && let Some((_, shape)) = pointed_carrier(ty) {
+                                    for slot in &shape.slots {
+                                        let held = select(&state, &actual.pointer, &slot.path, b)?;
+                                        access.check(
+                                            &held,
+                                            slot.mode == StoredBorrowMode::ExclusiveAddress,
+                                            apart,
+                                            b,
+                                        )?;
+                                    }
+                                }
+                            }
+                            for leaf in actual.slots.values() {
+                                access.check(leaf, false, apart, b)?;
+                            }
+                            if !actual.held.targets.is_empty() {
+                                access.check(&actual.held, false, apart, b)?;
+                            }
+                            for other in &arguments[..a] {
+                                let right = &values[other.0 as usize];
+                                let write = matches!(
+                                    value_type(f, *argument)?,
+                                    Type::Address { mutable: true, .. }
+                                ) || matches!(
+                                    value_type(f, *other)?,
+                                    Type::Address { mutable: true, .. }
+                                );
+                                if write {
+                                    for x in &actual.pointer.targets {
                                         for y in &right.pointer.targets {
                                             separate(x, y, apart, b)?;
                                         }
                                     }
                                 }
-                            }
-                        }
-                    }
-                    for (left, right) in &summaries[function.0 as usize].apart {
-                        let weak = |source: &Target| match source.base {
-                            HoldRoot::Parameter(position) => callee
-                                .parameters
-                                .get(position as usize)
-                                .is_some_and(|local| {
-                                    byte_queries::description(&callee.locals[local.0 as usize].ty)
-                                }),
-                            _ => false,
-                        };
-                        if b.byte_queries && (weak(left) || weak(right)) {
-                            let flow = byte_flow.as_ref().ok_or_else(|| {
-                                failure("Byte separation has no covered origin flow")
-                            })?;
-                            let left = flow.substitute(
-                                left,
-                                callee,
-                                arguments,
-                                values,
-                                &state,
-                                byte_point.as_ref().unwrap(),
-                                b,
-                            )?;
-                            let right = flow.substitute(
-                                right,
-                                callee,
-                                arguments,
-                                values,
-                                &state,
-                                byte_point.as_ref().unwrap(),
-                                b,
-                            )?;
-                            for a in &left {
-                                for z in &right {
-                                    for x in &a.targets {
-                                        for y in &z.targets {
-                                            separate(x, y, apart, b)?;
+                                if matches!(
+                                    value_type(f, *argument)?,
+                                    Type::Address { mutable: true, .. }
+                                ) {
+                                    for leaf in right.slots.values().chain(
+                                        (!right.held.targets.is_empty()).then_some(&right.held),
+                                    ) {
+                                        for x in &actual.pointer.targets {
+                                            for y in &leaf.targets {
+                                                separate(x, y, apart, b)?;
+                                            }
+                                        }
+                                    }
+                                }
+                                if matches!(
+                                    value_type(f, *other)?,
+                                    Type::Address { mutable: true, .. }
+                                ) {
+                                    for leaf in actual.slots.values().chain(
+                                        (!actual.held.targets.is_empty()).then_some(&actual.held),
+                                    ) {
+                                        for x in &leaf.targets {
+                                            for y in &right.pointer.targets {
+                                                separate(x, y, apart, b)?;
+                                            }
                                         }
                                     }
                                 }
                             }
-                            continue;
                         }
-                        let left = substitute(left, arguments, values, &state, b)?;
-                        let right = substitute(right, arguments, values, &state, b)?;
-                        if left.targets.is_empty() || right.targets.is_empty() {
-                            return Err(failure(
-                                "callee separation lacks complete actual slot facts",
-                            ));
-                        }
-                        for x in &left.targets {
-                            for y in &right.targets {
-                                separate(x, y, apart, b)?;
+                        for (left, right) in &summaries[function.0 as usize].apart {
+                            let weak = |source: &Target| match source.base {
+                                HoldRoot::Parameter(position) => callee
+                                    .parameters
+                                    .get(position as usize)
+                                    .is_some_and(|local| {
+                                        byte_queries::description(
+                                            &callee.locals[local.0 as usize].ty,
+                                        )
+                                    }),
+                                _ => false,
+                            };
+                            if b.byte_queries && (weak(left) || weak(right)) {
+                                let flow = byte_flow.as_ref().ok_or_else(|| {
+                                    failure("Byte separation has no covered origin flow")
+                                })?;
+                                let left = flow.substitute(
+                                    left,
+                                    callee,
+                                    arguments,
+                                    values,
+                                    &state,
+                                    byte_point.as_ref().unwrap(),
+                                    b,
+                                )?;
+                                let right = flow.substitute(
+                                    right,
+                                    callee,
+                                    arguments,
+                                    values,
+                                    &state,
+                                    byte_point.as_ref().unwrap(),
+                                    b,
+                                )?;
+                                for a in &left {
+                                    for z in &right {
+                                        for x in &a.targets {
+                                            for y in &z.targets {
+                                                separate(x, y, apart, b)?;
+                                            }
+                                        }
+                                    }
+                                }
+                                continue;
+                            }
+                            let left = substitute(left, arguments, values, &state, b)?;
+                            let right = substitute(right, arguments, values, &state, b)?;
+                            if left.targets.is_empty() || right.targets.is_empty() {
+                                return Err(failure(
+                                    "callee separation lacks complete actual slot facts",
+                                ));
+                            }
+                            for x in &left.targets {
+                                for y in &right.targets {
+                                    separate(x, y, apart, b)?;
+                                }
                             }
                         }
                     }
+                    _ => {}
                 }
-                _ => {}
             }
             transfer(
                 module, f, i, &mut state, values, summaries, slot_ids, loans, b,
@@ -6723,10 +6733,11 @@ mod tests {
             }
         }
         assert_eq!(
-            // Pay the current bounded-word rows, linear fact snapshots and
-            // actual active-loan projection; all permission checks remain.
+            // Include instruction-local Access construction, read detection
+            // and candidate classification, net of omitted shared-tail scans.
+            // Head/ancestry/write checks still execute at their actual cost.
             low,
-            12_566,
+            12_618,
             "bounded actual identity/ownership work changed"
         );
         // The previous dense-row boundary now succeeds through less work.
