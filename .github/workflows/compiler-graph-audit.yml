@@ -1,0 +1,95 @@
+name: Expanded compiler evidence audit
+on:
+  push:
+    branches: [task/G10.5.1]
+    paths: ['.github/workflows/compiler-graph-audit.yml']
+permissions:
+  contents: write
+jobs:
+  audit:
+    if: github.repository == 'zil-lang/zil' && github.ref == 'refs/heads/task/G10.5.1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Recompute complete paired evidence and preserve exact controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin 929417b0d48c43f59a8420ac5d6f3e3e8366d540
+          git worktree add --detach "$RUNNER_TEMP/expanded-evidence" 929417b0d48c43f59a8420ac5d6f3e3e8366d540
+          python3 .task/G10.5.1/round3/audit.py --evidence "$RUNNER_TEMP/expanded-evidence/.task/G10.5.1.2/runs/42644730016" --out .task/G10.5.1/round3/audits/42644730016
+          python3 - <<'PY'
+          import json,os,pathlib,re,tarfile
+          P=pathlib.Path;src=P(os.environ['RUNNER_TEMP'])/'expanded-evidence/.task/G10.5.1.2/runs/42644730016';out=P('.task/G10.5.1/round3/audits/42644730016')
+          audit=json.loads((out/'audit.json').read_text());assert audit['status']=='Pass for complete finite evidence'
+          assert audit['compile_requests']==1764 and audit['formal_requests']==1470 and audit['current_verify_runs']==1512
+          assert audit['native_checks']==3780 and audit['text_pairs']==504 and audit['runtime_requests']==252
+          rt=[json.loads(s) for s in (src/'runtime.jsonl').read_text().splitlines()];assert all(r['valid'] for r in rt)
+          counts={}
+          with tarfile.open(src/'raw.tar.gz') as tar:
+              for name in ['setup/backend-tests.log','setup/llvm-tests.log']:
+                  text=tar.extractfile(name).read().decode();pairs=re.findall(r'test result: ok\. (\d+) passed; (\d+) failed;',text)
+                  assert pairs and all(int(f)==0 for _,f in pairs);counts[name]=sum(int(n) for n,_ in pairs)
+          consumer=json.loads((src/'consumer.json').read_text());assert consumer['status']=='Pass'
+          decision={'source':audit['source'],'baseline':audit['baseline'],'decision':'Hold: no material weighted latency benefit; do not merge index-reuse optimization','profiles':audit['profiles'],'controls':counts,'consumer':{'builds':len(consumer['builds']),'observations':len(consumer['observations']),'injected_failures':sum(r['fail_at']>0 for r in consumer['observations'])},'runtime_code_identical_pairs':504,'independent_review':'NotRun','merge_allowed':False,'coverage_gap':'Original upstream crates are Rust-only references; the paired graph/trait/resource cases are generated mechanisms, not full application ports. No industrial application equivalence claimed.'}
+          (out/'decision.json').write_text(json.dumps(decision,ensure_ascii=False,indent=2)+'\n');print(json.dumps(decision,ensure_ascii=False,indent=2))
+          PY
+      - name: Register exact status on the independent goal branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin refs/heads/goal
+          git worktree add --detach "$RUNNER_TEMP/compiler-goal" FETCH_HEAD
+          python3 - <<'PY'
+          import datetime,json,os,pathlib,re,subprocess
+          P=pathlib.Path;root=P(os.environ['RUNNER_TEMP'])/'compiler-goal';p=root/'goal.md';s=p.read_text();oldsha=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip()
+          rows={
+            'G10.5.1':'| G10.5.1 | 编译效率复核、加权性能与真实覆盖扩展 | 进行中 | P1 | 编译专项·20261109 | PR65生产提取906940ea三项CI通过；非作者独审受额度阻塞，未合main。新增7类机制配对1764编译/3780输出/504代码段一致/252运行，索引复用净变化仅-0.09%至+0.57%不采用；原版Rust库另轨，不冒充ZIL等价大型应用。见[专项记录](records/compiler-partition-release.json)。 |',
+            'G10.5.1.1':'| G10.5.1.1 | 可选完整导入超预算时保持普通分区及生效决策 | 待独审 | P1 | 编译专项·PR65 | 精确生产906940ea/tree f85c6c45；默认5762/0、参考5650/0、文本70/0、16构建/128原生/56故障注入及strict/结构/研究LLVM通过；docs/guide/build.md已含生效决策。Codex额度耗尽，替代review未确认；不将作者审核替代独审，main未改。 |',
+            'G10.5.1.2':'| G10.5.1.2 | 单次构图回退索引复用与复杂调用图/trait/资源覆盖 | 实验完成·未采用 | P1 | 编译专项·20261109 | 候选49889241、交付929417b0，1764完整编译/1470正式、3780输出、504原生代码段一致、252运行通过。四加权净变化-0.09%/+0.57%/+0.06%/+0.37%，绝对不足1.3ms/请求，Hold不合入。首轮测量器失败与修正保留；原版bitmaps/syn/regex-automata仅Rust参考，大型等价应用仍缺。 |'}
+          for key,new in rows.items():
+              pattern=r'^\| '+re.escape(key)+r' \|.*$';hits=list(re.finditer(pattern,s,re.M))
+              if hits:
+                  assert len(hits)==1;s=s[:hits[0].start()]+new+s[hits[0].end():]
+              else:
+                  anchor=rows['G10.5.1'] if key=='G10.5.1.1' else rows['G10.5.1.1'];assert s.count(anchor)==1;s=s.replace(anchor,anchor+'\n'+new)
+          p.write_text(s)
+          decision=json.loads(P('.task/G10.5.1/round3/audits/42644730016/decision.json').read_text())
+          release=json.loads(P('.task/G10.5.1/release-gate/42646108993/receipt.json').read_text())
+          record={'goal_read_sha':oldsha,'updated_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'main_modified':False,'pr':65,'release':release,'continued_experiment':decision,'research_evidence':'https://github.com/zil-lang/zil/tree/929417b0d48c43f59a8420ac5d6f3e3e8366d540/.task/G10.5.1.2/runs/42644730016','audit_recipe':os.environ['GITHUB_SHA'],'non_author_review':'NotConfirmed','merge_allowed':False}
+          (root/'records/compiler-partition-release.json').write_text(json.dumps(record,ensure_ascii=False,indent=2)+'\n')
+          PY
+          git -C "$RUNNER_TEMP/compiler-goal" diff --check
+          git -C "$RUNNER_TEMP/compiler-goal" add -- goal.md records/compiler-partition-release.json
+          git -C "$RUNNER_TEMP/compiler-goal" -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Record exact PR65 CI, missing non-author review and expanded experiment NoGo'
+          git -C "$RUNNER_TEMP/compiler-goal" push origin HEAD:refs/heads/goal
+          git -C "$RUNNER_TEMP/compiler-goal" fetch --no-tags origin refs/heads/goal
+          test "$(git -C "$RUNNER_TEMP/compiler-goal" rev-parse FETCH_HEAD)" = "$(git -C "$RUNNER_TEMP/compiler-goal" rev-parse HEAD)"
+          git -C "$RUNNER_TEMP/compiler-goal" rev-parse HEAD > .task/G10.5.1/round3/goal-update.txt
+      - name: Preserve audit without merging production
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin refs/heads/task/G10.5.1
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git add -- .task/G10.5.1/round3/audits .task/G10.5.1/round3/goal-update.txt
+          if ! git diff --cached --quiet; then
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Preserve expanded evidence audit and unresolved production acceptance'
+            git push origin HEAD:refs/heads/task/G10.5.1
+          fi
+      - name: Export bounded reproducible evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: compiler-expanded-42644730016
+          path: |
+            .task/G10.5.1/round3/
+            .task/G10.5.1/release-gate/42646108993/
+            ${{ runner.temp }}/expanded-evidence/.task/G10.5.1.2/
+          retention-days: 30
+          if-no-files-found: error
