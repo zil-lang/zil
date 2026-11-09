@@ -191,7 +191,53 @@ pub(crate) fn partition_view_cached(
     (plan, pending)
 }
 
+// Complete implementation import is an optional optimization. A rejected copy
+// budget must not turn an already valid ordinary multi-unit plan into a single
+// expensive object. Reuse the original ordinary planner, without partial imports:
+// canonical calls, local-state components and current preflight stay intact.
+// Runtime quality is a separate acceptance gate for this experimental policy.
 fn partition_view_recorded(
+    module: Module,
+    lir: &LirView<'_>,
+    entry: EntryPoint,
+    count: usize,
+    split_large_files: bool,
+    import_complete_call_closures: bool,
+    recorded: &mut Option<layout::Layout>,
+) -> Plan {
+    let plan = partition_view_once(
+        module,
+        lir,
+        entry,
+        count,
+        split_large_files,
+        import_complete_call_closures,
+        recorded,
+    );
+    if plan.fallback != Some("complete O2 call closure exceeds total copy cost") {
+        return plan;
+    }
+    // The budget rejection occurs before replay and returns the untouched model.
+    // Move it, rather than cloning or attempting to finish a partial import set.
+    assert_eq!(plan.units.len(), 1);
+    let module = plan
+        .units
+        .into_iter()
+        .next()
+        .expect("complete input module");
+    *recorded = None;
+    partition_view_once(
+        module,
+        lir,
+        entry,
+        count,
+        split_large_files,
+        false,
+        recorded,
+    )
+}
+
+fn partition_view_once(
     module: Module,
     lir: &LirView<'_>,
     entry: EntryPoint,
@@ -1120,7 +1166,7 @@ mod tests {
     }
 
     #[test]
-    fn multiply_shared_closure_falls_back_before_copying_any_body() {
+    fn expensive_complete_import_keeps_the_exact_ordinary_plan() {
         let source = candidate_lir(&(0..600).collect::<Vec<_>>());
         let module = m((0..600)
             .map(|id| {
@@ -1131,20 +1177,61 @@ mod tests {
                 )
             })
             .collect());
-        let plan = partition_view(
+        let mut recorded = None;
+        let rejected = partition_view_once(
             module.clone(),
             &source.as_view(),
             EntryPoint::None,
             8,
             true,
             true,
+            &mut recorded,
         );
         assert_eq!(
-            plan.fallback,
+            rejected.fallback,
             Some("complete O2 call closure exceeds total copy cost")
         );
-        assert_eq!(plan.units, vec![module]);
-        zil_llvm_api::validate_module(&plan.units[0]).unwrap();
+        assert_eq!(rejected.units, vec![module.clone()]);
+        assert!(recorded.is_none());
+        let ordinary = partition_view(
+            module.clone(),
+            &source.as_view(),
+            EntryPoint::None,
+            8,
+            true,
+            false,
+        );
+        let adaptive = partition_view_recorded(
+            module.clone(),
+            &source.as_view(),
+            EntryPoint::None,
+            8,
+            true,
+            true,
+            &mut recorded,
+        );
+        assert!(adaptive.fallback.is_none());
+        assert_eq!(adaptive.units.len(), 3);
+        assert_eq!(adaptive.units, ordinary.units);
+        assert_eq!(recorded.unwrap().replay(module), ordinary.units);
+        for unit in &adaptive.units {
+            zil_llvm_api::validate_module(unit).unwrap();
+            assert!(unit.items.iter().all(|item| !matches!(item,
+                Item::Function(function) if function.name.starts_with("zil.import."))));
+        }
+        for id in 0..600 {
+            let name = format!("zil.fn.{id}");
+            assert_eq!(
+                adaptive
+                    .units
+                    .iter()
+                    .flat_map(|unit| &unit.items)
+                    .filter(|item| matches!(item, Item::Function(function)
+                    if function.name == name && function.blocks.is_some()))
+                    .count(),
+                1
+            );
+        }
     }
 
     #[test]

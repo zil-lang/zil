@@ -136,9 +136,12 @@ class Experiment:
                                     if block==0 and mode=='O2' and request in ('cold','private'):
                                         dest=self.out/'quality'/case['id']/snapshot/arm; dest.mkdir(parents=True)
                                         shutil.copyfile(work/'app',dest/'app'); (dest/'app').chmod(0o755)
+                                        shutil.copyfile(work/'app.ll',dest/'app.ll')
                             finally:
                                 with (self.out/'rows.jsonl').open('a') as f: f.write(json.dumps(row)+'\n')
                         if len(self.rows)%100==0: print(json.dumps({'compile_requests':len(self.rows),'native_checks':self.native_checks,'case':case['id'],'mode':mode,'block':block}),flush=True)
+                    if not (block==0 and mode=='O0'):
+                        shutil.rmtree(self.out/'work'/case['id']/mode/str(block))
         expected=len(self.cases)*len(MODES)*len(REQUESTS)*len(ARMS)*(PROTOCOL['rounds']+1)
         assert len(self.rows)==expected and all(row.get('valid') for row in self.rows)
 
