@@ -6713,10 +6713,10 @@ mod tests {
             }
         }
         assert_eq!(
-            // Actual bounded-word copies/joins replace the dense Boolean
-            // rows; all target/loan and retained-boundary work remains paid.
+            // Pay the current bounded-word rows, linear fact snapshots and
+            // actual active-loan projection; all permission checks remain.
             low,
-            12_870,
+            12_566,
             "bounded actual identity/ownership work changed"
         );
         // The previous dense-row boundary now succeeds through less work.
