@@ -1,6 +1,8 @@
 //! Exact private retirement obligations. No frontend rows or name-based apart.
 use super::*;
 use zil_ir::PlaceProjection;
+mod rows;
+pub(in crate::resources) use rows::Rows;
 
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
 pub(in crate::resources) struct Sources {
@@ -118,10 +120,11 @@ pub(super) fn seed(
         if let Some(slot) = slots.desc_local[local.0 as usize] {
             let ty = &f.locals[local.0 as usize].ty;
             if matches!(ty, Type::Desc(_) | Type::Address { .. }) {
-                state.retirement[slot].direct =
-                    singleton(actual::Base::Input(index as u32), vec![], b)?;
+                let direct = singleton(actual::Base::Input(index as u32), vec![], b)?;
+                state.retirement.direct(slot, direct, b)?;
             }
-            state.retirement[slot].captures = capture_seed(module, ty, index as u32, b)?;
+            let captures = capture_seed(module, ty, index as u32, b)?;
+            state.retirement.captures(slot, captures, b)?;
         }
     }
     Ok(())
@@ -134,7 +137,7 @@ fn value(
     b: &mut Budget,
 ) -> Check<Sources> {
     if let Some(slot) = transfer.slots.desc_value[v.0 as usize] {
-        return state.retirement[slot].copy(b);
+        return state.retirement.get(slot, b)?.copy(b);
     }
     let facts = &plan.actual.functions[transfer.f.id.0 as usize];
     actual::charge_set(&facts.values[v.0 as usize], b)?;
@@ -194,7 +197,7 @@ pub(super) fn step(
             | InstructionKind::BorrowLocal { local }
             | InstructionKind::BorrowLocalMut { local } => {
                 if let Some(slot) = slots.desc_local[local.0 as usize] {
-                    source = state.retirement[slot].copy(b)?;
+                    source = state.retirement.get(slot, b)?.copy(b)?;
                 }
                 if source.direct.is_empty()
                     && matches!(f.values[i.result.unwrap().0 as usize], Type::Address { .. })
@@ -234,18 +237,18 @@ pub(super) fn step(
                 }
             }
         }
-        state.retirement[output] = source;
+        state.retirement.replace(output, source, b)?;
     }
     match i.kind {
         InstructionKind::Store { local, value: v } => {
             if let Some(slot) = slots.desc_local[local.0 as usize] {
                 let src = value(plan, transfer, state, v, b)?;
-                state.retirement[slot] = src;
+                state.retirement.replace(slot, src, b)?;
             }
         }
         InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
             if let Some(slot) = slots.desc_local[local.0 as usize] {
-                state.retirement[slot] = Sources::default();
+                state.retirement.replace(slot, Sources::default(), b)?;
             }
         }
         _ => {}
@@ -358,7 +361,7 @@ pub(super) fn observe(
         {
             continue;
         }
-        let source = &state.retirement[slot];
+        let source = state.retirement.get(slot, b)?;
         source.cost(b)?;
         let mut roots = actual::Targets::new();
         if matches!(ty, Type::Desc(_)) {
@@ -421,7 +424,7 @@ pub(super) fn call(
         actual::merge_captures(&mut captures, actual, b)?;
     }
     if let Some(slot) = inv.sources {
-        let exact = &state.retirement[slot].captures;
+        let exact = &state.retirement.get(slot, b)?.captures;
         b.spend(exact.len())?;
         for (index, roots) in exact {
             actual::charge_set(roots, b)?;
