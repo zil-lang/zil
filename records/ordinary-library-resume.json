@@ -7,9 +7,15 @@
   "source_branches": {
     "root": "task/G10.6.3",
     "byte_view_composition": "task/G3.4.22",
-    "large_closure_abi": "task/G10.3.6"
+    "large_closure_abi": "task/G10.3.6",
+    "growing_collections": "task/G9.3.11.1"
   },
   "first_failure": "offline cargo dependency rustc_apfloat absent; no tests executed",
   "scope": "Continue original ordinary-library consumer and large owned closure transport; no release claim",
-  "raw_logs": "out/runs/byte-views-baseline-20261109/ in task/G3.4.22 worktree"
+  "raw_logs": "out/runs/byte-views-baseline-20261109/ in task/G3.4.22 worktree",
+  "last_work": "2026-11-09 09:16 Asia/Shanghai",
+  "integration_remote": "2a50a8bb8e4f7b36581c04e56cd7ae02e082a337",
+  "large_closure_checkpoint": "57df31aa781ba72cadf1418e20dcefeaa6e65ee1",
+  "baseline_language_failure": "original four-module program: Analyze ResourceLimit / Sum terminal tag classification, 0 pass, 1 fail",
+  "native_progress": "local closure candidate680af78d1: 28 new native executions pass; factory/generic helper unsupported controls remain pending"
 }

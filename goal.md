@@ -1,6 +1,6 @@
 # ZIL 任务看板
 
-更新：2026-11-08（Asia/Shanghai）。本文件是唯一实时任务状态；只记录下表有限范围，不代表完整语言、B0 或 ZUI 已完成。规范与门槛以任务源码分支的[设计][design]、具名附件和[产品条件][gates]为准。
+更新：2026-11-09（Asia/Shanghai）。本文件是唯一实时任务状态；只记录下表有限范围，不代表完整语言、B0 或 ZUI 已完成。规范与门槛以任务源码分支的[设计][design]、具名附件和[产品条件][gates]为准。
 
 已合入＝所列范围已进入远端 main；实现待验＝已有实现、尚未接受；部分实现＝完整链路未闭合；进行中＝正在实现或验证、尚未验收；待执行/待排期＝尚未执行/派定。待办优先级仅 P0/P1/P2，已交付行用“—”。任务 ID 不带前导零。
 
@@ -200,7 +200,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | G3.4.19 | 整共享地址数组读取逐实际根核初始化 | 已合入 | — | — | main@b07b85dd4；精确源码057308f16相关API四目标690/0、snapshot/Byte组92/0、全目标strict/fmt及结构3979通过；含4配置snapshot原生。新增全量/冷恢复未跑，不等于动态下标完成。 |
 | G3.4.20 | 借入泛型Package的Managed Store字段替换 | 待集成 | P0 | sol high · array_analysis_cost | f0ee4f821已获Sol精审接受；189/0、12原生、真实旧描述失效和新旧精确预算通过；root已合。只接实际可变Package的完整Store字段，不开放whole/capture。 |
 | G3.4.21 | 普通拥有字段Copy观察、共享错误臂及标量入口组合 | 待集成 | P0 | sol high · integration_audit；Astra审 | 7dd7bb0eb已获精确接受并合root；真实字段/tag/init/loan及Byte入口callee证明保留，相关10过/1后端失败；后端首阻断ReadPackageField由G10.3.5补接。 |
-| G3.4.22 | 存储借入程序中局部拥有ByteBuffer字段的共享字节视图 | 进行中 | P0 | sol high · byte_view_composition；Astra复核 | 接续远端d5565a56d（含7af06a6e实际头索引与别名/重定位反例），独立worktree重跑原四模块。旧2e736的ResourceLimit记录保留；本次首次构建因缺rustc_apfloat未执行测试，补齐环境后复验，未验收。 |
+| G3.4.22 | 存储借入程序中局部拥有ByteBuffer字段的共享字节视图 | 进行中 | P0 | sol high · byte_view_composition；Astra复核 | 已合联合基础并实测原四模块：79bba68c8仍在Sum标签分类前后耗尽默认Analyze额度（1失败，原日志保留）。正按费用分布复用不变CFG liveness；不提高Limits。独审发现raw重定位负控先触发SSA支配，已修测试待执行；生产未发现明确放行缺陷，未验收。 |
 
 </details>
 
@@ -420,7 +420,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 受阻 | P1 | sol high · array_analysis_cost | c42c06111已备份真实Map/Set及注册；Expand/Types过、Analyze拒绝：带Eq/Hash callable的helper不能发布普通可变输入的Store字段Commit效应。需独立完整调用效应合同，不移除守卫或改库绕过。 |
+| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | sol high · growing_collections | 接续c42c06111真实Map/Set并合当前联合基础；正以完整普通Input may-replace/retire与callback capture分开映射修调用效果，保失败留旧值且不授must/Fresh。不改库绕过、不扩schema；Source/raw/Wire和rehash分配失败待验证。 |
 
 </details>
 
@@ -526,7 +526,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | --- | --- | --- | --- | --- | --- |
 | G10.6.1 | 语言初稿开发预览：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 已合入 | — | — | [PR51 验收][e-pr51]：精确源码 `a8c7953e7` 默认5190/0、参考5078/0、文本70/0；双严格检查、release、10项工程门及远端源码恢复构建运行通过。有限预览不替代 B0/完整语言。 |
 | G10.6.2 | 通用 Native 库与异步资源联合验收：精确源码、真实消费者、独审和远端恢复 | 已合入 | — | — | `main@e800b39d5`：默认5269/0、参考5157/0、文本70/0；真实联合双后端 O0/O2、3735文件远端恢复/空缓存构建、16次 API 构建/128次运行/56次故障注入均通过。[本批记录][e-native-foundations]。 |
-| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | 北京时间最后施工 2026-11-09 09:04；新沙盒接续task/G10.6.3@ed8e3a5de，main实际b07b85dd4。一代理一源码分支/worktree；先闭合G3.4.22及G10.3.6，再跑原联合消费者和共同门。保留已交付范围，未宣称功能1.0。 |
+| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | 北京时间最后施工 2026-11-09 09:16；远端续工2a50a8bb8保留原四模块和48次原生矩阵。工具链Rust1.99.1/LLVM23.1.4恢复；原程序Analyze默认预算已实测耗尽，正修真实重复工作。待共同验收，未宣称功能1.0。 |
 | G10.6.4 | 全量回归中的旧Store/实际callback Package准入 | 已合入 | — | — | `6c1ac6fdf`已合候选；恢复旧flat callback/Store真实root快路，保留新borrowed Product分类，84项与原CLI/window正反例专项通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.5 | 新共享构造检查的两核实际独占loan发现与旧fee保持 | 已合入 | — | — | `e5c52c936/396c183c`已合：复用付费建表，无额外扫描，原两预算控制恢复原值、28独占构造/slot控制通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.6 | 默认worker深调用与life组合栈溢出 | 已合入 | — | — | 既有递归帧修复由main@222e550af验收；source_life合流回归的子项也已由main@0e770a26e交付。原默认栈/深调用/费用控制保留。 |
@@ -565,7 +565,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | G10.3.3 | 大型拥有Package物理snapshot和内部参数/返回ABI | 待集成 | P0 | sol high · large_owned_value_abi | 424791b53已精审接受并合root；239/0与16原生验证16KiB字段、移动/refill/固定栈循环，不授Copy。大型Closure三种签名仍Codegen Unsupported；地址Array Package分析边界保留。 |
 | G10.3.4 | 拥有借入与ErrorUnion组合的独立资源分析成本 | 待集成 | P0 | sol high · resource_sum_cost | 5cf970ba5已获Sol精审并合root；完整unknown/缺失alternative、循环固定点与最终检查保持，旧核预算不变。A实际CFG调度及V独立工作量修复，原Source默认额度过相关阶段。 |
 | G10.3.5 | 后端普通Package字段及Byte/Error消费者完整类型预付 | 待集成 | P0 | sol high · large_owned_value_abi | 9f91ccc5e已精审并合root；完整actual type预付预算7/0及strict过，原四模块和ErrorArm两后端O0/O2共8原生成功。更大pipeline仍前端阻断，不冒称共同门完成。 |
-| G10.3.6 | 普通Closure的大型拥有参数/结果内部ABI | 进行中 | P0 | sol high · large_closure_abi；Astra复核 | 新沙盒独立task/G10.3.6基ed8e3a5de接续；archive未找到旧Closure WIP。补16KiB Large→i32、i32→Large、Large→Large统一env/out/copy-in，保一次cleanup和旧小ABI；特殊callback/foreign仍保留边界，未验收。 |
+| G10.3.6 | 普通Closure的大型拥有参数/结果内部ABI | 进行中 | P0 | sol high · large_closure_abi；Astra复核 | 远端checkpoint57df31aa7已保全env/out/copy-in；后续本地680af78d1普通local Closure三签名、借入循环与失败清理28原生通过，旧大Package回归通过。factory/泛型helper另有Types边界，首失败保留，边界与小ABI测试待收尾；未共同验收。 |
 
 </details>
 
