@@ -195,10 +195,32 @@ fn complete_physical_paths_keep_queried_duplicate_policy_and_shape_identity() {
 }
 #[test]
 fn final_physical_lookup_prepays_complete_builds_and_keeps_fresh_exact_limits() {
-    let f = fixture::wide_shared(512).functions.remove(0);
-    let Type::BorrowedStorage { life, .. } = &f.return_type else {
+    let mut f = fixture::module().functions.remove(0);
+    let Type::BorrowedStorage { storage, life } = &mut f.return_type else {
         unreachable!()
     };
+    **storage = Type::Record {
+        name: "View".into(),
+        fields: vec![(
+            "items".into(),
+            Type::Array {
+                element: Box::new(fixture::address(Type::I64, false)),
+                length: 512,
+            },
+        )],
+    };
+    life.slots = (0..512)
+        .map(|ordinal| zil_ir::StorageLifeSlot {
+            path: vec![PlaceProjection::Field(0), PlaceProjection::Field(ordinal)],
+            binder: 0,
+            mode: StoredBorrowMode::SharedAddress,
+        })
+        .collect();
+    assert_eq!(
+        life.slots.len(),
+        512,
+        "real address slots, not ordinary padding"
+    );
     let paths = life
         .slots
         .iter()
