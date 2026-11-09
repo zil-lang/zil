@@ -9,6 +9,13 @@ pub(super) enum Anchor {
 }
 type Heads = BTreeSet<Anchor>;
 pub(super) type Locals = BTreeMap<LocalId, Heads>;
+// A weak Store description does not create address authority. Retaining its
+// actual producer identity merely bridges an Address -> Desc -> element chain;
+// descriptors from local owners or parameters have no address parent to grant.
+fn transported(ty: &Type) -> bool {
+    matches!(ty, Type::Address { .. })
+        || matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
+}
 pub(super) struct Facts {
     heads: Vec<Heads>,
     parents: Vec<Heads>,
@@ -77,8 +84,10 @@ pub(super) fn reconstruct(
             continue;
         }
         b.spend(block.instructions.len(), "actual local pointer transport")?;
-        needed |= block.instructions.iter().any(|i| matches!(i.kind,
-            InstructionKind::Store { value, .. } if matches!(f.values[value.0 as usize], Type::Address { .. })));
+        needed |= block.instructions.iter().any(|i| {
+            matches!(i.kind,
+            InstructionKind::Store { value, .. } if transported(&f.values[value.0 as usize]))
+        });
     }
     if !needed {
         return Ok(None);
@@ -116,7 +125,7 @@ pub(super) fn reconstruct(
         )?;
         for i in &block.instructions {
             if let Some(v) = i.result
-                && matches!(f.values[v.0 as usize], Type::Address { .. })
+                && transported(&f.values[v.0 as usize])
                 && !matches!(
                     i.kind,
                     InstructionKind::Load(_) | InstructionKind::TakeLocal { .. }
@@ -159,7 +168,7 @@ pub(super) fn reconstruct(
             for i in &block.instructions {
                 b.spend(1, "reaching pointer instruction")?;
                 if let Some(v) = i.result
-                    && matches!(f.values[v.0 as usize], Type::Address { .. })
+                    && transported(&f.values[v.0 as usize])
                 {
                     let mut parents = Heads::new();
                     match &i.kind {
@@ -169,7 +178,12 @@ pub(super) fn reconstruct(
                                 changed |= union(&mut facts.heads[v.0 as usize], row, b)?;
                             }
                         }
-                        InstructionKind::ReborrowAddress { address, .. }
+                        InstructionKind::OwnedStoreBorrow { store, .. }
+                        | InstructionKind::OwnedStoreBorrowMut { store, .. } => {
+                            union(&mut parents, &facts.heads[store.0 as usize], b)?;
+                        }
+                        InstructionKind::DescribeAddress { address }
+                        | InstructionKind::ReborrowAddress { address, .. }
                         | InstructionKind::BorrowPlaceAddress { address, .. }
                         | InstructionKind::BorrowVariantAddress { address, .. }
                         | InstructionKind::AddressField { address, .. }

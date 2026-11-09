@@ -24,7 +24,7 @@ LLVM verifier只负责LLVM约束，不能替代每次请求的独立ZIL Verify�
 
 ## 安装与构建
 
-支持的构建环境为 Linux x86_64 宿主、Rust 1.99.1、LLVM/Clang/LLD 23.1.4。动态库目录需有`libLLVM-23.so`及其真实动态库，运行时拒绝错误补丁版本。头文件、llvm-sys、Inkwell均不是本版构建依赖；Cargo依赖仅workspace。源码包不携带工具链。
+支持的构建环境为 Linux x86_64 宿主、Rust 1.99.1、LLVM/Clang/LLD 23.1.4。动态库目录需有`libLLVM-23.so`及其真实动态库，运行时拒绝错误补丁版本。头文件、llvm-sys、Inkwell均不是本版构建依赖；Cargo.lock 固定了 workspace 之外的依赖，包括精确浮点计算和摘要库。源码包不携带工具链或 Cargo 依赖缓存。
 
 ```sh
 export ZIL_LLVM_LIB_DIR=/opt/llvm-23.1.4/lib
@@ -41,7 +41,7 @@ cargo build --locked --offline --release -p zil-cli
 cargo build --locked --offline --release -p zil-cli --no-default-features
 ```
 
-参考版请求API明确报错，不静默回退。这里的`--offline`适用于已备妥工具链和项目依赖的环境。
+参考版请求API明确报错，不静默回退。这里的`--offline`适用于已备妥工具链和项目依赖的环境；新环境首次构建前先联网执行 `cargo fetch --locked`，再使用上述离线构建命令。缺少依赖导致的构建失败不代表语言测试已经执行。
 
 官方固定包安装入口为`python3 tools/llvm/install.py --prefix /absolute/new/prefix`。
 该入口校验完整发布包摘要，安装所需工具与Clang资源，并按上游llvm-shlib的方式

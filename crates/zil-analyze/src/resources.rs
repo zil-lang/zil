@@ -4037,6 +4037,14 @@ fn effect_consumers(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<usize>>> {
+    effect_consumers_with_public(module, graphs, false, budget)
+}
+fn effect_consumers_with_public(
+    module: &TypedModule,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    public_inputs: bool,
+    budget: &mut Budget,
+) -> CompileResult<Vec<Vec<usize>>> {
     let count = module.functions.len();
     // Adjacency headers, initial queue/queued cells and eventual table release.
     budget.product(count, 5, 1, "resource effect frontier tables")?;
@@ -4065,10 +4073,33 @@ fn effect_consumers(
                             .functions
                             .get(function.0 as usize)
                             .ok_or_else(|| error("absent callee"))?;
-                        // These calls consume published envelopes, not a
-                        // changing private resource-write summary.
-                        (target.callable_contract.is_none()
-                            && target.callable_return_contract.is_none())
+                        // Ordinary replacement input rows are independently
+                        // reconstructed even for a public callable helper.
+                        // Its actual invoked entries are additional consumers,
+                        // never authority supplied by this scheduling table.
+                        if public_inputs
+                            && let Some(contract) = &target.callable_contract
+                            && let InstructionKind::Call { arguments, .. } = &instruction.kind
+                        {
+                            for (entry, _) in replacements::public_roles::invoked(
+                                module,
+                                &module.functions[caller],
+                                contract,
+                                arguments,
+                                budget,
+                            )? {
+                                let users = consumers
+                                    .get_mut(entry)
+                                    .ok_or_else(|| error("public role entry is absent"))?;
+                                if users.last() != Some(&caller) {
+                                    budget.spend(2, "public replacement role frontier edge")?;
+                                    users.push(caller);
+                                }
+                            }
+                        }
+                        (public_inputs
+                            || (target.callable_contract.is_none()
+                                && target.callable_return_contract.is_none()))
                         .then_some(function.0 as usize)
                     }
                     InstructionKind::CallClosureShared { callee, .. }

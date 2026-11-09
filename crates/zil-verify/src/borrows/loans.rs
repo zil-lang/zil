@@ -372,9 +372,16 @@ fn reconstruct(
                                     }
                                 }
                             }
+                            InstructionKind::OwnedStoreBorrow { store, .. }
+                            | InstructionKind::OwnedStoreBorrowMut { store, .. } => {
+                                // The actual descriptor may carry an address
+                                // loan through DescribeAddress. A plain weak
+                                // description has an empty loan row and grants
+                                // no permission through this producer chain.
+                                row.insert(id);
+                                join(&mut parents, &flow.values[store.0 as usize], budget)?;
+                            }
                             InstructionKind::ByteBufferBorrow { buffer, .. }
-                            | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
-                            | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. }
                             | InstructionKind::MutexValue { guard: buffer }
                                 if budget.head_descriptions =>
                             {
@@ -386,8 +393,6 @@ fn reconstruct(
                                 join(&mut parents, &flow.values[mutex.0 as usize], budget)?;
                             }
                             InstructionKind::ByteBufferBorrow { .. }
-                            | InstructionKind::OwnedStoreBorrow { .. }
-                            | InstructionKind::OwnedStoreBorrowMut { .. }
                             | InstructionKind::MutexValue { .. }
                             | InstructionKind::BorrowOwnedArrayElement { .. }
                             | InstructionKind::BorrowPackageField { .. }
@@ -808,7 +813,7 @@ fn active(
     flow: &Flow,
     function: &TypedFunction,
     locals: &Locals,
-    live: &[bool],
+    live: &liveness::Bits,
     v: usize,
     lending_values: &[usize],
     budget: &mut Budget,
@@ -818,14 +823,13 @@ fn active(
     budget.spend(lending_values.len().saturating_add(locals.len()))?;
     let mut active = Loans::new();
     for &i in lending_values {
-        if live[i] {
+        if live.contains(i)? {
             join(&mut active, &flow.values[i], budget)?;
         }
     }
     for (local, row) in locals {
         if v.checked_add(local.0 as usize)
             .and_then(|index| live.get(index))
-            .copied()
             .unwrap_or(false)
         {
             join(&mut active, row, budget)?;
@@ -1321,8 +1325,9 @@ pub(super) fn check(
     let width = v
         .checked_add(f.locals.len())
         .ok_or_else(|| limit("loan liveness overflow"))?;
-    reserve(budget, &[n, width, 2])?;
-    let mut live_in = vec![vec![false; width]; n];
+    let units = liveness::Bits::word_count(width);
+    reserve(budget, &[n, units, 2])?;
+    let mut live_in = vec![liveness::Bits::new(width); n];
     let mut live_out = live_in.clone();
     loop {
         let mut changed = false;
@@ -1330,18 +1335,19 @@ pub(super) fn check(
             if !graph.reachable[b] {
                 continue;
             }
-            budget.spend(width)?;
-            let mut live = vec![false; width];
+            budget.spend(units.saturating_mul(2))?;
+            let mut live = liveness::Bits::new(width);
             for &next in &graph.successors[b] {
-                bits_join(&mut live, &live_in[next], budget)?;
+                live.join(&live_in[next], budget)?;
             }
             live_out[b].clone_from(&live);
-            term_use(&mut live, &f.blocks[b].terminator);
+            live.term_use(&f.blocks[b].terminator)?;
             for (position, instruction) in f.blocks[b].instructions.iter().enumerate().rev() {
                 budget.spend(1 + instruction_operands(&instruction.kind).count())?;
-                reverse(&mut live, instruction, v);
-                retain_replacement_values(&mut live, schedule, b, position, budget)?;
+                live.reverse(instruction, v)?;
+                live.retain(schedule, b, position, budget)?;
             }
+            budget.spend(units)?;
             if live != live_in[b] {
                 live_in[b] = live;
                 changed = true;
@@ -1355,14 +1361,14 @@ pub(super) fn check(
         if !graph.reachable[b] {
             continue;
         }
-        reserve(budget, &[block.instructions.len(), width])?;
-        let mut after = vec![vec![]; block.instructions.len()];
+        reserve(budget, &[block.instructions.len().saturating_add(1), units])?;
+        let mut after = vec![liveness::Bits::new(0); block.instructions.len()];
         let mut live = live_out[b].clone();
-        term_use(&mut live, &block.terminator);
+        live.term_use(&block.terminator)?;
         for (i, instruction) in block.instructions.iter().enumerate().rev() {
             after[i] = live.clone();
-            reverse(&mut live, instruction, v);
-            retain_replacement_values(&mut live, schedule, b, i, budget)?;
+            live.reverse(instruction, v)?;
+            live.retain(schedule, b, i, budget)?;
         }
         let mut locals = copy_state(&flow.inputs[b], budget)?;
         let mut retained_owners = ports.owner_inputs.get(b).cloned().unwrap_or_default();
@@ -1870,9 +1876,10 @@ pub(super) fn check(
                         access.check(&empty, &[Root::Local(*local)], true, budget)?;
                     }
                     if let Some(held) = locals.get(local) {
-                        for (value, live) in after[i][..v].iter().enumerate() {
+                        budget.spend(after[i].units())?;
+                        for value in after[i].ones().take_while(|&value| value < v) {
                             budget.spend(1)?;
-                            if *live && view[value] && !flow.values[value].is_disjoint(held) {
+                            if view[value] && !flow.values[value].is_disjoint(held) {
                                 return Err(reject(
                                     "E-BORROW-CONFLICT",
                                     Some(span),

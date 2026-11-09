@@ -1675,3 +1675,6 @@ fn fail_commit(session:&mut input.Composition,document:&mut string.String,contin
         }
     }
 }
+
+#[path = "growing_hash_collections.rs"]
+mod growing_hash_collections;
