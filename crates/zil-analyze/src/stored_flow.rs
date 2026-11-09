@@ -6,7 +6,10 @@ mod array_index;
 mod array_snapshot;
 mod byte_queries;
 mod live_words;
+pub(super) mod owned_byte_views;
 mod permission_access;
+#[cfg(test)]
+mod set_bits_tests;
 use live_words::LiveRow;
 #[cfg(test)]
 mod active_projection_tests;
@@ -58,6 +61,17 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> CompileRe
     // A plain address-returning helper can project the caller's actual stored
     // pointee even when its own signature contains no qualified carrier.
     if matches!(f.return_type, Type::Address { .. }) {
+        return Ok(true);
+    }
+    // Actual closure entries returning owned data must join the stored proof
+    // when callbacks are observed beside stored loans. Definition checking
+    // separately authenticates the entry, complete signature and captures.
+    if f.environment.is_some()
+        && matches!(
+            f.return_type,
+            Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+        )
+    {
         return Ok(true);
     }
 
@@ -3464,6 +3478,13 @@ fn transfer(
             state.locals.remove(local);
             clear_local_holes(state, *local, b)?;
         }
+        InstructionKind::DropPackage { local }
+            if owned_byte_views::drop_package(module, f, *local, b)? =>
+        {
+            ordered(b, state.locals.len(), 0)?;
+            state.locals.remove(local);
+            clear_local_holes(state, *local, b)?;
+        }
         InstructionKind::DescribeAddress { address } if b.store_option_results => {
             // A weak description carries an actual header origin, but grants
             // no element permission until the checked Store borrow.
@@ -3490,6 +3511,9 @@ fn transfer(
             }
             fee(b, description.loans.len())?;
             out.pointer.loans.extend(&description.loans);
+        }
+        InstructionKind::ByteBufferBorrow { mutable: false, .. } => {
+            out.pointer = owned_byte_views::transfer(module, f, i, b)?;
         }
         InstructionKind::ByteBufferNew
         | InstructionKind::ByteBufferLen { .. }
@@ -3658,7 +3682,8 @@ fn transfer(
                 | InstructionKind::CallClosureBorrowed { .. }
                 | InstructionKind::CallClosureShared { .. }
                 | InstructionKind::CallClosureMut { .. }
-        ) || ordinary_error_borrow(f, i, b)?)
+        ) || ordinary_error_borrow(f, i, b)?
+            || owned_byte_views::instruction(module, f, i, b)?)
         && matches!(value_type(f, result)?, Type::Address { .. })
     {
         let id = result.0 as usize;
@@ -3903,11 +3928,9 @@ fn active(
     b: &mut Budget,
 ) -> CompileResult<Loans> {
     let mut direct = Loans::new();
-    fee(b, live.len())?;
-    for i in 0..live.len() {
-        if !live.at(i)? {
-            continue;
-        }
+    fee(b, live.work())?;
+    for i in live.ones() {
+        fee(b, 1)?;
         let value = if i < values.len() {
             Some(&values[i])
         } else {
@@ -4274,6 +4297,7 @@ fn windows(
     }
     let byte_flow =
         byte_queries::Flow::solve(module, f, preds, reachable, entry, values, summaries, b)?;
+    let owned_byte_sites = owned_byte_views::Sites::collect(f, b)?;
     let live_out = liveness(module, f, preds, reachable, b)?;
     for (bi, block) in f.blocks.iter().enumerate() {
         fee(b, 1)?;
@@ -4328,6 +4352,7 @@ fn windows(
             if let Some(v) = i.result {
                 current.remove(&(v.0 as usize));
             }
+            owned_byte_sites.check(module, f, i, &state, values, &current, loans, apart, b)?;
             {
                 let mut access = permission_access::Access::new(&current, loans, b)?;
                 match &i.kind {
@@ -5389,7 +5414,13 @@ pub(super) fn infer(
     byte_queries::authenticate(module, b)?;
     // Raw paid inventories classify new owning holders and Fixed captures.
     // Preserve the established Fixed profile without rescanning either table.
-    b.stored_owned_fixed = if !b.task_borrowed_results
+    let owned_byte_profile = !b.task_borrowed_results
+        && !b.store_option_results
+        && b.composition_stored.is_empty()
+        && (!b.stored_packages || b.stored_fixed_owner)
+        && owned_byte_views::profile(module, b)?;
+    b.stored_owned_fixed = if !owned_byte_profile
+        && !b.task_borrowed_results
         && !b.store_option_results
         && b.composition_stored.is_empty()
         && (!b.stored_packages || b.stored_fixed_owner)
@@ -5447,6 +5478,7 @@ pub(super) fn infer(
             .chain(std::iter::once(&f.return_type))
         {
             b.type_work(ty, true, "stored ordinary executable value profile")?;
+            let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
             let mixed_resource = if b.stored_packages {
                 fee(b, module.resources.len())?;
                 matches!(ty, Type::Managed(payload) | Type::Desc(payload)
@@ -5457,7 +5489,8 @@ pub(super) fn infer(
             } else {
                 false
             };
-            if !(super::stored_callables::value(module, ty)
+            if !(byte_value
+                || super::stored_callables::value(module, ty)
                 || b.task_borrowed_results && task_address::admitted_value(ty)
                 || carrier(ty).is_some()
                 || pointed_carrier(ty).is_some()
@@ -5832,10 +5865,12 @@ fn actual_instructions(
     for block in &f.blocks {
         for i in &block.instructions {
             fee(b, 1)?;
+            let byte_view = owned_byte_views::instruction(module, f, i, b)?;
+            let byte_description = owned_byte_views::description_instruction(module, f, i, b)?;
             let byte_query = byte_queries::instruction(module, f, i, b)?;
             let package_read = pure_copy::ordinary_package_read(f, i, b)?;
             let error_borrow = ordinary_error_borrow(f, i, b)?;
-            ordinary_observations |= package_read || error_borrow;
+            ordinary_observations |= package_read || error_borrow || byte_view;
             let enum_operation = enum_address::instruction(module, f, i, b)?;
             let owned_operation = (b.stored_owned_fixed
                 || matches!(i.kind, InstructionKind::ReadDesc { .. })
@@ -5848,6 +5883,8 @@ fn actual_instructions(
                 && !owned_operation
                 && !enum_operation
                 && !byte_query
+                && !byte_view
+                && !byte_description
                 && !package_read
                 && !error_borrow
                 && !(b.task_borrowed_results && task_address::operation(&i.kind))
@@ -6578,9 +6615,10 @@ mod tests {
         assert_eq!(
             // Measured on the unchanged raw fixture after the paid path
             // index, word liveness, fact copy and per-instruction access work.
-            // Includes every Permission projection and empty outer-frame visit.
+            // Includes word/set-bit scans, every Permission projection and
+            // every empty outer-frame visit on the unchanged raw fixture.
             low,
-            12_824,
+            12_306,
             "bounded actual identity/ownership work changed"
         );
         assert_eq!(

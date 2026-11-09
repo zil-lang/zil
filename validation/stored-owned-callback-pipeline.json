@@ -1,0 +1,1504 @@
+{
+  "schema_version": 1,
+  "status": "Pass for the original synchronous owned-callback pipeline within the exact recorded scope",
+  "scope": "Ordinary borrowed-input/owned-output callbacks, trait/generic lending composition and current local ByteBuffer field views in stored CFG; original full Source, independent raw/Wire and actual allocation cleanup.",
+  "source": {
+    "base_main": "6e27d4da55ad627b49c0ad148eb65225a1413132",
+    "author_source": "187787ff0e0ad5a652a62dd4cbd05628a9dbb5fc",
+    "author_published": "bf15dd84114b26876c270fd9c326b8083e159214",
+    "production_and_initial_tests": "9be93aab658e08f1bc7008971398ffae39fc8998",
+    "tested_complete_code": "2dd71f2eb33d080eb48bb5677dcc7633ebb1cbfb",
+    "tested_complete_tree": "316ea033db029af7bc0025084382863b36396413",
+    "later_delta": "Only this receipt and generated normative indexes may follow; report any contract-only correction separately."
+  },
+  "runtime": {
+    "host": "x86_64-unknown-linux-gnu",
+    "rustc": "1.99.1 (58cf8f9c3 2026-10-13)",
+    "rustc_bundled_llvm": "23.1.1",
+    "clang_and_llvm_api": "23.1.4",
+    "incremental": false,
+    "dev_and_test_debug": 0,
+    "dev_and_test_strip": "symbols"
+  },
+  "inputs": {
+    "files": [
+      {
+        "path": "tests/language-readiness/owning-trait-hosts/owned_pipeline/main.zil",
+        "bytes": 51,
+        "sha256": "881fba7254f1a2914e41005d97302a3d26344b5f3abe64c5eab63886cf16143e"
+      },
+      {
+        "path": "tests/language-readiness/owning-trait-hosts/owned_pipeline/model.zil",
+        "bytes": 5404,
+        "sha256": "8373cffc716f97f84d27420000bee011ce71d330b1d026468f70b685d871ab11"
+      },
+      {
+        "path": "tests/language-readiness/owning-trait-hosts/owned_pipeline/protocol.zil",
+        "bytes": 308,
+        "sha256": "13b3484fbd554bd395baefcfeff7342e5cca567ed69579d382a74cc48cc5027c"
+      },
+      {
+        "path": "tests/language-readiness/owning-trait-hosts/owned_pipeline/library.zil",
+        "bytes": 289,
+        "sha256": "25493ca7ff5bb125b9fe634a34453b6ffefca63e821461de9e6b1a7173356eff"
+      }
+    ],
+    "bytes": 6052,
+    "project_fingerprint": "d9afb8c2667ac61471aa1f37bd2fb9277abcbab5df37090bf4f8f6b8d32ec676",
+    "original_source_bytes_and_test_assertions_preserved": true
+  },
+  "extraction": {
+    "base": "6e27d4da55ad627b49c0ad148eb65225a1413132",
+    "author_source": "187787ff0e0ad5a652a62dd4cbd05628a9dbb5fc",
+    "selected_paths": [
+      "crates/zil-analyze/src/budget.rs",
+      "crates/zil-analyze/src/stored_callables.rs",
+      "crates/zil-analyze/src/stored_flow.rs",
+      "crates/zil-analyze/src/stored_flow/live_words.rs",
+      "crates/zil-analyze/src/stored_flow/owned_byte_views.rs",
+      "crates/zil-analyze/src/stored_flow/set_bits_tests.rs",
+      "crates/zil-verify/src/lib.rs",
+      "crates/zil-verify/src/stored_callables.rs",
+      "crates/zil-verify/src/stored_flow.rs",
+      "crates/zil-verify/src/stored_flow/borrowed_owned_entry_tests.rs",
+      "crates/zil-verify/src/stored_flow/owned_byte_views.rs",
+      "crates/zil-verify/src/stored_flow/set_bits_tests.rs",
+      "tests/language-readiness/owning-trait-hosts/consumers.rs",
+      "tests/language-readiness/owning-trait-hosts/owned_byte_views/consumers.rs",
+      "tests/language-readiness/owning-trait-hosts/owned_byte_views/local-field.zil",
+      "tests/language-readiness/owning-trait-hosts/owned_pipeline/library.zil",
+      "tests/language-readiness/owning-trait-hosts/owned_pipeline/main.zil",
+      "tests/language-readiness/owning-trait-hosts/owned_pipeline/model.zil",
+      "tests/language-readiness/owning-trait-hosts/owned_pipeline/protocol.zil",
+      "tests/language-readiness/owning-trait-hosts/owned_results/stored_composition.rs"
+    ],
+    "deferred_paths": [
+      "tests/language-readiness/owning-trait-hosts/collected_pipeline/consumers.rs",
+      "tests/language-readiness/owning-trait-hosts/collected_pipeline/library.zil",
+      "tests/language-readiness/owning-trait-hosts/collected_pipeline/main.zil",
+      "tests/language-readiness/owning-trait-hosts/collected_pipeline/model.zil",
+      "tests/language-readiness/owning-trait-hosts/collected_pipeline/protocol.zil"
+    ],
+    "deferred_module_registration": "#[path = \"collected_pipeline/consumers.rs\"]\nmod collected_pipeline;\n",
+    "patch_sha256": "5b4ded3b801c5ff0845056221fb68fc8171a24a151657b41cbc7e4f3350613d7",
+    "owned_source_bytes": 6052,
+    "four_owned_sources_exact": true,
+    "prior_main_tests_unchanged": true,
+    "scope": "Complete original owned consumer and P1/P2/P3 only; collected input/tests retained unchanged on author branch and not accepted by this integration."
+  },
+  "native": {
+    "source": "9be93aab658e08f1bc7008971398ffae39fc8998",
+    "compiles": [
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/compile-Clang-O0.json",
+        "sha256": "1917b5048494454227a29071e3ac099b324c16c13d735970ac3b0762658e3e9f",
+        "status": "Success",
+        "verification_runs": 1,
+        "input_fingerprint": "d9afb8c2667ac61471aa1f37bd2fb9277abcbab5df37090bf4f8f6b8d32ec676"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/compile-Clang-O2.json",
+        "sha256": "5375ebea47cbb4f0fa4dea88c64a5ef8951863360d405ca9e2548f8e9adae746",
+        "status": "Success",
+        "verification_runs": 1,
+        "input_fingerprint": "d9afb8c2667ac61471aa1f37bd2fb9277abcbab5df37090bf4f8f6b8d32ec676"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/compile-LlvmApi-O0.json",
+        "sha256": "7436a3e478ecbc537a051388eceda7829d1df53cf08cf080e0e6bc7894fcbdd7",
+        "status": "Success",
+        "verification_runs": 1,
+        "input_fingerprint": "d9afb8c2667ac61471aa1f37bd2fb9277abcbab5df37090bf4f8f6b8d32ec676"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/compile-LlvmApi-O2.json",
+        "sha256": "fc781605ff4cba60f7a58e0e3ab3230f6d488a96490412de025bc38c0414845e",
+        "status": "Success",
+        "verification_runs": 1,
+        "input_fingerprint": "d9afb8c2667ac61471aa1f37bd2fb9277abcbab5df37090bf4f8f6b8d32ec676"
+      }
+    ],
+    "executions": 48,
+    "configurations": [
+      "Clang/O0",
+      "Clang/O2",
+      "LlvmApi/O0",
+      "LlvmApi/O2"
+    ],
+    "cases_per_configuration": 12,
+    "normal_stdout": "11:11:11\n",
+    "allocation_failure_points": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
+    "complete_exit_and_cleanup_assertions_preserved": true,
+    "identity": "out/runs/owned-pipeline-acceptance-root-20261109-1/owned-native-identity.json",
+    "identity_sha256": "9556a180abfb3c34e1b8292bcb50b96546c38e25dc78602c0523451839329853",
+    "execution_files": [
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O0-1.txt",
+        "sha256": "b432356814bed4d8de94c0ae15f9a09286c80a9bae5ffbd50cb47792b23a29c6"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O0-10.txt",
+        "sha256": "ad10cca0bcd49452dacdec1cc36a7a3e1c69838e6488e61985e2dc632fd2663a"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O0-11.txt",
+        "sha256": "fceba7ec51d30e75a55f98b4048525349e91bf0be73f7de6df2da5dbef54a413"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O0-2.txt",
+        "sha256": "833e75e71ae53e3ae0c5936556f5eaa7ec3dcd57e7f0c33085a984d652e5215b"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O0-3.txt",
+        "sha256": "d3d9f4573240b4b3ddaf681e7cdbc378a73d5ded1ed9135e1b59cc6b7916f5fc"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O0-4.txt",
+        "sha256": "2027d2e57565e8f80d829062184ff5675b965acadafdd9a058715e4061fae13c"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O0-5.txt",
+        "sha256": "c09732eeede9c103ce2125071a04e2ec61bd1f5c080109067e48e2094ff6ffef"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O0-6.txt",
+        "sha256": "6382c8683b18e93e4d5d88b4280c74ffc265a35c86eccb18d2a4f3bd1485a5b3"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O0-7.txt",
+        "sha256": "1bb1e33f7bb15fe8431e29d02f978b70989e0459f10d27856ec9dce015071279"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O0-8.txt",
+        "sha256": "e306835b15f49ce2603bc0a23f60e6bccb88d9745cb2f928ef3c57b706725e49"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O0-9.txt",
+        "sha256": "3991302dadb9e670d21ca1ee57832809a7ff251ccdfc33d6227a2443e53d0a37"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O0-none.txt",
+        "sha256": "7a6bb2d0b6047ce0021d98dfce816c7198bd5fb48b45c40a221d8fcfb3c95ebe"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O2-1.txt",
+        "sha256": "b432356814bed4d8de94c0ae15f9a09286c80a9bae5ffbd50cb47792b23a29c6"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O2-10.txt",
+        "sha256": "ad10cca0bcd49452dacdec1cc36a7a3e1c69838e6488e61985e2dc632fd2663a"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O2-11.txt",
+        "sha256": "fceba7ec51d30e75a55f98b4048525349e91bf0be73f7de6df2da5dbef54a413"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O2-2.txt",
+        "sha256": "833e75e71ae53e3ae0c5936556f5eaa7ec3dcd57e7f0c33085a984d652e5215b"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O2-3.txt",
+        "sha256": "d3d9f4573240b4b3ddaf681e7cdbc378a73d5ded1ed9135e1b59cc6b7916f5fc"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O2-4.txt",
+        "sha256": "2027d2e57565e8f80d829062184ff5675b965acadafdd9a058715e4061fae13c"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O2-5.txt",
+        "sha256": "c09732eeede9c103ce2125071a04e2ec61bd1f5c080109067e48e2094ff6ffef"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O2-6.txt",
+        "sha256": "6382c8683b18e93e4d5d88b4280c74ffc265a35c86eccb18d2a4f3bd1485a5b3"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O2-7.txt",
+        "sha256": "1bb1e33f7bb15fe8431e29d02f978b70989e0459f10d27856ec9dce015071279"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O2-8.txt",
+        "sha256": "e306835b15f49ce2603bc0a23f60e6bccb88d9745cb2f928ef3c57b706725e49"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O2-9.txt",
+        "sha256": "3991302dadb9e670d21ca1ee57832809a7ff251ccdfc33d6227a2443e53d0a37"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-Clang-O2-none.txt",
+        "sha256": "7a6bb2d0b6047ce0021d98dfce816c7198bd5fb48b45c40a221d8fcfb3c95ebe"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O0-1.txt",
+        "sha256": "b432356814bed4d8de94c0ae15f9a09286c80a9bae5ffbd50cb47792b23a29c6"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O0-10.txt",
+        "sha256": "ad10cca0bcd49452dacdec1cc36a7a3e1c69838e6488e61985e2dc632fd2663a"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O0-11.txt",
+        "sha256": "fceba7ec51d30e75a55f98b4048525349e91bf0be73f7de6df2da5dbef54a413"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O0-2.txt",
+        "sha256": "833e75e71ae53e3ae0c5936556f5eaa7ec3dcd57e7f0c33085a984d652e5215b"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O0-3.txt",
+        "sha256": "d3d9f4573240b4b3ddaf681e7cdbc378a73d5ded1ed9135e1b59cc6b7916f5fc"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O0-4.txt",
+        "sha256": "2027d2e57565e8f80d829062184ff5675b965acadafdd9a058715e4061fae13c"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O0-5.txt",
+        "sha256": "c09732eeede9c103ce2125071a04e2ec61bd1f5c080109067e48e2094ff6ffef"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O0-6.txt",
+        "sha256": "6382c8683b18e93e4d5d88b4280c74ffc265a35c86eccb18d2a4f3bd1485a5b3"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O0-7.txt",
+        "sha256": "1bb1e33f7bb15fe8431e29d02f978b70989e0459f10d27856ec9dce015071279"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O0-8.txt",
+        "sha256": "e306835b15f49ce2603bc0a23f60e6bccb88d9745cb2f928ef3c57b706725e49"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O0-9.txt",
+        "sha256": "3991302dadb9e670d21ca1ee57832809a7ff251ccdfc33d6227a2443e53d0a37"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O0-none.txt",
+        "sha256": "7a6bb2d0b6047ce0021d98dfce816c7198bd5fb48b45c40a221d8fcfb3c95ebe"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O2-1.txt",
+        "sha256": "b432356814bed4d8de94c0ae15f9a09286c80a9bae5ffbd50cb47792b23a29c6"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O2-10.txt",
+        "sha256": "ad10cca0bcd49452dacdec1cc36a7a3e1c69838e6488e61985e2dc632fd2663a"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O2-11.txt",
+        "sha256": "fceba7ec51d30e75a55f98b4048525349e91bf0be73f7de6df2da5dbef54a413"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O2-2.txt",
+        "sha256": "833e75e71ae53e3ae0c5936556f5eaa7ec3dcd57e7f0c33085a984d652e5215b"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O2-3.txt",
+        "sha256": "d3d9f4573240b4b3ddaf681e7cdbc378a73d5ded1ed9135e1b59cc6b7916f5fc"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O2-4.txt",
+        "sha256": "2027d2e57565e8f80d829062184ff5675b965acadafdd9a058715e4061fae13c"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O2-5.txt",
+        "sha256": "c09732eeede9c103ce2125071a04e2ec61bd1f5c080109067e48e2094ff6ffef"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O2-6.txt",
+        "sha256": "6382c8683b18e93e4d5d88b4280c74ffc265a35c86eccb18d2a4f3bd1485a5b3"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O2-7.txt",
+        "sha256": "1bb1e33f7bb15fe8431e29d02f978b70989e0459f10d27856ec9dce015071279"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O2-8.txt",
+        "sha256": "e306835b15f49ce2603bc0a23f60e6bccb88d9745cb2f928ef3c57b706725e49"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O2-9.txt",
+        "sha256": "3991302dadb9e670d21ca1ee57832809a7ff251ccdfc33d6227a2443e53d0a37"
+      },
+      {
+        "path": "out/runs/owned-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-813-294/execute-LlvmApi-O2-none.txt",
+        "sha256": "7a6bb2d0b6047ce0021d98dfce816c7198bd5fb48b45c40a221d8fcfb3c95ebe"
+      }
+    ]
+  },
+  "gates": [
+    {
+      "source": "efeff718a39738e8914986b4c264f07a58e76df5",
+      "tree": "af4bb35892f573a285fdc4d3c31bd21fa2f61ea9",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-analyze",
+        "-p",
+        "zil-verify",
+        "--lib",
+        "--no-fail-fast",
+        "--",
+        "--test-threads=1"
+      ],
+      "status": "Pass",
+      "tests": {
+        "passed": 728,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "log_sha256": "9acd525374150d7b1c11fdbb132456fb1b7455419c47135280bc987c4ca1e8e7",
+      "receipt": "out/runs/owned-pipeline-acceptance-root-20261109-2/independent-kernels.json",
+      "receipt_sha256": "b7e5da407d3f0ebca4fed272caa48f775dce80e777e2dc91f0124210f3d3e8b4",
+      "log": "out/runs/owned-pipeline-acceptance-root-20261109-2/independent-kernels.log"
+    },
+    {
+      "source": "efeff718a39738e8914986b4c264f07a58e76df5",
+      "tree": "af4bb35892f573a285fdc4d3c31bd21fa2f61ea9",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "nominal_trait_bounds",
+        "owning_trait_hosts::owned_results::stored_composition::ordinary_owned_pipeline_raw_and_wire_reconstruct_the_complete_project",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "status": "Pass",
+      "tests": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 211
+      },
+      "log_sha256": "0e5fcd195f884bd882dc28b3833976f013859a52b0ce7b7b3de1f6aba8ecdc95",
+      "receipt": "out/runs/owned-pipeline-acceptance-root-20261109-2/pipeline-raw-wire.json",
+      "receipt_sha256": "4d8bdf37eaf721d932f3a0a7887c0e4342b30b44d7b6c431604a1fe79e1a30a7",
+      "log": "out/runs/owned-pipeline-acceptance-root-20261109-2/pipeline-raw-wire.log"
+    },
+    {
+      "source": "3189c1fb14fe186236c85915802c5ac155fded38",
+      "tree": "09f204663a1b4c88ade9d720f62c0974095581bf",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "nominal_trait_bounds",
+        "owning_trait_hosts::owned_results::stored_composition::ordinary_package_fields_have_exact_fresh_analysis_and_verification_work",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "status": "Pass",
+      "tests": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 211
+      },
+      "log_sha256": "f0598148b584db1a9cf46904c2290c0c44e891f1f392aa775678a257cf54f34f",
+      "receipt": "out/runs/owned-pipeline-acceptance-root-20261109-3/package-work.json",
+      "receipt_sha256": "66e9fd99eafcae1071c8a2f71e7a1a7ba158332b7d3a3d76a491aee1a72cb741",
+      "log": "out/runs/owned-pipeline-acceptance-root-20261109-3/package-work.log"
+    },
+    {
+      "source": "3189c1fb14fe186236c85915802c5ac155fded38",
+      "tree": "09f204663a1b4c88ade9d720f62c0974095581bf",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "nominal_trait_bounds",
+        "owning_trait_hosts::owned_results::stored_composition::ordinary_error_places_have_exact_fresh_independent_resource_work",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "status": "Pass",
+      "tests": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 211
+      },
+      "log_sha256": "b6f1cfd18d705a515b2a3f0202e0d3c01bd044cfa8094822ac1e0b05b73f7f4c",
+      "receipt": "out/runs/owned-pipeline-acceptance-root-20261109-3/error-work.json",
+      "receipt_sha256": "69cc6556f7174836d0bc1ee6e933a830c512e307f54a53a89afbb8780b373e3e",
+      "log": "out/runs/owned-pipeline-acceptance-root-20261109-3/error-work.log"
+    },
+    {
+      "source": "3189c1fb14fe186236c85915802c5ac155fded38",
+      "tree": "09f204663a1b4c88ade9d720f62c0974095581bf",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "nominal_trait_bounds",
+        "owning_trait_hosts::owned_results::stored_composition::ordinary_package_fields_complete_project_has_exact_fresh_analysis_work",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "status": "Pass",
+      "tests": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 211
+      },
+      "log_sha256": "e29e20317f8cd3410e24045d72f2a7bbe4d6d95078befe7b86f9890577ad8c24",
+      "receipt": "out/runs/owned-pipeline-acceptance-root-20261109-3/project-work.json",
+      "receipt_sha256": "50a90f66bc4ed70aca12422312c3e69f440da390f17b805a94ce0b239badfae1",
+      "log": "out/runs/owned-pipeline-acceptance-root-20261109-3/project-work.log"
+    },
+    {
+      "source": "3189c1fb14fe186236c85915802c5ac155fded38",
+      "tree": "09f204663a1b4c88ade9d720f62c0974095581bf",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "aggregates",
+        "--test",
+        "cross_function_borrows",
+        "--test",
+        "generic_regressions",
+        "--no-fail-fast",
+        "work",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "status": "Pass",
+      "tests": {
+        "passed": 26,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 715
+      },
+      "log_sha256": "5106780b873184d1e81170ce77a466e006e71549befdfc70b0a302a1ee914543",
+      "receipt": "out/runs/owned-pipeline-acceptance-root-20261109-3/related-work.json",
+      "receipt_sha256": "ed0d7eafe110e1a87631afed91e2ed1fb14c3b8f50526094059ff321e646506a",
+      "log": "out/runs/owned-pipeline-acceptance-root-20261109-3/related-work.log"
+    },
+    {
+      "source": "2dd71f2eb33d080eb48bb5677dcc7633ebb1cbfb",
+      "tree": "316ea033db029af7bc0025084382863b36396413",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "aggregates",
+        "budgets_are_exact_and_fresh",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "status": "Pass",
+      "tests": {
+        "passed": 5,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 403
+      },
+      "log_sha256": "73a4be9d523310ae80807841a9acc8c36cb850d9d3d24bec9a84089904b8b0c4",
+      "receipt": "out/runs/owned-pipeline-acceptance-root-final-20261109-1/default-arrays.json",
+      "receipt_sha256": "663d33b3bd0a6f2b6c7da49d15169a7e583673100be0d85f156206aaa6d7b685",
+      "log": "out/runs/owned-pipeline-acceptance-root-final-20261109-1/default-arrays.log"
+    },
+    {
+      "source": "2dd71f2eb33d080eb48bb5677dcc7633ebb1cbfb",
+      "tree": "316ea033db029af7bc0025084382863b36396413",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "cross_function_borrows",
+        "optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "status": "Pass",
+      "tests": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 118
+      },
+      "log_sha256": "80385bd66fa8c8f2f0564c8df00c2ecd3789e7384a00234c884b38f3ebf10c13",
+      "receipt": "out/runs/owned-pipeline-acceptance-root-final-20261109-1/default-optional.json",
+      "receipt_sha256": "eda7c0420b8993f4ebead60b6f8954a18eee163d0b9ac2bd9a739493eb7ae998",
+      "log": "out/runs/owned-pipeline-acceptance-root-final-20261109-1/default-optional.log"
+    },
+    {
+      "source": "2dd71f2eb33d080eb48bb5677dcc7633ebb1cbfb",
+      "tree": "316ea033db029af7bc0025084382863b36396413",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "generic_regressions",
+        "captured_helper_source_captured_source_native_full_results_and_budget",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "status": "Pass",
+      "tests": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 213
+      },
+      "log_sha256": "1ceadc37ef9c64a03f0a3c1cdbe92f212124603e5a292aa12db590941719838b",
+      "receipt": "out/runs/owned-pipeline-acceptance-root-final-20261109-1/default-captured.json",
+      "receipt_sha256": "428cc4ea4de091a09f2d9e30b5144782f69131e57bd41076ff69d4e64512980b",
+      "log": "out/runs/owned-pipeline-acceptance-root-final-20261109-1/default-captured.log"
+    },
+    {
+      "source": "2dd71f2eb33d080eb48bb5677dcc7633ebb1cbfb",
+      "tree": "316ea033db029af7bc0025084382863b36396413",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "generic_regressions",
+        "helper_cfg_join_cfg::actual_dag_budget_boundaries_and_old_tail_fees",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "status": "Pass",
+      "tests": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 213
+      },
+      "log_sha256": "ef02e6c334c93a7b68420f548551b684f54892fdb9da1dc65c4adf566b3fe5fb",
+      "receipt": "out/runs/owned-pipeline-acceptance-root-final-20261109-1/default-helper.json",
+      "receipt_sha256": "947333d3df16436ccc4fd69f93ceb79981aa9804e5df862f3d791dc5ddc00802",
+      "log": "out/runs/owned-pipeline-acceptance-root-final-20261109-1/default-helper.log"
+    },
+    {
+      "source": "2dd71f2eb33d080eb48bb5677dcc7633ebb1cbfb",
+      "tree": "316ea033db029af7bc0025084382863b36396413",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--no-default-features",
+        "--test",
+        "aggregates",
+        "budgets_are_exact_and_fresh",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "status": "Pass",
+      "tests": {
+        "passed": 5,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 403
+      },
+      "log_sha256": "d10c8352f4556243e1648cb035ea6ffbf0e8f5d2e358040d0782d38a5cafbf1b",
+      "receipt": "out/runs/owned-pipeline-acceptance-root-final-20261109-1/reference-arrays.json",
+      "receipt_sha256": "23f3cee6a810187d642d6a6ad232e47ee45f54622d78e89d37b4a798c107a43c",
+      "log": "out/runs/owned-pipeline-acceptance-root-final-20261109-1/reference-arrays.log"
+    },
+    {
+      "source": "2dd71f2eb33d080eb48bb5677dcc7633ebb1cbfb",
+      "tree": "316ea033db029af7bc0025084382863b36396413",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--no-default-features",
+        "--test",
+        "cross_function_borrows",
+        "optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "status": "Pass",
+      "tests": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 118
+      },
+      "log_sha256": "88aae2b709886c037563567067f6d70ae023021a6986ebfc816b82e7858c93c2",
+      "receipt": "out/runs/owned-pipeline-acceptance-root-final-20261109-1/reference-optional.json",
+      "receipt_sha256": "97e1bc9d790bb8cbd6947dbab9b59f74937e80ef7d9fb8ee380daa9df4959a06",
+      "log": "out/runs/owned-pipeline-acceptance-root-final-20261109-1/reference-optional.log"
+    },
+    {
+      "source": "2dd71f2eb33d080eb48bb5677dcc7633ebb1cbfb",
+      "tree": "316ea033db029af7bc0025084382863b36396413",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--no-default-features",
+        "--test",
+        "generic_regressions",
+        "captured_helper_source_captured_source_native_full_results_and_budget",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "status": "Pass",
+      "tests": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 212
+      },
+      "log_sha256": "bb98d0a65b69cf5f064b35c4940241445e4a0f14396892be9195369b1735d8de",
+      "receipt": "out/runs/owned-pipeline-acceptance-root-final-20261109-1/reference-captured.json",
+      "receipt_sha256": "4300e763264a2f4c3663cfb28f414ae40f925e605ec3bf7bd0dc6b164fd9b058",
+      "log": "out/runs/owned-pipeline-acceptance-root-final-20261109-1/reference-captured.log"
+    },
+    {
+      "source": "2dd71f2eb33d080eb48bb5677dcc7633ebb1cbfb",
+      "tree": "316ea033db029af7bc0025084382863b36396413",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--no-default-features",
+        "--test",
+        "generic_regressions",
+        "helper_cfg_join_cfg::actual_dag_budget_boundaries_and_old_tail_fees",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "status": "Pass",
+      "tests": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 212
+      },
+      "log_sha256": "6cff45935490879e1c8536d674de4f0abe5d60f5084588b1022c991e21696897",
+      "receipt": "out/runs/owned-pipeline-acceptance-root-final-20261109-1/reference-helper.json",
+      "receipt_sha256": "34fda9e03400b69b96dbbb43c2ad0e6f93c1a61a49e6636406fab404c444fb3e",
+      "log": "out/runs/owned-pipeline-acceptance-root-final-20261109-1/reference-helper.log"
+    },
+    {
+      "source": "2dd71f2eb33d080eb48bb5677dcc7633ebb1cbfb",
+      "tree": "316ea033db029af7bc0025084382863b36396413",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "status": "Pass",
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "receipt": "out/runs/owned-pipeline-acceptance-root-final-20261109-1/fmt.json",
+      "receipt_sha256": "7995cbde553e58ed819b6825469904605833885e35c5f1140dc517a649a19339",
+      "log": "out/runs/owned-pipeline-acceptance-root-final-20261109-1/fmt.log"
+    },
+    {
+      "source": "2dd71f2eb33d080eb48bb5677dcc7633ebb1cbfb",
+      "tree": "316ea033db029af7bc0025084382863b36396413",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-analyze",
+        "-p",
+        "zil-verify",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "status": "Pass",
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "log_sha256": "ed0bc26de909c4bae3c7d8ee3f6e32fd424cd26c74f362bbd232a8c7557c4e22",
+      "receipt": "out/runs/owned-pipeline-acceptance-root-final-20261109-1/kernel-clippy.json",
+      "receipt_sha256": "925e4adf9e87264e342b7d6ee941265bf7463ba5be3c1fa31a5632f79a31d675",
+      "log": "out/runs/owned-pipeline-acceptance-root-final-20261109-1/kernel-clippy.log"
+    },
+    {
+      "source": "2dd71f2eb33d080eb48bb5677dcc7633ebb1cbfb",
+      "tree": "316ea033db029af7bc0025084382863b36396413",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "nominal_trait_bounds",
+        "--test",
+        "aggregates",
+        "--test",
+        "cross_function_borrows",
+        "--test",
+        "generic_regressions",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "status": "Pass",
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "log_sha256": "f300e9126966967822cd37d51d4d1b651ad0a4a19d6ff4161786256f18020729",
+      "receipt": "out/runs/owned-pipeline-acceptance-root-final-20261109-1/driver-clippy.json",
+      "receipt_sha256": "2cf42b76253481026982be4b88d2d0671a326b64dc76cecae6b97c2587e80719",
+      "log": "out/runs/owned-pipeline-acceptance-root-final-20261109-1/driver-clippy.log"
+    }
+  ],
+  "original_driver_regression": {
+    "source": "9be93aab658e08f1bc7008971398ffae39fc8998",
+    "passed": 208,
+    "failed": 3,
+    "log_sha256": "b130ceac836e398cc0ee8895f817d9ab25e494c5749018271e78bcacd1b185d2",
+    "resolution": "Three fixed-cost anchors were remeasured without changing program or full N/N-1/fresh and candidate assertions; the three exact reruns on 3189 passed. This is not a claim of a later full driver run."
+  },
+  "first_failures": [
+    {
+      "source": "9be93aab658e08f1bc7008971398ffae39fc8998",
+      "tree": "424d0cba54c2bdc2bbb25d84476d1d85f4b3061d",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-analyze",
+        "-p",
+        "zil-verify",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "status": "Fail",
+      "tests": {
+        "passed": 225,
+        "failed": 2,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "log_sha256": "32663a0ad415034a20b15b0d156719aaffcf775d8eed75f035877a4e463bc8a8",
+      "receipt": "out/runs/owned-pipeline-acceptance-root-20261109-1/independent-kernels.json",
+      "receipt_sha256": "d0208e330119b4bef3e7d94c37d1bd09acdb65115b76abee6c20b7097f287b91",
+      "log": "out/runs/owned-pipeline-acceptance-root-20261109-1/independent-kernels.log"
+    },
+    {
+      "source": "9be93aab658e08f1bc7008971398ffae39fc8998",
+      "tree": "424d0cba54c2bdc2bbb25d84476d1d85f4b3061d",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-verify",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "status": "Fail",
+      "tests": {
+        "passed": 500,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "log_sha256": "a7dae4a1496fb2777c8c45b242ddeda36f9c5d4e62577f67dda42110a8bc04b4",
+      "receipt": "out/runs/owned-pipeline-acceptance-root-20261109-1/verify.json",
+      "receipt_sha256": "07301460f43207537d7f9c91d4ba528405b180d371795c52e22f59c67987cb05",
+      "log": "out/runs/owned-pipeline-acceptance-root-20261109-1/verify.log"
+    },
+    {
+      "source": "9be93aab658e08f1bc7008971398ffae39fc8998",
+      "tree": "424d0cba54c2bdc2bbb25d84476d1d85f4b3061d",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "nominal_trait_bounds",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "status": "Fail",
+      "tests": {
+        "passed": 208,
+        "failed": 3,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "log_sha256": "b130ceac836e398cc0ee8895f817d9ab25e494c5749018271e78bcacd1b185d2",
+      "receipt": "out/runs/owned-pipeline-acceptance-root-20261109-1/trait-consumers.json",
+      "receipt_sha256": "3cffa98cdd57b8d868104f68281d7800b8b51fe47a34c48ea225e16d3c7abd30",
+      "log": "out/runs/owned-pipeline-acceptance-root-20261109-1/trait-consumers.log"
+    },
+    {
+      "source": "3189c1fb14fe186236c85915802c5ac155fded38",
+      "tree": "09f204663a1b4c88ade9d720f62c0974095581bf",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "aggregates",
+        "--test",
+        "cross_function_borrows",
+        "--test",
+        "generic_regressions",
+        "--no-fail-fast",
+        "budget",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "status": "Fail",
+      "tests": {
+        "passed": 48,
+        "failed": 7,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 686
+      },
+      "log_sha256": "41f278fa8b5055710920f914e7206a648aff88321b82988a0e87af6b8f38bdfd",
+      "receipt": "out/runs/owned-pipeline-acceptance-root-20261109-3/related-budget.json",
+      "receipt_sha256": "982c2ef733b3861f09e55855cd065acb5c903c9ba51e76417c5c7c8b66ade003",
+      "log": "out/runs/owned-pipeline-acceptance-root-20261109-3/related-budget.log",
+      "failed_tests": [
+        "mixed_holder::borrowed_record::qualified_record_getter_width_and_depth_budgets_are_exact_and_fresh",
+        "mixed_holder::shared_address_array::array_slots_and_actual_pointee_snapshot_budgets_are_exact_and_fresh",
+        "mixed_holder::shared_address_array::dynamic_shared_array_index::dynamic_snapshot_and_alternative_budgets_are_exact_and_fresh",
+        "mixed_holder::shared_address_array::package_shared_array::package_array_slots_pointee_and_parent_snapshot_budgets_are_exact_and_fresh",
+        "optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets",
+        "captured_helper_source_captured_source_native_full_results_and_budget",
+        "helper_cfg_join_cfg::actual_dag_budget_boundaries_and_old_tail_fees"
+      ]
+    }
+  ],
+  "temporary_budget_measurement": {
+    "source": "7c2c8ffbe4f0162cb054f8b6b05416280991bef1",
+    "language_acceptance": false,
+    "scope": "Only four fixed-cost equalities were temporarily printed; all raw inputs, semantic, N/N-1/fresh/warm/raw-Wire/native and historical probes remained. All four equalities restored before final pins.",
+    "restore_record": "out/runs/owned-pipeline-budget-observation-20261109-1/restore-and-fixed-pins.json",
+    "logs": {
+      "optional": "26a01cd0b8ea3fd33b5a509b09e6aca9bc185be30a8c63fc9fead122a5425853",
+      "captured": "2e39a18f58775bda746fa72751d5576aafdb15bf1a3d12817d5850890f7004e8",
+      "helper": "85a56c153616433d98a52819f3a4ce6998c78d2b138cba3789ff81f4dd45d758"
+    }
+  },
+  "budget_scope": {
+    "default_limit_changed": false,
+    "actual_scan": "word/container visits plus actual set bits; all Permission and retained/external/ancestor visits remain",
+    "verify_indexed_path_unchanged": true,
+    "required_fixed_point_rounds_retained": true,
+    "exact_boundary_and_N_minus_1_retained": true,
+    "historical_requests_per_configuration": 31,
+    "historical_requests_retained": true,
+    "historical_outcome_after_actual_reduction": "31 Success, zero ResourceLimit per final configuration; previous historical results remain in their source-bound receipt.",
+    "fixed_anchors": {
+      "owned_once_analyze": [
+        12824,
+        12306
+      ],
+      "package_raw_analyze": [
+        312594,
+        271349
+      ],
+      "package_raw_verify": [
+        543695,
+        502450
+      ],
+      "package_project_analyze": [
+        4363432,
+        3533087
+      ],
+      "error_raw_analyze": [
+        442451,
+        395048
+      ],
+      "error_raw_verify": [
+        528952,
+        481549
+      ]
+    },
+    "array_tables": {
+      "tests/fixtures/resource-packages/shared_address_array.rs": {
+        "old": [
+          [
+            1702,
+            19249,
+            24968,
+            24968,
+            24968
+          ],
+          [
+            2326,
+            42627,
+            57024,
+            57024,
+            57024
+          ],
+          [
+            4229,
+            36622,
+            44446,
+            44446,
+            44446
+          ],
+          [
+            6250,
+            41365,
+            50591,
+            50591,
+            50591
+          ],
+          [
+            3576,
+            36654,
+            51213,
+            51213,
+            51213
+          ],
+          [
+            4788,
+            78320,
+            116810,
+            116810,
+            116810
+          ],
+          [
+            6481,
+            57954,
+            80106,
+            80106,
+            80106
+          ],
+          [
+            8988,
+            67581,
+            93154,
+            93154,
+            93154
+          ]
+        ],
+        "new": [
+          [
+            1702,
+            17725,
+            23366,
+            23366,
+            23366
+          ],
+          [
+            2326,
+            40977,
+            55233,
+            55233,
+            55233
+          ],
+          [
+            4229,
+            31066,
+            38812,
+            38812,
+            38812
+          ],
+          [
+            6250,
+            37897,
+            46982,
+            46982,
+            46982
+          ],
+          [
+            3576,
+            34816,
+            49140,
+            49140,
+            49140
+          ],
+          [
+            4788,
+            76236,
+            114368,
+            114368,
+            114368
+          ],
+          [
+            6481,
+            52084,
+            74001,
+            74001,
+            74001
+          ],
+          [
+            8988,
+            63739,
+            88984,
+            88984,
+            88984
+          ]
+        ]
+      },
+      "tests/fixtures/resource-packages/dynamic_shared_array_index.rs": {
+        "old": [
+          [
+            1844,
+            22761,
+            29982,
+            29982,
+            29982
+          ],
+          [
+            2480,
+            56007,
+            87843,
+            87843,
+            87843
+          ],
+          [
+            4420,
+            41128,
+            51434,
+            51434,
+            51434
+          ],
+          [
+            6467,
+            48440,
+            61197,
+            61197,
+            61197
+          ],
+          [
+            3622,
+            41925,
+            57947,
+            57947,
+            57947
+          ],
+          [
+            4846,
+            99447,
+            160306,
+            160306,
+            160306
+          ],
+          [
+            6576,
+            64219,
+            88814,
+            88814,
+            88814
+          ],
+          [
+            9109,
+            76835,
+            106136,
+            106136,
+            106136
+          ]
+        ],
+        "new": [
+          [
+            1844,
+            21043,
+            28089,
+            28089,
+            28089
+          ],
+          [
+            2480,
+            54163,
+            85761,
+            85761,
+            85761
+          ],
+          [
+            4420,
+            35378,
+            45509,
+            45509,
+            45509
+          ],
+          [
+            6467,
+            44718,
+            57207,
+            57207,
+            57207
+          ],
+          [
+            3622,
+            39797,
+            55439,
+            55439,
+            55439
+          ],
+          [
+            4846,
+            97073,
+            157429,
+            157429,
+            157429
+          ],
+          [
+            6576,
+            58059,
+            82274,
+            82274,
+            82274
+          ],
+          [
+            9109,
+            72643,
+            101441,
+            101441,
+            101441
+          ]
+        ]
+      },
+      "tests/fixtures/resource-packages/package_shared_array.rs": {
+        "old": [
+          [
+            4018,
+            43671,
+            65446,
+            65446,
+            65446
+          ],
+          [
+            5206,
+            88369,
+            135808,
+            135808,
+            135808
+          ],
+          [
+            7021,
+            65992,
+            97272,
+            97272,
+            97272
+          ],
+          [
+            9484,
+            76101,
+            111080,
+            111080,
+            111080
+          ]
+        ],
+        "new": [
+          [
+            4018,
+            40879,
+            62138,
+            62138,
+            62138
+          ],
+          [
+            5206,
+            85055,
+            131717,
+            131717,
+            131717
+          ],
+          [
+            7021,
+            58776,
+            89540,
+            89540,
+            89540
+          ],
+          [
+            9484,
+            71113,
+            105483,
+            105483,
+            105483
+          ]
+        ]
+      },
+      "tests/fixtures/resource-packages/borrowed_record.rs": {
+        "old_text": "    let expected = [\n        [3220, 31059, 43867, 43867, 43867],\n        [6111, 93974, 137924, 137924, 137924],\n        [19476, 155222, 189511, 189511, 189511],\n        [37767, 411827, 549673, 549673, 549673],\n    ];",
+        "new": [
+          [
+            3220,
+            29573,
+            41870,
+            41870,
+            41870
+          ],
+          [
+            6111,
+            88960,
+            130635,
+            130635,
+            130635
+          ],
+          [
+            19476,
+            151772,
+            184568,
+            184568,
+            184568
+          ],
+          [
+            37767,
+            403057,
+            536750,
+            536750,
+            536750
+          ]
+        ]
+      }
+    },
+    "other_fixed_anchors": {
+      "crates/zil-driver/tests/cross_function_borrows.rs": [
+        [
+          "(0, 118_945, 258_986)",
+          "(0, 105_985, 245_258)"
+        ],
+        [
+          "(4, 193_808, 463_816)",
+          "(4, 174_824, 444_008)"
+        ],
+        [
+          "(12, 377_066, 932_245)",
+          "(12, 342_198, 896_345)"
+        ]
+      ],
+      "crates/zil-driver/tests/generic_regressions.rs": [
+        [
+          "\"fn\" => (24_145, [24_224, 24_513])",
+          "\"fn\" => (23_315, [24_224, 24_513])"
+        ],
+        [
+          "\"fnmut-two-calls\" => (31_367, [34_804, 35_099])",
+          "\"fnmut-two-calls\" => (29_019, [34_804, 35_099])"
+        ],
+        [
+          "\"fnonce\" => (32_776, [36_926, 37_090])",
+          "\"fnonce\" => (30_496, [36_926, 37_090])"
+        ]
+      ],
+      "tests/language-readiness/terminal/higher-rank-borrows/fnonce-helper-cfg/regressions.rs": [
+        [
+          "[57_084, 59_332, 59_332]",
+          "[53_202, 55_292, 55_292]"
+        ],
+        [
+          "[45_624, 46_922, 46_922]",
+          "[42_476, 43_670, 43_670]"
+        ]
+      ]
+    }
+  },
+  "independent_review": {
+    "p3_report_sha256": "5f69b346c19fc279c6e35ba274bfd30d469e0458ed1f496f9764f9434a0ac58b",
+    "extraction_report_sha256": "67981d611d0e41b57a88591f0effef09fcbcf8158a15da1a6a487c070a4a2bd6",
+    "final_delta": {
+      "source": "2dd71f2eb33d080eb48bb5677dcc7633ebb1cbfb",
+      "report_sha256": "e4a521fe43f2e81f560137efc6b8d7405940efddef656ed9c29a012a065d6e53",
+      "identity_sha256": "f3c81073e47134202003c39a0a7a2112d2a808a9a4b5fb1938ceb0c0994e8387",
+      "result": "No blocker in the exact test/documentation delta; production scope unchanged"
+    },
+    "receipt": {
+      "reviewed_draft_sha256": "2a63393f8b4701671988389a5fade017db26623c12fb39191c8399f654f9c137",
+      "report_sha256": "7c28adb110b1776b8b66a10811036adb6ee6ba1b6f759ff70c6274889fe11a0c",
+      "mechanical_checks": 572,
+      "result": "Recorded source, gates, logs and native facts independently checked; finalization only records this completed review",
+      "final_artifact_identity": "Recorded separately in the integration delivery record; no self-referential hash"
+    }
+  },
+  "limits": {
+    "collected_pipeline": {
+      "accepted": false,
+      "bytes": 7547,
+      "project_fingerprint": "4011cf8d1255cbf085e02cce4cd9d9fc54c28797bebf9e61cd06bbfbc855dd7f",
+      "last_tested_source": "187787ff0e0ad5a652a62dd4cbd05628a9dbb5fc",
+      "status": "Verify ResourceLimit / V1",
+      "original_files_and_tests_retained_on_author_branch": true
+    },
+    "growing_hash_map": "Separate open task, not accepted here.",
+    "broader_captures_mutable_views_async_ffi": "No added qualification.",
+    "full_workspace_ci_for_this_candidate": "NotRun locally; prior main CI is not evidence for this source.",
+    "release": "Finite development preview; no language 1.0 or product release gate changed."
+  }
+}

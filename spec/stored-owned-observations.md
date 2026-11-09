@@ -10,4 +10,4 @@
 
 Analyze 与 Verify 分别检查实际 Source、raw 模块和 Wire 候选。普通拥有错误组合的 Sum 工作量及 CFG 调度保留完整状态、错误前缀和最后检查；后端在 LIR 绑定、Package 字段、ByteBuffer 和 ErrorUnion 消费前预付完整实际类型。默认限额不变，精确预算必须同时保留 N、N−1 与 fresh 重试结果。
 
-原四模块程序与最近反例位于 `tests/language-readiness/owning-trait-hosts/owned_results/stored_composition/` 及相邻的 `stored_composition.rs`。本合同不开放 callback 与存储 CFG 的额外组合、一般存储捕获、外部 ABI 或新的借入结果来源。
+原四模块程序与最近反例位于 `tests/language-readiness/owning-trait-hosts/owned_results/stored_composition/` 及相邻的 `stored_composition.rs`。存储 CFG 中的同步拥有回调与本地共享字节视图另见[有限组合合同](stored-owned-callback-pipeline.md)；一般存储捕获、外部 ABI 或新的借入结果来源仍须各自证明。

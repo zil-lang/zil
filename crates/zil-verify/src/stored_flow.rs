@@ -4,12 +4,17 @@ use super::*;
 mod access_candidates;
 mod array_index;
 mod array_snapshot;
+#[cfg(test)]
+mod borrowed_owned_entry_tests;
 mod byte_queries;
 mod leaf_rows;
 mod live_words;
+pub(super) mod owned_byte_views;
 mod relation_index;
 #[cfg(test)]
 mod result_row_tests;
+#[cfg(test)]
+mod set_bits_tests;
 mod ssa_loan_groups;
 use live_words::WordRow;
 #[cfg(test)]
@@ -35,6 +40,16 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> Check<boo
     // A plain address-returning helper can project the caller's actual stored
     // pointee even when its own signature contains no qualified carrier.
     if matches!(f.return_type, Type::Address { .. }) {
+        return Ok(true);
+    }
+    // Include the actual owned-result closure entry in this independent
+    // ledger; this tag does not establish its signature or capture validity.
+    if f.environment.is_some()
+        && matches!(
+            f.return_type,
+            Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+        )
+    {
         return Ok(true);
     }
 
@@ -1293,11 +1308,14 @@ pub(super) fn qualifications(
                     && !b.store_option_results
                     && super::stored_owned::instruction(f, &i.kind))
                     || scalar_owner_operation)
+                    && !owned_byte_views::owner_instruction(module, f, i, b)?
                     && !(b.task_borrowed_results && task_address::owner_instruction(f, &i.kind));
                 if !super::class_flow::pointer_instruction(f, i)
                     && !super::stored_callables::instruction(module, f, i)
                     && !owned_operation
                     && !enum_operation
+                    && !owned_byte_views::instruction(module, f, i, b)?
+                    && !owned_byte_views::description_instruction(module, f, i, b)?
                     && byte_queries::query(&i.kind).is_none()
                     && !(b.task_borrowed_results && task_address::operation(&i.kind))
                     && !(b.store_option_results
@@ -2759,6 +2777,9 @@ fn step(
             }
             add_loans(&mut out.address.loans, &description.loans, b)?;
         }
+        InstructionKind::ByteBufferBorrow { mutable: false, .. } => {
+            out.address = owned_byte_views::transfer(module, f, i, b)?;
+        }
         InstructionKind::ByteBufferNew
         | InstructionKind::ByteBufferLen { .. }
         | InstructionKind::ByteBufferCapacity { .. }
@@ -3430,7 +3451,8 @@ fn step(
                 | InstructionKind::CallClosureBorrowed { .. }
                 | InstructionKind::CallClosureShared { .. }
                 | InstructionKind::CallClosureMut { .. }
-        ) || ordinary_error_borrow(f, i, b)?)
+        ) || ordinary_error_borrow(f, i, b)?
+            || owned_byte_views::instruction(module, f, i, b)?)
         && matches!(vt(f, id)?, Type::Address { .. })
     {
         let row = &mut loans[id.0 as usize];
@@ -3900,11 +3922,11 @@ fn live_loans(
     indexed: Option<&[usize]>,
     b: &mut Budget,
 ) -> Check<Vec<usize>> {
-    b.spend(indexed.map_or(live.len(), |ids| {
+    b.spend(indexed.map_or(live.work(), |ids| {
         ids.len().saturating_add(live.len() - solution.values.len())
     }))?;
     let mut loans = live_loan_ids::SortedLoanIds::default();
-    let mut collect = |id: usize| -> Check<()> {
+    let mut collect = |id: usize, b: &mut Budget| -> Check<()> {
         if !live.is_live(id)? || definition.is_some_and(|value| value.0 as usize == id) {
             return Ok(());
         }
@@ -3926,14 +3948,15 @@ fn live_loans(
     };
     if let Some(ids) = indexed {
         for &id in ids {
-            collect(id)?;
+            collect(id, b)?;
         }
         for id in solution.values.len()..live.len() {
-            collect(id)?;
+            collect(id, b)?;
         }
     } else {
-        for id in 0..live.len() {
-            collect(id)?;
+        for id in live.ones() {
+            b.spend(1)?;
+            collect(id, b)?;
         }
     }
     if b.task_borrowed_results {
@@ -4175,6 +4198,7 @@ fn windows(
         summaries,
         b,
     )?;
+    let owned_byte_sites = owned_byte_views::Sites::collect(f, b)?;
     let output_live = live_out(module, f, g, b)?;
     let ssa_groups = ssa_loan_groups::Sources::collect(&solution.values, b)?;
     for (bi, block) in f.blocks.iter().enumerate() {
@@ -4244,6 +4268,17 @@ fn windows(
                 b.spend(active.len())?;
                 active.retain(|x| *x != id.0 as usize);
             }
+            owned_byte_sites.check(
+                module,
+                f,
+                i,
+                &state,
+                &solution.values,
+                &active,
+                &solution.loans,
+                requirements,
+                b,
+            )?;
             {
                 let mut checks = access_candidates::Access::new(&active, &solution.loans, b)?;
                 match &i.kind {
@@ -5207,8 +5242,17 @@ fn check_with_mask(
     b: &mut Budget,
 ) -> Check<()> {
     let mixed_package = b.stored_package_instance;
+    let owned_byte_profile = mask.is_none()
+        && !mixed_package
+        && !b.store_option_results
+        && !b.task_borrowed_results
+        && owned_byte_views::profile(module, b)?;
     if mask.is_none() || b.store_option_results {
-        if !mixed_package && !b.task_borrowed_results && !b.store_option_results {
+        if !mixed_package
+            && !b.task_borrowed_results
+            && !b.store_option_results
+            && !owned_byte_profile
+        {
             super::stored_owned::module(module, b)?;
         }
         super::stored_callables::definitions(module, b)?;
@@ -5243,6 +5287,7 @@ fn check_with_mask(
             if !super::stored_callables::finite(module, id) || d.function != f.id {
                 return Err(err("callback function is not the actual finite entry"));
             }
+            super::stored_callables::owned_entry(module, d, b)?;
         }
         for ty in f
             .locals
@@ -5252,10 +5297,12 @@ fn check_with_mask(
             .chain(std::iter::once(&f.return_type))
         {
             type_work(ty, &b.limits.clone(), b)?;
+            let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
             if !module.resources.is_empty()
                 && !mixed_package
                 && !(b.task_borrowed_results && task_address::shape(ty))
                 && !b.store_option_results
+                && !byte_value
             {
                 super::stored_owned::value_type(ty, b)?;
             }
@@ -5269,7 +5316,8 @@ fn check_with_mask(
             } else {
                 false
             };
-            if !(super::stored_callables::value(module, ty)
+            if !(byte_value
+                || super::stored_callables::value(module, ty)
                 || b.task_borrowed_results && task_address::admitted_value(ty)
                 || qualified(ty).is_some()
                 || addressed(ty).is_some()

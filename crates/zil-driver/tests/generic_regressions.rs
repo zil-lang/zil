@@ -7199,9 +7199,9 @@ fn captured_helper_source_captured_source_native_full_results_and_budget() {
         // proofs or local callable solver. Keep both historical limit probes
         // and classify them from fixed current anchors, never the measured low.
         let (expected, historical) = match case {
-            "fn" => (24_145, [24_224, 24_513]),
-            "fnmut-two-calls" => (31_367, [34_804, 35_099]),
-            "fnonce" => (32_776, [36_926, 37_090]),
+            "fn" => (23_315, [24_224, 24_513]),
+            "fnmut-two-calls" => (29_019, [34_804, 35_099]),
+            "fnonce" => (30_496, [36_926, 37_090]),
             _ => unreachable!(),
         };
         assert_eq!(low, expected, "{case} actual Source work changed");

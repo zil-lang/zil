@@ -186,15 +186,23 @@ fn permission_rows_and_empty_outer_visits_are_paid_in_indexed_and_full_lanes() {
                 live_loans_main_fullscan(&solution, &frame, &flags, &mut budget(true, true, limit))
                     .unwrap();
             assert!(expected.is_empty());
-            let declared_work = match mode {
-                0 | 1 => count + 3,
-                2 => 2 * count + 1,
-                3 => count + 1,
-                4 => 3 * count + 1,
+            let projection_work = match mode {
+                0 | 1 => count + 2,
+                2 | 3 => count + 1,
+                4 => 2 * count + 1,
                 5 => count + 2,
                 _ => unreachable!(),
             };
             for indexed in [None, Some(ids.as_slice())] {
+                // The indexed lane still visits every selected SSA/local.
+                // The full lane now visits words and actual set bits only;
+                // all Permission and outer-frame visits remain independent.
+                let scan_work = if indexed.is_some() {
+                    ids.len() + frame.locals.len()
+                } else {
+                    flags.len().div_ceil(64) + 1 + flags.iter().filter(|&&live| live).count()
+                };
+                let declared_work = scan_work + projection_work;
                 let mut b = budget(true, true, limit);
                 assert_eq!(
                     live_loans(&solution, &frame, &live, None, indexed, &mut b).unwrap(),
