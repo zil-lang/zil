@@ -1691,18 +1691,22 @@ impl Plan {
                 let Node::Sum(vs) = &t.node else {
                     return Err(error("Sum union source absent"));
                 };
-                output = Some(
-                    vs.get(&(*is_error as u32))
-                        .and_then(|fs| fs.first())
-                        .map(|t| t.copied(budget))
-                        .transpose()?
-                        .unwrap_or(Tree::unknown(
-                            i.result
-                                .and_then(|v| f.values.get(v.0 as usize))
-                                .ok_or_else(|| error("union result absent"))?,
-                            budget,
-                        )?),
-                );
+                let chosen = vs
+                    .get(&(*is_error as u32))
+                    .and_then(|fields| fields.first())
+                    .map(|tree| tree.copied(budget))
+                    .transpose()?;
+                // The result declaration remains mandatory even when an
+                // actual arm is present. Only the unused Tree allocation is
+                // lazy; malformed result identities must still reject.
+                let result_type = i
+                    .result
+                    .and_then(|value| f.values.get(value.0 as usize))
+                    .ok_or_else(|| error("union result absent"))?;
+                output = Some(match chosen {
+                    Some(tree) => tree,
+                    None => Tree::unknown(result_type, budget)?,
+                });
             }
             InstructionKind::VariantTagLocal { local, path }
             | InstructionKind::ReadVariantLocal { local, path }
