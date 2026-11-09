@@ -758,7 +758,8 @@ fn logical(state: &State) -> Logical {
         partial: state.partial.clone(),
     }
 }
-fn bridges(result: Check<Vec<Bridge>>) -> Check<Vec<(Option<u8>, FieldFresh, Vec<UnpackedFresh>)>> {
+type BridgeFacts = (Option<u8>, FieldFresh, Vec<UnpackedFresh>);
+fn bridges(result: Check<Vec<Bridge>>) -> Check<Vec<BridgeFacts>> {
     result.map(|v| {
         v.into_iter()
             .map(|v| (v.result, v.package, v.unpack))
