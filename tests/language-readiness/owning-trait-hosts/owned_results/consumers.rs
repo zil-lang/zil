@@ -1,6 +1,9 @@
 //! Ordinary owned results retain complete nominal identity and cleanup.
 use super::*;
 
+#[path = "stored_composition.rs"]
+mod stored_composition;
+
 const PROTOCOL: &str = include_str!("protocol.zil");
 const LIBRARY: &str = include_str!("library.zil");
 const MODEL: &str = include_str!("model.zil");
