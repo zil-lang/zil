@@ -1077,6 +1077,15 @@ fn check_with(
                         e.address_origin(outer, b)?;
                     }
                 }
+                InstructionKind::BorrowPlaceLocal { .. }
+                    if super::stored_flow::ordinary_error_borrow(f, i, b)? =>
+                {
+                    if let Some(out) = out
+                        && let Some(outer) = out.outer
+                    {
+                        e.address_origin(outer, b)?;
+                    }
+                }
                 InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local } => {
                     if let Some(out) = out {

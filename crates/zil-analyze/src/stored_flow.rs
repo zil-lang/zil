@@ -2,12 +2,15 @@
 //! This pass does not use a candidate, source label, or nominal name as a root.
 use super::*;
 
+#[cfg(test)]
+mod active_index_tests;
 mod array_index;
 mod array_snapshot;
 mod byte_queries;
 pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
+pub(super) mod owned_byte_views;
 mod retained;
 mod task_address;
 use std::collections::BTreeMap;
@@ -3319,6 +3322,13 @@ fn transfer(
             state.locals.remove(local);
             clear_local_holes(state, *local, b)?;
         }
+        InstructionKind::DropPackage { local }
+            if owned_byte_views::drop_package(module, f, *local, b)? =>
+        {
+            ordered(b, state.locals.len(), 0)?;
+            state.locals.remove(local);
+            clear_local_holes(state, *local, b)?;
+        }
         InstructionKind::DescribeAddress { address } if b.store_option_results => {
             // A weak description carries an actual header origin, but grants
             // no element permission until the checked Store borrow.
@@ -3345,6 +3355,9 @@ fn transfer(
             }
             fee(b, description.loans.len())?;
             out.pointer.loans.extend(&description.loans);
+        }
+        InstructionKind::ByteBufferBorrow { mutable: false, .. } => {
+            out.pointer = owned_byte_views::transfer(module, f, i, b)?;
         }
         InstructionKind::ByteBufferNew
         | InstructionKind::ByteBufferLen { .. }
@@ -3513,7 +3526,8 @@ fn transfer(
                 | InstructionKind::CallClosureBorrowed { .. }
                 | InstructionKind::CallClosureShared { .. }
                 | InstructionKind::CallClosureMut { .. }
-        ) || ordinary_error_borrow(f, i, b)?)
+        ) || ordinary_error_borrow(f, i, b)?
+            || owned_byte_views::instruction(module, f, i, b)?)
         && matches!(value_type(f, result)?, Type::Address { .. })
     {
         let id = result.0 as usize;
@@ -3740,18 +3754,38 @@ fn query_permission(
     )
 }
 
+// Rebuilt for this solve. Exclude only a completely empty semantic SSA fact,
+// including all non-pointer fields; no type/name or direct-loan test grants it.
+fn loan_value_ids(values: &[Value], b: &mut Budget) -> CompileResult<Vec<usize>> {
+    fee(b, values.len().saturating_mul(2))?;
+    let mut ids = Vec::with_capacity(values.len());
+    for (id, value) in values.iter().enumerate() {
+        if value != &Value::default() {
+            fee(b, 1)?;
+            ids.push(id);
+        }
+    }
+    Ok(ids)
+}
 fn active(
     values: &[Value],
     state: &State,
     live: &[bool],
+    defining: Option<ValueId>,
+    loan_values: Option<&[usize]>,
     loans: &[Loan],
     b: &mut Budget,
 ) -> CompileResult<Loans> {
     let mut direct = Permission::default();
-    fee(b, live.len())?;
-    for (i, yes) in live.iter().enumerate() {
-        if !*yes {
-            continue;
+    fee(
+        b,
+        loan_values.map_or(live.len(), |ids| {
+            ids.len().saturating_add(live.len() - values.len())
+        }),
+    )?;
+    let mut collect = |i: usize| -> CompileResult<()> {
+        if !live[i] || defining.is_some_and(|value| value.0 as usize == i) {
+            return Ok(());
         }
         let value = if i < values.len() {
             Some(&values[i])
@@ -3770,6 +3804,19 @@ fn active(
             for leaf in value.slots.values() {
                 union(&mut direct, leaf, b)?;
             }
+        }
+        Ok(())
+    };
+    if let Some(ids) = loan_values {
+        for &id in ids {
+            collect(id)?;
+        }
+        for id in values.len()..live.len() {
+            collect(id)?;
+        }
+    } else {
+        for id in 0..live.len() {
+            collect(id)?;
         }
     }
     if b.task_borrowed_results {
@@ -3897,6 +3944,38 @@ fn liveness(
     Ok(outputs)
 }
 
+/// Immutable instruction uses and the selected CFG determine these rows;
+/// permissions, loan generations and resource facts never enter this cache.
+/// A refined CFG gets a fresh table in its own derive_cfg invocation.
+struct WindowLiveness {
+    outputs: Vec<Vec<bool>>,
+    after: Vec<Option<Vec<Vec<bool>>>>,
+}
+fn instruction_live(
+    module: &TypedModule,
+    f: &TypedFunction,
+    bi: usize,
+    output: &[bool],
+    b: &mut Budget,
+) -> CompileResult<Vec<Vec<bool>>> {
+    let block = &f.blocks[bi];
+    let width = f.values.len().saturating_add(f.locals.len());
+    b.product(
+        block.instructions.len().saturating_add(1),
+        width,
+        1,
+        "stored instruction liveness snapshots",
+    )?;
+    let mut live = output.to_vec();
+    term_live(&block.terminator, &mut live);
+    let mut after = vec![vec![false; width]; block.instructions.len()];
+    for (position, i) in block.instructions.iter().enumerate().rev() {
+        after[position].clone_from(&live);
+        reverse(module, f, i, &mut live, b)?;
+    }
+    Ok(after)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn windows(
     module: &TypedModule,
@@ -3911,6 +3990,7 @@ fn windows(
     summaries: &[Facts],
     apart: &mut BTreeSet<(Target, Target)>,
     byte_reads: &mut Vec<Target>,
+    cached: &mut BTreeMap<FunctionId, WindowLiveness>,
     b: &mut Budget,
 ) -> CompileResult<()> {
     // A module marker only schedules this actual per-function inventory.
@@ -3924,9 +4004,35 @@ fn windows(
             }
         }
     }
+    let owned_byte_sites = owned_byte_views::Sites::collect(f, b)?;
+    let loan_values = owned_byte_sites
+        .present()
+        .then(|| loan_value_ids(values, b))
+        .transpose()?;
     let byte_flow =
         byte_queries::Flow::solve(module, f, preds, reachable, entry, values, summaries, b)?;
-    let live_out = liveness(module, f, preds, reachable, b)?;
+    let mut cached = if owned_byte_sites.present() {
+        ordered(b, cached.len(), 0)?;
+        if !cached.contains_key(&f.id) {
+            fee(b, f.blocks.len())?;
+            let rows = WindowLiveness {
+                outputs: liveness(module, f, preds, reachable, b)?,
+                after: (0..f.blocks.len()).map(|_| None).collect(),
+            };
+            ordered(b, cached.len(), 0)?;
+            fee(b, 1)?;
+            cached.insert(f.id, rows);
+        }
+        ordered(b, cached.len(), 0)?;
+        cached.get_mut(&f.id)
+    } else {
+        None
+    };
+    let live_out = if cached.is_none() {
+        liveness(module, f, preds, reachable, b)?
+    } else {
+        Vec::new()
+    };
     for (bi, block) in f.blocks.iter().enumerate() {
         fee(b, 1)?;
         if !reachable[bi] {
@@ -3944,30 +4050,41 @@ fn windows(
             }
         }
         let width = f.values.len().saturating_add(f.locals.len());
-        b.product(
-            block.instructions.len().saturating_add(1),
-            width,
-            1,
-            "stored instruction liveness snapshots",
-        )?;
-        let mut live = live_out[bi].clone();
-        term_live(&block.terminator, &mut live);
-        let mut after = vec![vec![false; width]; block.instructions.len()];
-        for (position, i) in block.instructions.iter().enumerate().rev() {
-            after[position].clone_from(&live);
-            reverse(module, f, i, &mut live, b)?;
-        }
+        let after = if let Some(cache) = cached.as_mut() {
+            fee(b, 1)?;
+            if cache.after[bi].is_none() {
+                cache.after[bi] = Some(instruction_live(module, f, bi, &cache.outputs[bi], b)?);
+            }
+            std::borrow::Cow::Borrowed(cache.after[bi].as_ref().unwrap().as_slice())
+        } else {
+            std::borrow::Cow::Owned(instruction_live(module, f, bi, &live_out[bi], b)?)
+        };
         let mut byte_point = byte_flow
             .as_ref()
             .map(|flow| flow.input(f, bi, preds, reachable, b))
             .transpose()?;
         for (position, i) in block.instructions.iter().enumerate() {
-            fee(b, width)?;
-            let mut live = after[position].clone();
-            if let Some(v) = i.result {
-                live[v.0 as usize] = false;
-            }
-            let mut current = active(values, &state, &live, loans, b)?;
+            let mut current = if owned_byte_sites.present() {
+                // Exclude only this SSA payload. Other live payloads may
+                // still carry the same loan through their actual ancestry.
+                fee(b, 1)?;
+                active(
+                    values,
+                    &state,
+                    &after[position],
+                    i.result,
+                    loan_values.as_deref(),
+                    loans,
+                    b,
+                )?
+            } else {
+                fee(b, width)?;
+                let mut live = after[position].clone();
+                if let Some(v) = i.result {
+                    live[v.0 as usize] = false;
+                }
+                active(values, &state, &live, None, None, loans, b)?
+            };
             let pointer = |v: ValueId| -> CompileResult<&Permission> {
                 values
                     .get(v.0 as usize)
@@ -3993,6 +4110,7 @@ fn windows(
             if let Some(v) = i.result {
                 current.remove(&(v.0 as usize));
             }
+            owned_byte_sites.check(module, f, i, &state, values, &current, loans, apart, b)?;
             match &i.kind {
                 InstructionKind::MakeAggregate { fields }
                 | InstructionKind::MakePackage { fields }
@@ -4581,6 +4699,7 @@ fn derive_cfg(
     let mut observed_none = false;
     fee(b, module.functions.len())?;
     let mut summaries = vec![Facts::default(); module.functions.len()];
+    let mut window_liveness = BTreeMap::new();
     loop {
         let mut changed = false;
         for (index, f) in module.functions.iter().enumerate() {
@@ -4961,6 +5080,7 @@ fn derive_cfg(
                     &summaries,
                     &mut actual.apart,
                     &mut actual.byte_reads,
+                    &mut window_liveness,
                     b,
                 )?;
             }
@@ -5045,7 +5165,13 @@ pub(super) fn infer(
     byte_queries::authenticate(module, b)?;
     // Raw paid inventories classify new owning holders and Fixed captures.
     // Preserve the established Fixed profile without rescanning either table.
-    b.stored_owned_fixed = if !b.task_borrowed_results
+    let owned_byte_profile = !b.task_borrowed_results
+        && !b.store_option_results
+        && b.composition_stored.is_empty()
+        && (!b.stored_packages || b.stored_fixed_owner)
+        && owned_byte_views::profile(module, b)?;
+    b.stored_owned_fixed = if !owned_byte_profile
+        && !b.task_borrowed_results
         && !b.store_option_results
         && b.composition_stored.is_empty()
         && (!b.stored_packages || b.stored_fixed_owner)
@@ -5103,6 +5229,7 @@ pub(super) fn infer(
             .chain(std::iter::once(&f.return_type))
         {
             b.type_work(ty, true, "stored ordinary executable value profile")?;
+            let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
             let mixed_resource = if b.stored_packages {
                 fee(b, module.resources.len())?;
                 matches!(ty, Type::Managed(payload) | Type::Desc(payload)
@@ -5113,7 +5240,8 @@ pub(super) fn infer(
             } else {
                 false
             };
-            if !(super::stored_callables::value(module, ty)
+            if !(byte_value
+                || super::stored_callables::value(module, ty)
                 || b.task_borrowed_results && task_address::admitted_value(ty)
                 || carrier(ty).is_some()
                 || pointed_carrier(ty).is_some()
@@ -5491,7 +5619,9 @@ fn actual_instructions(
             let byte_query = byte_queries::instruction(module, f, i, b)?;
             let package_read = pure_copy::ordinary_package_read(f, i, b)?;
             let error_borrow = ordinary_error_borrow(f, i, b)?;
-            ordinary_observations |= package_read || error_borrow;
+            let byte_view = owned_byte_views::instruction(module, f, i, b)?;
+            let byte_description = owned_byte_views::description_instruction(module, f, i, b)?;
+            ordinary_observations |= package_read || error_borrow || byte_view;
             let enum_operation = enum_address::instruction(module, f, i, b)?;
             let owned_operation = (b.stored_owned_fixed
                 || matches!(i.kind, InstructionKind::ReadDesc { .. })
@@ -5506,6 +5636,8 @@ fn actual_instructions(
                 && !byte_query
                 && !package_read
                 && !error_borrow
+                && !byte_view
+                && !byte_description
                 && !(b.task_borrowed_results && task_address::operation(&i.kind))
                 && !(b.store_option_results
                     && matches!(

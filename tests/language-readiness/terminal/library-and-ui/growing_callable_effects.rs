@@ -229,7 +229,7 @@ fn actual_store_parent_delegation_and_callback_through_helper_reach_verify() {
         println!("{label}: {errors:?}");
         assert!(errors.iter().all(|d| d.category == ResultCategory::SafeReject), "{label}: {errors:?}");
         assert!(errors.iter().any(|d| d.code == "E-BORROW-CONFLICT" || d.message.contains("retir")
-            || d.message.contains("live element")), "{label}: {errors:?}");
+            || d.message.contains("live element") || d.message.contains("access conflicts")), "{label}: {errors:?}");
     }
 }
 

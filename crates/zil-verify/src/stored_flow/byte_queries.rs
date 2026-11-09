@@ -312,12 +312,18 @@ fn point_work(p: &Point, b: &mut Budget) -> Check<()> {
 }
 impl Point {
     fn at(&self, index: usize, b: &mut Budget) -> Check<&[Permission]> {
-        b.spend(self.rows.len().saturating_add(1))?;
-        Ok(self
-            .rows
-            .iter()
-            .find(|(key, _)| *key == index)
-            .map_or(&[], |(_, row)| row.as_slice()))
+        b.spend(
+            self.rows
+                .len()
+                .checked_ilog2()
+                .map_or(1, |n| n as usize + 2),
+        )?;
+        Ok(
+            match self.rows.binary_search_by_key(&index, |(key, _)| *key) {
+                Ok(position) => self.rows[position].1.as_slice(),
+                Err(_) => &[],
+            },
+        )
     }
     fn put(&mut self, index: usize, row: Vec<Permission>, b: &mut Budget) -> Check<()> {
         b.spend(self.rows.len().saturating_add(1))?;
