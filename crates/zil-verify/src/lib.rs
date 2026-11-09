@@ -371,6 +371,8 @@ struct Budget {
     store_option_results: bool,
     qualified_package_returns: bool,
     byte_queries: bool,
+    shared_byte_borrow: bool,
+    owned_byte_heads: Option<stored_flow::owned_byte_views::Heads>,
     ordinary_error_places: bool,
     byte_query_presence_checked: bool,
     byte_query_functions: Vec<bool>,
@@ -436,6 +438,8 @@ impl Budget {
             store_option_results: false,
             qualified_package_returns: false,
             byte_queries: false,
+            shared_byte_borrow: false,
+            owned_byte_heads: None,
             ordinary_error_places: false,
             byte_query_presence_checked: false,
             byte_query_functions: Vec::new(),
@@ -887,6 +891,10 @@ fn check_module(
             budget.spend(1)?;
             for instruction in &block.instructions {
                 budget.spend(1)?;
+                budget.shared_byte_borrow |= matches!(
+                    instruction.kind,
+                    InstructionKind::ByteBufferBorrow { mutable: false, .. }
+                );
                 budget.stored_slot_updates |= matches!(
                     instruction.kind,
                     InstructionKind::StoreStoredBorrow { .. }

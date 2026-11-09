@@ -102,7 +102,12 @@ pub fn run()->i32 {
                     if bytes_len(reply.data)!=1 {return 31}
                     if reply.tag!=21 || bytes_view(reply.data)[0]!=65u8 {return 32}
                     match library.collect(replies,reply) {
-                        .err(returned)=>{if consume_reply(returned)!=21 {return 53};return 50},
+                        .err(returned)=>{
+                            if bytes_len(returned.data)!=1 || bytes_view(returned.data)[0]!=65u8 {return 55}
+                            if consume_reply(returned)!=21 {return 53}
+                            if consume_replies(give replies)!=0 {return 57}
+                            return 50
+                        },
                         .ok(_)=>{}
                     }
                 }
@@ -140,7 +145,12 @@ pub fn run()->i32 {
                     if bytes_len(reply.data)!=1 {return 41}
                     if reply.tag!=24 || bytes_view(reply.data)[0]!=66u8 {return 42}
                     match library.collect(replies,reply) {
-                        .err(returned)=>{if consume_reply(returned)!=24 {return 54};return 51},
+                        .err(returned)=>{
+                            if bytes_len(returned.data)!=1 || bytes_view(returned.data)[0]!=66u8 {return 56}
+                            if consume_reply(returned)!=24 {return 54}
+                            if consume_replies(give replies)!=21 {return 58}
+                            return 51
+                        },
                         .ok(_)=>{}
                     }
                 }

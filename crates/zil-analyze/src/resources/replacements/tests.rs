@@ -613,3 +613,100 @@ fn whole_copy_result_request_work_is_exact_and_retryable() {
         println!("Analyze actual copy-result helper mode={mode} N={work}");
     }
 }
+
+fn compare_replacement_schedulers(module: &TypedModule, graphs: &[(Vec<Vec<usize>>, Vec<bool>)]) {
+    let run = |frontier| {
+        let mut budget = Budget::new(&Limits::default());
+        budget.head_descriptions = true;
+        let program = Program::new(module, graphs, &mut budget)?;
+        if frontier {
+            infer(module, graphs, &program, &mut budget)
+        } else {
+            infer_full_scan(module, graphs, &program, &mut budget)
+        }
+    };
+    assert_eq!(run(true), run(false));
+}
+
+#[test]
+fn dirty_replacement_summaries_match_exhaustive_rows_through_recursive_calls() {
+    use zil_ir::{BasicBlock, BlockId};
+    for fresh in [false, true] {
+        let module = with_caller(fresh);
+        compare_replacement_schedulers(&module, &vec![(vec![vec![]], vec![true]); 3]);
+        for recursive in [1, 3] {
+            let mut module = module.clone();
+            let mut cycle = module.functions[1].clone();
+            cycle.id = FunctionId(3);
+            cycle.name = "recursive_replacement_relay".into();
+            cycle.values.push(Type::Bool);
+            cycle.blocks[0].instructions.pop();
+            cycle.blocks[0].instructions.push(fixture::instruction(
+                Some(ValueId(2)),
+                InstructionKind::Constant(Constant::Bool(true)),
+            ));
+            cycle.blocks[0].terminator = Terminator::Branch {
+                condition: ValueId(2),
+                then_block: BlockId(1),
+                else_block: BlockId(2),
+            };
+            for (id, callee) in [(1, 0), (2, recursive)] {
+                cycle.blocks.push(BasicBlock {
+                    id: BlockId(id),
+                    instructions: vec![fixture::instruction(
+                        None,
+                        InstructionKind::Call {
+                            function: FunctionId(callee),
+                            arguments: vec![ValueId(0), ValueId(1)],
+                        },
+                    )],
+                    terminator: Terminator::Return(None),
+                });
+            }
+            module.functions[1].blocks[0]
+                .instructions
+                .last_mut()
+                .unwrap()
+                .kind = InstructionKind::Call {
+                function: FunctionId(3),
+                arguments: vec![ValueId(0), ValueId(1)],
+            };
+            module.functions.push(cycle);
+            let graphs = vec![
+                (vec![vec![]], vec![true]),
+                (vec![vec![]], vec![true]),
+                (vec![vec![]], vec![true]),
+                (vec![vec![], vec![0], vec![0]], vec![true; 3]),
+            ];
+            compare_replacement_schedulers(&module, &graphs);
+            // Change physical function order and every actual direct target;
+            // a source-order seed must not be mistaken for fixed-point closure.
+            let order = [3usize, 2, 1, 0];
+            let mut inverse = [0usize; 4];
+            for (new, old) in order.iter().copied().enumerate() {
+                inverse[old] = new;
+            }
+            let mut permuted = module.clone();
+            permuted.functions = order
+                .iter()
+                .map(|&old| module.functions[old].clone())
+                .collect();
+            for (index, f) in permuted.functions.iter_mut().enumerate() {
+                f.id = FunctionId(index as u32);
+                for block in &mut f.blocks {
+                    for i in &mut block.instructions {
+                        if let InstructionKind::Call { function, .. } = &mut i.kind {
+                            *function = FunctionId(inverse[function.0 as usize] as u32);
+                        }
+                    }
+                }
+            }
+            let permuted_graphs: Vec<_> = order.iter().map(|&old| graphs[old].clone()).collect();
+            compare_replacement_schedulers(&permuted, &permuted_graphs);
+        }
+    }
+    for incoming in [false, true] {
+        let module = whole_helper(incoming, false);
+        compare_replacement_schedulers(&module, &vec![(vec![vec![]], vec![true]); 2]);
+    }
+}
