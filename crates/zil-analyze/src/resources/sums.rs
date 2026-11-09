@@ -2,6 +2,8 @@
 //! describe possible alternatives, never simultaneous resource debts.
 use super::*;
 use std::sync::Arc;
+#[cfg(test)]
+mod initial_template_tests;
 mod partial_places;
 #[cfg(test)]
 mod sorted_join_tests;
@@ -678,6 +680,23 @@ impl Facts {
             .ok_or_else(|| error("Sum discharged local absent"))?
             .no_live_owner(budget)
     }
+    fn template_copy(&self, budget: &mut Budget) -> CompileResult<Self> {
+        // Initial templates are immutable type/parameter/capture inventory.
+        // Copy every actual table even in a values-only function: the ordinary
+        // flow cost fast path intentionally ignores that different profile.
+        budget.spend(
+            self.locals
+                .len()
+                .saturating_add(self.values.len())
+                .saturating_add(self.captures.len())
+                .saturating_add(self.valid.len()),
+            "Sum initial template table copy",
+        )?;
+        if let Some(partial) = &self.partial {
+            partial.cost(budget)?;
+        }
+        Ok(self.clone())
+    }
     pub(super) fn cost(&self, budget: &mut Budget) -> CompileResult<()> {
         if self.locals.is_empty() && self.captures.is_empty() {
             return Ok(());
@@ -999,6 +1018,9 @@ impl Facts {
 }
 
 pub(super) struct Plan {
+    // Scoped to one actual immutable module/function in this request. No
+    // executed State, effect, permission or current tag fact enters this cache.
+    initial_template: std::cell::RefCell<Option<Facts>>,
     // Immutable local indices whose exact Tree constructor contains tag state.
     // None preserves the established scheduling/fees outside mixed consumers.
     tagged_locals: Option<Vec<LocalId>>,
@@ -1148,7 +1170,9 @@ impl Plan {
         } else {
             None
         };
+        budget.spend(1, "Sum initial template cache header")?;
         Ok(Some(Self {
+            initial_template: std::cell::RefCell::new(None),
             tagged_locals,
             partial: if partial {
                 Some(partial_places::Meta::new(f, budget)?)
@@ -1165,6 +1189,13 @@ impl Plan {
         f: &TypedFunction,
         budget: &mut Budget,
     ) -> CompileResult<Facts> {
+        budget.spend(1, "Sum initial template lookup")?;
+        {
+            let template = self.initial_template.borrow();
+            if let Some(template) = template.as_ref() {
+                return template.template_copy(budget);
+            }
+        }
         let mut facts = Facts::default();
         if self.partial.is_some() {
             facts.partial = Some(partial_places::State::default());
@@ -1205,6 +1236,10 @@ impl Plan {
                     .insert(index as u32, Tree::unknown(ty, budget)?);
             }
         }
+        // Charge the real table/Arc copy used to preserve the initial template.
+        // Later writes still pass through edit/Arc::make_mut in their own Facts.
+        let template = facts.template_copy(budget)?;
+        *self.initial_template.borrow_mut() = Some(template);
         Ok(facts)
     }
     pub(super) fn edge(
