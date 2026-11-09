@@ -2,7 +2,7 @@
   "date": "2026-11-09 09:04 Asia/Shanghai",
   "status": "resumed_not_accepted",
   "main": "b07b85dd49b3df6f382734d509919a2a6013c97d",
-  "goal_read": "2ce1de5749effd4dd1b6fe8b5dca43b4ba54d981",
+  "goal_read": "e2f8ef9d4f086d3361113c68db5c4eeb6c19e33c",
   "integration": "ed8e3a5de6befb15b515f6b124e992792414a8ca",
   "source_branches": {
     "root": "task/G10.6.3",
@@ -13,12 +13,12 @@
   "first_failure": "offline cargo dependency rustc_apfloat absent; no tests executed",
   "scope": "Continue original ordinary-library consumer and large owned closure transport; no release claim",
   "raw_logs": "out/runs/byte-views-baseline-20261109/ in task/G3.4.22 worktree",
-  "last_work": "2026-11-09 10:51 Asia/Shanghai",
-  "integration_remote": "63938bd3e0f22f261981793f401764614b95f6ed",
+  "last_work": "2026-11-09 11:02 Asia/Shanghai",
+  "integration_remote": "186c64aa6fce9531d3d02da76933eeae7fba642a",
   "large_closure_checkpoint": "dbd5c446a600eb26f34574748376a2b8e84fece8",
   "baseline_language_failure": "original four-module program: Analyze ResourceLimit / Sum terminal tag classification, 0 pass, 1 fail",
   "native_progress": "frozen ordinary local closure ABI: 48 native executions pass; opaque factories/generic callable helpers remain five explicit Types Unsupported boundaries",
-  "integration_local": "743eb6972984eddcbc42e58d0835268c6ba78f7a",
+  "integration_local": "0918414c71b8b0b96c8a9f3f9bada70db6950a59",
   "byte_views_checkpoint": "d14677a605fdd136fbe4ec792d924952f285c768",
   "growing_collections_checkpoint": "9369428793e7248225d3ec9b804c96f798f67665",
   "original_pipeline": "Frozen Byte precise order main/model/protocol/library, fingerprint d9afb8c2667ac61471aa1f37bd2fb9277abcbab5df37090bf4f8f6b8d32ec676: A N7122869/V N7814112 with N-1/fresh/raw/Wire pass; original4095 native input order main/protocol/library/model:48 actual executions pass, identical source file bytes",
@@ -41,5 +41,34 @@
       "out/runs/ordinary-composition-static-20261109-1",
       "out/runs/ordinary-composition-architecture-20261109-1"
     ]
+  },
+  "actual_analysis_ledger": {
+    "source": "d887f094c5c531e94166eebc77eda0b0ee72fb22",
+    "instrumentation": "temporary accounting only; original production restored before changes",
+    "logs": "out/runs/growing-input-effects-20261109-8",
+    "map_main_first_may": 4819177,
+    "map_sum_state_tables": 1573243,
+    "collected_liveness_snapshots": 1273044,
+    "collected_liveness_tables": 191832,
+    "collected_boundary_classification": 32658,
+    "action": "Map owns Sum templates/eager fallback; Byte owns independent Analyze stored_flow word liveness; no Summary reorder or limit increase"
+  },
+  "collected_negative": {
+    "source_files": "exact639 collected four modules with only first collect preceded by next_tagged",
+    "status": "SafeReject",
+    "phase": "Analyze",
+    "code": "E-ANALYZE-IR",
+    "message": "stored target proof: simultaneously live access overlaps an actual stored target/parent loan",
+    "verification_runs": 0,
+    "log": "byte-views-packed-20261109/collected-negative-probe.log",
+    "assertion_commit": "0918414c71b8b0b96c8a9f3f9bada70db6950a59"
+  },
+  "ci_evidence_tests": {
+    "source": "63938bd3e0f22f261981793f401764614b95f6ed",
+    "transport_python_tests": 6,
+    "compact_python_tests": 3,
+    "failed": 0,
+    "scope": "Python CI evidence scripts, not ZIL language execution",
+    "logs": "out/runs/ordinary-composition-ci-evidence-20261109-1"
   }
 }
