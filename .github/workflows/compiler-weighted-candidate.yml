@@ -1,0 +1,128 @@
+name: Frequency-weighted compiler candidate
+on:
+  push:
+    branches: [task/G10.5.1.1]
+    paths: ['.task/G10.5.1.1/apply.py', '.task/G10.5.1.1/corpus.py', '.task/G10.5.1.1/measure.py', '.task/G10.5.1.1/protocol.json', '.github/workflows/compiler-weighted-candidate.yml']
+permissions:
+  contents: write
+concurrency:
+  group: compiler-weighted-G10.5.1.1
+  cancel-in-progress: false
+jobs:
+  experiment:
+    if: github.repository == 'zil-lang/zil' && github.ref == 'refs/heads/task/G10.5.1.1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Prepare pinned baseline and toolchains
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/weighted-setup"
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          cargo fetch --locked
+          sudo apt-get update
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          git fetch --no-tags --depth=1 origin 82a69812582856b012468db3d019930d8e390f64
+          git worktree add --detach "$RUNNER_TEMP/weighted-base-source" 82a69812582856b012468db3d019930d8e390f64
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/weighted-llvm" 2>&1 | tee "$RUNNER_TEMP/weighted-setup/llvm-install.log"
+          echo "ZIL_CLANG=$RUNNER_TEMP/weighted-llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/weighted-llvm/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/weighted-llvm/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/weighted-llvm/bin" >> "$GITHUB_PATH"
+          rustc -vV | tee "$RUNNER_TEMP/weighted-setup/rustc.txt"
+      - name: Apply, format and freeze the exact experimental source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          python3 .task/G10.5.1.1/apply.py
+          rustfmt --edition 2024 --config skip_children=true crates/zil-backend-llvm/src/machine_cgu.rs crates/zil-driver/src/lib.rs crates/zil-cli/src/main.rs
+          python3 - <<'PY'
+          from pathlib import Path
+          import ast
+          p=Path('.task/G10.5.1.1/measure.py'); text=p.read_text()
+          before="        expected=len(self.cases)*len(MODES)*len(REQUESTS)*len(ARMS)*(PROTOCOL['rounds']+1)"
+          after="                    if not (block==0 and mode=='O0'):\n                        shutil.rmtree(self.out/'work'/case['id']/mode/str(block))\n"+before
+          assert text.count(before)==1
+          text=text.replace(before,after)
+          before="                                        shutil.copyfile(work/'app',dest/'app'); (dest/'app').chmod(0o755)"
+          after=before+"\n                                        shutil.copyfile(work/'app.ll',dest/'app.ll')"
+          assert text.count(before)==1
+          text=text.replace(before,after); ast.parse(text); p.write_text(text)
+          for file in Path('.task/G10.5.1.1').glob('*.py'): ast.parse(file.read_text())
+          PY
+          git diff --check
+          git diff -- crates/zil-backend-llvm/src/machine_cgu.rs crates/zil-driver/src/lib.rs crates/zil-cli/src/main.rs > "$RUNNER_TEMP/weighted-setup/candidate.patch"
+          git add -- crates/zil-backend-llvm/src/machine_cgu.rs crates/zil-driver/src/lib.rs crates/zil-cli/src/main.rs .task/G10.5.1.1/measure.py
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Experimental bounded IPO with ordinary partition fallback; pending validation'
+          echo "MEASURED_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          git rev-parse HEAD | tee "$RUNNER_TEMP/weighted-setup/measured-commit.txt"
+      - name: Full affected backend and LLVM controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/weighted-test-target"
+          cargo test --locked --offline -p zil-backend-llvm --features llvm-api --lib -- --nocapture 2>&1 | tee "$RUNNER_TEMP/weighted-setup/backend-tests.log"
+          grep -E 'test result: ok\. [1-9][0-9]* passed; 0 failed;' "$RUNNER_TEMP/weighted-setup/backend-tests.log"
+          grep -E 'expensive_complete_import_keeps_the_exact_ordinary_plan .*ok' "$RUNNER_TEMP/weighted-setup/backend-tests.log"
+          cargo test --locked --offline -p zil-llvm-api --features native --lib 2>&1 | tee "$RUNNER_TEMP/weighted-setup/llvm-tests.log"
+          grep -E 'test result: ok\. [1-9][0-9]* passed; 0 failed;' "$RUNNER_TEMP/weighted-setup/llvm-tests.log"
+          cargo clippy --locked --offline -p zil-backend-llvm --features llvm-api --lib --tests -- -D warnings 2>&1 | tee "$RUNNER_TEMP/weighted-setup/clippy.log"
+          cargo fmt -p zil-backend-llvm -p zil-cli -p zil-driver -- --check
+      - name: Build independent identical-profile release compilers
+        shell: bash
+        run: |
+          set -euo pipefail
+          CARGO_TARGET_DIR="$RUNNER_TEMP/weighted-base-target" cargo build --locked --offline --release --manifest-path "$RUNNER_TEMP/weighted-base-source/Cargo.toml" -p zil-cli 2>&1 | tee "$RUNNER_TEMP/weighted-setup/base-build.log"
+          CARGO_TARGET_DIR="$RUNNER_TEMP/weighted-candidate-target" cargo build --locked --offline --release -p zil-cli 2>&1 | tee "$RUNNER_TEMP/weighted-setup/candidate-build.log"
+          test -z "$(git status --porcelain)"
+          test -z "$(git -C "$RUNNER_TEMP/weighted-base-source" status --porcelain)"
+      - name: Full frequency-weighted matrix and runtime quality
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .task/G10.5.1.1/measure.py --base "$RUNNER_TEMP/weighted-base-target/release/zil" --candidate "$RUNNER_TEMP/weighted-candidate-target/release/zil" --out "$RUNNER_TEMP/weighted-measurement" 2>&1 | tee "$RUNNER_TEMP/weighted-setup/measurement.log"
+      - name: Existing real ownership, borrow and allocation-failure consumer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/research/native-api-validation/validate.py --repo . --cli "$RUNNER_TEMP/weighted-candidate-target/release/zil" --clang "$ZIL_CLANG" --out "$RUNNER_TEMP/weighted-consumer" 2>&1 | tee "$RUNNER_TEMP/weighted-setup/consumer.log"
+      - name: Preserve exact source, raw results and failures without main integration
+        if: ${{ always() }}
+        shell: bash
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = 'refs/heads/task/G10.5.1.1'
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,shutil,tarfile,subprocess
+          P=pathlib.Path; tmp=P(os.environ['RUNNER_TEMP']); dst=P('.task/G10.5.1.1/runs')/os.environ['GITHUB_RUN_ID']; dst.mkdir(parents=True)
+          source=tmp/'weighted-measurement'
+          if source.exists():
+              for name in ('summary.json','cells.json','failure.json','manifest.json','rows.jsonl','rejections.json','reference-builds.json','runtime.jsonl'):
+                  if (source/name).exists(): shutil.copyfile(source/name,dst/name)
+          if (tmp/'weighted-consumer/summary.json').exists(): shutil.copyfile(tmp/'weighted-consumer/summary.json',dst/'ownership-consumer.json')
+          with tarfile.open(dst/'raw.tar.gz','w:gz') as archive:
+              for root,name in ((tmp/'weighted-setup','setup'),(source/'logs','logs'),(source/'corpus','corpus'),(source/'quality','quality'),(tmp/'weighted-consumer','ownership-consumer')):
+                  if root.exists(): archive.add(root,arcname=name)
+          files={p.name:{'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in dst.iterdir() if p.is_file()}
+          receipt={'status_before_preservation':os.environ['PRIOR_STATUS'],'recipe':os.environ['GITHUB_SHA'],'measured_source':os.environ.get('MEASURED_COMMIT'),'baseline':'82a69812582856b012468db3d019930d8e390f64','files':files,'source_files':{str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in map(P,['crates/zil-backend-llvm/src/machine_cgu.rs','crates/zil-driver/src/lib.rs','crates/zil-cli/src/main.rs'])},'independent_review':'NotRun','merge_allowed':False,'run':'https://github.com/zil-lang/zil/actions/runs/'+os.environ['GITHUB_RUN_ID']}
+          (dst/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n'); print(json.dumps(receipt,indent=2))
+          PY
+          git fetch --no-tags origin refs/heads/task/G10.5.1.1
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git add -- ".task/G10.5.1.1/runs/$GITHUB_RUN_ID"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Preserve weighted candidate experiment $GITHUB_RUN_ID; no main acceptance"
+          git push origin HEAD:refs/heads/task/G10.5.1.1
