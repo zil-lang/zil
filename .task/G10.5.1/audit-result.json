@@ -1,0 +1,692 @@
+{
+  "status": "Pass: mechanical evidence consistency, not performance acceptance",
+  "source_commit": "02c75de950b64339cdf6136331b8e685f65ccffe",
+  "source_sha256": "0a1a406e8c4040bb8b30b8e28434efe5a5c8452a9935170568558e0d47e6ad7b",
+  "run": "https://github.com/zil-lang/zil/actions/runs/42612992774",
+  "compile_requests": 288,
+  "formal_requests": 252,
+  "native_checks": 864,
+  "current_zil_verifications": 192,
+  "comparisons": [
+    {
+      "case": "tree32x8",
+      "request": "cold",
+      "n": 7,
+      "median_ms": {
+        "base": 287.922627,
+        "cand": 274.51938,
+        "rust": 277.873813
+      },
+      "median_cpu_ms": {
+        "base": 286.00199999999995,
+        "cand": 475.66999999999996,
+        "rust": 420.842
+      },
+      "median_rss_kib": {
+        "base": 72448,
+        "cand": 78268,
+        "rust": 217212
+      },
+      "median_executable_bytes": {
+        "base": 62832,
+        "cand": 75144,
+        "rust": 4547224
+      },
+      "candidate_base_ratio_of_medians": 0.9534484415495418,
+      "paired_geometric_ratio": 0.9596891603569004,
+      "paired_candidate_wins": 7,
+      "paired_ratios": [
+        0.954702053516172,
+        0.9705272993713543,
+        0.9805549239279547,
+        0.985828168343296,
+        0.9789638329468064,
+        0.9751176233449549,
+        0.8768831257076456
+      ],
+      "max_ms": {
+        "base": 306.053652,
+        "cand": 283.842236,
+        "rust": 342.880935
+      },
+      "object_hits_misses": {
+        "base": [
+          [
+            0,
+            1
+          ]
+        ],
+        "cand": [
+          [
+            0,
+            2
+          ]
+        ]
+      }
+    },
+    {
+      "case": "tree32x8",
+      "request": "warm",
+      "n": 7,
+      "median_ms": {
+        "base": 45.482129,
+        "cand": 47.369331,
+        "rust": 65.210059
+      },
+      "median_cpu_ms": {
+        "base": 45.403999999999996,
+        "cand": 49.098000000000006,
+        "rust": 74.046
+      },
+      "median_rss_kib": {
+        "base": 36776,
+        "cand": 39196,
+        "rust": 186304
+      },
+      "median_executable_bytes": {
+        "base": 62832,
+        "cand": 75144,
+        "rust": 4547224
+      },
+      "candidate_base_ratio_of_medians": 1.0414932643104724,
+      "paired_geometric_ratio": 1.0738976368384408,
+      "paired_candidate_wins": 1,
+      "paired_ratios": [
+        1.0295770115354248,
+        1.0113390060237155,
+        0.9566906414861677,
+        1.1252300656374286,
+        1.2847548430879623,
+        1.0666883428442357,
+        1.072294173416338
+      ],
+      "max_ms": {
+        "base": 49.578684,
+        "cand": 53.827876,
+        "rust": 69.13131
+      },
+      "object_hits_misses": {
+        "base": [
+          [
+            1,
+            0
+          ]
+        ],
+        "cand": [
+          [
+            2,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "case": "tree32x8",
+      "request": "private",
+      "n": 7,
+      "median_ms": {
+        "base": 286.799291,
+        "cand": 225.913,
+        "rust": 82.007742
+      },
+      "median_cpu_ms": {
+        "base": 284.91499999999996,
+        "cand": 226.09999999999997,
+        "rust": 99.105
+      },
+      "median_rss_kib": {
+        "base": 72296,
+        "cand": 74184,
+        "rust": 210608
+      },
+      "median_executable_bytes": {
+        "base": 62832,
+        "cand": 75144,
+        "rust": 4547224
+      },
+      "candidate_base_ratio_of_medians": 0.7877041788084477,
+      "paired_geometric_ratio": 0.8044542004278689,
+      "paired_candidate_wins": 7,
+      "paired_ratios": [
+        0.7538336550500667,
+        0.797939329633838,
+        0.8217213099035865,
+        0.9017398007797632,
+        0.7835054821048693,
+        0.7873926724029328,
+        0.7929114228372747
+      ],
+      "max_ms": {
+        "base": 299.774265,
+        "cand": 270.318386,
+        "rust": 85.483561
+      },
+      "object_hits_misses": {
+        "base": [
+          [
+            0,
+            1
+          ]
+        ],
+        "cand": [
+          [
+            1,
+            1
+          ]
+        ]
+      }
+    },
+    {
+      "case": "tree32x8",
+      "request": "edit-warm",
+      "n": 7,
+      "median_ms": {
+        "base": 44.859058,
+        "cand": 47.317029,
+        "rust": 70.555069
+      },
+      "median_cpu_ms": {
+        "base": 44.803,
+        "cand": 49.36399999999999,
+        "rust": 80.469
+      },
+      "median_rss_kib": {
+        "base": 37020,
+        "cand": 39068,
+        "rust": 186368
+      },
+      "median_executable_bytes": {
+        "base": 62832,
+        "cand": 75144,
+        "rust": 4547224
+      },
+      "candidate_base_ratio_of_medians": 1.0547931924919154,
+      "paired_geometric_ratio": 1.0486467673856752,
+      "paired_candidate_wins": 1,
+      "paired_ratios": [
+        1.1868328831949186,
+        0.8586790969270209,
+        1.0327201699152933,
+        1.0674083705956734,
+        1.0536434905386722,
+        1.0999265336837387,
+        1.0710591722233354
+      ],
+      "max_ms": {
+        "base": 55.505193,
+        "cand": 53.422257,
+        "rust": 86.704415
+      },
+      "object_hits_misses": {
+        "base": [
+          [
+            1,
+            0
+          ]
+        ],
+        "cand": [
+          [
+            2,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "case": "tree32x8",
+      "request": "public",
+      "n": 7,
+      "median_ms": {
+        "base": 284.682643,
+        "cand": 227.842205,
+        "rust": 85.770745
+      },
+      "median_cpu_ms": {
+        "base": 283.09299999999996,
+        "cand": 229.09799999999998,
+        "rust": 100.68599999999999
+      },
+      "median_rss_kib": {
+        "base": 73432,
+        "cand": 74732,
+        "rust": 215604
+      },
+      "median_executable_bytes": {
+        "base": 62832,
+        "cand": 75144,
+        "rust": 4547512
+      },
+      "candidate_base_ratio_of_medians": 0.8003375358574285,
+      "paired_geometric_ratio": 0.7865757678325053,
+      "paired_candidate_wins": 7,
+      "paired_ratios": [
+        0.7923550653926331,
+        0.8043170856970804,
+        0.7910822927487096,
+        0.7732028164019714,
+        0.7828460163621567,
+        0.7836331091298002,
+        0.7789912752473259
+      ],
+      "max_ms": {
+        "base": 296.976642,
+        "cand": 230.584586,
+        "rust": 91.639273
+      },
+      "object_hits_misses": {
+        "base": [
+          [
+            0,
+            1
+          ]
+        ],
+        "cand": [
+          [
+            1,
+            1
+          ]
+        ]
+      }
+    },
+    {
+      "case": "tree32x8",
+      "request": "restore",
+      "n": 7,
+      "median_ms": {
+        "base": 47.585725,
+        "cand": 50.029137,
+        "rust": 81.746036
+      },
+      "median_cpu_ms": {
+        "base": 46.739999999999995,
+        "cand": 51.327,
+        "rust": 98.50699999999999
+      },
+      "median_rss_kib": {
+        "base": 39608,
+        "cand": 39172,
+        "rust": 216704
+      },
+      "median_executable_bytes": {
+        "base": 62832,
+        "cand": 75144,
+        "rust": 4547224
+      },
+      "candidate_base_ratio_of_medians": 1.0513475837554225,
+      "paired_geometric_ratio": 1.3417948328660063,
+      "paired_candidate_wins": 0,
+      "paired_ratios": [
+        1.0734249452663878,
+        5.2235337342568515,
+        1.1398265551276145,
+        1.0364627224169942,
+        1.0372991227108064,
+        1.0828136672358588,
+        1.0524864697705036
+      ],
+      "max_ms": {
+        "base": 47.943475,
+        "cand": 250.434359,
+        "rust": 251.441209
+      },
+      "object_hits_misses": {
+        "base": [
+          [
+            1,
+            0
+          ]
+        ],
+        "cand": [
+          [
+            2,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "case": "tree256x8",
+      "request": "cold",
+      "n": 7,
+      "median_ms": {
+        "base": 1732.092333,
+        "cand": 1923.334499,
+        "rust": 2110.958733
+      },
+      "median_cpu_ms": {
+        "base": 1745.914,
+        "cand": 3515.392,
+        "rust": 2552.247
+      },
+      "median_rss_kib": {
+        "base": 173364,
+        "cand": 201012,
+        "rust": 257700
+      },
+      "median_executable_bytes": {
+        "base": 306728,
+        "cand": 409152,
+        "rust": 4708864
+      },
+      "candidate_base_ratio_of_medians": 1.1104110689461726,
+      "paired_geometric_ratio": 1.1158546910540355,
+      "paired_candidate_wins": 0,
+      "paired_ratios": [
+        1.126445846106087,
+        1.1230980917054458,
+        1.1254030134257704,
+        1.1049052406376536,
+        1.0891206809644818,
+        1.1304664657529204,
+        1.1121380552286266
+      ],
+      "max_ms": {
+        "base": 1828.112328,
+        "cand": 2053.149467,
+        "rust": 2242.629673
+      },
+      "object_hits_misses": {
+        "base": [
+          [
+            0,
+            1
+          ]
+        ],
+        "cand": [
+          [
+            0,
+            2
+          ]
+        ]
+      }
+    },
+    {
+      "case": "tree256x8",
+      "request": "warm",
+      "n": 7,
+      "median_ms": {
+        "base": 177.530566,
+        "cand": 210.98873,
+        "rust": 215.569765
+      },
+      "median_cpu_ms": {
+        "base": 198.99499999999998,
+        "cand": 257.584,
+        "rust": 241.249
+      },
+      "median_rss_kib": {
+        "base": 79040,
+        "cand": 96864,
+        "rust": 227964
+      },
+      "median_executable_bytes": {
+        "base": 306728,
+        "cand": 409152,
+        "rust": 4708864
+      },
+      "candidate_base_ratio_of_medians": 1.1884642445177582,
+      "paired_geometric_ratio": 1.1846089385363834,
+      "paired_candidate_wins": 0,
+      "paired_ratios": [
+        1.1812690872711809,
+        1.1601374785756937,
+        1.2158662469425123,
+        1.1509757311565174,
+        1.239581951097011,
+        1.1644883693050587,
+        1.182508777208563
+      ],
+      "max_ms": {
+        "base": 191.396513,
+        "cand": 222.046268,
+        "rust": 240.231648
+      },
+      "object_hits_misses": {
+        "base": [
+          [
+            1,
+            0
+          ]
+        ],
+        "cand": [
+          [
+            2,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "case": "tree256x8",
+      "request": "private",
+      "n": 7,
+      "median_ms": {
+        "base": 1799.612489,
+        "cand": 1523.820494,
+        "rust": 261.845876
+      },
+      "median_cpu_ms": {
+        "base": 1819.496,
+        "cand": 1577.917,
+        "rust": 317.63399999999996
+      },
+      "median_rss_kib": {
+        "base": 169760,
+        "cand": 181524,
+        "rust": 253572
+      },
+      "median_executable_bytes": {
+        "base": 306728,
+        "cand": 409152,
+        "rust": 4708864
+      },
+      "candidate_base_ratio_of_medians": 0.8467492325788143,
+      "paired_geometric_ratio": 0.8459090627256812,
+      "paired_candidate_wins": 7,
+      "paired_ratios": [
+        0.7926517059757094,
+        0.8600657799724792,
+        0.8635581573430613,
+        0.8794898540321385,
+        0.8495811863571843,
+        0.8249523356335382,
+        0.8540740175606576
+      ],
+      "max_ms": {
+        "base": 1859.346994,
+        "cand": 1605.654264,
+        "rust": 264.725196
+      },
+      "object_hits_misses": {
+        "base": [
+          [
+            0,
+            1
+          ]
+        ],
+        "cand": [
+          [
+            1,
+            1
+          ]
+        ]
+      }
+    },
+    {
+      "case": "tree256x8",
+      "request": "edit-warm",
+      "n": 7,
+      "median_ms": {
+        "base": 179.105695,
+        "cand": 214.133343,
+        "rust": 211.100891
+      },
+      "median_cpu_ms": {
+        "base": 200.753,
+        "cand": 261.125,
+        "rust": 255.66299999999998
+      },
+      "median_rss_kib": {
+        "base": 78844,
+        "cand": 96788,
+        "rust": 226432
+      },
+      "median_executable_bytes": {
+        "base": 306728,
+        "cand": 409152,
+        "rust": 4708864
+      },
+      "candidate_base_ratio_of_medians": 1.1955697053630818,
+      "paired_geometric_ratio": 1.193039613466087,
+      "paired_candidate_wins": 0,
+      "paired_ratios": [
+        1.1960974585033437,
+        1.1955697053630818,
+        1.2047766208964985,
+        1.234431733034719,
+        1.178853246093352,
+        1.1809460493774118,
+        1.1619278716683086
+      ],
+      "max_ms": {
+        "base": 184.99499,
+        "cand": 217.402753,
+        "rust": 221.112693
+      },
+      "object_hits_misses": {
+        "base": [
+          [
+            1,
+            0
+          ]
+        ],
+        "cand": [
+          [
+            2,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "case": "tree256x8",
+      "request": "public",
+      "n": 7,
+      "median_ms": {
+        "base": 1813.092327,
+        "cand": 1483.989202,
+        "rust": 283.853546
+      },
+      "median_cpu_ms": {
+        "base": 1833.1029999999998,
+        "cand": 1533.2769999999998,
+        "rust": 368.015
+      },
+      "median_rss_kib": {
+        "base": 173244,
+        "cand": 185408,
+        "rust": 260960
+      },
+      "median_executable_bytes": {
+        "base": 306728,
+        "cand": 409152,
+        "rust": 4709144
+      },
+      "candidate_base_ratio_of_medians": 0.8184851813120049,
+      "paired_geometric_ratio": 0.8361902028915019,
+      "paired_candidate_wins": 7,
+      "paired_ratios": [
+        0.8540813809943849,
+        0.8149489343213888,
+        0.8366264359617778,
+        0.839526376787754,
+        0.823647739573589,
+        0.850763257916608,
+        0.8344296125853055
+      ],
+      "max_ms": {
+        "base": 1856.304376,
+        "cand": 1585.435005,
+        "rust": 292.992817
+      },
+      "object_hits_misses": {
+        "base": [
+          [
+            0,
+            1
+          ]
+        ],
+        "cand": [
+          [
+            1,
+            1
+          ]
+        ]
+      }
+    },
+    {
+      "case": "tree256x8",
+      "request": "restore",
+      "n": 7,
+      "median_ms": {
+        "base": 213.576282,
+        "cand": 241.631094,
+        "rust": 284.155591
+      },
+      "median_cpu_ms": {
+        "base": 233.882,
+        "cand": 288.327,
+        "rust": 363.699
+      },
+      "median_rss_kib": {
+        "base": 98408,
+        "cand": 116148,
+        "rust": 261212
+      },
+      "median_executable_bytes": {
+        "base": 306728,
+        "cand": 409152,
+        "rust": 4708864
+      },
+      "candidate_base_ratio_of_medians": 1.1313573386393159,
+      "paired_geometric_ratio": 1.1387317539113349,
+      "paired_candidate_wins": 0,
+      "paired_ratios": [
+        1.139850427703337,
+        1.163186055462844,
+        1.1564437814172652,
+        1.1285713552939582,
+        1.0816827756407548,
+        1.1753256983434015,
+        1.1286031829324172
+      ],
+      "max_ms": {
+        "base": 220.99547,
+        "cand": 251.94788,
+        "rust": 302.063838
+      },
+      "object_hits_misses": {
+        "base": [
+          [
+            1,
+            0
+          ]
+        ],
+        "cand": [
+          [
+            2,
+            0
+          ]
+        ]
+      }
+    }
+  ],
+  "decision": "Hold / NoGo for production adoption of this candidate",
+  "reason": "Large-case cold and warm regressions, increased CPU/RSS and executable size; edit improvement alone is insufficient.",
+  "independent_review": "NotRun",
+  "runtime_throughput": "NotRun",
+  "full_language_matrix": "NotRun",
+  "merge_allowed": false,
+  "audit_sha256": "1c84724a1b5e5b251a7d09be6ba4b264d794984ec84e7736fa0909316355be33",
+  "native_unit_test_log_tail": "ning 24 tests\ntest machine_cgu::layout::tests::exact_layout_replay_preserves_imports_addresses_and_item_order ... ok\ntest machine_cgu::layout::tests::layout_cache_publishes_only_on_commit_and_corruption_falls_back ... ok\ntest machine_cgu::layout::tests::layout_key_binds_current_model_planning_projection_and_policy ... ok\ntest machine_cgu::layout::tests::layout_records_are_bounded_and_require_complete_current_ownership ... ok\ntest machine_cgu::tests::address_only_references_never_copy_implementations ... ok\ntest machine_cgu::tests::canonical_owner_can_be_first_middle_or_last_consumer ... ok\ntest machine_cgu::tests::closed_policy_keeps_cross_unit_function_addresses_and_global_initializers ... ok\ntest machine_cgu::tests::closed_policy_preserves_local_address_use_and_duplicate_rejection ... ok\ntest machine_cgu::tests::closed_policy_uses_exact_nonforeign_identity_and_keeps_other_items ... ok\ntest machine_cgu::tests::external_uses_import_only_immediate_declarations ... ok\ntest machine_cgu::tests::filtering_cannot_hide_invalid_unused_declarations_or_cross_unit_collisions ... ok\ntest machine_cgu::tests::foreign_addresses_and_global_initializers_keep_only_consumed_declarations ... ok\ntest machine_cgu::tests::large_file_chunks_still_union_shared_local_addresses ... ok\ntest machine_cgu::clone_controls::mutual_recursion_preserves_each_direct_call_and_canonical_entry ... ok\ntest machine_cgu::clone_controls::direct_recursion_keeps_canonical_self_address_through_every_clone_call ... ok\ntest machine_cgu::tests::local_component_falls_back_without_copying_and_duplicates_remain_invalid ... ok\ntest machine_cgu::clone_controls::direct_clones_preserve_self_addresses_callbacks_globals_and_distinct_equal_functions ... ok\ntest machine_cgu::tests::local_identity_and_global_initializers_are_colocated_once ... ok\ntest machine_cgu::tests::o2_imports_preserve_local_identity_and_import_external_global_declarations ... ok\ntest machine_cgu::tests::small_source_callers_keep_local_components_and_dynamic_fallback ... ok\ntest machine_cgu::tests::static_utf8_private_exact_data_stays_with_its_users_once ... ok\ntest machine_cgu::tests::o2_imports_follow_transitive_bodies_and_keep_unique_emitted_owners ... ok\ntest machine_cgu::tests::multiply_shared_closure_coarsens_without_weakening_copy_bound ... ok\ntest machine_cgu::tests::large_transitive_closure_is_complete_and_keeps_canonical_arguments ... ok\n\ntest result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 156 filtered out; finished in 0.27s\n\n"
+}
