@@ -2798,33 +2798,16 @@ impl FunctionEmitter<'_> {
                 };
                 let definition = self.closure_definition(*environment)?;
                 let function = definition.function;
-                let return_type = llvm_type(&definition.result)?;
-                let assignment = if definition.result == Type::Unit {
-                    None
-                } else {
-                    Some(format!("v.{}", result(instruction)?.0))
-                };
-                let mut emitted_arguments = vec![m::Arg::new(
-                    environment_type(*environment),
-                    m::val(value(*callee)),
-                )];
-                for argument in arguments {
-                    let ty = self.value_type(*argument)?;
-                    if *ty != Type::Unit {
-                        emitted_arguments
-                            .push(m::Arg::new(llvm_type(ty)?, m::val(value(*argument))));
-                    }
-                }
-                self.event(m::Event::Instruction(m::Inst::new(
-                    assignment,
-                    m::Op::Call {
-                        result: return_type,
-                        result_attrs: vec![],
-                        callee: m::global(symbol(function)),
-                        args: emitted_arguments,
-                        vararg: None,
-                    },
-                )));
+                let result_ty = definition.result.clone();
+                let environment =
+                    m::Arg::new(environment_type(*environment), m::val(value(*callee)));
+                self.emit_resource_closure_call(
+                    instruction,
+                    function,
+                    &result_ty,
+                    environment,
+                    arguments,
+                )?;
             }
             InstructionKind::Unsupported(feature) => {
                 return unsupported(feature.clone(), Some(instruction.span));

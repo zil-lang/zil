@@ -209,11 +209,8 @@ pub(super) fn plan(
             })?;
             debug_assert!(slot.bytes >= 4096);
         }
-        if abi.versioned && (function.foreign.is_some() || function.environment.is_some()) {
-            return unsupported(
-                "large Copy foreign or closure entry ABI",
-                Some(function.span),
-            );
+        if abi.versioned && function.foreign.is_some() {
+            return unsupported("large Copy foreign entry ABI", Some(function.span));
         }
         plans.functions.insert(function.id, abi);
         for (index, ty) in function.values.iter().enumerate() {
@@ -238,6 +235,48 @@ pub(super) fn plan(
                 // data copying, escaped text/native constants, symbol/hash work
                 // and the two slice instructions before any machine emission.
                 super::static_utf8::reserve_emission(bytes.len(), remaining)?;
+            }
+            // Generated callback/thread/cell bridges keep their old complete
+            // convention. Only ordinary closure invocation uses env/out/copy-in.
+            let helpers = match instruction.kind {
+                InstructionKind::WithForeignCallback { callback, body, .. } => {
+                    [Some(callback), Some(body)]
+                }
+                InstructionKind::RegistrationStart { callback, .. }
+                | InstructionKind::AsyncRegistrationStart { callback, .. } => {
+                    [Some(callback), None]
+                }
+                InstructionKind::WithScopedThread { body, .. }
+                | InstructionKind::WithSyncCell { body, .. } => [Some(body), None],
+                _ => [None, None],
+            };
+            for helper in helpers.into_iter().flatten() {
+                *remaining = remaining
+                    .checked_sub(lir.closures.len().saturating_add(1))
+                    .ok_or_else(|| {
+                        vec![Diagnostic::limit(
+                            Phase::Codegen,
+                            "large Copy closure helper budget exceeded",
+                            Some(instruction.span),
+                        )]
+                    })?;
+                let ty = &function.values[helper.0 as usize];
+                let ty = match ty {
+                    Type::Address { inner, .. } => inner.as_ref(),
+                    ty => ty,
+                };
+                if let Type::Closure(id) = ty
+                    && let Some(closure) = lir.closures.iter().find(|closure| closure.id == *id)
+                    && plans
+                        .functions
+                        .get(&closure.function)
+                        .is_some_and(|abi| abi.versioned)
+                {
+                    return unsupported(
+                        "large Copy generated closure helper ABI",
+                        Some(instruction.span),
+                    );
+                }
             }
             if let InstructionKind::TaskCreate { worker, .. }
             | InstructionKind::SuspendCall {
@@ -390,7 +429,18 @@ impl FunctionEmitter<'_> {
         callee: m::Val,
         arguments: &[ValueId],
     ) -> CompileResult<()> {
-        let mut args = Vec::new();
+        self.large_copy_call_with_prefix(instruction, signature, callee, Vec::new(), arguments)
+    }
+    // Ordinary closure entries prepend their real environment before the same
+    // out-pointer and source-parameter mapping used by ordinary functions.
+    pub(super) fn large_copy_call_with_prefix(
+        &mut self,
+        instruction: &Instruction,
+        signature: &Signature,
+        callee: m::Val,
+        mut args: Vec<m::Arg>,
+        arguments: &[ValueId],
+    ) -> CompileResult<()> {
         if signature.result.is_some() {
             let output = result(instruction)?;
             if !self.copy_values.contains_key(&output) {

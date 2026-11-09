@@ -340,6 +340,29 @@ fn expect_large_owned(text: &str, expected: &str) {
             let llvm = fs::read_to_string(temp.0.join("phases/llvm.ll")).unwrap();
             assert!(llvm.contains(".lc1("));
             assert!(llvm.contains("@zil.copy.bytes"));
+            if text.contains("fn factory()->impl Fn") {
+                let entries = llvm
+                    .lines()
+                    .filter(|line| {
+                        line.starts_with("define ")
+                            && line.contains("%env")
+                            && line.contains(".lc1(")
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(entries.len(), 1, "{llvm}");
+                assert!(
+                    entries[0].contains("ptr %arg.") || entries[0].contains("ptr %lc1.result"),
+                    "{}",
+                    entries[0]
+                );
+                if let Some((before_env, _)) = entries[0].split_once("%env") {
+                    assert!(
+                        !before_env.contains("%lc1.result"),
+                        "environment must precede output: {}",
+                        entries[0]
+                    );
+                }
+            }
             assert!(!llvm.contains("insertvalue { { ptr, i64, i64 }, [2 x"));
             // Every scratch/value slot is emitted in the entry block. Repeated
             // construction/moves inside a loop must never grow its stack.
@@ -561,4 +584,79 @@ fn large_owned_package_raw_and_wire_reject_duplicated_move_arguments() {
         wire[0].message,
         "managed SSA value was not available exactly once"
     );
+}
+
+// A shallow 16^3 field keeps this ABI probe independent of recursive frontend
+// stack depth while retaining a real 16KiB owned argument/result.
+fn large_closure_program(body: &str) -> String {
+    let mut ty = "i32".to_owned();
+    let mut init = "let a0=seed;".to_owned();
+    for level in 1..=3 {
+        ty = format!("[{ty};16]");
+        let fields = vec![format!("a{}", level - 1); 16].join(",");
+        init.push_str(&format!("let a{level}=[{fields}];"));
+    }
+    format!(
+        "{COUNTERS}{BUFFER}package Large{{manages bytes:ByteBuffer;values:{ty}}}fn make(seed:i32)->Large{{{init}return Large{{bytes:buf(u8(seed)),values:a3}}}}{body}"
+    )
+}
+
+#[test]
+fn large_owned_closure_parameter_result_and_roundtrip_use_real_environments() {
+    let first = "[0]".repeat(3);
+    for (factory, work, expected) in [
+        (
+            format!("fn factory()->impl Fn(Large)->i32{{let bias=7;return move(p)=>{{let a=p.values;return a{first}+get(p.bytes)+bias}}}}"),
+            "fn work()->i32{let f=factory();return f(make(3))}",
+            "10113\n",
+        ),
+        (
+            "fn factory()->impl Fn(i32)->Large{let bias=2;return move(seed)=>make(seed+bias)}".into(),
+            "fn work()->i32{let f=factory();let p=f(3);let a=p.values;return get(p.bytes)+a[0][0][0]}",
+            "10110\n",
+        ),
+        (
+            "fn factory()->impl Fn(Large)->Large{let bias=2;return move(p)=>{var q=p;q.bytes=buf(u8(bias));return q}}".into(),
+            "fn work()->i32{let f=factory();let p=f(make(3));let a=p.values;return get(p.bytes)+a[0][0][0]}",
+            "20205\n",
+        ),
+    ] {
+        let text = large_closure_program(&format!("{factory}{work}fn value()->i32{{let answer=work();return answer+counts()}}"));
+        expect_large_owned(&text, expected);
+    }
+}
+
+#[test]
+fn large_owned_mutable_closure_borrowed_calls_reuse_fixed_stack_slots() {
+    let first = "[0]".repeat(3);
+    let text = large_closure_program(&format!(
+        "fn factory()->impl FnMut(Large)->Large{{var calls=0;return move(p)=>{{calls+=1;bytes_push(p.bytes,u8(calls%200));return p}}}}fn invoke<F:FnMut(Large)->Large>(f:&mut F,p:Large)->Large{{return f(p)}}fn work()->i32{{var f=factory();var n=0;var answer=0;while n<1024{{let p=invoke(&mut f,make(3));let a=p.values;answer+=a{first}+get(p.bytes)+i32(bytes_len(p.bytes));n+=1}}return answer}}fn value()->i32{{let answer=work();return answer+counts()}}"
+    ));
+    expect_large_owned(&text, "10350592\n");
+}
+
+#[test]
+fn large_owned_once_closure_result_and_error_clean_each_owner_once() {
+    let first = "[0]".repeat(3);
+    for (body, expected) in [
+        (
+            format!("fn factory()->impl FnOnce(Large)->Large{{let b=buf(7u8);return move(p)=>{{var q=p;let old=give q.bytes;q.bytes=give b;return q}}}}fn work()->i32{{let f=factory();let p=f(make(3));let a=p.values;return a{first}+get(p.bytes)}}"),
+            "20210\n",
+        ),
+        (
+            "enum Fault{Stop}fn fail()->Fault!i32{return Fault.Stop}fn factory()->impl FnOnce(Large)->Fault!i32{let b=buf(7u8);return move(p)=>{let old=give p.bytes;return fail()?+get(old)+get(b)}}fn work(){let f=factory();let result=f(make(3))}".into(),
+            "20200\n",
+        ),
+        (
+            format!("fn factory()->impl Fn(Large)->i32{{let bias=1;return move(p)=>{{if bytes_reserve(p.bytes,13){{return -1}}let a=p.values;return a{first}+i32(bytes_len(p.bytes)+bytes_capacity(p.bytes))+bias}}}}fn work()->i32{{let f=factory();return f(make(3))}}"),
+            "10213\n",
+        ),
+    ] {
+        let value = if expected == "20200\n" {
+            "fn value()->i32{work();return counts()}"
+        } else {
+            "fn value()->i32{let answer=work();return answer+counts()}"
+        };
+        expect_large_owned(&large_closure_program(&format!("{body}{value}")), expected);
+    }
 }
