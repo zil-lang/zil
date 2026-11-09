@@ -308,6 +308,7 @@ pub(super) fn module() -> TypedModule {
     }
 }
 
+#[allow(dead_code)] // This shared fixture is not consumed by every test subset.
 pub(super) fn exclusive_returns(overlap: bool) -> TypedModule {
     let mut m = module();
     let mutable = address(Type::I64, true);
