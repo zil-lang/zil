@@ -7,7 +7,8 @@
     "commit": "f2cfb4d6bbd17b9325f58b78715b3fef8293ec13",
     "tree": "72d630027fd467d2930855e3f9b3ac923a8bfd46",
     "repository": "https://github.com/zil-lang/zil",
-    "clean_during_validation": true
+    "clean_during_validation": true,
+    "published_commit": "fcc387b4cab91dc98cd27a14264769f21f75452e"
   },
   "input": {
     "fingerprint": "4011cf8d1255cbf085e02cce4cd9d9fc54c28797bebf9e61cd06bbfbc855dd7f",
@@ -165,5 +166,30 @@
     "This receipt does not accept the separate large HashMap or owning512-address Package consumer",
     "This receipt is not a whole-workspace or formal release-gate result",
     "The earlier single-package run omitted llvm-api and executed only28 Clang cases; only the explicit-feature run above supplies all56 cases"
-  ]
+  ],
+  "published_source_equivalents": {
+    "scope": "Published commits contain identical source trees. Original validation commit identities above are retained; this mapping does not assert a rerun or binary identity.",
+    "commits": [
+      {
+        "recorded_local_commit": "f2cfb4d6bbd17b9325f58b78715b3fef8293ec13",
+        "published_commit": "fcc387b4cab91dc98cd27a14264769f21f75452e",
+        "identical_tree": "72d630027fd467d2930855e3f9b3ac923a8bfd46"
+      },
+      {
+        "recorded_local_commit": "b22fd7c54170f7744bf01030188dd61cf7a74f15",
+        "published_commit": "32fbce625213c897a73eca86fb987463c50378b3",
+        "identical_tree": "c5d3add2632cfca089becbb538591c279c6111ce"
+      },
+      {
+        "recorded_local_commit": "b1019f67e3831490067b8c57df347d3d730e9db3",
+        "published_commit": "c0be3325b65f89e90ebea05d6f9c232c3d98e9d9",
+        "identical_tree": "9c5825d2854adac6069e321f17a12141b92aaadb"
+      },
+      {
+        "recorded_local_commit": "05a0f34635ec7798d29053e4a4f5def90edbe6c2",
+        "published_commit": "a72be12022f88df0dfae31db92a61e2f29378550",
+        "identical_tree": "1515c7822b01b6d1814ef98b15077b2b968c8744"
+      }
+    ]
+  }
 }
