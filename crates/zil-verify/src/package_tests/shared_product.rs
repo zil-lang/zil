@@ -520,7 +520,11 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
                 format!("mode={mode}"),
                 module,
                 plan,
-                Some([4584, 4972, 6294][mode as usize]),
+                // mode2 has ten SSA rows and three Package field bytes.
+                // Two resource runs build layouts (+92), initialize/clone
+                // fields (-20), and each replay the block twice: two field
+                // sets/readbacks cost 26 per block (+104), net +176.
+                Some([4584, 4972, 6470][mode as usize]),
             )
         })
         .collect();

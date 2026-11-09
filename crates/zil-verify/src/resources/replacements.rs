@@ -742,9 +742,7 @@ impl Plan {
                                     })?;
                                 let incoming = state
                                     .package_fresh
-                                    .get(value.0 as usize)
-                                    .and_then(|fields| fields.get(owner))
-                                    .copied()
+                                    .get(value.0 as usize, owner, b)?
                                     .ok_or_else(|| {
                                         bad(span, "whole replacement RHS field provenance absent")
                                     })?;

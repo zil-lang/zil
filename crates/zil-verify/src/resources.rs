@@ -9,6 +9,7 @@ pub(super) fn head_address(ty: &Type) -> bool {
 }
 use std::collections::VecDeque;
 pub(crate) mod arrays;
+mod field_fresh;
 mod product;
 pub(super) mod public_roles;
 mod replacements;
@@ -571,7 +572,7 @@ struct State {
     // Independent SSA Package field provenance. These bytes do not add debt:
     // a complete Package still moves as one value, with local partial fields
     // checked by the existing responsibility slots.
-    package_fresh: Vec<Vec<u8>>,
+    package_fresh: field_fresh::Fields,
     // Actual local/SSA Managed leaves of new Product functions, independently
     // rebuilt here. Empty on the historical flat path; never a public proof.
     product_fresh: Vec<u8>,
@@ -588,7 +589,7 @@ struct Slots {
     // fields do not. Field debts follow all SSA slots and precede captures so
     // they still participate in the ordinary-return conservation check.
     package_fields: Vec<Vec<Option<usize>>>,
-    package_widths: Vec<usize>,
+    package_fresh_plan: field_fresh::Plan,
     product: product::Plan,
     desc_local: Vec<Option<usize>>,
     desc_value: Vec<Option<usize>>,
@@ -886,11 +887,12 @@ impl Slots {
             }
         }
         let product = product::Plan::new(f, budget)?;
+        let package_fresh_plan = field_fresh::Plan::new(package_widths, budget)?;
         Ok(Self {
             managed_local,
             managed_value,
             package_fields,
-            package_widths,
+            package_fresh_plan,
             product,
             desc_local,
             desc_value,
@@ -927,13 +929,8 @@ impl Slots {
                 .saturating_add(self.desc_count)
                 .saturating_add(self.local_count),
         )?;
-        budget.spend(self.package_widths.len())?;
-        let mut package_fresh = Vec::with_capacity(self.package_widths.len());
-        for &width in &self.package_widths {
-            budget.spend(width)?;
-            // An input or unknown Package producer cannot prove new fields.
-            package_fresh.push(vec![INPUT; width]);
-        }
+        // An input or unknown producer still starts every actual field INPUT.
+        let package_fresh = self.package_fresh_plan.empty(budget)?;
         budget.spend(self.product.width())?;
         if self.retirement {
             budget.spend(self.desc_count)?;
@@ -965,14 +962,11 @@ fn state_cost(s: &State, budget: &mut Budget) -> Check<()> {
         s.debt
             .len()
             .saturating_mul(2)
-            .saturating_add(s.package_fresh.len())
             .saturating_add(s.product_fresh.len())
             .saturating_add(s.desc.len())
             .saturating_add(s.newer.len()),
     )?;
-    for row in &s.package_fresh {
-        budget.spend(row.len())?;
-    }
+    s.package_fresh.cost(budget)?;
     for row in &s.desc {
         budget.spend(row.len())?;
     }
@@ -999,18 +993,12 @@ fn merge(target: &mut State, source: &State, budget: &mut Budget) -> Check<bool>
         .zip(&source.debt)
         .chain(target.fresh.iter_mut().zip(&source.fresh))
         .chain(target.product_fresh.iter_mut().zip(&source.product_fresh))
-        .chain(
-            target
-                .package_fresh
-                .iter_mut()
-                .flatten()
-                .zip(source.package_fresh.iter().flatten()),
-        )
     {
         let next = *a | *b;
         changed |= next != *a;
         *a = next;
     }
+    changed |= target.package_fresh.merge(&source.package_fresh, budget)?;
     for (a, b) in target.desc.iter_mut().zip(&source.desc) {
         budget.spend(a.len().saturating_add(b.len()))?;
         let before = a.len();
@@ -1655,7 +1643,12 @@ impl Transfer<'_> {
                         if matches!(f.values[value.0 as usize], Type::Managed(_)) {
                             let source = slots.managed_value[value.0 as usize]
                                 .expect("checked Managed field source");
-                            state.package_fresh[output.0 as usize][index] = state.fresh[source];
+                            state.package_fresh.set(
+                                output.0 as usize,
+                                index,
+                                state.fresh[source],
+                                budget,
+                            )?;
                         }
                         self.consume(state, value, span, validate)?;
                     }
@@ -2241,8 +2234,12 @@ impl Transfer<'_> {
                             for (position, (_, ty)) in types.iter().enumerate() {
                                 if matches!(ty, Type::Managed(_)) {
                                     let field = fields[position].expect("checked Managed field");
-                                    state.package_fresh[output.0 as usize][position] =
-                                        state.fresh[field];
+                                    state.package_fresh.set(
+                                        output.0 as usize,
+                                        position,
+                                        state.fresh[field],
+                                        budget,
+                                    )?;
                                 }
                             }
                         }
@@ -2312,14 +2309,17 @@ impl Transfer<'_> {
                         for (position, field) in fields.iter().enumerate() {
                             if let Some(field) = field {
                                 state.debt[*field] = LIVE;
-                                state.fresh[*field] =
-                                    if package_storage(&f.locals[local.0 as usize].ty).is_some_and(
-                                        |types| matches!(types[position].1, Type::Managed(_)),
-                                    ) {
-                                        state.package_fresh[value.0 as usize][position]
-                                    } else {
-                                        INPUT
-                                    };
+                                state.fresh[*field] = if package_storage(
+                                    &f.locals[local.0 as usize].ty,
+                                )
+                                .is_some_and(|types| matches!(types[position].1, Type::Managed(_)))
+                                {
+                                    state
+                                        .package_fresh
+                                        .value(value.0 as usize, position, budget)?
+                                } else {
+                                    INPUT
+                                };
                             }
                         }
                     }
@@ -2844,7 +2844,9 @@ impl Transfer<'_> {
                     }
                     budget.spend(bridge.package.len())?;
                     for &(index, fresh) in &bridge.package {
-                        state.package_fresh[output.0 as usize][index] = fresh;
+                        state
+                            .package_fresh
+                            .set(output.0 as usize, index, fresh, budget)?;
                     }
                 }
                 budget.spend(bridge.unpack.len())?;
