@@ -14,7 +14,7 @@
 
 本阶段先补普通数据模型、泛型库、模式、同步与标准库，再收动态抽象、图/外部生命周期和完整程序。必需能力全部进入P0；有普通合法程序仍被临时白名单或未实现组合阻挡，就保留缺口，不能靠缩小子项关闭父项。运行/编译成本和安全产品门保持原要求，功能就绪与正式发布分别验收。
 
-Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Package窗口的ByteBuffer长度/容量查询、Direct actual-read效应及按程序点保留/撤销的弱委派。默认整树单轮5659/0、参考相关四目标682/0、strict/格式/结构通过，GitHub独立冷构建16次执行及3项真实loan拒绝通过。[精确验收快照](https://github.com/zil-lang/zil/blob/53e3e092d45a19dcdcd01e88d2cc25e4f7670793/validation/native-language-composition.json)。新增初始化修复已合入main@b07b85dd4：相关690/0与全目标strict通过，见[限定验收](https://github.com/zil-lang/zil/blob/b07b85dd49b3df6f382734d509919a2a6013c97d/validation/shared-array-snapshot-initialization.json)。组合候选已备份至task/G10.6.3@ed8e3a5de：拥有trait返回、泛型lending、回调、字段替换、动态数组及资源工作量修复已汇总，两核单测207/0、459/0。完整原消费者仍阻于拥有字段Byte视图，正在G3.4.22修复；未共同验收或宣称1.0。
+Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Package窗口的ByteBuffer长度/容量查询、Direct actual-read效应及按程序点保留/撤销的弱委派。默认整树单轮5659/0、参考相关四目标682/0、strict/格式/结构通过，GitHub独立冷构建16次执行及3项真实loan拒绝通过。[精确验收快照](https://github.com/zil-lang/zil/blob/53e3e092d45a19dcdcd01e88d2cc25e4f7670793/validation/native-language-composition.json)。新增初始化修复已合入main@b07b85dd4：相关690/0与全目标strict通过，见[限定验收](https://github.com/zil-lang/zil/blob/b07b85dd49b3df6f382734d509919a2a6013c97d/validation/shared-array-snapshot-initialization.json)。组合候选已备份至task/G10.6.3@63938bd3e：拥有trait返回、泛型lending、借入输入拥有输出闭包、动态数组及大型普通拥有ABI已汇总。原四模块消费者已通过独立A/V与48原生；增长集合60/64原生过，完整收集程序与大Map仍有默认Analyze成本缺口。尚未共同验收或宣称1.0。
 
 ## G1 · 基础类型与模式
 
@@ -200,7 +200,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | G3.4.19 | 整共享地址数组读取逐实际根核初始化 | 已合入 | — | — | main@b07b85dd4；精确源码057308f16相关API四目标690/0、snapshot/Byte组92/0、全目标strict/fmt及结构3979通过；含4配置snapshot原生。新增全量/冷恢复未跑，不等于动态下标完成。 |
 | G3.4.20 | 借入泛型Package的Managed Store字段替换 | 待集成 | P0 | sol high · array_analysis_cost | f0ee4f821已获Sol精审接受；189/0、12原生、真实旧描述失效和新旧精确预算通过；root已合。只接实际可变Package的完整Store字段，不开放whole/capture。 |
 | G3.4.21 | 普通拥有字段Copy观察、共享错误臂及标量入口组合 | 待集成 | P0 | sol high · integration_audit；Astra审 | 7dd7bb0eb已获精确接受并合root；真实字段/tag/init/loan及Byte入口callee证明保留，相关10过/1后端失败；后端首阻断ReadPackageField由G10.3.5补接。 |
-| G3.4.22 | 存储借入程序中局部拥有ByteBuffer字段的共享字节视图 | 进行中 | P0 | sol high · byte_view_composition；Astra复核 | 远端c19d452b9库实现冻结；原四Source精确A/V N=7,122,869/7,814,112，各N-1/fresh和V raw/Wire过；原48native与byte12native全过，原Source/raw/Wire实际来源及loan反例过，11byte组重过。独立bool oracle3/0，旧budget按真实下降重固定；待联合全门。 |
+| G3.4.22 | 存储借入程序中局部拥有ByteBuffer字段的共享字节视图 | 进行中 | P0 | sol high · byte_view_composition；Astra复核 | 远端d14677a60已合root63938bd3e；原四Source默认A/V及48原生、局部Byte12原生全过，11byte和实际来源/loan Source/raw/Wire反例过。冻结Byte输入顺序下精确A/V N=7,122,869/7,814,112与N-1/fresh过；联合新算法费用待重测，不借旧N证明新树。 |
 
 </details>
 
@@ -226,7 +226,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G3.5.1.1 | 无关closure不阻挡普通lending调用和借入Option模式 | 待集成 | P0 | sol high · borrowed_owned_callbacks | f46254b88已精审并合root；Direct完整签名与真实函数指针ABI分流，原lending/无关closure组合及4原生通过。与泛型fee修复共同相关378/0。 |
-| G3.5.1.2 | 存储借入CFG中的借入输入闭包与封闭拥有结果 | 待集成 | P0 | sol high · borrowed_owned_callbacks | 6a95603ed已获Sol精审接受并合root，生产5deaa1fc6；117所选、精确A/V预算及strict通过，59项证据hash/原四Source已独立核。完整原生仍待G3.4.22。 |
+| G3.5.1.2 | 存储借入CFG中的借入输入闭包与封闭拥有结果 | 待集成 | P0 | sol high · borrowed_owned_callbacks | 6a95603ed已独审并合root，生产5deaa1fc6；117所选及精确A/V预算过。借入输入、拥有返回的原四模块48原生已由G3.4.22打通，待联合全门。 |
 
 </details>
 
@@ -412,7 +412,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | G9.3.6 | 基础String查询、排序、文件/流I/O与真正可封装的Map/Set | 进行中 | P0 | sol high · stdlib | `c116bd65f`：UTF8查询/整数转换/排序/文件流、拥有StringMap、固定容量POD回调HashMap、名义i64 Map/Set已合候选；真实私有Key、失败返key/删除故障在四配置通过。完整owning K/V已由G9.3.9交付；自动增长泛型哈希/通用Set与迭代适配仍缺。 |
 | G9.3.9 | 真正按key的owning K/V Map、替换/取出及失败责任 | 已合入 | — | — | 原`b3f3888f2`实际KeyEq/替换/取出/分配失败责任保持，`f3b600238`加入已准入V的Option借入get及helper，actual manager源/强pin/错误key来源已独审； 已由main@222e550af本批有限范围验收。 |
 | G9.3.10 | 拥有/借入迭代消费者及map/filter/collect适配 | 待排期 | P1 | 待派 | 依赖G2.4.11/G2.4.12/G3.5.1；先用真实普通库区分语言门与库实现，不重做已有LendingIterator。 |
-| G9.3.11 | 自动增长泛型HashMap及通用Set | 部分实现 | P1 | sol high · collections | POD自动增长/Copy Set源码已备份；G3.4.20修复后暴露非local callable普通参数Commit效应缺口，子项继续阻塞。owning K/V哈希未排，已有线性OwningMap可用。 |
+| G9.3.11 | 自动增长泛型HashMap及通用Set | 部分实现 | P1 | sol high · collections | POD自动增长/Copy Set及普通Input replacement效应已实现并合root；60/64原生真过，大Map正常消费者仍有Analyze成本缺口，由子项修复。owning K/V哈希未排，已有线性OwningMap可用。 |
 | G9.3.12 | 无符号/浮点文本转换与缓冲I/O | 待排期 | P1 | 待派 | 复用已有String、文件流、i64解析/格式化；覆盖范围/舍入/短读写及失败清理。 |
 
 <details>
@@ -420,7 +420,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | sol high · growing_collections | 远端44489afb1后联合537：Analyze218/0、growing9过2失败；Set功能4、Map分配失败28、Set分配失败28共60/64原生真过。大Map仍A resource join lookup；ecdbbe9c3的完整key核对cells线性合流及全State旧算法oracle已独审，无额度/类型特例，正冷编。 |
+| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | sol high · growing_collections | 远端936942879已合root63938bd3e；run7 Analyze221/0、growing9过2失败；Set功能4、Map分配失败28、Set分配失败28共60/64原生过。完整key核对cells线性合流已独审及旧算法oracle验收；大Map仍A Sum alternatives allocation，正记录实际账本定位，无额度/源缩减。 |
 
 </details>
 
@@ -526,7 +526,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | --- | --- | --- | --- | --- | --- |
 | G10.6.1 | 语言初稿开发预览：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 已合入 | — | — | [PR51 验收][e-pr51]：精确源码 `a8c7953e7` 默认5190/0、参考5078/0、文本70/0；双严格检查、release、10项工程门及远端源码恢复构建运行通过。有限预览不替代 B0/完整语言。 |
 | G10.6.2 | 通用 Native 库与异步资源联合验收：精确源码、真实消费者、独审和远端恢复 | 已合入 | — | — | `main@e800b39d5`：默认5269/0、参考5157/0、文本70/0；真实联合双后端 O0/O2、3735文件远端恢复/空缓存构建、16次 API 构建/128次运行/56次故障注入均通过。[本批记录][e-native-foundations]。 |
-| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | 北京时间最后施工 2026-11-09 10:42；远端9b83875be保联合基础。原四模块默认A/V、精确预算与48原生全过；集合联合537有218个Analyze单测通过、60/64原生过，仅大Map剩A cells join预算。collected仍A后续holds预算；ecdb通用cells线性合流独审通过，正新运行，未整体发布验收。 |
+| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | 北京时间最后施工 2026-11-09 10:51；远端63938bd3e已备份完整联合树。原四模块A/V与48原生全过；最新集合221个Analyze单测、60/64原生过，剩大Map默认A；collected4011仍A后续holds预算。正在定位真实重复分配/分类；静态格式/结构/合同检查过，未整体发布验收。 |
 | G10.6.4 | 全量回归中的旧Store/实际callback Package准入 | 已合入 | — | — | `6c1ac6fdf`已合候选；恢复旧flat callback/Store真实root快路，保留新borrowed Product分类，84项与原CLI/window正反例专项通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.5 | 新共享构造检查的两核实际独占loan发现与旧fee保持 | 已合入 | — | — | `e5c52c936/396c183c`已合：复用付费建表，无额外扫描，原两预算控制恢复原值、28独占构造/slot控制通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.6 | 默认worker深调用与life组合栈溢出 | 已合入 | — | — | 既有递归帧修复由main@222e550af验收；source_life合流回归的子项也已由main@0e770a26e交付。原默认栈/深调用/费用控制保留。 |
@@ -562,9 +562,9 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | --- | --- | --- | --- | --- | --- |
 | G10.3.1 | GPU 平台 ABI 路线、实际消费者与 CPU/GPU 完成合同 | 待排期 | P2 | 待派 | 通用语言批次之后；已有 out-handle/固定 POD 签名通过 Verify。先具名 changes/独审并接真实 native adapter；若选纯 ZIL COM 再补外部方法/指针能力，不全面放宽 c_handle。 |
 | G10.3.2 | 正常规模共享地址数组的独立两核分析成本 | 待集成 | P0 | sol high · array_analysis_cost | 19d929e03已精审接受；A205/V459、35专项与4个512原生通过，精确N4170159；root已整合。大型地址Array Package仍分析受限；一般大型拥有值物理ABI见G10.3.3。 |
-| G10.3.3 | 大型拥有Package物理snapshot和内部参数/返回ABI | 待集成 | P0 | sol high · large_owned_value_abi | 424791b53已精审接受并合root；239/0与16原生验证16KiB字段、移动/refill/固定栈循环，不授Copy。大型Closure三种签名仍Codegen Unsupported；地址Array Package分析边界保留。 |
+| G10.3.3 | 大型拥有Package物理snapshot和内部参数/返回ABI | 待集成 | P0 | sol high · large_owned_value_abi | 424791b53已精审并合root；239/0与16原生验证16KiB字段、移动/refill/固定栈循环，不授Copy。普通局部Closure大型参数/结果已由G10.3.6补齐；大型地址Array Package分析边界保留。 |
 | G10.3.4 | 拥有借入与ErrorUnion组合的独立资源分析成本 | 待集成 | P0 | sol high · resource_sum_cost | 5cf970ba5已获Sol精审并合root；完整unknown/缺失alternative、循环固定点与最终检查保持，旧核预算不变。A实际CFG调度及V独立工作量修复，原Source默认额度过相关阶段。 |
-| G10.3.5 | 后端普通Package字段及Byte/Error消费者完整类型预付 | 待集成 | P0 | sol high · large_owned_value_abi | 9f91ccc5e已精审并合root；完整actual type预付预算7/0及strict过，原四模块和ErrorArm两后端O0/O2共8原生成功。更大pipeline仍前端阻断，不冒称共同门完成。 |
+| G10.3.5 | 后端普通Package字段及Byte/Error消费者完整类型预付 | 待集成 | P0 | sol high · large_owned_value_abi | 9f91ccc5e已精审并合root；完整actual type预付预算7/0及strict过，原四模块和ErrorArm四配置8原生通过。完整pipeline已由G3.4.22通过48原生，待共同门。 |
 | G10.3.6 | 普通Closure的大型拥有参数/结果内部ABI | 待集成 | P0 | sol high · large_closure_abi；Astra复核 | 远端dbd5c446a冻结并合联合分支：普通local Closure大型输入/结果、借入FnMut循环、FnOnce失败清理、小ABI与旧Package共48原生通过；Codegen N=111300/N-1/fresh通过。factory/泛型helper五个原始Types边界仍明确拒绝；待联合发布验收。 |
 
 </details>

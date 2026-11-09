@@ -2,7 +2,7 @@
   "date": "2026-11-09 09:04 Asia/Shanghai",
   "status": "resumed_not_accepted",
   "main": "b07b85dd49b3df6f382734d509919a2a6013c97d",
-  "goal_read": "95b00bdc2e3a230b05b8f2ad632ef679ca49c1ab",
+  "goal_read": "2ce1de5749effd4dd1b6fe8b5dca43b4ba54d981",
   "integration": "ed8e3a5de6befb15b515f6b124e992792414a8ca",
   "source_branches": {
     "root": "task/G10.6.3",
@@ -13,22 +13,33 @@
   "first_failure": "offline cargo dependency rustc_apfloat absent; no tests executed",
   "scope": "Continue original ordinary-library consumer and large owned closure transport; no release claim",
   "raw_logs": "out/runs/byte-views-baseline-20261109/ in task/G3.4.22 worktree",
-  "last_work": "2026-11-09 10:42 Asia/Shanghai",
-  "integration_remote": "e21d9684ed45a5f0c31c7e764f87a008d054d9a8",
+  "last_work": "2026-11-09 10:51 Asia/Shanghai",
+  "integration_remote": "63938bd3e0f22f261981793f401764614b95f6ed",
   "large_closure_checkpoint": "dbd5c446a600eb26f34574748376a2b8e84fece8",
   "baseline_language_failure": "original four-module program: Analyze ResourceLimit / Sum terminal tag classification, 0 pass, 1 fail",
   "native_progress": "frozen ordinary local closure ABI: 48 native executions pass; opaque factories/generic callable helpers remain five explicit Types Unsupported boundaries",
-  "integration_local": "089e790fb39d3cec8e89e9064f284a37379a28af",
-  "byte_views_checkpoint": "f509f4a1383b61170702d90a7ce89846d7ad1854",
-  "growing_collections_checkpoint": "77029ec52f4cffc888330e2be514b162eae2a323",
-  "original_pipeline": "fixed four Source: A N7122869/V N7814112, N-1/fresh/raw/Wire pass;48 native executions pass with exact allocator outputs",
-  "collections_progress": "joint537 Analyze218 pass;growing9 pass2 fail;60/64 native true pass;ecdb checked linear cells join independently reviewed, pending execution",
-  "collected_pipeline": "fixed4011cf8d under joint537: Analyze advanced beyond former liveness to owned callback address boundary classification ResourceLimit;no Verify/native result",
+  "integration_local": "743eb6972984eddcbc42e58d0835268c6ba78f7a",
+  "byte_views_checkpoint": "d14677a605fdd136fbe4ec792d924952f285c768",
+  "growing_collections_checkpoint": "9369428793e7248225d3ec9b804c96f798f67665",
+  "original_pipeline": "Frozen Byte precise order main/model/protocol/library, fingerprint d9afb8c2667ac61471aa1f37bd2fb9277abcbab5df37090bf4f8f6b8d32ec676: A N7122869/V N7814112 with N-1/fresh/raw/Wire pass; original4095 native input order main/protocol/library/model:48 actual executions pass, identical source file bytes",
+  "collections_progress": "run7/d887: Analyze221/0, growing9/2;60/64 native pass; Map functional four configurations still Analyze ResourceLimit / Sum alternatives allocation",
+  "collected_pipeline": "fixed4011cf8d under d887: Analyze ResourceLimit / owned callback address boundary classification; no Verify or native result",
   "build_window_policy": "one heavy build at a time, independent target per worktree, no raised analysis limits or thread stack",
-  "byte_views_progress": "11 Source/raw/Wire groups,12 native executions,6 existing exact-fee controls and4 independent full-scan oracle cases pass; original full Verify remains ResourceLimit",
+  "byte_views_progress": "original Source/raw/Wire real loan/owner negatives and11byte groups pass; original48+local12 native pass; exact A/V pins belong to frozen Byte source and input order, not later integration",
   "generation_review": "Desc-first source/raw controls rejected by existing higher-level loan guards at e3; no demonstrated production wrong acceptance; local-parent generation defense reviewed separately",
   "infrastructure": "Repeated Rust StableCrateId collisions on reused outputs retained as compilation failures; fresh debug0/strip/incremental0 target first build succeeded. No collision run counted as language execution.",
   "verify_bitmap_local": "a0e27293a0913b649d6fe60d076bbe663e60aa4b",
-  "verify_bitmap_oracle": "three full bool reference tests pass under fresh target; source independent review accepted; original full consumer pending",
-  "byte_native_progress": "48 original pipeline +12 local byteviews native pass,11byte and original Source/raw/Wire counterexamples pass"
+  "verify_bitmap_oracle": "three full bool reference tests pass; precise source independent review accepted; original full consumer A/V and48 native pass",
+  "byte_native_progress": "48 original pipeline +12 local byteviews native pass,11byte and original Source/raw/Wire counterexamples pass",
+  "static_integration": {
+    "source": "743eb6972984eddcbc42e58d0835268c6ba78f7a",
+    "format": "Pass",
+    "architecture": "15 crates/38 edges Pass after correcting omitted metadata argument; first invocation failure retained",
+    "layout": "4056 paths Pass",
+    "contracts": "14 contracts/63 plan/93 conformance/23 artifacts metadata Pass;93 language cases NotRun",
+    "logs": [
+      "out/runs/ordinary-composition-static-20261109-1",
+      "out/runs/ordinary-composition-architecture-20261109-1"
+    ]
+  }
 }
