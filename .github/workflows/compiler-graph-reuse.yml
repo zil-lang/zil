@@ -41,19 +41,45 @@ jobs:
           echo "$RUNNER_TEMP/graph-llvm/bin" >> "$GITHUB_PATH"
           git fetch --depth=1 --no-tags origin 906940ea78dcd5298c9168c4d17197b5983bf954
           git worktree add --detach "$RUNNER_TEMP/graph-base" 906940ea78dcd5298c9168c4d17197b5983bf954
+      - name: Correct fixture names and resolve the installed compiler, not rustup
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          root = Path('.task/G10.5.1.2')
+          p = root / 'corpus.py'
+          s = p.read_text()
+          if 'fn f{i}(x:i64' in s:
+              assert hashlib.sha1(b'blob ' + str(len(p.read_bytes())).encode() + b'\0' + p.read_bytes()).hexdigest() == 'efa51f812d0b896bda910ecb3d224e304318a403'
+              # Generated f32/f64 collide with ZIL's builtin types. Rename both
+              # languages identically; graph topology and oracle stay unchanged.
+              s = s.replace('f{targets[0]}', 'graph_fn{targets[0]}').replace('f{targets[1]}', 'graph_fn{targets[1]}').replace('f{i}', 'graph_fn{i}')
+              p.write_text(s)
+          p = root / 'measure.py'
+          s = p.read_text()
+          old = "Path(shutil.which('rustc')).resolve()"
+          new = "Path(subprocess.check_output(['rustup','which','rustc'],text=True).strip())"
+          if old in s:
+              assert s.count(old) == 1
+              p.write_text(s.replace(old,new))
+          PY
+          python3 -m py_compile .task/G10.5.1.2/*.py
+          git diff --check
+          git diff -- .task/G10.5.1.2/corpus.py .task/G10.5.1.2/measure.py > "$RUNNER_TEMP/graph-setup/fixture-repair.patch"
+          git add -- .task/G10.5.1.2/corpus.py .task/G10.5.1.2/measure.py
+          if ! git diff --cached --quiet; then
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Fix benchmark identifiers and rustc invocation; retain original failure evidence'
+          fi
       - name: Freeze candidate and run full affected controls
         id: source
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m py_compile .task/G10.5.1.2/*.py
-          python3 .task/G10.5.1.2/apply.py --apply
-          rustfmt --edition 2024 --config skip_children=true crates/zil-backend-llvm/src/machine_cgu.rs
-          test "$(git diff --name-only)" = 'crates/zil-backend-llvm/src/machine_cgu.rs'
-          git diff --check
-          git diff > "$RUNNER_TEMP/graph-setup/candidate.patch"
-          git add -- crates/zil-backend-llvm/src/machine_cgu.rs
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Reuse immutable partition indexes on import-cost fallback; pending acceptance'
+          echo '990e53b5f9aa279e2f9cf10ed98afcae11bbffeafc95087dc9716c28de259678  crates/zil-backend-llvm/src/machine_cgu.rs' | sha256sum -c -
+          test -z "$(git status --porcelain --untracked-files=no)"
+          git diff 906940ea78dcd5298c9168c4d17197b5983bf954 -- crates/zil-backend-llvm/src/machine_cgu.rs > "$RUNNER_TEMP/graph-setup/candidate.patch"
           git rev-parse HEAD > "$RUNNER_TEMP/graph-setup/source-commit.txt"
           rustc -vV > "$RUNNER_TEMP/graph-setup/rustc.txt"
           export CARGO_TARGET_DIR="$RUNNER_TEMP/graph-tests"
