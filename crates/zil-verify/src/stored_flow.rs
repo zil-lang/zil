@@ -4,6 +4,8 @@ use super::*;
 mod access_candidates;
 mod array_index;
 mod array_snapshot;
+#[cfg(test)]
+mod borrowed_owned_entry_tests;
 mod byte_queries;
 mod leaf_rows;
 mod live_words;
@@ -35,6 +37,16 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> Check<boo
     // A plain address-returning helper can project the caller's actual stored
     // pointee even when its own signature contains no qualified carrier.
     if matches!(f.return_type, Type::Address { .. }) {
+        return Ok(true);
+    }
+    // Include the actual owned-result closure entry in this independent
+    // ledger; this tag does not establish its signature or capture validity.
+    if f.environment.is_some()
+        && matches!(
+            f.return_type,
+            Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+        )
+    {
         return Ok(true);
     }
 
@@ -5243,6 +5255,7 @@ fn check_with_mask(
             if !super::stored_callables::finite(module, id) || d.function != f.id {
                 return Err(err("callback function is not the actual finite entry"));
             }
+            super::stored_callables::owned_entry(module, d, b)?;
         }
         for ty in f
             .locals

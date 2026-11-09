@@ -60,6 +60,17 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> CompileRe
     if matches!(f.return_type, Type::Address { .. }) {
         return Ok(true);
     }
+    // Actual closure entries returning owned data must join the stored proof
+    // when callbacks are observed beside stored loans. Definition checking
+    // separately authenticates the entry, complete signature and captures.
+    if f.environment.is_some()
+        && matches!(
+            f.return_type,
+            Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+        )
+    {
+        return Ok(true);
+    }
 
     fee(
         b,

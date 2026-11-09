@@ -66,11 +66,161 @@ pub(super) fn life_result(d: &ClosureDefinition) -> &Type {
     if lending(d) { &Type::Unit } else { &d.result }
 }
 
+// Dispatch only. The raw definition and each actual entry are independently
+// inspected below; a result head supplies no capture or input authority.
+fn borrowed_owned_candidate(d: &ClosureDefinition) -> bool {
+    d.storage_life.is_none()
+        && d.lending_captures.is_empty()
+        && d.kind != CallableKind::FunctionPointer
+        && matches!(
+            d.result,
+            Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+        )
+}
+
+fn callback_data_without_targets(ty: &Type, b: &mut Budget) -> Check<()> {
+    super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
+    let mut pending = vec![ty];
+    while let Some(current) = pending.pop() {
+        b.spend(1)?;
+        match current {
+            Type::Address { .. }
+            | Type::Desc(_)
+            | Type::BorrowedStorage { .. }
+            | Type::Closure(_)
+            | Type::Opaque { .. }
+            | Type::TaskI32
+            | Type::Task { .. }
+            | Type::Registration { .. }
+            | Type::AsyncRegistration { .. } => {
+                return Err(bad(
+                    "stored owning callback data contains a target-bearing or callable environment dependency",
+                ));
+            }
+            Type::Managed(inner)
+            | Type::OwnedStore { element: inner }
+            | Type::Array { element: inner, .. }
+            | Type::Slice { element: inner } => {
+                b.spend(1)?;
+                pending.push(inner);
+            }
+            Type::Tuple(fields) => {
+                b.spend(fields.len())?;
+                pending.extend(fields);
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, child)| child));
+            }
+            Type::Enum { variants, .. } => {
+                b.spend(variants.len())?;
+                for (_, fields) in variants {
+                    b.spend(fields.len())?;
+                    pending.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                b.spend(2)?;
+                pending.extend([error.as_ref(), result.as_ref()]);
+            }
+            Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }
+            | Type::ForeignCallback { parameters, result } => {
+                b.spend(parameters.len().saturating_add(1))?;
+                pending.extend(parameters);
+                pending.push(result);
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn borrowed_owned_definition(
+    module: &TypedModule,
+    d: &ClosureDefinition,
+    b: &mut Budget,
+) -> Check<()> {
+    resources::charge_payload(&d.result, b)?;
+    super::borrowed_fp::signature_work(&d.parameters, &d.result, b)?;
+    b.spend(d.parameters.len())?;
+    callback_data_without_targets(&d.result, b)?;
+    for parameter in &d.parameters {
+        callback_data_without_targets(
+            match parameter {
+                Type::Address { inner, .. } => inner,
+                other => other,
+            },
+            b,
+        )?;
+    }
+    if !super::owned_callbacks::root(&d.result)
+        || !d
+            .parameters
+            .iter()
+            .any(|ty| matches!(ty, Type::Address { .. }))
+        || !super::owned_callbacks::signature(module, d, b)?
+    {
+        return Err(bad(
+            "stored owning callback requires an actual borrowed input and closed owned result",
+        ));
+    }
+    Ok(())
+}
+
+// Masked stored proofs must authenticate an observed owning callback's actual
+// body entry even when the surrounding module has no Option-result profile.
+pub(super) fn owned_entry(
+    module: &TypedModule,
+    d: &ClosureDefinition,
+    b: &mut Budget,
+) -> Check<()> {
+    if !borrowed_owned_candidate(d) {
+        return Ok(());
+    }
+    b.spend(d.captures.len())?;
+    if !d.captures.iter().all(scalar) {
+        return Err(bad(
+            "stored owning callback requires an actual scalar capture environment",
+        ));
+    }
+    borrowed_owned_definition(module, d, b)?;
+    super::borrowed_fp::signature_work(&d.parameters, &d.result, b)?;
+    let f = module
+        .functions
+        .get(d.function.0 as usize)
+        .ok_or_else(|| bad("stored owning callback actual entry is absent"))?;
+    b.spend(f.parameters.len())?;
+    if f.id != d.function
+        || f.environment != Some(d.id)
+        || f.foreign.is_some()
+        || f.call_kind != CallKind::Direct
+        || f.storage_life.is_some()
+        || f.callable_contract.is_some()
+        || f.callable_return_contract.is_some()
+        || f.reference_return_bound.is_some()
+        || f.result_mode != PassingMode::Infer
+        || f.parameters.len() != d.parameters.len()
+        || f.return_type != d.result
+    {
+        return Err(bad("stored owning callback actual entry differs"));
+    }
+    for (parameter, ty) in f.parameters.iter().zip(&d.parameters) {
+        if f.locals.get(parameter.0 as usize).map(|local| &local.ty) != Some(ty) {
+            return Err(bad("stored owning callback actual parameter differs"));
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
-    module
-        .closures
-        .get(id.0 as usize)
-        .is_some_and(|d| (d.lending_captures.is_empty() && scalar(&d.result)) || lending(d))
+    module.closures.get(id.0 as usize).is_some_and(|d| {
+        (d.lending_captures.is_empty() && scalar(&d.result))
+            || lending(d)
+            || borrowed_owned_candidate(d)
+    })
 }
 pub(super) fn shared_input(t: &Type) -> bool {
     if scalar(t) {
@@ -140,6 +290,9 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> Check<()> {
                 "qualified callbacks require actual inline scalar environments and results",
                 None,
             ));
+        }
+        if borrowed_owned_candidate(d) {
+            borrowed_owned_definition(module, d, b)?;
         }
         super::borrowed_fp::signature_work(&d.parameters, &d.result, b)?;
         let f = module
