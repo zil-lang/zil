@@ -680,7 +680,7 @@ Address 的捕获在首次地址解引用处截断，包括 `move`；例如 `sel
 
 ### 9.3.1 同步拥有值回调签名
 
-具体闭包允许以Value接收和返回§8.1.5已经准入的完整、封闭、有限普通拥有Product、Enum和ErrorUnion；其中Managed及Store叶仍按实际定义与原槽资格核验。参数可同列既有有限Copy值，不新增裸资源R/ByteBuffer的拥有解释或give形参语法；裸资源仍为Desc，拥有字段的manages/create/give不变。同步拥有结果签名可以同列既有有限Copy、完整封闭拥有数据及其共享/独占地址、Copy slice地址输入；各实参的责任与loan分别核验，结果仍为完整封闭拥有数据，不混入Desc参数或借入结果。既有Copy及同步Copy-address签名保持原能力。详情见spec/borrowed-input-owned-callbacks.md。已有直接Managed成功侧错误联合例外不扩大，其它非Copy错误联合槽仍只能为完整Product/Enum。
+具体闭包允许以Value接收和返回§8.1.5已经准入的完整、封闭、有限普通拥有Product、Enum和ErrorUnion；其中Managed及Store叶仍按实际定义与原槽资格核验。参数可同列既有有限Copy值，不新增裸资源R/ByteBuffer的拥有解释或give形参语法；裸资源仍为Desc，拥有字段的manages/create/give不变。同步拥有结果签名可以同列既有有限Copy、完整封闭拥有数据及其共享/独占地址、Copy slice地址输入；各实参的责任与loan分别核验，结果仍为完整封闭拥有数据，不混入Desc参数或借入结果。既有Copy及同步Copy-address签名保持原能力。详情见spec/borrowed-input-owned-callbacks.md。同步存储借入CFG中的实际入口与本地共享ByteBuffer视图组合见spec/stored-owned-callback-pipeline.md；输入loan与拥有结果责任分别核实。已有直接Managed成功侧错误联合例外不扩大，其它非Copy错误联合槽仍只能为完整Product/Enum。
 
 普通自由函数允许唯一F、按值FnOnce的封闭签名入口，例如`fn dispatch<F:FnOnce(Event)->Reply>(handler:F,event:Event)->Reply{return handler(event)}`。普通数据参数、结果和callback签名必须分别核实真实完整类型；未调用模板也检查。对于包含上述同步借入输入且callback返回完整封闭拥有数据的唯一F入口，另允许Fn通过共享或拥有F、FnMut通过独占F、FnOnce通过拥有F调用；未使用定义与实际CFG、环境和实参窗口各自核验。首片不新增普通T组合、其它借入F/FnMut公共入口、多F/State、opaque工厂、callback容器/数组、thin/FFI、lending、CT或异步资格；既有各profile不回退。具体Fn/FnMut/FnOnce调用同批支持新的数据签名，消费每次新Event不改变环境的调用模式：模式只由真实捕获访问与剩余责任决定，Fn/FnMut的可重复性和声明FnOnce的消费适配保持。
 

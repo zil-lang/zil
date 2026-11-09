@@ -110,12 +110,12 @@ fn actual_dag_budget_boundaries_and_old_tail_fees() {
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
     for (label, text, known, expected) in [
-        ("new-transfer", CASES[4].1, None, [57_084, 59_332, 59_332]),
+        ("new-transfer", CASES[4].1, None, [53_202, 55_292, 55_292]),
         (
             "old-tail",
             include_str!("../fnonce-helper-next/helper-tail-true.zil"),
             Some([53167, 51600, 51600]),
-            [45_624, 46_922, 46_922],
+            [42_476, 43_670, 43_670],
         ),
     ] {
         let raw = zil_types::check(&shared_helper_life_core(text), &target, &limits).unwrap();

@@ -27,6 +27,24 @@ impl LiveRow {
     pub(super) fn work_for(width: usize) -> usize {
         Self::words_for(width).saturating_add(1)
     }
+    pub(super) fn ones(&self) -> impl Iterator<Item = usize> + '_ {
+        self.data
+            .iter()
+            .enumerate()
+            .flat_map(|(word, &bits)| {
+                let mut remaining = bits;
+                std::iter::from_fn(move || {
+                    if remaining == 0 {
+                        return None;
+                    }
+                    let bit = remaining.trailing_zeros() as usize;
+                    remaining &= remaining - 1;
+                    Some(word * 64 + bit)
+                })
+            })
+            .take_while(move |&index| index < self.len())
+    }
+    #[cfg(test)]
     pub(super) fn at(&self, index: usize) -> CompileResult<bool> {
         if index >= self.width {
             return Err(failure("liveness use exceeds actual SSA/local width"));

@@ -81,6 +81,9 @@ pub(super) struct Budget {
     // Paid actual ExtractIndex inventory; algorithm scheduling only.
     pub(super) array_outer_functions: Vec<zil_ir::FunctionId>,
     pub(super) byte_queries: bool,
+    // Presence schedules proof; heads contain only immutable actual IR.
+    pub(super) shared_byte_borrow: bool,
+    pub(super) owned_byte_heads: Option<crate::stored_flow::owned_byte_views::Heads>,
     pub(super) byte_query_presence_checked: bool,
     pub(super) byte_query_functions: Vec<bool>,
     pub(super) package_return_calls: Option<BTreeMap<(zil_ir::FunctionId, zil_ir::ValueId), u32>>,
@@ -173,6 +176,8 @@ impl Budget {
             qualified_package_returns: false,
             array_outer_functions: Vec::new(),
             byte_queries: false,
+            shared_byte_borrow: false,
+            owned_byte_heads: None,
             byte_query_presence_checked: false,
             byte_query_functions: Vec::new(),
             package_return_calls: None,
@@ -1891,6 +1896,10 @@ pub(super) fn preflight(
                     instruction.kind,
                     InstructionKind::ByteBufferLen { .. }
                         | InstructionKind::ByteBufferCapacity { .. }
+                );
+                budget.shared_byte_borrow |= matches!(
+                    instruction.kind,
+                    InstructionKind::ByteBufferBorrow { mutable: false, .. }
                 );
                 match &instruction.kind {
                     InstructionKind::AsyncRegistrationStart {

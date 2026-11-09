@@ -250,17 +250,20 @@ fn every_empty_permission_and_empty_outer_frame_visit_consumes_real_fresh_work()
                 expected
             );
             let actual_work = Limits::default().max_analysis_steps - b.remaining();
-            // One SSA plus its pointer and held projections; empty frame
-            // entries still cost their actual outer visit. Target-only rows
-            // cost the same as empty rows: their unused targets are not read.
-            let declared_work = match mode {
-                0 | 1 => count + 3,
-                2 => count * 2, // logical dead-local membership plus outer port visit
+            // Every packed word/container and actual set bit is visited.
+            // Permission projections and empty frame entries retain their
+            // complete outer visits; unused target payloads are not read.
+            let scan_work =
+                flags.len().div_ceil(64) + 1 + flags.iter().filter(|&&live| live).count();
+            let projection_work = match mode {
+                0 | 1 => count + 2, // pointer, held and each slot Permission
+                2 => count,         // outer local visit, including empty task ports
                 3 | 4 => count,
-                5 => count * 3, // logical membership, outer local, retained Permission
+                5 => count * 2, // outer local and retained Permission
                 6 => count + 1,
                 _ => unreachable!(),
             };
+            let declared_work = scan_work + projection_work;
             assert_eq!(actual_work, declared_work, "mode={mode} rows={count}");
             if let Some(old) = previous {
                 assert!(

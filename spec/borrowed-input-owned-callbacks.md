@@ -11,3 +11,5 @@
 复用现有 ClosureDefinition、CallClosure 族、Package/Enum/ErrorUnion 及真实借用/清理指令，不增加公共字段或 Wire/ABI。Types、Analyze、Verify 分别核实际类型树；Verify 不消费前两核的准入结论。新树遍历预费，既有 Copy/slice、纯拥有 FnOnce、capture/State/Store/FFI 边界和默认限额保持。
 
 本范围不授予多 F、普通 T、借入结果、opaque factory、callback 容器、thin/FFI、CT、异步或额外捕获资格；这些位置仍各用原独立资格核。跨模块真实 Source、独立 raw/Wire 最近反例、双后端 O0/O2、逐分配点失败清理及新旧预算边界是验收对象，有限范围不代表完整语言或产品门通过。
+
+同步存储借入程序中的实际入口、普通本地 ByteBuffer 字段视图与完整消费者由[存储借入组合合同](stored-owned-callback-pipeline.md)限定，输入 loan 和结果责任继续分别验证。
