@@ -2,6 +2,8 @@
 //! This pass does not use a candidate, source label, or nominal name as a root.
 use super::*;
 
+#[cfg(test)]
+mod active_index_tests;
 mod array_index;
 mod array_snapshot;
 mod byte_queries;
@@ -3752,18 +3754,38 @@ fn query_permission(
     )
 }
 
+// Rebuilt for this solve. Exclude only a completely empty semantic SSA fact,
+// including all non-pointer fields; no type/name or direct-loan test grants it.
+fn loan_value_ids(values: &[Value], b: &mut Budget) -> CompileResult<Vec<usize>> {
+    fee(b, values.len().saturating_mul(2))?;
+    let mut ids = Vec::with_capacity(values.len());
+    for (id, value) in values.iter().enumerate() {
+        if value != &Value::default() {
+            fee(b, 1)?;
+            ids.push(id);
+        }
+    }
+    Ok(ids)
+}
 fn active(
     values: &[Value],
     state: &State,
     live: &[bool],
+    defining: Option<ValueId>,
+    loan_values: Option<&[usize]>,
     loans: &[Loan],
     b: &mut Budget,
 ) -> CompileResult<Loans> {
     let mut direct = Permission::default();
-    fee(b, live.len())?;
-    for (i, yes) in live.iter().enumerate() {
-        if !*yes {
-            continue;
+    fee(
+        b,
+        loan_values.map_or(live.len(), |ids| {
+            ids.len().saturating_add(live.len() - values.len())
+        }),
+    )?;
+    let mut collect = |i: usize| -> CompileResult<()> {
+        if !live[i] || defining.is_some_and(|value| value.0 as usize == i) {
+            return Ok(());
         }
         let value = if i < values.len() {
             Some(&values[i])
@@ -3782,6 +3804,19 @@ fn active(
             for leaf in value.slots.values() {
                 union(&mut direct, leaf, b)?;
             }
+        }
+        Ok(())
+    };
+    if let Some(ids) = loan_values {
+        for &id in ids {
+            collect(id)?;
+        }
+        for id in values.len()..live.len() {
+            collect(id)?;
+        }
+    } else {
+        for id in 0..live.len() {
+            collect(id)?;
         }
     }
     if b.task_borrowed_results {
@@ -3970,6 +4005,10 @@ fn windows(
         }
     }
     let owned_byte_sites = owned_byte_views::Sites::collect(f, b)?;
+    let loan_values = owned_byte_sites
+        .present()
+        .then(|| loan_value_ids(values, b))
+        .transpose()?;
     let byte_flow =
         byte_queries::Flow::solve(module, f, preds, reachable, entry, values, summaries, b)?;
     let mut cached = if owned_byte_sites.present() {
@@ -4025,12 +4064,27 @@ fn windows(
             .map(|flow| flow.input(f, bi, preds, reachable, b))
             .transpose()?;
         for (position, i) in block.instructions.iter().enumerate() {
-            fee(b, width)?;
-            let mut live = after[position].clone();
-            if let Some(v) = i.result {
-                live[v.0 as usize] = false;
-            }
-            let mut current = active(values, &state, &live, loans, b)?;
+            let mut current = if owned_byte_sites.present() {
+                // Exclude only this SSA payload. Other live payloads may
+                // still carry the same loan through their actual ancestry.
+                fee(b, 1)?;
+                active(
+                    values,
+                    &state,
+                    &after[position],
+                    i.result,
+                    loan_values.as_deref(),
+                    loans,
+                    b,
+                )?
+            } else {
+                fee(b, width)?;
+                let mut live = after[position].clone();
+                if let Some(v) = i.result {
+                    live[v.0 as usize] = false;
+                }
+                active(values, &state, &live, None, None, loans, b)?
+            };
             let pointer = |v: ValueId| -> CompileResult<&Permission> {
                 values
                     .get(v.0 as usize)

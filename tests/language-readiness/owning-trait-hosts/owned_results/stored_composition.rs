@@ -853,6 +853,77 @@ fn ordinary_owned_pipeline_borrowed_inputs_reach_analysis() {
     assert_eq!(report.verification_runs, 0);
 }
 
+#[test]
+fn complete_owned_byte_pipeline_has_exact_fresh_independent_kernel_work() {
+    // Keep the actual four-module consumer and all callback/error/byte paths.
+    let module = typed_project(&pipeline_files());
+    let plan = control(&module);
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    for phase in [Phase::Analyze, Phase::Verify] {
+        let run = |steps| {
+            let limits = Limits {
+                max_analysis_steps: steps,
+                ..Limits::default()
+            };
+            if phase == Phase::Analyze {
+                zil_analyze::analyze(&module, &limits).map(|_| ())
+            } else {
+                zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits)
+                    .map(|_| ())
+            }
+        };
+        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+        run(high).unwrap();
+        while high - low > 1 {
+            let middle = low + (high - low) / 2;
+            match run(middle) {
+                Ok(()) => high = middle,
+                Err(errors) => {
+                    assert!(!errors.is_empty());
+                    assert!(
+                        errors.iter().all(
+                            |d| d.phase == phase && d.category == ResultCategory::ResourceLimit
+                        ),
+                        "{errors:?}"
+                    );
+                    low = middle;
+                }
+            }
+        }
+        for _ in 0..2 {
+            run(high).unwrap();
+            let errors = run(high - 1).unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .all(|d| d.phase == phase && d.category == ResultCategory::ResourceLimit),
+                "{errors:?}"
+            );
+        }
+        if phase == Phase::Verify {
+            for steps in [high, high - 1, high] {
+                let limits = Limits {
+                    max_analysis_steps: steps,
+                    ..Limits::default()
+                };
+                let result = zil_verify::verify_module_bytes(&wire, &module.target, &limits);
+                if steps == high {
+                    result.unwrap();
+                } else {
+                    let errors = result.unwrap_err();
+                    assert!(
+                        errors.iter().all(
+                            |d| d.phase == phase && d.category == ResultCategory::ResourceLimit
+                        ),
+                        "{errors:?}"
+                    );
+                }
+            }
+        }
+        eprintln!("complete four-module owned byte pipeline {phase:?} N={high}; N-1/fresh agree");
+    }
+}
+
 fn borrowed_callback_kernel_model() -> String {
     let body = kernel_model()
         .replace("let copy:Item", "var copy:Item")

@@ -1,6 +1,8 @@
 //! Independent stored-target reconstruction. Sorted vectors and batch CFG
 //! solving deliberately do not consume analyzer roots, summaries, or claims.
 use super::*;
+#[cfg(test)]
+mod active_index_tests;
 mod array_index;
 mod array_snapshot;
 mod byte_queries;
@@ -3653,17 +3655,34 @@ fn live_out(
     }
     Ok(outputs)
 }
+// A full semantic payload comparison retains leaf/port/tag and weak-origin
+// facts even when its direct address loan set is empty. Rebuild per solve.
+fn contributing_values(payloads: &[Payload], b: &mut Budget) -> Check<Vec<usize>> {
+    b.spend(payloads.len().saturating_mul(2))?;
+    let mut selected = Vec::with_capacity(payloads.len());
+    for (id, payload) in payloads.iter().enumerate() {
+        if payload != &Payload::default() {
+            b.spend(1)?;
+            selected.push(id);
+        }
+    }
+    Ok(selected)
+}
 fn live_loans(
     solution: &Solution,
     state: &Frame,
     live: &[bool],
+    definition: Option<ValueId>,
+    indexed: Option<&[usize]>,
     b: &mut Budget,
 ) -> Check<Vec<usize>> {
-    b.spend(live.len())?;
+    b.spend(indexed.map_or(live.len(), |ids| {
+        ids.len().saturating_add(live.len() - solution.values.len())
+    }))?;
     let mut loans = Vec::new();
-    for (id, yes) in live.iter().enumerate() {
-        if !*yes {
-            continue;
+    let mut collect = |id: usize| -> Check<()> {
+        if !live[id] || definition.is_some_and(|value| value.0 as usize == id) {
+            return Ok(());
         }
         let payload = if id < solution.values.len() {
             &solution.values[id]
@@ -3678,6 +3697,19 @@ fn live_loans(
         }
         for (_, p) in &payload.leaves {
             add_loans(&mut loans, &p.loans, b)?;
+        }
+        Ok(())
+    };
+    if let Some(ids) = indexed {
+        for &id in ids {
+            collect(id)?;
+        }
+        for id in solution.values.len()..live.len() {
+            collect(id)?;
+        }
+    } else {
+        for id in 0..live.len() {
+            collect(id)?;
         }
     }
     if b.task_borrowed_results {
@@ -3906,6 +3938,10 @@ fn windows(
         }
     }
     let owned_byte_sites = owned_byte_views::Sites::collect(f, b)?;
+    let loan_values = owned_byte_sites
+        .present()
+        .then(|| contributing_values(&solution.values, b))
+        .transpose()?;
     let byte_flow = byte_queries::Flow::solve(
         module,
         f,
@@ -3973,12 +4009,26 @@ fn windows(
             .map(|flow| flow.input(f, bi, g, b))
             .transpose()?;
         for (at, i) in block.instructions.iter().enumerate() {
-            b.spend(width)?;
-            let mut live = after[at].clone();
-            if let Some(id) = i.result {
-                live[id.0 as usize] = false;
-            }
-            let mut active = live_loans(solution, &state, &live, b)?;
+            let mut active = if owned_byte_sites.present() {
+                // Borrow the static row and omit the definition's payload;
+                // inherited occurrences of its loan remain in other rows.
+                b.spend(1)?;
+                live_loans(
+                    solution,
+                    &state,
+                    &after[at],
+                    i.result,
+                    loan_values.as_deref(),
+                    b,
+                )?
+            } else {
+                b.spend(width)?;
+                let mut live = after[at].clone();
+                if let Some(id) = i.result {
+                    live[id.0 as usize] = false;
+                }
+                live_loans(solution, &state, &live, None, None, b)?
+            };
             let pointer = |v: ValueId| -> Check<&Permission> {
                 solution
                     .values
