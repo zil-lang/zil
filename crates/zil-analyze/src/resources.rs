@@ -334,14 +334,25 @@ fn clone_state(state: &State, budget: &mut Budget) -> CompileResult<State> {
     replacements::must_cost(state.whole_commits.as_ref(), budget)?;
     Ok(state.clone())
 }
-fn join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResult<bool> {
+fn join_cells(
+    to: &mut BTreeMap<Place, Fact>,
+    from: &BTreeMap<Place, Fact>,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    budget.spend(1, "resource sorted cell inventory size")?;
+    if to.len() != from.len() {
+        return Err(error(
+            "incompatible resource states: cell inventory differs",
+        ));
+    }
+    budget.spend(to.len(), "resource sorted target cell walk")?;
+    budget.spend(from.len(), "resource sorted incoming cell walk")?;
     let mut changed = false;
-    for (place, source) in &from.cells {
-        budget.lookup(to.cells.len(), "resource join lookup")?;
-        let target = to
-            .cells
-            .get_mut(place)
-            .ok_or_else(|| error("incompatible resource states"))?;
+    for ((place, target), (other_place, source)) in to.iter_mut().zip(from) {
+        budget.spend(1, "resource sorted cell key comparison")?;
+        if place != other_place {
+            return Err(error("incompatible resource states: cell keys differ"));
+        }
         fact_cost(target, budget)?;
         fact_cost(source, budget)?;
         let before = (target.life.len(), target.sources.len(), target.birth.len());
@@ -350,6 +361,13 @@ fn join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResult<bool
         target.birth.extend(&source.birth);
         changed |= before != (target.life.len(), target.sources.len(), target.birth.len());
     }
+    Ok(changed)
+}
+fn join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResult<bool> {
+    // All cells were initialized from this function's complete Shapes. The
+    // only writer replaces an existing key; check that inventory while merging
+    // corresponding entries rather than searching every key again.
+    let mut changed = join_cells(&mut to.cells, &from.cells, budget)?;
     budget.spend(
         to.later.len().saturating_add(from.later.len()),
         "resource initialization order join",
@@ -989,6 +1007,22 @@ fn afters_reserved(
     reserved: Option<&[Vec<Vec<ValueId>>]>,
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<Live>>> {
+    // Preserve the established single-block operation/fee schedule. Larger
+    // CFGs revisit only actual predecessors of changed entry sets.
+    let (_, exit) = if f.blocks.len() <= 1 {
+        liveness_full_scan(f, reachable, shapes, reserved, budget)?
+    } else {
+        liveness_frontier(f, reachable, shapes, reserved, budget)?
+    };
+    liveness_history(f, shapes, reserved, exit, budget)
+}
+fn liveness_full_scan(
+    f: &TypedFunction,
+    reachable: &[bool],
+    shapes: &Shapes,
+    reserved: Option<&[Vec<Vec<ValueId>>]>,
+    budget: &mut Budget,
+) -> CompileResult<(Vec<Live>, Vec<Live>)> {
     budget.product(f.blocks.len(), 2, 1, "resource liveness blocks")?;
     let mut entry = vec![Live::new(); f.blocks.len()];
     let mut exit = entry.clone();
@@ -1030,6 +1064,98 @@ fn afters_reserved(
             break;
         }
     }
+    Ok((entry, exit))
+}
+fn liveness_frontier(
+    f: &TypedFunction,
+    reachable: &[bool],
+    shapes: &Shapes,
+    reserved: Option<&[Vec<Vec<ValueId>>]>,
+    budget: &mut Budget,
+) -> CompileResult<(Vec<Live>, Vec<Live>)> {
+    budget.product(f.blocks.len(), 2, 1, "resource liveness blocks")?;
+    let mut entry = vec![Live::new(); f.blocks.len()];
+    let mut exit = entry.clone();
+    // These are scheduling metadata from actual CFG successors, not a loan or
+    // origin claim. Every current reachable block is initially processed.
+    budget.product(f.blocks.len(), 3, 1, "resource liveness frontier tables")?;
+    let mut predecessors = vec![Vec::new(); f.blocks.len()];
+    for (block, body) in f.blocks.iter().enumerate() {
+        budget.spend(1, "resource liveness predecessor block")?;
+        if !reachable[block] {
+            continue;
+        }
+        for successor in next(body) {
+            budget.spend(2, "resource liveness predecessor edge")?;
+            predecessors
+                .get_mut(successor)
+                .ok_or_else(|| error("invalid resource CFG edge"))?
+                .push(block);
+        }
+    }
+    let mut pending = VecDeque::with_capacity(f.blocks.len());
+    let mut queued = vec![false; f.blocks.len()];
+    for block in (0..f.blocks.len()).rev() {
+        budget.spend(1, "resource liveness initial frontier")?;
+        if reachable[block] {
+            pending.push_back(block);
+            queued[block] = true;
+        }
+    }
+    while let Some(block) = pending.pop_front() {
+        budget.spend(1, "resource liveness frontier pop")?;
+        queued[block] = false;
+        let mut live = Live::new();
+        for successor in next(&f.blocks[block]) {
+            let incoming = entry
+                .get(successor)
+                .ok_or_else(|| error("invalid resource CFG edge"))?;
+            budget.spend(
+                live.len().saturating_add(incoming.len()),
+                "description liveness union",
+            )?;
+            live.extend(incoming);
+        }
+        // An exit change can be killed by this block and leave entry equal.
+        // History still needs that latest exit, so always publish this row.
+        budget.spend(live.len(), "description liveness exit clone")?;
+        exit[block] = live.clone();
+        for (position, instruction) in f.blocks[block].instructions.iter().enumerate().rev() {
+            reverse(&mut live, instruction, shapes, budget)?;
+            if let Some(reserved) = reserved {
+                retained_uses(&mut live, &reserved[block][position], shapes, budget)?;
+            }
+        }
+        budget.spend(
+            live.len()
+                .saturating_add(entry[block].len())
+                .saturating_add(1),
+            "description liveness convergence",
+        )?;
+        if live != entry[block] {
+            entry[block] = live;
+            budget.spend(
+                predecessors[block].len(),
+                "resource liveness predecessor notification",
+            )?;
+            for &parent in &predecessors[block] {
+                if !queued[parent] {
+                    budget.spend(1, "resource liveness frontier enqueue")?;
+                    pending.push_back(parent);
+                    queued[parent] = true;
+                }
+            }
+        }
+    }
+    Ok((entry, exit))
+}
+fn liveness_history(
+    f: &TypedFunction,
+    shapes: &Shapes,
+    reserved: Option<&[Vec<Vec<ValueId>>]>,
+    mut exit: Vec<Live>,
+    budget: &mut Budget,
+) -> CompileResult<Vec<Vec<Live>>> {
     let mut result = vec![];
     for (b, block) in f.blocks.iter().enumerate() {
         budget.spend(block.instructions.len(), "description liveness history")?;
@@ -4497,3 +4623,11 @@ fn analyze_function_eager_reference(
     }
     Ok(effect)
 }
+
+#[cfg(test)]
+#[path = "resources/liveness_tests.rs"]
+mod liveness_tests;
+
+#[cfg(test)]
+#[path = "resources/state_join_tests.rs"]
+mod state_join_tests;
