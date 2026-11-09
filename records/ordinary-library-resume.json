@@ -2,7 +2,7 @@
   "date": "2026-11-09 09:04 Asia/Shanghai",
   "status": "resumed_not_accepted",
   "main": "b07b85dd49b3df6f382734d509919a2a6013c97d",
-  "goal_read": "40a1d602641ab10247c025fc2ca666af885a55cc",
+  "goal_read": "18fe4e23779cbb34057f34976e3c1e7361f2a333",
   "integration": "ed8e3a5de6befb15b515f6b124e992792414a8ca",
   "source_branches": {
     "root": "task/G10.6.3",
@@ -13,14 +13,14 @@
   "first_failure": "offline cargo dependency rustc_apfloat absent; no tests executed",
   "scope": "Continue original ordinary-library consumer and large owned closure transport; no release claim",
   "raw_logs": "out/runs/byte-views-baseline-20261109/ in task/G3.4.22 worktree",
-  "last_work": "2026-11-09 12:37 Asia/Shanghai",
-  "integration_remote": "2cddb26ba9a9d7e0a441f8a7cad8afee25055b85",
+  "last_work": "2026-11-09 13:01 Asia/Shanghai",
+  "integration_remote": "99a368d4f1770723555301c42f5d31091f04c118",
   "large_closure_checkpoint": "dbd5c446a600eb26f34574748376a2b8e84fece8",
   "baseline_language_failure": "original four-module program: Analyze ResourceLimit / Sum terminal tag classification, 0 pass, 1 fail",
   "native_progress": "frozen ordinary local closure ABI: 48 native executions pass; opaque factories/generic callable helpers remain five explicit Types Unsupported boundaries",
-  "integration_local": "04dce11a83d49f617651c278ea0a1baa22d49c63",
-  "byte_views_checkpoint": "a99ed1802bb93c8b03e1b4dc07f0b48b78f5ea2c",
-  "growing_collections_checkpoint": "ae97936e1360e3c6a7295a19b1a181c84036850e",
+  "integration_local": "3f5e8fe86dcf026a069f0279dc4a9633fbaca27e",
+  "byte_views_checkpoint": "d1352c5277f78f6ff58b956be7ba18086c054ce6",
+  "growing_collections_checkpoint": "d9b70002759507f1dfbc2f92c2d6279ce38ad4f6",
   "original_pipeline": "Frozen Byte precise order main/model/protocol/library, fingerprint d9afb8c2667ac61471aa1f37bd2fb9277abcbab5df37090bf4f8f6b8d32ec676: A N7122869/V N7814112 with N-1/fresh/raw/Wire pass; original4095 native input order main/protocol/library/model:48 actual executions pass, identical source file bytes",
   "collections_progress": "05a0: Analyze237/0; original Map default Analyze ResourceLimit / Sum SSA page slot walk, verification_runs0; native remains60/64 from prior full matrix",
   "collected_pipeline": "Fixed original4011 complete pipeline passes default Analyze/Verify and joint56 native cases on f2cfb4d6; exact receipt in validation/ordinary-owned-collection-pipeline.json",
@@ -81,7 +81,7 @@
     "logs": "out/runs/growing-input-effects-20261109-9",
     "next": "Complete SSA inventory paged COW design under independent review"
   },
-  "active_build_window": "Byte dc65 same-fee caller ledger; Map preparing preflight-published immutable carrier cache; root no heavy build",
+  "active_build_window": "Byte independent V512 caller ledger compiled and released; parsing/restoration only; Map evaluating exact SSA no-op opportunities",
   "workspace_core": {
     "source": "f160b74ffa01eab22714bed283ff4d2d9f6f9d50",
     "tree": "aae362b35e177ccfd7b072c43c2b11e5c4719058",
@@ -260,7 +260,8 @@
     "log_sha256": "42976c9a8df3ab3fdfa4e46833e2025834a145c47523e6eaccf2a7843f82407e",
     "receipt": "validation/ordinary-owned-collection-pipeline.json",
     "receipt_commit": "04dce11a83d49f617651c278ea0a1baa22d49c63",
-    "prior_clang_only": "run1 passed3 tests/28 native, omitted explicit llvm-api feature; not four-configuration acceptance"
+    "prior_clang_only": "run1 passed3 tests/28 native, omitted explicit llvm-api feature; not four-configuration acceptance",
+    "independent_review": "Astra accepted exact04dce11 receipt: all4 compile reports,56 execution records, source hashes, current/first-failure log hashes; no source/count conflation"
   },
   "array512_linear_progress": {
     "snapshot_source": "edad37e0cc1643025afc2e9a9b80fb9a52135d88",
@@ -288,5 +289,45 @@
     "original_fees_unchanged": true,
     "logs": "out/runs/growing-input-effects-20261109-14",
     "decision": "Complete positive carrier results may be published only by original successful preflight checks, keyed by actual module and actual element address in this Budget; all misses and temporary Type clones use original checks; implementation under review"
+  },
+  "array512_slot_index": {
+    "source": "4a47722db5f2b5baa41b4df6e0006a0ca30c7728",
+    "remote": "d1352c5277f78f6ff58b956be7ba18086c054ce6",
+    "review": "Astra accepted exact complete physical Path index; caller-specific first/duplicate policy preserved",
+    "oracle_tests_passed": 5,
+    "full_analyze_passed": 233,
+    "full_analyze_failed": 1,
+    "remaining_failure": "old fixed-owned microbudget pin12870; independent raw measured12566 with N/N-1/fresh/warm, test-only correction pending",
+    "original_owned512_fingerprint": "95d6572a129f856a5b073de7cfa2aa9d2b730c0ff44b254fa6f9a3d8830299bb",
+    "original_owned512_default": "Types/Analyze Success, then Verify ResourceLimit, verification_runs1",
+    "ordinary512_and_small_package": "Analyze/Verify Success",
+    "logs": "out/runs/byte-views-slot-index-20261109",
+    "next": "Independent Verify caller ledger; no Analyze facts/index reused"
+  },
+  "carrier_cache_final": {
+    "source": "1473559c3358215d617abf248bb7350f3a2a38d9",
+    "remote": "d9b70002759507f1dfbc2f92c2d6279ce38ad4f6",
+    "review": "Astra exact source accepted after root found and author fixed missing second tree-search prepayment",
+    "full_analyze_passed": 245,
+    "failed": 0,
+    "oracle_tests": 8,
+    "warm_N": 552,
+    "cold_N": 8296,
+    "temporary_type_N": 8488,
+    "empty_publication_N": 5,
+    "nonempty_one_entry_publication_N": 6,
+    "edges": "N/N-1/fresh and failed publication preserves complete prior table",
+    "map_default": "Analyze ResourceLimit, verification_runs0",
+    "records_may_work": [
+      2588472,
+      2622773,
+      2622773
+    ],
+    "remaining_after_third_records": 164293,
+    "check_true_reached": false,
+    "pod_body_work": 409343,
+    "cache_read_work": 22268,
+    "cache_publication_work": 14347,
+    "logs": "out/runs/growing-input-effects-20261109-16"
   }
 }
