@@ -7,6 +7,8 @@ use zil_ir::{Instruction, InstructionKind, ValueId};
 
 #[path = "owned_results/consumers.rs"]
 mod owned_results;
+#[path = "owned_pipeline/consumers.rs"]
+mod owned_pipeline;
 
 const KEY_EQ: &str = "pub trait KeyEq { fn same(self:&Self,other:&Self)->bool; }";
 const QUERY: &str =

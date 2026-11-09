@@ -341,15 +341,23 @@ impl Plan {
     ) -> Check<()> {
         let f = transfer.f;
         let callee = &transfer.module.functions[invocation.entry];
+        // Record the complete call context before selecting public callback
+        // captures: ordinary-input retirement pairs must survive this boundary.
+        if point.validate && self.active_pairs {
+            retirement::call(self, transfer, state, &invocation, point, b)?;
+        }
+        let ordinary_only = callee.callable_contract.is_some();
         if let Some(contract) = &callee.callable_contract {
             for ledger in [&self.targets, &self.retirements] {
                 b.spend(ledger.len())?;
                 if let Some(rows) = ledger.get(&invocation.entry) {
                     b.spend(rows.len())?;
-                    if rows
-                        .iter()
-                        .any(|target| !matches!(target.base, actual::Base::InputCapture(..)))
-                    {
+                    if rows.iter().any(|target| {
+                        !matches!(
+                            target.base,
+                            actual::Base::Input(_) | actual::Base::InputCapture(..)
+                        )
+                    }) {
                         return Err(unsupported(
                             "public callable helper has an unpublished replacement effect",
                             Some(point.span),
@@ -399,15 +407,11 @@ impl Plan {
                     b,
                 )?;
             }
-            return Ok(());
-        }
-        if point.validate && self.active_pairs {
-            retirement::call(self, transfer, state, &invocation, point, b)?;
         }
         // A checked public envelope does not authorize looking at private rows.
         // Actual Store invalidation in such a body is independently closed by
         // invalidate_store, rather than importing a private effect at the call.
-        if callee.callable_contract.is_some() || callee.callable_return_contract.is_some() {
+        if callee.callable_return_contract.is_some() {
             return Ok(());
         }
         if point.sealed {
@@ -430,6 +434,9 @@ impl Plan {
         b.spend(rows.len())?;
         for target in rows {
             b.spend(target.steps.len().saturating_add(1))?;
+            if ordinary_only && !matches!(target.base, actual::Base::Input(_)) {
+                continue;
+            }
             let selected = actual::substitute(
                 &BTreeSet::from([target.clone()]),
                 invocation.arguments,
@@ -464,6 +471,9 @@ impl Plan {
                 b.spend(rows.len())?;
                 for target in rows {
                     b.spend(target.steps.len().saturating_add(1))?;
+                    if ordinary_only && !matches!(target.base, actual::Base::Input(_)) {
+                        continue;
+                    }
                     let selected = actual::substitute(
                         &BTreeSet::from([target.clone()]),
                         invocation.arguments,
@@ -579,43 +589,13 @@ impl Plan {
             InstructionKind::Call {
                 function,
                 arguments,
-            } => {
-                if f.callable_contract.is_some()
-                    && transfer.module.functions[function.0 as usize]
-                        .callable_contract
-                        .is_none()
-                {
-                    for ledger in [&self.targets, &self.retirements] {
-                        b.spend(ledger.len())?;
-                        if ledger
-                            .get(&(function.0 as usize))
-                            .is_some_and(|rows| !rows.is_empty())
-                        {
-                            return Err(unsupported(
-                                "public callable helper cannot publish an ordinary callee's private replacement effects",
-                                Some(point.span),
-                            ));
-                        }
-                    }
-                    b.spend(transfer.effects[function.0 as usize].len())?;
-                    if transfer.effects[function.0 as usize]
-                        .iter()
-                        .any(|effect| matches!(effect, Root::InvalidatedStore(_)))
-                    {
-                        return Err(unsupported(
-                            "public callable helper cannot publish a private Store invalidation",
-                            Some(point.span),
-                        ));
-                    }
-                }
-                Some(Invocation {
-                    entry: function.0 as usize,
-                    arguments,
-                    captures: None,
-                    carrier: None,
-                    sources: None,
-                })
-            }
+            } => Some(Invocation {
+                entry: function.0 as usize,
+                arguments,
+                captures: None,
+                carrier: None,
+                sources: None,
+            }),
             InstructionKind::CallClosureShared { callee, arguments }
             | InstructionKind::CallClosureMut { callee, arguments } => {
                 b.spend(facts.local_captures.len())?;
@@ -671,7 +651,9 @@ impl Plan {
         }
         let fresh = state.fresh[source];
         for target in self.actual.selected(f, place, b)? {
-            if f.callable_contract.is_some() && !matches!(target.base, actual::Base::Local(_)) {
+            if f.callable_contract.is_some()
+                && !matches!(target.base, actual::Base::Local(_) | actual::Base::Input(_))
+            {
                 return Err(unsupported(
                     "public callable helper cannot publish its own nonlocal Commit",
                     Some(span),

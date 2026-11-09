@@ -184,10 +184,13 @@ fn owning_dispatch_rejects_forged_role_and_data_signature_raw_and_wire() {
     raw.reject("instruction result presence or type is incorrect");
 
     let mut raw = dispatch();
+    // Borrowed inputs can accompany an owned result, but the concrete entry
+    // must still match the entire declared signature. This mutation leaves
+    // that entry unchanged, so it must fail the independent identity check.
     raw.module.closures[0]
         .parameters
         .push(address(Type::I32, false));
-    raw.reject("non-Copy type");
+    raw.reject("closure entry signature differs from its definition");
 }
 
 #[test]

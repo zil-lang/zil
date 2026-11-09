@@ -2594,6 +2594,78 @@ impl<'a> Builder<'a, '_> {
     }
 
     #[inline(never)]
+    fn shared_array_dynamic_candidate(&mut self, object: &CoreExpr) -> R<bool> {
+        if !self.closures.array_billing {
+            return Ok(false);
+        }
+        // A hint only selects the paid algorithm. Actual expression checking
+        // and both kernels independently authenticate its Array and leaf type.
+        let hint = self.known_type_checked(object)?;
+        Ok(hint.as_ref().is_some_and(|ty| {
+            let actual = if let Type::Address { inner, .. } = ty {
+                inner.as_ref()
+            } else {
+                ty
+            };
+            stored::shared_array_value(actual)
+        }))
+    }
+
+    // Snapshot the complete actual Array before evaluating the index. The
+    // snapshot's leaves keep every possible referent live across index effects.
+    #[inline(never)]
+    fn shared_array_dynamic_index(&mut self, e: &CoreExpr) -> R<(ValueId, Type)> {
+        let CoreExprKind::Index { object, index } = &e.kind else {
+            unreachable!()
+        };
+        let (mut aggregate, mut actual) = self.expr(object, None)?;
+        if let Type::Address { inner, .. } = actual {
+            actual = *inner;
+            if !stored::shared_array_value(&actual) {
+                return Err(error(
+                    "E-INDEX-TYPE",
+                    e.span,
+                    "dynamic shared index requires an actual shared-address Array",
+                ));
+            }
+            self.closures.snapshot_type(&actual, 1, 0, e.span)?;
+            aggregate = self.value(
+                InstructionKind::ReadAddress { address: aggregate },
+                actual.clone(),
+                e.span,
+            )?;
+        }
+        if !stored::shared_array_value(&actual) {
+            return Err(error(
+                "E-INDEX-TYPE",
+                e.span,
+                "dynamic shared index requires an actual shared-address Array",
+            ));
+        }
+        let Type::Array { element, .. } = actual else {
+            unreachable!()
+        };
+        let (index, index_ty) = self.expr(index, None)?;
+        if !index_ty.is_integer() {
+            return Err(error(
+                "E-INDEX-TYPE",
+                e.span,
+                "array index requires an integer",
+            ));
+        }
+        let ty = *element;
+        self.closures.snapshot_type(&ty, 1, 0, e.span)?;
+        Ok((
+            self.value(
+                InstructionKind::ExtractIndex { aggregate, index },
+                ty.clone(),
+                e.span,
+            )?,
+            ty,
+        ))
+    }
+
+    #[inline(never)]
     fn aggregate_index(&mut self, e: &CoreExpr) -> R<(ValueId, Type)> {
         let CoreExprKind::Index { object, index } = &e.kind else {
             unreachable!("expression dispatcher variant")
@@ -2607,6 +2679,11 @@ impl<'a> Builder<'a, '_> {
                 )?,
                 ty,
             ));
+        }
+        if !matches!(index.kind, CoreExprKind::Integer(_))
+            && self.shared_array_dynamic_candidate(object)?
+        {
+            return self.shared_array_dynamic_index(e);
         }
         let package_hint = self.package_array_index_hint(object)?;
         let element_width = self
@@ -2713,6 +2790,7 @@ impl<'a> Builder<'a, '_> {
             ));
         }
         let (aggregate, ty) = self.expr(object, None)?;
+        let shared_array = stored::shared_array_value(&ty);
         let Type::Array { element, .. } = ty else {
             return Err(error(
                 "E-INDEX-TYPE",
@@ -2729,6 +2807,9 @@ impl<'a> Builder<'a, '_> {
             ));
         }
         let ty = *element;
+        if shared_array {
+            self.closures.snapshot_type(&ty, 1, 0, e.span)?;
+        }
         if !ty.is_copy_value()
             && stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?
         {

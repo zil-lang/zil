@@ -45,6 +45,7 @@ pub(super) struct Budget {
     pub(super) mixed_address_sums: bool,
     // Reconstructed from actual owned-signature parameters, never a claim.
     pub(super) borrowed_callback_inputs: bool,
+    pub(super) ordinary_error_places: bool,
     pub(super) owned_callbacks: BTreeSet<zil_ir::ClosureId>,
     pub(super) owned_callback_helpers: BTreeSet<zil_ir::FunctionId>,
     pub(super) owned_callback_window_functions: Vec<bool>,
@@ -73,6 +74,8 @@ pub(super) struct Budget {
     pub(super) store_option_results: bool,
     // Presence from actual Direct Call types; only schedules the private proof.
     pub(super) qualified_package_returns: bool,
+    // Paid actual ExtractIndex inventory; algorithm scheduling only.
+    pub(super) array_outer_functions: Vec<zil_ir::FunctionId>,
     pub(super) byte_queries: bool,
     pub(super) byte_query_presence_checked: bool,
     pub(super) byte_query_functions: Vec<bool>,
@@ -138,6 +141,7 @@ impl Budget {
             addressed_sums: false,
             mixed_address_sums: false,
             borrowed_callback_inputs: false,
+            ordinary_error_places: false,
             owned_callbacks: BTreeSet::new(),
             owned_callback_helpers: BTreeSet::new(),
             owned_callback_window_functions: Vec::new(),
@@ -162,6 +166,7 @@ impl Budget {
             task_borrowed_results: false,
             store_option_results: false,
             qualified_package_returns: false,
+            array_outer_functions: Vec::new(),
             byte_queries: false,
             byte_query_presence_checked: false,
             byte_query_functions: Vec::new(),

@@ -15,7 +15,12 @@ pub(super) fn helper_effects(effect: &Effect, b: &mut Budget) -> CompileResult<(
         .replacements
         .keys()
         .chain(effect.tagged_replacements.keys())
-        .any(|target| !matches!(target.root, origins::Root::ParameterCapture(..)))
+        .any(|target| {
+            !matches!(
+                target.root,
+                origins::Root::Parameter(_) | origins::Root::ParameterCapture(..)
+            )
+        })
         || !effect.invalidated_stores.is_empty()
     {
         return Err(vec![Diagnostic::unsupported(

@@ -1,6 +1,7 @@
 //! Signature equations are invariant metadata. This pass grants no roots,
 //! storage initialization, parent loans, effects or physical access rights.
 use super::*;
+mod array_outer;
 
 #[derive(Clone, Default)]
 struct Ports {
@@ -591,6 +592,95 @@ fn bind(
     }
     Ok(())
 }
+fn bind_with_outer(
+    c: &StorageLifeContract,
+    base: StorageBase,
+    p: &Ports,
+    v: &(Vec<usize>, Vec<usize>),
+    e: &mut Equations,
+    flow: Option<&array_outer::Flow>,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    crate::signature_life::charge(c, b)?;
+    for row in &c.bindings {
+        if row.position.base == base {
+            if !p.array_elements.is_empty()
+                && let [zil_ir::ContractProjection::Place(PlaceProjection::Field(index))] =
+                    row.position.path.as_slice()
+            {
+                let actual = *p
+                    .array_elements
+                    .get(*index as usize)
+                    .ok_or_else(|| bad("array binding selects absent actual ordinal"))?;
+                array_outer::binding(e, actual, select(v, row.binder)?, flow, b)?;
+                continue;
+            }
+            if !row.position.path.is_empty() && b.task_borrowed_results {
+                b.spend(p.task_ports.len(), "actual Task semantic class")?;
+                if let Some((_, index)) = p
+                    .task_ports
+                    .iter()
+                    .find(|(path, _)| path == &row.position.path)
+                {
+                    array_outer::binding(e, p.classes[*index], select(v, row.binder)?, flow, b)?;
+                    continue;
+                }
+            }
+            if !row.position.path.is_empty() {
+                return Err(bad(
+                    "class substitution cannot interpret physical/retained access paths",
+                ));
+            }
+            array_outer::binding(
+                e,
+                p.outer
+                    .ok_or_else(|| bad("borrow binding has no actual Address"))?,
+                select(v, row.binder)?,
+                flow,
+                b,
+            )?;
+        }
+    }
+    for row in &c.classes {
+        if row.position.base == base {
+            if p.direct {
+                let index = row.position.class as usize;
+                let (path, class) = p
+                    .keys
+                    .get(index)
+                    .ok_or_else(|| bad("qualified class has no actual carrier position"))?;
+                if *path != row.position.path || *class != row.position.class {
+                    return Err(bad("qualified class has no exact actual type path"));
+                }
+                array_outer::binding(e, p.classes[index], select(v, row.binder)?, flow, b)?;
+                continue;
+            }
+            b.spend(p.keys.len(), "actual signature lookup fee computation")?;
+            let lookup_work = p.keys.iter().fold(0usize, |n, (path, _)| {
+                n.saturating_add(
+                    path.len()
+                        .saturating_add(row.position.path.len())
+                        .saturating_add(1),
+                )
+            });
+            b.spend(
+                lookup_work.saturating_sub(p.keys.len()),
+                "actual signature class path selection",
+            )?;
+            let index = p
+                .keys
+                .iter()
+                .position(|(path, class)| {
+                    *path == row.position.path && *class == row.position.class
+                })
+                .ok_or_else(|| bad("qualified class has no exact actual type path"))?;
+            let actual = &p.classes[index];
+            array_outer::binding(e, *actual, select(v, row.binder)?, flow, b)?;
+        }
+    }
+    Ok(())
+}
+
 fn call(
     c: &StorageLifeContract,
     args: &[ValueId],
@@ -633,6 +723,60 @@ fn call(
             &values[out.0 as usize],
             &formal,
             e,
+            b,
+        )?;
+    }
+    Ok(())
+}
+fn call_with_outer(
+    c: &StorageLifeContract,
+    args: &[ValueId],
+    output: Option<ValueId>,
+    values: &[Ports],
+    fixed: Option<&[usize]>,
+    context: (&mut Equations, Option<&array_outer::Flow>),
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let (e, flow) = context;
+    if flow.is_none() {
+        return call(c, args, output, values, fixed, e, b);
+    }
+
+    let formal = if let Some(fixed) = fixed {
+        crate::signature_life::charge(c, b)?;
+        b.spend(fixed.len(), "actual closure persistent Fixed snapshot")?;
+        if fixed.len() != c.fixed_binder_count as usize {
+            return Err(bad(
+                "actual closure free Fixed domain differs from call relation",
+            ));
+        }
+        let mut invocation = Vec::new();
+        for _ in 0..c.invocation_binder_count {
+            invocation.push(e.fresh(false, b)?);
+        }
+        (fixed.to_vec(), invocation)
+    } else {
+        variables(c, e, false, b)?
+    };
+    for (i, arg) in args.iter().enumerate() {
+        bind_with_outer(
+            c,
+            StorageBase::Parameter(i as u32),
+            &values[arg.0 as usize],
+            &formal,
+            e,
+            flow,
+            b,
+        )?;
+    }
+    if let Some(out) = output {
+        bind_with_outer(
+            c,
+            StorageBase::Result,
+            &values[out.0 as usize],
+            &formal,
+            e,
+            flow,
             b,
         )?;
     }
@@ -759,10 +903,33 @@ fn check_with(
         }
         None
     };
+    let outer = if b.array_outer_functions.is_empty() {
+        None
+    } else {
+        b.spend(
+            b.array_outer_functions.len(),
+            "dynamic upper function scheduling",
+        )?;
+        if b.array_outer_functions.contains(&f.id) {
+            Some(array_outer::Flow::build(
+                module,
+                f,
+                reachable,
+                (&values, &locals, &captures),
+                e.parent.len(),
+                b,
+            )?)
+        } else {
+            None
+        }
+    };
     let mut deferred_helpers = Vec::new();
     let mut deferred_closures = Vec::new();
-    for block in &f.blocks {
-        for i in &block.instructions {
+    for (block_index, block) in f.blocks.iter().enumerate() {
+        for (instruction_index, i) in block.instructions.iter().enumerate() {
+            if let Some(flow) = &outer {
+                flow.enter(block_index, instruction_index);
+            }
             b.spend(1, "class equation instruction")?;
             let out = i.result.map(|v| &values[v.0 as usize]);
             match &i.kind {
@@ -832,7 +999,13 @@ fn check_with(
                 }
                 InstructionKind::Load(local) => {
                     if let Some(out) = out {
-                        e.copy(out, &locals[local.0 as usize], b)?;
+                        array_outer::copy(
+                            &mut e,
+                            out,
+                            &locals[local.0 as usize],
+                            outer.as_ref(),
+                            b,
+                        )?;
                     }
                 }
                 InstructionKind::TakeLocal { local }
@@ -844,7 +1017,13 @@ fn check_with(
                         ) =>
                 {
                     if let Some(out) = out {
-                        e.copy(out, &locals[local.0 as usize], b)?;
+                        array_outer::copy(
+                            &mut e,
+                            out,
+                            &locals[local.0 as usize],
+                            outer.as_ref(),
+                            b,
+                        )?;
                     }
                 }
                 InstructionKind::ReadCapture { index } if !captures.is_empty() => {
@@ -852,7 +1031,7 @@ fn check_with(
                         let capture = captures
                             .get(*index as usize)
                             .ok_or_else(|| bad("actual capture class source is absent"))?;
-                        e.copy(out, capture, b)?;
+                        array_outer::copy(&mut e, out, capture, outer.as_ref(), b)?;
                     }
                 }
                 InstructionKind::MakeClosure {
@@ -870,19 +1049,33 @@ fn check_with(
                         }
                         let vars = (out.classes.clone(), invocation);
                         for (index, value) in actuals.iter().enumerate() {
-                            bind(
+                            bind_with_outer(
                                 c,
                                 StorageBase::Capture(index as u32),
                                 &values[value.0 as usize],
                                 &vars,
                                 &mut e,
+                                outer.as_ref(),
                                 b,
                             )?;
                         }
                     }
                 }
-                InstructionKind::Store { local, value } => {
-                    e.copy(&locals[local.0 as usize], &values[value.0 as usize], b)?
+                InstructionKind::Store { local, value } => array_outer::copy(
+                    &mut e,
+                    &locals[local.0 as usize],
+                    &values[value.0 as usize],
+                    outer.as_ref(),
+                    b,
+                )?,
+                InstructionKind::BorrowPlaceLocal { .. }
+                    if super::stored_flow::ordinary_error_borrow(f, i, b)? =>
+                {
+                    if let Some(out) = out
+                        && let Some(outer) = out.outer
+                    {
+                        e.address_origin(outer, b)?;
+                    }
                 }
                 InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local } => {
@@ -891,7 +1084,7 @@ fn check_with(
                             e.address_origin(outer, b)?;
                         }
                         let stored = &locals[local.0 as usize];
-                        e.copy_elements(out, stored, b)?;
+                        array_outer::copy_elements(&mut e, out, stored, outer.as_ref(), b)?;
                         b.spend(
                             out.classes.len().saturating_add(stored.classes.len()),
                             "borrowed carrier classes",
@@ -906,14 +1099,20 @@ fn check_with(
                 }
                 InstructionKind::ReborrowAddress { address, .. } => {
                     if let Some(out) = out {
-                        e.copy(out, &values[address.0 as usize], b)?;
+                        array_outer::copy(
+                            &mut e,
+                            out,
+                            &values[address.0 as usize],
+                            outer.as_ref(),
+                            b,
+                        )?;
                     }
                 }
                 InstructionKind::AddressIndex { address, .. } => {
                     if let Some(out) = out {
                         let parent = &values[address.0 as usize];
                         if let (Some(a), Some(z)) = (out.outer, parent.outer) {
-                            e.equal(a, z, b)?;
+                            array_outer::transport(&mut e, a, z, outer.as_ref(), b)?;
                         }
                         link_projection(
                             &f.values[address.0 as usize],
@@ -947,12 +1146,18 @@ fn check_with(
                                     shape.slots.iter().find(|row| row.path == path).ok_or_else(
                                         || bad("array field lacks its actual physical class row"),
                                     )?;
-                                e.equal(*upper, parent.classes[row.binder as usize], b)?;
+                                array_outer::transport(
+                                    &mut e,
+                                    *upper,
+                                    parent.classes[row.binder as usize],
+                                    outer.as_ref(),
+                                    b,
+                                )?;
                             }
                         }
 
                         if let (Some(a), Some(z)) = (out.outer, parent.outer) {
-                            e.equal(a, z, b)?;
+                            array_outer::transport(&mut e, a, z, outer.as_ref(), b)?;
                         }
                         link_projection(
                             &f.values[address.0 as usize],
@@ -968,8 +1173,12 @@ fn check_with(
                     if let (Some(out), Some(parent)) =
                         (out.and_then(|o| o.outer), values[address.0 as usize].outer)
                     {
-                        e.equal(out, parent, b)?;
+                        array_outer::transport(&mut e, out, parent, outer.as_ref(), b)?;
                     }
+                }
+                InstructionKind::StoreStoredBorrow { .. } => {
+                    // The independently built physical source/expected row is
+                    // checked after all original declarations have been bound.
                 }
                 InstructionKind::LoadStoredBorrow { storage, path, .. } => {
                     if !values[storage.0 as usize].array_elements.is_empty() {
@@ -980,10 +1189,12 @@ fn check_with(
                             .array_elements
                             .get(*index as usize)
                             .ok_or_else(|| bad("array load selects absent actual ordinal"))?;
-                        e.equal(
+                        array_outer::transport(
+                            &mut e,
                             out.and_then(|o| o.outer)
                                 .ok_or_else(|| bad("array load lacks Address result"))?,
                             class,
+                            outer.as_ref(),
                             b,
                         )?;
                         continue;
@@ -1003,10 +1214,12 @@ fn check_with(
                         .find(|s| s.path == *path)
                         .ok_or_else(|| bad("stored class slot is absent"))?;
                     let class = values[storage.0 as usize].classes[leaf.binder as usize];
-                    e.equal(
+                    array_outer::transport(
+                        &mut e,
                         out.and_then(|o| o.outer)
                             .ok_or_else(|| bad("stored class load lacks Address result"))?,
                         class,
+                        outer.as_ref(),
                         b,
                     )?;
                 }
@@ -1019,11 +1232,13 @@ fn check_with(
                             return Err(bad("array constructor address upper arity differs"));
                         }
                         for (upper, argument) in out.array_elements.iter().zip(fields) {
-                            e.equal(
+                            array_outer::transport(
+                                &mut e,
                                 *upper,
                                 values[argument.0 as usize].outer.ok_or_else(|| {
                                     bad("array constructor operand is not an Address")
                                 })?,
+                                outer.as_ref(),
                                 b,
                             )?;
                         }
@@ -1064,7 +1279,13 @@ fn check_with(
                                     ));
                                 }
                             };
-                            e.equal(out.classes[slot.binder as usize], upper, b)?;
+                            array_outer::binding(
+                                &mut e,
+                                upper,
+                                out.classes[slot.binder as usize],
+                                outer.as_ref(),
+                                b,
+                            )?;
                         }
                     }
                     if let (Some(out), Some(id)) = (out, i.result)
@@ -1092,7 +1313,7 @@ fn check_with(
                 InstructionKind::ReadAddress { address } => {
                     if let Some(out) = out {
                         let input = &values[address.0 as usize];
-                        e.copy_elements(out, input, b)?;
+                        array_outer::copy_elements(&mut e, out, input, outer.as_ref(), b)?;
                         if out.classes.len() != input.classes.len() {
                             return Err(bad("pure projection class arity differs"));
                         }
@@ -1103,14 +1324,38 @@ fn check_with(
                 }
                 InstructionKind::ExtractIndex { aggregate, .. } => {
                     if let Some(out) = out {
-                        link_projection(
-                            &f.values[aggregate.0 as usize],
-                            &values[aggregate.0 as usize],
-                            out,
-                            LifeTypeProjection::Element,
-                            &mut e,
-                            b,
-                        )?;
+                        if super::stored_flow::shared_array_value(&f.values[aggregate.0 as usize]) {
+                            let upper = out.outer.ok_or_else(|| {
+                                bad("dynamic shared Array result lacks an Address upper")
+                            })?;
+                            let elements = &values[aggregate.0 as usize].array_elements;
+                            let Type::Array { length, .. } = &f.values[aggregate.0 as usize] else {
+                                unreachable!()
+                            };
+                            b.spend(
+                                elements.len().saturating_add(1),
+                                "dynamic Array upper alternatives",
+                            )?;
+                            if elements.len() != *length as usize {
+                                return Err(bad(
+                                    "dynamic Array upper facts lack a physical candidate",
+                                ));
+                            }
+                            if outer.is_none() {
+                                for element in elements {
+                                    e.equal(upper, *element, b)?;
+                                }
+                            }
+                        } else {
+                            link_projection(
+                                &f.values[aggregate.0 as usize],
+                                &values[aggregate.0 as usize],
+                                out,
+                                LifeTypeProjection::Element,
+                                &mut e,
+                                b,
+                            )?;
+                        }
                     }
                 }
                 InstructionKind::ExtractField { aggregate, index } => {
@@ -1206,7 +1451,13 @@ fn check_with(
                     value,
                 } => {
                     if let Some(out) = out {
-                        e.copy(out, &values[aggregate.0 as usize], b)?;
+                        array_outer::copy(
+                            &mut e,
+                            out,
+                            &values[aggregate.0 as usize],
+                            outer.as_ref(),
+                            b,
+                        )?;
                         link_projection(
                             &f.values[aggregate.0 as usize],
                             out,
@@ -1221,7 +1472,13 @@ fn check_with(
                     aggregate, value, ..
                 } => {
                     if let Some(out) = out {
-                        e.copy(out, &values[aggregate.0 as usize], b)?;
+                        array_outer::copy(
+                            &mut e,
+                            out,
+                            &values[aggregate.0 as usize],
+                            outer.as_ref(),
+                            b,
+                        )?;
                         link_projection(
                             &f.values[aggregate.0 as usize],
                             out,
@@ -1246,9 +1503,22 @@ fn check_with(
                         };
                         if defer {
                             b.spend(1, "deferred actual environment helper call")?;
-                            deferred_helpers.push((c, arguments.as_slice(), i.result));
+                            deferred_helpers.push((
+                                c,
+                                arguments.as_slice(),
+                                i.result,
+                                (block_index, instruction_index),
+                            ));
                         } else {
-                            call(c, arguments, i.result, &values, None, &mut e, b)?;
+                            call_with_outer(
+                                c,
+                                arguments,
+                                i.result,
+                                &values,
+                                None,
+                                (&mut e, outer.as_ref()),
+                                b,
+                            )?;
                         }
                     }
                 }
@@ -1292,9 +1562,18 @@ fn check_with(
                             arguments,
                             i.result,
                             receiver.classes.as_slice(),
+                            (block_index, instruction_index),
                         ));
                     } else if let Some(life) = role {
-                        call(life, arguments, i.result, &values, None, &mut e, b)?;
+                        call_with_outer(
+                            life,
+                            arguments,
+                            i.result,
+                            &values,
+                            None,
+                            (&mut e, outer.as_ref()),
+                            b,
+                        )?;
                     }
                 }
                 InstructionKind::CallIndirect { callee, arguments } => {
@@ -1304,7 +1583,15 @@ fn check_with(
                             "stored indirect class call requires its complete borrowed signature",
                         ));
                     };
-                    call(life, arguments, i.result, &values, None, &mut e, b)?;
+                    call_with_outer(
+                        life,
+                        arguments,
+                        i.result,
+                        &values,
+                        None,
+                        (&mut e, outer.as_ref()),
+                        b,
+                    )?;
                 }
                 _ => {}
             }
@@ -1313,6 +1600,9 @@ fn check_with(
     // Ordinary sources and structural propagation precede any use of a free
     // environment class. Only grounded capture facts get persistent identities;
     // neither a local phantom constructor nor the first call can choose one.
+    if let Some(flow) = &outer {
+        flow.checkpoint(&mut e, b)?;
+    }
     if retained_environment {
         b.spend(values.len(), "retained environment inventory")?;
         for p in &values {
@@ -1324,25 +1614,54 @@ fn check_with(
             }
         }
     }
-    for (contract, arguments, output) in deferred_helpers {
-        call(contract, arguments, output, &values, None, &mut e, b)?;
+    for (contract, arguments, output, site) in deferred_helpers {
+        if let Some(flow) = &outer {
+            flow.enter(site.0, site.1);
+        }
+        call_with_outer(
+            contract,
+            arguments,
+            output,
+            &values,
+            None,
+            (&mut e, outer.as_ref()),
+            b,
+        )?;
     }
-    for (contract, arguments, output, fixed) in deferred_closures {
-        call(contract, arguments, output, &values, Some(fixed), &mut e, b)?;
+    for (contract, arguments, output, fixed, site) in deferred_closures {
+        if let Some(flow) = &outer {
+            flow.enter(site.0, site.1);
+        }
+        call_with_outer(
+            contract,
+            arguments,
+            output,
+            &values,
+            Some(fixed),
+            (&mut e, outer.as_ref()),
+            b,
+        )?;
     }
     if let (Some(c), Some(vars)) = (assumptions, header) {
-        for (block, live) in f.blocks.iter().zip(reachable) {
+        for (block_index, (block, live)) in f.blocks.iter().zip(reachable).enumerate() {
             if *live && let Terminator::Return(Some(v)) = block.terminator {
-                bind(
+                if let Some(flow) = &outer {
+                    flow.enter(usize::MAX, block_index);
+                }
+                bind_with_outer(
                     c,
                     StorageBase::Result,
                     &values[v.0 as usize],
                     &vars,
                     &mut e,
+                    outer.as_ref(),
                     b,
                 )?;
             }
         }
+    }
+    if let Some(flow) = &outer {
+        flow.finish(&mut e, b)?;
     }
     Ok(())
 }

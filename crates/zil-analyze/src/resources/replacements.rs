@@ -28,6 +28,7 @@ struct Invocation<'a> {
     carrier: Option<Place>,
     sealed: bool,
     may_only: bool,
+    ordinary_only: bool,
 }
 pub(super) type Effects = BTreeMap<Target, BTreeSet<Birth>>;
 pub(super) type TaggedEffects = BTreeMap<Target, sums::Replacement>;
@@ -761,6 +762,7 @@ impl Program {
             carrier,
             sealed,
             may_only,
+            ordinary_only,
         } = invocation;
         let CheckPoint {
             validate: check,
@@ -770,6 +772,9 @@ impl Program {
         let rows = &flow.effects[callee].replacements;
         fee(b, rows.len())?;
         for (target, birth) in rows {
+            if ordinary_only && !matches!(target.root, origins::Root::Parameter(_)) {
+                continue;
+            }
             fee(b, target.path.len().saturating_add(1))?;
             let selected = origins::substitute(
                 &BTreeSet::from([target.clone()]),
@@ -803,6 +808,9 @@ impl Program {
         let tagged = &flow.effects[callee].tagged_replacements;
         fee(b, tagged.len())?;
         for (target, content) in tagged {
+            if ordinary_only && !matches!(target.root, origins::Root::Parameter(_)) {
+                continue;
+            }
             let selected = origins::substitute(
                 &BTreeSet::from([target.clone()]),
                 arguments,
@@ -935,7 +943,10 @@ impl Program {
                 }
                 for target in self.targets(f, &d.base, &d.path, b)? {
                     if f.callable_contract.is_some()
-                        && !matches!(target.root, origins::Root::Local(_))
+                        && !matches!(
+                            target.root,
+                            origins::Root::Local(_) | origins::Root::Parameter(_)
+                        )
                     {
                         return Err(vec![Diagnostic::unsupported(
                             Phase::Analyze,
@@ -1029,35 +1040,34 @@ impl Program {
                                 carrier: Some(Place::Value(value)),
                                 sealed: false,
                                 may_only: true,
+                                ordinary_only: false,
                             },
                             point,
                             b,
                         )?;
                     }
+                    // Public invocation roles account for callback captures. Only
+                    // independently reconstructed ordinary-input rows cross here;
+                    // may-Commit never establishes a must-write or Fresh result.
+                    self.call(
+                        flow,
+                        state,
+                        effect,
+                        Invocation {
+                            callee: function.0 as usize,
+                            arguments,
+                            captures: None,
+                            carrier: None,
+                            sealed: false,
+                            may_only: true,
+                            ordinary_only: true,
+                        },
+                        point,
+                        b,
+                    )?;
                     return Ok(());
                 }
                 let summary = &flow.effects[function.0 as usize].replacements;
-                if f.callable_contract.is_some() {
-                    let called = &flow.effects[function.0 as usize];
-                    fee(
-                        b,
-                        called
-                            .replacements
-                            .len()
-                            .saturating_add(called.tagged_replacements.len())
-                            .saturating_add(called.invalidated_stores.len()),
-                    )?;
-                    if !called.replacements.is_empty()
-                        || !called.tagged_replacements.is_empty()
-                        || !called.invalidated_stores.is_empty()
-                    {
-                        return Err(vec![Diagnostic::unsupported(
-                            Phase::Analyze,
-                            "public callable helper cannot publish an ordinary callee's private replacement effects",
-                            Some(i.span),
-                        )]);
-                    }
-                }
                 if (callee.callable_contract.is_some() || callee.callable_return_contract.is_some())
                     && !summary.is_empty()
                 {
@@ -1078,6 +1088,7 @@ impl Program {
                         carrier: None,
                         sealed: false,
                         may_only: false,
+                        ordinary_only: false,
                     },
                     point,
                     b,
@@ -1097,6 +1108,7 @@ impl Program {
                             carrier: Some(Place::Value(value)),
                             sealed: true,
                             may_only: false,
+                            ordinary_only: false,
                         },
                         point,
                         b,
@@ -1117,6 +1129,7 @@ impl Program {
                         carrier: Some(Place::Value(*body)),
                         sealed: true,
                         may_only: false,
+                        ordinary_only: false,
                     },
                     point,
                     b,
@@ -1141,6 +1154,7 @@ impl Program {
                         carrier: Some(Place::Local(*callee)),
                         sealed: false,
                         may_only: false,
+                        ordinary_only: false,
                     },
                     point,
                     b,
@@ -1163,6 +1177,7 @@ impl Program {
                         carrier: Some(Place::Value(*callee)),
                         sealed: false,
                         may_only: false,
+                        ordinary_only: false,
                     },
                     point,
                     b,

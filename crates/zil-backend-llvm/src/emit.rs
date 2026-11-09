@@ -2108,17 +2108,7 @@ impl FunctionEmitter<'_> {
             }
             InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                 let result = result(instruction)?;
-                let ty = self.local_type(*local)?;
-                if *ty != Type::Unit {
-                    self.event(m::Event::Instruction(m::Inst::new(
-                        Some(format!("v.{}", result.0)),
-                        m::Op::Load {
-                            ty: (llvm_type(ty)?).clone(),
-                            ptr: m::local(format!("local.{}", local.0)),
-                            align: (alignment(ty, self.closures)?) as u32,
-                        },
-                    )));
-                }
+                self.copy_read(result, m::local(format!("local.{}", local.0)))?;
                 if matches!(instruction.kind, InstructionKind::TakeLocal { .. })
                     && self.owns_storage(self.local_type(*local)?)
                 {
@@ -2136,19 +2126,8 @@ impl FunctionEmitter<'_> {
                 }
             }
             InstructionKind::Store { local, value } => {
-                let ty = self.local_type(*local)?;
-                if *ty != Type::Unit {
-                    self.event(m::Event::Instruction(m::Inst::new(
-                        None,
-                        m::Op::Store {
-                            arg: m::Arg::new(
-                                (llvm_type(ty)?).clone(),
-                                m::local(format!("v.{}", value.0)),
-                            ),
-                            ptr: m::local(format!("local.{}", local.0)),
-                            align: (alignment(ty, self.closures)?) as u32,
-                        },
-                    )));
+                if self.local_type(*local)? != &Type::Unit {
+                    self.copy_write(m::local(format!("local.{}", local.0)), *value)?;
                 }
                 if self.owns_storage(self.local_type(*local)?) {
                     self.event(m::Event::Instruction(m::Inst::new(

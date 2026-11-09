@@ -334,6 +334,8 @@ struct Budget {
     // This is a work gate only; each consumer still checks the complete type.
     inline_store_roots: BTreeSet<usize>,
     array_snapshot_roots: BTreeSet<usize>,
+    // Actual instruction inventory only schedules independent upper reconstruction.
+    array_outer_functions: Vec<FunctionId>,
     inline_store_addresses: bool,
     inline_store_package_addresses: bool,
     sums: bool,
@@ -369,6 +371,7 @@ struct Budget {
     store_option_results: bool,
     qualified_package_returns: bool,
     byte_queries: bool,
+    ordinary_error_places: bool,
     byte_query_presence_checked: bool,
     byte_query_functions: Vec<bool>,
     package_return_calls: Option<BTreeMap<(FunctionId, ValueId), u32>>,
@@ -400,6 +403,7 @@ impl Budget {
             pod_stores: false,
             inline_store_roots: BTreeSet::new(),
             array_snapshot_roots: BTreeSet::new(),
+            array_outer_functions: Vec::new(),
             inline_store_addresses: false,
             inline_store_package_addresses: false,
             sums: false,
@@ -432,6 +436,7 @@ impl Budget {
             store_option_results: false,
             qualified_package_returns: false,
             byte_queries: false,
+            ordinary_error_places: false,
             byte_query_presence_checked: false,
             byte_query_functions: Vec::new(),
             package_return_calls: None,

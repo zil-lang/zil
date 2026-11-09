@@ -2,6 +2,7 @@
 //! This pass does not use a candidate, source label, or nominal name as a root.
 use super::*;
 
+mod array_index;
 mod array_snapshot;
 mod byte_queries;
 pub(super) mod enum_address;
@@ -13,6 +14,15 @@ use std::collections::BTreeMap;
 pub(super) mod owned;
 #[path = "stored_flow_pure_copy.rs"]
 mod pure_copy;
+
+// Class grounding may recognize only this independently authenticated origin.
+pub(super) fn ordinary_error_borrow(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    pure_copy::ordinary_error_borrow(f, i, b)
+}
 
 /// These observations transport shared address permissions in this ledger,
 /// while the resource Sum ledger has no owning leaf to consume. Authenticate
@@ -39,6 +49,17 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> CompileRe
     // A plain address-returning helper can project the caller's actual stored
     // pointee even when its own signature contains no qualified carrier.
     if matches!(f.return_type, Type::Address { .. }) {
+        return Ok(true);
+    }
+    // Actual closure entries returning owned data must join the stored proof
+    // when callbacks are observed beside stored loans. Definition checking
+    // separately authenticates the entry, complete signature and captures.
+    if f.environment.is_some()
+        && matches!(
+            f.return_type,
+            Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+        )
+    {
         return Ok(true);
     }
 
@@ -2638,6 +2659,18 @@ fn transfer(
             state.locals.remove(local);
             clear_local_holes(state, *local, b)?;
         }
+        InstructionKind::BorrowPlaceLocal { local, path, .. }
+            if ordinary_error_borrow(f, i, b)? =>
+        {
+            fee(b, path.len().saturating_add(1))?;
+            out.pointer.targets.insert(Target {
+                retained_port: None,
+                base: HoldRoot::Local(*local),
+                stored: Vec::new(),
+                place: path.clone(),
+                heap_element: None,
+            });
+        }
         InstructionKind::TakePackageField { local, index } => {
             ordered(b, state.locals.len(), 0)?;
             let holder = state
@@ -3357,8 +3390,12 @@ fn transfer(
         }
         _ if pure_copy::ordinary_owned_union(f, i, b)? => {}
         _ if pure_copy::ordinary_package_borrow(f, i, b)? => {}
+        _ if pure_copy::ordinary_package_read(f, i, b)? => {}
         _ if task_transfer.is_some() => {
             out = task_transfer.unwrap();
+        }
+        InstructionKind::ExtractIndex { aggregate, .. } if array_index::candidate(f, i) => {
+            out.pointer = array_index::transfer(f, i, get(*aggregate)?, b)?;
         }
         _ if pure_copy::operation(&i.kind) => {
             if !pure_copy::ordinary_owned_union(f, i, b)? {
@@ -3459,7 +3496,7 @@ fn transfer(
         }
     }
     if let Some(result) = i.result
-        && matches!(
+        && (matches!(
             i.kind,
             InstructionKind::BorrowLocal { .. }
                 | InstructionKind::BorrowLocalMut { .. }
@@ -3476,7 +3513,7 @@ fn transfer(
                 | InstructionKind::CallClosureBorrowed { .. }
                 | InstructionKind::CallClosureShared { .. }
                 | InstructionKind::CallClosureMut { .. }
-        )
+        ) || ordinary_error_borrow(f, i, b)?)
         && matches!(value_type(f, result)?, Type::Address { .. })
     {
         let id = result.0 as usize;
@@ -3775,6 +3812,7 @@ fn reverse(
         | InstructionKind::StorageLive(local)
         | InstructionKind::StorageDead(local) => live[f.values.len() + local.0 as usize] = false,
         InstructionKind::Load(local)
+        | InstructionKind::BorrowPlaceLocal { local, .. }
         | InstructionKind::BorrowLocal { local }
         | InstructionKind::BorrowLocalMut { local } => {
             live[f.values.len() + local.0 as usize] = true
@@ -3875,6 +3913,17 @@ fn windows(
     byte_reads: &mut Vec<Target>,
     b: &mut Budget,
 ) -> CompileResult<()> {
+    // A module marker only schedules this actual per-function inventory.
+    let mut ordinary_error_places = false;
+    if b.ordinary_error_places {
+        fee(b, f.blocks.len())?;
+        for block in &f.blocks {
+            fee(b, block.instructions.len())?;
+            for instruction in &block.instructions {
+                ordinary_error_places |= ordinary_error_borrow(f, instruction, b)?;
+            }
+        }
+    }
     let byte_flow =
         byte_queries::Flow::solve(module, f, preds, reachable, entry, values, summaries, b)?;
     let live_out = liveness(module, f, preds, reachable, b)?;
@@ -3994,6 +4043,66 @@ fn windows(
                         }
                     }
                 }
+                InstructionKind::BorrowPlaceLocal { local, path, .. }
+                    if ordinary_error_borrow(f, i, b)? =>
+                {
+                    fee(b, path.len().saturating_add(1))?;
+                    let actual = Permission {
+                        targets: BTreeSet::from([Target {
+                            retained_port: None,
+                            base: HoldRoot::Local(*local),
+                            stored: Vec::new(),
+                            place: path.clone(),
+                            heap_element: None,
+                        }]),
+                        loans: Loans::new(),
+                    };
+                    use_permission(&actual, false, &current, loans, apart, b)?;
+                }
+                InstructionKind::TakeVariantField { local, path } if ordinary_error_places => {
+                    fee(b, path.len().saturating_add(1))?;
+                    let actual = Permission {
+                        targets: BTreeSet::from([Target {
+                            retained_port: None,
+                            base: HoldRoot::Local(*local),
+                            stored: Vec::new(),
+                            place: path.clone(),
+                            heap_element: None,
+                        }]),
+                        loans: Loans::new(),
+                    };
+                    use_permission(&actual, true, &current, loans, apart, b)?;
+                }
+                InstructionKind::DropErrorUnion { local } if ordinary_error_places => {
+                    fee(b, 1)?;
+                    let actual = Permission {
+                        targets: BTreeSet::from([Target {
+                            retained_port: None,
+                            base: HoldRoot::Local(*local),
+                            stored: Vec::new(),
+                            place: Vec::new(),
+                            heap_element: None,
+                        }]),
+                        loans: Loans::new(),
+                    };
+                    use_permission(&actual, true, &current, loans, apart, b)?;
+                }
+                InstructionKind::ReadPackageField { local, index }
+                    if pure_copy::ordinary_package_read(f, i, b)? =>
+                {
+                    fee(b, 2)?;
+                    let actual = Permission {
+                        targets: BTreeSet::from([Target {
+                            retained_port: None,
+                            base: HoldRoot::Local(*local),
+                            stored: Vec::new(),
+                            place: vec![PlaceProjection::Field(*index)],
+                            heap_element: None,
+                        }]),
+                        loans: Loans::new(),
+                    };
+                    use_permission(&actual, false, &current, loans, apart, b)?;
+                }
                 InstructionKind::TakePackageField { local, index }
                 | InstructionKind::DropPackageField { local, index }
                 | InstructionKind::StorePackageField { local, index, .. } => {
@@ -4080,6 +4189,12 @@ fn windows(
                     };
                     fee(b, 1)?;
                     use_permission(&actual, *mutable, &current, loans, apart, b)?;
+                }
+                InstructionKind::ExtractIndex { aggregate, .. } if array_index::candidate(f, i) => {
+                    let input = values
+                        .get(aggregate.0 as usize)
+                        .ok_or_else(|| failure("dynamic Array operand outside actual values"))?;
+                    array_index::check(f, i, input, &current, loans, apart, b)?;
                 }
                 InstructionKind::ReadAddress { address } => {
                     if let Type::Address { inner, .. } = value_type(f, *address)?
@@ -4462,7 +4577,7 @@ fn derive_cfg(
     inactive: Option<&[BTreeSet<ValueId>]>,
     b: &mut Budget,
 ) -> CompileResult<Vec<Facts>> {
-    byte_queries::inventory(module, graphs, b)?;
+    let pending_byte_edges = byte_queries::inventory(module, graphs, b)?;
     let mut observed_none = false;
     fee(b, module.functions.len())?;
     let mut summaries = vec![Facts::default(); module.functions.len()];
@@ -4918,6 +5033,7 @@ fn derive_cfg(
             }
         }
     }
+    byte_queries::certify_edges(module, &pending_byte_edges, &summaries, b)?;
     Ok(summaries)
 }
 
@@ -4940,6 +5056,7 @@ pub(super) fn infer(
     };
     super::stored_callables::definitions(module, b)?;
     let mut foreign_symbols = BTreeSet::new();
+    let mut ordinary_observations = false;
     for f in &module.functions {
         if !b.composition_stored.is_empty() && !b.composition_stored[f.id.0 as usize] {
             continue;
@@ -5039,7 +5156,7 @@ pub(super) fn infer(
             )]);
         }
         if f.foreign.is_none() {
-            actual_instructions(module, f, &graphs[f.id.0 as usize], b)?;
+            ordinary_observations |= actual_instructions(module, f, &graphs[f.id.0 as usize], b)?;
         }
         super::class_flow::check(module, f, &graphs[f.id.0 as usize].1, b)?;
     }
@@ -5071,7 +5188,7 @@ pub(super) fn infer(
             .iter()
             .any(|d| d.kind == CallableKind::FnOnce)
         || b.stored_owned_fixed
-        || (b.qualified_package_returns || b.byte_queries)
+        || (b.qualified_package_returns || b.byte_queries || ordinary_observations)
             && b.composition_stored.is_empty()
             && !b.task_borrowed_results
             && !b.store_option_results
@@ -5180,7 +5297,7 @@ fn actual_instructions(
     f: &TypedFunction,
     graph: &(Vec<Vec<usize>>, Vec<bool>),
     b: &mut Budget,
-) -> CompileResult<()> {
+) -> CompileResult<bool> {
     // A stored exclusive leaf moves with its complete SSA carrier. Two copies
     // retaining the same loan ID otherwise appear to be one permission.
     fn consumed(kind: &InstructionKind) -> (Option<ValueId>, &[ValueId]) {
@@ -5363,6 +5480,7 @@ fn actual_instructions(
             }
         }
     }
+    let mut ordinary_observations = false;
     let mut scalar_ffi = false;
     let (preds, reachable) = graph;
     fee(b, f.values.len())?;
@@ -5371,6 +5489,9 @@ fn actual_instructions(
         for i in &block.instructions {
             fee(b, 1)?;
             let byte_query = byte_queries::instruction(module, f, i, b)?;
+            let package_read = pure_copy::ordinary_package_read(f, i, b)?;
+            let error_borrow = ordinary_error_borrow(f, i, b)?;
+            ordinary_observations |= package_read || error_borrow;
             let enum_operation = enum_address::instruction(module, f, i, b)?;
             let owned_operation = (b.stored_owned_fixed
                 || matches!(i.kind, InstructionKind::ReadDesc { .. })
@@ -5383,6 +5504,8 @@ fn actual_instructions(
                 && !owned_operation
                 && !enum_operation
                 && !byte_query
+                && !package_read
+                && !error_borrow
                 && !(b.task_borrowed_results && task_address::operation(&i.kind))
                 && !(b.store_option_results
                     && matches!(
@@ -5488,7 +5611,15 @@ fn actual_instructions(
             if super::stored_callables::instruction(module, f, i) {
                 super::stored_callables::types(module, f, i, b)?;
             }
+            if array_index::candidate(f, i) {
+                array_index::types(f, i, b)?;
+                fee(b, b.array_outer_functions.len().saturating_add(1))?;
+                if !b.array_outer_functions.contains(&f.id) {
+                    b.array_outer_functions.push(f.id);
+                }
+            }
             if pure_copy::operation(&i.kind)
+                && !array_index::candidate(f, i)
                 && enum_address::types(module, f, i, b)?.is_none()
                 && option_address::types(module, f, i, b)?.is_none()
                 && !(b.task_borrowed_results && task_address::wrapper_instruction(f, i, b)?)
@@ -5955,7 +6086,7 @@ fn actual_instructions(
             }
         }
     }
-    Ok(())
+    Ok(ordinary_observations)
 }
 
 #[cfg(test)]
