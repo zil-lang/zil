@@ -1,0 +1,1040 @@
+[
+  {
+    "kind": "ordinary-O2-reference",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "build",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/base/plain/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/base/plain/semantic",
+      "--backend",
+      "llvm-api",
+      "--opt",
+      "O2",
+      "--codegen-units",
+      "8",
+      "--codegen-jobs",
+      "2",
+      "--object-cache",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/base/plain/objects",
+      "--clang",
+      "/home/runner/work/_temp/weighted-llvm/bin/clang",
+      "-o",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/base/plain/app",
+      "--function-merging",
+      "after"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 293.27967,
+    "cpu_ms": 507.794,
+    "rss_kib": 72932,
+    "log": "logs/006120",
+    "stdout_sha256": "f19202f02f5e45e024c6a9541ff50180f5ee6e726bffe389d6a9c0867172e909",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native_checks": [
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/base/plain/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 0.843351,
+        "cpu_ms": 0.7010000000000001,
+        "rss_kib": 54052,
+        "log": "logs/006121",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "input_bytes": 0
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/base/plain/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 0.715912,
+        "cpu_ms": 0.633,
+        "rss_kib": 54052,
+        "log": "logs/006122",
+        "stdout_sha256": "d58a88c5f47a7c4a3c8ff1f26720641bc5436e0067a44c30c270147559444389",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "d58a88c5f47a7c4a3c8ff1f26720641bc5436e0067a44c30c270147559444389",
+        "input_bytes": 7
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/base/plain/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 1.04005,
+        "cpu_ms": 0.967,
+        "rss_kib": 54052,
+        "log": "logs/006123",
+        "stdout_sha256": "593751d8b7a79bcf3191365c3ae0c4dde09125aecf74c13bd72453bede43ab85",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "593751d8b7a79bcf3191365c3ae0c4dde09125aecf74c13bd72453bede43ab85",
+        "input_bytes": 256
+      }
+    ]
+  },
+  {
+    "kind": "rust-O2-reference",
+    "argv": [
+      "rustc",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/base/rust/src/main.rs",
+      "--edition=2024",
+      "--crate-name",
+      "compile_cost",
+      "-A",
+      "warnings",
+      "-C",
+      "opt-level=2",
+      "-C",
+      "debuginfo=0",
+      "-C",
+      "overflow-checks=yes",
+      "-C",
+      "panic=abort",
+      "-C",
+      "embed-bitcode=no",
+      "-o",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/base/rust/app"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 258.80549,
+    "cpu_ms": 265.86899999999997,
+    "rss_kib": 213084,
+    "log": "logs/006124",
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native_checks": [
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/base/rust/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 1.073542,
+        "cpu_ms": 0.9549999999999998,
+        "rss_kib": 54052,
+        "log": "logs/006125",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "input_bytes": 0
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/base/rust/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 0.899797,
+        "cpu_ms": 0.7649999999999999,
+        "rss_kib": 54052,
+        "log": "logs/006126",
+        "stdout_sha256": "d58a88c5f47a7c4a3c8ff1f26720641bc5436e0067a44c30c270147559444389",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "d58a88c5f47a7c4a3c8ff1f26720641bc5436e0067a44c30c270147559444389",
+        "input_bytes": 7
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/base/rust/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 1.215389,
+        "cpu_ms": 1.1409999999999998,
+        "rss_kib": 54052,
+        "log": "logs/006127",
+        "stdout_sha256": "593751d8b7a79bcf3191365c3ae0c4dde09125aecf74c13bd72453bede43ab85",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "593751d8b7a79bcf3191365c3ae0c4dde09125aecf74c13bd72453bede43ab85",
+        "input_bytes": 256
+      }
+    ]
+  },
+  {
+    "kind": "ordinary-O2-reference",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "build",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/private/plain/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/private/plain/semantic",
+      "--backend",
+      "llvm-api",
+      "--opt",
+      "O2",
+      "--codegen-units",
+      "8",
+      "--codegen-jobs",
+      "2",
+      "--object-cache",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/private/plain/objects",
+      "--clang",
+      "/home/runner/work/_temp/weighted-llvm/bin/clang",
+      "-o",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/private/plain/app",
+      "--function-merging",
+      "after"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 291.842985,
+    "cpu_ms": 505.751,
+    "rss_kib": 73044,
+    "log": "logs/006160",
+    "stdout_sha256": "670ef86027cb15ab36b4f4d1d9867f4f4b8556fc95d79b761ac97212670a3237",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native_checks": [
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/private/plain/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 0.872264,
+        "cpu_ms": 0.7559999999999999,
+        "rss_kib": 55408,
+        "log": "logs/006161",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "input_bytes": 0
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/private/plain/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 0.765194,
+        "cpu_ms": 0.6709999999999999,
+        "rss_kib": 55408,
+        "log": "logs/006162",
+        "stdout_sha256": "bc770c80e9b171fb7906d4c63253702a621c571d58c2a69a72123ef07f601284",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "bc770c80e9b171fb7906d4c63253702a621c571d58c2a69a72123ef07f601284",
+        "input_bytes": 7
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/private/plain/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 1.060929,
+        "cpu_ms": 0.98,
+        "rss_kib": 55408,
+        "log": "logs/006163",
+        "stdout_sha256": "36fcb8adea169af5bbcae2ed5712a4dbec7269af34fd90bfd6787c368612c1c1",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "36fcb8adea169af5bbcae2ed5712a4dbec7269af34fd90bfd6787c368612c1c1",
+        "input_bytes": 256
+      }
+    ]
+  },
+  {
+    "kind": "rust-O2-reference",
+    "argv": [
+      "rustc",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/private/rust/src/main.rs",
+      "--edition=2024",
+      "--crate-name",
+      "compile_cost",
+      "-A",
+      "warnings",
+      "-C",
+      "opt-level=2",
+      "-C",
+      "debuginfo=0",
+      "-C",
+      "overflow-checks=yes",
+      "-C",
+      "panic=abort",
+      "-C",
+      "embed-bitcode=no",
+      "-o",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/private/rust/app"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 261.769666,
+    "cpu_ms": 270.431,
+    "rss_kib": 213144,
+    "log": "logs/006164",
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native_checks": [
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/private/rust/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 1.117165,
+        "cpu_ms": 0.941,
+        "rss_kib": 55408,
+        "log": "logs/006165",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "input_bytes": 0
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/private/rust/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 0.908924,
+        "cpu_ms": 0.83,
+        "rss_kib": 55408,
+        "log": "logs/006166",
+        "stdout_sha256": "bc770c80e9b171fb7906d4c63253702a621c571d58c2a69a72123ef07f601284",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "bc770c80e9b171fb7906d4c63253702a621c571d58c2a69a72123ef07f601284",
+        "input_bytes": 7
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree32x8/private/rust/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 1.302581,
+        "cpu_ms": 1.201,
+        "rss_kib": 55408,
+        "log": "logs/006167",
+        "stdout_sha256": "36fcb8adea169af5bbcae2ed5712a4dbec7269af34fd90bfd6787c368612c1c1",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "36fcb8adea169af5bbcae2ed5712a4dbec7269af34fd90bfd6787c368612c1c1",
+        "input_bytes": 256
+      }
+    ]
+  },
+  {
+    "kind": "ordinary-O2-reference",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "build",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/base/plain/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/base/plain/semantic",
+      "--backend",
+      "llvm-api",
+      "--opt",
+      "O2",
+      "--codegen-units",
+      "8",
+      "--codegen-jobs",
+      "2",
+      "--object-cache",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/base/plain/objects",
+      "--clang",
+      "/home/runner/work/_temp/weighted-llvm/bin/clang",
+      "-o",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/base/plain/app",
+      "--function-merging",
+      "after"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 1974.253591,
+    "cpu_ms": 3647.49,
+    "rss_kib": 160844,
+    "log": "logs/006200",
+    "stdout_sha256": "c5c6a0969707390b9639986c8814bc970e4918e195df2137c91d3074246e7616",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native_checks": [
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/base/plain/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 0.99189,
+        "cpu_ms": 0.8659999999999999,
+        "rss_kib": 55408,
+        "log": "logs/006201",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "input_bytes": 0
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/base/plain/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 0.860513,
+        "cpu_ms": 0.7819999999999999,
+        "rss_kib": 55408,
+        "log": "logs/006202",
+        "stdout_sha256": "9c20b1d0f7dd8c3fcf7f208fd645249b45cfb8ba707b9fa38d1fbcdfd3956591",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "9c20b1d0f7dd8c3fcf7f208fd645249b45cfb8ba707b9fa38d1fbcdfd3956591",
+        "input_bytes": 7
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/base/plain/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 3.575203,
+        "cpu_ms": 3.4869999999999997,
+        "rss_kib": 55408,
+        "log": "logs/006203",
+        "stdout_sha256": "b7885a47b6896985807943e66b0caac225850ff37c2d9dcb92eb65fe6c46d652",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "b7885a47b6896985807943e66b0caac225850ff37c2d9dcb92eb65fe6c46d652",
+        "input_bytes": 256
+      }
+    ]
+  },
+  {
+    "kind": "rust-O2-reference",
+    "argv": [
+      "rustc",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/base/rust/src/main.rs",
+      "--edition=2024",
+      "--crate-name",
+      "compile_cost",
+      "-A",
+      "warnings",
+      "-C",
+      "opt-level=2",
+      "-C",
+      "debuginfo=0",
+      "-C",
+      "overflow-checks=yes",
+      "-C",
+      "panic=abort",
+      "-C",
+      "embed-bitcode=no",
+      "-o",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/base/rust/app"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 1129.71885,
+    "cpu_ms": 1794.68,
+    "rss_kib": 252552,
+    "log": "logs/006204",
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native_checks": [
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/base/rust/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 1.064165,
+        "cpu_ms": 0.9549999999999998,
+        "rss_kib": 55408,
+        "log": "logs/006205",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "input_bytes": 0
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/base/rust/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 0.99756,
+        "cpu_ms": 0.9239999999999999,
+        "rss_kib": 55408,
+        "log": "logs/006206",
+        "stdout_sha256": "9c20b1d0f7dd8c3fcf7f208fd645249b45cfb8ba707b9fa38d1fbcdfd3956591",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "9c20b1d0f7dd8c3fcf7f208fd645249b45cfb8ba707b9fa38d1fbcdfd3956591",
+        "input_bytes": 7
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/base/rust/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 3.809322,
+        "cpu_ms": 3.719,
+        "rss_kib": 55408,
+        "log": "logs/006207",
+        "stdout_sha256": "b7885a47b6896985807943e66b0caac225850ff37c2d9dcb92eb65fe6c46d652",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "b7885a47b6896985807943e66b0caac225850ff37c2d9dcb92eb65fe6c46d652",
+        "input_bytes": 256
+      }
+    ]
+  },
+  {
+    "kind": "ordinary-O2-reference",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "build",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/private/plain/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/private/plain/semantic",
+      "--backend",
+      "llvm-api",
+      "--opt",
+      "O2",
+      "--codegen-units",
+      "8",
+      "--codegen-jobs",
+      "2",
+      "--object-cache",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/private/plain/objects",
+      "--clang",
+      "/home/runner/work/_temp/weighted-llvm/bin/clang",
+      "-o",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/private/plain/app",
+      "--function-merging",
+      "after"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 1975.196709,
+    "cpu_ms": 3647.284,
+    "rss_kib": 160792,
+    "log": "logs/006240",
+    "stdout_sha256": "73a99a2a901fa226b13402662c7bb852d801c1ba8a2af4fc11444565e95a9c22",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native_checks": [
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/private/plain/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 0.9126,
+        "cpu_ms": 0.762,
+        "rss_kib": 55408,
+        "log": "logs/006241",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "input_bytes": 0
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/private/plain/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 0.884908,
+        "cpu_ms": 0.7999999999999999,
+        "rss_kib": 55408,
+        "log": "logs/006242",
+        "stdout_sha256": "18e0c879b557d38c8efdc9bd2911f82e7f27c151d405378a4ec72c9d472c5dd5",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "18e0c879b557d38c8efdc9bd2911f82e7f27c151d405378a4ec72c9d472c5dd5",
+        "input_bytes": 7
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/private/plain/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 3.620235,
+        "cpu_ms": 3.4939999999999998,
+        "rss_kib": 55408,
+        "log": "logs/006243",
+        "stdout_sha256": "cd29df72ee2b51407627a3a000edaa80c7c7c19494917b52b862dd0a37a0b356",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "cd29df72ee2b51407627a3a000edaa80c7c7c19494917b52b862dd0a37a0b356",
+        "input_bytes": 256
+      }
+    ]
+  },
+  {
+    "kind": "rust-O2-reference",
+    "argv": [
+      "rustc",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/private/rust/src/main.rs",
+      "--edition=2024",
+      "--crate-name",
+      "compile_cost",
+      "-A",
+      "warnings",
+      "-C",
+      "opt-level=2",
+      "-C",
+      "debuginfo=0",
+      "-C",
+      "overflow-checks=yes",
+      "-C",
+      "panic=abort",
+      "-C",
+      "embed-bitcode=no",
+      "-o",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/private/rust/app"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 1144.214114,
+    "cpu_ms": 1822.005,
+    "rss_kib": 254004,
+    "log": "logs/006244",
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native_checks": [
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/private/rust/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 1.118847,
+        "cpu_ms": 0.951,
+        "rss_kib": 55408,
+        "log": "logs/006245",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "input_bytes": 0
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/private/rust/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 1.027255,
+        "cpu_ms": 0.943,
+        "rss_kib": 55408,
+        "log": "logs/006246",
+        "stdout_sha256": "18e0c879b557d38c8efdc9bd2911f82e7f27c151d405378a4ec72c9d472c5dd5",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "18e0c879b557d38c8efdc9bd2911f82e7f27c151d405378a4ec72c9d472c5dd5",
+        "input_bytes": 7
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree256x8/private/rust/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 3.727185,
+        "cpu_ms": 3.635,
+        "rss_kib": 55408,
+        "log": "logs/006247",
+        "stdout_sha256": "cd29df72ee2b51407627a3a000edaa80c7c7c19494917b52b862dd0a37a0b356",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "cd29df72ee2b51407627a3a000edaa80c7c7c19494917b52b862dd0a37a0b356",
+        "input_bytes": 256
+      }
+    ]
+  },
+  {
+    "kind": "ordinary-O2-reference",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "build",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/base/plain/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/base/plain/semantic",
+      "--backend",
+      "llvm-api",
+      "--opt",
+      "O2",
+      "--codegen-units",
+      "8",
+      "--codegen-jobs",
+      "2",
+      "--object-cache",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/base/plain/objects",
+      "--clang",
+      "/home/runner/work/_temp/weighted-llvm/bin/clang",
+      "-o",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/base/plain/app",
+      "--function-merging",
+      "after"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 6813.05279,
+    "cpu_ms": 12408.199999999999,
+    "rss_kib": 463716,
+    "log": "logs/006280",
+    "stdout_sha256": "3448948943a832af12ad191c62b2206e5ea841ed5eaae736da5dad8e107550a5",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native_checks": [
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/base/plain/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 0.892263,
+        "cpu_ms": 0.7639999999999999,
+        "rss_kib": 55408,
+        "log": "logs/006281",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "input_bytes": 0
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/base/plain/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 1.086146,
+        "cpu_ms": 1.014,
+        "rss_kib": 55408,
+        "log": "logs/006282",
+        "stdout_sha256": "8f37507b555cf7d3f9fa8c1872718732e9122d79a4147a9cd903171984b9ccd2",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "8f37507b555cf7d3f9fa8c1872718732e9122d79a4147a9cd903171984b9ccd2",
+        "input_bytes": 7
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/base/plain/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 12.121797,
+        "cpu_ms": 12.026,
+        "rss_kib": 55408,
+        "log": "logs/006283",
+        "stdout_sha256": "66633b42eca4e6cb0b71d8b6e4a5ab55fc6e8be8d634ee7396f69fa32f5cdaf3",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "66633b42eca4e6cb0b71d8b6e4a5ab55fc6e8be8d634ee7396f69fa32f5cdaf3",
+        "input_bytes": 256
+      }
+    ]
+  },
+  {
+    "kind": "rust-O2-reference",
+    "argv": [
+      "rustc",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/base/rust/src/main.rs",
+      "--edition=2024",
+      "--crate-name",
+      "compile_cost",
+      "-A",
+      "warnings",
+      "-C",
+      "opt-level=2",
+      "-C",
+      "debuginfo=0",
+      "-C",
+      "overflow-checks=yes",
+      "-C",
+      "panic=abort",
+      "-C",
+      "embed-bitcode=no",
+      "-o",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/base/rust/app"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 4344.153114,
+    "cpu_ms": 7053.7609999999995,
+    "rss_kib": 378144,
+    "log": "logs/006284",
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native_checks": [
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/base/rust/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 1.072391,
+        "cpu_ms": 0.958,
+        "rss_kib": 55408,
+        "log": "logs/006285",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "input_bytes": 0
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/base/rust/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 1.208536,
+        "cpu_ms": 1.1329999999999998,
+        "rss_kib": 55408,
+        "log": "logs/006286",
+        "stdout_sha256": "8f37507b555cf7d3f9fa8c1872718732e9122d79a4147a9cd903171984b9ccd2",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "8f37507b555cf7d3f9fa8c1872718732e9122d79a4147a9cd903171984b9ccd2",
+        "input_bytes": 7
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/base/rust/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 12.344914,
+        "cpu_ms": 12.246,
+        "rss_kib": 55408,
+        "log": "logs/006287",
+        "stdout_sha256": "66633b42eca4e6cb0b71d8b6e4a5ab55fc6e8be8d634ee7396f69fa32f5cdaf3",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "66633b42eca4e6cb0b71d8b6e4a5ab55fc6e8be8d634ee7396f69fa32f5cdaf3",
+        "input_bytes": 256
+      }
+    ]
+  },
+  {
+    "kind": "ordinary-O2-reference",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "build",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/private/plain/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/private/plain/semantic",
+      "--backend",
+      "llvm-api",
+      "--opt",
+      "O2",
+      "--codegen-units",
+      "8",
+      "--codegen-jobs",
+      "2",
+      "--object-cache",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/private/plain/objects",
+      "--clang",
+      "/home/runner/work/_temp/weighted-llvm/bin/clang",
+      "-o",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/private/plain/app",
+      "--function-merging",
+      "after"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 6796.290205,
+    "cpu_ms": 12385.247,
+    "rss_kib": 463820,
+    "log": "logs/006320",
+    "stdout_sha256": "26f91b869b23e450974c147598e9b96f8cc85a1e9560557ae32f0d436a0cb342",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native_checks": [
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/private/plain/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 0.988513,
+        "cpu_ms": 0.852,
+        "rss_kib": 60248,
+        "log": "logs/006321",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "input_bytes": 0
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/private/plain/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 1.122754,
+        "cpu_ms": 1.034,
+        "rss_kib": 60248,
+        "log": "logs/006322",
+        "stdout_sha256": "16c84b6249c7bdadfc3b7afbc7bd1502cbabe050c003be6aafe476c51b01c8dc",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "16c84b6249c7bdadfc3b7afbc7bd1502cbabe050c003be6aafe476c51b01c8dc",
+        "input_bytes": 7
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/private/plain/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 12.314867,
+        "cpu_ms": 12.193,
+        "rss_kib": 60248,
+        "log": "logs/006323",
+        "stdout_sha256": "177a93efe42ee22ffcf3193be71c57a79bd0557514712d76f2dbb21f86a67d53",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "177a93efe42ee22ffcf3193be71c57a79bd0557514712d76f2dbb21f86a67d53",
+        "input_bytes": 256
+      }
+    ]
+  },
+  {
+    "kind": "rust-O2-reference",
+    "argv": [
+      "rustc",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/private/rust/src/main.rs",
+      "--edition=2024",
+      "--crate-name",
+      "compile_cost",
+      "-A",
+      "warnings",
+      "-C",
+      "opt-level=2",
+      "-C",
+      "debuginfo=0",
+      "-C",
+      "overflow-checks=yes",
+      "-C",
+      "panic=abort",
+      "-C",
+      "embed-bitcode=no",
+      "-o",
+      "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/private/rust/app"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 4349.82725,
+    "cpu_ms": 7083.405999999999,
+    "rss_kib": 378136,
+    "log": "logs/006324",
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native_checks": [
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/private/rust/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 1.121563,
+        "cpu_ms": 1.0019999999999998,
+        "rss_kib": 60248,
+        "log": "logs/006325",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "input_bytes": 0
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/private/rust/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 1.25895,
+        "cpu_ms": 1.18,
+        "rss_kib": 60248,
+        "log": "logs/006326",
+        "stdout_sha256": "16c84b6249c7bdadfc3b7afbc7bd1502cbabe050c003be6aafe476c51b01c8dc",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "16c84b6249c7bdadfc3b7afbc7bd1502cbabe050c003be6aafe476c51b01c8dc",
+        "input_bytes": 7
+      },
+      {
+        "kind": "native-output",
+        "argv": [
+          "/home/runner/work/_temp/weighted-measurement/quality/tree1024x8/private/rust/app"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "wall_ms": 12.554156,
+        "cpu_ms": 12.408,
+        "rss_kib": 60248,
+        "log": "logs/006327",
+        "stdout_sha256": "177a93efe42ee22ffcf3193be71c57a79bd0557514712d76f2dbb21f86a67d53",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid": true,
+        "expected_sha256": "177a93efe42ee22ffcf3193be71c57a79bd0557514712d76f2dbb21f86a67d53",
+        "input_bytes": 256
+      }
+    ]
+  }
+]

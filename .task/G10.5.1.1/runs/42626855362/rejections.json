@@ -1,0 +1,914 @@
+[
+  {
+    "kind": "negative-control",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/tree4x2/O0/0/base/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/tree4x2/O0/0/base/semantic"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "wall_ms": 9.371126,
+    "cpu_ms": 9.209,
+    "rss_kib": 54052,
+    "log": "logs/006080",
+    "stdout_sha256": "fa15d26e450593b3444b9749a7be199b49057003e5c5d57422608714b9d42513",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diagnostics": [
+      [
+        "E-TYPE-MISMATCH",
+        "types"
+      ]
+    ]
+  },
+  {
+    "kind": "rejection-restore",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/tree4x2/O0/0/base/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/tree4x2/O0/0/base/semantic"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 7.491372,
+    "cpu_ms": 7.357999999999999,
+    "rss_kib": 54052,
+    "log": "logs/006081",
+    "stdout_sha256": "6e9a9410e5b5c135fcc3031b274bb4a06b176a3d2fb7bb92f4be6bb58db230bb",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "kind": "negative-control",
+    "argv": [
+      "/home/runner/work/_temp/weighted-candidate-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/tree4x2/O0/0/cand/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/tree4x2/O0/0/cand/semantic"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "wall_ms": 8.27484,
+    "cpu_ms": 8.105999999999998,
+    "rss_kib": 54052,
+    "log": "logs/006082",
+    "stdout_sha256": "314432b17b8dfd71e7ac172a6f19bb34be08a8ef7b0a2d1b72dbc91d997ff6b9",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diagnostics": [
+      [
+        "E-TYPE-MISMATCH",
+        "types"
+      ]
+    ]
+  },
+  {
+    "kind": "rejection-restore",
+    "argv": [
+      "/home/runner/work/_temp/weighted-candidate-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/tree4x2/O0/0/cand/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/tree4x2/O0/0/cand/semantic"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 7.140645,
+    "cpu_ms": 6.986999999999999,
+    "rss_kib": 54052,
+    "log": "logs/006083",
+    "stdout_sha256": "854768c5e48d0b314aa8686aab34f23d361d7d34c6442e0f5ab6534a07d4906e",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "kind": "negative-control",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/tree32x8/O0/0/base/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/tree32x8/O0/0/base/semantic"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "wall_ms": 19.427966,
+    "cpu_ms": 19.241,
+    "rss_kib": 54052,
+    "log": "logs/006084",
+    "stdout_sha256": "1a7b7e76b02237042dae5cbb46667160d37520a55ec350e70bd7c741bbbd5891",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diagnostics": [
+      [
+        "E-TYPE-MISMATCH",
+        "types"
+      ]
+    ]
+  },
+  {
+    "kind": "rejection-restore",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/tree32x8/O0/0/base/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/tree32x8/O0/0/base/semantic"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 13.394376,
+    "cpu_ms": 13.225000000000001,
+    "rss_kib": 54052,
+    "log": "logs/006085",
+    "stdout_sha256": "6fb251f59ddc21d6f3b69d026d75697d44754dbafd3b2cb0d595a67d9c3af393",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "kind": "negative-control",
+    "argv": [
+      "/home/runner/work/_temp/weighted-candidate-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/tree32x8/O0/0/cand/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/tree32x8/O0/0/cand/semantic"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "wall_ms": 19.9274,
+    "cpu_ms": 19.738,
+    "rss_kib": 54052,
+    "log": "logs/006086",
+    "stdout_sha256": "54f7413d14f94b5eef41af7f612f58b450d7630e8ae7980e95a7aefe75fc1eb0",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diagnostics": [
+      [
+        "E-TYPE-MISMATCH",
+        "types"
+      ]
+    ]
+  },
+  {
+    "kind": "rejection-restore",
+    "argv": [
+      "/home/runner/work/_temp/weighted-candidate-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/tree32x8/O0/0/cand/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/tree32x8/O0/0/cand/semantic"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 13.564966,
+    "cpu_ms": 13.419,
+    "rss_kib": 54052,
+    "log": "logs/006087",
+    "stdout_sha256": "5428a1d43eaa0f5125e1bb868344f8fa961cd74214e24bfb424cbde6a894763b",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "kind": "negative-control",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/tree256x8/O0/0/base/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/tree256x8/O0/0/base/semantic"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "wall_ms": 110.756942,
+    "cpu_ms": 110.585,
+    "rss_kib": 75348,
+    "log": "logs/006088",
+    "stdout_sha256": "89e90c164650539c5c1e4ef9dcc980f4b0dc076409419e5b79525588619b98be",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diagnostics": [
+      [
+        "E-TYPE-MISMATCH",
+        "types"
+      ]
+    ]
+  },
+  {
+    "kind": "rejection-restore",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/tree256x8/O0/0/base/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/tree256x8/O0/0/base/semantic"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 57.212409,
+    "cpu_ms": 57.02,
+    "rss_kib": 54052,
+    "log": "logs/006089",
+    "stdout_sha256": "f34ad60c63b1047dab9a21694f9a39562e19a5dd6390d94d1e23d62d4f4b0701",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "kind": "negative-control",
+    "argv": [
+      "/home/runner/work/_temp/weighted-candidate-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/tree256x8/O0/0/cand/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/tree256x8/O0/0/cand/semantic"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "wall_ms": 110.938161,
+    "cpu_ms": 110.725,
+    "rss_kib": 75272,
+    "log": "logs/006090",
+    "stdout_sha256": "1e1dfb5adb167f47e7638fc1973eafdb5236dc3a01c97c00629c9f3aa0086e44",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diagnostics": [
+      [
+        "E-TYPE-MISMATCH",
+        "types"
+      ]
+    ]
+  },
+  {
+    "kind": "rejection-restore",
+    "argv": [
+      "/home/runner/work/_temp/weighted-candidate-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/tree256x8/O0/0/cand/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/tree256x8/O0/0/cand/semantic"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 56.785608,
+    "cpu_ms": 56.53999999999999,
+    "rss_kib": 54052,
+    "log": "logs/006091",
+    "stdout_sha256": "669903db5adecfe3f188785f45992d6b83168958307dd64375e84e5b09fa8a5c",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "kind": "negative-control",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/tree1024x8/O0/0/base/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/tree1024x8/O0/0/base/semantic"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "wall_ms": 502.897205,
+    "cpu_ms": 502.66999999999996,
+    "rss_kib": 205908,
+    "log": "logs/006092",
+    "stdout_sha256": "a1f385fcf43d030db216ed9b125c69bc0074edcc58604558b3e7a0c9c70e1f7a",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diagnostics": [
+      [
+        "E-TYPE-MISMATCH",
+        "types"
+      ]
+    ]
+  },
+  {
+    "kind": "rejection-restore",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/tree1024x8/O0/0/base/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/tree1024x8/O0/0/base/semantic"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 214.449161,
+    "cpu_ms": 214.21599999999998,
+    "rss_kib": 75972,
+    "log": "logs/006093",
+    "stdout_sha256": "881e65a1e8164905a6c35ea3ec75d83195042b7a90b0a26c4a376c485cab4da2",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "kind": "negative-control",
+    "argv": [
+      "/home/runner/work/_temp/weighted-candidate-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/tree1024x8/O0/0/cand/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/tree1024x8/O0/0/cand/semantic"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "wall_ms": 502.17906,
+    "cpu_ms": 501.9699999999999,
+    "rss_kib": 205980,
+    "log": "logs/006094",
+    "stdout_sha256": "af9d4c6fb28b9cf941a22a1c86e0a9bcf5d58fabeab04b9fdc309efc193ac51b",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diagnostics": [
+      [
+        "E-TYPE-MISMATCH",
+        "types"
+      ]
+    ]
+  },
+  {
+    "kind": "rejection-restore",
+    "argv": [
+      "/home/runner/work/_temp/weighted-candidate-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/tree1024x8/O0/0/cand/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/tree1024x8/O0/0/cand/semantic"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 215.984579,
+    "cpu_ms": 215.767,
+    "rss_kib": 76128,
+    "log": "logs/006095",
+    "stdout_sha256": "caf399b768d8520a2a6b8278e6ae17141a58f176f4956c53560fe422c28733a5",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "kind": "negative-control",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/retained/O0/0/base/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/retained/O0/0/base/semantic"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "wall_ms": 9.715931,
+    "cpu_ms": 9.544,
+    "rss_kib": 54052,
+    "log": "logs/006096",
+    "stdout_sha256": "c78c2471f2506f72f364730646d8492b215ffc1db5ef096294c24230f315eee0",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diagnostics": [
+      [
+        "E-TYPE-MISMATCH",
+        "types"
+      ]
+    ]
+  },
+  {
+    "kind": "rejection-restore",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/retained/O0/0/base/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/retained/O0/0/base/semantic"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 8.260524,
+    "cpu_ms": 8.097,
+    "rss_kib": 54052,
+    "log": "logs/006097",
+    "stdout_sha256": "cbe354c9122bba24d7a689dee9abec5ddfb26d9b492e1a455449d8a9f18d39c2",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "kind": "negative-control",
+    "argv": [
+      "/home/runner/work/_temp/weighted-candidate-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/retained/O0/0/cand/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/retained/O0/0/cand/semantic"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "wall_ms": 9.426128,
+    "cpu_ms": 9.07,
+    "rss_kib": 54052,
+    "log": "logs/006098",
+    "stdout_sha256": "ddeee7fcb821e465e1a0587f0c1c30897c6457aa7cf0e560ee0e501621bcfb27",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diagnostics": [
+      [
+        "E-TYPE-MISMATCH",
+        "types"
+      ]
+    ]
+  },
+  {
+    "kind": "rejection-restore",
+    "argv": [
+      "/home/runner/work/_temp/weighted-candidate-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/retained/O0/0/cand/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/retained/O0/0/cand/semantic"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 7.871735,
+    "cpu_ms": 7.731999999999999,
+    "rss_kib": 54052,
+    "log": "logs/006099",
+    "stdout_sha256": "b68fbd2ed8d1c59efde2fd3e06c088e180f7d7fddb81abb992ecd2f924e0d80a",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "kind": "negative-control",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/minimal/O0/0/base/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/minimal/O0/0/base/semantic",
+      "--entry",
+      "answer"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "wall_ms": 7.425007,
+    "cpu_ms": 7.286,
+    "rss_kib": 54052,
+    "log": "logs/006100",
+    "stdout_sha256": "65c67ba479b6ea30fd099711f482691cef5c9905bb5c167d060ba0a4162eaae4",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diagnostics": [
+      [
+        "E-TYPE-MISMATCH",
+        "types"
+      ]
+    ]
+  },
+  {
+    "kind": "rejection-restore",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/minimal/O0/0/base/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/minimal/O0/0/base/semantic",
+      "--entry",
+      "answer"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 6.181296,
+    "cpu_ms": 6.043,
+    "rss_kib": 54052,
+    "log": "logs/006101",
+    "stdout_sha256": "362aa11d9b137f3615814b82557cb93c30caad60b5fd625dc53f8b4a8fd952cb",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "kind": "negative-control",
+    "argv": [
+      "/home/runner/work/_temp/weighted-candidate-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/minimal/O0/0/cand/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/minimal/O0/0/cand/semantic",
+      "--entry",
+      "answer"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "wall_ms": 7.601508,
+    "cpu_ms": 7.448999999999999,
+    "rss_kib": 54052,
+    "log": "logs/006102",
+    "stdout_sha256": "974d280565a26372da7adf04a8558262aa008520029df30fa0ad3c5e1538e8cd",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diagnostics": [
+      [
+        "E-TYPE-MISMATCH",
+        "types"
+      ]
+    ]
+  },
+  {
+    "kind": "rejection-restore",
+    "argv": [
+      "/home/runner/work/_temp/weighted-candidate-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/minimal/O0/0/cand/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/minimal/O0/0/cand/semantic",
+      "--entry",
+      "answer"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 6.301913,
+    "cpu_ms": 6.172,
+    "rss_kib": 54052,
+    "log": "logs/006103",
+    "stdout_sha256": "14232361a08eb18a887dab30f72b4c14ec5c272d8463e85f11e9113e9835603b",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "kind": "negative-control",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/generics/O0/0/base/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/generics/O0/0/base/semantic",
+      "--entry",
+      "answer"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "wall_ms": 7.91177,
+    "cpu_ms": 7.77,
+    "rss_kib": 54052,
+    "log": "logs/006104",
+    "stdout_sha256": "a1ba5bd25e15d322bba8d5406e05283b042dc76a2d0caefe6e0de0770bf4667e",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diagnostics": [
+      [
+        "E-TYPE-MISMATCH",
+        "types"
+      ]
+    ]
+  },
+  {
+    "kind": "rejection-restore",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/generics/O0/0/base/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/generics/O0/0/base/semantic",
+      "--entry",
+      "answer"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 6.253521,
+    "cpu_ms": 6.126,
+    "rss_kib": 54052,
+    "log": "logs/006105",
+    "stdout_sha256": "0f62f605c3db1cc443ff7ea77ad062f382529acf30f1df8c3fd9b6928c6cc880",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "kind": "negative-control",
+    "argv": [
+      "/home/runner/work/_temp/weighted-candidate-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/generics/O0/0/cand/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/generics/O0/0/cand/semantic",
+      "--entry",
+      "answer"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "wall_ms": 8.035381,
+    "cpu_ms": 7.889,
+    "rss_kib": 54052,
+    "log": "logs/006106",
+    "stdout_sha256": "1afa7931980910d3e84109e1f3a74366f06e91f4ae776499757f595566cf4cfa",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diagnostics": [
+      [
+        "E-TYPE-MISMATCH",
+        "types"
+      ]
+    ]
+  },
+  {
+    "kind": "rejection-restore",
+    "argv": [
+      "/home/runner/work/_temp/weighted-candidate-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/generics/O0/0/cand/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/generics/O0/0/cand/semantic",
+      "--entry",
+      "answer"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 6.187267,
+    "cpu_ms": 6.065999999999999,
+    "rss_kib": 54052,
+    "log": "logs/006107",
+    "stdout_sha256": "4fadf9f312972113336109f84641d909ecfd5b9e2bb20db02a69a75a65142841",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "kind": "negative-control",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/comptime/O0/0/base/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/comptime/O0/0/base/semantic",
+      "--entry",
+      "answer"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "wall_ms": 8.732318,
+    "cpu_ms": 8.586,
+    "rss_kib": 54052,
+    "log": "logs/006108",
+    "stdout_sha256": "d6943bfccf635fea562ba16396123d3b2b624d8c776a098433a4f26906e7b6b9",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diagnostics": [
+      [
+        "E-TYPE-MISMATCH",
+        "types"
+      ]
+    ]
+  },
+  {
+    "kind": "rejection-restore",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/comptime/O0/0/base/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/comptime/O0/0/base/semantic",
+      "--entry",
+      "answer"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 6.23694,
+    "cpu_ms": 6.11,
+    "rss_kib": 54052,
+    "log": "logs/006109",
+    "stdout_sha256": "58ad8790da036c210bd0d83611559e758729160071bb7d1a7c0d1dd0f6a2fbf6",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "kind": "negative-control",
+    "argv": [
+      "/home/runner/work/_temp/weighted-candidate-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/comptime/O0/0/cand/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/comptime/O0/0/cand/semantic",
+      "--entry",
+      "answer"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "wall_ms": 9.007865,
+    "cpu_ms": 8.860999999999999,
+    "rss_kib": 54052,
+    "log": "logs/006110",
+    "stdout_sha256": "1d76b3f01e6aee67c5c6c3ce4c789ab23fb36cddd86c292b2ec935ca77bac371",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diagnostics": [
+      [
+        "E-TYPE-MISMATCH",
+        "types"
+      ]
+    ]
+  },
+  {
+    "kind": "rejection-restore",
+    "argv": [
+      "/home/runner/work/_temp/weighted-candidate-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/comptime/O0/0/cand/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/comptime/O0/0/cand/semantic",
+      "--entry",
+      "answer"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 6.411297,
+    "cpu_ms": 6.276000000000001,
+    "rss_kib": 54052,
+    "log": "logs/006111",
+    "stdout_sha256": "d874e337dd0488c3dbf359b4d7a012762909e96380c2fff0a30126a25cf8376a",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "kind": "negative-control",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/aggregates/O0/0/base/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/aggregates/O0/0/base/semantic",
+      "--entry",
+      "result"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "wall_ms": 8.090565,
+    "cpu_ms": 7.951999999999999,
+    "rss_kib": 54052,
+    "log": "logs/006112",
+    "stdout_sha256": "11e70a33282925728a2b825602669a7e2dd79917b0ee0c7e377e8659d976a042",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diagnostics": [
+      [
+        "E-TYPE-MISMATCH",
+        "types"
+      ]
+    ]
+  },
+  {
+    "kind": "rejection-restore",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/aggregates/O0/0/base/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/aggregates/O0/0/base/semantic",
+      "--entry",
+      "result"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 6.579542,
+    "cpu_ms": 6.384,
+    "rss_kib": 54052,
+    "log": "logs/006113",
+    "stdout_sha256": "9c43db11c44cdb87282149ee45cf2bce000faaaa2ebd037920c865a496e1bac0",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "kind": "negative-control",
+    "argv": [
+      "/home/runner/work/_temp/weighted-candidate-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/aggregates/O0/0/cand/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/aggregates/O0/0/cand/semantic",
+      "--entry",
+      "result"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "wall_ms": 8.095765,
+    "cpu_ms": 7.877999999999999,
+    "rss_kib": 54052,
+    "log": "logs/006114",
+    "stdout_sha256": "3404d597d3b29e24773aafb7bf2dca0621616cc8f5b601ff4ad6bd3098714eea",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diagnostics": [
+      [
+        "E-TYPE-MISMATCH",
+        "types"
+      ]
+    ]
+  },
+  {
+    "kind": "rejection-restore",
+    "argv": [
+      "/home/runner/work/_temp/weighted-candidate-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/aggregates/O0/0/cand/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/aggregates/O0/0/cand/semantic",
+      "--entry",
+      "result"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 6.376382,
+    "cpu_ms": 6.244,
+    "rss_kib": 54052,
+    "log": "logs/006115",
+    "stdout_sha256": "70ac145499857b52548cdd5526af3f8c21268c303684a425d507a0534c6c4f8e",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "kind": "negative-control",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/single8192/O0/0/base/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/single8192/O0/0/base/semantic"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "wall_ms": 201.062049,
+    "cpu_ms": 200.87499999999997,
+    "rss_kib": 117512,
+    "log": "logs/006116",
+    "stdout_sha256": "260acb7a229e829da7e983b4f239231f04ca15e73dd042bc05d4eb03d4a8b1bd",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diagnostics": [
+      [
+        "E-TYPE-MISMATCH",
+        "types"
+      ]
+    ]
+  },
+  {
+    "kind": "rejection-restore",
+    "argv": [
+      "/home/runner/work/_temp/weighted-base-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/single8192/O0/0/base/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/single8192/O0/0/base/semantic"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 56.10348,
+    "cpu_ms": 55.897000000000006,
+    "rss_kib": 54052,
+    "log": "logs/006117",
+    "stdout_sha256": "8b98859129071ebdcd6d9b4c1c692e7c3273c3588dc31af5aaf98d35a43f587a",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "kind": "negative-control",
+    "argv": [
+      "/home/runner/work/_temp/weighted-candidate-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/single8192/O0/0/cand/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/single8192/O0/0/cand/semantic"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "wall_ms": 206.370488,
+    "cpu_ms": 206.131,
+    "rss_kib": 117060,
+    "log": "logs/006118",
+    "stdout_sha256": "fb3021054a3595b8529f63ce843981a902430e4374da7461bb2848fec8ac210a",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diagnostics": [
+      [
+        "E-TYPE-MISMATCH",
+        "types"
+      ]
+    ]
+  },
+  {
+    "kind": "rejection-restore",
+    "argv": [
+      "/home/runner/work/_temp/weighted-candidate-target/release/zil",
+      "check",
+      "/home/runner/work/_temp/weighted-measurement/work/single8192/O0/0/cand/src/main.zil",
+      "--json",
+      "--semantic-cache",
+      "/home/runner/work/_temp/weighted-measurement/work/single8192/O0/0/cand/semantic"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "wall_ms": 57.192852,
+    "cpu_ms": 56.97,
+    "rss_kib": 54052,
+    "log": "logs/006119",
+    "stdout_sha256": "f77642e237530b278a875e560c81f0b93d011dff39b50dfe963db17c8bbdd892",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+]

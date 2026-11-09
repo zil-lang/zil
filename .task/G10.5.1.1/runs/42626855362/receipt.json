@@ -1,0 +1,52 @@
+{
+  "status_before_preservation": "success",
+  "recipe": "14c3fd6adb196ba5fa3769b726f81fcabb5bdae9",
+  "measured_source": "287b392b3a78a936766e0497a17742ecd149a7a8",
+  "baseline": "82a69812582856b012468db3d019930d8e390f64",
+  "files": {
+    "reference-builds.json": {
+      "bytes": 36312,
+      "sha256": "69b00558e17652acc3d11cb915fee2a52d0cb5b1e86f629a38e4a9f31d60ee94"
+    },
+    "manifest.json": {
+      "bytes": 924664,
+      "sha256": "4b5b4bf3d800447a3dbecffcfd717991b8e02965f35e0329ff415ea73d933e83"
+    },
+    "runtime.jsonl": {
+      "bytes": 116622,
+      "sha256": "0e3017a1ae37475b918218aa51bd78c92ad23f6cb1bd2ea098a764673d2dcbf8"
+    },
+    "rows.jsonl": {
+      "bytes": 8956416,
+      "sha256": "c33e7827c13481c7c0137cd4b0b6fb3ddd604f41f596173ff0b3aaa90f018771"
+    },
+    "rejections.json": {
+      "bytes": 29469,
+      "sha256": "8761829b624b46e0d8c02bf596131ac2bb001b67724d541c23f90b26c17fb717"
+    },
+    "raw.tar.gz": {
+      "bytes": 34915075,
+      "sha256": "8e006643481c2b0de1493d10c59873ca4d5c08657c08569352e0c6e268aa9973"
+    },
+    "summary.json": {
+      "bytes": 10770,
+      "sha256": "34052dd405934c3583b73c2af7f18181e31068f85e16e70f1e605ea1840b27aa"
+    },
+    "ownership-consumer.json": {
+      "bytes": 76931,
+      "sha256": "153a4ecd3635c81da361670c480d0ab9d7f0fc1bca1443a561b5c78071840f78"
+    },
+    "cells.json": {
+      "bytes": 103935,
+      "sha256": "a5e4715944c741ec1513b2cb26d2cfc261d9e37283d68ff9b2d6c6509cd1c257"
+    }
+  },
+  "source_files": {
+    "crates/zil-backend-llvm/src/machine_cgu.rs": "5bde6e4be6137dd467f29f885973c74ca365972dbfc087388937382134f47f90",
+    "crates/zil-driver/src/lib.rs": "cd126927e3c78b370a4d6bf905fd30faf44136e86980465ea16dc778d0bfcaf2",
+    "crates/zil-cli/src/main.rs": "e4d4a41773ad1f8b45ddd84360f6143d757eba122e9d3b52c8354633f4474a8b"
+  },
+  "independent_review": "NotRun",
+  "merge_allowed": false,
+  "run": "https://github.com/zil-lang/zil/actions/runs/42626855362"
+}
