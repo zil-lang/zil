@@ -1815,7 +1815,9 @@ fn infer_with_private(
         } else {
             None
         };
-        let local_parent_facts = if budget.task_borrowed_results && pattern_windows {
+        let local_parent_facts = if pattern_windows
+            && (budget.task_borrowed_results || budget.pod_stores)
+        {
             local_parents::reconstruct(f, predecessors, reachable, capture_facts.as_ref(), budget)?
         } else {
             None

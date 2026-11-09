@@ -159,6 +159,9 @@ fn raw_and_wire_reject_stale_descriptor_and_actual_callback_alias_with_valid_ssa
 }
 
 const DELEGATION: &str = include_str!("growing-hash-collections/store-parent-delegation.zil");
+const OWNED_FIELDS: &str = include_str!("growing-hash-collections/store-owned-field-windows.zil");
+const BORROWED_SIBLINGS: &str =
+    include_str!("growing-hash-collections/borrowed-store-sibling-window.zil");
 const CALLBACK_REPLACEMENT: &str =
     include_str!("growing-hash-collections/callback-helper-replacement.zil");
 
@@ -166,7 +169,7 @@ const CALLBACK_REPLACEMENT: &str =
 fn actual_store_parent_delegation_and_callback_through_helper_reach_verify() {
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
-    for text in [DELEGATION, CALLBACK_REPLACEMENT] {
+    for text in [DELEGATION, OWNED_FIELDS, CALLBACK_REPLACEMENT] {
         let raw = raw_source(text);
         let plan = zil_analyze::analyze(&raw, &limits).unwrap();
         zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
@@ -174,9 +177,9 @@ fn actual_store_parent_delegation_and_callback_through_helper_reach_verify() {
         zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
     }
     for (label, text) in [
-        ("same actual field", DELEGATION.replace("store_at_mut(pair.right,0)", "store_at_mut(pair.left,0)")),
+        ("same actual field", OWNED_FIELDS.replace("store_at_mut(pair.right,0)", "store_at_mut(pair.left,0)")),
         ("parent reborrow while child is live", DELEGATION.replace(
-            "let right=store_at_mut(pair.right,0)\n    *right=22", "let again=&mut *pair\n    let right=store_at_mut(again.right,0)\n    *right=22")),
+            "let value=*left", "let again=&mut *pair\n    let value=*left+store_len(again.left)-1")),
         ("same owner new parent generation", DELEGATION.replace(
             "return i32(inspect(&mut pair))-11", "var pointer=&mut pair\n    let child=store_at_mut(pointer.left,0)\n    pointer=&mut pair\n    return i32(*child)-11")),
         ("callback replacement retires caller descriptor", CALLBACK_REPLACEMENT.replace(
@@ -197,17 +200,17 @@ fn actual_store_parent_delegation_and_callback_through_helper_reach_verify() {
 fn raw_and_wire_distinguish_same_typed_store_fields_in_the_parent_loan_chain() {
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
-    let mut raw = raw_source(DELEGATION);
+    let mut raw = raw_source(OWNED_FIELDS);
     let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
     zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
     let helper = raw
         .functions
         .iter_mut()
-        .find(|f| f.locals.iter().any(|l| l.name == "value"))
+        .find(|f| f.locals.iter().any(|l| l.name == "previous"))
         .unwrap();
     let mut edits = 0;
     for instruction in helper.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
-        if let InstructionKind::AddressField { index, .. } = &mut instruction.kind
+        if let InstructionKind::DescribePackageField { index, .. } = &mut instruction.kind
             && *index == 1
         {
             *index = 0;
@@ -215,7 +218,7 @@ fn raw_and_wire_distinguish_same_typed_store_fields_in_the_parent_loan_chain() {
         }
     }
     assert_eq!(edits, 1);
-    // Exported Hold roots are deliberately coarse (the same Parameter(0));
+    // Exported Hold roots are deliberately coarse (the same local Pair);
     // the verifier must reconstruct the changed actual field and loan itself.
     plan.module_fingerprint = raw.fingerprint();
     let analyzed = zil_analyze::analyze(&raw, &limits).unwrap_err();
@@ -229,6 +232,133 @@ fn raw_and_wire_distinguish_same_typed_store_fields_in_the_parent_loan_chain() {
         ("Wire", decoded),
     ] {
         println!("actual Store field alias/{entry}: {errors:?}");
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.category == ResultCategory::SafeReject),
+            "{entry}: {errors:?}"
+        );
+        assert!(
+            !errors
+                .iter()
+                .any(|d| ["fingerprint", "SSA", "dominat", "candidate differs"]
+                    .iter()
+                    .any(|part| d.message.contains(part))),
+            "{entry}: {errors:?}"
+        );
+        assert!(
+            errors.iter().any(|d| d.code == "E-BORROW-CONFLICT"
+                || d.message.contains("loan")
+                || d.message.contains("window")
+                || d.message.contains("exclusive")),
+            "{entry}: {errors:?}"
+        );
+    }
+}
+
+#[test]
+fn borrowed_sibling_store_windows_keep_the_existing_explicit_precision_boundary() {
+    let raw = raw_source(BORROWED_SIBLINGS);
+    let errors = zil_analyze::analyze(&raw, &Limits::default()).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .all(|d| d.category == ResultCategory::SafeReject),
+        "{errors:?}"
+    );
+    assert!(
+        errors.iter().any(|d| d
+            .message
+            .contains("actual borrowed resource access conflicts")),
+        "{errors:?}"
+    );
+    println!("borrowed sibling Store fields remain outside this increment: {errors:?}");
+}
+
+const GENERATION: &str = include_str!("growing-hash-collections/store-descriptor-generation.zil");
+
+#[test]
+fn a_saved_store_descriptor_cannot_gain_a_rebound_pointer_generations_authority() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let raw = raw_source(GENERATION);
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let attacked = GENERATION.replace(
+        "    let child=store_at(old,0)\n    let value=*child\n    pointer=&mut holder",
+        "    pointer=&mut holder\n    let child=store_at(old,0)\n    let value=*child",
+    );
+    assert_ne!(attacked, GENERATION);
+    let rejected = raw_source(&attacked);
+    let errors = zil_analyze::analyze(&rejected, &limits).unwrap_err();
+    println!("Desc-first rebound-pointer Source: {errors:?}");
+    assert!(
+        errors
+            .iter()
+            .all(|d| d.category == ResultCategory::SafeReject),
+        "{errors:?}"
+    );
+    let child = attacked.find("let child=store_at(old,0)").unwrap();
+    assert!(
+        errors.iter().any(|d| d.code == "E-BORROW-CONFLICT"
+            && d.span.is_some_and(|span| span.start as usize >= child)),
+        "must reject the old-descriptor child access after rebinding, not the earlier parent reborrow: {errors:?}"
+    );
+
+    let mut changed = raw;
+    let main = changed
+        .functions
+        .iter_mut()
+        .find(|f| f.locals.iter().any(|l| l.name == "pointer"))
+        .unwrap();
+    let pointer = main.locals.iter().find(|l| l.name == "pointer").unwrap().id;
+    let child_local = main.locals.iter().find(|l| l.name == "child").unwrap().id;
+    let mut edits = 0;
+    for block in &mut main.blocks {
+        let Some(begin) = block.instructions.iter().position(|i| {
+            matches!(i.kind,
+            InstructionKind::StorageLive(local) if local == child_local)
+        }) else {
+            continue;
+        };
+        let rebound = block
+            .instructions
+            .iter()
+            .enumerate()
+            .skip(begin)
+            .find_map(|(index, i)| {
+                matches!(i.kind, InstructionKind::BorrowLocalMut { .. }).then_some(index)
+            })
+            .unwrap();
+        let finish = block
+            .instructions
+            .iter()
+            .enumerate()
+            .skip(rebound)
+            .find_map(|(index, i)| {
+                matches!(i.kind,InstructionKind::Store { local, .. } if local == pointer)
+                    .then_some(index + 1)
+            })
+            .unwrap();
+        // Move the second complete parent definition/store before child creation.
+        // All SSA definitions and their dominated uses move together unchanged.
+        block.instructions[begin..finish].rotate_right(finish - rebound);
+        edits += 1;
+    }
+    assert_eq!(edits, 1);
+    let mut candidate = plan;
+    candidate.module_fingerprint = changed.fingerprint();
+    let analyzed = zil_analyze::analyze(&changed, &limits).unwrap_err();
+    let verified = zil_verify::verify_module(changed.clone(), candidate.clone(), &target, &limits)
+        .unwrap_err();
+    let wire = zil_ir::wire::encode_module_candidate(&changed, &candidate, &limits).unwrap();
+    let decoded = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    for (entry, errors) in [
+        ("Analyze", analyzed),
+        ("Verify", verified),
+        ("Wire", decoded),
+    ] {
+        println!("Desc-first rebound-pointer/{entry}: {errors:?}");
         assert!(
             errors
                 .iter()

@@ -1,8 +1,6 @@
 package Pair { manages left:Store<i64>; manages right:Store<i64> }
 fn inspect(pair:&mut Pair)->i64 {
     let left=store_at(pair.left,0)
-    let right=store_at_mut(pair.right,0)
-    *right=22
     let value=*left
     return value+store_len(pair.left)-1
 }
