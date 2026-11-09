@@ -32,7 +32,7 @@ pub(super) fn helper_effects(effect: &Effect, b: &mut Budget) -> CompileResult<(
     Ok(())
 }
 
-pub(super) fn invoked(
+pub(in crate::resources) fn invoked(
     module: &TypedModule,
     f: &TypedFunction,
     contract: &CallableParameterContract,

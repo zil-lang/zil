@@ -372,9 +372,16 @@ fn reconstruct(
                                     }
                                 }
                             }
+                            InstructionKind::OwnedStoreBorrow { store, .. }
+                            | InstructionKind::OwnedStoreBorrowMut { store, .. } => {
+                                // The actual descriptor may carry an address
+                                // loan through DescribeAddress. A plain weak
+                                // description has an empty loan row and grants
+                                // no permission through this producer chain.
+                                row.insert(id);
+                                join(&mut parents, &flow.values[store.0 as usize], budget)?;
+                            }
                             InstructionKind::ByteBufferBorrow { buffer, .. }
-                            | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
-                            | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. }
                             | InstructionKind::MutexValue { guard: buffer }
                                 if budget.head_descriptions =>
                             {
@@ -386,8 +393,6 @@ fn reconstruct(
                                 join(&mut parents, &flow.values[mutex.0 as usize], budget)?;
                             }
                             InstructionKind::ByteBufferBorrow { .. }
-                            | InstructionKind::OwnedStoreBorrow { .. }
-                            | InstructionKind::OwnedStoreBorrowMut { .. }
                             | InstructionKind::MutexValue { .. }
                             | InstructionKind::BorrowOwnedArrayElement { .. }
                             | InstructionKind::BorrowPackageField { .. }

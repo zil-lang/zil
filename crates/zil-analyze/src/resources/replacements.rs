@@ -6,7 +6,7 @@ use crate::place_replacements::{Base, Definitions, origins};
 use zil_ir::PlaceProjection;
 type Target = origins::Place;
 mod package;
-mod public_roles;
+pub(super) mod public_roles;
 mod retirement;
 mod whole_enum;
 #[derive(Clone, Copy)]
@@ -1189,6 +1189,89 @@ impl Program {
     }
 }
 pub(super) fn infer(
+    module: &TypedModule,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    program: &Program,
+    b: &mut Budget,
+) -> CompileResult<Vec<Effect>> {
+    fee(b, module.functions.len())?;
+    let mut effects = vec![Effect::default(); module.functions.len()];
+    let consumers = effect_consumers_with_public(module, graphs, true, b)?;
+    let mut pending: VecDeque<_> = (0..module.functions.len()).collect();
+    let mut queued = vec![true; module.functions.len()];
+    loop {
+        while let Some(index) = pending.pop_front() {
+            fee(b, 1)?;
+            queued[index] = false;
+            let found = analyze_function_program(
+                module,
+                &module.functions[index],
+                &graphs[index].1,
+                &effects,
+                false,
+                b,
+                None,
+                Some(program),
+            )?;
+            if grow_effect(&mut effects[index], found, b)? {
+                fee(b, consumers[index].len())?;
+                for &caller in &consumers[index] {
+                    if !queued[caller] {
+                        fee(b, 1)?;
+                        queued[caller] = true;
+                        pending.push_back(caller);
+                    }
+                }
+            }
+        }
+        // The graph schedules monotone may effects only. Recompute every body
+        // at quiescence and require an actually stable full pass before its
+        // separate normal-return must facts are published. A missing edge can
+        // cost another round but can never erase a replacement obligation.
+        let mut changed = false;
+        let mut musts = Vec::new();
+        for (index, (f, (_, reachable))) in module.functions.iter().zip(graphs).enumerate() {
+            fee(b, 1)?;
+            let found = analyze_function_program(
+                module,
+                f,
+                reachable,
+                &effects,
+                false,
+                b,
+                None,
+                Some(program),
+            )?;
+            if program.whole_helper(f.id, b)? {
+                fee(b, 1)?;
+                must_cost(found.whole_commits.as_ref(), b)?;
+                musts.push((f.id, found.whole_commits.clone()));
+            }
+            if grow_effect(&mut effects[index], found, b)? {
+                changed = true;
+                fee(b, consumers[index].len())?;
+                for &caller in &consumers[index] {
+                    if !queued[caller] {
+                        fee(b, 1)?;
+                        queued[caller] = true;
+                        pending.push_back(caller);
+                    }
+                }
+            }
+        }
+        if !changed {
+            for (id, rows) in musts {
+                effects[id.0 as usize].whole_commits = rows;
+            }
+            return Ok(effects);
+        }
+    }
+}
+
+// Executable exhaustive scheduling oracle. Per-function transfers, may joins
+// and the final must collection are identical to the frontier implementation.
+#[cfg(test)]
+fn infer_full_scan(
     module: &TypedModule,
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     program: &Program,
