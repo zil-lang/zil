@@ -112,10 +112,10 @@ fn native_program(program: &str, fingerprint: &str) {
 }
 
 #[test]
-fn ordinary_owned512_snapshot_runs_both_backends_at_both_optimizations() {
+fn ordinary_owned_wide_snapshot_runs_both_backends_at_both_optimizations() {
     native_program(PROGRAM, FINGERPRINT);
 }
 #[test]
-fn whole_owned512_array_field_snapshot_runs_after_owner_cleanup() {
+fn whole_owned_wide_array_field_snapshot_runs_after_owner_cleanup() {
     native_program(FIELD_SNAPSHOT, SNAPSHOT_FINGERPRINT);
 }

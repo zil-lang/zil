@@ -1048,8 +1048,7 @@ mod qualified_snapshot_tests {
         );
         assert_eq!(exact, 0);
         let errors = classify(&qualified, &mut (cost - 1), &Limits::default())
-            .err()
-            .expect("N-1 must exhaust the snapshot planner");
+            .expect_err("N-1 must exhaust the snapshot planner");
         assert_eq!(errors[0].category, zil_base::ResultCategory::ResourceLimit);
         let mut borrowed = leaf;
         let Type::BorrowedStorage { life, .. } = &mut borrowed else {
@@ -1118,8 +1117,7 @@ mod qualified_snapshot_tests {
             );
             assert_eq!(exact, 0);
             let failure = classify(&actual, &mut (cost - 1), &Limits::default())
-                .err()
-                .expect("N-1 must exhaust physical snapshot planning");
+                .expect_err("N-1 must exhaust physical snapshot planning");
             assert_eq!(failure[0].category, zil_base::ResultCategory::ResourceLimit);
         }
     }
