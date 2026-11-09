@@ -13,9 +13,14 @@ pub(super) struct Rows {
 
 #[derive(Clone, Debug)]
 struct Index {
-    positions: Vec<(Path, usize)>,
-    // Table entries plus the complete cloned keys, also used before deletion.
+    nodes: Vec<Node>,
+    // Arena container, every node header and every complete child-edge record.
     copy_work: usize,
+}
+#[derive(Clone, Debug, Default)]
+struct Node {
+    terminal: Option<usize>,
+    children: Vec<(PlaceProjection, usize)>,
 }
 
 impl PartialEq for Rows {
@@ -40,15 +45,20 @@ impl<'a> IntoIterator for &'a Rows {
 }
 
 impl Index {
-    fn search(&self, path: &[PlaceProjection], b: &mut Budget) -> Check<Result<usize, usize>> {
-        let mut low = 0;
-        let mut high = self.positions.len();
+    fn child(
+        &self,
+        node: usize,
+        step: &PlaceProjection,
+        b: &mut Budget,
+    ) -> Check<Result<usize, usize>> {
+        b.spend(1)?;
+        let children = &self.nodes[node].children;
+        let (mut low, mut high) = (0usize, children.len());
         while low < high {
             let mid = low + (high - low) / 2;
-            let existing = &self.positions[mid].0;
-            // Prepay each real comparison, including a deep common prefix.
-            b.spend(existing.len().saturating_add(path.len()).saturating_add(1))?;
-            match existing.as_slice().cmp(path) {
+            // One edge-record visit and one complete scalar Projection comparison.
+            b.spend(2)?;
+            match children[mid].0.cmp(step) {
                 std::cmp::Ordering::Less => low = mid + 1,
                 std::cmp::Ordering::Greater => high = mid,
                 std::cmp::Ordering::Equal => return Ok(Ok(mid)),
@@ -56,23 +66,72 @@ impl Index {
         }
         Ok(Err(low))
     }
-    fn insert(&mut self, path: &[PlaceProjection], row: usize, b: &mut Budget) -> Check<()> {
-        // Keep the oldest ordinal if direct construction repeats a key.
-        if let Err(at) = self.search(path, b)? {
-            let shift = self.positions.len().saturating_sub(at);
-            let growth = if self.positions.len() == self.positions.capacity() {
-                self.positions.len()
-            } else {
-                0
+    fn position(&self, path: &[PlaceProjection], b: &mut Budget) -> Check<Option<usize>> {
+        let mut node = 0;
+        for step in path {
+            let Ok(at) = self.child(node, step, b)? else {
+                return Ok(None);
             };
-            b.spend(
-                path.len()
-                    .saturating_add(1)
-                    .saturating_add(shift)
-                    .saturating_add(growth),
-            )?;
-            self.positions.insert(at, (path.to_vec(), row));
-            self.copy_work = self.copy_work.saturating_add(path.len().saturating_add(1));
+            b.spend(1)?;
+            node = self.nodes[node].children[at].1;
+        }
+        b.spend(1)?;
+        Ok(self.nodes[node].terminal)
+    }
+    fn insert(&mut self, path: &[PlaceProjection], row: usize, b: &mut Budget) -> Check<()> {
+        let mut node = 0;
+        for (offset, step) in path.iter().enumerate() {
+            match self.child(node, step, b)? {
+                Ok(at) => {
+                    b.spend(1)?;
+                    node = self.nodes[node].children[at].1;
+                }
+                Err(at) => {
+                    let count = path.len() - offset;
+                    let children = &self.nodes[node].children;
+                    let edge_growth = if children.len() == children.capacity() {
+                        children.len()
+                    } else {
+                        0
+                    };
+                    let arena_growth = if count > self.nodes.capacity() - self.nodes.len() {
+                        self.nodes.len()
+                    } else {
+                        0
+                    };
+                    let records = amount(count, 2)?;
+                    // Pay every suffix node/edge, terminal write, parent shift,
+                    // allocation record and actual old-buffer copy before mutation.
+                    b.spend(
+                        records
+                            .saturating_add(3)
+                            .saturating_add(children.len() - at)
+                            .saturating_add(edge_growth)
+                            .saturating_add(arena_growth),
+                    )?;
+                    self.nodes.reserve(count);
+                    let first = self.nodes.len();
+                    for index in 0..count {
+                        let last = index + 1 == count;
+                        self.nodes.push(Node {
+                            terminal: last.then_some(row),
+                            children: if last {
+                                Vec::new()
+                            } else {
+                                vec![(path[offset + index + 1], first + index + 1)]
+                            },
+                        });
+                    }
+                    self.nodes[node].children.insert(at, (*step, first));
+                    self.copy_work = self.copy_work.saturating_add(records);
+                    return Ok(());
+                }
+            }
+        }
+        b.spend(1)?;
+        if self.nodes[node].terminal.is_none() {
+            b.spend(1)?;
+            self.nodes[node].terminal = Some(row);
         }
         Ok(())
     }
@@ -80,9 +139,10 @@ impl Index {
         rows: impl Iterator<Item = &'a (Path, Permission)>,
         b: &mut Budget,
     ) -> Check<Self> {
+        b.spend(2)?;
         let mut index = Self {
-            positions: Vec::new(),
-            copy_work: 0,
+            nodes: vec![Node::default()],
+            copy_work: 2,
         };
         for (ordinal, (path, _)) in rows.enumerate() {
             b.spend(1)?;
@@ -105,9 +165,7 @@ impl Rows {
         b: &mut Budget,
     ) -> Check<Option<usize>> {
         if let Some(index) = &self.index {
-            let found = index.search(path, b)?.ok();
-            b.spend(1)?;
-            Ok(found.map(|at| index.positions[at].1))
+            index.position(path, b)
         } else {
             b.spend(amount(
                 self.rows.len().saturating_add(1),
@@ -230,17 +288,45 @@ mod tests {
         for ordinal in 0..INDEX_THRESHOLD {
             rows.push((path.clone(), row(ordinal).1), &mut b).unwrap();
         }
-        // One unique indexed key: both complete paths (17 + 17), the
-        // comparison visit and the final vector-position read cost 36.
+        // The independent old flat-path index retains its original exact fee.
+        let mut old = oracle::Rows::default();
+        for ordinal in 0..INDEX_THRESHOLD {
+            old.push((path.clone(), row(ordinal).1), &mut b).unwrap();
+        }
+        // Both complete old keys (17 + 17), comparison and ordinal read: 36.
         let mut exact = Budget::new(&Limits {
             max_analysis_steps: 36,
             ..Limits::default()
         });
-        assert_eq!(rows.position(&path, &mut exact).unwrap(), Some(0));
+        assert_eq!(old.position(&path, &mut exact).unwrap(), Some(0));
         let mut short = Budget::new(&Limits {
             max_analysis_steps: 35,
             ..Limits::default()
         });
-        assert!(rows.position(&path, &mut short).is_err());
+        assert!(old.position(&path, &mut short).is_err());
+        for steps in [69, 68, 69] {
+            let result = rows.position(
+                &path,
+                &mut Budget::new(&Limits {
+                    max_analysis_steps: steps,
+                    ..Limits::default()
+                }),
+            );
+            if steps == 69 {
+                assert_eq!(result.unwrap(), Some(0));
+            } else {
+                assert_eq!(
+                    result.unwrap_err().category,
+                    zil_base::ResultCategory::ResourceLimit
+                );
+            }
+        }
     }
 }
+
+#[cfg(test)]
+#[path = "leaf_rows_oracle.rs"]
+mod oracle;
+#[cfg(test)]
+#[path = "leaf_rows_trie_tests.rs"]
+mod trie_tests;
