@@ -58,63 +58,8 @@ pub(super) fn ordinary_owned_union(
     let Type::ErrorUnion { error, result } = union else {
         return Ok(false);
     };
-    super::type_work(union, &b.limits.clone(), b)?;
-    if union.is_copy_value() {
+    if !ordinary_union_shape(union, b)? {
         return Ok(false);
-    }
-    b.spend(2)?;
-    let mut pending = vec![(error.as_ref(), 0usize), (result.as_ref(), 0usize)];
-    while let Some((ty, depth)) = pending.pop() {
-        b.spend(1)?;
-        if depth > b.limits.max_call_depth {
-            return Err(limit("ordinary union shape depth exceeded"));
-        }
-        match ty {
-            Type::Address { .. }
-            | Type::Desc(_)
-            | Type::BorrowedStorage { .. }
-            | Type::Closure(_)
-            | Type::BorrowedFunctionPointer { .. }
-            | Type::Task { .. } => return Ok(false),
-            Type::Package { fields, .. } | Type::Record { fields, .. } => {
-                b.spend(fields.len())?;
-                pending.extend(fields.iter().map(|(_, child)| (child, depth + 1)));
-            }
-            Type::Enum { variants, .. } => {
-                b.spend(variants.len())?;
-                for (_, fields) in variants {
-                    b.spend(fields.len())?;
-                    pending.extend(fields.iter().map(|child| (child, depth + 1)));
-                }
-            }
-            Type::Tuple(fields) => {
-                b.spend(fields.len())?;
-                pending.extend(fields.iter().map(|child| (child, depth + 1)));
-            }
-            Type::ErrorUnion { error, result } => {
-                b.spend(2)?;
-                pending.push((error, depth + 1));
-                pending.push((result, depth + 1));
-            }
-            Type::Managed(child)
-            | Type::OwnedStore { element: child }
-            | Type::Array { element: child, .. } => {
-                b.spend(1)?;
-                pending.push((child, depth + 1));
-            }
-            Type::Unit
-            | Type::Bool
-            | Type::I32
-            | Type::I64
-            | Type::U64
-            | Type::Usize
-            | Type::U8
-            | Type::U16
-            | Type::F32
-            | Type::F64
-            | Type::ByteBuffer => {}
-            _ => return Ok(false),
-        }
     }
     if let InstructionKind::MakeErrorUnion { is_error, value } = i.kind {
         let arm = if is_error {
@@ -211,6 +156,48 @@ pub(super) fn ordinary_package_borrow(
         Type::Address { mutable: actual, inner } if *actual == mutable && inner.as_ref() == field)
     {
         return Err(err("ordinary Package field borrow result differs"));
+    }
+    Ok(true)
+}
+
+// The independent raw checker authenticates the actual ordinary owner and
+// child before the stored ledger leaves this scalar/Copy observation empty.
+pub(super) fn ordinary_package_read(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
+    let InstructionKind::ReadPackageField { local, index } = i.kind else {
+        return Ok(false);
+    };
+    let parent = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| err("ordinary Package read local is absent"))?
+        .ty;
+    let Type::Package { fields, .. } = parent else {
+        return Ok(false);
+    };
+    let field = &fields
+        .get(index as usize)
+        .ok_or_else(|| err("ordinary Package read field is absent"))?
+        .1;
+    resources::charge_payload(field, b)?;
+    if !field.is_copy_value() {
+        return Err(err(
+            "ordinary Package read requires a complete pure Copy field",
+        ));
+    }
+    ordinary(field, b, 0)?;
+    let output = vt(
+        f,
+        i.result
+            .ok_or_else(|| err("ordinary Package read lacks result"))?,
+    )?;
+    if output != field {
+        return Err(err(
+            "ordinary Package read result differs from its actual field",
+        ));
     }
     Ok(true)
 }
@@ -446,6 +433,115 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check
         ));
     }
     Ok(())
+}
+
+fn ordinary_union_shape(union: &Type, b: &mut Budget) -> Check<bool> {
+    let Type::ErrorUnion { error, result } = union else {
+        return Ok(false);
+    };
+    super::type_work(union, &b.limits.clone(), b)?;
+    if union.is_copy_value() {
+        return Ok(false);
+    }
+    b.spend(2)?;
+    let mut pending = vec![(error.as_ref(), 0usize), (result.as_ref(), 0usize)];
+    while let Some((ty, depth)) = pending.pop() {
+        b.spend(1)?;
+        if depth > b.limits.max_call_depth {
+            return Err(limit("ordinary union shape depth exceeded"));
+        }
+        match ty {
+            Type::Address { .. }
+            | Type::Desc(_)
+            | Type::BorrowedStorage { .. }
+            | Type::Closure(_)
+            | Type::BorrowedFunctionPointer { .. }
+            | Type::Task { .. } => return Ok(false),
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, child)| (child, depth + 1)));
+            }
+            Type::Enum { variants, .. } => {
+                b.spend(variants.len())?;
+                for (_, fields) in variants {
+                    b.spend(fields.len())?;
+                    pending.extend(fields.iter().map(|child| (child, depth + 1)));
+                }
+            }
+            Type::Tuple(fields) => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|child| (child, depth + 1)));
+            }
+            Type::ErrorUnion { error, result } => {
+                b.spend(2)?;
+                pending.push((error, depth + 1));
+                pending.push((result, depth + 1));
+            }
+            Type::Managed(child)
+            | Type::OwnedStore { element: child }
+            | Type::Array { element: child, .. } => {
+                b.spend(1)?;
+                pending.push((child, depth + 1));
+            }
+            Type::Unit
+            | Type::Bool
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::U8
+            | Type::U16
+            | Type::F32
+            | Type::F64
+            | Type::ByteBuffer => {}
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
+}
+
+// Only the Copy error arm of an ordinary owned union is a new producer.
+// Its current tag and initialized/complete subtree are checked by Sum flow.
+pub(super) fn ordinary_error_borrow(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
+    let InstructionKind::BorrowPlaceLocal {
+        local,
+        path,
+        mutable: false,
+    } = &i.kind
+    else {
+        return Ok(false);
+    };
+    if !matches!(path.as_slice(), [PlaceProjection::ErrorArm(true)]) {
+        return Ok(false);
+    }
+    let parent = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| err("ordinary error borrow local is absent"))?
+        .ty;
+    let Type::ErrorUnion { error, result } = parent else {
+        return Ok(false);
+    };
+    if !matches!(result.as_ref(), Type::Package { .. }) || !ordinary_union_shape(parent, b)? {
+        return Ok(false);
+    }
+    resources::charge_payload(error, b)?;
+    if !error.is_copy_value() {
+        return Ok(false);
+    }
+    ordinary(error, b, 0)?;
+    if !matches!(vt(f, i.result.ok_or_else(|| err("ordinary error borrow lacks result"))?)?, Type::Address { mutable: false, inner } if inner.as_ref() == error.as_ref())
+    {
+        return Err(err(
+            "ordinary error borrow result differs from its complete actual arm",
+        ));
+    }
+    b.ordinary_error_places = true;
+    Ok(true)
 }
 
 #[cfg(test)]
