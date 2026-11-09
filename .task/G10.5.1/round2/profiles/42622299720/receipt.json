@@ -1,0 +1,12 @@
+{
+  "status": "failure",
+  "recipe": "fd3b20024cc911edcb6365aa690a6ceeaf716d9c",
+  "baseline": "82a69812582856b012468db3d019930d8e390f64",
+  "files": {
+    "sources-and-setup.tar.gz": {
+      "bytes": 202,
+      "sha256": "9a208edc3189ff39524bfdc774e6e7d5f3ed22d334615cf13fe17aaa37d10b5f"
+    }
+  },
+  "scope": "exploratory profile only; not candidate acceptance"
+}
