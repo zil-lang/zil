@@ -4,6 +4,8 @@ use super::*;
 use std::sync::Arc;
 mod partial_places;
 #[cfg(test)]
+mod sorted_join_tests;
+#[cfg(test)]
 mod tag_forgetting_tests;
 
 pub(crate) fn owned(ty: &Type) -> bool {
@@ -698,41 +700,11 @@ impl Facts {
         if let (Some(a), Some(b)) = (&mut self.partial, &other.partial) {
             change |= a.join(b, budget)?;
         }
-        if budget.store_option_results && budget.ordinary_error_places {
-            // Both states start from this function's complete immutable local,
-            // SSA and capture inventories. Walk corresponding sorted entries
-            // together rather than searching the same keys at every CFG edge.
-            // Check the complete keys as well: inventory equality is never an
-            // unchecked prerequisite for publishing any incoming fact.
-            change |= join_tables(&mut self.locals, &other.locals, budget)?;
-            change |= join_tables(&mut self.values, &other.values, budget)?;
-            change |= join_tables(&mut self.captures, &other.captures, budget)?;
-        } else {
-            for (k, t) in &other.locals {
-                budget.lookup(self.locals.len(), "Sum local join")?;
-                change |= self
-                    .locals
-                    .get_mut(k)
-                    .ok_or_else(|| error("Sum local missing"))?
-                    .merge(t, budget)?;
-            }
-            for (k, t) in &other.values {
-                budget.lookup(self.values.len(), "Sum value join")?;
-                change |= self
-                    .values
-                    .get_mut(k)
-                    .ok_or_else(|| error("Sum value missing"))?
-                    .merge(t, budget)?;
-            }
-            for (k, t) in &other.captures {
-                budget.lookup(self.captures.len(), "Sum capture join")?;
-                change |= self
-                    .captures
-                    .get_mut(k)
-                    .ok_or_else(|| error("Sum capture missing"))?
-                    .merge(t, budget)?;
-            }
-        }
+        // Same-function states have complete immutable inventories. Walk the
+        // sorted maps together and check every key before merging its Tree.
+        change |= join_tables(&mut self.locals, &other.locals, budget)?;
+        change |= join_tables(&mut self.values, &other.values, budget)?;
+        change |= join_tables(&mut self.captures, &other.captures, budget)?;
         budget.spend(
             self.valid.len() + other.valid.len(),
             "Sum observations must join",

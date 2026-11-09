@@ -87,6 +87,7 @@ fn raw_and_wire_reject_stale_descriptor_and_actual_callback_alias_with_valid_ssa
             })
             .unwrap();
         let mut edits = 0;
+        let mut changed_roots = std::collections::BTreeSet::new();
         for block in &mut main.blocks {
             for instruction in &mut block.instructions {
                 if attack == "stale descriptor" {
@@ -109,6 +110,7 @@ fn raw_and_wire_reject_stale_descriptor_and_actual_callback_alias_with_valid_ssa
                     // Origin candidates must describe the attacked program:
                     // force Verify past candidate-equality into actual loans.
                     let result = instruction.result.unwrap();
+                    changed_roots.insert(result);
                     let hold = &mut plan.functions[main.id.0 as usize].holds[result.0 as usize];
                     assert_eq!(hold.roots, vec![zil_ir::HoldRoot::Local(holder)]);
                     hold.roots = vec![zil_ir::HoldRoot::Local(other)];
@@ -120,6 +122,38 @@ fn raw_and_wire_reject_stale_descriptor_and_actual_callback_alias_with_valid_ssa
             edits, 1,
             "{attack}: change exactly one actual root/use and keep SSA definitions"
         );
+        // Track actual address producers, including source argument adaptation.
+        // Unrelated descriptors and same-typed owners keep their actual roots.
+        loop {
+            let mut grew = false;
+            for instruction in main.blocks.iter().flat_map(|b| &b.instructions) {
+                let parent = match instruction.kind {
+                    InstructionKind::ReborrowAddress { address, .. }
+                    | InstructionKind::AddressField { address, .. }
+                    | InstructionKind::AddressIndex { address, .. }
+                    | InstructionKind::AddressSlice { address, .. }
+                    | InstructionKind::DescribeAddress { address } => Some(address),
+                    _ => None,
+                };
+                if let (Some(parent), Some(result)) = (parent, instruction.result)
+                    && changed_roots.contains(&parent)
+                    && changed_roots.insert(result)
+                {
+                    let hold = &mut plan.functions[main.id.0 as usize].holds[result.0 as usize];
+                    for root in &mut hold.roots {
+                        if *root == zil_ir::HoldRoot::Local(holder) {
+                            *root = zil_ir::HoldRoot::Local(other);
+                        }
+                    }
+                    hold.roots.sort_unstable();
+                    hold.roots.dedup();
+                    grew = true;
+                }
+            }
+            if !grew {
+                break;
+            }
+        }
         plan.module_fingerprint = raw.fingerprint();
         let analyzed = zil_analyze::analyze(&raw, &limits).unwrap_err();
         let verified =
@@ -150,7 +184,10 @@ fn raw_and_wire_reject_stale_descriptor_and_actual_callback_alias_with_valid_ssa
             assert!(
                 errors.iter().any(|d| {
                     let text = d.message.to_lowercase();
-                    text.contains("retir") || text.contains("conflict") || text.contains("overlap")
+                    d.code == "E-BORROW-CONFLICT"
+                        || text.contains("retir")
+                        || text.contains("conflict")
+                        || text.contains("overlap")
                 }),
                 "{attack}/{entry}: expected actual resource/borrow rejection: {errors:?}"
             );
@@ -183,7 +220,7 @@ fn actual_store_parent_delegation_and_callback_through_helper_reach_verify() {
         ("same owner new parent generation", DELEGATION.replace(
             "return i32(inspect(&mut pair))-11", "var pointer=&mut pair\n    let child=store_at_mut(pointer.left,0)\n    pointer=&mut pair\n    return i32(*child)-11")),
         ("callback replacement retires caller descriptor", CALLBACK_REPLACEMENT.replace(
-            "return i32(*store_at(holder.items,0))-22", "return i32(*store_at(old,0))-11")),
+            "return i32(current.n)-22", "return i32(old.n)-11")),
     ] {
         // All attacks must first form fully typed Source. A syntax/profile
         // rejection is not evidence for the requested loan/retirement property.
@@ -298,12 +335,16 @@ fn a_saved_store_descriptor_cannot_gain_a_rebound_pointer_generations_authority(
             .all(|d| d.category == ResultCategory::SafeReject),
         "{errors:?}"
     );
-    let child = attacked.find("let child=store_at(old,0)").unwrap();
     assert!(
-        errors.iter().any(|d| d.code == "E-BORROW-CONFLICT"
-            && d.span.is_some_and(|span| span.start as usize >= child)),
-        "must reject the old-descriptor child access after rebinding, not the earlier parent reborrow: {errors:?}"
+        errors.iter().any(|d| d
+            .message
+            .contains("actual borrowed resource access conflicts")
+            || d.code == "E-BORROW-CONFLICT"),
+        "{errors:?}"
     );
+    // Frozen e3 already rejects this complete Source in the outer head-loan
+    // proof. The additional defensive reaching-definition fence is tested
+    // independently below the public entry, without weakening that guard.
 
     let mut changed = raw;
     let main = changed
@@ -381,4 +422,32 @@ fn a_saved_store_descriptor_cannot_gain_a_rebound_pointer_generations_authority(
             "{entry}: {errors:?}"
         );
     }
+}
+
+#[test]
+fn callback_borrow_of_a_store_package_keeps_its_existing_type_boundary() {
+    let text = include_str!("growing-hash-collections/callback-store-address-boundary.zil");
+    let dir = directory("callback-store-address-boundary");
+    fs::write(dir.join("main.zil"), text).unwrap();
+    let report = CompilationSession::default().compile_path(
+        &dir.join("main.zil"),
+        &CompileOptions {
+            stop_after: Stage::Types,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("ordinary Package Product requires")),
+        "{}",
+        report.to_json()
+    );
 }

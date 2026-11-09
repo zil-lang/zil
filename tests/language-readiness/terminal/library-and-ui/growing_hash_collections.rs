@@ -121,6 +121,7 @@ fn growing_map_set_native_rehash_and_every_allocation_failure_preserve_owners() 
             .unwrap()
     };
     let mut executions = 0;
+    let mut compile_failures = Vec::new();
     for backend in backends {
         for optimization in [Optimization::O0, Optimization::O2] {
             for (label, source, failpoints) in [
@@ -152,12 +153,13 @@ fn growing_map_set_native_rehash_and_every_allocation_failure_preserve_owners() 
                     },
                 );
                 fs::write(dir.join("compile.json"), report.to_json()).unwrap();
-                assert_eq!(
-                    report.status,
-                    ResultCategory::Success,
-                    "{label}: {}",
-                    report.to_json()
-                );
+                if report.status != ResultCategory::Success {
+                    let failure =
+                        format!("{label}/{backend:?}/{optimization:?}: {}", report.to_json());
+                    println!("{failure}");
+                    compile_failures.push(failure);
+                    continue;
+                }
                 assert_eq!(report.verification_runs, 1);
                 assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
                 for failure in 0..=failpoints {
@@ -205,6 +207,10 @@ fn growing_map_set_native_rehash_and_every_allocation_failure_preserve_owners() 
             }
         }
     }
+    assert!(
+        compile_failures.is_empty(),
+        "native inputs failed independently: {compile_failures:#?}"
+    );
     assert_eq!(
         executions,
         32 + 32 * usize::from(cfg!(feature = "llvm-api"))
