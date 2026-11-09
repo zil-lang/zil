@@ -1,6 +1,8 @@
 //! Complete SSA positions. Shared pages change storage, never source permission.
 use super::*;
 const WIDTH: usize = 32;
+#[cfg(test)]
+mod keep_tests;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Page {
@@ -111,6 +113,13 @@ impl Values {
             if Arc::ptr_eq(left, right) {
                 continue;
             }
+            // Do not detach a shared page whose complete merge is a no-op.
+            // This is only a storage decision; uncertain cases run the original
+            // page COW and per-Content transfer, including its error prefix.
+            budget.spend(1)?;
+            if Arc::strong_count(left) > 1 && keeps_page(left, right, budget)? {
+                continue;
+            }
             // State::cost now pays for page references. All actual different-
             // page slot walks must therefore be charged here independently.
             budget.spend(left.roots.len())?;
@@ -170,5 +179,122 @@ impl Values {
                 Arc::make_mut(&mut self.pages[0]).roots.pop();
             }
         }
+    }
+}
+
+// A sufficient condition for the ORIGINAL Content::merge to return false and
+// leave the receiver unchanged. Shape uncertainty returns false, never an error.
+// Only the budget can fail here, and that error propagates without publication.
+fn keeps_page(left: &Page, right: &Page, budget: &mut Budget) -> Check<bool> {
+    budget.spend(left.roots.len())?;
+    budget.spend(right.roots.len())?;
+    for (a, b) in left.roots.iter().zip(&right.roots) {
+        budget.spend(1)?;
+        if !Arc::ptr_eq(a, b) && !keeps_content(a, b, budget)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+fn keeps_content(left: &Content, right: &Content, budget: &mut Budget) -> Check<bool> {
+    budget.spend(1)?;
+    match (left, right) {
+        (Content::Missing(a), Content::Missing(b)) => keeps_content(a, b, budget),
+        (Content::Missing(a), b) => keeps_content(a, b, budget),
+        (_, Content::Missing(_)) => Ok(false),
+        (Content::Copy, Content::Copy) => Ok(true),
+        (Content::Leaf(a), Content::Leaf(b)) => {
+            budget.spend(a.len().saturating_add(b.len()))?;
+            let mut old = a.iter();
+            let mut next = old.next();
+            for incoming in b {
+                loop {
+                    let Some(current) = next else {
+                        return Ok(false);
+                    };
+                    // Source ordering may inspect a whole origin route. Pay
+                    // both actual paths before each comparison, including a
+                    // repeated comparison with the same incoming source.
+                    budget.spend(source_work(current).saturating_add(source_work(incoming)))?;
+                    match current.cmp(incoming) {
+                        std::cmp::Ordering::Less => next = old.next(),
+                        std::cmp::Ordering::Equal => {
+                            next = old.next();
+                            break;
+                        }
+                        std::cmp::Ordering::Greater => return Ok(false),
+                    }
+                }
+            }
+            Ok(true)
+        }
+        (Content::Product(a), Content::Product(b)) => keeps_children(a, b, budget),
+        (Content::Sum(a, route), Content::Sum(b, other_route)) => {
+            if !b.is_empty() {
+                if a.is_empty() {
+                    return Ok(false);
+                }
+                if let Some((owner, path)) = route {
+                    let Some((other_owner, other_path)) = other_route else {
+                        return Ok(false);
+                    };
+                    budget.spend(
+                        path.len()
+                            .saturating_add(other_path.len())
+                            .saturating_add(2),
+                    )?;
+                    if owner != other_owner || path != other_path {
+                        return Ok(false);
+                    }
+                }
+            }
+            budget.spend(a.len().saturating_add(b.len()))?;
+            let mut old = a.iter();
+            let mut next = old.next();
+            for (incoming_tag, incoming) in b {
+                loop {
+                    let Some((tag, current)) = next else {
+                        return Ok(false);
+                    };
+                    budget.spend(1)?;
+                    match tag.cmp(incoming_tag) {
+                        std::cmp::Ordering::Less => next = old.next(),
+                        std::cmp::Ordering::Equal => {
+                            if !keeps_children(current, incoming, budget)? {
+                                return Ok(false);
+                            }
+                            next = old.next();
+                            break;
+                        }
+                        std::cmp::Ordering::Greater => return Ok(false),
+                    }
+                }
+            }
+            Ok(true)
+        }
+        _ => Ok(false),
+    }
+}
+fn keeps_children(left: &[Content], right: &[Content], budget: &mut Budget) -> Check<bool> {
+    budget.spend(1)?;
+    // The original transfer uses zip. Unequal private shapes are deliberately
+    // left to that path, rather than imposing a new semantic rejection here.
+    if left.len() != right.len() {
+        return Ok(false);
+    }
+    budget.spend(left.len().saturating_add(right.len()))?;
+    for (a, b) in left.iter().zip(right) {
+        if !keeps_content(a, b, budget)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+fn source_work(source: &Source) -> usize {
+    match source {
+        Source::Input(_, path) | Source::Captured(_, path) | Source::ReturnedInput(_, path) => {
+            path.len().saturating_add(1)
+        }
+        _ => 1,
     }
 }
