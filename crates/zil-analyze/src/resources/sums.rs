@@ -2,6 +2,9 @@
 //! describe possible alternatives, never simultaneous resource debts.
 use super::*;
 use std::sync::Arc;
+mod direct_index;
+#[cfg(test)]
+mod direct_index_reference;
 #[cfg(test)]
 mod initial_template_tests;
 mod partial_places;
@@ -724,7 +727,7 @@ fn join_tables<K: Ord>(
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct Facts {
-    locals: BTreeMap<LocalId, Arc<Tree>>,
+    locals: direct_index::Locals,
     values: ssa_values::Values,
     captures: BTreeMap<u32, Arc<Tree>>,
     // Only observations of this current activation survive. A write kills all
@@ -798,7 +801,7 @@ impl Facts {
         }
         // Same-function states have complete immutable inventories. Walk the
         // sorted maps together and check every key before merging its Tree.
-        change |= join_tables(&mut self.locals, &other.locals, budget)?;
+        change |= self.locals.join(&other.locals, budget)?;
         change |= self.values.join(&other.values, budget)?;
         change |= join_tables(&mut self.captures, &other.captures, budget)?;
         budget.spend(
@@ -933,7 +936,7 @@ impl Facts {
                 "complete Product replacement cannot repair missing child contents",
             ));
         }
-        self.locals.insert(local, incoming);
+        self.locals.set(local, incoming)?;
         Ok(())
     }
     /// Replace a singleton complete local with the actual prepared RHS tree.
@@ -963,7 +966,7 @@ impl Facts {
         }
         self.invalidate(local, plan, budget)?;
         budget.lookup(self.locals.len(), "whole Enum definite local publication")?;
-        self.locals.insert(local, incoming);
+        self.locals.set(local, incoming)?;
         Ok(())
     }
     pub(super) fn unpack_birth(
@@ -1102,7 +1105,7 @@ pub(super) struct Plan {
     // None preserves the established scheduling/fees outside mixed consumers.
     tagged_locals: Option<Vec<LocalId>>,
     partial: Option<partial_places::Meta>,
-    observations: BTreeMap<ValueId, (LocalId, Vec<VariantProjection>)>,
+    observations: direct_index::Observations,
     tests: BTreeMap<ValueId, (ValueId, ValueId, u32, bool)>,
 }
 impl Plan {
@@ -1151,7 +1154,7 @@ impl Plan {
         let mut address_tag = false;
         let mut address_replacement = false;
         let mut constants = BTreeMap::new();
-        let mut observations = BTreeMap::new();
+        let mut observations = direct_index::Observations::new(f.values.len(), budget)?;
         let mut tests = BTreeMap::new();
         let mut definitions = BTreeSet::new();
         for i in f.blocks.iter().flat_map(|b| &b.instructions) {
@@ -1182,7 +1185,7 @@ impl Plan {
                 (InstructionKind::VariantTagLocal { local, path }, Some(v)) => {
                     budget.lookup(observations.len(), "Sum observation insertion")?;
                     budget.spend(path.len() + 1, "Sum observation identity")?;
-                    observations.insert(v, (*local, path.clone()));
+                    observations.insert(v, (*local, path.clone()))?;
                 }
                 _ => {}
             }
@@ -1283,12 +1286,11 @@ impl Plan {
             1,
             "Sum parameter membership",
         )?;
-        for l in &f.locals {
-            budget.lookup(facts.locals.len(), "Sum local fact allocation")?;
+        facts.locals = direct_index::Locals::build(f, budget, |l, budget| {
             let mut t = Tree::unknown(&l.ty, budget)?;
             edit(&mut t, budget)?.missing = !f.parameters.contains(&l.id);
-            facts.locals.insert(l.id, t);
-        }
+            Ok(t)
+        })?;
         facts.values = ssa_values::Values::build(f.values.len(), budget, |v, budget| {
             let mut t = Tree::unknown(&f.values[v], budget)?;
             edit(&mut t, budget)?.missing = true;
@@ -1432,13 +1434,50 @@ impl Plan {
         budget: &mut Budget,
     ) -> CompileResult<Option<BTreeSet<Birth>>> {
         budget.spend(1, "Sum instruction facts")?;
-        // Reserve the fixed number of indexed lookups used by the transfer;
-        // variable-width field and subtree work is charged separately below.
+        // Only this bounded set has no remaining implicit tree search. In
+        // particular Meta::step's result observer and managed-success Sum
+        // extraction retain the complete old reserve through the fallback.
+        budget.spend(1, "Sum direct transfer qualification")?;
+        let direct = (self.partial.is_none() || i.result.is_none())
+            && !i
+                .result
+                .and_then(|v| f.values.get(v.0 as usize))
+                .is_some_and(managed_success)
+            && matches!(
+                i.kind,
+                InstructionKind::Constant(_)
+                    | InstructionKind::MakeAggregate { .. }
+                    | InstructionKind::MakeManaged { .. }
+                    | InstructionKind::ByteBufferNew
+                    | InstructionKind::OwnedStoreNew { .. }
+                    | InstructionKind::MakePackage { .. }
+                    | InstructionKind::MakeOwnedTuple { .. }
+                    | InstructionKind::Load(_)
+                    | InstructionKind::TakeLocal { .. }
+                    | InstructionKind::Store { .. }
+                    | InstructionKind::ReadPackageField { .. }
+                    | InstructionKind::TakePackageField { .. }
+                    | InstructionKind::StorePackageField { .. }
+                    | InstructionKind::DropPackageField { .. }
+                    | InstructionKind::StorageLive(_)
+                    | InstructionKind::StorageDead(_)
+                    | InstructionKind::DropManaged { .. }
+                    | InstructionKind::DropPackage { .. }
+                    | InstructionKind::DropErrorUnion { .. }
+                    | InstructionKind::DropClosure { .. }
+                    | InstructionKind::DropOwnedArray { .. }
+                    | InstructionKind::DropEnum { .. }
+                    | InstructionKind::DropTuple { .. }
+            );
         for _ in 0..8 {
-            budget.lookup(
-                facts.locals.len() + facts.values.len() + self.observations.len(),
-                "Sum instruction index reserve",
-            )?;
+            if direct {
+                budget.spend(1, "Sum instruction direct index reserve")?;
+            } else {
+                budget.lookup(
+                    facts.locals.len() + facts.values.len() + self.observations.len(),
+                    "Sum instruction index reserve",
+                )?;
+            }
         }
         let mut output = None;
         if check
@@ -1465,7 +1504,7 @@ impl Plan {
                             .forget_addressed_copy_tags(&f.locals[local.0 as usize].ty, budget)?;
                     }
                 } else {
-                    for (local, tree) in &mut facts.locals {
+                    for (local, tree) in facts.locals.iter_mut() {
                         tree.forget_addressed_copy_tags(&f.locals[local.0 as usize].ty, budget)?;
                     }
                 }
@@ -1487,7 +1526,7 @@ impl Plan {
                     return Err(error("Package Sum capture binding is incomplete"));
                 }
                 budget.lookup(facts.locals.len(), "Package Sum capture local transfer")?;
-                facts.locals.insert(*local, capture);
+                facts.locals.set(*local, capture)?;
                 edit(
                     facts
                         .captures
@@ -1747,7 +1786,7 @@ impl Plan {
             InstructionKind::Store { local, value } => {
                 let t = facts.value(*value, budget)?;
                 facts.invalidate(*local, self, budget)?;
-                facts.locals.insert(*local, t);
+                facts.locals.set(*local, t)?;
             }
             InstructionKind::TakePackageField { local, index }
             | InstructionKind::ReadPackageField { local, index } => {
@@ -1903,7 +1942,7 @@ impl Plan {
                     for (l, t) in fields.iter().zip(fs) {
                         budget.lookup(facts.locals.len(), "Unpack fact publication")?;
                         facts.invalidate(*l, self, budget)?;
-                        facts.locals.insert(*l, t.copied(budget)?);
+                        facts.locals.set(*l, t.copied(budget)?)?;
                     }
                 }
                 edit(facts.locals.get_mut(local).unwrap(), budget)?.missing = true;
@@ -1935,7 +1974,7 @@ impl Plan {
                 };
                 for (l, t) in fields.iter().zip(children) {
                     facts.invalidate(*l, self, budget)?;
-                    facts.locals.insert(*l, t.copied(budget)?);
+                    facts.locals.set(*l, t.copied(budget)?)?;
                 }
                 edit(facts.locals.get_mut(local).unwrap(), budget)?.missing = true;
                 facts.invalidate(*local, self, budget)?;
