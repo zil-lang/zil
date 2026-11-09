@@ -54,6 +54,23 @@ impl WordRow {
         }
         Ok(())
     }
+    pub(super) fn ones(&self) -> impl Iterator<Item = usize> + '_ {
+        self.words
+            .iter()
+            .enumerate()
+            .flat_map(|(word, &bits)| {
+                let mut pending = bits;
+                std::iter::from_fn(move || {
+                    if pending == 0 {
+                        return None;
+                    }
+                    let bit = pending.trailing_zeros() as usize;
+                    pending &= pending - 1;
+                    Some(word * 64 + bit)
+                })
+            })
+            .take_while(move |&id| id < self.width)
+    }
     #[cfg(test)]
     pub(super) fn from_bools(flags: &[bool]) -> Self {
         let mut row = Self::empty(flags.len());

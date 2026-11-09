@@ -3,6 +3,8 @@
 use super::*;
 #[cfg(test)]
 mod active_index_tests;
+#[cfg(test)]
+mod ancestry_tests;
 mod array_index;
 mod array_snapshot;
 mod byte_queries;
@@ -1830,6 +1832,47 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
 }
 
 fn ancestry(ids: &[usize], loans: &[Loan], b: &mut Budget) -> Check<Vec<usize>> {
+    // Empty roots have an empty closure without inspecting the arena.
+    b.spend(1)?;
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    b.spend(ids.len().saturating_add(1))?;
+    let mut todo = ids.to_vec();
+    b.spend(WordRow::work_for(loans.len()))?;
+    let mut visited = WordRow::empty(loans.len());
+    let mut count = 0usize;
+    while let Some(id) = todo.pop() {
+        b.spend(1)?;
+        // Preserve the original diagnostic before any bounded bit access.
+        let row = loans
+            .get(id)
+            .ok_or_else(|| err("loan parent outside actual arena"))?;
+        b.spend(1)?;
+        if visited.is_live(id)? {
+            continue;
+        }
+        b.spend(1)?;
+        visited.assign(id, true)?;
+        count += 1;
+        b.spend(row.parents.len())?;
+        if todo.capacity().saturating_sub(todo.len()) < row.parents.len() {
+            b.spend(todo.len().saturating_add(1))?;
+        }
+        // Same LIFO traversal and parent discovery order as the original DFS.
+        todo.extend(&row.parents);
+    }
+    // Scan actual words, clear each enumerated bit and store every result ID.
+    // Enumeration is already ascending; no comparison sort is performed.
+    b.spend(visited.work())?;
+    b.spend(amount(count, 2)?.saturating_add(1))?;
+    let mut result = Vec::with_capacity(count);
+    result.extend(visited.ones());
+    Ok(result)
+}
+
+#[cfg(test)]
+fn ancestry_by_linear_set(ids: &[usize], loans: &[Loan], b: &mut Budget) -> Check<Vec<usize>> {
     b.spend(ids.len())?;
     let mut todo = ids.to_vec();
     let mut result = Vec::new();
