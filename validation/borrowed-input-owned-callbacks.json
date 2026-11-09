@@ -1,0 +1,317 @@
+{
+  "schema_version": 1,
+  "status": "Pass for synchronous borrowed-input closures with closed owned results",
+  "source": {
+    "commit": "81f70ee58fa3d19f87b8ca1c566f50cfc15bb37f",
+    "tree": "f0552b2a5c387faf737d07ffe9bf3a1a282f0e64",
+    "executed_local_commit": "37e965938d21b385eda16d99a707ba6a5e860917",
+    "publication": "Identical complete tree; commit metadata differs. The original task tip is retained as an actual ancestor.",
+    "clean_during_validation": true
+  },
+  "scope": "Synchronous Fn, FnMut and FnOnce accept borrowed Copy, slice or closed ordinary owned data and return closed owned products, enums or errors. Analyze and Verify independently inspect actual signatures, loans and cleanup responsibilities. Direct-call contexts preserve full type/lifetime contracts without broadening the first-class callable ABI.",
+  "independent_review": {
+    "reviewed_local_commit": "37e965938d21b385eda16d99a707ba6a5e860917",
+    "reviewer": "Non-author integration reviewer",
+    "result": "Accepted exact source, all gate identities and hashes, the 20 original allocator executions, and four saved Direct-lending native reports. No remaining required gate."
+  },
+  "toolchain": {
+    "rust": "1.99.1",
+    "llvm_clang_lld": "23.1.4",
+    "host": "x86_64-unknown-linux-gnu",
+    "default_limits": true,
+    "increased_stack": false
+  },
+  "validation": {
+    "owning-callback-targets": {
+      "source": "37e965938d21b385eda16d99a707ba6a5e860917",
+      "tree": "f0552b2a5c387faf737d07ffe9bf3a1a282f0e64",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "owning_callback_analysis_source",
+        "--test",
+        "owning_callback_consumer",
+        "--test",
+        "owning_callback_frontend",
+        "--test",
+        "owning_callback_machine",
+        "--test",
+        "owning_callback_raw_verification",
+        "--test",
+        "owning_callback_signature_admission",
+        "--test",
+        "owning_callback_transfer_analysis",
+        "--test",
+        "owning_callback_verification_source",
+        "--",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-09T10:16:30.610752+00:00",
+      "elapsed_seconds": 51.548,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 8,
+      "tests": {
+        "passed": 54,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "log": "out/runs/borrowed-owned-callbacks-20261109-1/owning-callback-targets.log",
+      "log_sha256": "b4536d516c25769049c8bc14789862c3e82c0a292b291a9819a3b24a6a8d6bf6"
+    },
+    "direct-context-and-closures": {
+      "source": "37e965938d21b385eda16d99a707ba6a5e860917",
+      "tree": "f0552b2a5c387faf737d07ffe9bf3a1a282f0e64",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "closures_frontend",
+        "--test",
+        "callback_parameter_addresses",
+        "--test",
+        "closures_native",
+        "--",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-09T10:19:58.281281+00:00",
+      "elapsed_seconds": 8.874,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 3,
+      "tests": {
+        "passed": 46,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "log": "out/runs/borrowed-owned-callbacks-20261109-1/direct-context-and-closures.log",
+      "log_sha256": "315acc8fa8da13a0c0e21d5206b4d50e8852941d7135dd7e1a3bf7119c34eb96"
+    },
+    "strict": {
+      "source": "37e965938d21b385eda16d99a707ba6a5e860917",
+      "tree": "f0552b2a5c387faf737d07ffe9bf3a1a282f0e64",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--workspace",
+        "--all-targets",
+        "--features",
+        "zil-driver/llvm-api",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "started_utc": "2026-11-09T10:21:08.513781+00:00",
+      "elapsed_seconds": 63.015,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "log": "out/runs/borrowed-owned-callbacks-20261109-1/strict.log",
+      "log_sha256": "a55602fde802db27cd838abb565ba37ca6c8775ba83c1be5103c65c05adcc2a2"
+    },
+    "format": {
+      "source": "37e965938d21b385eda16d99a707ba6a5e860917",
+      "tree": "f0552b2a5c387faf737d07ffe9bf3a1a282f0e64",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "started_utc": "2026-11-09T10:20:00.281196+00:00",
+      "elapsed_seconds": 8.003,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "log": "out/runs/borrowed-owned-callbacks-20261109-1/format.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "layout": {
+      "source": "37e965938d21b385eda16d99a707ba6a5e860917",
+      "tree": "f0552b2a5c387faf737d07ffe9bf3a1a282f0e64",
+      "source_unchanged": true,
+      "command": [
+        "python3",
+        "tools/check-repository-layout.py",
+        "--full",
+        "--delivery"
+      ],
+      "started_utc": "2026-11-09T10:20:08.367688+00:00",
+      "elapsed_seconds": 1.841,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "log": "out/runs/borrowed-owned-callbacks-20261109-1/layout.log",
+      "log_sha256": "e00d2f066f21664a2173a1fec0675982047e343d0dac75eb03af96fd578daa3c"
+    }
+  },
+  "native": {
+    "borrowed_owned_reply": {
+      "report_root": "out/runs/borrowed-owned-callbacks-20261109-1/native-reports/borrowed-input-owned-reply-773",
+      "executions": 20,
+      "matrix": "Clang and LLVM API, each O0/O2, each allocation fail index 0 through 4",
+      "assertions": [
+        "Success compilation and link",
+        "verification_runs = 1",
+        "Actual requested backend and optimization",
+        "No fallback",
+        "LLVM API uses one builder object and parse_ns = 0",
+        "Native ELF program, object and allocator probe retained",
+        "Allocated equals freed and live allocation count is zero for every run"
+      ],
+      "cases": [
+        {
+          "fail_index": 0,
+          "exit_code": 0,
+          "stdout": "XCBI",
+          "allocation_calls": 3,
+          "allocated": 3,
+          "freed": 3,
+          "failures": 0,
+          "live": 0
+        },
+        {
+          "fail_index": 1,
+          "exit_code": 1,
+          "stdout": "",
+          "allocation_calls": 1,
+          "allocated": 0,
+          "freed": 0,
+          "failures": 1,
+          "live": 0
+        },
+        {
+          "fail_index": 2,
+          "exit_code": 1,
+          "stdout": "I",
+          "allocation_calls": 2,
+          "allocated": 1,
+          "freed": 1,
+          "failures": 1,
+          "live": 0
+        },
+        {
+          "fail_index": 3,
+          "exit_code": 1,
+          "stdout": "BI",
+          "allocation_calls": 3,
+          "allocated": 2,
+          "freed": 2,
+          "failures": 1,
+          "live": 0
+        },
+        {
+          "fail_index": 4,
+          "exit_code": 0,
+          "stdout": "XCBI",
+          "allocation_calls": 3,
+          "allocated": 3,
+          "freed": 3,
+          "failures": 0,
+          "live": 0
+        }
+      ]
+    },
+    "direct_lending_context": {
+      "report_root": "out/runs/borrowed-owned-callbacks-20261109-1/direct-lending-reports",
+      "executions": 4,
+      "matrix": [
+        "Clang O0",
+        "Clang O2",
+        "LLVM API O0",
+        "LLVM API O2"
+      ],
+      "assertions": [
+        "Actual requested backend and optimization",
+        "No fallback",
+        "verification_runs = 1",
+        "LLVM API builder path and parse_ns = 0",
+        "Exit 0 with empty stdout and stderr"
+      ],
+      "preservation": "All four complete report directories and a 72-file hash manifest are retained. The reports supplement the original test assertions with independently checked backend identity."
+    }
+  },
+  "budget_controls": {
+    "borrowed_owned_types": 1262,
+    "borrowed_owned_analyze": 8105,
+    "borrowed_owned_verify": 11860,
+    "direct_context_types": 1719,
+    "old_analyze": 13687,
+    "old_dispatch_types": 2018,
+    "old_dispatch_expand": 1844,
+    "old_copy_expand": [
+      827,
+      1106
+    ],
+    "boundary_assertions": [
+      "N success",
+      "N-1 ResourceLimit",
+      "fresh recomputation"
+    ],
+    "default_limits_changed": false
+  },
+  "negative_controls": [
+    "Actual callback signatures remain independently checked in Analyze and Verify, including raw input",
+    "Borrowed input cannot escape as a falsely owning result",
+    "Fallible owning results preserve caller and callee cleanup responsibility",
+    "Direct contexts preserve lifetime and BorrowedStorage contracts",
+    "Unsupported rich first-class callable signatures remain rejected"
+  ],
+  "not_claimed": [
+    "Stored closure CFG and large closure ABI descendants",
+    "Unrestricted borrowed outputs, cross-thread borrowed environments or wider dyn generic slots",
+    "Full workspace test execution or language/product release acceptance"
+  ]
+}
