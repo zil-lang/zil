@@ -1,0 +1,538 @@
+{
+  "schema_version": 1,
+  "status": "Pass for the two original stored-owner observation consumers within the recorded scope",
+  "source": {
+    "commit": "7dc17ebeb1ab1899048ec2686d52f156ad97ac95",
+    "tree": "f89f668b861d574f69ce7903ddc9a5ed35c793ae",
+    "published_same_tree_commit": "b20fb4149d6681354ae5b0c73b88d246e6f555f7",
+    "baseline": "b4b6718359849c9ddb6e4ba8ebea4181a36e374c",
+    "publication": "Published source has the identical full tree and the actual accepted main baseline as its parent.",
+    "clean_during_validation": true
+  },
+  "scope": "The unchanged four-module Store<Item> lending/duplicate/error program and its original ErrorArm consumer retain independent owned results while the original element loan remains live. Ordinary unqualified Package reads require exact pure Copy fields and actual parent/field permissions. Shared ErrorArm borrowing is limited to local BorrowPlaceLocal with exactly [ErrorArm(true)] and mutable=false, an ordinary Package success arm, and a complete pure Copy error arm; the resulting shared address must name that actual error type. Actual tag, initialization, active loan and cleanup checks remain independent in Analyze and Verify. Scalar entry query effects require the actual callee proof; cyclic control flow retains current-generation checks.",
+  "mechanical_extraction": {
+    "production_stages": [
+      {
+        "original": "fd4047c1fe192b4b9100b260bf113c18d903c227",
+        "local": "413ca3912e6f814b10dd01304802e185ea16c57b",
+        "paths": 4
+      },
+      {
+        "original": "eef67e93de1683a422eb08b04d6b6a839fa75742",
+        "local": "793ebeaeb946ad0d41a0ecde3ead42785963372a",
+        "paths": 2
+      },
+      {
+        "original": "5b967394230dca5aedfbb3813b406193d80f19a3",
+        "local": "93c44c98d1afba541d8f3c31137c08b67e33ce30",
+        "paths": 8
+      },
+      {
+        "original": "5622922e1717d02af2d46789b86a195ab82644b0",
+        "local": "92dcdf30cfcc837cceb6308cb8afb554bb534f23",
+        "paths": 4
+      },
+      {
+        "original": "0d97b4e7317f41f2643ba0a15008d8464cbc164c",
+        "local": "b061af1b9a435bbdafa1b1e052d228098cfa538f",
+        "paths": 1
+      },
+      {
+        "original": "cecfe26113c6954f62b0c5f156723b65a300a651",
+        "local": "4442961c8349014bafcbf6f426a540b66ea0739e",
+        "paths": 4
+      },
+      {
+        "original": "cb17cfb559f1d876cb6afc795583a95d8de6588e",
+        "local": "a362fcce332eb54a87b578889e5610a910824da2",
+        "paths": 6
+      },
+      {
+        "original": "5cf970ba56ff26388df5abcf72a8946cc2c20350",
+        "local": "22996f475d636e1c256c564f6896eae4fea61c23",
+        "paths": 3
+      },
+      {
+        "original": "511c32f06a06c2192d98382e1ca7fb2c9630d343",
+        "local": "12ad9ead042bea620b064e2139ab1ca4bd44778f",
+        "paths": 1
+      }
+    ],
+    "scope": "Only the nine selected qualification/cost/backend patches and their necessary kernel controls were extracted; no whole integration branch was merged.",
+    "context_resolution": "The two new ErrorArm class-flow match arms retained their original additions at the BorrowLocal boundary, while preserving the baseline array_outer::copy Store arms. All other selected production patches applied by their original context.",
+    "production_ledger": "out/runs/stored-owned-composition-extraction-20261109-1/production-ledger.json",
+    "production_ledger_sha256": "1c0a088c1a060d2ad00bf57bfec842198ea8d1d7f8ffd2b359e89b5fc0ce7aa0",
+    "function_map": "out/runs/stored-owned-composition-extraction-20261109-1/test-extraction.json",
+    "function_map_sha256": "620b55ca75eee07a429826507d0d1ce9b8dbd82b660b4bfd8fa7ce6599f760cd",
+    "complete_functions_retained": 21,
+    "retained_tests": 12,
+    "test_origins": [
+      "7dd7bb0eb8d1a55429455794fa6a94e80c777739",
+      "9f91ccc5ee32b46b2bd68230c786f84ccdd24d5d"
+    ],
+    "excluded_functions_only": [
+      "pipeline_files",
+      "ordinary_owned_pipeline_keeps_callbacks_and_error_paths",
+      "ordinary_owned_pipeline_executes_callbacks_and_allocation_cleanup_paths"
+    ],
+    "original_four_source_bytes_unchanged": true,
+    "backend_complete_blob": "8f8c05fae8d7f9e5193e348245b525255eaef0e6",
+    "public_ir_schema_and_dependencies_changed": false
+  },
+  "independent_review": {
+    "reviewed_commit": "56c21eb61e828ac4f2a98ad30b9528f50b1cff9e",
+    "reviewed_tree": "12e589e257ce3a09262a5eeb6aaaf1978a6c2a61",
+    "status": "Non-author production review accepted with no required production correction.",
+    "report": "out/runs/stored-owned-independent-review-20261109-1/review.md",
+    "report_sha256": "4e1c5c11b38c7d3780fb1e532e8f8bc854d5e77d2c9dc46ee8823a3f9ae7cb01",
+    "documentation_followup": "7dc17ebeb1ab1899048ec2686d52f156ad97ac95 only narrows spec/stored-owned-observations.md to the implemented local direct shared ErrorArm profile. All 24 production/test paths remain byte-identical to the reviewed source."
+  },
+  "validation_scope": "All nine final gates used the exact tested source/tree unchanged. The full nominal_trait_bounds gate passed 197 tests and includes all 12 extracted tests; 12 is not added again. Native counts below select only the two original consumers, not every native execution of the broader trait and array regressions. No complete workspace test run is claimed.",
+  "validation_runner": {
+    "path": "out/runs/stored-owned-composition-extraction-20261109-1/handoff-gates.sh",
+    "sha256": "a4997d82e2a01d71a6354e9ba4fd0fb6a2df099105d798c6722e0ed56c03f258",
+    "invocation": [
+      "bash",
+      "out/runs/stored-owned-composition-extraction-20261109-1/handoff-gates.sh",
+      "<gate-name>"
+    ],
+    "commands": "Each gate below expands the actual selected command."
+  },
+  "validation": {
+    "traits": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_unchanged": true,
+      "commands": [
+        [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--features",
+          "llvm-api",
+          "--test",
+          "nominal_trait_bounds",
+          "--",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      ],
+      "log": "out/runs/stored-owned-composition-20261109-2/traits.log",
+      "log_sha256": "ce743d64874cd598b06235d8376e4403afc6c6f3d5c2ac375695c93466c26302",
+      "tests": {
+        "passed": 197,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      }
+    },
+    "analyze": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_unchanged": true,
+      "commands": [
+        [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-analyze",
+          "--lib",
+          "--",
+          "--test-threads=1"
+        ]
+      ],
+      "log": "out/runs/stored-owned-composition-20261109-2/analyze.log",
+      "log_sha256": "bd98c008f2716e02c1240ce0bbe46b260b48980a0a8dfd50929a2004602bf785",
+      "tests": {
+        "passed": 207,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      }
+    },
+    "verify": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_unchanged": true,
+      "commands": [
+        [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-verify",
+          "--lib",
+          "--",
+          "--test-threads=1"
+        ]
+      ],
+      "log": "out/runs/stored-owned-composition-20261109-2/verify.log",
+      "log_sha256": "84517d3731deecc0fbbc55de35d44ccbf68357f433b9ba176aee8a4234ef83a2",
+      "tests": {
+        "passed": 459,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      }
+    },
+    "backend": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_unchanged": true,
+      "commands": [
+        [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-backend-llvm",
+          "--features",
+          "llvm-api",
+          "--lib",
+          "--",
+          "--test-threads=1"
+        ]
+      ],
+      "log": "out/runs/stored-owned-composition-20261109-2/backend.log",
+      "log_sha256": "e35ff4cf459c2a028bf64a0d2e88237b072a88f329ff40cd3b2d999c2c2fa8ad",
+      "tests": {
+        "passed": 182,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      }
+    },
+    "legacy-budget": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_unchanged": true,
+      "commands": [
+        [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--features",
+          "llvm-api",
+          "--test",
+          "aggregates",
+          "budget",
+          "--",
+          "--skip",
+          "::",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      ],
+      "log": "out/runs/stored-owned-composition-20261109-2/legacy-budget.log",
+      "log_sha256": "799ceda91b27a7147cdec97f2072b0abf0c8acc7f94b68fc5639fafe6ce123fe",
+      "tests": {
+        "passed": 23,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 384
+      }
+    },
+    "arrays": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_unchanged": true,
+      "commands": [
+        [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--features",
+          "llvm-api",
+          "--test",
+          "aggregates",
+          "mixed_holder::shared_address_array::",
+          "--",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      ],
+      "log": "out/runs/stored-owned-composition-20261109-2/arrays.log",
+      "log_sha256": "dff8bd2ca0d1d01076c4dea2899569a03fbb34dd6b36081b825de4933b8c00a2",
+      "tests": {
+        "passed": 54,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 353
+      }
+    },
+    "strict": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_unchanged": true,
+      "commands": [
+        [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--offline",
+          "--workspace",
+          "--all-targets",
+          "--features",
+          "zil-driver/llvm-api",
+          "--",
+          "-D",
+          "warnings"
+        ]
+      ],
+      "log": "out/runs/stored-owned-composition-20261109-2/strict.log",
+      "log_sha256": "4fba797cd7f02679f365880d3f0021afd2ccd3d0ef3c2ac219a1aff8c7a5c391"
+    },
+    "fmt": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_unchanged": true,
+      "commands": [
+        [
+          "cargo",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ]
+      ],
+      "log": "out/runs/stored-owned-composition-20261109-2/fmt.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_unchanged": true,
+      "commands": [
+        [
+          "python3",
+          "tools/check-repository-layout.py",
+          "--full",
+          "--delivery"
+        ],
+        [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tools",
+          "-p",
+          "test_check_repository_layout.py"
+        ],
+        [
+          "python3",
+          "tools/check-plan.py",
+          "--self-test"
+        ],
+        [
+          "python3",
+          "tools/check-conformance.py"
+        ],
+        [
+          "python3",
+          "tools/update-indexes.py"
+        ],
+        [
+          "git",
+          "diff",
+          "--exit-code",
+          "--",
+          "conformance/index.json",
+          "spec/diagnostics.json",
+          "data/normative-inputs.json"
+        ]
+      ],
+      "log": "out/runs/stored-owned-composition-20261109-2/docs.log",
+      "log_sha256": "83feb058d4b1fe46547f80f152f51f86d63f4ad02696452a1f61b0def17731cc"
+    }
+  },
+  "earlier_focused_control": {
+    "source": "56c21eb61e828ac4f2a98ad30b9528f50b1cff9e",
+    "tree": "12e589e257ce3a09262a5eeb6aaaf1978a6c2a61",
+    "passed": 12,
+    "failed": 0,
+    "source_unchanged": true,
+    "log": "out/runs/stored-owned-composition-20261109-1/focused.log",
+    "log_sha256": "f618632bc25cf6617a565783c8f2031e448410e8b8b800bd433d1ff1efe1d537",
+    "counting": "The same 12 tests are included in the final 197-test gate; this earlier run is provenance, not an additional final test count."
+  },
+  "selected_native": {
+    "executions": 8,
+    "families": [
+      {
+        "family": "package",
+        "input_fingerprint": "7fa77e7141ff8bec43bd8b749bce4b7aa9b586f06370bfd05f1c31fdac480732",
+        "executions": 4,
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "reports": [
+          {
+            "backend": "Clang",
+            "optimization": "O0",
+            "path": "out/runs/stored-owned-composition-20261109-2/native/package-Clang-O0/report.json",
+            "sha256": "992275f5b450db8dd8ec044b216c672a3a6cad4d2ee0a858f412ad2f1b9d1cfd"
+          },
+          {
+            "backend": "Clang",
+            "optimization": "O2",
+            "path": "out/runs/stored-owned-composition-20261109-2/native/package-Clang-O2/report.json",
+            "sha256": "770ece2a996cbb607ea21f56c618c88e06e659a23ad3154e95f24d7616d58a99"
+          },
+          {
+            "backend": "LlvmApi",
+            "optimization": "O0",
+            "path": "out/runs/stored-owned-composition-20261109-2/native/package-LlvmApi-O0/report.json",
+            "sha256": "d093baa15fd151d763365e627aa31dbd7662dc92c380e04c6f2e97ead2ed97ce"
+          },
+          {
+            "backend": "LlvmApi",
+            "optimization": "O2",
+            "path": "out/runs/stored-owned-composition-20261109-2/native/package-LlvmApi-O2/report.json",
+            "sha256": "2ab667ddbf1774e63349a9ec2503f54fa36cfdb5b095df3fe24f34e1f4a8137c"
+          }
+        ]
+      },
+      {
+        "family": "error",
+        "input_fingerprint": "a6c2c11ab0a4fa59c256205f104d7223c6168a08ffdb711db7ae5c956707c7de",
+        "executions": 4,
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "reports": [
+          {
+            "backend": "Clang",
+            "optimization": "O0",
+            "path": "out/runs/stored-owned-composition-20261109-2/native/error-Clang-O0/report.json",
+            "sha256": "e227d492e5c57237c10c1467348fcf6d85be2b19c271113e3f4762eccb47cc32"
+          },
+          {
+            "backend": "Clang",
+            "optimization": "O2",
+            "path": "out/runs/stored-owned-composition-20261109-2/native/error-Clang-O2/report.json",
+            "sha256": "bbfae63d3de2e3cfae4991adcd10db1e32a1aeb198039e4bcc2268ce0aabe9b8"
+          },
+          {
+            "backend": "LlvmApi",
+            "optimization": "O0",
+            "path": "out/runs/stored-owned-composition-20261109-2/native/error-LlvmApi-O0/report.json",
+            "sha256": "e138fdb487a48409a24dd34a2b5dacfb4c6bbaeef40edfb70a4dddfb6e51c8f9"
+          },
+          {
+            "backend": "LlvmApi",
+            "optimization": "O2",
+            "path": "out/runs/stored-owned-composition-20261109-2/native/error-LlvmApi-O2/report.json",
+            "sha256": "7f85d26096cecd07d76460b04c5bbd88dbc52b8bda0cf9003150bb83280f4a13"
+          }
+        ]
+      }
+    ],
+    "configurations": [
+      "Clang/O0",
+      "Clang/O2",
+      "LlvmApi/O0",
+      "LlvmApi/O2"
+    ],
+    "all_successful_reports": {
+      "verification_runs": 1,
+      "actual_backend_and_optimization_match_request": true,
+      "fallback": null
+    },
+    "llvm_api": {
+      "input_kind": "builder",
+      "parse_ns": 0,
+      "pipeline": "Requested default<O0> or default<O2>",
+      "verify_before_after": true
+    },
+    "source_files": [
+      {
+        "file": "main.zil",
+        "bytes": 51,
+        "sha256": "881fba7254f1a2914e41005d97302a3d26344b5f3abe64c5eab63886cf16143e"
+      },
+      {
+        "file": "model.zil",
+        "bytes": 4604,
+        "sha256": "c82af13cf22ed48f3e4cebfe916feb4652770f4de073629282d684b81bda1684"
+      },
+      {
+        "file": "protocol.zil",
+        "bytes": 308,
+        "sha256": "13b3484fbd554bd395baefcfeff7342e5cca567ed69579d382a74cc48cc5027c"
+      },
+      {
+        "file": "library.zil",
+        "bytes": 289,
+        "sha256": "25493ca7ff5bb125b9fe634a34453b6ffefca63e821461de9e6b1a7173356eff"
+      }
+    ],
+    "four_module_source_identity": "Original main/model/protocol/library bytes are unchanged from 7dd7bb0eb and 9f91ccc5e.",
+    "error_source": {
+      "bytes": 2714,
+      "sha256": "a6c2c11ab0a4fa59c256205f104d7223c6168a08ffdb711db7ae5c956707c7de",
+      "generator": "Unchanged error_place_program and flat helpers; both helpers match 7dd7bb0eb and 9f91ccc5e completely."
+    },
+    "artifacts": "out/runs/stored-owned-composition-20261109-2/native",
+    "independent_check": "out/runs/stored-owned-composition-20261109-2/root-native-check.json",
+    "independent_check_sha256": "076a18f8c053c0d7d64ca6862f3b4aee914e729561077a56001388c376ba523d"
+  },
+  "budget_controls": {
+    "default_limits_changed": false,
+    "original_hard_pins": [
+      {
+        "control": "Package Copy observation",
+        "phase": "Analyze",
+        "N": 417206
+      },
+      {
+        "control": "Package Copy observation",
+        "phase": "Verify",
+        "N": 645564
+      },
+      {
+        "control": "Complete original four-module Source",
+        "phase": "Analyze",
+        "N": 6682686
+      },
+      {
+        "control": "Error/Option resource",
+        "phase": "Analyze",
+        "N": 570159
+      },
+      {
+        "control": "Error/Option resource",
+        "phase": "Verify",
+        "N": 648698
+      }
+    ],
+    "assertions": "Every original hard pin and its N-1 ResourceLimit/fresh retry remains unchanged and passed in the final trait gate. Complete Analyze plans are compared where the original tests require them; no stronger universal IR-equivalence claim is inferred.",
+    "backend": "The backend gate includes complete actual-type binding/emission prepayment with exact N/N-1/fresh controls for Package, Byte and Error consumers."
+  },
+  "source_byte_preservation": {
+    "unrestricted_git_diff_check_passed": false,
+    "reason": "The original model.zil contains trailing whitespace at lines 59, 84 and 112. Those original source bytes are deliberately retained; unrestricted diff-check is not reported as Pass. Rust formatting and repository/document/index gates passed independently.",
+    "path": "tests/language-readiness/owning-trait-hosts/owned_results/stored_composition/model.zil",
+    "original_source_sha256": "c82af13cf22ed48f3e4cebfe916feb4652770f4de073629282d684b81bda1684"
+  },
+  "not_claimed": [
+    "Callback and stored-CFG pipeline composition, stored environment capture, or the excluded owned_pipeline programs.",
+    "Arbitrary deep ErrorArm paths, exclusive ErrorArm borrowing, Enum success arms, or additional borrowed-result sources.",
+    "Map/ByteView/normal-array performance algorithms, 95d/59b consumers, or external ABI expansion.",
+    "Allocator-failure injection or a separate allocation-counter trace for these two selected native programs.",
+    "Complete workspace test execution, general language completion or product/release acceptance."
+  ]
+}
