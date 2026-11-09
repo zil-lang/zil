@@ -244,11 +244,11 @@ fn summarize_by_scan(
 
 fn origin(id: u32) -> Source {
     Source {
-        retained_port: (id % 2 == 0).then_some(id),
+        retained_port: (id.is_multiple_of(2)).then_some(id),
         base: HoldRoot::Parameter(id),
         leaf: vec![PlaceProjection::Field(id)],
-        inline: vec![PlaceProjection::ErrorArm(id % 2 == 0)],
-        heap_element: (id % 3 == 0).then(|| vec![PlaceProjection::Field(id + 1)]),
+        inline: vec![PlaceProjection::ErrorArm(id.is_multiple_of(2))],
+        heap_element: (id.is_multiple_of(3)).then(|| vec![PlaceProjection::Field(id + 1)]),
     }
 }
 fn fixture_for(payloads: Vec<Payload>) -> (TypedModule, TypedFunction, FunctionGraph, Solution) {

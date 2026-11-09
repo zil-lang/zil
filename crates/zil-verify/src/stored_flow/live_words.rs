@@ -9,7 +9,7 @@ pub(super) struct WordRow {
 }
 impl WordRow {
     fn count(width: usize) -> usize {
-        width / 64 + usize::from(width % 64 != 0)
+        width / 64 + usize::from(!width.is_multiple_of(64))
     }
     pub(super) fn work_for(width: usize) -> usize {
         Self::count(width) + 1
@@ -192,7 +192,7 @@ mod tests {
                     .is_err()
             );
             assert_eq!(row, before);
-            if width % 64 != 0 {
+            if !width.is_multiple_of(64) {
                 assert_eq!(row.words.last().unwrap() >> (width % 64), 0);
             }
             for index in 0..width {
