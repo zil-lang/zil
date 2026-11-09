@@ -1,3 +1,4 @@
+mod physical_slots;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_ir::{CallableFlowNext, CallableTraces};
 
@@ -16,6 +17,9 @@ fn exhausted(context: &str) -> Vec<Diagnostic> {
 
 pub(super) struct Budget {
     remaining: usize,
+    // Only shape nodes borrowed from this request's immutable module enter.
+    // The result indexes raw slots; no qualification or semantic flow is cached.
+    physical_slot_paths: BTreeMap<usize, BTreeMap<Vec<zil_ir::PlaceProjection>, (u32, bool)>>,
     // Only immutable Type nodes reached from the actual TypedFunction local
     // inventory enter this table. A key is the address of that node for this
     // one analysis request; it never escapes the request or becomes authority.
@@ -124,6 +128,7 @@ impl Budget {
     pub(super) fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
+            physical_slot_paths: BTreeMap::new(),
             addressed_copy_sums: BTreeMap::new(),
             static_utf8: false,
             pod_stores: false,
