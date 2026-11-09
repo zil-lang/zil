@@ -13,6 +13,8 @@ mod live_loan_ids;
 mod live_words;
 #[cfg(test)]
 mod loan_union_tests;
+#[cfg(test)]
+mod result_row_tests;
 use live_words::WordRow;
 pub(super) mod owned_byte_views;
 #[path = "stored_flow_pure_copy.rs"]
@@ -4902,25 +4904,6 @@ fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
     }
     Ok(())
 }
-fn result_row(
-    summary: &mut Summary,
-    path: &[PlaceProjection],
-    sources: &[Source],
-    b: &mut Budget,
-) -> Check<()> {
-    b.spend(amount(
-        summary.result.len().saturating_add(1),
-        path.len().saturating_add(1),
-    )?)?;
-    if let Some((_, row)) = summary.result.iter_mut().find(|(p, _)| p == path) {
-        add_sources(row, sources, b)?;
-    } else {
-        b.spend(path.len())?;
-        source_work(sources, b)?;
-        summary.result.push((path.to_vec(), sources.to_vec()));
-    }
-    Ok(())
-}
 fn summarize(
     module: &TypedModule,
     f: &TypedFunction,
@@ -4932,6 +4915,56 @@ fn summarize(
     let mut summary = Summary {
         complete: true,
         ..Summary::default()
+    };
+    // This closure alone appends rows to this invocation's fresh Summary.
+    // Its private index records ordinals; it never reorders or certifies rows.
+    b.spend(1)?;
+    let mut result_index: Vec<(Path, usize)> = Vec::new();
+    let mut result_row = |summary: &mut Summary,
+                          path: &[PlaceProjection],
+                          sources: &[Source],
+                          b: &mut Budget|
+     -> Check<()> {
+        b.spend(1)?;
+        let (mut low, mut high) = (0usize, result_index.len());
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let existing = &result_index[mid].0;
+            b.spend(existing.len().saturating_add(path.len()).saturating_add(1))?;
+            match existing.as_slice().cmp(path) {
+                std::cmp::Ordering::Less => low = mid + 1,
+                std::cmp::Ordering::Greater => high = mid,
+                std::cmp::Ordering::Equal => {
+                    b.spend(1)?;
+                    return add_sources(&mut summary.result[result_index[mid].1].1, sources, b)
+                        .map(|_| ());
+                }
+            }
+        }
+        let index_growth = if result_index.len() == result_index.capacity() {
+            result_index.len()
+        } else {
+            0
+        };
+        let result_growth = if summary.result.len() == summary.result.capacity() {
+            summary.result.len()
+        } else {
+            0
+        };
+        // Both complete keys, both records, shifts and actual reallocations
+        // are paid before either table publishes the new row.
+        b.spend(
+            amount(path.len(), 2)?
+                .saturating_add(2)
+                .saturating_add(result_index.len() - low)
+                .saturating_add(index_growth)
+                .saturating_add(result_growth),
+        )?;
+        source_work(sources, b)?;
+        let ordinal = summary.result.len();
+        summary.result.push((path.to_vec(), sources.to_vec()));
+        result_index.insert(low, (path.to_vec(), ordinal));
+        Ok(())
     };
     for (bi, block) in f.blocks.iter().enumerate() {
         if g.reachable[bi] && matches!(block.terminator, Terminator::Return(_)) {
