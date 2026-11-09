@@ -520,7 +520,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
                 format!("mode={mode}"),
                 module,
                 plan,
-                Some([4771, 5173, 6884][mode as usize]),
+                Some([4584, 4972, 6294][mode as usize]),
             )
         })
         .collect();
@@ -530,7 +530,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
             format!("Store indirect={indirect}"),
             module,
             plan,
-            Some(if indirect { 18736 } else { 15983 }),
+            Some(if indirect { 17862 } else { 15203 }),
         ));
     }
     let mut observed = Vec::new();
@@ -580,7 +580,8 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
         }
         assert_eq!(minima[0], minima[1]);
         // Sparse active-loan lookup visits only nonempty fixed SSA rows and
-        // current local rows. The same raw and Wire candidates retain exact
+        // current local rows; liveness copies/joins use actual words. The
+        // same raw and Wire candidates retain exact
         // N-1 rejection and fresh N acceptance at these reduced work minima.
         if let Some(expected) = expected {
             observed.push((label.clone(), minima[0]));

@@ -12,7 +12,7 @@
 
 普通拥有 Package 的 trait 方法支持拥有 `Self` 及错误结果，普通 lending helper 可组合额外 Copy 泛参与多个无歧义 bound。泛型 `&mut Holder<T>` 可替换其真实拥有的 `Store<T>` 字段，调用后旧描述失效；带 callable 的一般非局部替换效应仍未接通。借入输入到封闭拥有结果的普通闭包见[合同](../../spec/borrowed-input-owned-callbacks.md)，未知或缺失的关系不能当成空合同。
 
-大型普通拥有 Package 的内部参数/返回使用独立物理 snapshot，不改变语言 Copy 资格；已验证 16KiB 封闭 Copy 字段、移动与补回。大型闭包参数/结果、特殊捕获和外部 ABI 仍有 Unsupported 边界，不能由普通 Direct 调用的成功推导支持。
+大型普通拥有 Package 的内部参数/返回使用独立物理 snapshot，不改变语言 Copy 资格；已验证 16KiB 封闭 Copy 字段、移动与补回。普通局部 Closure 的大型参数/结果也使用这一协议，覆盖真实捕获环境、共享/可变/借入/消费调用、循环固定栈与错误清理。opaque工厂和泛型callable helper的拥有参数/结果仍有前端边界；大型捕获环境、特殊callback/thread/cell桥和外部ABI不因局部Closure运输而扩大准入。
 
 ## 支持矩阵
 

@@ -323,13 +323,11 @@ impl Tree {
             }
         };
         if copy_sum {
-            if budget.store_option_results && budget.ordinary_error_places {
-                // A full set of alternatives without nested tag refinement
-                // already is the result of forgetting. Retain the exact tree,
-                // including every moved marker, instead of reconstructing it.
-                if self.tags_unknown(ty, budget)? {
-                    return Ok(());
-                }
+            // The exact existing unknown-tag shape is a fixed point of this
+            // transfer, independently of which ordinary profile scheduled it.
+            // Preserve every moved marker; no completeness fact is inferred.
+            if self.tags_unknown(ty, budget)? {
+                return Ok(());
             }
             let old = self.copied(budget)?;
             let mut unknown = Self::unknown(ty, budget)?;
@@ -372,7 +370,18 @@ impl Tree {
     fn tags_unknown(&self, ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
         budget.spend(1, "Sum existing unknown tag shape")?;
         match (&self.node, ty) {
-            (Node::Copy | Node::Leaf(_), _) => Ok(true),
+            // Match Tree::unknown's actual terminal representation. A Leaf
+            // may carry different births, so conservatively rebuild it even
+            // for Managed rather than treating its node kind as equality.
+            (Node::Copy, ty) => Ok(!matches!(
+                ty,
+                Type::Managed(_)
+                    | Type::Tuple(_)
+                    | Type::Package { .. }
+                    | Type::Enum { .. }
+                    | Type::ErrorUnion { .. }
+            )),
+            (Node::Leaf(_), _) => Ok(false),
             (Node::Product(children), Type::Tuple(fields)) => {
                 if children.len() != fields.len() {
                     return Ok(false);

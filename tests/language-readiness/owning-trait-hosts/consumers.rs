@@ -5,10 +5,12 @@ use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit, TargetProfi
 use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_project};
 use zil_ir::{Instruction, InstructionKind, ValueId};
 
-#[path = "owned_results/consumers.rs"]
-mod owned_results;
+#[path = "collected_pipeline/consumers.rs"]
+mod collected_pipeline;
 #[path = "owned_pipeline/consumers.rs"]
 mod owned_pipeline;
+#[path = "owned_results/consumers.rs"]
+mod owned_results;
 
 const KEY_EQ: &str = "pub trait KeyEq { fn same(self:&Self,other:&Self)->bool; }";
 const QUERY: &str =
@@ -475,12 +477,22 @@ fn owning_trait_native_cleanup(files: &[(&str, &str)], cases: &[(Option<&str>, i
         os::unix::fs::PermissionsExt,
         path::{Path, PathBuf},
     };
-    let dir = std::env::temp_dir().join(format!(
+    let evidence = std::env::var_os("ZIL_TEST_REPORT_DIR");
+    let keep = evidence.is_some();
+    let base = evidence
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir);
+    let dir = base.join(format!(
         "zil-owning-mutable-traits-{}-{}",
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
     fs::create_dir_all(&dir).unwrap();
+    if keep {
+        for (name, text) in files {
+            fs::write(dir.join(format!("{name}.zil")), text).unwrap();
+        }
+    }
     let clang = std::env::var_os("ZIL_CLANG")
         .map(PathBuf::from)
         .unwrap_or_else(|| "clang".into());
@@ -509,6 +521,13 @@ fn owning_trait_native_cleanup(files: &[(&str, &str)], cases: &[(Option<&str>, i
                     ..CompileOptions::default()
                 },
             );
+            if keep {
+                fs::write(
+                    dir.join(format!("compile-{backend:?}-{optimization:?}.json")),
+                    report.to_json(),
+                )
+                .unwrap();
+            }
             assert_eq!(
                 report.status,
                 ResultCategory::Success,
@@ -525,6 +544,16 @@ fn owning_trait_native_cleanup(files: &[(&str, &str)], cases: &[(Option<&str>, i
                     command.env("ZIL_POD_ALLOC_FAIL_AT", at);
                 }
                 let output = command.output().unwrap();
+                if keep {
+                    fs::write(
+                        dir.join(format!(
+                            "execute-{backend:?}-{optimization:?}-{}.txt",
+                            failure.unwrap_or("none")
+                        )),
+                        format!("failure={failure:?}\n{output:?}\n"),
+                    )
+                    .unwrap();
+                }
                 assert_eq!(
                     output.status.code(),
                     Some(exit),
@@ -542,7 +571,9 @@ fn owning_trait_native_cleanup(files: &[(&str, &str)], cases: &[(Option<&str>, i
             }
         }
     }
-    fs::remove_dir_all(dir).unwrap();
+    if !keep {
+        fs::remove_dir_all(dir).unwrap();
+    }
 }
 
 #[test]
