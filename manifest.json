@@ -1,45 +1,45 @@
 {
   "commit_parents": [
-    "fb48016720ea901503888544d8694c171856c538",
-    "795216a6b3c51e8c7c8a0fb91f37743fbee9666e"
+    "d7cbea174c887c6d14a7fe1c3192964516cb0218",
+    "fcf679e97a32f2f0f4d08c6ad954012cb7538ac9"
   ],
   "commit_tips": [
-    "2f8af552ff398780199c1fca29fb0c5a06ae2239",
-    "566064fd0867bf68a25257f37a7bcd6de3e9caec",
-    "795216a6b3c51e8c7c8a0fb91f37743fbee9666e",
-    "83882ead6c08e234ca1256884b605e65b75492eb"
+    "5122b1efcac7cc0313a20d11a6a705e4534f9e84",
+    "702f1bea1923dd725e6f7eae0fee88e49f752c9a",
+    "fc20fce58f3727cd35a1837acf0dc72a0fa1f61d",
+    "fcf679e97a32f2f0f4d08c6ad954012cb7538ac9"
   ],
-  "created_utc": "2026-11-09T09:56:28.180472+00:00",
+  "created_utc": "2026-11-09T10:06:40.230455+00:00",
   "format": 1,
   "local_refs": {},
   "missing_commit_objects": [],
-  "prior_archive": "fb48016720ea901503888544d8694c171856c538",
+  "prior_archive": "d7cbea174c887c6d14a7fe1c3192964516cb0218",
   "remote_refs": {
-    "refs/heads/archive/source-history": "fb48016720ea901503888544d8694c171856c538",
-    "refs/heads/main": "795216a6b3c51e8c7c8a0fb91f37743fbee9666e",
-    "refs/heads/task/G8.5.2": "83882ead6c08e234ca1256884b605e65b75492eb"
+    "refs/heads/archive/source-history": "d7cbea174c887c6d14a7fe1c3192964516cb0218",
+    "refs/heads/main": "fcf679e97a32f2f0f4d08c6ad954012cb7538ac9",
+    "refs/heads/task/G2.4.11": "5122b1efcac7cc0313a20d11a6a705e4534f9e84"
   },
   "retirements": [
     {
-      "accepted_main": "795216a6b3c51e8c7c8a0fb91f37743fbee9666e",
-      "head_before_retirement": "83882ead6c08e234ca1256884b605e65b75492eb",
+      "accepted_main": "fcf679e97a32f2f0f4d08c6ad954012cb7538ac9",
+      "head_before_retirement": "5122b1efcac7cc0313a20d11a6a705e4534f9e84",
       "local_execution_identity": {
-        "branch": "task/worker-helper-returns",
+        "branch": "task/owning-trait-results",
         "branch_retained": true,
         "complete_trees_identical_to_remote": true,
-        "receipt_commit": "93254773f4d3c3849d38a914a1c613021b308e2d",
+        "receipt_commit": "d0de11ee10b9f97fbe7ba92d1a0897001e7ef659",
         "remote_commit_identity_claimed": false,
-        "source": "137ea051da0022d6d8d00db9c8517742cef2289a"
+        "source": "5d0dc1fada5f57fbf99b365e3817d2fa81455013"
       },
-      "original_task_tip": "2f8af552ff398780199c1fca29fb0c5a06ae2239",
-      "published_source": "566064fd0867bf68a25257f37a7bcd6de3e9caec",
-      "pull_request": 55,
-      "ref": "refs/heads/task/G8.5.2",
-      "remote_history_reachable_through_parent": "795216a6b3c51e8c7c8a0fb91f37743fbee9666e",
-      "source_tree": "c303ce3dc75aed0293272ffbd1e262f7e5c8abad",
+      "original_task_tip": "fc20fce58f3727cd35a1837acf0dc72a0fa1f61d",
+      "published_source": "702f1bea1923dd725e6f7eae0fee88e49f752c9a",
+      "pull_request": 56,
+      "ref": "refs/heads/task/G2.4.11",
+      "remote_history_reachable_through_parent": "fcf679e97a32f2f0f4d08c6ad954012cb7538ac9",
+      "source_tree": "d7b325dd8435ff703932a9783e517db86180c8ae",
       "unique_uncommitted_source": false
     }
   ],
-  "scope": "Preserve this merged remote branch before retirement. Earlier complete archive manifest and objects remain reachable through prior_archive. This is not a snapshot of current active worktrees; local verification branches are retained separately. Preservation is not general language acceptance.",
+  "scope": "Preserve only this merged remote branch before retirement. Prior archives retain earlier manifests and complete objects. Local verification branches and the separate unfinished provider-composition branch remain retained.",
   "worktrees": []
 }
