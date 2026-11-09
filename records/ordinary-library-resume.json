@@ -13,16 +13,16 @@
   "first_failure": "offline cargo dependency rustc_apfloat absent; no tests executed",
   "scope": "Continue original ordinary-library consumer and large owned closure transport; no release claim",
   "raw_logs": "out/runs/byte-views-baseline-20261109/ in task/G3.4.22 worktree",
-  "last_work": "2026-11-09 15:37 Asia/Shanghai",
-  "integration_remote": "42b7b949da5a3b0968302228058e80686a9ca5af",
-  "large_closure_checkpoint": "dbd5c446a600eb26f34574748376a2b8e84fece8",
+  "last_work": "2026-11-09 16:12 Asia/Shanghai",
+  "integration_remote": "6187379e3b0c4ce0a7234190cc8e50b844decdcb",
+  "large_closure_checkpoint": "33269ee086fe33666019780e23be00706666a390",
   "baseline_language_failure": "original four-module program: Analyze ResourceLimit / Sum terminal tag classification, 0 pass, 1 fail",
   "native_progress": "frozen ordinary local closure ABI: 48 native executions pass; opaque factories/generic callable helpers remain five explicit Types Unsupported boundaries",
-  "integration_local": "072b41715f4b2d53892ad33d51fa8defd0bc1e61",
-  "byte_views_checkpoint": "f661af9daec7b397e3dda199f4af9766b4de991d",
-  "growing_collections_checkpoint": "fde7870c4237768e3d84193092adf2816891b1b4",
+  "integration_local": "a917b19ff40bd85660950329b4fe55f86dbb8f09",
+  "byte_views_checkpoint": "d2bc7accd3f092ad6879494d5e17fa842563cbdf",
+  "growing_collections_checkpoint": "a4905432b882dab35a6d3842d6df75c6b99f2e8d",
   "original_pipeline": "Frozen Byte precise order main/model/protocol/library, fingerprint d9afb8c2667ac61471aa1f37bd2fb9277abcbab5df37090bf4f8f6b8d32ec676: A N7122869/V N7814112 with N-1/fresh/raw/Wire pass; original4095 native input order main/protocol/library/model:48 actual executions pass, identical source file bytes",
-  "collections_progress": "a1b production/cc166 tests: new complete old-representation oracle4/4, full Analyze263/0. Original5008-byte Map now completes default Analyze in author and latest joint d378, but independent Verify still ResourceLimit/runs1. Native64 not accepted; old60 remains historical.",
+  "collections_progress": "Map original Analyze completes; c687 pages reduce first complete Verify records summary by585676 but second summary still Verify ResourceLimit. Native64 not accepted. Outer COW fixedpoint candidate in progress.",
   "collected_pipeline": "Fixed original4011 complete pipeline passes default Analyze/Verify and joint56 native cases on f2cfb4d6; exact receipt in validation/ordinary-owned-collection-pipeline.json",
   "build_window_policy": "one heavy build at a time, independent target per worktree, no raised analysis limits or thread stack",
   "byte_views_progress": "original Source/raw/Wire real loan/owner negatives and11byte groups pass; original48+local12 native pass; exact A/V pins belong to frozen Byte source and input order, not later integration",
@@ -785,7 +785,7 @@
       "lower_completed": true
     },
     "logs": "out/runs/byte-views-final-relations-20261109",
-    "scope": "Source/raw/Wire complete; native ABI still unaccepted. Latest joint root reproduction pending before backend change."
+    "scope": "Source/raw/Wire complete atcb2; first native failure retained. Later exacta32 native4 passes, see backend_snapshot_emission. This does not accept59b whole-field snapshot."
   },
   "complete_field_snapshot_probe": {
     "source_input_fingerprint": "59b8aaa8aa292c1e3921cfee638ef03598e1ffe62a3a4402d1e1542cc793ae66",
@@ -892,7 +892,85 @@
   "byte_snapshot_trace": {
     "baseline_merge": "b39649711fbf60e377274d01ec3f7a0aa676179f",
     "joint_baseline": "42b7b949da5a3b0968302228058e80686a9ca5af",
-    "status": "Fresh current-Budget diagnostic build complete; fixed59b8 run and interpretation pending",
-    "first_infrastructure_failure": "Old instrumentation patch did not match current Budget; first1m03 build was uninstrumented baseline, preserved and not counted as measured ledger"
+    "status": "Ledger1 complete and restored; shared-read fast path490 tested but59b still blocked; same-fee ledger2 prepared",
+    "first_infrastructure_failure": "Old instrumentation patch did not match current Budget; first1m03 build was uninstrumented baseline, preserved and not counted as measured ledger",
+    "permission_tail_ignore_work": 4234334,
+    "main_f4_windows_ignore_work": 4233296,
+    "next": "Measure complete aligned windows at490 before further production change"
+  },
+  "backend_snapshot_emission": {
+    "production": "9889aac4041fb3d2abb93e3ae30b475e10525322",
+    "lookup_fee_fix": "a32d873ad8a84c67c7514549f63dba0f37a04dba",
+    "remote": "33269ee086fe33666019780e23be00706666a390",
+    "tree": "ae3aa2d7606e84df6d9fde04c09359c1f544e1ef",
+    "review": "Astra exact source accepted after actual tree lookup fee correction; complete old max planner and machine Module comparison preserved",
+    "old_planner_oracles_passed": 5,
+    "failed": 0,
+    "original_95d_native_executions": 4,
+    "configurations": [
+      "Clang/O0",
+      "Clang/O2",
+      "LlvmApi/O0",
+      "LlvmApi/O2"
+    ],
+    "native_test_passed": 1,
+    "native_source_unchanged": true,
+    "native_log_sha256": "c6ba63b7e3002d7c800eedaf190b3fee74987076c167ee94f9004cb0013ae2ab",
+    "logs": [
+      "out/runs/snapshot-emission-oracle-20261109-1",
+      "out/runs/snapshot-emission-native-20261109-1"
+    ],
+    "scope": "Exact original owning512 passes native matrix; independent report review and existing exact-budget regression gates pending. Separate59b whole-field snapshot remains Analyze blocked."
+  },
+  "byte_shared_read_tail": {
+    "source": "490d42ea3dcee0aa7daf24b20644846fda2d0526",
+    "remote": "d2bc7accd3f092ad6879494d5e17fa842563cbdf",
+    "tree": "6f1148b441c4dd75df2bbfd6a939a006925053ea",
+    "review": "Root and Astra accepted exact source; only actual immutable loan in read-only tail skips unused ignore membership, paid lookup, invalid/mutable/write original checks preserved",
+    "new_oracles_passed": 3,
+    "full_analyze_passed": 276,
+    "failed": 0,
+    "component_old_work": 5632,
+    "component_new_work": 1024,
+    "original_95d": "Analyze/Verify Success",
+    "original_59b": "Analyze ResourceLimit, verification_runs0",
+    "logs": "out/runs/byte-views-shared-read-tail-20261109",
+    "integrated": false
+  },
+  "verify_paged_values": {
+    "production": "b42d5b954097e3fc22e51d1c6e73199b5d001a63",
+    "third_lookup_fee_fix": "c687bcda71ad147f38ad252cc9a0d15129137be1",
+    "remote": "a4905432b882dab35a6d3842d6df75c6b99f2e8d",
+    "tree": "6cba5a2273d41c98ee5b72d65f9d108f0a09b840",
+    "review": "Astra exact source accepted after3 actual lookup fees; full canonical paged SSA, preserved merge order and original Content semantics; complete old State reference",
+    "new_oracles_passed": 6,
+    "full_verify_passed": 498,
+    "failed": 0,
+    "shared_set_N": 36,
+    "shared_set_N_minus_one": 35,
+    "fresh_N_success": true,
+    "complete_state16_old_N": 34304,
+    "complete_state16_new_N": 6192,
+    "original_map": "Analyze Success then Verify ResourceLimit/runs1",
+    "nearest_Source_raw_Wire_passed": 7,
+    "logs": "out/runs/growing-input-effects-20261109-28",
+    "first_run27": "6 component and498 full Verify passed; original Map compiler interrupted by agent ending turn, no map.exit and no language outcome",
+    "integrated": false
+  },
+  "map_verify_ledger_29": {
+    "source": "c687bcda71ad147f38ad252cc9a0d15129137be1",
+    "fees_unchanged": true,
+    "production_restored": true,
+    "first_records_summary_begin_remaining": 4585409,
+    "first_records_summary_complete_work": 2439550,
+    "previous_same_complete_body_work": 3025226,
+    "same_complete_body_saved": 585676,
+    "second_records_summary_begin_remaining": 1817506,
+    "previous_second_begin_remaining": 1191904,
+    "failure": "Second records summary Copy memo work; no final Sum validation/resource solver reached",
+    "mixed_Content_cost_before_cutoff": 1414042,
+    "mixed_cost_is_attributable_to_outer_COW": false,
+    "next": "Astra qualified exact outer fixedpoint check only after original forget and complete copy qualification; author implementing complete old Flow::block and whole State+Bridge oracle",
+    "logs": "out/runs/growing-input-effects-20261109-29"
   }
 }
