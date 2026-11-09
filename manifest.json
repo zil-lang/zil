@@ -1,62 +1,70 @@
 {
   "format": 1,
-  "created_utc": "2026-11-09 15:11:20 UTC",
-  "prior_archive": "8493b709158052265e9f5085c2b0c01eea223b25",
+  "created_utc": "2026-11-09 16:27:17 UTC",
+  "prior_archive": "afecce60a16f225ad4b670e5ec872a7466495385",
   "commit_parents": [
-    "8493b709158052265e9f5085c2b0c01eea223b25",
-    "d813da9307f4e174a5f16bc127c267ca438be589"
+    "afecce60a16f225ad4b670e5ec872a7466495385",
+    "6e27d4da55ad627b49c0ad148eb65225a1413132"
   ],
   "commit_tips": [
-    "8493b709158052265e9f5085c2b0c01eea223b25",
-    "d813da9307f4e174a5f16bc127c267ca438be589",
-    "27b47a11433004c39da51c9e107b544544819e15",
-    "8b8aae04682b2e7dad4ad58fb64ec2ea66c33c9c",
-    "5ea41694365120f16d5e21e5703785c79625a355",
-    "cd6a3e86a8447fc452fd7923f428f2b426a99ae1",
-    "4f4ff05ffe596bc9a047d7cb3416d92957dbfa0e",
-    "7dbc4167ffc53c33d51ec1cfd91341c9dfde3002"
+    "afecce60a16f225ad4b670e5ec872a7466495385",
+    "6e27d4da55ad627b49c0ad148eb65225a1413132",
+    "b972d1c7babd52e996ec0fb8c0cfcc009f44f4b0"
   ],
   "local_refs": {
-    "refs/heads/task/owned-array-snapshot": "ad166b835d8fdf134c8edcfae8860a9ed347007b",
-    "refs/heads/review/owned-array-snapshot-analyze": "a964b3de65c2aa68641a46c24e29f2126a97f4b6"
+    "refs/heads/task/current-budget-boundaries": "9bdea108913746f92a814bb4dff7735bbc3f5027"
   },
   "remote_refs": {
-    "refs/heads/archive/source-history": "8493b709158052265e9f5085c2b0c01eea223b25",
-    "refs/heads/main": "d813da9307f4e174a5f16bc127c267ca438be589",
-    "refs/heads/task/owned-array-snapshot": "27b47a11433004c39da51c9e107b544544819e15"
+    "refs/heads/archive/source-history": "afecce60a16f225ad4b670e5ec872a7466495385",
+    "refs/heads/main": "6e27d4da55ad627b49c0ad148eb65225a1413132",
+    "refs/heads/task/current-budget-boundaries": "b972d1c7babd52e996ec0fb8c0cfcc009f44f4b0"
   },
   "worktrees": [],
   "missing_commit_objects": [],
   "retirements": [
     {
-      "ref": "refs/heads/task/owned-array-snapshot",
-      "head_before_retirement": "27b47a11433004c39da51c9e107b544544819e15",
-      "accepted_main": "d813da9307f4e174a5f16bc127c267ca438be589",
-      "pull_request": 66,
-      "remote_history_reachable_through_parent": "d813da9307f4e174a5f16bc127c267ca438be589",
-      "published_source": "8b8aae04682b2e7dad4ad58fb64ec2ea66c33c9c",
-      "source_tree": "6b602cdf417454dfb76b6b806630f721afb1502c",
-      "accepted_tree": "73bae4bcc113d6a4d9a6eb07996955ad95781133",
+      "ref": "refs/heads/task/current-budget-boundaries",
+      "head_before_retirement": "b972d1c7babd52e996ec0fb8c0cfcc009f44f4b0",
+      "accepted_main": "6e27d4da55ad627b49c0ad148eb65225a1413132",
+      "pull_request": 67,
+      "remote_history_reachable_through_parent": "6e27d4da55ad627b49c0ad148eb65225a1413132",
+      "accepted_tree": "fe1ee13f0334518c257cb260a5a9bf0f86601d98",
       "local_execution_identity": {
-        "regression_source": "6cfb6ae3acbe467094dcc4faae953755fe55ddc3",
-        "final_source": "ddfee9f845b979cb15cf4589d791811d40b5bd51",
-        "receipt_commit": "ad166b835d8fdf134c8edcfae8860a9ed347007b",
-        "branch": "task/owned-array-snapshot",
+        "observation_source": "40cdd950bbbefc82d1fa5ca0439b6859f1c371ad",
+        "tested_source": "116cda19e9fcaabf2f0e872ade0a4594662b35ee",
+        "tested_tree": "3de9a68ebad3eae392505f2282f76df884860ca8",
+        "receipt_commit": "99a3943250d735a1becc23b62585b90d7a69cf3a",
+        "final_receipt_commit": "9bdea108913746f92a814bb4dff7735bbc3f5027",
+        "branch": "task/current-budget-boundaries",
         "branch_retained_at_manifest_creation": true,
         "remote_commit_identity_claimed": false,
-        "complete_trees_identical_to_remote": true,
-        "worktree": "/workspace/scratch/36bf9939e558/wt-owned-array-snapshot",
-        "preservation": "Keep the exact local receipt commit and its complete local ancestry in the detached worktree; retain all ignored out/runs evidence."
+        "complete_final_tree_identical_to_remote": true,
+        "worktree": "/workspace/scratch/36bf9939e558/wt-current-budget-boundaries",
+        "preservation": "Keep the exact local final receipt and complete local ancestry in the detached worktree. Preserve all original CI failures, diagnostic before-images/patch, final logs and independent reviews under out/runs."
+      },
+      "receipt": {
+        "path": "validation/stored-flow-budget-boundaries.json",
+        "sha256": "fc2a4ff653080fe8be0941277b71eca4ece3aefd280515304a2c33ece7b575a2"
       },
       "independent_review": {
-        "final_receipt_source": "ad166b835d8fdf134c8edcfae8860a9ed347007b",
-        "report_sha256": "7b4e829c75c9d2382d4aa1b0f9c05ad177ed9e6576cc51be2ab1d95d5b31e50b",
-        "worktree": "/workspace/scratch/36bf9939e558/wt-owned-array-snapshot-analyze-review",
-        "checkout": "a964b3de65c2aa68641a46c24e29f2126a97f4b6",
-        "preservation": "Keep the review checkout and all out/runs evidence. The local review commit is also an ancestor of the local final receipt."
+        "test_source": "116cda19e9fcaabf2f0e872ade0a4594662b35ee",
+        "checks": 26,
+        "report_sha256": "366c0e5f9dca29af83c904174cff2c6cbd90a41b95e6f526a3803473da699d7b",
+        "receipt_checks": 63,
+        "receipt_identity_sha256": "479557aa98729275b8580a5bb8708aa5a37bba416598a3d0cd2c508a93c70106"
+      },
+      "validation": {
+        "default_tests": 4,
+        "reference_tests": 4,
+        "failed": 0,
+        "format": "Pass",
+        "affected_target_clippy": "Pass",
+        "documentation": "Pass",
+        "documentation_log_sha256": "b0a7aaf75c4ac5c1e6744d6a056ed6e2f642be4cd1924e14570b1d291d763cd1",
+        "whole_workspace_rerun": false
       },
       "unique_uncommitted_source": false
     }
   ],
-  "scope": "Preserve the eleventh accepted scoped batch, original owning shared-address arrays and complete field snapshot, before retiring the completed publication branch. This archive is reachability preservation, not a new test or release claim. Earlier archive manifests remain reachable through the prior parent; unfinished Map and broader task branches remain retained."
+  "scope": "Preserve the twelfth accepted scoped batch before retiring the completed budget-boundary branch. It changes four test anchors and their historical-limit expectations, with all original semantics and default budgets retained. Earlier archive manifests remain reachable through the prior parent; active pipeline and Map branches remain retained."
 }
