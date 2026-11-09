@@ -2,7 +2,7 @@
   "date": "2026-11-09 09:04 Asia/Shanghai",
   "status": "resumed_not_accepted",
   "main": "b07b85dd49b3df6f382734d509919a2a6013c97d",
-  "goal_read": "3d50789eee3a915de7c16674ef87dcf0c55ded4e",
+  "goal_read": "8a853e33420cef1aac822f6ddc55d85c98fefe49",
   "integration": "ed8e3a5de6befb15b515f6b124e992792414a8ca",
   "source_branches": {
     "root": "task/G10.6.3",
@@ -13,16 +13,16 @@
   "first_failure": "offline cargo dependency rustc_apfloat absent; no tests executed",
   "scope": "Continue original ordinary-library consumer and large owned closure transport; no release claim",
   "raw_logs": "out/runs/byte-views-baseline-20261109/ in task/G3.4.22 worktree",
-  "last_work": "2026-11-09 14:53 Asia/Shanghai",
-  "integration_remote": "670961f96d9aea72658fa43caed85130f7093f69",
+  "last_work": "2026-11-09 15:03 Asia/Shanghai",
+  "integration_remote": "40c1a4ffc1a82f71ec0256fcff5203599edd7d5b",
   "large_closure_checkpoint": "dbd5c446a600eb26f34574748376a2b8e84fece8",
   "baseline_language_failure": "original four-module program: Analyze ResourceLimit / Sum terminal tag classification, 0 pass, 1 fail",
   "native_progress": "frozen ordinary local closure ABI: 48 native executions pass; opaque factories/generic callable helpers remain five explicit Types Unsupported boundaries",
-  "integration_local": "f1ca28e30d8eeaee0d61a2244d28b821f83b4afd",
-  "byte_views_checkpoint": "b42247510256611a5e82180b3450aa23d6a2456e",
-  "growing_collections_checkpoint": "5c596767764e23d56d0e234583557c093c008e52",
+  "integration_local": "d3789634f5394f0a1f6d137ca750e0912eb65a0a",
+  "byte_views_checkpoint": "5c1c9feef4498323a189ca9fe58786cdcc2f7921",
+  "growing_collections_checkpoint": "a260c6bfb1ebdf12330303fd516e6cc3f1c10d7a",
   "original_pipeline": "Frozen Byte precise order main/model/protocol/library, fingerprint d9afb8c2667ac61471aa1f37bd2fb9277abcbab5df37090bf4f8f6b8d32ec676: A N7122869/V N7814112 with N-1/fresh/raw/Wire pass; original4095 native input order main/protocol/library/model:48 actual executions pass, identical source file bytes",
-  "collections_progress": "Initial callee order52b plus complete tests7b: Analyze259/0; latest joint7931 original Map still Analyze ResourceLimit in scoped actual delegation producer, Verify0; run22 shows full resources check_module completed before budget cutoff. Native remains historical60/64.",
+  "collections_progress": "a1b production/cc166 tests: new complete old-representation oracle4/4, full Analyze263/0. Original5008-byte Map now completes default Analyze in author and latest joint d378, but independent Verify still ResourceLimit/runs1. Native64 not accepted; old60 remains historical.",
   "collected_pipeline": "Fixed original4011 complete pipeline passes default Analyze/Verify and joint56 native cases on f2cfb4d6; exact receipt in validation/ordinary-owned-collection-pipeline.json",
   "build_window_policy": "one heavy build at a time, independent target per worktree, no raised analysis limits or thread stack",
   "byte_views_progress": "original Source/raw/Wire real loan/owner negatives and11byte groups pass; original48+local12 native pass; exact A/V pins belong to frozen Byte source and input order, not later integration",
@@ -81,7 +81,7 @@
     "logs": "out/runs/growing-input-effects-20261109-9",
     "next": "Complete SSA inventory paged COW design under independent review"
   },
-  "active_build_window": "Map a1b direct-index first oracle/full Analyze/original Map; Byte final relation index qualification and mechanical test-only Clippy fix",
+  "active_build_window": "Map ledger24 completed/released; Byte relation candidate receives next heavy window; exact source review after freezing",
   "workspace_core": {
     "source": "e70b53b7e98b2523dc58443d4a32af01945f40cd",
     "published_source": "f69601082736703331fe303179ee84998a893eb9",
@@ -577,17 +577,19 @@
     "integrated": true
   },
   "joint_map_probe_latest": {
-    "compiler": "7931c464e2e7d9ed10d2cafa41914b0994054ac6",
-    "tree": "52b1336457d854ab76b369acedb92f728a94b628",
+    "compiler": "d3789634f5394f0a1f6d137ca750e0912eb65a0a",
+    "published_source": "40c1a4ffc1a82f71ec0256fcff5203599edd7d5b",
+    "tree": "93bfed2a1ca060c8ea711b7de38aa6fa6a6d0b8f",
     "status": "Fail:0 passed/1 failed; source unchanged",
-    "logs": "out/runs/ordinary-composition-map-joint-20261109-2",
-    "scope": "Exact original Map at latest joint A/V source; before next V physical lookup repair",
-    "phase": "Analyze",
+    "phase": "Verify",
     "category": "ResourceLimit",
-    "diagnostic": "analysis budget exceeded during scoped actual delegation producer",
-    "verification_runs": 0,
-    "elapsed_seconds": 46.059,
-    "log_sha256": "6070a95f2596996afc5f7f9d0d182b863dfbb0da1c0e9fa7884566b711b29458"
+    "diagnostic": "independent verification work budget exhausted",
+    "verification_runs": 1,
+    "analyze_completed": true,
+    "elapsed_seconds": 47.158,
+    "log_sha256": "ef9142a4fa79886394958c47bee1094b20ac1b0b31549c8be9cd72f1796c8942",
+    "logs": "out/runs/ordinary-composition-map-joint-20261109-3",
+    "scope": "Exact original Map at latest joint A/V; original module implementation fingerprints remain7a299 and6fbc5"
   },
   "map_ledger_22": {
     "source": "7b546d26ef14bebf45187d660c04b004669c55e1",
@@ -686,8 +688,57 @@
     "rerun_log_sha256": "3bf4cf1f4ce7096bc4ea26002633592fae967eedd0ee4ce04ec2bc17e3e38a4f"
   },
   "map_direct_index_candidate": {
-    "source": "a1b07545a7b4afe9da2b822a008ba77fef6b4e0d",
-    "status": "Frozen; precise source review and first builds running; not accepted",
-    "contract": "Canonical full LocalId Vec, sparse full-SSA observations Option table and occupied count; direct fee only proven simple branches, nonmanaged outputs, partialNone or resultNone; complex original8 lookups preserved; complete old BTreeMap representation oracle"
+    "source": "cc166653a94c7fb3a122e4edd2bc54f91a192aea",
+    "status": "Astra exact source accepted and integrated; original default Analyze complete",
+    "contract": "Canonical full LocalId Vec, sparse full-SSA observations Option table and occupied count; direct fee only proven simple branches, nonmanaged outputs, partialNone or resultNone; complex original8 lookups preserved; complete old BTreeMap representation oracle",
+    "production": "a1b07545a7b4afe9da2b822a008ba77fef6b4e0d",
+    "remote": "04d710ab6f67af328f3d9239859d0572d033097b",
+    "tree": "e686e2ac69b0e0e2e4c848f22ed03481226f7682",
+    "new_oracle_passed": 4,
+    "full_analyze_passed": 263,
+    "failed": 0,
+    "first_failure": "Test E0618 local instruction binding shadowed fixture builder; original log retained, cc166 alias-only fix",
+    "original_map_default": "Analyze completes then Verify ResourceLimit/runs1",
+    "source_implementation_fingerprint": "7a299339ce1dd660e73963f3ac514fefcb328bb45f3fc25569a0ce833b5b5df7",
+    "logs": "out/runs/growing-input-effects-20261109-23",
+    "oracle_scope": "Full old apply/edge/validate_unpack/5 Facts helpers independently matched7b except type names and whitespace; no separate new snapshot-isolation claim from tautological assertion; existing COW oracles retain that responsibility"
+  },
+  "joint_map_probe_previous": {
+    "compiler": "7931c464e2e7d9ed10d2cafa41914b0994054ac6",
+    "tree": "52b1336457d854ab76b369acedb92f728a94b628",
+    "status": "Fail:0 passed/1 failed; source unchanged",
+    "logs": "out/runs/ordinary-composition-map-joint-20261109-2",
+    "scope": "Exact original Map at latest joint A/V source; before next V physical lookup repair",
+    "phase": "Analyze",
+    "category": "ResourceLimit",
+    "diagnostic": "analysis budget exceeded during scoped actual delegation producer",
+    "verification_runs": 0,
+    "elapsed_seconds": 46.059,
+    "log_sha256": "6070a95f2596996afc5f7f9d0d182b863dfbb0da1c0e9fa7884566b711b29458"
+  },
+  "map_verify_ledger_baseline": {
+    "source": "f82f7983a9db741954961dac9226b5bc8d715149",
+    "remote": "a260c6bfb1ebdf12330303fd516e6cc3f1c10d7a",
+    "equivalent_joint_remote": "40c1a4ffc1a82f71ec0256fcff5203599edd7d5b",
+    "tree": "93bfed2a1ca060c8ea711b7de38aa6fa6a6d0b8f",
+    "source_unchanged_fees": true,
+    "status": "run24 diagnostic build and original Map run complete; six Verify sources restored; cost interpretation pending",
+    "logs": "out/runs/growing-input-effects-20261109-24"
+  },
+  "strict_test_fix": {
+    "source": "0463f54a96d265feb42851f3a35df055aafe1e77",
+    "remote": "5c1c9feef4498323a189ca9fe58786cdcc2f7921",
+    "review": "Root independently reviewed filter-map to filter then map; only test enumeration, all ZIL Source unchanged",
+    "integrated": true,
+    "strict_rerun": "Not yet run after second preserved failure"
+  },
+  "latest_format": {
+    "source": "d3789634f5394f0a1f6d137ca750e0912eb65a0a",
+    "tree": "93bfed2a1ca060c8ea711b7de38aa6fa6a6d0b8f",
+    "status": "Pass",
+    "source_unchanged": true,
+    "elapsed_seconds": 12.118,
+    "scope": "Formatting check only, no Rust or language tests",
+    "logs": "out/runs/ordinary-composition-static-20261109-2"
   }
 }
