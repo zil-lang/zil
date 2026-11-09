@@ -26,12 +26,13 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 1
-      - name: Install exact Rust toolchain
+      - name: Install exact Rust toolchain and locked dependencies
         shell: bash
         run: |
           set -euo pipefail
           rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
           rustc -vV
+          cargo fetch --locked
           echo "CARGO_TARGET_DIR=$RUNNER_TEMP/compiler-cost-target" >> "$GITHUB_ENV"
       - name: Apply exact candidate and independent finite graph oracle
         shell: bash
