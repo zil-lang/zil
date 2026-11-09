@@ -200,7 +200,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | G3.4.19 | 整共享地址数组读取逐实际根核初始化 | 已合入 | — | — | main@b07b85dd4；精确源码057308f16相关API四目标690/0、snapshot/Byte组92/0、全目标strict/fmt及结构3979通过；含4配置snapshot原生。新增全量/冷恢复未跑，不等于动态下标完成。 |
 | G3.4.20 | 借入泛型Package的Managed Store字段替换 | 待集成 | P0 | sol high · array_analysis_cost | f0ee4f821已获Sol精审接受；189/0、12原生、真实旧描述失效和新旧精确预算通过；root已合。只接实际可变Package的完整Store字段，不开放whole/capture。 |
 | G3.4.21 | 普通拥有字段Copy观察、共享错误臂及标量入口组合 | 待集成 | P0 | sol high · integration_audit；Astra审 | 7dd7bb0eb已获精确接受并合root；真实字段/tag/init/loan及Byte入口callee证明保留，相关10过/1后端失败；后端首阻断ReadPackageField由G10.3.5补接。 |
-| G3.4.22 | 存储借入程序中局部拥有ByteBuffer字段的共享字节视图 | 进行中 | P0 | sol high · byte_view_composition；Astra复核 | 远端8fd09fae1，后续3f3bac10f已独审接受。两核全扫对照4/0，原Analyze已在默认10M内；全新target冷编成功，原完整Verify仍ResourceLimit（原Source d9afb8c2不变）。继续11组字节/12原生与Verify静态Sum结构复用，不提高额度。 |
+| G3.4.22 | 存储借入程序中局部拥有ByteBuffer字段的共享字节视图 | 进行中 | P0 | sol high · byte_view_composition；Astra复核 | 远端f509f4a13已独审，11组Source/raw/Wire、12次Clang/API O0/O2原生及6项旧精确费用全过，两核全扫oracle4/0。原完整Verify仍超预算；下一步按实际账本压缩普通borrows/loans活跃位矩阵，保u8生命周期和独立来源检查。 |
 
 </details>
 
@@ -420,7 +420,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | sol high · growing_collections | 远端58cc7d4e6；oracle9/0，第三轮消费者2过6失败。04d20静态Shapes/Plan/ranks、7a7bd真实父代际证明已独审，待新运行；冻结e3的Desc-first负控已有上层真实拒绝，未证明错误接受，不把早拒计作后续代际栅栏覆盖。 |
+| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | sol high · growing_collections | 远端775e56fc9后第四轮Analyze lib209/0，消费者5过5失败（Map/Set仍默认预算，两个新近控已按实际guard/Types边界保留）。47eeed8dc把Sum库存合流改为完整key核对的O(n)遍历并获独审，d1040eb49保全64次原生故障矩阵逐输入记录；待冷编执行。 |
 
 </details>
 
@@ -526,7 +526,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | --- | --- | --- | --- | --- | --- |
 | G10.6.1 | 语言初稿开发预览：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 已合入 | — | — | [PR51 验收][e-pr51]：精确源码 `a8c7953e7` 默认5190/0、参考5078/0、文本70/0；双严格检查、release、10项工程门及远端源码恢复构建运行通过。有限预览不替代 B0/完整语言。 |
 | G10.6.2 | 通用 Native 库与异步资源联合验收：精确源码、真实消费者、独审和远端恢复 | 已合入 | — | — | `main@e800b39d5`：默认5269/0、参考5157/0、文本70/0；真实联合双后端 O0/O2、3735文件远端恢复/空缓存构建、16次 API 构建/128次运行/56次故障注入均通过。[本批记录][e-native-foundations]。 |
-| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | 北京时间最后施工 2026-11-09 09:56；远端fe5895b3b后本地e60293df4已合8fd09fae1/58cc7d4e6并保精确Source/native记录。新增collected四模块Types通过；默认原程序Verify与Map/Set Analyze仍预算受阻，正修静态结构重复计算，未共同验收或宣称1.0。 |
+| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | 北京时间最后施工 2026-11-09 10:08；远端ebe6b2267后已合f509f4a13的原生字节证据。仍按原Source、默认Limits和独立Verify验收；Map/Set实际Analyze与原四模块Verify预算未闭，正在改实际有序合流/位矩阵算法，不提高额度或栈。 |
 | G10.6.4 | 全量回归中的旧Store/实际callback Package准入 | 已合入 | — | — | `6c1ac6fdf`已合候选；恢复旧flat callback/Store真实root快路，保留新borrowed Product分类，84项与原CLI/window正反例专项通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.5 | 新共享构造检查的两核实际独占loan发现与旧fee保持 | 已合入 | — | — | `e5c52c936/396c183c`已合：复用付费建表，无额外扫描，原两预算控制恢复原值、28独占构造/slot控制通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.6 | 默认worker深调用与life组合栈溢出 | 已合入 | — | — | 既有递归帧修复由main@222e550af验收；source_life合流回归的子项也已由main@0e770a26e交付。原默认栈/深调用/费用控制保留。 |
