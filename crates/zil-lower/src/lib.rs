@@ -106,6 +106,20 @@ fn lower_view_with_budget(
             if ty.is_copy_value() {
                 continue;
             }
+            if owning_result && let Type::Address { inner, .. } = ty {
+                // Verify already proved the actual synchronous input loan and
+                // closed owned result separately. Retain the ordinary pointer
+                // ABI and pay for its complete physical pointee layout.
+                let pointee = match inner.as_ref() {
+                    Type::Slice { element } => element.as_ref(),
+                    other => other,
+                };
+                if !sum_budget.admits(pointee, &module.resources, 0)? {
+                    complete_parameters = false;
+                    break;
+                }
+                continue;
+            }
             if !callback_data_shape(ty) {
                 complete_parameters = false;
                 break;
