@@ -180,10 +180,11 @@ fn optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets() {
         high
     }
     let mut previous = 0;
+    // Complete independent costs with word liveness and paid loan/path indexes.
     for (depth, expected_analyze, expected_verify) in [
-        (0, 152_794, 294_517),
-        (4, 240_953, 513_354),
-        (12, 458_355, 1_027_003),
+        (0, 118_945, 258_986),
+        (4, 193_808, 463_816),
+        (12, 377_066, 932_245),
     ] {
         let mut declarations = String::new();
         let mut value_type = "i64".to_string();

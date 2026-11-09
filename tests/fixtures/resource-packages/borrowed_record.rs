@@ -392,12 +392,19 @@ fn qualified_record_getter_width_and_depth_budgets_are_exact_and_fresh() {
     let default = Limits::default();
     let target = TargetProfile::host_llvm();
     let mut boundaries = Vec::new();
-    // Prior fees omitted the real leaves retained by projected/reborrowed windows.
+    // Historical dense-window limits remain probes. Word rows and paid path
+    // indexes preserve the proofs while changing complete request costs.
     let prior = [
         [3220, 32911, 45276, 45276, 45276],
         [6111, 97665, 142372, 142372, 142372],
         [19476, 159886, 195052, 195052, 195052],
         [37767, 415174, 542990, 542990, 542990],
+    ];
+    let expected = [
+        [3220, 31059, 43867, 43867, 43867],
+        [6111, 93974, 137924, 137924, 137924],
+        [19476, 155222, 189511, 189511, 189511],
+        [37767, 411827, 549673, 549673, 549673],
     ];
     for (case, (width, depth)) in [(1, 0), (8, 0), (1, 2), (8, 2)].into_iter().enumerate() {
         let program = getter_model(width, depth);
@@ -481,7 +488,7 @@ fn qualified_record_getter_width_and_depth_budgets_are_exact_and_fresh() {
             assert_eq!(session.active_query_count(), 0);
         }
         assert_eq!(types, prior[case][0]);
-        for status in [
+        for (phase, status) in [
             budget_category(zil_analyze::analyze(&raw, &limits(prior[case][1]))),
             budget_category(zil_verify::verify_module(
                 raw.clone(),
@@ -502,26 +509,25 @@ fn qualified_record_getter_width_and_depth_budgets_are_exact_and_fresh() {
                 },
             )
             .status,
-        ] {
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let category = if prior[case][phase + 1] < expected[case][phase + 1] {
+                ResultCategory::ResourceLimit
+            } else {
+                ResultCategory::Success
+            };
             assert_eq!(
-                status,
-                ResultCategory::ResourceLimit,
-                "old window fee omits actual retained leaves"
+                status, category,
+                "historical window limit: width={width}, depth={depth}, phase={phase}"
             );
         }
         boundaries.push([types, analyze, verify, decoded, whole]);
     }
     // Fixed complete-consumer boundaries catch a missing scan or snapshot
     // charge as well as an increase; N-1 is checked independently above.
-    assert_eq!(
-        boundaries,
-        vec![
-            [3220, 33852, 46364, 46364, 46364],
-            [6111, 108455, 157530, 157530, 157530],
-            [19476, 162051, 197646, 197646, 197646],
-            [37767, 440018, 581116, 581116, 581116],
-        ]
-    );
+    assert_eq!(boundaries.as_slice(), expected.as_slice());
     for kernel in 0..5 {
         assert!(
             boundaries[1][kernel] > boundaries[0][kernel],
