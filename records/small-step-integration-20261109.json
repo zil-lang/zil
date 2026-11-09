@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-09 13:05 UTC",
+  "recorded_utc": "2026-11-09T13:19:00Z",
   "status": "Ten scoped batches merged; their completed remote and local branch refs retired. Array and Map work remains active.",
   "accepted_main": "82a69812582856b012468db3d019930d8e390f64",
   "accepted_tree": "fab0e0363c2a46050f14740a5ad8ce5287db8df7",
@@ -213,8 +213,70 @@
     "root_native_check_sha256": "076a18f8c053c0d7d64ca6862f3b4aee914e729561077a56001388c376ba523d"
   },
   "remaining": {
-    "arrays": "0fae: 18 oracles pass, full Analyze 224/1 on changed exact historical cost pin; original default Source Analyze pending. V/backend and final native combination remains unaccepted.",
+    "arrays": "A production 0fae passes 18 oracles and all four original default Source/raw Analyze probes. Test-only 00ef passes 225 Analyze, 23 legacy budgets and strict/fmt/docs; same full tree published as 7dbc4167. Traits 194/3 and arrays 47/7 retain original first failures on nine historical A-work assertions and the owning-512 boundary now reaching Verify. V/backend integration and final Source/raw/Wire/native combination remain unaccepted.",
     "map": "118b: 6/535/7 pass, unchanged complete Map still default Verify ResourceLimit. Ledger 6 completes replacement final validation, then exhausts at ordinary resource-state copy work."
   },
-  "release_scope": "No full local workspace test or 1.0 claim; main82 remote documentation succeeds while two workspace checks are still running."
+  "release_scope": "No full local workspace test or 1.0 claim; main82 remote documentation succeeds while two workspace checks are still running.",
+  "array_analysis_checkpoint": {
+    "local_source": "00ef786118bd14905a83f8ecc96a31eecfb0a837",
+    "published_source": "7dbc4167ffc53c33d51ec1cfd91341c9dfde3002",
+    "tree": "f7c961c49978849ded980e447030c049f1232331",
+    "base_main": "82a69812582856b012468db3d019930d8e390f64",
+    "production_source": "0fae6e7f355c19490cc8926c6cc5bf8b91a05289",
+    "test_only_change": "Measured Analyze N=12824; retained previous 14077 allowance as complete-plan success; N-1/fresh/warm/reuse unchanged.",
+    "original_source_raw_analyze": {
+      "status": "Pass",
+      "verify_runs": 0,
+      "scope": "Analyze only; exact original bytes unchanged",
+      "input_sha256": [
+        "95d6572a129f856a5b073de7cfa2aa9d2b730c0ff44b254fa6f9a3d8830299bb",
+        "59b8aaa8aa292c1e3921cfee638ef03598e1ffe62a3a4402d1e1542cc793ae66",
+        "2d3f439a9d135da66aad9d35b4bf89e647c8d76ce90129af3860b835d20a2332",
+        "be0fecd1b348c591e11dc3d5e8920c6ce79033df0cc4c14a97cca81172b81aad"
+      ]
+    },
+    "gate_directory": "wt-owned-array-snapshot/out/runs/owned-array-snapshot-analyze-final-20261109",
+    "gates": [
+      {
+        "name": "Analyze",
+        "passed": 225,
+        "failed": 0,
+        "log_sha256": "6a0aa6614244622725446722efb49c5be01bf12e4643595f8d95711132e43d51"
+      },
+      {
+        "name": "traits",
+        "passed": 194,
+        "failed": 3,
+        "log_sha256": "731cfc781097addd9f30d913e299c0175284cd7237f94a26d041462da10e0f62"
+      },
+      {
+        "name": "legacy-budget",
+        "passed": 23,
+        "failed": 0,
+        "log_sha256": "3ccc4a0efb2fbbc8370faba21e8018c84be9b04b5a56c7dd0331333a14dc7667"
+      },
+      {
+        "name": "arrays",
+        "passed": 47,
+        "failed": 7,
+        "log_sha256": "34233e9fe573675563422eef6c363fd3b4a1c23dc7953fc2536dcf4f6e935795"
+      },
+      {
+        "name": "strict",
+        "status": "Pass",
+        "log_sha256": "58fec040a3947f2e35cb5b2374888f2ef91d020fe347fac13eb142ca4c954f71"
+      },
+      {
+        "name": "fmt",
+        "status": "Pass",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "docs",
+        "status": "Pass",
+        "log_sha256": "cd6e5ddfbf85632670fa327d812b93bb07c78c709e5e9e9dd9f6c487226697f7"
+      }
+    ],
+    "acceptance": "Checkpoint only; parent task remains in progress."
+  }
 }
