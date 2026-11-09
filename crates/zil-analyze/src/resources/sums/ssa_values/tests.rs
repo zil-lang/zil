@@ -16,8 +16,8 @@ fn tree(index: usize, incoming: bool) -> Arc<Tree> {
     } else {
         Birth::Incoming
     };
-    if index % 2 == 0 {
-        leaf(index % 3 == 0, birth)
+    if index.is_multiple_of(2) {
+        leaf(index.is_multiple_of(3), birth)
     } else {
         Arc::new(Tree {
             missing: false,

@@ -223,7 +223,7 @@ fn vary(at: &mut Content, seed: usize, cursor: &mut usize) {
         }
         _ => {}
     }
-    if seed & 4 != 0 && index % 2 == 0 {
+    if seed & 4 != 0 && index.is_multiple_of(2) {
         let old = std::mem::replace(at, Content::Copy);
         *at = Content::Missing(Box::new(Content::Missing(Box::new(old))));
     }

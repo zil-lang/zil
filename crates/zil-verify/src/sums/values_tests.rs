@@ -84,7 +84,7 @@ fn budget(n: usize) -> Budget {
     })
 }
 fn payload(index: usize, seed: usize) -> Content {
-    let source = if seed % 2 == 0 {
+    let source = if seed.is_multiple_of(2) {
         Source::Input(0, vec![0, index as u32])
     } else {
         Source::Captured(1, vec![1, index as u32, 0])
@@ -102,7 +102,7 @@ fn payload(index: usize, seed: usize) -> Content {
             Some((seed as u32, vec![1, 0, 0])),
         ),
     };
-    if seed % 2 != 0 && index % 3 == 0 {
+    if !seed.is_multiple_of(2) && index.is_multiple_of(3) {
         Content::Missing(Box::new(value))
     } else {
         value
