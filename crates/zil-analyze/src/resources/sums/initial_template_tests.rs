@@ -14,9 +14,16 @@ fn initial_sum_templates_produce_independent_tables_and_cow_trees() {
     let mut b = Budget::new(&Limits::default());
     let seed = plan.initial(&module, f, &mut b).unwrap();
     let mut changed = plan.initial(&module, f, &mut b).unwrap();
-    edit(changed.values.get_mut(&ValueId(0)).unwrap(), &mut b)
-        .unwrap()
-        .missing = false;
+    edit(
+        changed
+            .values
+            .get_mut(&ValueId(0), &mut b)
+            .unwrap()
+            .unwrap(),
+        &mut b,
+    )
+    .unwrap()
+    .missing = false;
     if let Node::Leaf(birth) = &mut edit(changed.locals.get_mut(&LocalId(1)).unwrap(), &mut b)
         .unwrap()
         .node
@@ -108,8 +115,8 @@ fn selected_union_arms_still_require_an_actual_result_identity() {
     });
     for present in [false, true] {
         for result in [Some(ValueId(1)), None, Some(ValueId(99))] {
-            let mut facts = Facts::default();
-            facts.values.insert(
+            let mut keyed = BTreeMap::new();
+            keyed.insert(
                 ValueId(0),
                 Arc::new(Tree {
                     missing: false,
@@ -120,13 +127,22 @@ fn selected_union_arms_still_require_an_actual_result_identity() {
                     }),
                 }),
             );
-            facts.values.insert(
+            keyed.insert(
                 ValueId(1),
                 Arc::new(Tree {
                     missing: true,
                     node: Node::Copy,
                 }),
             );
+            let mut facts = Facts {
+                values: ssa_values::Values::from_keyed(
+                    2,
+                    keyed,
+                    &mut Budget::new(&Limits::default()),
+                )
+                .unwrap(),
+                ..Facts::default()
+            };
             let i = fixture::instruction(
                 result,
                 InstructionKind::ReadErrorUnion {
