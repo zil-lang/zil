@@ -4,6 +4,7 @@
 use super::*;
 mod buffer_effects;
 mod captures;
+mod liveness;
 mod loans;
 mod port_facts;
 mod roots;
@@ -200,6 +201,7 @@ fn local_transfer(
     }
     Ok(())
 }
+#[cfg(test)]
 fn reverse(live: &mut [bool], instruction: &Instruction, value_count: usize) {
     if let Some(value) = instruction.result {
         live[value.0 as usize] = false;
@@ -241,6 +243,7 @@ fn replacement_schedule(
     let schedule = inventory.schedule(f, graph, budget)?;
     Ok(Some((inventory, schedule)))
 }
+#[cfg(test)]
 fn retain_replacement_values(
     live: &mut [bool],
     schedule: Option<&crate::place_replacements::Schedule>,
@@ -257,6 +260,7 @@ fn retain_replacement_values(
     }
     Ok(())
 }
+#[cfg(test)]
 fn term_use(live: &mut [bool], terminator: &Terminator) {
     match terminator {
         Terminator::Return(Some(value))
@@ -388,8 +392,9 @@ fn check(
     let width = v
         .checked_add(m)
         .ok_or_else(|| limit("borrow liveness width overflow"))?;
-    reserve(budget, &[n, width, 2])?;
-    let mut live_in = vec![vec![false; width]; n];
+    let units = liveness::Bits::word_count(width);
+    reserve(budget, &[n, units, 2])?;
+    let mut live_in = vec![liveness::Bits::new(width); n];
     let mut live_out = live_in.clone();
     loop {
         let mut changed = false;
@@ -398,19 +403,19 @@ fn check(
             if !reachable[b] {
                 continue;
             }
-            budget.spend(width)?;
-            let mut live = vec![false; width];
+            budget.spend(units.saturating_mul(2))?;
+            let mut live = liveness::Bits::new(width);
             for &next in &successors[b] {
-                bits_join(&mut live, &live_in[next], budget)?;
+                live.join(&live_in[next], budget)?;
             }
             live_out[b].clone_from(&live);
-            term_use(&mut live, &f.blocks[b].terminator);
+            live.term_use(&f.blocks[b].terminator)?;
             for (position, instruction) in f.blocks[b].instructions.iter().enumerate().rev() {
                 budget.spend(1 + instruction_operands(&instruction.kind).count())?;
-                reverse(&mut live, instruction, v);
-                retain_replacement_values(&mut live, schedule, b, position, budget)?;
+                live.reverse(instruction, v)?;
+                live.retain(schedule, b, position, budget)?;
             }
-            budget.spend(width)?;
+            budget.spend(units)?;
             if live != live_in[b] {
                 live_in[b] = live;
                 changed = true;
@@ -490,14 +495,14 @@ fn check(
         if !reachable[b] {
             continue;
         }
-        reserve(budget, &[block.instructions.len(), width])?;
-        let mut after = vec![vec![]; block.instructions.len()];
+        reserve(budget, &[block.instructions.len().saturating_add(1), units])?;
+        let mut after = vec![liveness::Bits::new(0); block.instructions.len()];
         let mut live = live_out[b].clone();
-        term_use(&mut live, &block.terminator);
+        live.term_use(&block.terminator)?;
         for (i, instruction) in block.instructions.iter().enumerate().rev() {
             after[i] = live.clone();
-            reverse(&mut live, instruction, v);
-            retain_replacement_values(&mut live, schedule, b, i, budget)?;
+            live.reverse(instruction, v)?;
+            live.retain(schedule, b, i, budget)?;
         }
         state_cost(&inputs[b], budget)?;
         let mut locals = inputs[b].clone();
@@ -614,11 +619,9 @@ fn check(
                 _ => None,
             };
             if let Some(root) = invalidated {
-                budget.spend(width)?;
-                for (carrier, live) in after[i].iter().enumerate() {
-                    if !*live {
-                        continue;
-                    }
+                budget.spend(after[i].units())?;
+                for carrier in after[i].ones() {
+                    budget.spend(1)?;
                     let ty = if carrier < v {
                         &f.values[carrier]
                     } else {

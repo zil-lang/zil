@@ -4,6 +4,8 @@ use super::*;
 use std::collections::{BTreeMap, VecDeque};
 mod partial_places;
 pub(super) mod replacements;
+#[cfg(test)]
+mod tag_fixed_point_tests;
 
 pub(super) fn owned_enum(ty: &Type) -> bool {
     matches!(ty, Type::Enum { .. }) && owned_leaf(ty)
@@ -739,6 +741,92 @@ impl Content {
         }
         Ok(())
     }
+    // Exact fixed point of this kernel's own constructor and missing restore.
+    // This proves no route, tag, source or missing wrapper would change; it
+    // never establishes Copy eligibility or a resource permission.
+    fn tags_unknown(&self, ty: &Type, b: &mut Budget) -> Check<bool> {
+        b.spend(1)?;
+        if let Self::Missing(child) = self {
+            return child.tags_unknown(ty, b);
+        }
+        match (self, ty) {
+            (Self::Copy, ty) => Ok(!matches!(
+                ty,
+                Type::Managed(_)
+                    | Type::Tuple(_)
+                    | Type::Package { .. }
+                    | Type::Enum { .. }
+                    | Type::ErrorUnion { .. }
+                    | Type::BorrowedStorage { .. }
+            )),
+            (Self::Leaf(_), _) => Ok(false),
+            (Self::Product(children), Type::Tuple(types)) => {
+                if children.len() != types.len() {
+                    return Ok(false);
+                }
+                b.spend(children.len())?;
+                for (child, ty) in children.iter().zip(types) {
+                    if !child.tags_unknown(ty, b)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            (Self::Product(children), Type::Package { fields, .. }) => {
+                if children.len() != fields.len() {
+                    return Ok(false);
+                }
+                b.spend(children.len())?;
+                for (child, (_, ty)) in children.iter().zip(fields) {
+                    if !child.tags_unknown(ty, b)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            (Self::Sum(arms, route), Type::Enum { variants, .. }) => {
+                if route.is_some() || arms.len() != variants.len() {
+                    return Ok(false);
+                }
+                b.spend(arms.len())?;
+                for ((tag, children), (index, (_, types))) in
+                    arms.iter().zip(variants.iter().enumerate())
+                {
+                    b.spend(1)?;
+                    if *tag as usize != index || children.len() != types.len() {
+                        return Ok(false);
+                    }
+                    b.spend(children.len())?;
+                    for (child, ty) in children.iter().zip(types) {
+                        if !child.tags_unknown(ty, b)? {
+                            return Ok(false);
+                        }
+                    }
+                }
+                Ok(true)
+            }
+            (Self::Sum(arms, route), Type::ErrorUnion { error, result }) => {
+                if route.is_some() || arms.len() != 2 {
+                    return Ok(false);
+                }
+                b.spend(2)?;
+                // Independent Verify representation: arm zero is error.
+                for ((tag, children), (expected, ty)) in
+                    arms.iter().zip([(0, error.as_ref()), (1, result.as_ref())])
+                {
+                    b.spend(1)?;
+                    if *tag != expected || children.len() != 1 {
+                        return Ok(false);
+                    }
+                    if !children[0].tags_unknown(ty, b)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
+    }
     fn forget_copy_tags(&mut self, ty: &Type, b: &mut Budget) -> Check<()> {
         b.spend(1)?;
         let ty = shared_enum_physical(ty, b)?;
@@ -762,6 +850,9 @@ impl Content {
             }
         };
         if copy_sum {
+            if self.tags_unknown(ty, b)? {
+                return Ok(());
+            }
             let old = self.duplicate(b)?;
             let mut unknown = content(ty, None, &mut Vec::new(), false, b)?;
             unknown.retain_missing(&old, b)?;

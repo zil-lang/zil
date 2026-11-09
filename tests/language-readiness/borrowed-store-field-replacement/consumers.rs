@@ -412,7 +412,7 @@ fn named_and_explicit_store_field_replacement_have_exact_fresh_and_warm_budgets(
                 }
             }
         }
-        assert_eq!(low, 53_444, "{label} Source budget changed");
+        assert_eq!(low, 41_404, "{label} Source budget changed");
         println!("borrowed Store {label}: N={low}, N-1=ResourceLimit, fresh/warm/retry=Pass");
         let core = core_source(program);
         let target = zil_base::TargetProfile::host_llvm();

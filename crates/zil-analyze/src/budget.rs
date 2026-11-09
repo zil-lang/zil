@@ -1,3 +1,4 @@
+mod physical_slots;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_ir::{CallableFlowNext, CallableTraces};
 
@@ -16,6 +17,9 @@ fn exhausted(context: &str) -> Vec<Diagnostic> {
 
 pub(super) struct Budget {
     remaining: usize,
+    // Only shape nodes borrowed from this request's immutable module enter.
+    // The result indexes raw slots; no qualification or semantic flow is cached.
+    physical_slot_paths: BTreeMap<usize, BTreeMap<Vec<zil_ir::PlaceProjection>, (u32, bool)>>,
     // Only immutable Type nodes reached from the actual TypedFunction local
     // inventory enter this table. A key is the address of that node for this
     // one analysis request; it never escapes the request or becomes authority.
@@ -23,6 +27,7 @@ pub(super) struct Budget {
     // Derived from raw instructions; only avoids work in unaffected modules.
     pub(super) static_utf8: bool,
     pub(super) pod_stores: bool,
+    pub(super) pod_store_carriers: Option<super::pod_store::CarrierCache>,
     pub(super) dyn_interfaces: BTreeSet<zil_ir::DynInterfaceId>,
     pub(super) partial_depth: usize,
     pub(super) helper_nodes: usize,
@@ -77,6 +82,9 @@ pub(super) struct Budget {
     // Paid actual ExtractIndex inventory; algorithm scheduling only.
     pub(super) array_outer_functions: Vec<zil_ir::FunctionId>,
     pub(super) byte_queries: bool,
+    // Presence schedules the new proof only; Heads contains immutable IR structure.
+    pub(super) shared_byte_borrow: bool,
+    pub(super) owned_byte_heads: Option<crate::stored_flow::owned_byte_views::Heads>,
     pub(super) byte_query_presence_checked: bool,
     pub(super) byte_query_functions: Vec<bool>,
     pub(super) package_return_calls: Option<BTreeMap<(zil_ir::FunctionId, zil_ir::ValueId), u32>>,
@@ -120,9 +128,11 @@ impl Budget {
     pub(super) fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
+            physical_slot_paths: BTreeMap::new(),
             addressed_copy_sums: BTreeMap::new(),
             static_utf8: false,
             pod_stores: false,
+            pod_store_carriers: None,
             dyn_interfaces: BTreeSet::new(),
             partial_depth: limits.max_call_depth,
             helper_nodes: limits.max_nodes,
@@ -168,6 +178,8 @@ impl Budget {
             qualified_package_returns: false,
             array_outer_functions: Vec::new(),
             byte_queries: false,
+            shared_byte_borrow: false,
+            owned_byte_heads: None,
             byte_query_presence_checked: false,
             byte_query_functions: Vec::new(),
             package_return_calls: None,
@@ -1407,6 +1419,9 @@ pub(super) fn preflight(
     }
     for element in pod_store_elements {
         super::pod_store::carrier(module, element, budget)?;
+        // Actual references in this Vec come from the immutable raw module
+        // graph (including OwnedStoreNew). Publish only complete successes.
+        super::pod_store::publish_carrier(module, element, budget)?;
         // POD addresses use the existing actual-head/element loan machinery.
         // This private presence flag activates work; it grants no permission.
         budget.head_descriptions = true;
@@ -1886,6 +1901,10 @@ pub(super) fn preflight(
                     instruction.kind,
                     InstructionKind::ByteBufferLen { .. }
                         | InstructionKind::ByteBufferCapacity { .. }
+                );
+                budget.shared_byte_borrow |= matches!(
+                    instruction.kind,
+                    InstructionKind::ByteBufferBorrow { mutable: false, .. }
                 );
                 match &instruction.kind {
                     InstructionKind::AsyncRegistrationStart {

@@ -1,4 +1,5 @@
-// Fixed-capacity open-addressed map for Copy, StoreElement keys and values.
+// Open-addressed map for Copy, StoreElement keys and values. insert keeps its
+// fixed-capacity contract; reserve and insert_growing prepare a complete rehash.
 // Equal keys must have equal hashes. Equality and hash stay stable for stored keys.
 // Collisions use equality; signed hashes are normalized before probing.
 struct Entry<K:Copy,V:Copy> { key:K; value:V }
@@ -53,6 +54,7 @@ pub fn with_capacity<K:Copy+StoreElement,V:Copy+StoreElement>(limit:i64)->Error!
     return PodHashMap::<K,V>{entries:give entries,buckets:give buckets,limit:limit}
 }
 pub fn len<K:Copy+StoreElement,V:Copy+StoreElement>(map:&PodHashMap<K,V>)->i64 {return store_len(map.entries)}
+pub fn capacity<K:Copy+StoreElement,V:Copy+StoreElement>(map:&PodHashMap<K,V>)->i64 {return map.limit}
 // Dense-slot snapshot. Removal may move the last pair into a gap.
 pub fn at<K:Copy+StoreElement,V:Copy+StoreElement>(map:&PodHashMap<K,V>,index:i64)->Option<Pair<K,V>> {
     if index<0 || index>=store_len(map.entries) {return Option::<Pair<K,V>>.None()}
@@ -105,4 +107,56 @@ pub fn remove<K:Copy+StoreElement,V:Copy+StoreElement,E:Fn(K,K)->bool,H:Fn(K)->i
             return Option::<V>.Some(old)
         }
     }
+}
+
+// capacity is an absolute entry count. Every allocation and rehash operation
+// finishes in a separate owner before the original fields are replaced.
+pub fn reserve<K:Copy+StoreElement,V:Copy+StoreElement,E:Fn(K,K)->bool,H:Fn(K)->i64>(map:&mut PodHashMap<K,V>,capacity:i64,equals:&E,hash:&H)->Error!void {
+    if capacity<0 || capacity>4611686018427387903 {return Error.Capacity}
+    if capacity<=map.limit {return ()}
+    let created=with_capacity::<K,V>(capacity)?
+    var prepared:PodHashMap<K,V>=created
+    var at:i64=0
+    while at<store_len(map.entries) {
+        let entry=*store_at(map.entries,at)
+        match insert(&mut prepared,entry.key,entry.value,equals,hash) {
+            .err(_)=>{return Error.Internal},
+            .ok(_)=>{}
+        }
+        at+=1
+    }
+    map.entries=give prepared.entries
+    map.buckets=give prepared.buckets
+    map.limit=capacity
+    return ()
+}
+
+// Replacing an existing key never grows. A new key grows geometrically, with
+// checked arithmetic; failed preparation keeps the map and caller's Copy value.
+pub fn insert_growing<K:Copy+StoreElement,V:Copy+StoreElement,E:Fn(K,K)->bool,H:Fn(K)->i64>(map:&mut PodHashMap<K,V>,key:K,value:V,equals:&E,hash:&H)->Error!Option<V> {
+    if store_len(map.entries)>=map.limit {
+        let found=locate(map,key,equals,hash)
+        if found.found {return insert(map,key,value,equals,hash)}
+        if map.limit>=4611686018427387903 {return Error.Capacity}
+        var next:i64=1
+        if map.limit>2305843009213693951 {
+            next=4611686018427387903
+        } else {
+            if map.limit>0 {next=map.limit*2}
+        }
+        reserve(map,next,equals,hash)?
+    }
+    return insert(map,key,value,equals,hash)
+}
+
+// Keep both allocations for reuse and reset tombstones as well as dense rows.
+pub fn clear<K:Copy+StoreElement,V:Copy+StoreElement>(map:&mut PodHashMap<K,V>)->i64 {
+    let count=store_len(map.entries)
+    while store_len(map.entries)>0 {store_pop(map.entries)}
+    var at:i64=0
+    while at<store_len(map.buckets) {
+        set_bucket::<K,V>(map,at,0)
+        at+=1
+    }
+    return count
 }

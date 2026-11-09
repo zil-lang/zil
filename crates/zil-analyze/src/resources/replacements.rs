@@ -6,7 +6,7 @@ use crate::place_replacements::{Base, Definitions, origins};
 use zil_ir::PlaceProjection;
 type Target = origins::Place;
 mod package;
-mod public_roles;
+pub(super) mod public_roles;
 mod retirement;
 mod whole_enum;
 #[derive(Clone, Copy)]
@@ -28,6 +28,7 @@ struct Invocation<'a> {
     carrier: Option<Place>,
     sealed: bool,
     may_only: bool,
+    ordinary_only: bool,
 }
 pub(super) type Effects = BTreeMap<Target, BTreeSet<Birth>>;
 pub(super) type TaggedEffects = BTreeMap<Target, sums::Replacement>;
@@ -37,6 +38,14 @@ pub(super) struct Program {
     retirement_pairs: RefCell<Vec<retirement::Pairs>>,
     exact_retirement: bool,
     whole_helpers: BTreeSet<FunctionId>,
+    structures: Vec<Option<FunctionStructure>>,
+}
+// Immutable metadata derived from this request's actual TypedFunction. Each
+// solve still constructs its own State, effects and retirement obligations.
+pub(super) struct FunctionStructure {
+    pub(super) shapes: Shapes,
+    pub(super) sums: Option<sums::Plan>,
+    pub(super) ranks: Vec<usize>,
 }
 fn fee(b: &mut Budget, n: usize) -> CompileResult<()> {
     b.spend(n, "actual replacement origin transfer")
@@ -286,14 +295,49 @@ impl Program {
         } else {
             Vec::new()
         };
-        Ok(Self {
+        fee(b, module.functions.len())?;
+        let mut program = Self {
             routes,
             definitions,
             retirement_pairs: RefCell::new(retirement_pairs),
             exact_retirement,
             whole_helpers,
-        })
+            structures: Vec::with_capacity(module.functions.len()),
+        };
+        for f in &module.functions {
+            let structure = if f.foreign.is_some() {
+                None
+            } else {
+                let sums = sums::Plan::new(f, b)?;
+                let mut shapes = shapes(module, f, b)?;
+                program.extend_shapes(f, &mut shapes, b)?;
+                let ranks = if b.pod_stores || (b.store_option_results && b.ordinary_error_places) {
+                    pod_resource_ranks(f, b)?
+                } else {
+                    Vec::new()
+                };
+                Some(FunctionStructure {
+                    shapes,
+                    sums,
+                    ranks,
+                })
+            };
+            program.structures.push(structure);
+        }
+        Ok(program)
     }
+    pub(super) fn structure(
+        &self,
+        id: FunctionId,
+        b: &mut Budget,
+    ) -> CompileResult<&FunctionStructure> {
+        fee(b, 1)?;
+        self.structures
+            .get(id.0 as usize)
+            .and_then(Option::as_ref)
+            .ok_or_else(|| error("replacement function structure absent"))
+    }
+
     pub(super) fn whole_helper(&self, id: FunctionId, b: &mut Budget) -> CompileResult<bool> {
         if self.whole_helpers.is_empty() {
             return Ok(false);
@@ -761,6 +805,7 @@ impl Program {
             carrier,
             sealed,
             may_only,
+            ordinary_only,
         } = invocation;
         let CheckPoint {
             validate: check,
@@ -770,6 +815,9 @@ impl Program {
         let rows = &flow.effects[callee].replacements;
         fee(b, rows.len())?;
         for (target, birth) in rows {
+            if ordinary_only && !matches!(target.root, origins::Root::Parameter(_)) {
+                continue;
+            }
             fee(b, target.path.len().saturating_add(1))?;
             let selected = origins::substitute(
                 &BTreeSet::from([target.clone()]),
@@ -803,6 +851,9 @@ impl Program {
         let tagged = &flow.effects[callee].tagged_replacements;
         fee(b, tagged.len())?;
         for (target, content) in tagged {
+            if ordinary_only && !matches!(target.root, origins::Root::Parameter(_)) {
+                continue;
+            }
             let selected = origins::substitute(
                 &BTreeSet::from([target.clone()]),
                 arguments,
@@ -935,7 +986,10 @@ impl Program {
                 }
                 for target in self.targets(f, &d.base, &d.path, b)? {
                     if f.callable_contract.is_some()
-                        && !matches!(target.root, origins::Root::Local(_))
+                        && !matches!(
+                            target.root,
+                            origins::Root::Local(_) | origins::Root::Parameter(_)
+                        )
                     {
                         return Err(vec![Diagnostic::unsupported(
                             Phase::Analyze,
@@ -1029,35 +1083,34 @@ impl Program {
                                 carrier: Some(Place::Value(value)),
                                 sealed: false,
                                 may_only: true,
+                                ordinary_only: false,
                             },
                             point,
                             b,
                         )?;
                     }
+                    // Public invocation roles account for callback captures. Only
+                    // independently reconstructed ordinary-input rows cross here;
+                    // may-Commit never establishes a must-write or Fresh result.
+                    self.call(
+                        flow,
+                        state,
+                        effect,
+                        Invocation {
+                            callee: function.0 as usize,
+                            arguments,
+                            captures: None,
+                            carrier: None,
+                            sealed: false,
+                            may_only: true,
+                            ordinary_only: true,
+                        },
+                        point,
+                        b,
+                    )?;
                     return Ok(());
                 }
                 let summary = &flow.effects[function.0 as usize].replacements;
-                if f.callable_contract.is_some() {
-                    let called = &flow.effects[function.0 as usize];
-                    fee(
-                        b,
-                        called
-                            .replacements
-                            .len()
-                            .saturating_add(called.tagged_replacements.len())
-                            .saturating_add(called.invalidated_stores.len()),
-                    )?;
-                    if !called.replacements.is_empty()
-                        || !called.tagged_replacements.is_empty()
-                        || !called.invalidated_stores.is_empty()
-                    {
-                        return Err(vec![Diagnostic::unsupported(
-                            Phase::Analyze,
-                            "public callable helper cannot publish an ordinary callee's private replacement effects",
-                            Some(i.span),
-                        )]);
-                    }
-                }
                 if (callee.callable_contract.is_some() || callee.callable_return_contract.is_some())
                     && !summary.is_empty()
                 {
@@ -1078,6 +1131,7 @@ impl Program {
                         carrier: None,
                         sealed: false,
                         may_only: false,
+                        ordinary_only: false,
                     },
                     point,
                     b,
@@ -1097,6 +1151,7 @@ impl Program {
                             carrier: Some(Place::Value(value)),
                             sealed: true,
                             may_only: false,
+                            ordinary_only: false,
                         },
                         point,
                         b,
@@ -1117,6 +1172,7 @@ impl Program {
                         carrier: Some(Place::Value(*body)),
                         sealed: true,
                         may_only: false,
+                        ordinary_only: false,
                     },
                     point,
                     b,
@@ -1141,6 +1197,7 @@ impl Program {
                         carrier: Some(Place::Local(*callee)),
                         sealed: false,
                         may_only: false,
+                        ordinary_only: false,
                     },
                     point,
                     b,
@@ -1163,6 +1220,7 @@ impl Program {
                         carrier: Some(Place::Value(*callee)),
                         sealed: false,
                         may_only: false,
+                        ordinary_only: false,
                     },
                     point,
                     b,
@@ -1173,7 +1231,159 @@ impl Program {
         Ok(())
     }
 }
+// An initial FAIR permutation only. Acyclic callees precede their callers;
+// cyclic nodes and callers depending on them keep their original ID order.
+// The dirty FIFO and complete stable sweep below remain the authority.
+fn initial_callee_order(
+    consumers: &[Vec<usize>],
+    b: &mut Budget,
+) -> CompileResult<VecDeque<usize>> {
+    let count = consumers.len();
+    b.product(count, 4, 1, "replacement initial order tables")?;
+    let mut degree = vec![0usize; count];
+    let mut emitted = vec![false; count];
+    let mut ready = VecDeque::with_capacity(count);
+    let mut order = VecDeque::with_capacity(count);
+    for callers in consumers {
+        fee(b, 1)?;
+        for &caller in callers {
+            fee(b, 2)?;
+            if caller >= count {
+                return Err(error("replacement initial order has an absent function"));
+            }
+            // Each increment consumes two budget units before it occurs;
+            // even a duplicate-edge test graph cannot overflow this counter.
+            degree[caller] += 1;
+        }
+    }
+    for (index, &incoming) in degree.iter().enumerate() {
+        fee(b, 1)?;
+        if incoming == 0 {
+            fee(b, 1)?;
+            ready.push_back(index);
+        }
+    }
+    while let Some(index) = ready.pop_front() {
+        fee(b, 2)?;
+        emitted[index] = true;
+        order.push_back(index);
+        for &caller in &consumers[index] {
+            fee(b, 2)?;
+            if degree[caller] == 0 {
+                return Err(error("replacement initial degree is inconsistent"));
+            }
+            degree[caller] -= 1;
+            if degree[caller] == 0 {
+                fee(b, 1)?;
+                ready.push_back(caller);
+            }
+        }
+    }
+    for (index, &done) in emitted.iter().enumerate() {
+        fee(b, 1)?;
+        if !done {
+            fee(b, 1)?;
+            order.push_back(index);
+        }
+    }
+    Ok(order)
+}
+
 pub(super) fn infer(
+    module: &TypedModule,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    program: &Program,
+    b: &mut Budget,
+) -> CompileResult<Vec<Effect>> {
+    fee(b, module.functions.len())?;
+    let effects = vec![Effect::default(); module.functions.len()];
+    let consumers = effect_consumers_with_public(module, graphs, true, b)?;
+    infer_from_consumers(module, graphs, program, effects, consumers, b)
+}
+
+fn infer_from_consumers(
+    module: &TypedModule,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    program: &Program,
+    mut effects: Vec<Effect>,
+    consumers: Vec<Vec<usize>>,
+    b: &mut Budget,
+) -> CompileResult<Vec<Effect>> {
+    let mut pending = initial_callee_order(&consumers, b)?;
+    let mut queued = vec![true; module.functions.len()];
+    loop {
+        while let Some(index) = pending.pop_front() {
+            fee(b, 1)?;
+            queued[index] = false;
+            let found = analyze_function_program(
+                module,
+                &module.functions[index],
+                &graphs[index].1,
+                &effects,
+                false,
+                b,
+                None,
+                Some(program),
+            )?;
+            if grow_effect(&mut effects[index], found, b)? {
+                fee(b, consumers[index].len())?;
+                for &caller in &consumers[index] {
+                    if !queued[caller] {
+                        fee(b, 1)?;
+                        queued[caller] = true;
+                        pending.push_back(caller);
+                    }
+                }
+            }
+        }
+        // The graph schedules monotone may effects only. Recompute every body
+        // at quiescence and require an actually stable full pass before its
+        // separate normal-return must facts are published. A missing edge can
+        // cost another round but can never erase a replacement obligation.
+        let mut changed = false;
+        let mut musts = Vec::new();
+        for (index, (f, (_, reachable))) in module.functions.iter().zip(graphs).enumerate() {
+            fee(b, 1)?;
+            let found = analyze_function_program(
+                module,
+                f,
+                reachable,
+                &effects,
+                false,
+                b,
+                None,
+                Some(program),
+            )?;
+            if program.whole_helper(f.id, b)? {
+                fee(b, 1)?;
+                must_cost(found.whole_commits.as_ref(), b)?;
+                musts.push((f.id, found.whole_commits.clone()));
+            }
+            if grow_effect(&mut effects[index], found, b)? {
+                changed = true;
+                fee(b, consumers[index].len())?;
+                for &caller in &consumers[index] {
+                    if !queued[caller] {
+                        fee(b, 1)?;
+                        queued[caller] = true;
+                        pending.push_back(caller);
+                    }
+                }
+            }
+        }
+        if !changed {
+            for (id, rows) in musts {
+                effects[id.0 as usize].whole_commits = rows;
+            }
+            return Ok(effects);
+        }
+    }
+}
+
+// Executable exhaustive scheduling oracle. Per-function transfers, may joins
+// and the final must collection are identical to the frontier implementation.
+#[cfg(test)]
+fn infer_full_scan(
     module: &TypedModule,
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     program: &Program,

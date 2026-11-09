@@ -4,6 +4,7 @@
 use super::*;
 
 #[derive(Clone, Copy)]
+#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 pub(super) struct Storage {
     pub(super) owner: ValueId,
     pub(super) bytes: u64,

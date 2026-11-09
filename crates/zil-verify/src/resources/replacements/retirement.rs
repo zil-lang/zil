@@ -495,8 +495,21 @@ pub(super) fn close(plan: &Plan, module: &TypedModule, b: &mut Budget) -> Check<
     let pairs = plan.pairs.borrow();
     b.spend(module.functions.len())?;
     for f in &module.functions {
-        if !pairs[f.id.0 as usize].is_empty()
-            && (f.callable_contract.is_some() || f.callable_return_contract.is_some())
+        let rows = &pairs[f.id.0 as usize];
+        b.spend(rows.len())?;
+        let input_pairs = f.callable_contract.is_some()
+            && f.call_kind == zil_ir::CallKind::Direct
+            && rows.iter().all(|(a, c)| {
+                [a, c].iter().all(|target| {
+                    matches!(
+                        target.base,
+                        actual::Base::Input(_) | actual::Base::InputCapture(..)
+                    )
+                })
+            });
+        if !rows.is_empty()
+            && (f.callable_return_contract.is_some()
+                || (f.callable_contract.is_some() && !input_pairs))
         {
             return Err(unsupported(
                 "public callable retirement needs a checked separation envelope",

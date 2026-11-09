@@ -1053,3 +1053,7 @@ pub(super) fn binding(
         e.equal(actual, expected, b)
     }
 }
+
+#[cfg(test)]
+#[path = "array_field_tests.rs"]
+mod array_field_tests;

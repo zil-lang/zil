@@ -11,6 +11,7 @@ struct Invocation<'a> {
     arguments: &'a [ValueId],
     captures: Option<&'a actual::Captures>,
     may_only: bool,
+    ordinary_only: bool,
 }
 pub(super) struct Context<'a> {
     actual: &'a actual::Program,
@@ -269,7 +270,7 @@ fn package_helper_with_store_input(
     b: &mut Budget,
 ) -> Check<bool> {
     if f.foreign.is_some()
-        || f.callable_contract.is_some()
+        || (f.callable_contract.is_some() && (parameter.is_none() || store_input.is_none()))
         || f.callable_return_contract.is_some()
         || f.reference_return_bound.is_some()
         || f.storage_life.is_some()
@@ -292,6 +293,17 @@ fn package_helper_with_store_input(
             continue;
         }
         let ty = &f.locals[local.0 as usize].ty;
+        if let Some(contract) = &f.callable_contract {
+            b.spend(contract.roles.len())?;
+            if contract
+                .roles
+                .iter()
+                .any(|role| role.parameter as usize == index)
+                || helper_copy_result(ty, b)?
+            {
+                continue;
+            }
+        }
         match ty {
             Type::Unit
             | Type::Bool
@@ -814,11 +826,15 @@ impl Context<'_> {
             arguments,
             captures,
             may_only,
+            ordinary_only,
         } = invocation;
         let rows = &self.summaries[entry];
         b.spend(rows.len())?;
         for (target, payload) in rows {
             b.spend(target.steps.len().saturating_add(1))?;
+            if ordinary_only && !matches!(target.base, actual::Base::Input(_)) {
+                continue;
+            }
             let targets = actual::substitute(
                 &BTreeSet::from([target.clone()]),
                 arguments,
@@ -903,7 +919,7 @@ impl Context<'_> {
                 }
                 for target in self.actual.selected(f, place, b)? {
                     if f.callable_contract.is_some()
-                        && !matches!(target.base, actual::Base::Local(_))
+                        && !matches!(target.base, actual::Base::Local(_) | actual::Base::Input(_))
                     {
                         return Err(unsupported(
                             "public callable helper cannot publish its own nonlocal Commit",
@@ -920,10 +936,12 @@ impl Context<'_> {
                 let callee = &flow.module.functions[function.0 as usize];
                 if let Some(contract) = &callee.callable_contract {
                     b.spend(self.summaries[function.0 as usize].len())?;
-                    if self.summaries[function.0 as usize]
-                        .keys()
-                        .any(|target| !matches!(target.base, actual::Base::InputCapture(..)))
-                    {
+                    if self.summaries[function.0 as usize].keys().any(|target| {
+                        !matches!(
+                            target.base,
+                            actual::Base::Input(_) | actual::Base::InputCapture(..)
+                        )
+                    }) {
                         return Err(unsupported(
                             "public callable helper has an unpublished replacement effect",
                             Some(i.span),
@@ -949,19 +967,26 @@ impl Context<'_> {
                                 arguments: &[],
                                 captures: Some(&facts.captures[value.0 as usize]),
                                 may_only: true,
+                                ordinary_only: false,
                             },
                             validate,
                             b,
                         )?;
                     }
+                    self.call(
+                        flow,
+                        state,
+                        Invocation {
+                            entry: function.0 as usize,
+                            arguments,
+                            captures: None,
+                            may_only: true,
+                            ordinary_only: true,
+                        },
+                        validate,
+                        b,
+                    )?;
                     return Ok(None);
-                }
-                if f.callable_contract.is_some() && !self.summaries[function.0 as usize].is_empty()
-                {
-                    return Err(unsupported(
-                        "public callable helper cannot publish an ordinary callee's private replacement effects",
-                        Some(i.span),
-                    ));
                 }
                 if (callee.callable_contract.is_some() || callee.callable_return_contract.is_some())
                     && !self.summaries[function.0 as usize].is_empty()
@@ -979,6 +1004,7 @@ impl Context<'_> {
                         arguments,
                         captures: None,
                         may_only: false,
+                        ordinary_only: false,
                     },
                     validate,
                     b,
@@ -1000,6 +1026,7 @@ impl Context<'_> {
                         arguments,
                         captures: facts.local_captures.get(callee),
                         may_only: false,
+                        ordinary_only: false,
                     },
                     validate,
                     b,
@@ -1023,6 +1050,7 @@ impl Context<'_> {
                         arguments,
                         captures: Some(&facts.captures[callee.0 as usize]),
                         may_only: false,
+                        ordinary_only: false,
                     },
                     validate,
                     b,
@@ -1043,6 +1071,7 @@ impl Context<'_> {
                             arguments: &[],
                             captures: Some(&facts.captures[value.0 as usize]),
                             may_only: false,
+                            ordinary_only: false,
                         },
                         validate,
                         b,
@@ -1064,6 +1093,7 @@ impl Context<'_> {
                         arguments: &[],
                         captures: Some(&facts.captures[body.0 as usize]),
                         may_only: false,
+                        ordinary_only: false,
                     },
                     validate,
                     b,

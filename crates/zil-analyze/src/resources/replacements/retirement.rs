@@ -499,9 +499,26 @@ impl Program {
             }
             if !changed {
                 for f in &module.functions {
-                    let has_pairs = !self.retirement_pairs.borrow()[f.id.0 as usize].is_empty();
-                    if has_pairs
-                        && (f.callable_contract.is_some() || f.callable_return_contract.is_some())
+                    let table = self.retirement_pairs.borrow();
+                    let pairs = &table[f.id.0 as usize];
+                    fee(b, pairs.len())?;
+                    // A direct callable helper retains the exact ordinary and
+                    // callable-input identities. Every direct caller above
+                    // substitutes both sides in the same complete call context.
+                    let input_pairs = f.callable_contract.is_some()
+                        && f.call_kind == CallKind::Direct
+                        && pairs.iter().all(|(a, c)| {
+                            [a, c].iter().all(|target| {
+                                matches!(
+                                    target.root,
+                                    origins::Root::Parameter(_)
+                                        | origins::Root::ParameterCapture(..)
+                                )
+                            })
+                        });
+                    if !pairs.is_empty()
+                        && (f.callable_return_contract.is_some()
+                            || (f.callable_contract.is_some() && !input_pairs))
                     {
                         return Err(vec![Diagnostic::unsupported(
                             Phase::Analyze,
