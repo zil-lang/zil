@@ -1,0 +1,50 @@
+name: Compiler independent bot review channel
+on:
+  push:
+    branches: [task/G10.5.1.2]
+    paths: ['.github/workflows/compiler-bot-review.yml']
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  request:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    if: github.repository == 'zil-lang/zil' && github.ref == 'refs/heads/task/G10.5.1.2'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Bot-specific review request with observable receipt
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import datetime,json,os,pathlib,subprocess,time
+          dst=pathlib.Path('.task/G10.5.1.2/review-channel')/os.environ['GITHUB_RUN_ID'];dst.mkdir(parents=True)
+          def call(argv):
+              p=subprocess.run(argv,text=True,capture_output=True,timeout=45)
+              return {'exit':p.returncode,'stdout':p.stdout,'stderr':p.stderr}
+          def get(path):return json.loads(subprocess.check_output(['gh','api',path],text=True))
+          pr=get('repos/zil-lang/zil/pulls/65');assert pr['head']['sha']=='906940ea78dcd5298c9168c4d17197b5983bf954'
+          before=get('repos/zil-lang/zil/issues/65/timeline?per_page=100')
+          query='mutation($p:ID!){requestReviewsByLogin(input:{pullRequestId:$p,botLogins:["copilot-pull-request-reviewer"]}){pullRequest{number}}}'
+          request=call(['gh','api','graphql','-f','query='+query,'-f','p='+pr['node_id']])
+          deadline=time.monotonic()+50
+          while True:
+              after=get('repos/zil-lang/zil/issues/65/timeline?per_page=100')
+              started=[e for e in after if e.get('event')=='copilot_work_started' and e.get('id') not in {x.get('id') for x in before}]
+              reviews=get('repos/zil-lang/zil/pulls/65/reviews')
+              if started or reviews or request['exit'] or time.monotonic()>=deadline:break
+              time.sleep(5)
+          receipt={'head':pr['head']['sha'],'pr':65,'request':request,'new_started_events':started,'reviews':reviews,'requested_reviewers':get('repos/zil-lang/zil/pulls/65/requested_reviewers'),'updated_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'scope':'Only request/observe external review; never approve or merge','main_modified':False}
+          (dst/'receipt.json').write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+'\n');print(json.dumps(receipt,ensure_ascii=False,indent=2))
+          PY
+          git fetch --no-tags origin refs/heads/task/G10.5.1.2
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git add -- ".task/G10.5.1.2/review-channel/$GITHUB_RUN_ID"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Preserve bot-specific review request outcome; no production approval implied'
+          git push origin HEAD:refs/heads/task/G10.5.1.2
