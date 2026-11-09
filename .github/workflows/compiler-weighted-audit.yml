@@ -1,0 +1,118 @@
+name: Weighted compiler evidence audit
+on:
+  push:
+    branches: [task/G10.5.1]
+    paths: ['.github/workflows/compiler-weighted-audit.yml']
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: compiler-weighted-audit-G10.5.1
+  cancel-in-progress: false
+jobs:
+  audit:
+    if: github.repository == 'zil-lang/zil' && github.ref == 'refs/heads/task/G10.5.1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TARGET_RUN: '42626855362'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Read the exact finite experiment after it finishes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/weighted-audit"
+          completed=false
+          for attempt in $(seq 1 100); do
+            gh api "repos/zil-lang/zil/actions/runs/$TARGET_RUN" > "$RUNNER_TEMP/weighted-audit/run.json"
+            status=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["status"])' "$RUNNER_TEMP/weighted-audit/run.json")
+            if [ "$status" = completed ]; then completed=true; break; fi
+            sleep 15
+          done
+          test "$completed" = true
+          git fetch --no-tags --depth=8 origin refs/heads/task/G10.5.1.1
+          git worktree add --detach "$RUNNER_TEMP/weighted-audit-source" FETCH_HEAD
+          git -C "$RUNNER_TEMP/weighted-audit-source" rev-parse HEAD > "$RUNNER_TEMP/weighted-audit/delivery-head.txt"
+          test -f "$RUNNER_TEMP/weighted-audit-source/.task/G10.5.1.1/runs/$TARGET_RUN/summary.json"
+      - name: Verify raw records and recompute the frozen weighting
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .task/G10.5.1/round2/audit_weighted.py --run "$RUNNER_TEMP/weighted-audit-source/.task/G10.5.1.1/runs/$TARGET_RUN" --out "$RUNNER_TEMP/weighted-audit/audit.json" 2>&1 | tee "$RUNNER_TEMP/weighted-audit/audit.log"
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re,subprocess,tarfile
+          P=pathlib.Path; tmp=P(os.environ['RUNNER_TEMP']); repo=tmp/'weighted-audit-source'; root=repo/'.task/G10.5.1.1/runs'/os.environ['TARGET_RUN']; dst=tmp/'weighted-audit'
+          receipt=json.loads((root/'receipt.json').read_text()); summary=json.loads((root/'summary.json').read_text()); manifest=json.loads((root/'manifest.json').read_text())
+          assert receipt['baseline']=='82a69812582856b012468db3d019930d8e390f64'
+          source=receipt['measured_source']; subprocess.run(['git','merge-base','--is-ancestor',source,'HEAD'],cwd=repo,check=True)
+          for name,expected in receipt['source_files'].items():
+              data=subprocess.check_output(['git','show',source+':'+name],cwd=repo)
+              assert hashlib.sha256(data).hexdigest()==expected and (repo/name).read_bytes()==data,name
+          rows=[json.loads(line) for line in (root/'rows.jsonl').read_text().splitlines()]
+          warm_hits=0
+          for row in rows:
+              argv=row['argv']; assert '--semantic-cache' in argv
+              if row['mode']=='check': assert argv[1]=='check'
+              else:
+                  for option,wanted in (('--opt',row['mode']),('--codegen-units','8'),('--codegen-jobs','2'),('--backend','llvm-api')):
+                      assert argv[argv.index(option)+1]==wanted,(row['log'],option)
+                  assert ('--incremental-o2' in argv)==(row['mode']=='O2')
+                  if row['mode']=='O2': assert argv[argv.index('--function-merging')+1]=='after'
+                  cache=row['native_codegen']['object_cache']; assert cache['enabled'] and cache['requested']
+                  if row['request']=='warm':
+                      assert cache['misses']==0 and cache['hits']==row['native_codegen']['actual_units']
+                      warm_hits+=1
+          controls={}
+          with tarfile.open(root/'raw.tar.gz','r|gz') as archive:
+              for item in archive:
+                  if item.name in ('setup/backend-tests.log','setup/llvm-tests.log','setup/clippy.log'):
+                      text=archive.extractfile(item).read().decode()
+                      counts=re.findall(r'test result: ok\. (\d+) passed; 0 failed;',text)
+                      controls[item.name]={'passed':sum(map(int,counts)),'sha256':hashlib.sha256(text.encode()).hexdigest()}
+                      if item.name.endswith('tests.log'): assert counts and sum(map(int,counts))>0
+          supplementary={'status':'Pass for exact source, options and current warm-cache hits','measured_source':source,'delivery_head':(dst/'delivery-head.txt').read_text().strip(),'recipe':receipt['recipe'],'warm_build_hits_checked':warm_hits,'controls':controls,'runtime_screen_pass':summary['runtime_screen_pass'],'independent_review':'NotRun','merge_allowed':False}
+          (dst/'source-and-controls.json').write_text(json.dumps(supplementary,indent=2)+'\n')
+          for name in ('summary.json','cells.json','ownership-consumer.json','receipt.json'):
+              if (root/name).exists(): (dst/name).write_bytes((root/name).read_bytes())
+          lines=['# 频率加权编译专项：本轮观察','',f'冻结基线 `{receipt["baseline"]}`；受测源码 `{source}`；完整证据保存在子分支运行 `{os.environ["TARGET_RUN"]}`。','',
+             '**这些权重是预先声明的使用方式假设，不是用户遥测；结果只覆盖本次十份语料和显式8CGU/2jobs的配置。裸CLI默认策略并未修改。**','',
+             '| 使用方式 | 原版加权平均ms | 候选加权平均ms | 耗时减少 | 每1000请求节省秒 |',
+             '| --- | ---: | ---: | ---: | ---: |']
+          for profile in summary['profiles']:
+              t=profile['weighted_mean_ms']; lines.append(f'| {profile["profile"]} | {t["base"]:.3f} | {t["cand"]:.3f} | {profile["reduction"]*100:.2f}% | {profile["saved_seconds_per_1000_requests"]:.3f} |')
+          lines += ['', '## 实际等待时间与退化', '', '| 场景 | 原版均值ms | 候选均值ms | 节省ms | 7次配对胜出 |','| --- | ---: | ---: | ---: | ---: |']
+          cells=json.loads((root/'cells.json').read_text())
+          chosen=[c for c in cells if c['mode']=='O2' and c['case'] in ('tree32x8','tree256x8','tree1024x8','single8192') and c['request'] in ('cold','private','warm')]
+          for c in chosen:
+              lines.append(f'| {c["case"]}/{c["request"]} | {c["base_mean_ms"]:.3f} | {c["candidate_mean_ms"]:.3f} | {c["saved_mean_ms"]:.3f} | {c["paired_wins"]}/7 |')
+          lines += ['', '## 生成程序运行质量', '', '| 场景 | 原版运行ms | 候选运行ms | 普通O2运行ms | Rust运行ms | 候选/原版 |','| --- | ---: | ---: | ---: | ---: | ---: |']
+          for r in summary['runtime_quality']:
+              v=r['median_ms']; lines.append(f'| {r["case"]}/{r["snapshot"]} | {v["base"]:.3f} | {v["cand"]:.3f} | {v["plain"]:.3f} | {v["rust"]:.3f} | {r["candidate_over_base"]:.3f} |')
+          lines += ['',f'预设运行质量筛查（候选/原版≤1.10）：{summary["runtime_screen_pass"]}。这不等于全语言或一般工业项目的Rust运行性能门通过。', '',
+              f'主矩阵编译{summary["compile_requests"]}次，正式计时{summary["formal_requests"]}次；原生输出检查{summary["native_output_checks"]}次，运行计时{summary["runtime_executions"]}次。完整原始值、bootstrap区间和退化单元见JSON。', '',
+              '机械审计逐条复核日志、输入、摘要、矩阵完整性、当前Verify、选项及加权算术。它由实施者编写，不能冒充非作者源码独审。尚未完成非作者独审，也未合入main。', '',
+              '本候选的收益首先是完整导入超预算时恢复已有普通多分区路径；不能仅凭相对旧incremental-o2的提升，就声称超过既有手动最快配置。前端历史退化和构建层Fresh跳过机制不因本轮而关闭。']
+          (dst/'RESULTS.md').write_text('\n'.join(lines)+'\n')
+          print(json.dumps(supplementary,indent=2))
+          PY
+      - name: Preserve mechanical audit and its actual status
+        if: ${{ always() }}
+        shell: bash
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          dest=".task/G10.5.1/round2/audits/$TARGET_RUN"
+          mkdir -p "$dest"
+          cp -a "$RUNNER_TEMP/weighted-audit/." "$dest/"
+          printf '%s\n' "$PRIOR_STATUS" > "$dest/workflow-status.txt"
+          git fetch --no-tags origin refs/heads/task/G10.5.1
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git add -- "$dest"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Preserve weighted evidence audit $TARGET_RUN; no source approval implied"
+          git push origin HEAD:refs/heads/task/G10.5.1
