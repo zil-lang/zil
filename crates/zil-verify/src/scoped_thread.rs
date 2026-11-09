@@ -118,12 +118,13 @@ fn mutex_worker_graph(
                 .saturating_add(f.values.len())
                 .saturating_add(module.resources.len()),
         )?;
-        if f.foreign.is_some()
+        if f.call_kind != CallKind::Direct
+            || f.foreign.is_some()
             || f.environment.is_some()
             || f.callable_contract.is_some()
             || f.callable_return_contract.is_some()
             || f.result_mode != PassingMode::Infer
-            || f.return_type != Type::I32
+            || !(scalar(&f.return_type) || cas_pair(&f.return_type))
             || module.resources.iter().any(|r| r.teardown == Some(id))
         {
             return Err(invalid(
@@ -142,14 +143,15 @@ fn mutex_worker_graph(
             }
         }
         if id == root
-            && (f.parameters.len() != 1
+            && (f.return_type != Type::I32
+                || f.parameters.len() != 1
                 || f.locals
                     .get(f.parameters[0].0 as usize)
                     .is_none_or(|l| mutex_head(&l.ty) != Some(payload)))
         {
             return Err(invalid(
                 span,
-                "mutex worker requires one actual shared mutex descriptor",
+                "mutex worker root requires one actual shared mutex descriptor and i32 result",
             ));
         }
         for block in &f.blocks {
