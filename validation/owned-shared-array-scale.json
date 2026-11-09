@@ -53,7 +53,7 @@
     }
   ],
   "native_scope": "Two original sources, each through Clang and LLVM API builder at O0/O2: eight actual executions, each exit 0 with empty stdout/stderr. These are the selected acceptance executions; broader trait and array regressions are not added to this count. The 512-input literal repeats one actual referent, so it does not alone establish distinct-origin indexing; existing dynamic-index and alias controls remain in the selected array suite.",
-  "field_snapshot_contract": "The copied shared-address Array contains every physical slot. Discarding its owning Package does not copy, move or prolong the external Managed referent; that referent remains alive through the last snapshot read. A missing initialized slot or invalid origin remains a rejection.",
+  "field_snapshot_contract": "The copied shared-address Array contains every physical slot. Discarding its owning Package does not copy, move or prolong the external Leaf referent; that referent remains alive through the last snapshot read. The snapshot does not duplicate the Package's Managed cleanup responsibility. A missing initialized slot or invalid origin remains a rejection.",
   "test_provenance": {
     "full_regression_source": "6cfb6ae3acbe467094dcc4faae953755fe55ddc3",
     "full_regression_tree": "39308efe888b4a90aef6b53732b09fb41b83e86a",
