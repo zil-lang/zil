@@ -16,8 +16,8 @@ fn visited_words_preserve_boundaries_sparse_arenas_cycles_and_root_order() {
         if width == 0 {
             continue;
         }
-        for id in 1..width.min(513) {
-            loans[id].parents = vec![id - 1, id - 1];
+        for (id, loan) in loans.iter_mut().enumerate().take(width.min(513)).skip(1) {
+            loan.parents = vec![id - 1, id - 1];
         }
         let last = width.min(513) - 1;
         let roots = [last, 0, last, last / 2];
