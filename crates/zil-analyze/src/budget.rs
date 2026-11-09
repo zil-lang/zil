@@ -73,6 +73,8 @@ pub(super) struct Budget {
     pub(super) store_option_results: bool,
     // Presence from actual Direct Call types; only schedules the private proof.
     pub(super) qualified_package_returns: bool,
+    // Paid actual ExtractIndex inventory; algorithm scheduling only.
+    pub(super) array_outer_functions: Vec<zil_ir::FunctionId>,
     pub(super) byte_queries: bool,
     pub(super) byte_query_presence_checked: bool,
     pub(super) byte_query_functions: Vec<bool>,
@@ -162,6 +164,7 @@ impl Budget {
             task_borrowed_results: false,
             store_option_results: false,
             qualified_package_returns: false,
+            array_outer_functions: Vec::new(),
             byte_queries: false,
             byte_query_presence_checked: false,
             byte_query_functions: Vec::new(),
