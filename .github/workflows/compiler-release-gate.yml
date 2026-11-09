@@ -1,0 +1,58 @@
+name: Compiler release gate receipt
+on:
+  push:
+    branches: [task/G10.5.1]
+    paths: ['.github/workflows/compiler-release-gate.yml']
+permissions:
+  contents: write
+  actions: read
+  pull-requests: write
+jobs:
+  receipt:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    if: github.repository == 'zil-lang/zil' && github.ref == 'refs/heads/task/G10.5.1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Preserve real full-CI evidence and request external review only
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pr65-ci"
+          gh run download 42637553501 --repo zil-lang/zil --name zil-main-42637553501-1-summary --dir "$RUNNER_TEMP/pr65-ci"
+          python3 - <<'PY'
+          import datetime,hashlib,json,os,pathlib,subprocess
+          p=pathlib.Path;dst=p('.task/G10.5.1/release-gate')/os.environ['GITHUB_RUN_ID'];dst.mkdir(parents=True)
+          def get(path):return json.loads(subprocess.check_output(['gh','api','-H','X-GitHub-Api-Version: 2026-03-10',path],text=True))
+          pr=get('repos/zil-lang/zil/pulls/65')
+          assert pr['head']['sha']=='906940ea78dcd5298c9168c4d17197b5983bf954'
+          tmp=p(os.environ['RUNNER_TEMP'])/'pr65-ci'
+          results=json.loads((tmp/'compact-results.json').read_text())
+          consumer=json.loads((tmp/'native-consumer.json').read_text())
+          tree=(tmp/'source-tree.txt').read_text().strip()
+          assert tree=='f85c6c456168caf0a1a3be101a97301c2ac40b4b'
+          assert set(results['steps'].values())=={'success'} and consumer['status']=='Pass'
+          runs=[]
+          for i in [42637553501,42637553555,42637553818]:
+              run=get(f'repos/zil-lang/zil/actions/runs/{i}')
+              assert run['head_sha']==pr['head']['sha'] and run['conclusion']=='success'
+              runs.append({k:run[k] for k in ['id','name','head_sha','conclusion','html_url']})
+          request=subprocess.run(['gh','api','--method','POST','-H','X-GitHub-Api-Version: 2026-03-10','repos/zil-lang/zil/pulls/65/requested_reviewers','--input','-'],input=json.dumps({'reviewers':['copilot-pull-request-reviewer[bot]']}),text=True,capture_output=True)
+          (dst/'review-request.stdout').write_text(request.stdout)
+          (dst/'review-request.stderr').write_text(request.stderr)
+          reviews=get('repos/zil-lang/zil/pulls/65/reviews')
+          pending=get('repos/zil-lang/zil/pulls/65/requested_reviewers')
+          record={'pr':65,'head':pr['head']['sha'],'tested_merge':results['commit'],'tested_tree':tree,'ci':runs,'full_results':results,'native_consumer':{'status':consumer['status'],'builds':len(consumer['builds']),'observations':len(consumer['observations']),'injected_failures':sum(x['fail_at']>0 for x in consumer['observations'])},'review_request_exit':request.returncode,'requested_reviewers':pending,'reviews':reviews,'non_author_review':'NotConfirmed','main_modified':False,'merge_allowed':False,'updated_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'run':f'https://github.com/zil-lang/zil/actions/runs/{os.environ["GITHUB_RUN_ID"]}'}
+          (dst/'receipt.json').write_text(json.dumps(record,ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps(record,ensure_ascii=False,indent=2))
+          PY
+          git fetch --no-tags origin refs/heads/task/G10.5.1
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git add -- ".task/G10.5.1/release-gate/$GITHUB_RUN_ID"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Preserve exact tested production tree and unresolved external-review status'
+          git push origin HEAD:refs/heads/task/G10.5.1
