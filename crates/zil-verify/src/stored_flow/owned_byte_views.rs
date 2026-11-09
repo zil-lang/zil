@@ -151,7 +151,9 @@ pub(super) fn description_instruction(
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
-    if !b.shared_byte_borrow {
+    // Preserve the existing Option description check without opening the new
+    // head inventory for a module containing only ordinary helper views.
+    if !b.shared_byte_borrow || b.store_option_results {
         return Ok(false);
     }
     if !matches!(i.kind, InstructionKind::DescribePackageField { .. }) {
@@ -376,7 +378,9 @@ impl Sites {
         !self.values.is_empty()
     }
     pub(super) fn collect(f: &TypedFunction, b: &mut Budget) -> Check<Self> {
-        if !b.shared_byte_borrow {
+        // Every selected local payload view was independently authenticated
+        // by the unconditional instruction inventory before solving windows.
+        if !b.shared_byte_borrow || b.owned_byte_heads.is_none() {
             return Ok(Self { values: Vec::new() });
         }
         b.spend(f.blocks.len().saturating_add(f.values.len()))?;

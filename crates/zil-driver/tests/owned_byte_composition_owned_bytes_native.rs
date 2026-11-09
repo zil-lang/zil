@@ -175,6 +175,42 @@ const BUFFER: &str = "fn buf(v:u8)->ByteBuffer contract{result(create)}{let b=by
 const PACKAGE: &str = "package P{manages left:ByteBuffer;manages right:ByteBuffer;n:i64}fn make()->P{return P{left:buf(2u8),right:buf(3u8),n:i64(9)}}fn relay(p:P)->P{return p}";
 
 #[test]
+fn stored_local_byte_views_read_real_payloads_and_clean_each_owner_once() {
+    let original =
+        include_str!("../../../tests/language-readiness/owned-byte-views/local-field.zil")
+            .replace("fn main()->i32", "fn work()->i32");
+    let failed = original.replace(
+        "    bytes_reserve(reply.data,2)",
+        "    if bytes_reserve(reply.data,13) {return 3}\n    if bytes_view(reply.data)[0]!=66u8 {return 4}",
+    );
+    let replaced = original.replace(
+        "    bytes_reserve(reply.data,2)",
+        "    reply.data=bytes_new()\n    if !bytes_reserve(reply.data,1) {return 3}\n    if !bytes_push(reply.data,77u8) {return 4}\n    if bytes_view(reply.data)[0]!=77u8 {return 5}",
+    );
+    for (source, expected) in [
+        (original, "10200\n"),
+        (failed, "10200\n"),
+        (replaced, "20200\n"),
+    ] {
+        let text = format!(
+            "{COUNTERS}{source}\nfn value()->i32{{let result=work();return result+counts()}}"
+        );
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for level in [Optimization::O0, Optimization::O2] {
+                let temp = build_backend(&text, level, true, backend);
+                let output = run(&temp.0.join("program"), &[]);
+                assert!(output.status.success(), "{backend:?}/{level:?}: {output:?}");
+                assert_eq!(output.stdout, expected.as_bytes());
+                assert!(output.stderr.is_empty(), "{output:?}");
+            }
+        }
+    }
+}
+
+#[test]
 fn package_transfer_take_refill_and_replace_release_each_payload_once() {
     let text = format!(
         "{COUNTERS}{BUFFER}{PACKAGE}fn work()->i32{{var p=relay(make());let old=give p.left;p.left=buf(5u8);p.right=buf(7u8);return get(old)+get(p.left)+get(p.right)+i32(p.n)}}fn value()->i32{{let answer=work();return answer+counts()}}"
