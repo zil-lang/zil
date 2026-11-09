@@ -1231,6 +1231,64 @@ impl Program {
         Ok(())
     }
 }
+// An initial FAIR permutation only. Acyclic callees precede their callers;
+// cyclic nodes and callers depending on them keep their original ID order.
+// The dirty FIFO and complete stable sweep below remain the authority.
+fn initial_callee_order(
+    consumers: &[Vec<usize>],
+    b: &mut Budget,
+) -> CompileResult<VecDeque<usize>> {
+    let count = consumers.len();
+    b.product(count, 4, 1, "replacement initial order tables")?;
+    let mut degree = vec![0usize; count];
+    let mut emitted = vec![false; count];
+    let mut ready = VecDeque::with_capacity(count);
+    let mut order = VecDeque::with_capacity(count);
+    for callers in consumers {
+        fee(b, 1)?;
+        for &caller in callers {
+            fee(b, 2)?;
+            if caller >= count {
+                return Err(error("replacement initial order has an absent function"));
+            }
+            // Each increment consumes two budget units before it occurs;
+            // even a duplicate-edge test graph cannot overflow this counter.
+            degree[caller] += 1;
+        }
+    }
+    for (index, &incoming) in degree.iter().enumerate() {
+        fee(b, 1)?;
+        if incoming == 0 {
+            fee(b, 1)?;
+            ready.push_back(index);
+        }
+    }
+    while let Some(index) = ready.pop_front() {
+        fee(b, 2)?;
+        emitted[index] = true;
+        order.push_back(index);
+        for &caller in &consumers[index] {
+            fee(b, 2)?;
+            if degree[caller] == 0 {
+                return Err(error("replacement initial degree is inconsistent"));
+            }
+            degree[caller] -= 1;
+            if degree[caller] == 0 {
+                fee(b, 1)?;
+                ready.push_back(caller);
+            }
+        }
+    }
+    for (index, &done) in emitted.iter().enumerate() {
+        fee(b, 1)?;
+        if !done {
+            fee(b, 1)?;
+            order.push_back(index);
+        }
+    }
+    Ok(order)
+}
+
 pub(super) fn infer(
     module: &TypedModule,
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
@@ -1238,9 +1296,20 @@ pub(super) fn infer(
     b: &mut Budget,
 ) -> CompileResult<Vec<Effect>> {
     fee(b, module.functions.len())?;
-    let mut effects = vec![Effect::default(); module.functions.len()];
+    let effects = vec![Effect::default(); module.functions.len()];
     let consumers = effect_consumers_with_public(module, graphs, true, b)?;
-    let mut pending: VecDeque<_> = (0..module.functions.len()).collect();
+    infer_from_consumers(module, graphs, program, effects, consumers, b)
+}
+
+fn infer_from_consumers(
+    module: &TypedModule,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    program: &Program,
+    mut effects: Vec<Effect>,
+    consumers: Vec<Vec<usize>>,
+    b: &mut Budget,
+) -> CompileResult<Vec<Effect>> {
+    let mut pending = initial_callee_order(&consumers, b)?;
     let mut queued = vec![true; module.functions.len()];
     loop {
         while let Some(index) = pending.pop_front() {

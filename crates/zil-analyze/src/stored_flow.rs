@@ -11,6 +11,8 @@ mod binding_index_tests;
 mod byte_queries;
 mod live_words;
 #[cfg(test)]
+mod permission_queries_tests;
+#[cfg(test)]
 mod snapshot_tests;
 use live_words::LiveRow;
 pub(super) mod enum_address;
@@ -3862,6 +3864,14 @@ fn permission_tail(
     b: &mut Budget,
 ) -> CompileResult<()> {
     for id in active {
+        if !write {
+            // An actual shared loan cannot conflict with a read. Validate its
+            // arena entry and flag before avoiding an unused ignore search.
+            fee(b, 2)?;
+            if loans.get(*id).is_some_and(|loan| !loan.mutable) {
+                continue;
+            }
+        }
         ordered(b, ignore.len(), 0)?;
         if ignore.contains(id) {
             continue;

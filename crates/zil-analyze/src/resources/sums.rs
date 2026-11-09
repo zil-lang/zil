@@ -2,9 +2,15 @@
 //! describe possible alternatives, never simultaneous resource debts.
 use super::*;
 use std::sync::Arc;
+mod direct_index;
+#[cfg(test)]
+mod direct_index_reference;
+#[cfg(test)]
+mod initial_template_tests;
 mod partial_places;
 #[cfg(test)]
 mod sorted_join_tests;
+mod ssa_values;
 #[cfg(test)]
 mod tag_forgetting_tests;
 
@@ -235,6 +241,73 @@ impl Tree {
         budget.spend(1, "Sum immutable fact share")?;
         Ok(Arc::clone(self))
     }
+    /// A readonly proof that the ORIGINAL merge would keep every fact. A
+    /// false result is inconclusive (new information or a shape error): callers
+    /// must use the complete original merge, including its error mutations.
+    fn kept_by_join(
+        self: &Arc<Self>,
+        other: &Arc<Self>,
+        budget: &mut Budget,
+    ) -> CompileResult<bool> {
+        budget.spend(1, "Sum readonly join identity")?;
+        if Arc::ptr_eq(self, other) {
+            return Ok(true);
+        }
+        budget.spend(1, "Sum readonly join node")?;
+        if !self.missing && other.missing {
+            return Ok(false);
+        }
+        match (&self.node, &other.node) {
+            (Node::Copy, Node::Copy) => Ok(true),
+            (Node::Leaf(old), Node::Leaf(incoming)) => {
+                // Sorted subset uses each iterator at most once. A contains
+                // loop would need logarithmic charges for every incoming atom.
+                budget.spend(
+                    old.len().saturating_add(incoming.len()),
+                    "Sum readonly origin subset",
+                )?;
+                let mut old = old.iter().peekable();
+                for origin in incoming {
+                    while old.peek().is_some_and(|at| *at < origin) {
+                        old.next();
+                    }
+                    if old.next() != Some(origin) {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            (Node::Product(old), Node::Product(incoming)) => {
+                if old.len() != incoming.len() {
+                    return Ok(false);
+                }
+                for (old, incoming) in old.iter().zip(incoming) {
+                    if !old.kept_by_join(incoming, budget)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            (Node::Sum(old), Node::Sum(incoming)) => {
+                for (tag, incoming) in incoming {
+                    budget.lookup(old.len(), "Sum readonly alternative lookup")?;
+                    let Some(old) = old.get(tag) else {
+                        return Ok(false);
+                    };
+                    if old.len() != incoming.len() {
+                        return Ok(false);
+                    }
+                    for (old, incoming) in old.iter().zip(incoming) {
+                        if !old.kept_by_join(incoming, budget)? {
+                            return Ok(false);
+                        }
+                    }
+                }
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
+    }
     fn merge(self: &mut Arc<Self>, other: &Arc<Self>, budget: &mut Budget) -> CompileResult<bool> {
         budget.spend(1, "Sum shared join identity")?;
         if Arc::ptr_eq(self, other) {
@@ -320,13 +393,11 @@ impl Tree {
             }
         };
         if copy_sum {
-            if budget.store_option_results && budget.ordinary_error_places {
-                // A full set of alternatives without nested tag refinement
-                // already is the result of forgetting. Retain the exact tree,
-                // including every moved marker, instead of reconstructing it.
-                if self.tags_unknown(ty, budget)? {
-                    return Ok(());
-                }
+            // The exact existing unknown-tag shape is a fixed point of this
+            // transfer, independently of which ordinary profile scheduled it.
+            // Preserve every moved marker; no completeness fact is inferred.
+            if self.tags_unknown(ty, budget)? {
+                return Ok(());
             }
             let old = self.copied(budget)?;
             let mut unknown = Self::unknown(ty, budget)?;
@@ -369,7 +440,18 @@ impl Tree {
     fn tags_unknown(&self, ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
         budget.spend(1, "Sum existing unknown tag shape")?;
         match (&self.node, ty) {
-            (Node::Copy | Node::Leaf(_), _) => Ok(true),
+            // Match Tree::unknown's actual terminal representation. A Leaf
+            // may carry different births, so conservatively rebuild it even
+            // for Managed rather than treating its node kind as equality.
+            (Node::Copy, ty) => Ok(!matches!(
+                ty,
+                Type::Managed(_)
+                    | Type::Tuple(_)
+                    | Type::Package { .. }
+                    | Type::Enum { .. }
+                    | Type::ErrorUnion { .. }
+            )),
+            (Node::Leaf(_), _) => Ok(false),
             (Node::Product(children), Type::Tuple(fields)) => {
                 if children.len() != fields.len() {
                     return Ok(false);
@@ -645,8 +727,8 @@ fn join_tables<K: Ord>(
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct Facts {
-    locals: BTreeMap<LocalId, Arc<Tree>>,
-    values: BTreeMap<ValueId, Arc<Tree>>,
+    locals: direct_index::Locals,
+    values: ssa_values::Values,
     captures: BTreeMap<u32, Arc<Tree>>,
     // Only observations of this current activation survive. A write kills all
     // its tokens, including old SSA snapshots reused at the same loop site.
@@ -678,18 +760,35 @@ impl Facts {
             .ok_or_else(|| error("Sum discharged local absent"))?
             .no_live_owner(budget)
     }
+    fn template_copy(&self, budget: &mut Budget) -> CompileResult<Self> {
+        // Initial templates are immutable type/parameter/capture inventory.
+        // Copy every actual table even in a values-only function: the ordinary
+        // flow cost fast path intentionally ignores that different profile.
+        budget.spend(
+            self.locals
+                .len()
+                .saturating_add(self.values.page_count())
+                .saturating_add(self.captures.len())
+                .saturating_add(self.valid.len()),
+            "Sum initial template table copy",
+        )?;
+        if let Some(partial) = &self.partial {
+            partial.cost(budget)?;
+        }
+        Ok(self.clone())
+    }
     pub(super) fn cost(&self, budget: &mut Budget) -> CompileResult<()> {
         if self.locals.is_empty() && self.captures.is_empty() {
             return Ok(());
         }
         budget.spend(
-            self.locals.len() + self.values.len() + self.captures.len() + self.valid.len(),
+            self.locals.len() + self.values.page_count() + self.captures.len() + self.valid.len(),
             "Sum state tables",
         )?;
         if let Some(p) = &self.partial {
             p.cost(budget)?;
         }
-        // Map cloning shares immutable nodes; it never walks their descendants.
+        // Map/page cloning shares immutable nodes; it never walks descendants.
         Ok(())
     }
     pub(super) fn join(&mut self, other: &Self, budget: &mut Budget) -> CompileResult<bool> {
@@ -702,8 +801,8 @@ impl Facts {
         }
         // Same-function states have complete immutable inventories. Walk the
         // sorted maps together and check every key before merging its Tree.
-        change |= join_tables(&mut self.locals, &other.locals, budget)?;
-        change |= join_tables(&mut self.values, &other.values, budget)?;
+        change |= self.locals.join(&other.locals, budget)?;
+        change |= self.values.join(&other.values, budget)?;
         change |= join_tables(&mut self.captures, &other.captures, budget)?;
         budget.spend(
             self.valid.len() + other.valid.len(),
@@ -837,7 +936,7 @@ impl Facts {
                 "complete Product replacement cannot repair missing child contents",
             ));
         }
-        self.locals.insert(local, incoming);
+        self.locals.set(local, incoming)?;
         Ok(())
     }
     /// Replace a singleton complete local with the actual prepared RHS tree.
@@ -867,7 +966,7 @@ impl Facts {
         }
         self.invalidate(local, plan, budget)?;
         budget.lookup(self.locals.len(), "whole Enum definite local publication")?;
-        self.locals.insert(local, incoming);
+        self.locals.set(local, incoming)?;
         Ok(())
     }
     pub(super) fn unpack_birth(
@@ -999,11 +1098,14 @@ impl Facts {
 }
 
 pub(super) struct Plan {
+    // Scoped to one actual immutable module/function in this request. No
+    // executed State, effect, permission or current tag fact enters this cache.
+    initial_template: std::cell::RefCell<Option<Facts>>,
     // Immutable local indices whose exact Tree constructor contains tag state.
     // None preserves the established scheduling/fees outside mixed consumers.
     tagged_locals: Option<Vec<LocalId>>,
     partial: Option<partial_places::Meta>,
-    observations: BTreeMap<ValueId, (LocalId, Vec<VariantProjection>)>,
+    observations: direct_index::Observations,
     tests: BTreeMap<ValueId, (ValueId, ValueId, u32, bool)>,
 }
 impl Plan {
@@ -1052,7 +1154,7 @@ impl Plan {
         let mut address_tag = false;
         let mut address_replacement = false;
         let mut constants = BTreeMap::new();
-        let mut observations = BTreeMap::new();
+        let mut observations = direct_index::Observations::new(f.values.len(), budget)?;
         let mut tests = BTreeMap::new();
         let mut definitions = BTreeSet::new();
         for i in f.blocks.iter().flat_map(|b| &b.instructions) {
@@ -1083,7 +1185,7 @@ impl Plan {
                 (InstructionKind::VariantTagLocal { local, path }, Some(v)) => {
                     budget.lookup(observations.len(), "Sum observation insertion")?;
                     budget.spend(path.len() + 1, "Sum observation identity")?;
-                    observations.insert(v, (*local, path.clone()));
+                    observations.insert(v, (*local, path.clone()))?;
                 }
                 _ => {}
             }
@@ -1148,7 +1250,9 @@ impl Plan {
         } else {
             None
         };
+        budget.spend(1, "Sum initial template cache header")?;
         Ok(Some(Self {
+            initial_template: std::cell::RefCell::new(None),
             tagged_locals,
             partial: if partial {
                 Some(partial_places::Meta::new(f, budget)?)
@@ -1165,6 +1269,13 @@ impl Plan {
         f: &TypedFunction,
         budget: &mut Budget,
     ) -> CompileResult<Facts> {
+        budget.spend(1, "Sum initial template lookup")?;
+        {
+            let template = self.initial_template.borrow();
+            if let Some(template) = template.as_ref() {
+                return template.template_copy(budget);
+            }
+        }
         let mut facts = Facts::default();
         if self.partial.is_some() {
             facts.partial = Some(partial_places::State::default());
@@ -1175,18 +1286,16 @@ impl Plan {
             1,
             "Sum parameter membership",
         )?;
-        for l in &f.locals {
-            budget.lookup(facts.locals.len(), "Sum local fact allocation")?;
+        facts.locals = direct_index::Locals::build(f, budget, |l, budget| {
             let mut t = Tree::unknown(&l.ty, budget)?;
             edit(&mut t, budget)?.missing = !f.parameters.contains(&l.id);
-            facts.locals.insert(l.id, t);
-        }
-        for (v, ty) in f.values.iter().enumerate() {
-            budget.lookup(facts.values.len(), "Sum value fact allocation")?;
-            let mut t = Tree::unknown(ty, budget)?;
+            Ok(t)
+        })?;
+        facts.values = ssa_values::Values::build(f.values.len(), budget, |v, budget| {
+            let mut t = Tree::unknown(&f.values[v], budget)?;
             edit(&mut t, budget)?.missing = true;
-            facts.values.insert(ValueId(v as u32), t);
-        }
+            Ok(t)
+        })?;
         if let Some(id) = f.environment
             && budget.has_ordinary_store_sum_capture(id)?
         {
@@ -1205,6 +1314,10 @@ impl Plan {
                     .insert(index as u32, Tree::unknown(ty, budget)?);
             }
         }
+        // Charge the real table/Arc copy used to preserve the initial template.
+        // Later writes still pass through edit/Arc::make_mut in their own Facts.
+        let template = facts.template_copy(budget)?;
+        *self.initial_template.borrow_mut() = Some(template);
         Ok(facts)
     }
     pub(super) fn edge(
@@ -1321,13 +1434,50 @@ impl Plan {
         budget: &mut Budget,
     ) -> CompileResult<Option<BTreeSet<Birth>>> {
         budget.spend(1, "Sum instruction facts")?;
-        // Reserve the fixed number of indexed lookups used by the transfer;
-        // variable-width field and subtree work is charged separately below.
+        // Only this bounded set has no remaining implicit tree search. In
+        // particular Meta::step's result observer and managed-success Sum
+        // extraction retain the complete old reserve through the fallback.
+        budget.spend(1, "Sum direct transfer qualification")?;
+        let direct = (self.partial.is_none() || i.result.is_none())
+            && !i
+                .result
+                .and_then(|v| f.values.get(v.0 as usize))
+                .is_some_and(managed_success)
+            && matches!(
+                i.kind,
+                InstructionKind::Constant(_)
+                    | InstructionKind::MakeAggregate { .. }
+                    | InstructionKind::MakeManaged { .. }
+                    | InstructionKind::ByteBufferNew
+                    | InstructionKind::OwnedStoreNew { .. }
+                    | InstructionKind::MakePackage { .. }
+                    | InstructionKind::MakeOwnedTuple { .. }
+                    | InstructionKind::Load(_)
+                    | InstructionKind::TakeLocal { .. }
+                    | InstructionKind::Store { .. }
+                    | InstructionKind::ReadPackageField { .. }
+                    | InstructionKind::TakePackageField { .. }
+                    | InstructionKind::StorePackageField { .. }
+                    | InstructionKind::DropPackageField { .. }
+                    | InstructionKind::StorageLive(_)
+                    | InstructionKind::StorageDead(_)
+                    | InstructionKind::DropManaged { .. }
+                    | InstructionKind::DropPackage { .. }
+                    | InstructionKind::DropErrorUnion { .. }
+                    | InstructionKind::DropClosure { .. }
+                    | InstructionKind::DropOwnedArray { .. }
+                    | InstructionKind::DropEnum { .. }
+                    | InstructionKind::DropTuple { .. }
+            );
         for _ in 0..8 {
-            budget.lookup(
-                facts.locals.len() + facts.values.len() + self.observations.len(),
-                "Sum instruction index reserve",
-            )?;
+            if direct {
+                budget.spend(1, "Sum instruction direct index reserve")?;
+            } else {
+                budget.lookup(
+                    facts.locals.len() + facts.values.len() + self.observations.len(),
+                    "Sum instruction index reserve",
+                )?;
+            }
         }
         let mut output = None;
         if check
@@ -1354,7 +1504,7 @@ impl Plan {
                             .forget_addressed_copy_tags(&f.locals[local.0 as usize].ty, budget)?;
                     }
                 } else {
-                    for (local, tree) in &mut facts.locals {
+                    for (local, tree) in facts.locals.iter_mut() {
                         tree.forget_addressed_copy_tags(&f.locals[local.0 as usize].ty, budget)?;
                     }
                 }
@@ -1376,7 +1526,7 @@ impl Plan {
                     return Err(error("Package Sum capture binding is incomplete"));
                 }
                 budget.lookup(facts.locals.len(), "Package Sum capture local transfer")?;
-                facts.locals.insert(*local, capture);
+                facts.locals.set(*local, capture)?;
                 edit(
                     facts
                         .captures
@@ -1463,7 +1613,7 @@ impl Plan {
                     edit(
                         facts
                             .values
-                            .get_mut(value)
+                            .get_mut(value, budget)?
                             .ok_or_else(|| error("Sum capture refill value absent"))?,
                         budget,
                     )?
@@ -1636,7 +1786,7 @@ impl Plan {
             InstructionKind::Store { local, value } => {
                 let t = facts.value(*value, budget)?;
                 facts.invalidate(*local, self, budget)?;
-                facts.locals.insert(*local, t);
+                facts.locals.set(*local, t)?;
             }
             InstructionKind::TakePackageField { local, index }
             | InstructionKind::ReadPackageField { local, index } => {
@@ -1691,18 +1841,22 @@ impl Plan {
                 let Node::Sum(vs) = &t.node else {
                     return Err(error("Sum union source absent"));
                 };
-                output = Some(
-                    vs.get(&(*is_error as u32))
-                        .and_then(|fs| fs.first())
-                        .map(|t| t.copied(budget))
-                        .transpose()?
-                        .unwrap_or(Tree::unknown(
-                            i.result
-                                .and_then(|v| f.values.get(v.0 as usize))
-                                .ok_or_else(|| error("union result absent"))?,
-                            budget,
-                        )?),
-                );
+                let chosen = vs
+                    .get(&(*is_error as u32))
+                    .and_then(|fields| fields.first())
+                    .map(|tree| tree.copied(budget))
+                    .transpose()?;
+                // The result declaration remains mandatory even when an
+                // actual arm is present. Only the unused Tree allocation is
+                // lazy; malformed result identities must still reject.
+                let result_type = i
+                    .result
+                    .and_then(|value| f.values.get(value.0 as usize))
+                    .ok_or_else(|| error("union result absent"))?;
+                output = Some(match chosen {
+                    Some(tree) => tree,
+                    None => Tree::unknown(result_type, budget)?,
+                });
             }
             InstructionKind::VariantTagLocal { local, path }
             | InstructionKind::ReadVariantLocal { local, path }
@@ -1788,7 +1942,7 @@ impl Plan {
                     for (l, t) in fields.iter().zip(fs) {
                         budget.lookup(facts.locals.len(), "Unpack fact publication")?;
                         facts.invalidate(*l, self, budget)?;
-                        facts.locals.insert(*l, t.copied(budget)?);
+                        facts.locals.set(*l, t.copied(budget)?)?;
                     }
                 }
                 edit(facts.locals.get_mut(local).unwrap(), budget)?.missing = true;
@@ -1820,7 +1974,7 @@ impl Plan {
                 };
                 for (l, t) in fields.iter().zip(children) {
                     facts.invalidate(*l, self, budget)?;
-                    facts.locals.insert(*l, t.copied(budget)?);
+                    facts.locals.set(*l, t.copied(budget)?)?;
                 }
                 edit(facts.locals.get_mut(local).unwrap(), budget)?.missing = true;
                 facts.invalidate(*local, self, budget)?;
@@ -1901,7 +2055,7 @@ impl Plan {
                         .unwrap_or_default(),
                 );
             }
-            facts.values.insert(v, tree);
+            facts.values.set(v, tree, budget)?;
         }
         Ok(birth)
     }
