@@ -2,6 +2,10 @@
 //! are imported: actual address modes seed restrictions and executable calls
 //! substitute independently rebuilt per-position requirements.
 use super::*;
+mod local_rows;
+use local_rows::LocalRows;
+#[cfg(test)]
+mod tests;
 type CapturePath = Vec<u32>;
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Obligation {
@@ -11,7 +15,7 @@ enum Obligation {
 }
 type Constraints = Vec<Obligation>;
 type Rows = Vec<(CapturePath, Constraints)>;
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Contract {
     returned: Rows,
     writes: Constraints,
@@ -243,6 +247,228 @@ fn body(
     contracts: &[Contract],
     b: &mut Budget,
 ) -> Check<Contract> {
+    charge(b, f.values.len().saturating_add(f.blocks.len()))?;
+    let mut values = vec![Rows::new(); f.values.len()];
+    let mut outputs = (0..f.blocks.len())
+        .map(|_| LocalRows::new(f.locals.len(), b))
+        .collect::<Check<Vec<_>>>()?;
+    let mut initial = LocalRows::new(f.locals.len(), b)?;
+    for (index, l) in f.parameters.iter().enumerate() {
+        initial.set(
+            l.0 as usize,
+            seed(
+                module,
+                &f.locals[l.0 as usize].ty,
+                Some(index as u32),
+                None,
+                b,
+            )?,
+            b,
+        )?;
+    }
+    let mut result = Contract::default();
+    loop {
+        let mut progressed = false;
+        for block_id in (0..f.blocks.len()).rev() {
+            charge(b, 1)?;
+            if !graph.reachable[block_id] {
+                continue;
+            }
+            let mut locals = if block_id == f.entry.0 as usize {
+                initial.duplicate(b)?
+            } else {
+                LocalRows::new(f.locals.len(), b)?
+            };
+            for &pred in &graph.predecessors[block_id] {
+                if graph.reachable[pred] {
+                    locals.merge_from(&outputs[pred], b)?;
+                }
+            }
+            let block = &f.blocks[block_id];
+            for operation in &block.instructions {
+                charge(b, 1)?;
+                let mut generated = Rows::new();
+                match &operation.kind {
+                    InstructionKind::Store { local, value } => {
+                        locals.set(
+                            local.0 as usize,
+                            duplicate(&values[value.0 as usize], b)?,
+                            b,
+                        )?;
+                    }
+                    InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                        generated = duplicate(locals.get(local.0 as usize, b)?, b)?;
+                        if matches!(operation.kind, InstructionKind::TakeLocal { .. }) {
+                            locals.set(local.0 as usize, Rows::new(), b)?;
+                        }
+                    }
+                    InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
+                        locals.set(local.0 as usize, Rows::new(), b)?
+                    }
+                    InstructionKind::BorrowLocal { local }
+                    | InstructionKind::BorrowLocalMut { local } => {
+                        generated = duplicate(locals.get(local.0 as usize, b)?, b)?;
+                    }
+                    InstructionKind::ByteBufferBorrow {
+                        buffer: address, ..
+                    }
+                    | InstructionKind::OwnedStoreBorrow { store: address, .. }
+                    | InstructionKind::OwnedStoreBorrowMut { store: address, .. }
+                    | InstructionKind::DescribeAddress { address }
+                    | InstructionKind::AddressField { address, .. }
+                    | InstructionKind::ReborrowAddress { address, .. }
+                    | InstructionKind::AddressSlice { address, .. }
+                    | InstructionKind::AddressIndex { address, .. } => {
+                        generated = duplicate(&values[address.0 as usize], b)?;
+                    }
+                    InstructionKind::BorrowCapture { index, .. }
+                    | InstructionKind::ReadCapture { index } => {
+                        let id = f.environment.ok_or_else(|| {
+                            reject(
+                                "E-VERIFY-HEAD-ACCESS",
+                                Some(operation.span),
+                                "capture without an environment",
+                            )
+                        })?;
+                        generated = seed(
+                            module,
+                            &module.closures[id.0 as usize].captures[*index as usize],
+                            None,
+                            Some(*index),
+                            b,
+                        )?;
+                    }
+                    InstructionKind::MakeClosure { captures, .. } => {
+                        for (index, id) in captures.iter().enumerate() {
+                            for (path, terms) in &values[id.0 as usize] {
+                                charge(b, path.len().saturating_add(1))?;
+                                let mut child = vec![index as u32];
+                                child.extend(path);
+                                constraints_cost(terms, b)?;
+                                merge(&mut generated, &vec![(child, terms.clone())], b)?;
+                            }
+                        }
+                    }
+                    InstructionKind::Call {
+                        function,
+                        arguments,
+                    } => {
+                        generated = apply(
+                            &contracts[function.0 as usize],
+                            arguments,
+                            None,
+                            &values,
+                            &mut result.writes,
+                            b,
+                        )?
+                    }
+                    InstructionKind::CallClosure { callee, arguments }
+                    | InstructionKind::CallClosureOnce { callee, arguments }
+                    | InstructionKind::CallClosureBorrowed {
+                        callee, arguments, ..
+                    } => {
+                        let target = closure_entry(module, &f.values[callee.0 as usize])?;
+                        generated = apply(
+                            &contracts[target.0 as usize],
+                            arguments,
+                            Some(&values[callee.0 as usize]),
+                            &values,
+                            &mut result.writes,
+                            b,
+                        )?;
+                    }
+                    InstructionKind::CallClosureShared { callee, arguments }
+                    | InstructionKind::CallClosureMut { callee, arguments } => {
+                        let target = closure_entry(module, &f.locals[callee.0 as usize].ty)?;
+                        generated = apply(
+                            &contracts[target.0 as usize],
+                            arguments,
+                            Some(locals.get(callee.0 as usize, b)?),
+                            &values,
+                            &mut result.writes,
+                            b,
+                        )?;
+                    }
+                    InstructionKind::CallIndirect { arguments, .. } => {
+                        for id in arguments {
+                            merge(&mut generated, &values[id.0 as usize], b)?;
+                            if matches!(
+                                f.values[id.0 as usize],
+                                Type::Desc(_) | Type::Address { mutable: true, .. }
+                            ) {
+                                merge_constraints(
+                                    &mut result.writes,
+                                    &at(&values[id.0 as usize], &[], b)?,
+                                    b,
+                                )?;
+                            }
+                        }
+                    }
+                    InstructionKind::WithForeignCallback { body, .. }
+                    | InstructionKind::WithSyncCell { body, .. }
+                    | InstructionKind::WithScopedThread { body, .. } => {
+                        let target = closure_entry(module, &f.values[body.0 as usize])?;
+                        generated = apply(
+                            &contracts[target.0 as usize],
+                            &[],
+                            Some(&values[body.0 as usize]),
+                            &values,
+                            &mut result.writes,
+                            b,
+                        )?;
+                    }
+                    _ => {}
+                }
+                let access = match &operation.kind {
+                    InstructionKind::AsyncRegistrationRequestClose { registration }
+                    | InstructionKind::AsyncRegistrationPollClose { registration } => {
+                        Some(*registration)
+                    }
+                    InstructionKind::WriteDesc { desc, .. } => Some(*desc),
+                    other => byte_buffers::access(other)
+                        .or_else(|| dynamic_store::access(other))
+                        .and_then(|(id, write)| write.then_some(id)),
+                };
+                if let Some(id) = access {
+                    merge_constraints(&mut result.writes, &at(&values[id.0 as usize], &[], b)?, b)?;
+                }
+                if let Some(id) = operation.result {
+                    if matches!(
+                        f.values[id.0 as usize],
+                        Type::Address { mutable: false, .. }
+                    ) {
+                        merge(
+                            &mut generated,
+                            &vec![(vec![], vec![Obligation::ReadOnly])],
+                            b,
+                        )?;
+                    }
+                    progressed |= merge(&mut values[id.0 as usize], &generated, b)?;
+                }
+            }
+            if let Terminator::Return(Some(id)) = block.terminator {
+                progressed |= merge(&mut result.returned, &values[id.0 as usize], b)?;
+            }
+            if !locals.same(&outputs[block_id], b)? {
+                outputs[block_id] = locals;
+                progressed = true;
+            }
+        }
+        #[cfg(test)]
+        tests::record_sparse(&outputs, progressed, &result);
+        if !progressed {
+            return Ok(result);
+        }
+    }
+}
+#[cfg(test)]
+fn body_dense(
+    module: &TypedModule,
+    f: &TypedFunction,
+    graph: &FunctionGraph,
+    contracts: &[Contract],
+    b: &mut Budget,
+) -> Check<Contract> {
     charge(
         b,
         f.blocks
@@ -451,6 +677,7 @@ fn body(
                 progressed = true;
             }
         }
+        tests::record_dense(&outputs, progressed, &result);
         if !progressed {
             return Ok(result);
         }
