@@ -1,0 +1,475 @@
+{
+  "status": "Measured weighted benefit on the declared finite matrix; implementation pending independent source review",
+  "task": "G10.5.1.1",
+  "updated_at": "2026-11-09T22:08:15+08:00",
+  "baseline": "82a69812582856b012468db3d019930d8e390f64",
+  "measured_source": "287b392b3a78a936766e0497a17742ecd149a7a8",
+  "delivery_head": "da1e94124344c812e348bab131f03868de2dccc9",
+  "branch": "task/G10.5.1.1",
+  "evidence_parent_commit": "6e5c3fa69b50be55113606ad7726b2e4ba965b3d",
+  "scope": "Explicit incremental O2 copy-cost fallback; ordinary CLI defaults unchanged; not a general frontend rewrite",
+  "weights": "Frozen usage hypotheses, not observed user frequencies; all four profiles retained",
+  "primary_metric": "sum(frequency * arithmetic mean full CLI milliseconds); absolute saved seconds per 1000 requests",
+  "profiles": [
+    {
+      "profile": "interactive/edit_loop",
+      "weighted_mean_ms": {
+        "base": 412.14556218572596,
+        "cand": 272.81187806195254
+      },
+      "weighted_median_ms": {
+        "base": 414.3256178632912,
+        "cand": 273.3946145066251
+      },
+      "reduction": 0.33806911175956134,
+      "saved_seconds_per_1000_requests": 139.33368412377342,
+      "excess_wait_ms": {
+        "base": {
+          "over_100ms": 351.26029400290463,
+          "over_1000ms": 189.04909489683334
+        },
+        "cand": {
+          "over_100ms": 212.02259819095238,
+          "over_1000ms": 61.81848509966666
+        }
+      },
+      "bootstrap_95_reduction": [
+        0.3350209814768189,
+        0.34092330216046707
+      ],
+      "weights_are": "predeclared assumptions, not telemetry"
+    },
+    {
+      "profile": "interactive/clean_heavy",
+      "weighted_mean_ms": {
+        "base": 553.9844033241725,
+        "cand": 445.82671586587793
+      },
+      "weighted_median_ms": {
+        "base": 556.4432813314581,
+        "cand": 446.5202430010416
+      },
+      "reduction": 0.1952359792248599,
+      "saved_seconds_per_1000_requests": 108.15768745829456,
+      "excess_wait_ms": {
+        "base": {
+          "over_100ms": 488.5193443559047,
+          "over_1000ms": 276.4175545694166
+        },
+        "cand": {
+          "over_100ms": 380.41476408140466,
+          "over_1000ms": 175.47033231566664
+        }
+      },
+      "bootstrap_95_reduction": [
+        0.19236731089415327,
+        0.1976632940974008
+      ],
+      "weights_are": "predeclared assumptions, not telemetry"
+    },
+    {
+      "profile": "release_heavy/edit_loop",
+      "weighted_mean_ms": {
+        "base": 877.8134312007437,
+        "cand": 389.758986926655
+      },
+      "weighted_median_ms": {
+        "base": 885.3480654051667,
+        "cand": 391.4460902063747
+      },
+      "reduction": 0.5559888091555955,
+      "saved_seconds_per_1000_requests": 488.0544442740887,
+      "excess_wait_ms": {
+        "base": {
+          "over_100ms": 810.0694125835477,
+          "over_1000ms": 588.277766533
+        },
+        "cand": {
+          "over_100ms": 322.3773085004286,
+          "over_1000ms": 143.40270123999997
+        }
+      },
+      "bootstrap_95_reduction": [
+        0.5536590325589356,
+        0.5578327275857649
+      ],
+      "weights_are": "predeclared assumptions, not telemetry"
+    },
+    {
+      "profile": "release_heavy/clean_heavy",
+      "weighted_mean_ms": {
+        "base": 1193.6921758244162,
+        "cand": 813.6578618619611
+      },
+      "weighted_median_ms": {
+        "base": 1199.9002839684572,
+        "cand": 816.8224461441451
+      },
+      "reduction": 0.3183687735072793,
+      "saved_seconds_per_1000_requests": 380.03431396245503,
+      "excess_wait_ms": {
+        "base": {
+          "over_100ms": 1121.0321241684162,
+          "over_1000ms": 824.0318759464166
+        },
+        "cand": {
+          "over_100ms": 741.2173009694166,
+          "over_1000ms": 470.21584592749986
+        }
+      },
+      "bootstrap_95_reduction": [
+        0.31512697131208456,
+        0.3210025132269596
+      ],
+      "weights_are": "predeclared assumptions, not telemetry"
+    }
+  ],
+  "by_mode": {
+    "check": {
+      "cells": 50,
+      "slower_mean_cells": 31,
+      "worst_extra_ms": 8.255419571428547,
+      "largest_absolute_regressions": [
+        {
+          "case": "single8192",
+          "group": "large",
+          "mode": "check",
+          "request": "cold",
+          "n": 7,
+          "base_mean_ms": 270.7908855714286,
+          "candidate_mean_ms": 279.04630514285714,
+          "base_median_ms": 276.266904,
+          "candidate_median_ms": 280.078604,
+          "saved_mean_ms": -8.255419571428547,
+          "mean_ratio": 1.0304863273149234,
+          "paired_wins": 1,
+          "severe_tail": false,
+          "base_all_ms": [
+            280.888999,
+            283.587421,
+            283.995849,
+            276.266904,
+            264.012128,
+            246.649012,
+            260.135886
+          ],
+          "candidate_all_ms": [
+            310.265886,
+            280.078604,
+            290.804979,
+            280.156087,
+            278.366006,
+            248.738596,
+            264.913978
+          ]
+        },
+        {
+          "case": "tree1024x8",
+          "group": "large",
+          "mode": "check",
+          "request": "public",
+          "n": 7,
+          "base_mean_ms": 897.1955392857143,
+          "candidate_mean_ms": 905.4238361428571,
+          "base_median_ms": 900.59586,
+          "candidate_median_ms": 913.668991,
+          "saved_mean_ms": -8.228296857142823,
+          "mean_ratio": 1.0091711299230195,
+          "paired_wins": 2,
+          "severe_tail": false,
+          "base_all_ms": [
+            907.099606,
+            916.892419,
+            913.693303,
+            900.59586,
+            880.940175,
+            891.422255,
+            869.725157
+          ],
+          "candidate_all_ms": [
+            927.354815,
+            925.502139,
+            913.668991,
+            922.995547,
+            885.021741,
+            890.497202,
+            872.926418
+          ]
+        },
+        {
+          "case": "tree1024x8",
+          "group": "large",
+          "mode": "check",
+          "request": "cold",
+          "n": 7,
+          "base_mean_ms": 902.1287907142857,
+          "candidate_mean_ms": 906.8437102857143,
+          "base_median_ms": 906.588394,
+          "candidate_median_ms": 907.748128,
+          "saved_mean_ms": -4.714919571428595,
+          "mean_ratio": 1.005226437311346,
+          "paired_wins": 1,
+          "severe_tail": false,
+          "base_all_ms": [
+            932.376134,
+            920.212468,
+            906.588394,
+            916.237393,
+            880.235194,
+            887.731769,
+            871.520183
+          ],
+          "candidate_all_ms": [
+            928.150854,
+            928.911997,
+            907.748128,
+            922.074254,
+            894.080601,
+            888.395383,
+            878.544755
+          ]
+        }
+      ]
+    },
+    "O0": {
+      "cells": 50,
+      "slower_mean_cells": 22,
+      "worst_extra_ms": 8.916057857142846,
+      "largest_absolute_regressions": [
+        {
+          "case": "single8192",
+          "group": "large",
+          "mode": "O0",
+          "request": "private",
+          "n": 7,
+          "base_mean_ms": 520.7557428571429,
+          "candidate_mean_ms": 529.6718007142857,
+          "base_median_ms": 513.035811,
+          "candidate_median_ms": 530.448324,
+          "saved_mean_ms": -8.916057857142846,
+          "mean_ratio": 1.017121381721543,
+          "paired_wins": 1,
+          "severe_tail": false,
+          "base_all_ms": [
+            511.217888,
+            537.263744,
+            549.96893,
+            526.244379,
+            513.035811,
+            498.36478,
+            509.194668
+          ],
+          "candidate_all_ms": [
+            530.448324,
+            540.97823,
+            551.882391,
+            544.173707,
+            525.957186,
+            493.790108,
+            520.472659
+          ]
+        },
+        {
+          "case": "tree1024x8",
+          "group": "large",
+          "mode": "O0",
+          "request": "cold",
+          "n": 7,
+          "base_mean_ms": 1941.0351428571428,
+          "candidate_mean_ms": 1945.8552868571428,
+          "base_median_ms": 1946.597896,
+          "candidate_median_ms": 1937.435413,
+          "saved_mean_ms": -4.8201440000000275,
+          "mean_ratio": 1.0024832852809171,
+          "paired_wins": 2,
+          "severe_tail": false,
+          "base_all_ms": [
+            1946.597896,
+            1975.212909,
+            1966.749085,
+            1954.577175,
+            1934.710454,
+            1907.326265,
+            1902.072216
+          ],
+          "candidate_all_ms": [
+            1937.435413,
+            1999.169754,
+            1950.765566,
+            1963.878469,
+            1937.24307,
+            1917.573831,
+            1914.920905
+          ]
+        },
+        {
+          "case": "tree1024x8",
+          "group": "large",
+          "mode": "O0",
+          "request": "public",
+          "n": 7,
+          "base_mean_ms": 1584.3657022857142,
+          "candidate_mean_ms": 1588.0290768571429,
+          "base_median_ms": 1576.952963,
+          "candidate_median_ms": 1591.329558,
+          "saved_mean_ms": -3.663374571428676,
+          "mean_ratio": 1.002312202647497,
+          "paired_wins": 2,
+          "severe_tail": false,
+          "base_all_ms": [
+            1591.725675,
+            1618.413235,
+            1606.912356,
+            1576.952963,
+            1567.716074,
+            1571.783898,
+            1557.055715
+          ],
+          "candidate_all_ms": [
+            1582.255671,
+            1618.794063,
+            1597.903125,
+            1592.983121,
+            1575.024726,
+            1591.329558,
+            1557.913274
+          ]
+        }
+      ]
+    },
+    "O2": {
+      "cells": 50,
+      "slower_mean_cells": 19,
+      "worst_extra_ms": 2.857627999999977,
+      "largest_absolute_regressions": [
+        {
+          "case": "single8192",
+          "group": "large",
+          "mode": "O2",
+          "request": "private",
+          "n": 7,
+          "base_mean_ms": 515.1440904285714,
+          "candidate_mean_ms": 518.0017184285714,
+          "base_median_ms": 523.208844,
+          "candidate_median_ms": 528.169801,
+          "saved_mean_ms": -2.857627999999977,
+          "mean_ratio": 1.0055472401859886,
+          "paired_wins": 2,
+          "severe_tail": false,
+          "base_all_ms": [
+            523.208844,
+            530.992924,
+            529.608028,
+            527.862643,
+            519.581432,
+            481.708903,
+            493.045859
+          ],
+          "candidate_all_ms": [
+            528.461715,
+            532.726091,
+            543.348416,
+            528.169801,
+            507.47814,
+            496.180947,
+            489.646919
+          ]
+        },
+        {
+          "case": "single8192",
+          "group": "large",
+          "mode": "O2",
+          "request": "warm",
+          "n": 7,
+          "base_mean_ms": 121.51211228571428,
+          "candidate_mean_ms": 122.86551671428572,
+          "base_median_ms": 120.496792,
+          "candidate_median_ms": 122.088373,
+          "saved_mean_ms": -1.3534044285714373,
+          "mean_ratio": 1.0111380207545824,
+          "paired_wins": 0,
+          "severe_tail": false,
+          "base_all_ms": [
+            125.577906,
+            123.528032,
+            126.163653,
+            120.394682,
+            120.496792,
+            116.019098,
+            118.404623
+          ],
+          "candidate_all_ms": [
+            126.861549,
+            125.81853,
+            126.417551,
+            121.141453,
+            122.088373,
+            116.172098,
+            121.559063
+          ]
+        },
+        {
+          "case": "tree4x2",
+          "group": "small",
+          "mode": "O2",
+          "request": "warm",
+          "n": 7,
+          "base_mean_ms": 34.426359,
+          "candidate_mean_ms": 35.39402542857143,
+          "base_median_ms": 34.455779,
+          "candidate_median_ms": 35.094101,
+          "saved_mean_ms": -0.9676664285714338,
+          "mean_ratio": 1.0281083000549502,
+          "paired_wins": 0,
+          "severe_tail": false,
+          "base_all_ms": [
+            35.333455,
+            35.122041,
+            34.78783,
+            34.455779,
+            33.964494,
+            33.652205,
+            33.668709
+          ],
+          "candidate_all_ms": [
+            36.325741,
+            36.064436,
+            35.029369,
+            35.886709,
+            34.642425,
+            34.715397,
+            35.094101
+          ]
+        }
+      ]
+    }
+  },
+  "compile_requests": 2400,
+  "formal_requests": 2100,
+  "native_output_checks": 3716,
+  "runtime_executions": 192,
+  "negative_and_restore_requests": 40,
+  "current_matrix_verify_runs": 2400,
+  "backend_controls": 182,
+  "llvm_controls": 30,
+  "warm_build_cache_hits_checked": 320,
+  "ownership_consumer": "Pass",
+  "runtime_screen_pass": true,
+  "runtime_scope": "Six runtime-input tree/snapshot cells, seven formal pairs each; no general throughput/memory guarantee",
+  "ordinary_O2_comparison": "All six checked candidate and ordinary O2 executable .text sections match; this repairs strategy selection, not proof of beating the prior manually selected fast path",
+  "mechanical_audit": "Pass; implementation-authored and not a non-author source review",
+  "independent_review": "NotRun",
+  "merged_to_main": false,
+  "merge_allowed": false,
+  "remaining": [
+    "Non-author review on exact production source",
+    "Integration against the then-current main without task/CI experiment baggage",
+    "Broader real application and resource/trait/CT-heavy performance coverage",
+    "Historical Stage15 frontend regression bisection and build-layer unchanged shortcut are still open"
+  ],
+  "evidence": "https://github.com/zil-lang/zil/tree/da1e94124344c812e348bab131f03868de2dccc9/.task/G10.5.1.1/runs/42626855362",
+  "report": "https://github.com/zil-lang/zil/blob/6e5c3fa69b50be55113606ad7726b2e4ba965b3d/.task/G10.5.1/round2/audits/42626855362/RESULTS.md",
+  "measurement_run": "https://github.com/zil-lang/zil/actions/runs/42626855362",
+  "audit_run": "https://github.com/zil-lang/zil/actions/runs/42630785031",
+  "old_candidate_reinterpretation": "Old 256-module O2 case under the declared edit-loop assumptions saved 10.8%, under clean-heavy assumptions cost 3.7% more. Post-hoc sensitivity only, not new full-matrix evidence; adverse cells are not an automatic veto."
+}
