@@ -688,6 +688,8 @@ fn flow<'m>(
         replacements: None,
         address_replacement_tags: false,
         tagged_locals: tagged.then(|| (0..f.locals.len()).collect()),
+        tag_cache: indexed_invalidation(&budget(profile, 1_000_000))
+            .then(|| std::cell::RefCell::new(tag_cache::Cache::new(f))),
         place_meta: Some(partial_places::Meta::new(f, &mut budget(profile, 1_000_000)).unwrap()),
     }
 }
@@ -880,7 +882,8 @@ fn shared_outer_cow_fallbacks_preserve_sources_routes_shapes_and_root_kinds() {
                 let old_alias = shared.then(|| old.clone());
                 let new_alias = shared.then(|| new.clone());
                 let x = eager(&mut old, ty, &mut budget(profile, 1_000_000));
-                let y = forget_shared_copy_tags(&mut new, ty, &mut budget(profile, 1_000_000));
+                let y =
+                    forget_shared_copy_tags(&mut new, ty, &mut budget(profile, 1_000_000), None);
                 assert_eq!(x, y);
                 assert_eq!(old, new);
                 if let (Some(a), Some(b)) = (old_alias, new_alias) {
@@ -902,7 +905,7 @@ fn shared_fixed_point_keeps_its_alias_until_an_actual_later_cow_change() {
     let mut value = Arc::new(original.clone());
     let alias = value.clone();
     let snapshot = alias.as_ref().clone();
-    forget_shared_copy_tags(&mut value, &ty, &mut budget(1, 1_000_000)).unwrap();
+    forget_shared_copy_tags(&mut value, &ty, &mut budget(1, 1_000_000), None).unwrap();
     assert!(Arc::ptr_eq(&value, &alias));
     let mut b = budget(1, 1_000_000);
     value.cost(&mut b).unwrap();
@@ -916,10 +919,11 @@ fn shared_fixed_point_keeps_its_alias_until_an_actual_later_cow_change() {
 #[test]
 fn shared_outer_cow_has_an_exact_smaller_complete_flow_request_boundary() {
     let module = fixture(false);
-    let f = flow(&module, &[Content::Copy], true, 1);
-    let old = OldFlow { actual: &f };
     let template = seed(&module, 1);
     let run = |original: bool, n| {
+        // Every fresh request owns its own Flow and positive shape cache.
+        let f = flow(&module, &[Content::Copy], true, 1);
+        let old = OldFlow { actual: &f };
         let mut state = template.clone();
         let mut b = budget(1, n);
         for _ in 0..32 {

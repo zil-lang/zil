@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, VecDeque};
 mod outer_cow_tests;
 mod partial_places;
 pub(super) mod replacements;
+mod tag_cache;
 #[cfg(test)]
 mod tag_fixed_point_tests;
 mod values;
@@ -1096,7 +1097,12 @@ impl Content {
 
 // Only an independently qualified, exact fixed point can preserve a shared
 // root. All unknown cases execute the complete eager transfer below.
-fn forget_shared_copy_tags(value: &mut Arc<Content>, ty: &Type, budget: &mut Budget) -> Check<()> {
+fn forget_shared_copy_tags(
+    value: &mut Arc<Content>,
+    ty: &Type,
+    budget: &mut Budget,
+    cached: Option<(&std::cell::RefCell<tag_cache::Cache<'_>>, usize)>,
+) -> Check<()> {
     budget.spend(1)?;
     if Arc::strong_count(value) > 1
         && matches!(value.as_ref(), Content::Sum(..))
@@ -1112,8 +1118,16 @@ fn forget_shared_copy_tags(value: &mut Arc<Content>, ty: &Type, budget: &mut Bud
             resources::charge_payload(actual, budget)?;
             actual.is_copy_value()
         };
-        if copy_sum && value.tags_unknown(actual, budget)? {
-            return Ok(());
+        if copy_sum {
+            let unknown = if let Some((cache, local)) = cached {
+                budget.spend(1)?; // actual RefCell borrow before its slot work
+                cache.borrow_mut().known(local, value, actual, budget)?
+            } else {
+                value.tags_unknown(actual, budget)?
+            };
+            if unknown {
+                return Ok(());
+            }
         }
     }
     value.cost(budget)?;
@@ -1324,6 +1338,9 @@ struct Flow<'a> {
     // arrays and Managed endpoints carry Copy/Leaf content; Tuple/Package
     // children and every Enum/ErrorUnion can retain a Sum route or tag.
     tagged_locals: Option<Vec<usize>>,
+    // Positive shape proofs only. The function borrow fixes each local Type;
+    // strong references make cached Content identities immutable until eviction.
+    tag_cache: Option<std::cell::RefCell<tag_cache::Cache<'a>>>,
     address_replacement_tags: bool,
     replacements: Option<&'a replacements::Context<'a>>,
 }
@@ -1659,11 +1676,21 @@ impl Flow<'_> {
                         budget.spend(locals.len())?;
                         for &local in locals {
                             let content = &mut state.locals[local];
-                            forget_shared_copy_tags(content, &self.f.locals[local].ty, budget)?;
+                            forget_shared_copy_tags(
+                                content,
+                                &self.f.locals[local].ty,
+                                budget,
+                                self.tag_cache.as_ref().map(|cache| (cache, local)),
+                            )?;
                         }
                     } else {
                         for (local, content) in state.locals.iter_mut().enumerate() {
-                            forget_shared_copy_tags(content, &self.f.locals[local].ty, budget)?;
+                            forget_shared_copy_tags(
+                                content,
+                                &self.f.locals[local].ty,
+                                budget,
+                                self.tag_cache.as_ref().map(|cache| (cache, local)),
+                            )?;
                         }
                     }
                 }
@@ -2379,6 +2406,8 @@ fn run_with_replacements(
         replacements,
         address_replacement_tags,
         tagged_locals,
+        tag_cache: (partial && indexed_invalidation(budget))
+            .then(|| std::cell::RefCell::new(tag_cache::Cache::new(f))),
         place_meta: if partial {
             Some(partial_places::Meta::new(f, budget)?)
         } else {
