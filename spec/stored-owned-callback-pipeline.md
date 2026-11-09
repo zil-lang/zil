@@ -18,5 +18,5 @@ Analyze 和 Verify 各自从实际 IR 重建描述生产者、规范资源和本
 
 ## 完整消费者
 
-[原四模块程序](../tests/language-readiness/owning-trait-hosts/owned_pipeline/model.zil)共 6052 字节，组合 trait 拥有返回、普通泛型借入、借入输入/拥有输出闭包、本地字节视图及错误清理。完整 Source、独立 raw/Wire、双后端 O0/O2 与逐分配点失败责任由[限定验收记录](../validation/stored-owned-callback-pipeline.json)绑定。更大的 collected 程序和可增长 HashMap 各有独立完成条件，本范围不关闭它们或正式语言发布门。
+[原四模块程序](../tests/language-readiness/owning-trait-hosts/owned_pipeline/model.zil)共 6052 字节，组合 trait 拥有返回、普通泛型借入、借入输入/拥有输出闭包、本地字节视图及错误清理。完整 Source、独立 raw/Wire、双后端 O0/O2 与逐分配点失败责任由[限定验收记录](../validation/stored-owned-callback-pipeline.json)绑定。更大的 collected 程序由[拥有结果收集合同](ordinary-collected-pipeline.md)及其独立收据覆盖；可增长 HashMap 与正式语言发布门仍有各自完成条件。
 

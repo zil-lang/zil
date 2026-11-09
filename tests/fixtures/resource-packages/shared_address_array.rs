@@ -643,7 +643,7 @@ fn ordinary_wide_array_completes_source_raw_and_wire_verification() {
         )
         .status
     });
-    assert_eq!(exact, 2_212_903);
+    assert_eq!(exact, 1_914_081);
     println!("512-slot Source/raw/Wire: independent Verify complete within default limits");
 }
 
@@ -834,9 +834,9 @@ fn array_billing_mode_is_consistent_across_scalar_reuse_and_function_order() {
                 )
                 .status
         });
-        // Scalar work is unchanged. Array equations now traverse balanced
-        // actual components; their previous complete-request N was 16587.
-        assert_eq!(n, if label == "scalar" { 1543 } else { 12354 });
+        // Scalar work is unchanged. Array equations and sparse live-bit visits
+        // charge their actual work in both function orders.
+        assert_eq!(n, if label == "scalar" { 1543 } else { 10850 });
         let mut warm = zil_driver::CompilationSession::default();
         for (limit, status) in [
             (n, ResultCategory::Success),

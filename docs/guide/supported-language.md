@@ -8,7 +8,7 @@
 
 包含真实共享借入叶的 qualified Record 可作为有限拥有 Package 的字段，局部窗口和字段投影保留实际来源。这类父 Package 的同型整对象共享地址可经普通 helper 从唯一实际输入返回；来自多个输入的返回来源、投影实参仍有边界。已准入窗口及 Direct helper 支持 ByteBuffer 长度/容量查询，查询按实际来源与当前委派检查共享读取；见[查询合同](../../spec/borrowed-byte-metadata-queries.md)和[联合普通程序](../../tests/fixtures/resource-packages/package-array-byte-query.zil)。查询不延长拥有对象的生命，旧描述也不能豁免后来创建的独占窗口。
 
-普通拥有 Item 的 lending 窗口可与独立拥有结果的纯 Copy 字段观察及共享 Copy 错误臂共存；实际父对象、字段、tag、初始化和活动 loan 仍逐项检查。无输入标量入口与循环中的 Byte 查询必须使用实际 callee 效应和当前委派证明，见[普通拥有观察合同](../../spec/stored-owned-observations.md)及其原四模块程序。 同一存储借入程序还可经 trait 与泛型 helper 调用借入输入、拥有输出的同步闭包，并同步读取普通本地 ByteBuffer 字段视图；完整程序及边界见[拥有回调组合合同](../../spec/stored-owned-callback-pipeline.md)。
+普通拥有 Item 的 lending 窗口可与独立拥有结果的纯 Copy 字段观察及共享 Copy 错误臂共存；实际父对象、字段、tag、初始化和活动 loan 仍逐项检查。无输入标量入口与循环中的 Byte 查询必须使用实际 callee 效应和当前委派证明，见[普通拥有观察合同](../../spec/stored-owned-observations.md)及其原四模块程序。 同一存储借入程序还可经 trait 与泛型 helper 调用借入输入、拥有输出的同步闭包，并同步读取普通本地 ByteBuffer 字段视图；完整程序及边界见[拥有回调组合合同](../../spec/stored-owned-callback-pipeline.md)。该拥有结果可继续经泛型 helper 收集到可增长的 Store，扩容失败返还传入 owner；完整程序和逐分配点清理见[拥有结果收集合同](../../spec/ordinary-collected-pipeline.md)。
 
 拥有 Package 现在可直接保存固定共享地址数组，并通过实际字段、常量或动态下标和普通 helper 取得借入元素；拥有责任与借入来源分别验证。见[普通程序](../../tests/fixtures/resource-packages/owned-package-shared-address-array.zil)和[限定合同](../../spec/qualified-package-shared-array.md)。原[512槽拥有程序](../../tests/fixtures/resource-packages/owned-package-wide-shared-address-array.zil)和[完整数组字段 snapshot](../../tests/fixtures/resource-packages/owned-package-shared-address-array-snapshot.zil)保留全部实际来源，覆盖普通参数/结果及拥有容器释放后的末项读取；字段快照不复制 Package 的 Managed 责任。 整个共享地址数组的读取按每个实际来源逐槽核初始化，不能由另一完整来源掩盖未补回槽；见[初始化验收](../../validation/shared-array-snapshot-initialization.json)。
 

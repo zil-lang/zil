@@ -520,7 +520,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
                 format!("mode={mode}"),
                 module,
                 plan,
-                Some([4771, 5173, 6884][mode as usize]),
+                Some([4730, 5125, 6503][mode as usize]),
             )
         })
         .collect();
@@ -530,7 +530,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
             format!("Store indirect={indirect}"),
             module,
             plan,
-            Some(if indirect { 18736 } else { 15983 }),
+            Some(if indirect { 18247 } else { 15516 }),
         ));
     }
     let mut observed = Vec::new();
@@ -579,9 +579,9 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
             minima.push(hi);
         }
         assert_eq!(minima[0], minima[1]);
-        // Sparse active-loan lookup visits only nonempty fixed SSA rows and
-        // current local rows. The same raw and Wire candidates retain exact
-        // N-1 rejection and fresh N acceptance at these reduced work minima.
+        // Pin actual verifier work after word liveness and sparse head rows.
+        // The same raw and Wire inputs retain complete N-1 rejection and
+        // fresh N acceptance.
         if let Some(expected) = expected {
             observed.push((label.clone(), minima[0]));
             recorded.push((label, expected));
