@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-09 16:42:12 UTC",
+  "recorded_utc": "2026-11-09 17:07:50 UTC",
   "status": "Twelve scoped batches accepted and completed task refs retired; Map and the original pipeline continue separately.",
   "accepted_main": "6e27d4da55ad627b49c0ad148eb65225a1413132",
   "accepted_tree": "fe1ee13f0334518c257cb260a5a9bf0f86601d98",
@@ -225,9 +225,9 @@
   },
   "remaining": {
     "arrays": "Accepted by PR66; the four later stale budget expectations are separately repaired and accepted by PR67.",
-    "map": "Checkpoint 13 controls, unchanged-production full Verify 561 and effects 7 passed. Original 5008B Map still defaults to Verify ResourceLimit; the next same-cost ledger will measure actual hits, save/cleanup costs and complete versus truncated scopes.",
-    "pipeline": "P2 actual local ByteBuffer heads/resource integration passed 11 controls; exact-diagnostic test-only recheck passed two controls. Both original programs remain budget blocked: owned Verify/V1, collected Analyze/V0. Five-path same-cost ledger in preparation.",
-    "ci": "PR67 repairs the four documented d813 CI cost failures. Current main documentation succeeds; both current workspace jobs are still running."
+    "map": "Checkpoint 13 controls, same-production Verify 561 and effects 7 passed; diag10 proves complete replacement net saving 726534. Original 5008B Map still Verify ResourceLimit; narrow immutable resource-liveness reuse contract under review.",
+    "pipeline": "P3 four controls, original 6052B owned Source and 48 original native/cleanup cases pass. Original 7547B collected input passes Analyze but remains Verify ResourceLimit/V1; minimal owned integration and independent review in progress.",
+    "ci": "Exact main 6e27 both workspace jobs and docs completed success; each environment defaults 5827/0, reference 5713/0, text-reference 70/0. Active branches not covered."
   },
   "release_scope": "Twelve limited scoped batches; no full local workspace or 1.0 claim. Current main documentation succeeds; both workspace jobs remain running at the recorded observation.",
   "array_analysis_checkpoint": {
@@ -294,18 +294,18 @@
   },
   "main_ci": {
     "source": "6e27d4da55ad627b49c0ad148eb65225a1413132",
-    "observed_utc": "2026-11-09 16:39 UTC",
+    "observed_utc": "2026-11-09 17:07:50 UTC",
     "checks": [
       {
         "name": "workspace",
-        "status": "in_progress",
-        "conclusion": null,
+        "status": "completed",
+        "conclusion": "success",
         "url": "https://github.com/zil-lang/zil/actions/runs/42653344788/job/129285216007"
       },
       {
         "name": "workspace",
-        "status": "in_progress",
-        "conclusion": null,
+        "status": "completed",
+        "conclusion": "success",
         "url": "https://github.com/zil-lang/zil/actions/runs/42653344769/job/129285215934"
       },
       {
@@ -315,7 +315,52 @@
         "url": "https://github.com/zil-lang/zil/actions/runs/42653344851/job/129285215646"
       }
     ],
-    "all_success": false
+    "all_success": true,
+    "scope": "Remote CI for exact accepted main only; not the two active source branches.",
+    "jobs": [
+      {
+        "job": 129285216007,
+        "environment": "standard LLVM",
+        "workspace": {
+          "passed": 5827,
+          "failed": 0,
+          "summaries": 429
+        },
+        "reference": {
+          "passed": 5713,
+          "failed": 0,
+          "summaries": 429
+        },
+        "text_reference": {
+          "passed": 70,
+          "failed": 0
+        },
+        "log_sha256": "e6ff525a2091ac46fafa7e2dd3d6fb8f457c5461cf4a55569d551b93c70f5ffe",
+        "summary_sha256": "90ca1fdae493950d25ec11576f1653b2efe9e2d6738735533927626e47735043"
+      },
+      {
+        "job": 129285215934,
+        "environment": "research LLVM",
+        "workspace": {
+          "passed": 5827,
+          "failed": 0,
+          "summaries": 429
+        },
+        "reference": {
+          "passed": 5713,
+          "failed": 0,
+          "summaries": 429
+        },
+        "text_reference": {
+          "passed": 70,
+          "failed": 0
+        },
+        "log_sha256": "52d300b26bd9d0a1e9e3f5b7669354ce9cfcc0344ffd03d0ac1fd3220b3bed59",
+        "summary_sha256": "60822ac1342f9749623525def21ed36d66091bfb9c351b249b15d38a1d09f9af"
+      }
+    ],
+    "other_checks": "Both jobs: fmt, all-target Clippy, Native API State/allocation controls and CI recovery tests succeeded; documentation succeeded.",
+    "evidence": "setup-tmp/main-6e27-ci-20261109-1"
   },
   "array_verifier_checkpoints": {
     "scope": "Task checkpoints only, not main acceptance; physical module and source inputs are unchanged.",
@@ -705,7 +750,7 @@
       "evidence": "wt-owned-pipeline-composition/out/runs/owned-pipeline-baseline-20261109-1",
       "source_unchanged": true
     },
-    "next": "Run the reviewed five-path observational ledger once against both exact original programs, restore exact before-images, and choose only an actual-cost-supported next change.",
+    "next": "Complete P3 independent review and minimal owned-consumer integration gates; retain original collected failure and measure only its remaining Verify bottleneck.",
     "whole_package_merge": false,
     "new_native_acceptance": "NotRun",
     "test_extraction_source": "27915d2f75ed2892a4400ead5138351011825e9c",
@@ -805,6 +850,87 @@
         "log_sha256": "80c7af8551fc413bbbcd0be46d061716d9a558fe65b3f334b8987c17a5a27887"
       },
       "scope": "Original eight files and five complete tests unchanged; no new native or complete-program acceptance."
+    },
+    "budget_ledger": {
+      "source": "1d144011445bfbe745baf89c9dca238a7fe93bf9",
+      "patch_sha256": "77408b510e2bb16989ff6b2dbfc4a5128dbe0f7744e7ed88794f02362dda118b",
+      "original_amounts_and_order_preserved": true,
+      "original_failures_preserved": true,
+      "exact_images_restored": true,
+      "owned": {
+        "analyze_spent": 6961614,
+        "analyze_rejected": 0,
+        "verify_spent": 9999999,
+        "verify_rejected": 1,
+        "stored_and_borrows": 7494335,
+        "required_f8_windows": [
+          1729938,
+          1729938
+        ],
+        "head_check": 1164022,
+        "resource_truncated": 1064543,
+        "log_sha256": "d40b5b8782d973227fb3a5418af097988e850a1cdb518e04eb8e73d52ba9ca7f"
+      },
+      "collected": {
+        "analyze_spent": 9999994,
+        "analyze_rejected": 1,
+        "verification_runs": 0,
+        "resource_complete": 4323477,
+        "stored_fee": 4039391,
+        "log_sha256": "032eee669cfc0e90cbd0db675b75650af759ae72c4670aebf80cc422d3d4f947"
+      },
+      "first_runner_issue": "First runner missed AnalysisSession::analyze_input creator; original false receipt retained. Supplemental audit corrected attribution, without rerunning owned, and second run executed collected once.",
+      "supplemental_audit_sha256": "f6ab21d13fd07e8a11cb43b257c0ab4b02e349e551b4ab1eb51db5b8ecc6b45f",
+      "independent_owned_review_sha256": "b90b9c9b3072d8ef4c00a58d38b455d0f36ebf2985db8c5bd99e264429ee0740",
+      "evidence": [
+        "wt-owned-pipeline-composition/out/runs/owned-pipeline-budget-ledger-20261109-1",
+        "wt-owned-pipeline-composition/out/runs/owned-pipeline-budget-ledger-20261109-2"
+      ]
+    },
+    "p3": {
+      "production": "b61603e77521825ce113a26f5dcae6282328c15f",
+      "source": "187787ff0e0ad5a652a62dd4cbd05628a9dbb5fc",
+      "tree": "d86d1f6c84b5cecb0f1d25bee8fd54e1f3e5e03f",
+      "scope": "Both independent kernels enumerate actual live bits; words and selected bits charged. Indexed path, complete contributors, errors and required fixed-point rounds retained.",
+      "controls": {
+        "analyze_passed": 2,
+        "verify_passed": 2,
+        "failed": 0,
+        "logs": [
+          "b28410348ad30d84551c12bdcab95668e7a06f980e215e25539d4c832c3a2cbb",
+          "88761e1a2e0398eac20ec1b366c322b934732a9c519362cae9ccba0c8dab0135"
+        ]
+      },
+      "owned_source": {
+        "passed": 1,
+        "failed": 0,
+        "log_sha256": "e4378c068803a7667d020a1834d5f4963696e59763ce2065716865074722b771"
+      },
+      "collected_source": {
+        "passed": 0,
+        "failed": 1,
+        "phase": "verify",
+        "category": "ResourceLimit",
+        "verification_runs": 1,
+        "log_sha256": "768a2c32b967e84dd54726114eab174db551c7e736ad12c35d6b3ec1a5936744"
+      },
+      "native_status": "Original owned consumer passed: four backend/optimization combinations, 12 cases each, 48 actual executions. Collected native remains NotRun.",
+      "evidence": "wt-owned-pipeline-composition/out/runs/owned-pipeline-live-bits-root-20261109-1",
+      "owned_native": {
+        "passed": 1,
+        "failed": 0,
+        "actual_executions": 48,
+        "backends": [
+          "Clang",
+          "LlvmApi"
+        ],
+        "optimizations": [
+          "O0",
+          "O2"
+        ],
+        "cases_per_configuration": 12,
+        "log_sha256": "3111b7c1a8a95a77282c07ec2c3908222dda1678c35b2eaccfe3370b6e9c1224"
+      }
     }
   },
   "previous_batch": {
@@ -945,6 +1071,41 @@
       }
     ],
     "latest_review_sha256": "7ecd22c7f4eea94c476d09f35262fa8a7310ccbf7aad4f54818e0bfb9e5b9292",
-    "scope": "Actual old/new full-proof controls and charged failure boundaries accepted; no complete Map/default-limit or native acceptance."
+    "scope": "Actual old/new full-proof controls and charged failure boundaries accepted; no complete Map/default-limit or native acceptance.",
+    "ledger10": {
+      "source": "54b03cdfb3f7e099b9fdf5cf45f61138209118f8",
+      "status": "Valid same-cost diagnosis; original Map still ResourceLimit",
+      "original_tests": {
+        "passed": 0,
+        "failed": 1,
+        "native_executions": 0
+      },
+      "requests": 1,
+      "accepted_spent": 9999999,
+      "remaining": 1,
+      "rejected_request": 4,
+      "replacement_before": 4517438,
+      "replacement_after": 3790904,
+      "complete_net_saved": 726534,
+      "final_validate_before": 1536890,
+      "final_validate_after": 459753,
+      "earlier_round_increase": 350603,
+      "resource_f0": {
+        "first_complete": 638764,
+        "second_truncated": 157336
+      },
+      "log_sha256": "1a58b3de885d69722376e15ab1591ec323af466bd2ca91c7ebed278021f69628",
+      "independent_review_sha256": "3ca2d89c6451686477a30406142286756f79f2d517823423df87e94decd00ef7",
+      "final_restore_sha256": "8f764486500dcf6d2fd300d0858e57092357ba69e1fcdec70b36e5d358c0b1e8",
+      "restoration": "Initial wrapper exit126 was zero execution; later restore wrapper exit126 masked cargo exit. Real test failure preserved; exact Python before-image restore and known alias archival left source clean. No inferred cargo exit.",
+      "evidence": "wt-growing-collections/out/runs/map-scheduler-verify-ledger-20261109-10"
+    },
+    "next_design": {
+      "status": "Read-only contract review, no production change",
+      "scope": "Request-local immutable description liveness reuse only; full per-round Slots, types, State, effects, transfers and validation retained.",
+      "original_repeated_static_cost_per_build": 93303,
+      "net_savings": "Not measured",
+      "plan_sha256": "61d20f97096f2f2d7f7fac4c08d3cf083b76e24344d1e9f21f496f3e591abf69"
+    }
   }
 }
