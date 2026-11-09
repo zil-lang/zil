@@ -65,7 +65,7 @@ fn current_ssa_loan_index_equals_full_live_scan_with_nested_rows_and_aliases() {
                 if let Some(id) = excluded {
                     reference[id.0 as usize] = false;
                 }
-                let expected = active(
+                let expected = active_by_permission(
                     &values,
                     &state,
                     &LiveRow::from_flags(&reference),
@@ -119,7 +119,7 @@ fn current_ssa_index_rebuilds_for_each_latest_solution() {
             &mut b,
         )
         .unwrap();
-        let reference = active(
+        let reference = active_by_permission(
             &values,
             &state,
             &LiveRow::from_flags(&[true, true]),
@@ -132,4 +132,72 @@ fn current_ssa_index_rebuilds_for_each_latest_solution() {
         assert_eq!(indexed, reference);
         assert_eq!(indexed, BTreeSet::from([generation]));
     }
+}
+
+#[test]
+fn loan_only_active_projection_keeps_parent_errors_and_real_permissions() {
+    let live = LiveRow::from_flags(&[true]);
+    let mut value = Value::default();
+    value.pointer.targets.insert(Target {
+        retained_port: None,
+        base: HoldRoot::Local(LocalId(9)),
+        stored: vec![PlaceProjection::Field(3); 8],
+        place: vec![],
+        heap_element: None,
+    });
+    let state = State::default();
+    let loans = vec![Loan::default(); 1];
+    let mut old = Budget::new(&Limits::default());
+    let mut new = Budget::new(&Limits::default());
+    assert_eq!(
+        active(
+            &[value.clone()],
+            &state,
+            &live,
+            None,
+            None,
+            &loans,
+            &mut new
+        )
+        .unwrap(),
+        active_by_permission(
+            &[value.clone()],
+            &state,
+            &live,
+            None,
+            None,
+            &loans,
+            &mut old
+        )
+        .unwrap()
+    );
+    value.pointer.loans.insert(7);
+    let before = value.clone();
+    let mut old = Budget::new(&Limits::default());
+    let mut new = Budget::new(&Limits::default());
+    let actual = active(
+        &[value.clone()],
+        &state,
+        &live,
+        None,
+        None,
+        &loans,
+        &mut new,
+    )
+    .unwrap_err();
+    let expected = active_by_permission(
+        &[value.clone()],
+        &state,
+        &live,
+        None,
+        None,
+        &loans,
+        &mut old,
+    )
+    .unwrap_err();
+    assert_eq!(
+        actual, expected,
+        "an actual invalid loan must still reach the original ancestry rejection"
+    );
+    assert_eq!(value, before, "actual permission targets remain intact");
 }

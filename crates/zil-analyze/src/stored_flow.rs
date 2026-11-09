@@ -8,6 +8,8 @@ mod array_index;
 mod array_snapshot;
 mod byte_queries;
 mod live_words;
+#[cfg(test)]
+mod snapshot_tests;
 use live_words::LiveRow;
 pub(super) mod enum_address;
 mod nominal;
@@ -550,7 +552,53 @@ fn merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileResult<bool> {
     Ok(changed)
 }
 
+fn permission_clone_work(value: &Permission, b: &mut Budget) -> CompileResult<()> {
+    fee(b, value.loans.len().saturating_add(1))?;
+    target_work(&value.targets, b)
+}
+fn copy_permission(value: &Permission, b: &mut Budget) -> CompileResult<Permission> {
+    permission_clone_work(value, b)?;
+    Ok(value.clone())
+}
+fn copy_permission_rows<P: Copy + Ord>(
+    rows: &BTreeMap<Vec<P>, Permission>,
+    b: &mut Budget,
+) -> CompileResult<BTreeMap<Vec<P>, Permission>> {
+    // Clone the already ordered tree in one traversal, rather than rebuilding
+    // it through per-key searches. Every owned path/target and loan is paid.
+    fee(b, rows.len().saturating_add(1))?;
+    for (path, permission) in rows {
+        fee(b, path.len())?;
+        permission_clone_work(permission, b)?;
+    }
+    Ok(rows.clone())
+}
 fn snapshot(value: &Value, b: &mut Budget) -> CompileResult<Value> {
+    fee(b, 1)?;
+    // Keep the established variant normalization and retained-port projection.
+    // This is a copy of current facts, never a cache or a new permission.
+    let mut enum_variants = enum_address::Variants::default();
+    enum_variants.join(&value.enum_variants, b)?;
+    let mut option_variants = option_address::Variants::default();
+    option_variants.join(&value.option_variants, b)?;
+    Ok(Value {
+        enum_variants,
+        option_variants,
+        pointer: copy_permission(&value.pointer, b)?,
+        store_description: copy_permission(&value.store_description, b)?,
+        task_ports: if b.task_borrowed_results {
+            copy_permission_rows(&value.task_ports, b)?
+        } else {
+            BTreeMap::new()
+        },
+        slots: copy_permission_rows(&value.slots, b)?,
+        held: copy_permission(&value.held, b)?,
+        environment: copy_permission_rows(&value.environment, b)?,
+        creation_complete: value.creation_complete,
+    })
+}
+#[cfg(test)]
+fn snapshot_by_union(value: &Value, b: &mut Budget) -> CompileResult<Value> {
     let mut result = Value::default();
     merge(&mut result, value, b)?;
     Ok(result)
@@ -3769,7 +3817,94 @@ fn loan_value_ids(values: &[Value], b: &mut Budget) -> CompileResult<Vec<usize>>
     }
     Ok(ids)
 }
+// The active result is only a set of loan ancestors. Real permission and
+// arena targets remain in their original ledgers for access/separation checks;
+// copying them into this temporary accumulator never contributed to its result.
+fn active_loans_union(to: &mut Loans, from: &Permission, b: &mut Budget) -> CompileResult<()> {
+    for loan in &from.loans {
+        ordered(b, to.len(), 0)?;
+        to.insert(*loan);
+    }
+    Ok(())
+}
 fn active(
+    values: &[Value],
+    state: &State,
+    live: &LiveRow,
+    defining: Option<ValueId>,
+    loan_values: Option<&[usize]>,
+    loans: &[Loan],
+    b: &mut Budget,
+) -> CompileResult<Loans> {
+    let mut direct = Loans::new();
+    fee(
+        b,
+        loan_values.map_or(live.len(), |ids| {
+            ids.len().saturating_add(live.len() - values.len())
+        }),
+    )?;
+    let mut collect = |i: usize| -> CompileResult<()> {
+        if !live.at(i)? || defining.is_some_and(|value| value.0 as usize == i) {
+            return Ok(());
+        }
+        let value = if i < values.len() {
+            Some(&values[i])
+        } else {
+            ordered(b, state.locals.len(), 0)?;
+            state.locals.get(&LocalId((i - values.len()) as u32))
+        };
+        if let Some(value) = value {
+            active_loans_union(&mut direct, &value.pointer, b)?;
+            active_loans_union(&mut direct, &value.held, b)?;
+            if b.task_borrowed_results {
+                for permission in value.task_ports.values() {
+                    active_loans_union(&mut direct, permission, b)?;
+                }
+            }
+            for leaf in value.slots.values() {
+                active_loans_union(&mut direct, leaf, b)?;
+            }
+        }
+        Ok(())
+    };
+    if let Some(ids) = loan_values {
+        for &id in ids {
+            collect(id)?;
+        }
+        for id in values.len()..live.len() {
+            collect(id)?;
+        }
+    } else {
+        for id in 0..live.len() {
+            collect(id)?;
+        }
+    }
+    if b.task_borrowed_results {
+        // Retained ports are frame obligations, even when this particular
+        // borrowed head has no further SSA use in the callee.
+        for value in state.locals.values() {
+            for permission in value.task_ports.values() {
+                active_loans_union(&mut direct, permission, b)?;
+            }
+        }
+    }
+    for value in state.captures.values() {
+        active_loans_union(&mut direct, &value.pointer, b)?;
+        for leaf in value.slots.values() {
+            active_loans_union(&mut direct, leaf, b)?;
+        }
+    }
+    if b.stored_slot_updates {
+        for slots in state.external.values() {
+            for leaf in slots.values() {
+                active_loans_union(&mut direct, leaf, b)?;
+            }
+        }
+    }
+    ancestry(&direct, loans, b)
+}
+#[cfg(test)]
+fn active_by_permission(
     values: &[Value],
     state: &State,
     live: &LiveRow,
