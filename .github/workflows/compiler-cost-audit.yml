@@ -1,0 +1,124 @@
+name: Compiler cost evidence audit
+on:
+  push:
+    branches: [task/G10.5.1]
+    paths:
+      - '.task/G10.5.1/audit.py'
+      - '.github/workflows/compiler-cost-audit.yml'
+permissions:
+  contents: write
+concurrency:
+  group: compiler-cost-audit-G10.5.1
+  cancel-in-progress: false
+jobs:
+  audit:
+    if: github.repository == 'zil-lang/zil' && github.ref == 'refs/heads/task/G10.5.1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Audit all records and retain the NoGo result on the task branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          python3 .task/G10.5.1/audit.py
+          python3 - <<'PY'
+          from pathlib import Path
+          Path('.task/G10.5.1.md').write_text('''# G10.5.1 · 编译效率复核与算法专项
+
+          **当前状态：首轮实现及实测完成；候选不满足综合验收，Hold / 不合入main；专项待继续。**
+
+          基线 `327eccfaf3169d1404534ddc16359310a21a40ad`；受测候选 `02c75de950b64339cdf6136331b8e685f65ccffe`；独立分支 `task/G10.5.1`。
+
+          真实Rust改动已在 `crates/zil-backend-llvm/src/machine_cgu.rs`，不是仅有提案或变换脚本。完整调用闭包超复制预算时8→4→2有界缩并；保留原复制上限、Verify、机器预检、LLVM优化及其它资格回退。
+
+          21项参考分区/布局Rust控制、Clippy/格式、20,996项有限模型检查通过；随后同机新旧ZIL/Rust共288次完整CLI构建（252正式计时）、864原生输出检查通过，192次ZIL当前独立Verify。原生feature分区控制亦由CI实际执行。原始失败、固定版本与逐次记录全部保留。
+
+          256模块函数体/签名编辑分别减少约15%/18%，但冷编译退化约11%、暖编译约19%，冷CPU约翻倍；不凭局部胜出合并。完整结果、配对统计、缓存证据和限制见[RESULTS](G10.5.1/RESULTS.md)，近期方法见[RESEARCH](G10.5.1/RESEARCH.md)。
+
+          未完成：非作者精确源码独审、生成程序运行吞吐/内存/代码质量、泛型/CT/资源密集矩阵、旧Stage15前端回退逐提交归因。图模型和机械数据审计均不替代这些门。
+
+          下一轮先补低扰动阶段观测；再用调用图/SCC感知分区同时约束总复制成本、最长编译路径和编辑失效范围，并检查重复摘要/布局开销。更广前端增量按真实声明/布局/CT/效果依赖设计，不复用旧Verify授权。不能默默截断完整闭包合同或靠提高预算/削弱优化制造收益。
+
+          原始证据：`G10.5.1/native/42612992774/`；测量器 `G10.5.1/measure.py`；机械审计 `G10.5.1/audit.py`。工具链与所有输入摘要见manifest/receipt。旧11月8日报告已恢复，但不同CPU/工具链的绝对时间不可直接相减。
+
+          一任务一分支，goal永不合main；真正接受前移除.task和一次性施工CI，将必要源代码/测试与精简收据归入语义路径。当前不得合并本分支。
+
+          日志：文件空间zil-log本对话专属行。仅报告实际施工状态；结束本轮应明确待继续，不以持续刷新时间冒充后台施工。
+          ''')
+          PY
+          git diff --check
+          git fetch --no-tags origin refs/heads/task/G10.5.1
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git add -- .task/G10.5.1.md .task/G10.5.1/RESULTS.md .task/G10.5.1/audit-result.json
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Record compiler candidate NoGo and verified complete-request evidence'
+          git push origin HEAD:refs/heads/task/G10.5.1
+          echo "COMPILER_AUDIT_SOURCE_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Register only this task and its evidence on the independent goal branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin refs/heads/goal
+          goal_sha=$(git rev-parse FETCH_HEAD)
+          git worktree add --detach "$RUNNER_TEMP/compiler-cost-goal" "$goal_sha"
+          export COMPILER_GOAL_READ_SHA="$goal_sha"
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP'])/'compiler-cost-goal'
+          file = root/'goal.md'
+          old = file.read_text()
+          rows = [s for s in old.splitlines() if s.startswith('| G10.5 |')]
+          assert len(rows) == 1 and '| G10.5.1 |' not in old
+          row = rows[0]
+          parts = row.split('|')
+          assert len(parts) == 8 and parts[3].strip() == '待执行'
+          parts[3] = ' 进行中 '
+          parts[6] = ' 编译子项G10.5.1首轮已真实实施/计时，候选因冷暖退化Hold；安全/运行/内存/维护及产品净突破父门未关闭。见[编译专项记录](records/compiler-cost-re-audit.json)。 '
+          new_row = '|'.join(parts)
+          anchor = '<details>\n<summary>G10.7 · 子任务</summary>'
+          assert old.count(anchor) == 1
+          child = '''<details>
+          <summary>G10.5 · 子任务</summary>
+
+          | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+          | --- | --- | --- | --- | --- | --- |
+          | G10.5.1 | 编译效率复核、近期算法研究与动态分区增量优化 | 进行中 | P1 | 编译专项·20261109 | task/G10.5.1已保全；基线327eccfaf，候选02c75de95。288完整CLI/864输出/192当前Verify通过；256模块编辑减少15%–18%，冷/暖退化11%/19%，首候选Hold不合main。后续阶段观测/调用图稳定分区；独审和运行质量未验。见[记录](records/compiler-cost-re-audit.json)。 |
+
+          </details>
+
+          '''
+          child = '\n'.join(s[10:] if s.startswith('          ') else s for s in child.split('\n'))
+          changed = old.replace(row, new_row, 1).replace(anchor, child+anchor, 1)
+          assert changed.count('| G10.5.1 |') == 1
+          record = root/'records/compiler-cost-re-audit.json'
+          assert not record.exists()
+          receipt = {
+              'status': 'Research ongoing; first candidate NoGo/Hold, not integrated',
+              'task': 'G10.5.1', 'goal_read_sha': os.environ['COMPILER_GOAL_READ_SHA'],
+              'parent_status_before': '待执行', 'parent_status_after': '进行中; parent acceptance not closed',
+              'baseline': '327eccfaf3169d1404534ddc16359310a21a40ad',
+              'measured_source': '02c75de950b64339cdf6136331b8e685f65ccffe',
+              'delivery_head': os.environ['COMPILER_AUDIT_SOURCE_HEAD'],
+              'branch': 'task/G10.5.1', 'compile_requests': 288, 'formal_requests': 252,
+              'native_output_checks': 864, 'current_zil_verifications': 192,
+              'performance_decision': 'NoGo: large-case cold/warm/CPU/RSS/code-size regressions despite editing improvement',
+              'independent_review': 'NotRun', 'runtime_quality': 'NotRun', 'merge_allowed': False,
+              'evidence': 'https://github.com/zil-lang/zil/tree/'+os.environ['COMPILER_AUDIT_SOURCE_HEAD']+'/.task/G10.5.1',
+              'native_run': 'https://github.com/zil-lang/zil/actions/runs/42612992774',
+              'goal_old_sha256': hashlib.sha256(old.encode()).hexdigest(),
+              'goal_new_sha256': hashlib.sha256(changed.encode()).hexdigest(),
+          }
+          file.write_text(changed)
+          record.write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps(receipt,ensure_ascii=False,indent=2))
+          PY
+          git -C "$RUNNER_TEMP/compiler-cost-goal" diff --check
+          git -C "$RUNNER_TEMP/compiler-cost-goal" add -- goal.md records/compiler-cost-re-audit.json
+          git -C "$RUNNER_TEMP/compiler-cost-goal" -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Track compiler cost research and unaccepted bounded-partition result'
+          git -C "$RUNNER_TEMP/compiler-cost-goal" push origin HEAD:refs/heads/goal
+          git -C "$RUNNER_TEMP/compiler-cost-goal" rev-parse HEAD
