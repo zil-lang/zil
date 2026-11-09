@@ -396,14 +396,7 @@ impl FunctionEmitter<'_> {
                 ],
             },
         )));
-        self.event(m::Event::Instruction(m::Inst::new(
-            Some(m::name((value(result(instruction)?)).clone())),
-            m::Op::Load {
-                ty: (llvm_type(&field)?).clone(),
-                ptr: m::val((pointer).clone()),
-                align: (alignment(&field, self.closures)?) as u32,
-            },
-        )));
+        self.copy_read(result(instruction)?, m::val(pointer))?;
         Ok(())
     }
 
@@ -461,14 +454,7 @@ impl FunctionEmitter<'_> {
                 ],
             },
         )));
-        self.event(m::Event::Instruction(m::Inst::new(
-            Some(m::name((value(result(instruction)?)).clone())),
-            m::Op::Load {
-                ty: (llvm_type(&field)?).clone(),
-                ptr: m::val((pointer).clone()),
-                align: (alignment(&field, self.closures)?) as u32,
-            },
-        )));
+        self.copy_read(result(instruction)?, m::val(pointer))?;
         self.event(m::Event::Instruction(m::Inst::new(
             None,
             m::Op::Store {
@@ -508,14 +494,7 @@ impl FunctionEmitter<'_> {
                     ],
                 },
             )));
-            self.event(m::Event::Instruction(m::Inst::new(
-                None,
-                m::Op::Store {
-                    arg: m::Arg::new((llvm_type(&field)?).clone(), m::val((value(input)).clone())),
-                    ptr: m::val((pointer).clone()),
-                    align: (alignment(&field, self.closures)?) as u32,
-                },
-            )));
+            self.copy_write(m::val(pointer), input)?;
         }
         if owned_field(&field) {
             self.event(m::Event::Instruction(m::Inst::new(
