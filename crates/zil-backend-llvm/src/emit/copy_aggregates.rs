@@ -1,5 +1,6 @@
-//! Private stack snapshots for large ordinary Copy values. These pointers never
-//! represent source addresses. Source LIR types remain unchanged.
+//! Private physical snapshots for large values. These pointers never represent
+//! source addresses or grant Copy. Owned snapshots follow verified moves and
+//! cleanup flags; copying their bytes never creates another cleanup obligation.
 use super::*;
 use zil_base::Limits;
 
@@ -56,6 +57,7 @@ pub(super) fn plan(
                 Type::Array { .. }
                     | Type::Tuple(_)
                     | Type::Record { .. }
+                    | Type::Package { .. }
                     | Type::Enum { .. }
                     | Type::ErrorUnion { .. }
             ) {
@@ -65,13 +67,17 @@ pub(super) fn plan(
             // metadata clones before examining or retaining the complete shape.
             let before = work;
             reserve(ty, &mut work, 0, limits)?;
-            if !ty.is_copy_value()
+            if !matches!(enums::storage_shape(ty), Type::Package { .. })
+                && !ty.is_copy_value()
                 && !stored_borrows::pure_composite(ty)
                 && !stored_borrows::shared_array_snapshot(ty)
             {
                 continue;
             }
             let machine = llvm_type(ty)?;
+            if unresolved_layout(&machine) {
+                continue;
+            }
             let (bytes, align) = layout(&machine)?;
             if bytes >= MIN_BYTES {
                 if matches!(enums::storage_shape(ty), Type::Enum { .. }) {
@@ -101,6 +107,7 @@ pub(super) fn plan(
             for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
                 let operands = match &instruction.kind {
                     InstructionKind::MakeAggregate { fields }
+                    | InstructionKind::MakePackage { fields }
                     | InstructionKind::MakeVariant { fields, .. } => fields.len(),
                     InstructionKind::Call { arguments, .. }
                     | InstructionKind::CallIndirect { arguments, .. }
@@ -141,7 +148,16 @@ pub(super) fn plan(
                     }
                 }
             }
-            if !store_protocols.is_empty() {
+            // Ownership snapshots stay independent. The Copy slot pool has
+            // no inventory for ownership/cleanup transfers.
+            if !store_protocols.is_empty()
+                && !values.keys().any(|id| {
+                    matches!(
+                        enums::storage_shape(&function.values[id.0 as usize]),
+                        Type::Package { .. }
+                    )
+                })
+            {
                 super::copy_slots::coalesce(function, &mut values, &mut work)?;
             }
             plans.insert(function.id, values);
@@ -377,11 +393,12 @@ pub(super) fn reserve(
                 reserve(field, work, depth + 1, limits)?;
             }
         }
-        Type::Record { fields, .. } => {
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
             for (_, field) in fields {
                 reserve(field, work, depth + 1, limits)?;
             }
         }
+        Type::Managed(payload) => reserve(payload, work, depth + 1, limits)?,
         Type::Enum { variants, .. } => {
             for (_, fields) in variants {
                 for field in fields {
@@ -418,6 +435,7 @@ pub(super) fn classify(
         Type::Array { .. }
             | Type::Tuple(_)
             | Type::Record { .. }
+            | Type::Package { .. }
             | Type::Enum { .. }
             | Type::ErrorUnion { .. }
     ) {
@@ -425,13 +443,17 @@ pub(super) fn classify(
     }
     let before = *work;
     reserve(ty, work, 0, limits)?;
-    if !ty.is_copy_value()
+    if !matches!(enums::storage_shape(ty), Type::Package { .. })
+        && !ty.is_copy_value()
         && !stored_borrows::pure_composite(ty)
         && !stored_borrows::shared_array_snapshot(ty)
     {
         return Ok(None);
     }
     let machine = llvm_type(ty)?;
+    if unresolved_layout(&machine) {
+        return Ok(None);
+    }
     let (bytes, align) = layout(&machine)?;
     Ok((bytes >= MIN_BYTES).then_some(Slot {
         ty: machine,
@@ -440,6 +462,18 @@ pub(super) fn classify(
         storage: None,
         work: before - *work,
     }))
+}
+
+// Named closure environments retain their existing helper convention. This
+// paid machine-shape walk cannot assign them a concrete layout or change their
+// ABI; unsupported large consumers still fail before publishing artifacts.
+fn unresolved_layout(ty: &m::Ty) -> bool {
+    match ty {
+        m::Ty::Named(_) => true,
+        m::Ty::Array(_, element) => unresolved_layout(element),
+        m::Ty::Struct(fields) => fields.iter().any(unresolved_layout),
+        _ => false,
+    }
 }
 
 pub(super) fn layout(ty: &m::Ty) -> CompileResult<(u64, u32)> {
@@ -723,14 +757,6 @@ impl FunctionEmitter<'_> {
         let output = instruction.result;
         let output_memory = output.is_some_and(|id| self.copy_values.contains_key(&id));
         match &instruction.kind {
-            InstructionKind::Load(local) | InstructionKind::TakeLocal { local }
-                if output_memory =>
-            {
-                self.copy_read(result(instruction)?, m::local(format!("local.{}", local.0)))?;
-            }
-            InstructionKind::Store { local, value } if self.copy_values.contains_key(value) => {
-                self.copy_write(m::local(format!("local.{}", local.0)), *value)?;
-            }
             InstructionKind::ReadAddress { address } if output_memory => {
                 self.copy_read(result(instruction)?, m::local(format!("v.{}", address.0)))?;
             }
@@ -739,7 +765,9 @@ impl FunctionEmitter<'_> {
             {
                 self.copy_write(m::local(format!("v.{}", address.0)), *value)?;
             }
-            InstructionKind::MakeAggregate { fields } if output_memory => {
+            InstructionKind::MakeAggregate { fields } | InstructionKind::MakePackage { fields }
+                if output_memory =>
+            {
                 let out = result(instruction)?;
                 let bytes = self.copy_values[&out].bytes;
                 // Initialize padding/Unit placeholders too; no undefined bytes
@@ -916,6 +944,44 @@ impl FunctionEmitter<'_> {
 #[cfg(test)]
 mod qualified_snapshot_tests {
     use super::*;
+
+    #[test]
+    fn owned_package_snapshot_is_physical_and_charges_the_complete_layout() {
+        let owned = Type::Package {
+            name: "Large".into(),
+            fields: vec![
+                ("bytes".into(), Type::Managed(Box::new(Type::ByteBuffer))),
+                (
+                    "values".into(),
+                    Type::Array {
+                        element: Box::new(Type::I32),
+                        length: 4096,
+                    },
+                ),
+            ],
+        };
+        assert!(!owned.is_copy_value());
+        assert!(!stored_borrows::pure_composite(&owned));
+        let mut work = usize::MAX;
+        let slot = classify(&owned, &mut work, &Limits::default())
+            .unwrap()
+            .unwrap();
+        assert_eq!((slot.bytes, slot.align), (16408, 8));
+        assert!(slot.storage.is_none());
+        let cost = usize::MAX - work;
+        let mut exact = cost;
+        assert!(
+            classify(&owned, &mut exact, &Limits::default())
+                .unwrap()
+                .is_some()
+        );
+        assert_eq!(exact, 0);
+        let errors = classify(&owned, &mut (cost - 1), &Limits::default())
+            .err()
+            .unwrap();
+        assert_eq!(errors[0].category, zil_base::ResultCategory::ResourceLimit);
+        assert!(!owned.is_copy_value());
+    }
 
     #[test]
     fn qualified_snapshot_classification_preserves_layout_and_full_metadata_fee() {
