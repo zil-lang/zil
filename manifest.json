@@ -1,39 +1,36 @@
 {
   "format": 1,
-  "created_utc": "2026-11-09 10:28:22 UTC",
-  "prior_archive": "79b804ae2f64d9ce795a8a94adeeeb29d6d7ff61",
+  "created_utc": "2026-11-09 10:35:54 UTC",
+  "prior_archive": "b4b2436ac9e54746d8fd8a32d742a23c8e8613af",
   "commit_parents": [
-    "79b804ae2f64d9ce795a8a94adeeeb29d6d7ff61",
-    "e308286433d2230182bafddbcb90fadf945c5664"
+    "b4b2436ac9e54746d8fd8a32d742a23c8e8613af",
+    "bbcfef9a1117985b22ca93f301c09db9b48f6296"
   ],
   "commit_tips": [
-    "4b9f904720dfb685bc31c6de9627a262762321c9",
-    "81f70ee58fa3d19f87b8ca1c566f50cfc15bb37f",
-    "2fa2a7a435a3527862685d9ecb3ba75aed91a1e7",
-    "e308286433d2230182bafddbcb90fadf945c5664"
+    "cbd3657955b28fb664c5ec757185f0b55204be63",
+    "bbcfef9a1117985b22ca93f301c09db9b48f6296"
   ],
   "local_refs": {},
   "remote_refs": {
-    "refs/heads/archive/source-history": "79b804ae2f64d9ce795a8a94adeeeb29d6d7ff61",
-    "refs/heads/main": "e308286433d2230182bafddbcb90fadf945c5664",
-    "refs/heads/task/G3.5.1": "2fa2a7a435a3527862685d9ecb3ba75aed91a1e7"
+    "refs/heads/archive/source-history": "b4b2436ac9e54746d8fd8a32d742a23c8e8613af",
+    "refs/heads/main": "bbcfef9a1117985b22ca93f301c09db9b48f6296",
+    "refs/heads/task/normative-index-sync": "cbd3657955b28fb664c5ec757185f0b55204be63"
   },
   "worktrees": [],
   "missing_commit_objects": [],
   "retirements": [
     {
-      "ref": "refs/heads/task/G3.5.1",
-      "head_before_retirement": "2fa2a7a435a3527862685d9ecb3ba75aed91a1e7",
-      "original_task_tip": "4b9f904720dfb685bc31c6de9627a262762321c9",
-      "accepted_main": "e308286433d2230182bafddbcb90fadf945c5664",
-      "pull_request": 58,
-      "remote_history_reachable_through_parent": "e308286433d2230182bafddbcb90fadf945c5664",
-      "published_source": "81f70ee58fa3d19f87b8ca1c566f50cfc15bb37f",
-      "source_tree": "f0552b2a5c387faf737d07ffe9bf3a1a282f0e64",
+      "ref": "refs/heads/task/normative-index-sync",
+      "head_before_retirement": "cbd3657955b28fb664c5ec757185f0b55204be63",
+      "original_task_tip": "e308286433d2230182bafddbcb90fadf945c5664",
+      "accepted_main": "bbcfef9a1117985b22ca93f301c09db9b48f6296",
+      "pull_request": 59,
+      "remote_history_reachable_through_parent": "bbcfef9a1117985b22ca93f301c09db9b48f6296",
+      "published_source": "cbd3657955b28fb664c5ec757185f0b55204be63",
+      "source_tree": "5a2f039f8e331c1db8094a304c1aa3c1c8a319ca",
       "local_execution_identity": {
-        "source": "37e965938d21b385eda16d99a707ba6a5e860917",
-        "receipt_commit": "0644d0a421f95f609c32f695838cf81a7cd75cb0",
-        "branch": "task/borrowed-owned-callbacks",
+        "source": "9355f9af96b0880caf1ced136b543476f64bef01",
+        "branch": "task/normative-index-sync",
         "branch_retained": true,
         "remote_commit_identity_claimed": false,
         "complete_trees_identical_to_remote": true
@@ -41,5 +38,5 @@
       "unique_uncommitted_source": false
     }
   ],
-  "scope": "Preserve only this merged remote callback branch before retirement. Prior archives retain previous manifests and complete objects. Local validation identity and unfinished .1/.2 descendants remain retained."
+  "scope": "Preserve the generated-index correction branch before retirement. Earlier accepted source histories and manifests remain reachable through the prior archive. Local validation identity remains retained."
 }
