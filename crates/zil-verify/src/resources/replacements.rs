@@ -294,7 +294,11 @@ impl Plan {
                 let Some(slot) = *slot else {
                     continue;
                 };
-                if !transfer.after[point.block][point.position][slot] {
+                if !transfer
+                    .after
+                    .row(point.block, point.position)
+                    .get(slot, b)?
+                {
                     continue;
                 }
                 b.spend(
@@ -692,7 +696,7 @@ impl Plan {
                         if validate {
                             no_live_description(
                                 state,
-                                &transfer.after[block][position],
+                                transfer.after.row(block, position),
                                 Root::PackageField {
                                     local,
                                     index: *index,
@@ -708,7 +712,7 @@ impl Plan {
                         if validate {
                             no_live_description(
                                 state,
-                                &transfer.after[block][position],
+                                transfer.after.row(block, position),
                                 Root::Local(local),
                                 span,
                                 b,

@@ -350,7 +350,12 @@ pub(super) fn observe(
             continue;
         }
         let Some(slot) = *slot else { continue };
-        if Some(slot) == point.output || !transfer.after[point.block][point.position][slot] {
+        if Some(slot) == point.output
+            || !transfer
+                .after
+                .row(point.block, point.position)
+                .get(slot, b)?
+        {
             continue;
         }
         let source = &state.retirement[slot];
