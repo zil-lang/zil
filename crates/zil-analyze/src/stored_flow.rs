@@ -7,6 +7,8 @@ mod active_index_tests;
 mod array_index;
 mod array_snapshot;
 mod byte_queries;
+mod live_words;
+use live_words::LiveRow;
 pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
@@ -3770,7 +3772,7 @@ fn loan_value_ids(values: &[Value], b: &mut Budget) -> CompileResult<Vec<usize>>
 fn active(
     values: &[Value],
     state: &State,
-    live: &[bool],
+    live: &LiveRow,
     defining: Option<ValueId>,
     loan_values: Option<&[usize]>,
     loans: &[Loan],
@@ -3784,7 +3786,7 @@ fn active(
         }),
     )?;
     let mut collect = |i: usize| -> CompileResult<()> {
-        if !live[i] || defining.is_some_and(|value| value.0 as usize == i) {
+        if !live.at(i)? || defining.is_some_and(|value| value.0 as usize == i) {
             return Ok(());
         }
         let value = if i < values.len() {
@@ -3847,6 +3849,108 @@ fn reverse(
     module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
+    live: &mut LiveRow,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    fee(b, 1)?;
+    if let Some(v) = i.result {
+        live.put(v.0 as usize, false)?;
+    }
+    match i.kind {
+        InstructionKind::Store { local, .. }
+        | InstructionKind::StorageLive(local)
+        | InstructionKind::StorageDead(local) => {
+            live.put(f.values.len() + local.0 as usize, false)?
+        }
+        InstructionKind::Load(local)
+        | InstructionKind::BorrowPlaceLocal { local, .. }
+        | InstructionKind::BorrowLocal { local }
+        | InstructionKind::BorrowLocalMut { local } => {
+            live.put(f.values.len() + local.0 as usize, true)?
+        }
+        InstructionKind::TakeLocal { local }
+        | InstructionKind::TakePackageField { local, .. }
+        | InstructionKind::DropPackageField { local, .. }
+        | InstructionKind::StorePackageField { local, .. }
+        | InstructionKind::DropClosure { local }
+        | InstructionKind::CallClosureShared { callee: local, .. }
+        | InstructionKind::CallClosureMut { callee: local, .. }
+            if super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty)
+                || carrier(&f.locals[local.0 as usize].ty).is_some()
+                || matches!(i.kind, InstructionKind::TakeLocal { .. })
+                    && matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) =>
+        {
+            live.put(f.values.len() + local.0 as usize, true)?
+        }
+        _ => {}
+    }
+    for v in resources::uses(&i.kind) {
+        fee(b, 1)?;
+        live.put(v.0 as usize, true)?;
+    }
+    Ok(())
+}
+fn term_live(t: &Terminator, live: &mut LiveRow) -> CompileResult<()> {
+    match t {
+        Terminator::Return(Some(v)) | Terminator::Branch { condition: v, .. } => {
+            live.put(v.0 as usize, true)?
+        }
+        _ => {}
+    }
+    Ok(())
+}
+fn liveness(
+    module: &TypedModule,
+    f: &TypedFunction,
+    preds: &[Vec<usize>],
+    reachable: &[bool],
+    b: &mut Budget,
+) -> CompileResult<Vec<LiveRow>> {
+    let width = f
+        .values
+        .len()
+        .checked_add(f.locals.len())
+        .ok_or_else(|| failure("stored liveness width overflow"))?;
+    let work = LiveRow::work_for(width);
+    b.product(f.blocks.len(), work, 2, "stored liveness tables")?;
+    let mut inputs = vec![LiveRow::empty(width); f.blocks.len()];
+    let mut outputs = inputs.clone();
+    loop {
+        let mut changed = false;
+        for bi in (0..f.blocks.len()).rev() {
+            fee(b, 1)?;
+            if !reachable[bi] {
+                continue;
+            }
+            fee(b, work)?;
+            let mut live = outputs[bi].clone();
+            term_live(&f.blocks[bi].terminator, &mut live)?;
+            for i in f.blocks[bi].instructions.iter().rev() {
+                reverse(module, f, i, &mut live, b)?;
+            }
+            fee(b, work)?;
+            if live != inputs[bi] {
+                fee(b, work)?;
+                inputs[bi] = live;
+                for pred in &preds[bi] {
+                    // The old solver updates every predecessor, including
+                    // unreachable predecessors of a reachable successor.
+                    changed |= outputs[*pred].include(&inputs[bi], b)?;
+                }
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    Ok(outputs)
+}
+
+#[cfg(test)]
+fn reverse_bool(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
     live: &mut [bool],
     b: &mut Budget,
 ) -> CompileResult<()> {
@@ -3886,7 +3990,8 @@ fn reverse(
     }
     Ok(())
 }
-fn term_live(t: &Terminator, live: &mut [bool]) {
+#[cfg(test)]
+fn term_live_bool(t: &Terminator, live: &mut [bool]) {
     match t {
         Terminator::Return(Some(v)) | Terminator::Branch { condition: v, .. } => {
             live[v.0 as usize] = true
@@ -3894,7 +3999,8 @@ fn term_live(t: &Terminator, live: &mut [bool]) {
         _ => {}
     }
 }
-fn liveness(
+#[cfg(test)]
+fn liveness_bool(
     module: &TypedModule,
     f: &TypedFunction,
     preds: &[Vec<usize>],
@@ -3918,9 +4024,9 @@ fn liveness(
             }
             fee(b, width)?;
             let mut live = outputs[bi].clone();
-            term_live(&f.blocks[bi].terminator, &mut live);
+            term_live_bool(&f.blocks[bi].terminator, &mut live);
             for i in f.blocks[bi].instructions.iter().rev() {
-                reverse(module, f, i, &mut live, b)?;
+                reverse_bool(module, f, i, &mut live, b)?;
             }
             fee(b, width)?;
             if live != inputs[bi] {
@@ -3948,29 +4054,34 @@ fn liveness(
 /// permissions, loan generations and resource facts never enter this cache.
 /// A refined CFG gets a fresh table in its own derive_cfg invocation.
 struct WindowLiveness {
-    outputs: Vec<Vec<bool>>,
-    after: Vec<Option<Vec<Vec<bool>>>>,
+    outputs: Vec<LiveRow>,
+    after: Vec<Option<Vec<LiveRow>>>,
 }
 fn instruction_live(
     module: &TypedModule,
     f: &TypedFunction,
     bi: usize,
-    output: &[bool],
+    output: &LiveRow,
     b: &mut Budget,
-) -> CompileResult<Vec<Vec<bool>>> {
+) -> CompileResult<Vec<LiveRow>> {
     let block = &f.blocks[bi];
-    let width = f.values.len().saturating_add(f.locals.len());
+    let work = output.work();
     b.product(
         block.instructions.len().saturating_add(1),
-        width,
+        work,
         1,
         "stored instruction liveness snapshots",
     )?;
-    let mut live = output.to_vec();
-    term_live(&block.terminator, &mut live);
-    let mut after = vec![vec![false; width]; block.instructions.len()];
+    // Empty placeholders allocate row records before the paid word copies.
+    b.spend(
+        block.instructions.len(),
+        "stored liveness snapshot containers",
+    )?;
+    let mut live = output.clone();
+    term_live(&block.terminator, &mut live)?;
+    let mut after = vec![LiveRow::empty(0); block.instructions.len()];
     for (position, i) in block.instructions.iter().enumerate().rev() {
-        after[position].clone_from(&live);
+        after[position] = live.clone();
         reverse(module, f, i, &mut live, b)?;
     }
     Ok(after)
@@ -4049,7 +4160,6 @@ fn windows(
                 state_merge(&mut state, &outputs[*pred], b)?;
             }
         }
-        let width = f.values.len().saturating_add(f.locals.len());
         let after = if let Some(cache) = cached.as_mut() {
             fee(b, 1)?;
             if cache.after[bi].is_none() {
@@ -4078,10 +4188,10 @@ fn windows(
                     b,
                 )?
             } else {
-                fee(b, width)?;
+                fee(b, after[position].work())?;
                 let mut live = after[position].clone();
                 if let Some(v) = i.result {
-                    live[v.0 as usize] = false;
+                    live.put(v.0 as usize, false)?;
                 }
                 active(values, &state, &live, None, None, loans, b)?
             };
@@ -6364,17 +6474,16 @@ mod tests {
             }
         }
         assert_eq!(
-            // Two complete nominal rows add 74; fifteen actual retained
-            // boundary scans add 45. The prior N remains a limit control.
+            // Actual bounded-word copies/joins replace the dense Boolean
+            // rows; all target/loan and retained-boundary work remains paid.
             low,
-            14_077 + 74 + 15 * 3,
+            12_870,
             "bounded actual identity/ownership work changed"
         );
-        assert!(
-            super::super::analyze(&m, &limits(14_077))
-                .unwrap_err()
-                .iter()
-                .any(|d| d.code == "E-RESOURCE-LIMIT")
+        // The previous dense-row boundary now succeeds through less work.
+        assert_eq!(
+            super::super::analyze(&m, &limits(14_077)).unwrap(),
+            expected
         );
         let mut session = super::super::AnalysisSession::default();
         for warm in [false, true] {
