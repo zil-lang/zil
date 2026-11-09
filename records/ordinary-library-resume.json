@@ -2,7 +2,7 @@
   "date": "2026-11-09 09:04 Asia/Shanghai",
   "status": "resumed_not_accepted",
   "main": "b07b85dd49b3df6f382734d509919a2a6013c97d",
-  "goal_read": "8514c1d137185a3c748ce603c9fc0f48ef3d4020",
+  "goal_read": "bf057c4cffff2bc98f7d3e80cb9c0168906d3c14",
   "integration": "ed8e3a5de6befb15b515f6b124e992792414a8ca",
   "source_branches": {
     "root": "task/G10.6.3",
@@ -13,13 +13,13 @@
   "first_failure": "offline cargo dependency rustc_apfloat absent; no tests executed",
   "scope": "Continue original ordinary-library consumer and large owned closure transport; no release claim",
   "raw_logs": "out/runs/byte-views-baseline-20261109/ in task/G3.4.22 worktree",
-  "last_work": "2026-11-09 11:14 Asia/Shanghai",
-  "integration_remote": "186c64aa6fce9531d3d02da76933eeae7fba642a",
+  "last_work": "2026-11-09 11:30 Asia/Shanghai",
+  "integration_remote": "f331a08bf4a338e690c3b32776aff36b3a40a605",
   "large_closure_checkpoint": "dbd5c446a600eb26f34574748376a2b8e84fece8",
   "baseline_language_failure": "original four-module program: Analyze ResourceLimit / Sum terminal tag classification, 0 pass, 1 fail",
   "native_progress": "frozen ordinary local closure ABI: 48 native executions pass; opaque factories/generic callable helpers remain five explicit Types Unsupported boundaries",
-  "integration_local": "0918414c71b8b0b96c8a9f3f9bada70db6950a59",
-  "byte_views_checkpoint": "d14677a605fdd136fbe4ec792d924952f285c768",
+  "integration_local": "f160b74ffa01eab22714bed283ff4d2d9f6f9d50",
+  "byte_views_checkpoint": "1e26138165b4cfb8a11edc849ce113f9d2a04443",
   "growing_collections_checkpoint": "7184898c503d66f96a992d21954623951443d5fc",
   "original_pipeline": "Frozen Byte precise order main/model/protocol/library, fingerprint d9afb8c2667ac61471aa1f37bd2fb9277abcbab5df37090bf4f8f6b8d32ec676: A N7122869/V N7814112 with N-1/fresh/raw/Wire pass; original4095 native input order main/protocol/library/model:48 actual executions pass, identical source file bytes",
   "collections_progress": "run7/d887: Analyze221/0, growing9/2;60/64 native pass; Map functional four configurations still Analyze ResourceLimit / Sum alternatives allocation",
@@ -81,5 +81,39 @@
     "logs": "out/runs/growing-input-effects-20261109-9",
     "next": "Complete SSA inventory paged COW design under independent review"
   },
-  "active_build_window": "byte_view_composition: Analyze live-word oracles/core and fixed collected probe; Map only implementation/read-only, root no heavy build"
+  "active_build_window": "Byte: V1cc oracle/core/default collected; next Map:f065 paged oracle/core/default Map; root library gate finished",
+  "workspace_core": {
+    "source": "f160b74ffa01eab22714bed283ff4d2d9f6f9d50",
+    "tree": "aae362b35e177ccfd7b072c43c2b11e5c4719058",
+    "source_unchanged": true,
+    "command": "cargo test --locked --offline --workspace --lib --no-fail-fast",
+    "passed": 1378,
+    "failed": 0,
+    "groups": 14,
+    "elapsed_seconds": 174.709,
+    "log": "out/runs/ordinary-composition-core-20261109-1/workspace-libs.log",
+    "sha256": "f1761bbaee00280bb0b599542b3fcf8f06bd516825a2c5dc0b7bbfc6d7c50dd4",
+    "scope": "complete workspace library tests; integration/native whole workspace not yet complete"
+  },
+  "analyze_word_receipt": {
+    "source": "670b52a30c48406a9ce342e40a706969fb107e17",
+    "test_pin": "52139246bf7d8b6815d8727fadc90f560f6ae2cb",
+    "independent_bool_oracles": 3,
+    "full_analyze_passed": 224,
+    "failed": 0,
+    "original_4722_A": 5766638,
+    "original_4722_V": 7814112,
+    "collected_4011_A": 8174566,
+    "edges": "N success/N-1 actual-phase ResourceLimit/fresh N success; parent loan rejection retained",
+    "collected_default": "Analyze success then actual Verify ResourceLimit, verification_runs1",
+    "log": "out/runs/byte-views-analyze-words-20261109/receipt.json"
+  },
+  "verify_ledger": {
+    "log": "out/runs/byte-views-verify-ledger-20261109/collected-ledger.json",
+    "actual_dense_work": 1845459,
+    "preserved_logical_live_loans_work": 649904,
+    "preserved_point_shift_work": 898784,
+    "head_access_generic_charge_not_folded": 3511268,
+    "next": "V independent word rows1cc under build; no broad fee reduction"
+  }
 }
