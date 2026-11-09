@@ -376,6 +376,7 @@ mod probe_oracle;
 mod probe_tests;
 
 #[cfg(test)]
+#[allow(dead_code)]
 #[path = "leaf_rows_end_oracle.rs"]
 mod end_oracle;
 #[cfg(test)]

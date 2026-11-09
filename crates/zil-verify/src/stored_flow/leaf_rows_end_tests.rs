@@ -29,7 +29,7 @@ fn compare(new: &Rows, old: &end_oracle::Rows, keys: &[Path]) {
 }
 #[test]
 fn complete_end_key_bounds_preserve_empty_single_mixed_and_duplicate_rows() {
-    let steps = vec![
+    let steps = [
         PlaceProjection::Field(0),
         PlaceProjection::Field(1),
         PlaceProjection::Field(u32::MAX),
