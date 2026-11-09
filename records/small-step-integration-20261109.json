@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-09 17:07:50 UTC",
-  "status": "Twelve scoped batches accepted and completed task refs retired; Map and the original pipeline continue separately.",
-  "accepted_main": "6e27d4da55ad627b49c0ad148eb65225a1413132",
-  "accepted_tree": "fe1ee13f0334518c257cb260a5a9bf0f86601d98",
-  "archive": "3aba8ab5dfc939a13acfdf664a7e7adef8368f3f",
+  "recorded_utc": "2026-11-09 18:04:57 UTC",
+  "status": "Thirteen scoped batches accepted and completed task refs retired; larger collected and growing Map programs still require default Verify completion.",
+  "accepted_main": "fc18d05d59321423570bb46123c756f2ad7e2e88",
+  "accepted_tree": "44324e1c7a023ed91dc7f063febac330cf631e26",
+  "archive": "5bb9798f935fe10742588fbe96a2efa471f1a424",
   "remote_retirements": [
     {
       "pr": 55,
@@ -70,6 +70,12 @@
       "pr": 67,
       "branch": "task/current-budget-boundaries",
       "scope": "Four complete consumer budget anchors after indexed actual-work optimization",
+      "status": "Merged, exact tree archived, UI deletion observed and API ref returned 404"
+    },
+    {
+      "pr": 68,
+      "branch": "task/owned-pipeline-acceptance",
+      "scope": "Original four-module owned callback pipeline",
       "status": "Merged, exact tree archived, UI deletion observed and API ref returned 404"
     }
   ],
@@ -191,6 +197,14 @@
       "tree": "fe1ee13f0334518c257cb260a5a9bf0f86601d98",
       "accepted_main_commit": "6e27d4da55ad627b49c0ad148eb65225a1413132",
       "result": "Completed local ref removed with branch -d; exact detached local history and all diagnostic/final/review files retained."
+    },
+    {
+      "worktree": "/workspace/scratch/36bf9939e558/wt-owned-pipeline-acceptance",
+      "branch": "task/owned-pipeline-acceptance",
+      "local_head": "e711aca01f9714e28786275ff4874583bf69686c",
+      "tree": "44324e1c7a023ed91dc7f063febac330cf631e26",
+      "accepted_main_commit": "fc18d05d59321423570bb46123c756f2ad7e2e88",
+      "result": "Completed ref removed with branch -d; exact detached local history and all original failures, final logs and reviews retained."
     }
   ],
   "additional_local_ref_retirement": {
@@ -207,29 +221,42 @@
     "remote_identity_claimed_for_local_commit": false
   },
   "preservation": "Every exact local execution commit remains at its detached worktree with all files and logs. Each complete accepted tree matches an archived main commit; local commit metadata is not represented as remotely identical. Two known original Closure test outputs are preserved, not unique source.",
-  "current_batch_receipt": "https://github.com/zil-lang/zil/blob/6e27d4da55ad627b49c0ad148eb65225a1413132/validation/stored-flow-budget-boundaries.json",
+  "current_batch_receipt": "https://github.com/zil-lang/zil/blob/fc18d05d59321423570bb46123c756f2ad7e2e88/validation/stored-owned-callback-pipeline.json",
   "current_batch": {
-    "pull_request": 67,
-    "source": "116cda19e9fcaabf2f0e872ade0a4594662b35ee",
-    "source_tree": "3de9a68ebad3eae392505f2282f76df884860ca8",
-    "receipt_commit": "9bdea108913746f92a814bb4dff7735bbc3f5027",
-    "published": "b972d1c7babd52e996ec0fb8c0cfcc009f44f4b0",
-    "accepted_main": "6e27d4da55ad627b49c0ad148eb65225a1413132",
+    "pull_request": 68,
+    "url": "https://github.com/zil-lang/zil/pull/68",
+    "source": "e711aca01f9714e28786275ff4874583bf69686c",
+    "source_tree": "44324e1c7a023ed91dc7f063febac330cf631e26",
+    "published": "be9751ecd6f5265240c1e565add0097faa7f96a7",
+    "accepted_main": "fc18d05d59321423570bb46123c756f2ad7e2e88",
+    "receipt_sha256": "8c981bd7eabf09b89573eba7abb4f057d40d8358aa94371c4902a57054dcf825",
     "tests": {
-      "default": 4,
-      "reference": 4,
-      "failed": 0
+      "source_bound_kernel": 728,
+      "independent_complete_raw_wire": 1,
+      "three_prior_trait_budget_repairs": 3,
+      "related_work": 26,
+      "final_default_budget": 8,
+      "final_reference_budget": 8,
+      "original_native": 48
     },
+    "counting": "Different recorded exact sources; no claim that all these ran on e711. See the complete source-bound receipt.",
     "strict_fmt_docs": "Pass",
-    "scope": "Four complete existing consumer tests only; original source/native assertions retained, no full workspace rerun."
+    "scope": "Original 6052B four-module synchronous owned callback pipeline and current local ByteBuffer field views; no collected or Map acceptance.",
+    "final_review": {
+      "fact_checks": 572,
+      "finalization_checks": 32,
+      "final_receipt_report_sha256": "07b2459d237993e897ac63886b9cfc10cceda847dabee0e9ebf3b43f5e54df06"
+    },
+    "docs_log_sha256": "d1c8bb3a4fddf6ed8aff4cb51d46179374b286db14ce2496ffebc0f08fd7d3e0",
+    "retirement_receipt_sha256": "9e4ebf2c8fd90876c7666589a74089317535f22a6b4a80cf022e474c937ef703"
   },
   "remaining": {
-    "arrays": "Accepted by PR66; the four later stale budget expectations are separately repaired and accepted by PR67.",
-    "map": "Checkpoint 13 controls, same-production Verify 561 and effects 7 passed; diag10 proves complete replacement net saving 726534. Original 5008B Map still Verify ResourceLimit; narrow immutable resource-liveness reuse contract under review.",
-    "pipeline": "P3 four controls, original 6052B owned Source and 48 original native/cleanup cases pass. Original 7547B collected input passes Analyze but remains Verify ResourceLimit/V1; minimal owned integration and independent review in progress.",
-    "ci": "Exact main 6e27 both workspace jobs and docs completed success; each environment defaults 5827/0, reference 5713/0, text-reference 70/0. Active branches not covered."
+    "arrays": "Accepted by PR66 and later source-bound cost corrections.",
+    "map": "41a five liveness controls passed; original 5008B Map remains Verify ResourceLimit/V1. diag11 accounts complete and truncated ranges separately; only matched-prefix net saving 84501 is supported.",
+    "pipeline": "Original 6052B owned pipeline accepted by PR68. New 389e ordinary-borrow word liveness passes six component controls but original 7547B collected Source still Verify ResourceLimit/V1; ledger4 planned.",
+    "ci": "Exact new main fc18 docs succeeds and two workspace jobs are in progress; complete green 6e27 results are retained under previous_main_ci."
   },
-  "release_scope": "Twelve limited scoped batches; no full local workspace or 1.0 claim. Current main documentation succeeds; both workspace jobs remain running at the recorded observation.",
+  "release_scope": "Thirteen limited scoped batches; no full local workspace or 1.0 claim. New-main CI is recorded separately from earlier green main and active branch tests.",
   "array_analysis_checkpoint": {
     "local_source": "00ef786118bd14905a83f8ecc96a31eecfb0a837",
     "published_source": "7dbc4167ffc53c33d51ec1cfd91341c9dfde3002",
@@ -293,74 +320,34 @@
     "acceptance": "Checkpoint only; parent task remains in progress."
   },
   "main_ci": {
-    "source": "6e27d4da55ad627b49c0ad148eb65225a1413132",
-    "observed_utc": "2026-11-09 17:07:50 UTC",
+    "source": "fc18d05d59321423570bb46123c756f2ad7e2e88",
+    "tree": "44324e1c7a023ed91dc7f063febac330cf631e26",
+    "observed_utc": "2026-11-09 18:04:57 UTC",
     "checks": [
       {
+        "id": 129341326434,
         "name": "workspace",
-        "status": "completed",
-        "conclusion": "success",
-        "url": "https://github.com/zil-lang/zil/actions/runs/42653344788/job/129285216007"
+        "status": "in_progress",
+        "conclusion": null,
+        "url": "https://github.com/zil-lang/zil/actions/runs/42669324206/job/129341326434"
       },
       {
+        "id": 129341325317,
         "name": "workspace",
-        "status": "completed",
-        "conclusion": "success",
-        "url": "https://github.com/zil-lang/zil/actions/runs/42653344769/job/129285215934"
+        "status": "in_progress",
+        "conclusion": null,
+        "url": "https://github.com/zil-lang/zil/actions/runs/42669324116/job/129341325317"
       },
       {
+        "id": 129341325012,
         "name": "documentation",
         "status": "completed",
         "conclusion": "success",
-        "url": "https://github.com/zil-lang/zil/actions/runs/42653344851/job/129285215646"
+        "url": "https://github.com/zil-lang/zil/actions/runs/42669324549/job/129341325012"
       }
     ],
-    "all_success": true,
-    "scope": "Remote CI for exact accepted main only; not the two active source branches.",
-    "jobs": [
-      {
-        "job": 129285216007,
-        "environment": "standard LLVM",
-        "workspace": {
-          "passed": 5827,
-          "failed": 0,
-          "summaries": 429
-        },
-        "reference": {
-          "passed": 5713,
-          "failed": 0,
-          "summaries": 429
-        },
-        "text_reference": {
-          "passed": 70,
-          "failed": 0
-        },
-        "log_sha256": "e6ff525a2091ac46fafa7e2dd3d6fb8f457c5461cf4a55569d551b93c70f5ffe",
-        "summary_sha256": "90ca1fdae493950d25ec11576f1653b2efe9e2d6738735533927626e47735043"
-      },
-      {
-        "job": 129285215934,
-        "environment": "research LLVM",
-        "workspace": {
-          "passed": 5827,
-          "failed": 0,
-          "summaries": 429
-        },
-        "reference": {
-          "passed": 5713,
-          "failed": 0,
-          "summaries": 429
-        },
-        "text_reference": {
-          "passed": 70,
-          "failed": 0
-        },
-        "log_sha256": "52d300b26bd9d0a1e9e3f5b7669354ce9cfcc0344ffd03d0ac1fd3220b3bed59",
-        "summary_sha256": "60822ac1342f9749623525def21ed36d66091bfb9c351b249b15d38a1d09f9af"
-      }
-    ],
-    "other_checks": "Both jobs: fmt, all-target Clippy, Native API State/allocation controls and CI recovery tests succeeded; documentation succeeded.",
-    "evidence": "setup-tmp/main-6e27-ci-20261109-1"
+    "all_success": false,
+    "scope": "Only exact fc18 main jobs. Earlier full-success test counts are not attributed to this source."
   },
   "array_verifier_checkpoints": {
     "scope": "Task checkpoints only, not main acceptance; physical module and source inputs are unchanged.",
@@ -627,9 +614,9 @@
       "next": "Design stable fixedpoint input reuse with complete dependency versions, original final validation and full cache/COW/cleanup work accounting."
     }
   },
-  "previous_accepted_main": "d813da9307f4e174a5f16bc127c267ca438be589",
-  "previous_accepted_tree": "73bae4bcc113d6a4d9a6eb07996955ad95781133",
-  "previous_archive": "afecce60a16f225ad4b670e5ec872a7466495385",
+  "previous_accepted_main": "6e27d4da55ad627b49c0ad148eb65225a1413132",
+  "previous_accepted_tree": "fe1ee13f0334518c257cb260a5a9bf0f86601d98",
+  "previous_archive": "3aba8ab5dfc939a13acfdf664a7e7adef8368f3f",
   "owned_array_acceptance": {
     "pull_request": 66,
     "url": "https://github.com/zil-lang/zil/pull/66",
@@ -672,43 +659,88 @@
     "branch_cleanup_image": "/workspace/scratch/zil-pr66-branch-deletion-verified-20261109.jpg"
   },
   "completed_task_ref_counts": {
-    "remote": 12,
-    "local": 12,
+    "remote": 13,
+    "local": 13,
     "additional_array_review_local": 1
   },
   "previous_main_ci": {
-    "source": "d813da9307f4e174a5f16bc127c267ca438be589",
-    "observed_utc": "2026-11-09 15:54:30 UTC",
+    "source": "6e27d4da55ad627b49c0ad148eb65225a1413132",
+    "observed_utc": "2026-11-09 17:07:50 UTC",
     "checks": [
+      {
+        "name": "workspace",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/zil-lang/zil/actions/runs/42653344788/job/129285216007"
+      },
+      {
+        "name": "workspace",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/zil-lang/zil/actions/runs/42653344769/job/129285215934"
+      },
       {
         "name": "documentation",
         "status": "completed",
         "conclusion": "success",
-        "url": "https://github.com/zil-lang/zil/actions/runs/42641988917/job/129245182189"
-      },
-      {
-        "name": "workspace",
-        "status": "completed",
-        "conclusion": "failure",
-        "url": "https://github.com/zil-lang/zil/actions/runs/42641988893/job/129245181555"
-      },
-      {
-        "name": "workspace",
-        "status": "completed",
-        "conclusion": "failure",
-        "url": "https://github.com/zil-lang/zil/actions/runs/42641988876/job/129245181482"
+        "url": "https://github.com/zil-lang/zil/actions/runs/42653344851/job/129285215646"
       }
     ],
-    "all_success": false
+    "all_success": true,
+    "scope": "Remote CI for exact accepted main only; not the two active source branches.",
+    "jobs": [
+      {
+        "job": 129285216007,
+        "environment": "standard LLVM",
+        "workspace": {
+          "passed": 5827,
+          "failed": 0,
+          "summaries": 429
+        },
+        "reference": {
+          "passed": 5713,
+          "failed": 0,
+          "summaries": 429
+        },
+        "text_reference": {
+          "passed": 70,
+          "failed": 0
+        },
+        "log_sha256": "e6ff525a2091ac46fafa7e2dd3d6fb8f457c5461cf4a55569d551b93c70f5ffe",
+        "summary_sha256": "90ca1fdae493950d25ec11576f1653b2efe9e2d6738735533927626e47735043"
+      },
+      {
+        "job": 129285215934,
+        "environment": "research LLVM",
+        "workspace": {
+          "passed": 5827,
+          "failed": 0,
+          "summaries": 429
+        },
+        "reference": {
+          "passed": 5713,
+          "failed": 0,
+          "summaries": 429
+        },
+        "text_reference": {
+          "passed": 70,
+          "failed": 0
+        },
+        "log_sha256": "52d300b26bd9d0a1e9e3f5b7669354ce9cfcc0344ffd03d0ac1fd3220b3bed59",
+        "summary_sha256": "60822ac1342f9749623525def21ed36d66091bfb9c351b249b15d38a1d09f9af"
+      }
+    ],
+    "other_checks": "Both jobs: fmt, all-target Clippy, Native API State/allocation controls and CI recovery tests succeeded; documentation succeeded.",
+    "evidence": "setup-tmp/main-6e27-ci-20261109-1"
   },
   "pipeline_followup": {
     "owner": "byte_view_composition",
     "reviewer": "stored_composition_review",
     "branch": "task/owned-pipeline-composition",
     "baseline": "d813da9307f4e174a5f16bc127c267ca438be589",
-    "source": "1d144011445bfbe745baf89c9dca238a7fe93bf9",
-    "tree": "0969da8c575f8d142ac13db1e99b66a72abe1a1c",
-    "published": "08251df982f9eb0050c891311df64a43b09da178",
+    "source": "389e4e305eaf46acc56b70c7a79ab8d65a3eefe2",
+    "tree": "e7f346e2956e19b7af7ed9f2d30f10fc894dae8c",
+    "published": "e01dcf3e47db92f553907ce47733b4414bfacf61",
     "production_changed": true,
     "inputs": {
       "owned_pipeline": {
@@ -750,7 +782,7 @@
       "evidence": "wt-owned-pipeline-composition/out/runs/owned-pipeline-baseline-20261109-1",
       "source_unchanged": true
     },
-    "next": "Complete P3 independent review and minimal owned-consumer integration gates; retain original collected failure and measure only its remaining Verify bottleneck.",
+    "next": "PR68 owned integration complete and retired; keep original collected files/tests and measure its remaining exact Verify bottleneck on 389e with a new one-attempt same-fee ledger.",
     "whole_package_merge": false,
     "new_native_acceptance": "NotRun",
     "test_extraction_source": "27915d2f75ed2892a4400ead5138351011825e9c",
@@ -931,29 +963,64 @@
         "cases_per_configuration": 12,
         "log_sha256": "3111b7c1a8a95a77282c07ec2c3908222dda1678c35b2eaccfe3370b6e9c1224"
       }
+    },
+    "p4": {
+      "source": "389e4e305eaf46acc56b70c7a79ab8d65a3eefe2",
+      "tree": "e7f346e2956e19b7af7ed9f2d30f10fc894dae8c",
+      "published": "e01dcf3e47db92f553907ce47733b4414bfacf61",
+      "production": "71bfdc36578de2939d13e5abb47ca9b2f988a81c",
+      "prepayment_fix": "7a8168002759a60a06ab9da489bdd6029e1d2d8b",
+      "source_review_sha256": "56c940045960079c70ec8722cebf7d42efa0b459444228587133d469f55867e4",
+      "tests_review_sha256": "87b8838651783b97fa266932623dce7c568c42acf3a7a1450d99463427e71964",
+      "components": {
+        "passed": 6,
+        "failed": 0,
+        "log_sha256": "66fe40b6a05f3a8851e622e10bd503b9c8977b4cca5f2aff95ade97e194e6ca5"
+      },
+      "original_collected": {
+        "passed": 0,
+        "failed": 1,
+        "status": "Verify ResourceLimit",
+        "verification_runs": 1,
+        "project_fingerprint": "4011cf8d1255cbf085e02cce4cd9d9fc54c28797bebf9e61cd06bbfbc855dd7f",
+        "log_sha256": "a696b2a8c78533e6fd6a4fd98986240db1dfc149387017306aaf06ba1f556f82",
+        "native_executions": 0
+      },
+      "scope": "Complete old bool liveness component oracle, not full dynamic permission/first-diagnostic oracle; no net saving claim without new same-fee ledger.",
+      "original_owned": {
+        "passed": 1,
+        "failed": 0,
+        "source_unchanged": true,
+        "log_sha256": "fe68c874c98ea8c0f3655f4e2c15a1ab84184bff418fcce12ee11c790392d4a3"
+      }
+    },
+    "accepted_owned_pipeline": {
+      "main": "fc18d05d59321423570bb46123c756f2ad7e2e88",
+      "pull_request": 68,
+      "receipt": "https://github.com/zil-lang/zil/blob/fc18d05d59321423570bb46123c756f2ad7e2e88/validation/stored-owned-callback-pipeline.json"
+    },
+    "previous_checkpoint": {
+      "source": "1d144011445bfbe745baf89c9dca238a7fe93bf9",
+      "tree": "0969da8c575f8d142ac13db1e99b66a72abe1a1c",
+      "published": "08251df982f9eb0050c891311df64a43b09da178"
     }
   },
   "previous_batch": {
-    "source": "ddfee9f845b979cb15cf4589d791811d40b5bd51",
-    "source_tree": "6b602cdf417454dfb76b6b806630f721afb1502c",
-    "published_source": "8b8aae04682b2e7dad4ad58fb64ec2ea66c33c9c",
-    "published_receipt": "27b47a11433004c39da51c9e107b544544819e15",
-    "accepted_main": "d813da9307f4e174a5f16bc127c267ca438be589",
+    "pull_request": 67,
+    "source": "116cda19e9fcaabf2f0e872ade0a4594662b35ee",
+    "source_tree": "3de9a68ebad3eae392505f2282f76df884860ca8",
+    "receipt_commit": "9bdea108913746f92a814bb4dff7735bbc3f5027",
+    "published": "b972d1c7babd52e996ec0fb8c0cfcc009f44f4b0",
+    "accepted_main": "6e27d4da55ad627b49c0ad148eb65225a1413132",
     "tests": {
-      "analyze": 225,
-      "verify": 498,
-      "traits": 197,
-      "arrays": 55,
-      "legacy_budget": 23,
-      "llvm_backend": 187,
-      "native_tests": 2
+      "default": 4,
+      "reference": 4,
+      "failed": 0
     },
-    "actual_source_groups": "998 unchanged regression tests at 6cfb plus 189 affected tests rerun at ddfee; not all rerun on ddfee.",
-    "selected_native": 8,
     "strict_fmt_docs": "Pass",
-    "root_native_check_sha256": "84f0a4990690ef11a87b029bbead1e4fb11d43119437297b0729c3342978ce08"
+    "scope": "Four complete existing consumer tests only; original source/native assertions retained, no full workspace rerun."
   },
-  "previous_batch_receipt": "https://github.com/zil-lang/zil/blob/d813da9307f4e174a5f16bc127c267ca438be589/validation/owned-shared-array-scale.json",
+  "previous_batch_receipt": "https://github.com/zil-lang/zil/blob/6e27d4da55ad627b49c0ad148eb65225a1413132/validation/stored-flow-budget-boundaries.json",
   "map_checkpoint_design": {
     "baseline": "c6ff7168af5692e00ae471a8ff43447372eb2c78",
     "plan_sha256": "fd4408b5d449e8267eb477dbb50b77060d36b3514142a337cdd5dbfb9279899c",
@@ -1107,5 +1174,66 @@
       "net_savings": "Not measured",
       "plan_sha256": "61d20f97096f2f2d7f7fac4c08d3cf083b76e24344d1e9f21f496f3e591abf69"
     }
+  },
+  "map_liveness_candidate": {
+    "source": "41a765a68731f5d29c590f69c25116c2fdb10abf",
+    "tree": "977f6e3272d2bc16ea74c4bb75508fa0747252bb",
+    "published": "d1aa62d3c66a846ab62a63ec37c5708cf438da89",
+    "production": "3b8181a51c8df2d7c0c0dabbc5d2491876bdbeaf",
+    "components": {
+      "passed": 5,
+      "failed": 0,
+      "log_sha256": "ab1dbdafe68b364b667bf97ce14068c3f635feb671314a7122bd5f612fa9b32d"
+    },
+    "first_compile": {
+      "source": "91201bf52b2d99d4cc43eb3fc0c4774f51f73a02",
+      "error": "E0599 old_reverse on Vec",
+      "tests": 0,
+      "log_sha256": "63530fd31b6360697a51369573cf66fca6fe593d6e6068907334a4b2c78cb5ce"
+    },
+    "evidence_correction": {
+      "old_json_original_bytes_unavailable": true,
+      "disclosure_sha256": "c209b55cca77e8c07001b4abf9ee8ffafdc578b052511c4d63f413062bf24416",
+      "corrected_oracle_sha256": "c3756d9ecca9d7241365219a1ef467d89a7d40496558f4761d69d28e4545feec"
+    },
+    "metadata_recovery": {
+      "initial_tests": 0,
+      "scope": "Exact zil_lower rlib/rmeta mismatch, cause not attributed to incremental; seven affected original files preserved and only this artifact family quarantined.",
+      "recovery_review_sha256": "536d5fa8c90a42059cf1eacdc4e0dcdedfd1b6c812c4a3fa22bc937e1dde4081",
+      "post_recovery_actual_test": {
+        "passed": 0,
+        "failed": 1,
+        "status": "Verify ResourceLimit/V1",
+        "log_sha256": "8a3429fa16a4f0c5f806cb181a0743ef4c2705e33ae2075c56215fe345c6b7ca"
+      }
+    },
+    "ledger11": {
+      "same_fee": true,
+      "source_restored_clean": true,
+      "log_sha256": "2c8476f2114c56f372993aeb928ca533f7856c3e95eb86a5d09ed3c51c6645bd",
+      "audit_sha256": "bf48d8a59ed1c3db1889dc1f93bc6c4a78ac5cd2c4f74e4b19774c9c8c53932a",
+      "accounting_sha256": "9385a5b9b2ee515dbcaea3d38361b90cb31393139a01d7966b33514ccaa5e094",
+      "actual_test": {
+        "passed": 0,
+        "failed": 1,
+        "verification_runs": 1,
+        "status": "Verify ResourceLimit",
+        "source_bytes": 5008,
+        "impl_sha256": "7a299339ce1dd660e73963f3ac514fefcb328bb45f3fc25569a0ce833b5b5df7",
+        "stdlib_sha256": "6fbc5ff1cac044f570dd4f1e6421f5b5ba4ac03d99a921b54a96b0e68d463efd",
+        "binary_sha256": "320dfe98140ff5e23d17f47316505305c30448b456ae4762cc5ad08d87c86547"
+      },
+      "complete_replacement": 3790904,
+      "complete_bindings": 36,
+      "cold": 12,
+      "dense": 22,
+      "warm": 2,
+      "complete_builds": 34,
+      "matched_prefix_net_saving": 84501,
+      "prefix_scope": "Only through second records after-table completion; not whole request or second-function completion.",
+      "resource_second_records_truncated": 150890,
+      "resource_final_validation_entered": false
+    },
+    "next": "Compare existing Map word liveness with the reviewed 389e true-prepayment contract while preserving its distinct OwnedStoreBorrow producer logic; no whole-file overwrite or unmeasured saving claim."
   }
 }
