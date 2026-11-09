@@ -1,0 +1,27 @@
+{
+  "source_commit": "02c75de950b64339cdf6136331b8e685f65ccffe",
+  "source_sha256": "0a1a406e8c4040bb8b30b8e28434efe5a5c8452a9935170568558e0d47e6ad7b",
+  "run": "https://github.com/zil-lang/zil/actions/runs/42612992774",
+  "job_status_before_preservation": "success",
+  "files": {
+    "manifest.json": {
+      "bytes": 61532,
+      "sha256": "ff7fb68138bb8057777f79d950781e890e845bd878d2a91a7df561a5d3298539"
+    },
+    "rows.jsonl": {
+      "bytes": 745548,
+      "sha256": "2bf2aa412250c144df34db8d731bb798701f12ba85008227ff36153759067792"
+    },
+    "raw.tar.gz": {
+      "bytes": 1895836,
+      "sha256": "4c66bd227f73b75504f7e389fd2526f9617ac9376f4098c18f3dae02887c748e"
+    },
+    "summary.json": {
+      "bytes": 17167,
+      "sha256": "6ad3537cb4e7cc4ad97a22e80856dae453aa481538ab5e343dd86358741ecff1"
+    }
+  },
+  "independent_review": "NotRun",
+  "merge_allowed": false,
+  "scope": "two runtime-input trees, same-host full CLI; no full language or runtime-quality acceptance"
+}
