@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-09T13:19:00Z",
+  "recorded_utc": "2026-11-09T14:15:21Z",
   "status": "Ten scoped batches merged; their completed remote and local branch refs retired. Array and Map work remains active.",
   "accepted_main": "82a69812582856b012468db3d019930d8e390f64",
   "accepted_tree": "fab0e0363c2a46050f14740a5ad8ce5287db8df7",
@@ -213,8 +213,8 @@
     "root_native_check_sha256": "076a18f8c053c0d7d64ca6862f3b4aee914e729561077a56001388c376ba523d"
   },
   "remaining": {
-    "arrays": "A production 0fae passes 18 oracles and all four original default Source/raw Analyze probes. Test-only 00ef passes 225 Analyze, 23 legacy budgets and strict/fmt/docs; same full tree published as 7dbc4167. Traits 194/3 and arrays 47/7 retain original first failures on nine historical A-work assertions and the owning-512 boundary now reaching Verify. V/backend integration and final Source/raw/Wire/native combination remain unaccepted.",
-    "map": "118b: 6/535/7 pass, unchanged complete Map still default Verify ResourceLimit. Ledger 6 completes replacement final validation, then exhausts at ordinary resource-state copy work."
+    "arrays": "Minimal fd52 V9 passes 3 independent access oracles and 98 independent source checks. Original 4616-byte own512 passes default Source Verify and independent raw Verify; original 4748-byte whole-field snapshot remains Verify ResourceLimit in both entries. All four attempts ran Verify once with original source bytes. V10 is the next minimal step; Wire/native is still unaccepted on this integrated tree.",
+    "map": "3145 passes full Verify 541, field-state 6 oracles and 7 effect controls; the unchanged original 5008-byte Map still exhausts default Verify. Diagnostic ledger 7 preserves complete replacement stages and identifies description-history copy cost in the later resource summary. History-only fa101 first compile failed on a missed retirement consumer (zero tests executed); minimal correction and independent review are in progress."
   },
   "release_scope": "No full local workspace test or 1.0 claim; main82 remote documentation succeeds while two workspace checks are still running.",
   "array_analysis_checkpoint": {
@@ -278,5 +278,133 @@
       }
     ],
     "acceptance": "Checkpoint only; parent task remains in progress."
+  },
+  "main_ci": {
+    "head": "82a69812582856b012468db3d019930d8e390f64",
+    "checks": [
+      {
+        "id": 129172463351,
+        "name": "documentation",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/zil-lang/zil/actions/runs/42620900830/job/129172463351",
+        "completed_at": "2026-11-09T12:55:24Z"
+      },
+      {
+        "id": 129172463108,
+        "name": "workspace",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/zil-lang/zil/actions/runs/42620900859/job/129172463108",
+        "completed_at": "2026-11-09T13:22:26Z"
+      },
+      {
+        "id": 129172462846,
+        "name": "workspace",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/zil-lang/zil/actions/runs/42620900627/job/129172462846",
+        "completed_at": "2026-11-09T13:32:23Z"
+      }
+    ]
+  },
+  "array_verifier_checkpoints": {
+    "scope": "Task checkpoints only, not main acceptance; physical module and source inputs are unchanged.",
+    "core": {
+      "source": "bb05ef0e97252a8b04e288ea9dfbeae83ebda042",
+      "full_verify": {
+        "passed": 473,
+        "failed": 0,
+        "log_sha256": "58de06aa71c8814a692365fa8a0c6d3b44a0dd3249da2cda11bf7ff613ae7dd0"
+      }
+    },
+    "paths": {
+      "source": "29dd521126a1b5fcf965184388f52811079608ed",
+      "oracles": {
+        "passed": 14,
+        "failed": 0
+      },
+      "original_verify": "All four Source/raw entries at this stage were Verify ResourceLimit."
+    },
+    "physical": {
+      "source": "c41bccdbce7365f5b2c04f4b62bddd1046fcc618",
+      "published": "7c0f2d58b265bf9de78deae90b41255cab4ef7d4",
+      "tree": "52216473b41f869ff6b67d38115aab32962bb61e",
+      "oracles": {
+        "passed": 6,
+        "failed": 0
+      },
+      "first_compile": "2a4e production compiled zero tests because a test module was mounted twice; c41 changes only that two-line test wiring.",
+      "own512": "default Source Verify and independent raw Verify Pass",
+      "snapshot512": "both entries Verify ResourceLimit"
+    },
+    "access": {
+      "source": "fd52ad816650574a5a6664a99f2455147c125b67",
+      "published": "141dfc3069692af91ecdfa3c9d479709bcca0661",
+      "tree": "c129539c51e2180b5a282eb710681e52fb66225e",
+      "oracles": {
+        "passed": 3,
+        "failed": 0,
+        "log_sha256": "f7b091df4881fd2d0670f31ffea1fd37426ca2e4de2333c896ae5fef303c4f59"
+      },
+      "independent_review": {
+        "checks": 98,
+        "blockers": 0,
+        "report": "wt-owned-array-snapshot-analyze-review/out/runs/owned-array-snapshot-read-access-independent-review-20261109-1/review.md",
+        "sha256": "0cffeef3e0459d8ce6f5196b284706bd219e4ae1e5345e6b266f5da72f396148"
+      },
+      "evidence": "wt-owned-array-snapshot/out/runs/owned-array-snapshot-read-access-20261109",
+      "own512": {
+        "source_sha256": "95d6572a129f856a5b073de7cfa2aa9d2b730c0ff44b254fa6f9a3d8830299bb",
+        "source": "Pass",
+        "raw_verify": "Pass",
+        "source_log_sha256": "c36466d4625caa325ace083aeffa608fd33ee180936b3828b073b44bfc18d7d1",
+        "raw_log_sha256": "f8dfe94b63090f0c5bed345a9f2659dda427e3aa56a6dc21df5fbab6ce0b01e4"
+      },
+      "snapshot512": {
+        "source_sha256": "59b8aaa8aa292c1e3921cfee638ef03598e1ffe62a3a4402d1e1542cc793ae66",
+        "source": "Verify ResourceLimit",
+        "raw_verify": "Verify ResourceLimit",
+        "source_log_sha256": "ad67301bebd29b410b9cba2ac42240c0ec51f94f9b548c182db294fe8496db78",
+        "raw_log_sha256": "1e5e631cd5ef3fc9583ee3c546bf020aa06a77c7f8bfb12ef75e0bf28ea8d61c"
+      },
+      "source_unchanged": true
+    }
+  },
+  "map_field_state_checkpoint": {
+    "source": "3145d3e6a25ba443c808bcafec11eca30d9c960c",
+    "production": "49f4c61ecf9980f96a1b1bfed0b3fb0df0116154",
+    "published": "72d4ac195bf48ed27341bee674b66ef3c5cf16cb",
+    "tree": "a46e3179922896e9d9fc23581d72a3e24fd9e8f5",
+    "oracles": 6,
+    "effect_controls": 7,
+    "full_verify": {
+      "passed": 541,
+      "failed": 0,
+      "log_sha256": "c2682d23024f8469c1a663584f3834dc95d03a07aa0e20958e8fc1ea8853d1bf"
+    },
+    "original_map": "Verify ResourceLimit, source and default limits unchanged",
+    "independent_review": {
+      "report_sha256": "22b53f7f15af133befc168dce656bfbc5c81b5d543667c6546b9e7519fc7dcac",
+      "checks": 16,
+      "blockers": 0
+    },
+    "diagnostic_ledger_7": {
+      "evidence": "wt-growing-collections/out/runs/map-scheduler-verify-ledger-20261109-7",
+      "trace_sha256": "06ad9b867edebacac5480ad2d291cd392100ee583020347d239ea08eb680e3cb",
+      "instrumentation_restored": true,
+      "complete_replacement_work": 4517438,
+      "resource_summary_f0": "partial scope; 347927 consumed; 131472 at history copy; do not infer whole-program net saving"
+    },
+    "history_first_compile": {
+      "source": "fa101a94c1c9029c482a70b2750fa4c2cedb82ae",
+      "tree": "9b05e6cb15e3ff859c8fd13b065da90f8a80e464",
+      "status": "CompileFail",
+      "tests_executed": 0,
+      "error": "E0608 in resources/replacements/retirement.rs:353; old three-dimensional index into History",
+      "log": "wt-map-scheduler-validation/out/runs/map-description-history-20261109-1/history-oracles.log",
+      "log_sha256": "efb85928c0c54c2f01534a4997de55e200aa1c1a22f5ad1c1111a1396deb0986",
+      "source_unchanged": true
+    }
   }
 }
