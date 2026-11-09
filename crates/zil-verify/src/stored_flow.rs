@@ -17,6 +17,7 @@ mod loan_union_tests;
 mod relation_index;
 #[cfg(test)]
 mod result_row_tests;
+mod ssa_loan_groups;
 use live_words::WordRow;
 pub(super) mod owned_byte_views;
 #[path = "stored_flow_pure_copy.rs"]
@@ -4208,10 +4209,12 @@ fn windows(
     } else {
         None
     };
-    let output_live = if cached.is_none() {
-        live_out(module, f, g, b)?
+    let (output_live, ssa_groups) = if cached.is_none() {
+        let live = live_out(module, f, g, b)?;
+        let groups = ssa_loan_groups::Sources::collect(&solution.values, b)?;
+        (live, groups)
     } else {
-        Vec::new()
+        (Vec::new(), None)
     };
     for (bi, block) in f.blocks.iter().enumerate() {
         b.spend(1)?;
@@ -4257,7 +4260,20 @@ fn windows(
                 if let Some(id) = i.result {
                     live.assign(id.0 as usize, false)?;
                 }
-                live_loans(solution, &state, &live, None, None, b)?
+                b.spend(1)?;
+                let selected = ssa_groups
+                    .as_ref()
+                    .map(|groups| groups.select(&live, None, b))
+                    .transpose()?
+                    .flatten();
+                live_loans(
+                    solution,
+                    &state,
+                    &live,
+                    None,
+                    selected.as_ref().map(|ids| ids.as_slice()),
+                    b,
+                )?
             };
             let pointer = |v: ValueId| -> Check<&Permission> {
                 solution
