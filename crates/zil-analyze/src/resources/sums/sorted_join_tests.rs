@@ -12,7 +12,7 @@ struct LookupFacts {
 impl From<&Facts> for LookupFacts {
     fn from(f: &Facts) -> Self {
         Self {
-            locals: f.locals.clone(),
+            locals: f.locals.keyed(),
             values: f.values.keyed(),
             captures: f.captures.clone(),
             valid: f.valid.clone(),
@@ -80,7 +80,11 @@ fn nested(missing: bool, variant: u32, birth: Birth) -> Arc<Tree> {
 }
 fn facts(count: u32, variant: u32, birth: Birth) -> Facts {
     Facts {
-        locals: BTreeMap::from([(LocalId(0), nested(false, variant, birth))]),
+        locals: direct_index::Locals::from_keyed(
+            1,
+            BTreeMap::from([(LocalId(0), nested(false, variant, birth))]),
+        )
+        .unwrap(),
         values: ssa_values::Values::from_keyed(
             count as usize,
             (0..count)
@@ -171,7 +175,7 @@ fn sorted_join_rejects_wrong_keys_and_missing_branch_slots() {
         let mut missing = left.clone();
         match table {
             0 => {
-                missing.locals.remove(&LocalId(0));
+                missing.locals = direct_index::Locals::default();
             }
             1 => {
                 let mut keyed = missing.values.keyed();

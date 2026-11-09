@@ -81,10 +81,8 @@ fn byte_head_indexes_keep_function_local_ssa_identity() {
             f.blocks
                 .iter()
                 .flat_map(|b| &b.instructions)
-                .filter_map(move |i| {
-                    matches!(i.kind, zil_ir::InstructionKind::ByteBufferBorrow { .. })
-                        .then(|| (f.id, i.result.unwrap()))
-                })
+                .filter(|i| matches!(i.kind, zil_ir::InstructionKind::ByteBufferBorrow { .. }))
+                .map(move |i| (f.id, i.result.unwrap()))
         })
         .collect::<Vec<_>>();
     views.sort();
