@@ -1,45 +1,45 @@
 {
+  "format": 1,
+  "created_utc": "2026-11-09 10:15:05 UTC",
+  "prior_archive": "b43849e60eefc2c8602100cf8ccb7025b11b9bec",
   "commit_parents": [
-    "d7cbea174c887c6d14a7fe1c3192964516cb0218",
-    "fcf679e97a32f2f0f4d08c6ad954012cb7538ac9"
+    "b43849e60eefc2c8602100cf8ccb7025b11b9bec",
+    "ce5903d20a7b63d48a531c831db6c3d79109d901"
   ],
   "commit_tips": [
-    "5122b1efcac7cc0313a20d11a6a705e4534f9e84",
-    "702f1bea1923dd725e6f7eae0fee88e49f752c9a",
-    "fc20fce58f3727cd35a1837acf0dc72a0fa1f61d",
-    "fcf679e97a32f2f0f4d08c6ad954012cb7538ac9"
+    "87e0d028f5b4129648a2f13a2826ee9e6343dd24",
+    "eed27573fa4ab5513d2da8eace4bf48bbfe9ffff",
+    "d94d1bc7ff96c4e844b9469655994207636a9d8d",
+    "ce5903d20a7b63d48a531c831db6c3d79109d901"
   ],
-  "created_utc": "2026-11-09T10:06:40.230455+00:00",
-  "format": 1,
   "local_refs": {},
-  "missing_commit_objects": [],
-  "prior_archive": "d7cbea174c887c6d14a7fe1c3192964516cb0218",
   "remote_refs": {
-    "refs/heads/archive/source-history": "d7cbea174c887c6d14a7fe1c3192964516cb0218",
-    "refs/heads/main": "fcf679e97a32f2f0f4d08c6ad954012cb7538ac9",
-    "refs/heads/task/G2.4.11": "5122b1efcac7cc0313a20d11a6a705e4534f9e84"
+    "refs/heads/archive/source-history": "b43849e60eefc2c8602100cf8ccb7025b11b9bec",
+    "refs/heads/main": "ce5903d20a7b63d48a531c831db6c3d79109d901",
+    "refs/heads/task/G2.4.12": "d94d1bc7ff96c4e844b9469655994207636a9d8d"
   },
+  "worktrees": [],
+  "missing_commit_objects": [],
   "retirements": [
     {
-      "accepted_main": "fcf679e97a32f2f0f4d08c6ad954012cb7538ac9",
-      "head_before_retirement": "5122b1efcac7cc0313a20d11a6a705e4534f9e84",
+      "ref": "refs/heads/task/G2.4.12",
+      "head_before_retirement": "d94d1bc7ff96c4e844b9469655994207636a9d8d",
+      "original_task_tip": "87e0d028f5b4129648a2f13a2826ee9e6343dd24",
+      "accepted_main": "ce5903d20a7b63d48a531c831db6c3d79109d901",
+      "pull_request": 57,
+      "remote_history_reachable_through_parent": "ce5903d20a7b63d48a531c831db6c3d79109d901",
+      "published_source": "eed27573fa4ab5513d2da8eace4bf48bbfe9ffff",
+      "source_tree": "c99ca4c962370ac4b781c43ccfdf374376cdda38",
       "local_execution_identity": {
-        "branch": "task/owning-trait-results",
+        "source": "7b84c25661fb42c81c1bd533ab9c6c67751551f1",
+        "receipt_commit": "4a7676c2d7a76d6022678aaba4c538fc813822be",
+        "branch": "task/generic-lending-composition",
         "branch_retained": true,
-        "complete_trees_identical_to_remote": true,
-        "receipt_commit": "d0de11ee10b9f97fbe7ba92d1a0897001e7ef659",
         "remote_commit_identity_claimed": false,
-        "source": "5d0dc1fada5f57fbf99b365e3817d2fa81455013"
+        "complete_trees_identical_to_remote": true
       },
-      "original_task_tip": "fc20fce58f3727cd35a1837acf0dc72a0fa1f61d",
-      "published_source": "702f1bea1923dd725e6f7eae0fee88e49f752c9a",
-      "pull_request": 56,
-      "ref": "refs/heads/task/G2.4.11",
-      "remote_history_reachable_through_parent": "fcf679e97a32f2f0f4d08c6ad954012cb7538ac9",
-      "source_tree": "d7b325dd8435ff703932a9783e517db86180c8ae",
       "unique_uncommitted_source": false
     }
   ],
-  "scope": "Preserve only this merged remote branch before retirement. Prior archives retain earlier manifests and complete objects. Local verification branches and the separate unfinished provider-composition branch remain retained.",
-  "worktrees": []
+  "scope": "Preserve only this merged remote lending branch before retirement. Prior archives retain previous manifests and complete objects. Local validation branches and the separate unfinished composition branch remain retained."
 }
