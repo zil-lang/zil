@@ -1,0 +1,257 @@
+{
+  "schema_version": 1,
+  "status": "Pass for dynamic fixed shared-address array selection within the documented scope",
+  "source": {
+    "commit": "327927a24af6980b7dcff32ce4275f965272a26e",
+    "tree": "df99e8e00a5aec6fc15d40522cb2fc1bb4dd6277",
+    "published_same_tree_commit": "b3cc010149b93fc23909a0b82c9f4251e23cd0cf",
+    "baseline": "327eccfaf3169d1404534ddc16359310a21a40ad",
+    "original_task_tip": "1fdd1b7467eeeb83e4745fab37a7817373d8d644",
+    "publication": "Identical complete source tree, different commit metadata. The published parents are the baseline and the complete original task tip.",
+    "clean_during_validation": true
+  },
+  "scope": "Runtime integer indexing of nonempty fixed arrays of thin shared addresses to finite closed Copy storage, including existing qualified Record and owning Package direct fields. The object is snapshotted before evaluating the index; all actual candidates retain their sources and parent loans. Analyze and Verify independently check complete upper dependencies and declared identity boundaries. The baseline equation implementations and default limits are unchanged.",
+  "input": {
+    "path": "tests/fixtures/resource-packages/dynamic-shared-address-array.zil",
+    "bytes": 215,
+    "sha256": "c3fe6dead984d91f6a20b0982b0e72a2189c6fb2b403e9db37b95e4faa6833ce",
+    "acceptance": "Default Source through Verify, independent raw verification, and Wire replay. Native evidence uses five controlled programs embedded in the test file, not this fixture byte sequence."
+  },
+  "tests": "tests/fixtures/resource-packages/dynamic_shared_array_index.rs",
+  "contract": "spec/dynamic-shared-address-array.md",
+  "independent_review": {
+    "reviewed_source": "327927a24af6980b7dcff32ce4275f965272a26e",
+    "reviewer": "Non-author integration reviewer",
+    "status": "Accepted",
+    "scope": "Exact candidate sources, complete upper dependency graph, identity boundaries, preserved rejection controls, unchanged baseline Equations, and parsed native compile/execution records."
+  },
+  "validation_scope": "All six gates executed the source commit and tree above without tracked-source changes. The 54 filtered array tests contain 19 dynamic tests and 35 existing tests; the separate 23 budget tests are top-level aggregates tests. This is not a complete aggregates or workspace test run.",
+  "validation": {
+    "shared-array-consumers": {
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "aggregates",
+        "mixed_holder::shared_address_array::",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "tests": {
+        "passed": 54,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 353
+      },
+      "log": "out/runs/shared-array-dynamic-20261109-1/shared-array-consumers.log",
+      "log_sha256": "0012939055c6b212aee73c235766e37819d9603f5db2f9e0420b8d796eed6d97"
+    },
+    "both-kernel-libraries": {
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-analyze",
+        "-p",
+        "zil-verify",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "tests": {
+        "passed": 664,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "log": "out/runs/shared-array-dynamic-20261109-1/both-kernel-libraries.log",
+      "log_sha256": "f944bcaa6f9276b35549b4e5355565bf88a0386c839ebba04e974d91c2857ec9"
+    },
+    "legacy-top-level-budgets": {
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "aggregates",
+        "budget",
+        "--",
+        "--skip",
+        "::",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "tests": {
+        "passed": 23,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 384
+      },
+      "log": "out/runs/shared-array-dynamic-20261109-1/legacy-top-level-budgets.log",
+      "log_sha256": "31f1e7591949d8d5a47a81afb64f300aac5ae7a8b4811e532cc688399fb053f1"
+    },
+    "strict": {
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--workspace",
+        "--all-targets",
+        "--features",
+        "zil-driver/llvm-api",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "log": "out/runs/shared-array-dynamic-20261109-1/strict.log",
+      "log_sha256": "b48ef40c5d0d40c0567e8024a54d4438ea16974cbacf09e27dcec0c42609ba16"
+    },
+    "format": {
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "log": "out/runs/shared-array-dynamic-20261109-1/format.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "complete-documentation-workflow": {
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "bash",
+        "-c",
+        "set -euo pipefail\npython3 tools/check-repository-layout.py --full --delivery\npython3 -m unittest discover -s tools -p test_check_repository_layout.py\npython3 tools/check-plan.py --self-test\npython3 tools/check-conformance.py\npython3 tools/update-indexes.py\ngit diff --exit-code -- conformance/index.json spec/diagnostics.json data/normative-inputs.json"
+      ],
+      "log": "out/runs/shared-array-dynamic-20261109-1/complete-documentation-workflow.log",
+      "log_sha256": "f80dfdd790e76014d7114234dafec881dd61905813bcb02fa819ec0e8f1fd0e8"
+    }
+  },
+  "native": {
+    "scope": "Five controlled dynamic programs, each executed under all four configurations.",
+    "configurations": [
+      "clang/O0",
+      "clang/O2",
+      "llvm-api/O0",
+      "llvm-api/O2"
+    ],
+    "compile_reports": 20,
+    "normal_executions": 12,
+    "bounds_traps": 8,
+    "all_compile_reports": {
+      "status": "Success",
+      "verification_runs": 1,
+      "actual_backend_matches_request": true,
+      "fallback": null
+    },
+    "llvm_api": {
+      "input_kind": "builder",
+      "parse_ns": 0,
+      "verify_before_after": true,
+      "requested_default_pipeline": true,
+      "positive_object_bytes": true
+    },
+    "clang": "Actual command lines contain the requested -O0 or -O2 flag.",
+    "programs": [
+      {
+        "program": "ordered",
+        "input_fingerprint": "191f6c2acc325f90066578f6da301f94cc6a88552d4639f9e31e27a77847c860",
+        "executions": 4,
+        "exit_code": 0,
+        "signal": null,
+        "stdout": "AI",
+        "stderr": ""
+      },
+      {
+        "program": "cleanup",
+        "input_fingerprint": "2722f7d5251e6b35c43466443297404e9a5222bf47c5b872dadcc96d3282546b",
+        "executions": 4,
+        "exit_code": 0,
+        "signal": null,
+        "stdout": "RV",
+        "stderr": ""
+      },
+      {
+        "program": "mixed",
+        "input_fingerprint": "89c40364e688470cf6c7a9c187f367b79c3e0add87a3d05b0337df7ffa44120a",
+        "executions": 4,
+        "exit_code": 0,
+        "signal": null,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "program": "negative",
+        "input_fingerprint": "24c6ae930eaf23211c87b33ab8456bbc10ceab8a5e4b31de303651e9d13099f4",
+        "executions": 4,
+        "exit_code": null,
+        "signal": 4,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "program": "past-end",
+        "input_fingerprint": "09f2160af64af8d62f8acb6ec586c9e3ad29f1fbee4346070bc95ab96b77cb3a",
+        "executions": 4,
+        "exit_code": null,
+        "signal": 4,
+        "stdout": "",
+        "stderr": ""
+      }
+    ],
+    "independent_evidence": "out/runs/shared-array-dynamic-20261109-1/root-native-check.json",
+    "independent_evidence_sha256": "2bf58e6c8ab3d6f5cb047eeb12b1579c9e60f374f12e8eb585075dd88e8ec3fa",
+    "existing_regression_executions": {
+      "ordinary_fixed_arrays": 20,
+      "small_package_lifetime_permutation": 4,
+      "small_package_normal_error_allocation_failure": 16,
+      "additional_whole_snapshot_cleanup": 4,
+      "scope": "These 44 existing executions are separate from the 20 dynamic executions. The first three categories form the prior 40-execution subset; none validates the large owning 512 ABI."
+    }
+  },
+  "budget_controls": {
+    "default_limits_changed": false,
+    "dynamic_snapshot_and_alternative_budgets": "Eight exact Types/Analyze/Verify/Wire/Source boundaries retain N success, N-1 ResourceLimit, fresh retry, cold/warm and actual-size growth assertions.",
+    "rich_call_dependencies": "Two exact Analyze/Verify/Wire boundaries preserve complete input/output-port growth and request-local checks.",
+    "legacy_top_level_budget_tests": 23
+  },
+  "preserved_negative_controls": [
+    "A complete incoming source cannot conceal an uninitialized slot from another whole-array source.",
+    "Live writes to either dynamic alternative and index-side effects on a snapshot referent are rejected.",
+    "Malformed integer indices, incomplete actual arrays, forged return sources and incompatible stored destinations are independently rejected through raw and Wire inputs.",
+    "Known branches or seeded parameters cannot conceal unknown incoming upper sources; rich calls require all actual input dependencies before output seeds are used."
+  ],
+  "not_claimed": [
+    "Empty shared arrays, exclusive array copying, dynamic slot borrowing or replacement/refill, or a new Slice profile.",
+    "A general lifetime meet or unrestricted mixed-upper identity consumers.",
+    "Default acceptance or native ABI of the original large owning Package 512 or full owning-field snapshot program.",
+    "Full aggregates/workspace test execution or language/product release acceptance."
+  ]
+}

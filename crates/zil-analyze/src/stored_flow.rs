@@ -2,6 +2,7 @@
 //! This pass does not use a candidate, source label, or nominal name as a root.
 use super::*;
 
+mod array_index;
 mod array_snapshot;
 mod byte_queries;
 pub(super) mod enum_address;
@@ -3360,6 +3361,9 @@ fn transfer(
         _ if task_transfer.is_some() => {
             out = task_transfer.unwrap();
         }
+        InstructionKind::ExtractIndex { aggregate, .. } if array_index::candidate(f, i) => {
+            out.pointer = array_index::transfer(f, i, get(*aggregate)?, b)?;
+        }
         _ if pure_copy::operation(&i.kind) => {
             if !pure_copy::ordinary_owned_union(f, i, b)? {
                 pure_copy::types(f, i, b)?;
@@ -4080,6 +4084,12 @@ fn windows(
                     };
                     fee(b, 1)?;
                     use_permission(&actual, *mutable, &current, loans, apart, b)?;
+                }
+                InstructionKind::ExtractIndex { aggregate, .. } if array_index::candidate(f, i) => {
+                    let input = values
+                        .get(aggregate.0 as usize)
+                        .ok_or_else(|| failure("dynamic Array operand outside actual values"))?;
+                    array_index::check(f, i, input, &current, loans, apart, b)?;
                 }
                 InstructionKind::ReadAddress { address } => {
                     if let Type::Address { inner, .. } = value_type(f, *address)?
@@ -5488,7 +5498,15 @@ fn actual_instructions(
             if super::stored_callables::instruction(module, f, i) {
                 super::stored_callables::types(module, f, i, b)?;
             }
+            if array_index::candidate(f, i) {
+                array_index::types(f, i, b)?;
+                fee(b, b.array_outer_functions.len().saturating_add(1))?;
+                if !b.array_outer_functions.contains(&f.id) {
+                    b.array_outer_functions.push(f.id);
+                }
+            }
             if pure_copy::operation(&i.kind)
+                && !array_index::candidate(f, i)
                 && enum_address::types(module, f, i, b)?.is_none()
                 && option_address::types(module, f, i, b)?.is_none()
                 && !(b.task_borrowed_results && task_address::wrapper_instruction(f, i, b)?)
