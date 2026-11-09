@@ -62,10 +62,24 @@ fn current_ssa_loan_index_equals_full_live_scan_with_nested_rows_and_aliases() {
                 if let Some(id) = excluded {
                     reference[id.0 as usize] = false;
                 }
-                let expected =
-                    live_loans(&solution, &state, &reference, None, None, &mut b).unwrap();
-                let indexed =
-                    live_loans(&solution, &state, &live, excluded, Some(&ids), &mut b).unwrap();
+                let expected = live_loans(
+                    &solution,
+                    &state,
+                    &WordRow::from_bools(&reference),
+                    None,
+                    None,
+                    &mut b,
+                )
+                .unwrap();
+                let indexed = live_loans(
+                    &solution,
+                    &state,
+                    &WordRow::from_bools(&live),
+                    excluded,
+                    Some(&ids),
+                    &mut b,
+                )
+                .unwrap();
                 assert_eq!(indexed, expected);
                 if excluded == Some(ValueId(0)) {
                     assert!(indexed.contains(&0));
@@ -96,7 +110,7 @@ fn current_ssa_index_rebuilds_for_each_latest_solution() {
         let indexed = live_loans(
             &solution,
             &Frame::default(),
-            &[true, true],
+            &WordRow::from_bools(&[true, true]),
             None,
             Some(&ids),
             &mut b,
@@ -105,7 +119,7 @@ fn current_ssa_index_rebuilds_for_each_latest_solution() {
         let reference = live_loans(
             &solution,
             &Frame::default(),
-            &[true, true],
+            &WordRow::from_bools(&[true, true]),
             None,
             None,
             &mut b,

@@ -7,6 +7,7 @@ mod initial_template_tests;
 mod partial_places;
 #[cfg(test)]
 mod sorted_join_tests;
+mod ssa_values;
 #[cfg(test)]
 mod tag_forgetting_tests;
 
@@ -648,7 +649,7 @@ fn join_tables<K: Ord>(
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct Facts {
     locals: BTreeMap<LocalId, Arc<Tree>>,
-    values: BTreeMap<ValueId, Arc<Tree>>,
+    values: ssa_values::Values,
     captures: BTreeMap<u32, Arc<Tree>>,
     // Only observations of this current activation survive. A write kills all
     // its tokens, including old SSA snapshots reused at the same loop site.
@@ -687,7 +688,7 @@ impl Facts {
         budget.spend(
             self.locals
                 .len()
-                .saturating_add(self.values.len())
+                .saturating_add(self.values.page_count())
                 .saturating_add(self.captures.len())
                 .saturating_add(self.valid.len()),
             "Sum initial template table copy",
@@ -702,13 +703,13 @@ impl Facts {
             return Ok(());
         }
         budget.spend(
-            self.locals.len() + self.values.len() + self.captures.len() + self.valid.len(),
+            self.locals.len() + self.values.page_count() + self.captures.len() + self.valid.len(),
             "Sum state tables",
         )?;
         if let Some(p) = &self.partial {
             p.cost(budget)?;
         }
-        // Map cloning shares immutable nodes; it never walks their descendants.
+        // Map/page cloning shares immutable nodes; it never walks descendants.
         Ok(())
     }
     pub(super) fn join(&mut self, other: &Self, budget: &mut Budget) -> CompileResult<bool> {
@@ -722,7 +723,7 @@ impl Facts {
         // Same-function states have complete immutable inventories. Walk the
         // sorted maps together and check every key before merging its Tree.
         change |= join_tables(&mut self.locals, &other.locals, budget)?;
-        change |= join_tables(&mut self.values, &other.values, budget)?;
+        change |= self.values.join(&other.values, budget)?;
         change |= join_tables(&mut self.captures, &other.captures, budget)?;
         budget.spend(
             self.valid.len() + other.valid.len(),
@@ -1212,12 +1213,11 @@ impl Plan {
             edit(&mut t, budget)?.missing = !f.parameters.contains(&l.id);
             facts.locals.insert(l.id, t);
         }
-        for (v, ty) in f.values.iter().enumerate() {
-            budget.lookup(facts.values.len(), "Sum value fact allocation")?;
-            let mut t = Tree::unknown(ty, budget)?;
+        facts.values = ssa_values::Values::build(f.values.len(), budget, |v, budget| {
+            let mut t = Tree::unknown(&f.values[v], budget)?;
             edit(&mut t, budget)?.missing = true;
-            facts.values.insert(ValueId(v as u32), t);
-        }
+            Ok(t)
+        })?;
         if let Some(id) = f.environment
             && budget.has_ordinary_store_sum_capture(id)?
         {
@@ -1498,7 +1498,7 @@ impl Plan {
                     edit(
                         facts
                             .values
-                            .get_mut(value)
+                            .get_mut(value, budget)?
                             .ok_or_else(|| error("Sum capture refill value absent"))?,
                         budget,
                     )?
@@ -1940,7 +1940,7 @@ impl Plan {
                         .unwrap_or_default(),
                 );
             }
-            facts.values.insert(v, tree);
+            facts.values.set(v, tree, budget)?;
         }
         Ok(birth)
     }
