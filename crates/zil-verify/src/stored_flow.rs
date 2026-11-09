@@ -13,6 +13,7 @@ mod live_loan_ids;
 mod live_words;
 #[cfg(test)]
 mod loan_union_tests;
+mod relation_index;
 #[cfg(test)]
 mod result_row_tests;
 use live_words::WordRow;
@@ -5607,6 +5608,7 @@ fn solve_check(
             ));
         }
         enum_address::projections(f, &graphs[index], s, b)?;
+        let mut relations = relation_index::Relations::new(f, b)?;
         let lender = captured_definition(module, f).filter(|d| super::stored_callables::lending(d));
         if let Some(definition) = lender {
             b.spend(definition.lending_captures.len().saturating_add(1))?;
@@ -5677,11 +5679,11 @@ fn solve_check(
                     }
                 }
                 if f.storage_life.is_some()
-                    && relation(f, StorageBase::Result, path, b)?
+                    && relations.get(StorageBase::Result, path, b)?
                         != (if source.retained_port.is_some() {
                             task_address::source_relation(f, source, b)?
                         } else {
-                            relation(f, StorageBase::Parameter(position), &source.leaf, b)?
+                            relations.get(StorageBase::Parameter(position), &source.leaf, b)?
                         })
                 {
                     return Err(err(
