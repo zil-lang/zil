@@ -200,7 +200,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | G3.4.19 | 整共享地址数组读取逐实际根核初始化 | 已合入 | — | — | main@b07b85dd4；精确源码057308f16相关API四目标690/0、snapshot/Byte组92/0、全目标strict/fmt及结构3979通过；含4配置snapshot原生。新增全量/冷恢复未跑，不等于动态下标完成。 |
 | G3.4.20 | 借入泛型Package的Managed Store字段替换 | 待集成 | P0 | sol high · array_analysis_cost | f0ee4f821已获Sol精审接受；189/0、12原生、真实旧描述失效和新旧精确预算通过；root已合。只接实际可变Package的完整Store字段，不开放whole/capture。 |
 | G3.4.21 | 普通拥有字段Copy观察、共享错误臂及标量入口组合 | 待集成 | P0 | sol high · integration_audit；Astra审 | 7dd7bb0eb已获精确接受并合root；真实字段/tag/init/loan及Byte入口callee证明保留，相关10过/1后端失败；后端首阻断ReadPackageField由G10.3.5补接。 |
-| G3.4.22 | 存储借入程序中局部拥有ByteBuffer字段的共享字节视图 | 进行中 | P0 | sol high · byte_view_composition；Astra复核 | A索引/12566针及独立V ancestry8665已合root，V472/0；原own512默认A过、V仍限额。新账本确认add_loans实际4,082,769，de784有序合并候选已精审并发布68b370e54，完整旧算法oracle已备，现接重窗跑限定/全V/原512。collected联合四配置56已过。 |
+| G3.4.22 | 存储借入程序中局部拥有ByteBuffer字段的共享字节视图 | 进行中 | P0 | sol high · byte_view_composition；Astra复核 | A索引/12566针及V ancestry已合root；de784有序loan合并已精审/发布68b370e54，4旧算法oracle、完整V476/0。原95d默认A过、V仍ResourceLimit；普通512/2元素Package A/V过。现独立V ledger3同源同费，未改旧边界断言，完整snapshot/native尚未闭合；collected联合56已过。 |
 
 </details>
 
@@ -420,7 +420,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | sol high · growing_collections | carrier缓存147已审/发布d9b700027。shared-only只读keep候选run18全A250/0，5组完整旧eager/错误状态/别名与预算对照过；原Map仍A限额(terminal tag classification)，V0，原生仍60/64。源冻结base147+patch/SHA，净成本收益待新账本核，不凭失败位置判下降；已让窗Byte。 |
+| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | sol high · growing_collections | shared-only keep 574已精审并发布d7cea1177；run18全A250/0、5旧eager/状态/别名oracle过，组件shared287/旧482、unique287/旧284。原Map仍A限额，V0，原生仍60/64；净程序费用待基础run19，额外effects观测已后置以免Arc引用影响COW。Byte ledger3先持窗，Map准备后接。 |
 
 </details>
 
@@ -526,7 +526,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | --- | --- | --- | --- | --- | --- |
 | G10.6.1 | 语言初稿开发预览：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 已合入 | — | — | [PR51 验收][e-pr51]：精确源码 `a8c7953e7` 默认5190/0、参考5078/0、文本70/0；双严格检查、release、10项工程门及远端源码恢复构建运行通过。有限预览不替代 B0/完整语言。 |
 | G10.6.2 | 通用 Native 库与异步资源联合验收：精确源码、真实消费者、独审和远端恢复 | 已合入 | — | — | `main@e800b39d5`：默认5269/0、参考5157/0、文本70/0；真实联合双后端 O0/O2、3735文件远端恢复/空缓存构建、16次 API 构建/128次运行/56次故障注入均通过。[本批记录][e-native-foundations]。 |
-| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | 北京时间最后施工 2026-11-09 13:33；联合feaeff058/treed08a已发布f03da46db。原f2cfb4d6完整collected3/0、四配置56及精确收据已独审接受。Byte de784候选正测；Map shared keep全A250/0但原程序仍限额。原own512仍V、Map仍A；本批全workspace共同门及main合入未完成。 |
+| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | 北京时间最后施工 2026-11-09 13:43；联合feaeff058/treed08a已发布f03da46db，main仍b07b85dd4。原f2cfb4d6完整collected3/0、四配置56及精确收据已独审接受。Byte de784全V476/0但原own512仍V；Map574全A250/0但原Map仍A。两候选均分支备份，待账本/组合共同门，未合main。 |
 | G10.6.4 | 全量回归中的旧Store/实际callback Package准入 | 已合入 | — | — | `6c1ac6fdf`已合候选；恢复旧flat callback/Store真实root快路，保留新borrowed Product分类，84项与原CLI/window正反例专项通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.5 | 新共享构造检查的两核实际独占loan发现与旧fee保持 | 已合入 | — | — | `e5c52c936/396c183c`已合：复用付费建表，无额外扫描，原两预算控制恢复原值、28独占构造/slot控制通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.6 | 默认worker深调用与life组合栈溢出 | 已合入 | — | — | 既有递归帧修复由main@222e550af验收；source_life合流回归的子项也已由main@0e770a26e交付。原默认栈/深调用/费用控制保留。 |

@@ -2,7 +2,7 @@
   "date": "2026-11-09 09:04 Asia/Shanghai",
   "status": "resumed_not_accepted",
   "main": "b07b85dd49b3df6f382734d509919a2a6013c97d",
-  "goal_read": "7bbb56986cebf5696819f655e2059c570ff74c19",
+  "goal_read": "6dac14c5b4600f452e610071cc12bf3061f46b17",
   "integration": "ed8e3a5de6befb15b515f6b124e992792414a8ca",
   "source_branches": {
     "root": "task/G10.6.3",
@@ -13,14 +13,14 @@
   "first_failure": "offline cargo dependency rustc_apfloat absent; no tests executed",
   "scope": "Continue original ordinary-library consumer and large owned closure transport; no release claim",
   "raw_logs": "out/runs/byte-views-baseline-20261109/ in task/G3.4.22 worktree",
-  "last_work": "2026-11-09 13:33 Asia/Shanghai",
+  "last_work": "2026-11-09 13:43 Asia/Shanghai",
   "integration_remote": "f03da46db353d01945f1b8f3c2e025dd2e47b136",
   "large_closure_checkpoint": "dbd5c446a600eb26f34574748376a2b8e84fece8",
   "baseline_language_failure": "original four-module program: Analyze ResourceLimit / Sum terminal tag classification, 0 pass, 1 fail",
   "native_progress": "frozen ordinary local closure ABI: 48 native executions pass; opaque factories/generic callable helpers remain five explicit Types Unsupported boundaries",
   "integration_local": "feaeff058384eed890590085157b81bc1d3223d9",
   "byte_views_checkpoint": "68b370e549ba4ac148b11008e0c254e4d1b57d54",
-  "growing_collections_checkpoint": "d9b70002759507f1dfbc2f92c2d6279ce38ad4f6",
+  "growing_collections_checkpoint": "d7cea1177298a74ddcba8ccdff6b256d1cfafd1e",
   "original_pipeline": "Frozen Byte precise order main/model/protocol/library, fingerprint d9afb8c2667ac61471aa1f37bd2fb9277abcbab5df37090bf4f8f6b8d32ec676: A N7122869/V N7814112 with N-1/fresh/raw/Wire pass; original4095 native input order main/protocol/library/model:48 actual executions pass, identical source file bytes",
   "collections_progress": "05a0: Analyze237/0; original Map default Analyze ResourceLimit / Sum SSA page slot walk, verification_runs0; native remains60/64 from prior full matrix",
   "collected_pipeline": "Fixed original4011 complete pipeline passes default Analyze/Verify and joint56 native cases on f2cfb4d6; exact receipt in validation/ordinary-owned-collection-pipeline.json",
@@ -81,7 +81,7 @@
     "logs": "out/runs/growing-input-effects-20261109-9",
     "next": "Complete SSA inventory paged COW design under independent review"
   },
-  "active_build_window": "Byte frozen de784: old algorithm oracle/full Verify/default original512; Map run18 complete and released",
+  "active_build_window": "Byte Verify ledger3 compiling after Map released unready instrumentation window; Map basic ledger19 preparation only",
   "workspace_core": {
     "source": "f160b74ffa01eab22714bed283ff4d2d9f6f9d50",
     "tree": "aae362b35e177ccfd7b072c43c2b11e5c4719058",
@@ -227,7 +227,7 @@
     "logs": "out/runs/growing-input-effects-20261109-13"
   },
   "array512_current": {
-    "compiler": "8665cd23b0e487325f01b1e235541c29e13e754e",
+    "compiler": "de784f920ff58b3e45e9fdc1cd2cbf33c1c731bf",
     "source_unchanged": true,
     "ordinary_bytes": 4248,
     "ordinary_sha256": "2d3f439a9d135da66aad9d35b4bf89e647c8d76ce90129af3860b835d20a2332",
@@ -235,8 +235,8 @@
     "owned_bytes": 4616,
     "owned_sha256": "95d6572a129f856a5b073de7cfa2aa9d2b730c0ff44b254fa6f9a3d8830299bb",
     "owned_default": "Types/Analyze Success, then Verify ResourceLimit, verification_runs1",
-    "logs": "out/runs/byte-views-ancestry-words-20261109",
-    "next": "Frozen independently reviewed de784 loan-union candidate under test; original512 source and separate whole-array snapshot acceptance remain required"
+    "logs": "out/runs/byte-views-loan-union-20261109",
+    "next": "Independent Verify ledger3 before next repair; original512 source and separate whole-array snapshot acceptance remain required"
   },
   "collected_joint_native": {
     "source": "f2cfb4d6bbd17b9325f58b78715b3fef8293ec13",
@@ -376,12 +376,19 @@
     "remote": "68b370e549ba4ac148b11008e0c254e4d1b57d54",
     "tree": "dbe7d309ed07f1e25b24368f23673d7e329e41f7",
     "review": "Astra exact source accepted; original helper only renamed for full Vec/changed oracle",
-    "status": "Tests not yet complete; not merged into root",
+    "status": "Full Verify476/0, new oracle4/0; original owning512 still default Verify ResourceLimit; not yet merged into root",
     "ledger_source": "8665cd23b0e487325f01b1e235541c29e13e754e",
     "ledger_work": 4082769,
     "ledger_calls": 160724,
     "ledger_logs": "out/runs/byte-views-owned512-verify-ledger-20261109-2",
-    "contract": "Actual sortedness checked; existing duplicates and empty-from normalization retained; controlled mergesort, binary membership, real tail shifts and growth charged; failures propagate without successful Summary"
+    "contract": "Actual sortedness checked; existing duplicates and empty-from normalization retained; controlled mergesort, binary membership, real tail shifts and growth charged; failures propagate without successful Summary",
+    "full_verify_passed": 476,
+    "failed": 0,
+    "old_algorithm_oracles": 4,
+    "logs": "out/runs/byte-views-loan-union-20261109",
+    "original_owned512_default": "Types/Analyze Success then Verify ResourceLimit, verification_runs1",
+    "ordinary512_and_small_package": "Analyze/Verify Success",
+    "next": "Independent same-fee Verify caller ledger3; no Analyze tables reused"
   },
   "shared_page_candidate": {
     "base": "1473559c3358215d617abf248bb7350f3a2a38d9",
@@ -396,6 +403,15 @@
     "map_default": "Analyze ResourceLimit / Sum terminal tag classification, verification_runs0",
     "map_input_fingerprint": "e36d133c924f020a276f145c5f222361755c7841adc0dc4baebcf87c201a0c1a",
     "logs": "out/runs/growing-input-effects-20261109-18",
-    "scope": "Complete original eager page merge and prior BTreeMap reference retained; net real Map cost not yet measured, no performance acceptance inferred from new failure site"
+    "scope": "Complete original eager page merge and prior BTreeMap reference retained; net real Map cost not yet measured, no performance acceptance inferred from new failure site",
+    "source": "57416a95b23ccd4cd7b12124a95a6532adb2e542",
+    "remote": "d7cea1177298a74ddcba8ccdff6b256d1cfafd1e",
+    "tree": "f8f180b7c4c13b3a0a91684cd1e03b72315ef522",
+    "review": "Astra exact source accepted; old eager body preserved verbatim except receiver name/indent; complete Facts prior oracle retained",
+    "component_shared_N": 287,
+    "component_old_shared_N": 482,
+    "component_unique_N": 287,
+    "component_old_unique_N": 284,
+    "next": "Basic same-fee ledger19; no cached/skipped function analyses or changed frontier/full-pass schedule; extra Effect snapshots deferred to avoid affecting Arc sharing"
   }
 }
