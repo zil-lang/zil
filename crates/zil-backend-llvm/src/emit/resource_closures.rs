@@ -760,7 +760,7 @@ impl FunctionEmitter<'_> {
         Ok(())
     }
 
-    fn emit_resource_closure_call(
+    pub(super) fn emit_resource_closure_call(
         &mut self,
         instruction: &Instruction,
         function: FunctionId,
@@ -768,6 +768,17 @@ impl FunctionEmitter<'_> {
         environment: m::Arg,
         arguments: &[ValueId],
     ) -> CompileResult<()> {
+        let signature = &self.abi_plans.functions[&function];
+        if signature.large() {
+            let signature = signature.clone();
+            return self.large_copy_call_with_prefix(
+                instruction,
+                &signature,
+                m::global(self.abi_symbol(function)),
+                vec![environment],
+                arguments,
+            );
+        }
         let assignment = if *result_ty == Type::Unit {
             None
         } else {
@@ -785,7 +796,7 @@ impl FunctionEmitter<'_> {
             m::Op::Call {
                 result: (llvm_type(result_ty)?).clone(),
                 result_attrs: vec![],
-                callee: m::global(symbol(function).to_string()),
+                callee: m::global(self.abi_symbol(function)),
                 args: {
                     let mut args = vec![];
                     args.extend((emitted_arguments.clone()).clone());

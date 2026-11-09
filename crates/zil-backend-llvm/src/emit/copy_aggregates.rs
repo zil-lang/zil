@@ -111,7 +111,12 @@ pub(super) fn plan(
                     | InstructionKind::MakeVariant { fields, .. } => fields.len(),
                     InstructionKind::Call { arguments, .. }
                     | InstructionKind::CallIndirect { arguments, .. }
-                    | InstructionKind::CallDynSlot { arguments, .. } => arguments.len(),
+                    | InstructionKind::CallDynSlot { arguments, .. }
+                    | InstructionKind::CallClosure { arguments, .. }
+                    | InstructionKind::CallClosureShared { arguments, .. }
+                    | InstructionKind::CallClosureMut { arguments, .. }
+                    | InstructionKind::CallClosureBorrowed { arguments, .. }
+                    | InstructionKind::CallClosureOnce { arguments, .. } => arguments.len(),
                     _ => 2,
                 };
                 let cost = shape
