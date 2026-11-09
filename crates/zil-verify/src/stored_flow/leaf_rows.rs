@@ -54,6 +54,23 @@ impl Index {
         b.spend(1)?;
         let children = &self.nodes[node].children;
         b.spend(1)?;
+        if children.is_empty() {
+            return Ok(Err(0));
+        }
+        // Compare the actual complete upper key before probing a position:
+        // growing tries commonly ask for an edge beyond the current last one.
+        b.spend(2)?;
+        let last = children.len() - 1;
+        match children[last].0.cmp(step) {
+            std::cmp::Ordering::Less => return Ok(Err(children.len())),
+            std::cmp::Ordering::Equal => return Ok(Ok(last)),
+            std::cmp::Ordering::Greater => {}
+        }
+        b.spend(1)?;
+        if last == 0 {
+            return Ok(Err(0));
+        }
+        b.spend(1)?;
         if children.len() >= INDEX_THRESHOLD {
             // This is only a position hint. Authenticate the actual full key
             // before returning; sparse or mixed children still use binary search.
@@ -357,3 +374,10 @@ mod probe_oracle;
 #[cfg(test)]
 #[path = "leaf_rows_probe_tests.rs"]
 mod probe_tests;
+
+#[cfg(test)]
+#[path = "leaf_rows_end_oracle.rs"]
+mod end_oracle;
+#[cfg(test)]
+#[path = "leaf_rows_end_tests.rs"]
+mod end_tests;
