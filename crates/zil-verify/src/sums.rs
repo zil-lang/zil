@@ -2,6 +2,7 @@
 //! Nothing in this module reads producer responsibility/tag annotations.
 use super::*;
 use std::collections::{BTreeMap, VecDeque};
+mod initialization;
 #[cfg(test)]
 mod outer_cow_tests;
 mod partial_places;
@@ -1218,7 +1219,7 @@ type Prefix = Vec<(u32, u32)>;
 type Fact = (LocalId, Prefix, u32);
 #[derive(Clone, PartialEq, Eq)]
 struct State {
-    initialized: Vec<u8>, // 1 vacant, 2 initialized; join is may-union.
+    initialized: initialization::Initialized, // exact 0..3; 1 vacant, 2 initialized; may-union.
     locals: Vec<Arc<Content>>,
     values: values::Values,
     captures: Vec<Option<Arc<Content>>>,
@@ -1231,7 +1232,7 @@ impl State {
     fn cost(&self, budget: &mut Budget) -> Check<()> {
         budget.spend(
             self.initialized
-                .len()
+                .copy_work()
                 .saturating_add(self.locals.len())
                 .saturating_add(self.values.page_count())
                 .saturating_add(self.captures.len())
@@ -1256,11 +1257,7 @@ impl State {
         if let (Some(a), Some(b)) = (&mut self.partial, &other.partial) {
             changed |= a.join(b, budget)?;
         }
-        for (a, b) in self.initialized.iter_mut().zip(&other.initialized) {
-            let old = *a;
-            *a |= *b;
-            changed |= old != *a;
-        }
+        changed |= self.initialized.merge(&other.initialized, budget)?;
         for (a, b) in self.locals.iter_mut().zip(&other.locals) {
             if !Arc::ptr_eq(a, b) {
                 if Arc::strong_count(a) > 1 {
@@ -1370,7 +1367,7 @@ impl Flow<'_> {
         let mut current = state.locals[local.0 as usize].as_ref();
         let mut prefix = Vec::new();
         budget.spend(path.len().saturating_mul(path.len().saturating_add(2)))?;
-        if validate && state.initialized[local.0 as usize] != 2 {
+        if validate && state.initialized.get(local.0 as usize, budget)? != 2 {
             return Err(bad(
                 Some(span),
                 "Sum observation/consume requires a complete live current local",
@@ -1444,7 +1441,7 @@ impl Flow<'_> {
             && matches!(self.f.locals[local.0 as usize].ty, Type::ErrorUnion { .. })
         {
             let actual = state.locals[local.0 as usize].as_ref();
-            if state.initialized[local.0 as usize] == 2
+            if state.initialized.get(local.0 as usize, budget)? == 2
                 && let Content::Sum(arms, _) = actual
                 && arms.len() == 1
                 && actual.complete(budget)?
@@ -1660,7 +1657,7 @@ impl Flow<'_> {
                 && self.partial
                 && let InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local } = instruction.kind
-                && (state.initialized[local.0 as usize] != 2
+                && (state.initialized.get(local.0 as usize, budget)? != 2
                     || !state.locals[local.0 as usize].complete(budget)?)
             {
                 return Err(bad(
@@ -1862,12 +1859,12 @@ impl Flow<'_> {
                     budget.spend(1)?;
                     state.locals[local.0 as usize] =
                         state.values.get(value.0 as usize, budget)?.clone();
-                    state.initialized[local.0 as usize] = 2;
+                    state.initialized.set(local.0 as usize, 2, budget)?;
                 }
                 InstructionKind::PlaceTagLocal { local, path }
                 | InstructionKind::BorrowPlaceLocal { local, path, .. } => {
                     if validate {
-                        if state.initialized[local.0 as usize] != 2 {
+                        if state.initialized.get(local.0 as usize, budget)? != 2 {
                             return Err(bad(
                                 Some(instruction.span),
                                 "mixed place root is not initialized",
@@ -1914,7 +1911,7 @@ impl Flow<'_> {
                 InstructionKind::TakeTupleField { local, path }
                 | InstructionKind::TakeVariantField { local, path } => {
                     if validate {
-                        if state.initialized[local.0 as usize] != 2 {
+                        if state.initialized.get(local.0 as usize, budget)? != 2 {
                             return Err(bad(
                                 Some(instruction.span),
                                 "selective source storage is not initialized",
@@ -1955,7 +1952,7 @@ impl Flow<'_> {
                     result = Some(state.locals[local.0 as usize].duplicate(budget)?);
                     if matches!(instruction.kind, InstructionKind::TakeLocal { .. }) {
                         self.kill(state, *local, budget)?;
-                        state.initialized[local.0 as usize] = 1;
+                        state.initialized.set(local.0 as usize, 1, budget)?;
                     }
                 }
                 InstructionKind::TakePackageField { local, index }
@@ -2092,18 +2089,22 @@ impl Flow<'_> {
                             "atomic unpack requires every subtree initialized",
                         ));
                     }
-                    if validate && state.initialized[local.0 as usize] != 2 {
+                    if validate && state.initialized.get(local.0 as usize, budget)? != 2 {
                         return Err(bad(
                             Some(instruction.span),
                             "Unpack source is not initialized",
                         ));
                     }
                     budget.spend(fields.len())?;
-                    if validate && fields.iter().any(|l| state.initialized[l.0 as usize] != 1) {
-                        return Err(bad(
-                            Some(instruction.span),
-                            "every Unpack destination must be vacant on every incoming path before the atomic transfer",
-                        ));
+                    if validate {
+                        for local in fields {
+                            if state.initialized.get(local.0 as usize, budget)? != 1 {
+                                return Err(bad(
+                                    Some(instruction.span),
+                                    "every Unpack destination must be vacant on every incoming path before the atomic transfer",
+                                ));
+                            }
+                        }
                     }
                     let payload = match state.locals[local.0 as usize].as_ref() {
                         Content::Sum(variants, _) if variant.is_some() => {
@@ -2127,7 +2128,7 @@ impl Flow<'_> {
                         });
                     }
                     self.kill(state, *local, budget)?;
-                    state.initialized[local.0 as usize] = 1;
+                    state.initialized.set(local.0 as usize, 1, budget)?;
                     for (&target, value) in fields.iter().zip(prepared) {
                         self.kill(state, target, budget)?;
                         if record {
@@ -2145,7 +2146,7 @@ impl Flow<'_> {
                             ));
                         }
                         state.locals[target.0 as usize] = Arc::new(value);
-                        state.initialized[target.0 as usize] = 2;
+                        state.initialized.set(target.0 as usize, 2, budget)?;
                     }
                 }
                 InstructionKind::DropTuple { local }
@@ -2158,7 +2159,7 @@ impl Flow<'_> {
                 | InstructionKind::StorageLive(local)
                 | InstructionKind::StorageDead(local) => {
                     self.kill(state, *local, budget)?;
-                    state.initialized[local.0 as usize] = 1;
+                    state.initialized.set(local.0 as usize, 1, budget)?;
                 }
                 InstructionKind::Call {
                     function,
@@ -2302,7 +2303,7 @@ fn run_with_replacements(
         }
     }
     let mut state = State {
-        initialized: vec![1; f.locals.len()],
+        initialized: initialization::Initialized::new(f.locals.len(), 1, budget)?,
         locals,
         values,
         captures,
@@ -2311,7 +2312,7 @@ fn run_with_replacements(
         partial: None,
     };
     for (index, local) in f.parameters.iter().enumerate() {
-        state.initialized[local.0 as usize] = 2;
+        state.initialized.set(local.0 as usize, 2, budget)?;
         state.locals[local.0 as usize] = Arc::new(content(
             &f.locals[local.0 as usize].ty,
             Some(index as u32),

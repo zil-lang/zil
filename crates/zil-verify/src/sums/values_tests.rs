@@ -169,7 +169,11 @@ fn flat(len: usize, seed: usize) -> FlatState {
 }
 fn paged(old: &FlatState) -> State {
     State {
-        initialized: old.initialized.clone(),
+        initialized: initialization::Initialized::from_flat(
+            &old.initialized,
+            &mut budget(1_000_000),
+        )
+        .unwrap(),
         locals: old.locals.clone(),
         values: values::Values::build(old.values.len(), &mut budget(1_000_000), |i, _| {
             Ok(old.values[i].clone())
@@ -183,7 +187,7 @@ fn paged(old: &FlatState) -> State {
 }
 fn snapshot(state: &State) -> FlatState {
     FlatState {
-        initialized: state.initialized.clone(),
+        initialized: state.initialized.flat(),
         locals: state.locals.clone(),
         values: state.values.flat(),
         captures: state.captures.clone(),
@@ -248,7 +252,7 @@ fn paged_ssa_preserves_semantic_error_prefix_and_original_product_zip() {
             assert!(a.is_err());
             assert_eq!(a, b);
             assert_complete(&old, &new);
-            assert_eq!(new.initialized[0], 3);
+            assert_eq!(new.initialized.get(0, &mut budget(100)).unwrap(), 3);
             assert!(matches!(
                 new.values.get(0, &mut budget(100)).unwrap().as_ref(),
                 Content::Missing(_)

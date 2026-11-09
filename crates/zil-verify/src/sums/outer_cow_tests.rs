@@ -1,5 +1,9 @@
 //! Frozen eager outer-COW Flow from the pre-check implementation.
 use super::*;
+
+fn scalar_encoding(values: &[u8]) -> initialization::Initialized {
+    initialization::Initialized::from_flat(values, &mut Budget::new(&Limits::default())).unwrap()
+}
 struct OldFlow<'a, 'm> {
     actual: &'a Flow<'m>,
 }
@@ -10,6 +14,58 @@ impl<'m> std::ops::Deref for OldFlow<'_, 'm> {
     }
 }
 impl OldFlow<'_, '_> {
+    #[allow(clippy::too_many_arguments)]
+    fn selected<'a>(
+        &self,
+        state: &'a State,
+        initialized: &[u8],
+        local: LocalId,
+        path: &[VariantProjection],
+        last: Option<u32>,
+        validate: bool,
+        span: Span,
+        budget: &mut Budget,
+    ) -> Check<&'a Content> {
+        let mut current = state.locals[local.0 as usize].as_ref();
+        let mut prefix = Vec::new();
+        budget.spend(path.len().saturating_mul(path.len().saturating_add(2)))?;
+        if validate && initialized[local.0 as usize] != 2 {
+            return Err(bad(
+                Some(span),
+                "Sum observation/consume requires a complete live current local",
+            ));
+        }
+        for step in path {
+            self.require_tag(
+                state,
+                local,
+                &prefix,
+                current,
+                step.variant,
+                validate,
+                span,
+                budget,
+            )?;
+            let Content::Sum(variants, _) = current else {
+                return Err(bad(Some(span), "Sum path is not an Enum"));
+            };
+            let Some(fields) = variants.get(&step.variant) else {
+                return Ok(current);
+            };
+            current = &fields[step.index as usize];
+            prefix.push((step.variant, step.index));
+        }
+        if validate && self.partial && matches!(current, Content::Missing(_)) {
+            return Err(bad(Some(span), "Sum endpoint has already been moved"));
+        }
+        if let Some(tag) = last {
+            self.require_tag(state, local, &prefix, current, tag, validate, span, budget)?;
+        }
+        Ok(current)
+    }
+
+    // Keep the frozen scalar transfer text stable for independent review.
+    #[rustfmt::skip]
     fn block(
         &self,
         block: usize,
@@ -18,6 +74,8 @@ impl OldFlow<'_, '_> {
         record: bool,
         budget: &mut Budget,
     ) -> Check<Vec<Bridge>> {
+        let mut initialized = state.initialized.flat();
+        let outcome = (|| {
         if record {
             budget.spend(self.f.blocks[block].instructions.len())?;
         }
@@ -30,7 +88,7 @@ impl OldFlow<'_, '_> {
                 && self.partial
                 && let InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local } = instruction.kind
-                && (state.initialized[local.0 as usize] != 2
+                && (initialized[local.0 as usize] != 2
                     || !state.locals[local.0 as usize].complete(budget)?)
             {
                 return Err(bad(
@@ -58,6 +116,9 @@ impl OldFlow<'_, '_> {
                         }
                     }
                 }
+            }
+            if self.replacements.is_some() {
+                state.initialized = scalar_encoding(&initialized);
             }
             if let Some(context) = self.replacements
                 && let Some(value) = context.step(self, state, instruction, validate, budget)?
@@ -226,12 +287,12 @@ impl OldFlow<'_, '_> {
                     budget.spend(1)?;
                     state.locals[local.0 as usize] =
                         state.values.get(value.0 as usize, budget)?.clone();
-                    state.initialized[local.0 as usize] = 2;
+                    initialized[local.0 as usize] = 2;
                 }
                 InstructionKind::PlaceTagLocal { local, path }
                 | InstructionKind::BorrowPlaceLocal { local, path, .. } => {
                     if validate {
-                        if state.initialized[local.0 as usize] != 2 {
+                        if initialized[local.0 as usize] != 2 {
                             return Err(bad(
                                 Some(instruction.span),
                                 "mixed place root is not initialized",
@@ -278,7 +339,7 @@ impl OldFlow<'_, '_> {
                 InstructionKind::TakeTupleField { local, path }
                 | InstructionKind::TakeVariantField { local, path } => {
                     if validate {
-                        if state.initialized[local.0 as usize] != 2 {
+                        if initialized[local.0 as usize] != 2 {
                             return Err(bad(
                                 Some(instruction.span),
                                 "selective source storage is not initialized",
@@ -319,7 +380,7 @@ impl OldFlow<'_, '_> {
                     result = Some(state.locals[local.0 as usize].duplicate(budget)?);
                     if matches!(instruction.kind, InstructionKind::TakeLocal { .. }) {
                         self.kill(state, *local, budget)?;
-                        state.initialized[local.0 as usize] = 1;
+                        initialized[local.0 as usize] = 1;
                     }
                 }
                 InstructionKind::TakePackageField { local, index }
@@ -352,6 +413,7 @@ impl OldFlow<'_, '_> {
                 | InstructionKind::BorrowVariantLocal { local, path, .. } => {
                     self.selected(
                         state,
+                        &initialized,
                         *local,
                         path,
                         None,
@@ -439,6 +501,7 @@ impl OldFlow<'_, '_> {
                     if variant.is_some() {
                         self.selected(
                             state,
+                            &initialized,
                             *local,
                             &[],
                             variant,
@@ -456,14 +519,14 @@ impl OldFlow<'_, '_> {
                             "atomic unpack requires every subtree initialized",
                         ));
                     }
-                    if validate && state.initialized[local.0 as usize] != 2 {
+                    if validate && initialized[local.0 as usize] != 2 {
                         return Err(bad(
                             Some(instruction.span),
                             "Unpack source is not initialized",
                         ));
                     }
                     budget.spend(fields.len())?;
-                    if validate && fields.iter().any(|l| state.initialized[l.0 as usize] != 1) {
+                    if validate && fields.iter().any(|l| initialized[l.0 as usize] != 1) {
                         return Err(bad(
                             Some(instruction.span),
                             "every Unpack destination must be vacant on every incoming path before the atomic transfer",
@@ -491,7 +554,7 @@ impl OldFlow<'_, '_> {
                         });
                     }
                     self.kill(state, *local, budget)?;
-                    state.initialized[local.0 as usize] = 1;
+                    initialized[local.0 as usize] = 1;
                     for (&target, value) in fields.iter().zip(prepared) {
                         self.kill(state, target, budget)?;
                         if record {
@@ -509,7 +572,7 @@ impl OldFlow<'_, '_> {
                             ));
                         }
                         state.locals[target.0 as usize] = Arc::new(value);
-                        state.initialized[target.0 as usize] = 2;
+                        initialized[target.0 as usize] = 2;
                     }
                 }
                 InstructionKind::DropTuple { local }
@@ -522,7 +585,7 @@ impl OldFlow<'_, '_> {
                 | InstructionKind::StorageLive(local)
                 | InstructionKind::StorageDead(local) => {
                     self.kill(state, *local, budget)?;
-                    state.initialized[local.0 as usize] = 1;
+                    initialized[local.0 as usize] = 1;
                 }
                 InstructionKind::Call {
                     function,
@@ -594,6 +657,10 @@ impl OldFlow<'_, '_> {
             }
         }
         Ok(bridges)
+
+        })();
+        state.initialized = scalar_encoding(&initialized);
+        outcome
     }
 }
 
@@ -697,9 +764,11 @@ fn seed(module: &TypedModule, profile: usize) -> State {
     let f = &module.functions[0];
     let mut b = budget(profile, 1_000_000);
     State {
-        initialized: (0..f.locals.len())
-            .map(|i| if i == 0 || i == 2 { 2 } else { 1 })
-            .collect(),
+        initialized: scalar_encoding(
+            &(0..f.locals.len())
+                .map(|i| if i == 0 || i == 2 { 2 } else { 1 })
+                .collect::<Vec<_>>(),
+        ),
         locals: f
             .locals
             .iter()
@@ -742,7 +811,7 @@ struct Logical {
 }
 fn logical(state: &State) -> Logical {
     Logical {
-        initialized: state.initialized.clone(),
+        initialized: state.initialized.flat(),
         locals: state.locals.iter().map(|v| v.as_ref().clone()).collect(),
         values: state
             .values
@@ -826,8 +895,8 @@ fn shared_outer_cow_preserves_full_flow_semantic_error_prefix_and_initialization
                 "{error:?}"
             );
             assert_eq!(logical(&a), logical(&b));
-            assert_eq!(b.initialized[1], 2);
-            assert_eq!(b.initialized[3], 1);
+            assert_eq!(b.initialized.get(1, &mut budget(1, 100)).unwrap(), 2);
+            assert_eq!(b.initialized.get(3, &mut budget(1, 100)).unwrap(), 1);
         }
     }
 }
