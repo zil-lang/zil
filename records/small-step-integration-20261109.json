@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-09T14:28:00Z",
+  "recorded_utc": "2026-11-09T14:53:36Z",
   "status": "Ten scoped batches merged; their completed remote and local branch refs retired. Array and Map work remains active.",
   "accepted_main": "82a69812582856b012468db3d019930d8e390f64",
   "accepted_tree": "fab0e0363c2a46050f14740a5ad8ce5287db8df7",
@@ -483,5 +483,67 @@
       },
       "whole_program_net_saving": "Not established; both summaries stop at the default limit."
     }
+  },
+  "array_backend_checkpoint": {
+    "local_source": "e434fb3f07cc48f7ca3f1f487e1e50dc0ffa5697",
+    "published_source": "cd6a3e86a8447fc452fd7923f428f2b426a99ae1",
+    "tree": "92f1c68a24bf93775f8d900e20bd3a4fa306b5b3",
+    "scope": "Only the eight named backend paths after the actual eight codegen ResourceLimit attempts at 43f2. Full source layouts, physical slots and machine plans remain equivalent; default limits and stack unchanged.",
+    "oracles": {
+      "passed": 5,
+      "failed": 0,
+      "log_sha256": "e0f7ae0be507ebcaa4dd21518db2ae37c8ad17069327c804993569087dcd54ae"
+    },
+    "full_backend": {
+      "passed": 187,
+      "failed": 0,
+      "log_sha256": "2ef8d4e341e72354aeb308908158d5743da8abfa7f661119e25176812fd90b54"
+    },
+    "original_programs": {
+      "source_raw_wire": "Pass for unchanged 95d and full 59b",
+      "actual_native_executions": 8,
+      "backends": [
+        "Clang",
+        "LLVM API builder"
+      ],
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "all_exit_zero": true,
+      "native_audit_log_sha256": "9001f6a0f277528a5d61af8d3097716276502b8049f90f080b3f9ce2703d6096",
+      "evidence": "wt-owned-array-snapshot/out/runs/owned-array-snapshot-machine-work-20261109"
+    },
+    "independent_review": {
+      "checks": 44,
+      "blockers": 0,
+      "report_sha256": "7d65356c674d260d0dec0b5a33a18cd87fb1f1284e2fbb48787648daa1de037b"
+    }
+  },
+  "array_final_candidate": {
+    "source": "6cfb6ae3acbe467094dcc4faae953755fe55ddc3",
+    "tree": "39308efe888b4a90aef6b53732b09fb41b83e86a",
+    "published": "5ea41694365120f16d5e21e5703785c79625a355",
+    "production_source_blobs_equal_e434": 592,
+    "independent_tests_docs_checks": 63,
+    "independent_format_checks": 12,
+    "kernels": {
+      "passed": 723,
+      "failed": 0,
+      "log_sha256": "c30487b8ed28985c92632b267b1299b05df88a08d4198428284aa4fc4e9e601d"
+    },
+    "fmt": "Pass",
+    "remaining_gates": "Full traits, shared arrays, legacy budgets, standard native consumer tests, backend, strict and docs are running; no final merge claim.",
+    "evidence": "wt-owned-array-snapshot/out/runs/owned-array-snapshot-final-20261109-2",
+    "original_first_failures_preserved": true
+  },
+  "map_retirement_candidate": {
+    "source": "c6ff7168af5692e00ae471a8ff43447372eb2c78",
+    "tree": "f94fb8e749a8cf87e5f1ab5d7259bc47e4e47060",
+    "scope": "Only State.retirement uses small Dense or 16-row Arc pages. Clone pays actual reference copying; merge retains full source-state cost and original ordinal Sources.merge, plus actual COW and cleanup work.",
+    "root_tests": "NotRun",
+    "new_oracles": 5,
+    "independent_review": "InProgress",
+    "original_map_default_budget": "Not established for this candidate."
   }
 }

@@ -420,7 +420,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | growing_collections · task/G9.3.11.1；独立复核 | 字段事实flat表示3145已过V541/6oracle/7effects。history-only fa101首编漏retirement索引保零执行；54b纯consumer修补独审关闭blocker，同tree2cf260发布d302aeff，5新oracle/完整V546/7effects过，原5008B Map仍默认V限额。diag8已按完整前像恢复：所有先前完整阶段同费，resource-summary f0实际state_cost由272推进496次，后续State复制为剩余热点，截断scope不宣称全程序净益。当前Map走ordinary borrows，数组stored优化不可无证搬。仅out设计下一窄修，原输入与默认额度保持。 |
+| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | growing_collections · task/G9.3.11.1；独立复核 | 54b字段事实/历史表示已过全V546、5oracle与7effects，同tree2cf260发布d302aeff；原5008B Map仍默认Verify限额。diag8实际运行并精确恢复，热点已定位为State复制。下一最窄retirement页COW候选c6ff7168/treef94fb8已冻结，5新oracle尚待root执行、非作者独审进行中；仅该表改表示，merge保完整来源扫描，默认额度/原输入不变。 |
 
 </details>
 
@@ -536,7 +536,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | --- | --- | --- | --- | --- | --- |
 | G10.6.1 | 语言初稿开发预览：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 已合入 | — | — | [PR51 验收][e-pr51]：精确源码 `a8c7953e7` 默认5190/0、参考5078/0、文本70/0；双严格检查、release、10项工程门及远端源码恢复构建运行通过。有限预览不替代 B0/完整语言。 |
 | G10.6.2 | 通用 Native 库与异步资源联合验收：精确源码、真实消费者、独审和远端恢复 | 已合入 | — | — | `main@e800b39d5`：默认5269/0、参考5157/0、文本70/0；真实联合双后端 O0/O2、3735文件远端恢复/空缓存构建、16次 API 构建/128次运行/56次故障注入均通过。[本批记录][e-native-foundations]。 |
-| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | 北京时间最后施工2026-11-09 22:28。PR55–64十批已合main82a698125，十条完成远端及本地分支已清理，exact快照/日志保留、归档8493b709；详见[本轮收口](records/small-step-integration-20261109.json)。main三远端CI均success。数组V10 43f2已独审/7oracle/全V498，原95d与完整59b Source/raw/Wire全过，八native构建实际停snapshot emission预算；据此只接命名8路径backend补丁。Map54b已独审/5oracle/全V546/7effects并同树发布d302aeff，原Map仍限额，diag8恢复clean后继续按真实State复制热点设计。其他专项记录保留，不整合195路径大包，不宣称全量本地测试或1.0。 |
+| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | 北京时间最后施工2026-11-09 22:53。PR55–64十批已合main82a698125，十条完成远端及本地分支已清理，exact快照/日志保留、归档8493b709；详见[本轮收口](records/small-step-integration-20261109.json)。main三远端CI均success。数组e434最小后端补丁已过原95d/59b默认Source、独立raw/Wire及8次实际原生、全backend187与独审；最终正式fixture/pin/docs树6cfb已同树发布5ea41694，723两核与fmt已过，driver/strict/docs收口中。Map下一最窄retirement页候选c6ff冻结待验，不整合195路径大包，不宣称全量本地测试或1.0。 |
 | G10.6.4 | 全量回归中的旧Store/实际callback Package准入 | 已合入 | — | — | `6c1ac6fdf`已合候选；恢复旧flat callback/Store真实root快路，保留新borrowed Product分类，84项与原CLI/window正反例专项通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.5 | 新共享构造检查的两核实际独占loan发现与旧fee保持 | 已合入 | — | — | `e5c52c936/396c183c`已合：复用付费建表，无额外扫描，原两预算控制恢复原值、28独占构造/slot控制通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.6 | 默认worker深调用与life组合栈溢出 | 已合入 | — | — | 既有递归帧修复由main@222e550af验收；source_life合流回归的子项也已由main@0e770a26e交付。原默认栈/深调用/费用控制保留。 |
@@ -576,7 +576,7 @@ Sol high负责实现，疑难交Astra。前一交付main@53e3e092d：借入Packa
 | G10.3.4 | 拥有借入与ErrorUnion组合的独立资源分析成本 | 已合入 | — | root · PR64 | 原9步生产至5cf970ba5按函数抽取，完整unknown/缺失alternative、循环固定点、最终检查保持。main82a已接受原四模块和ErrorArm两组消费者，五精确预算pin与N−1/fresh保留，见validation/stored-owned-observations.json；更广Map资源成本另由G9.3.11.1验收。 |
 | G10.3.5 | 后端普通Package字段及Byte/Error消费者完整类型预付 | 已合入 | — | root · PR64 | 511c32f06后端完整blob8f8c05fa与受测7dc一致，9f91ccc5e ErrorArm native函数完整保留。backend182/旧预算23/数组54及两组原消费者四配置8native过；完整actual parent/operand预付与原drop_plan保持。main82a/treefab0已读回，收据与完成分支均归档。 |
 | G10.3.6 | 普通Closure的大型拥有参数/结果内部ABI | 进行中 | P0 | large_closure_abi · 原后续分支保留；root集成 | 具体Closure范围已由PR63合mainb4b671835：受测70b160/tree8d53572d，同树发布82dd183，收据08fefa7/tree2e74b628；20native目标/1special/181backend/23budget/4old与strict/docs全过，实际80 ZIL+10 Rust，选定48=新大28+小4+前Package16。N111300/N−1/fresh/default完整IR核实；5Types Unsupported保留。首轮输出污染Fail与两行Temp修复分别记录；新完成分支已归档删除，旧task/G10.3.6@1bd22f6e含a32/95d后续完整保留。 |
-| G10.3.7 | 拥有512数组与完整字段snapshot的默认两核及后端实际工作 | 进行中 | P0 | byte_view_composition · task/owned-array-snapshot；root独占验收 | A最小算法0fae独审、18oracle及原四默认Source/rawA通过；00ef全A225及23旧预算/strict/fmt/docs过，A旧pin按实测修订、首败保。V1–V10已逐组独审；43f2/tree819028同树发布4f4ff05f，7oracle/全V498/0，原95d与完整59b默认SourceVerify、独立rawV和Wire全部通过。八个Build配置均停codegen聚合snapshot emission预算，实际执行0；由原程序证据决定只提取a32 emission-work命名8路径，默认额度/栈不变。最终机器门/driver正控与精确pins仍待，不能冒用母本成功。 |
+| G10.3.7 | 拥有512数组与完整字段snapshot的默认两核及后端实际工作 | 进行中 | P0 | root · task/owned-array-snapshot；独立复核 | A及V1–V10已逐组独审，原95d/完整59b默认Source、独立raw和Wire全部通过；实际8次codegen首败据实提取后端8路径，e434已完成8次Clang/API O0/O2实际执行、全backend187与5oracle。最终标准两程序、N/N−1/fresh/warm及实测pins冻结6cfb/tree39308，同树发布5ea41694；592生产src blob同e434，63项测试文档独审和12项格式独审通过，723两核/fmt已过，其余最终门进行中。额度/栈不增，首败日志全保。 |
 
 </details>
 
