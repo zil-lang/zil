@@ -1,46 +1,165 @@
 {
   "format": 1,
-  "created_utc": "2026-11-09 12:10:39 UTC",
-  "prior_archive": "981de0fd5682db7829c79dc683c568c3ea448e64",
+  "created_utc": "2026-11-09 12:57:37 UTC",
+  "prior_archive": "263f180094460d31163ecfc2b14badaa53ac8a9e",
   "commit_parents": [
-    "981de0fd5682db7829c79dc683c568c3ea448e64",
-    "b4b6718359849c9ddb6e4ba8ebea4181a36e374c"
+    "263f180094460d31163ecfc2b14badaa53ac8a9e",
+    "82a69812582856b012468db3d019930d8e390f64"
   ],
   "commit_tips": [
-    "981de0fd5682db7829c79dc683c568c3ea448e64",
-    "b4b6718359849c9ddb6e4ba8ebea4181a36e374c",
-    "08fefa7ad4497c4bcffa38d39cb7a52a8061912a",
-    "82dd18302b092b640b70f1bb68da0e4a1b96b4ab"
+    "263f180094460d31163ecfc2b14badaa53ac8a9e",
+    "82a69812582856b012468db3d019930d8e390f64",
+    "97ef745821548fe0b299919622b8cb2ad73df8b0",
+    "b20fb4149d6681354ae5b0c73b88d246e6f555f7"
   ],
   "local_refs": {},
   "remote_refs": {
-    "refs/heads/archive/source-history": "981de0fd5682db7829c79dc683c568c3ea448e64",
-    "refs/heads/main": "b4b6718359849c9ddb6e4ba8ebea4181a36e374c",
-    "refs/heads/task/ordinary-closure-abi": "08fefa7ad4497c4bcffa38d39cb7a52a8061912a"
+    "refs/heads/archive/source-history": "263f180094460d31163ecfc2b14badaa53ac8a9e",
+    "refs/heads/main": "82a69812582856b012468db3d019930d8e390f64",
+    "refs/heads/task/stored-owned-composition": "97ef745821548fe0b299919622b8cb2ad73df8b0"
   },
   "worktrees": [],
   "missing_commit_objects": [],
   "retirements": [
     {
-      "ref": "refs/heads/task/ordinary-closure-abi",
-      "head_before_retirement": "08fefa7ad4497c4bcffa38d39cb7a52a8061912a",
-      "accepted_main": "b4b6718359849c9ddb6e4ba8ebea4181a36e374c",
-      "pull_request": 63,
-      "remote_history_reachable_through_parent": "b4b6718359849c9ddb6e4ba8ebea4181a36e374c",
-      "published_source": "82dd18302b092b640b70f1bb68da0e4a1b96b4ab",
-      "source_tree": "8d53572d235c616a381cb56b251a906844d47293",
+      "ref": "refs/heads/task/stored-owned-composition",
+      "head_before_retirement": "97ef745821548fe0b299919622b8cb2ad73df8b0",
+      "accepted_main": "82a69812582856b012468db3d019930d8e390f64",
+      "pull_request": 64,
+      "remote_history_reachable_through_parent": "82a69812582856b012468db3d019930d8e390f64",
+      "published_source": "b20fb4149d6681354ae5b0c73b88d246e6f555f7",
+      "source_tree": "f89f668b861d574f69ce7903ddc9a5ed35c793ae",
+      "accepted_tree": "fab0e0363c2a46050f14740a5ad8ce5287db8df7",
       "local_execution_identity": {
-        "source": "70b16089e595a64632fbf1d3f4981e9bb9e78486",
-        "receipt_commit": "ce05ae5fc0ca2afd4e6c8b2b23c8624bbe6c1e71",
-        "validation_receipt_commit": "15e474af4424299b54c9c619be3fb6ef1bf2be9e",
-        "branch": "task/ordinary-closure-abi",
-        "branch_retained": true,
+        "source": "7dc17ebeb1ab1899048ec2686d52f156ad97ac95",
+        "receipt_commit": "aa21998e2545e201f4f3792c7eefab25857f8e15",
+        "branch": "task/stored-owned-composition",
+        "branch_retained_at_manifest_creation": true,
         "remote_commit_identity_claimed": false,
         "complete_trees_identical_to_remote": true
       },
-      "unique_uncommitted_source": false,
-      "known_author_outputs": "Two first-attempt aggregate outputs are preserved with exact hashes outside source control; the independently validated tree is clean. No unique uncommitted source is being discarded."
+      "unique_uncommitted_source": false
     }
   ],
-  "scope": "Preserve the accepted extracted ordinary Closure large owned parameter/result ABI before retiring its completed publication branch. The older task/G10.3.6 and its later emission-fee and owning-array work remain retained and are not claimed as accepted by this extraction."
+  "local_execution_retirements": {
+    "recorded_utc": "2026-11-09T12:49:20.461942+00:00",
+    "verified_archive_before_retirement": "263f180094460d31163ecfc2b14badaa53ac8a9e",
+    "policy": "Retire only completed local branch refs whose entire trees equal accepted main commits reachable from the verified archive. Keep every worktree detached at the exact local execution commit, all logs and untracked bytes. Remove stale upstream tracking before ordinary git branch -d, whose merged-to-HEAD safety check remains enabled.",
+    "retirements": [
+      {
+        "worktree": "/workspace/scratch/36bf9939e558/wt-worker-helper-returns",
+        "branch": "task/worker-helper-returns",
+        "upstream": "refs/remotes/origin/main",
+        "local_head": "93254773f4d3c3849d38a914a1c613021b308e2d",
+        "tree": "60308d10c0a91eac9a86fcf6b32b0eb121bdc9ef",
+        "accepted_main_commit": "795216a6b3c51e8c7c8a0fb91f37743fbee9666e",
+        "status_before": "",
+        "known_original_test_outputs": [],
+        "result": "Completed local ref removed; exact original local execution snapshot and every file retained in detached worktree"
+      },
+      {
+        "worktree": "/workspace/scratch/36bf9939e558/wt-owning-trait-results",
+        "branch": "task/owning-trait-results",
+        "upstream": "refs/remotes/origin/main",
+        "local_head": "d0de11ee10b9f97fbe7ba92d1a0897001e7ef659",
+        "tree": "52d013cc8464ee6673edff9b1f3e18317b776c42",
+        "accepted_main_commit": "fcf679e97a32f2f0f4d08c6ad954012cb7538ac9",
+        "status_before": "",
+        "known_original_test_outputs": [],
+        "result": "Completed local ref removed; exact original local execution snapshot and every file retained in detached worktree"
+      },
+      {
+        "worktree": "/workspace/scratch/36bf9939e558/wt-generic-lending-composition",
+        "branch": "task/generic-lending-composition",
+        "upstream": "refs/remotes/origin/main",
+        "local_head": "4a7676c2d7a76d6022678aaba4c538fc813822be",
+        "tree": "98438c1e57c297e71c72ee10ef54f2178abf81bf",
+        "accepted_main_commit": "ce5903d20a7b63d48a531c831db6c3d79109d901",
+        "status_before": "",
+        "known_original_test_outputs": [],
+        "result": "Completed local ref removed; exact original local execution snapshot and every file retained in detached worktree"
+      },
+      {
+        "worktree": "/workspace/scratch/36bf9939e558/wt-borrowed-owned-callbacks",
+        "branch": "task/borrowed-owned-callbacks",
+        "upstream": "refs/remotes/origin/main",
+        "local_head": "0644d0a421f95f609c32f695838cf81a7cd75cb0",
+        "tree": "0731765a89d9b348234f4f565b639d7a660f0bf8",
+        "accepted_main_commit": "e308286433d2230182bafddbcb90fadf945c5664",
+        "status_before": "",
+        "known_original_test_outputs": [],
+        "result": "Completed local ref removed; exact original local execution snapshot and every file retained in detached worktree"
+      },
+      {
+        "worktree": "/workspace/scratch/36bf9939e558/wt-normative-index-sync",
+        "branch": "task/normative-index-sync",
+        "upstream": "",
+        "local_head": "9355f9af96b0880caf1ced136b543476f64bef01",
+        "tree": "5a2f039f8e331c1db8094a304c1aa3c1c8a319ca",
+        "accepted_main_commit": "bbcfef9a1117985b22ca93f301c09db9b48f6296",
+        "status_before": "",
+        "known_original_test_outputs": [],
+        "result": "Completed local ref removed; exact original local execution snapshot and every file retained in detached worktree"
+      },
+      {
+        "worktree": "/workspace/scratch/36bf9939e558/wt-ordinary-array-scale",
+        "branch": "task/ordinary-array-scale",
+        "upstream": "",
+        "local_head": "187c25d01ebe88804f72a1ae74e103601f2be694",
+        "tree": "ade68aa9d2fb48cb3b14723379b26a10a2e0d592",
+        "accepted_main_commit": "327eccfaf3169d1404534ddc16359310a21a40ad",
+        "status_before": "",
+        "known_original_test_outputs": [],
+        "result": "Completed local ref removed; exact original local execution snapshot and every file retained in detached worktree"
+      },
+      {
+        "worktree": "/workspace/scratch/36bf9939e558/wt-shared-array-dynamic",
+        "branch": "task/shared-array-dynamic",
+        "upstream": "",
+        "local_head": "5f84350ffe16102d29c6a0d64fc46742eab2f18b",
+        "tree": "742bbce0f1a1663a164bd79e3795feefb8c35ea0",
+        "accepted_main_commit": "e3ce439c28348ea6599f1fb70b4fc08c3ef86ec3",
+        "status_before": "",
+        "known_original_test_outputs": [],
+        "result": "Completed local ref removed; exact original local execution snapshot and every file retained in detached worktree"
+      },
+      {
+        "worktree": "/workspace/scratch/36bf9939e558/wt-large-owned-abi",
+        "branch": "task/large-owned-abi",
+        "upstream": "",
+        "local_head": "f3e94adbf6b8f6859d15b211f3865b34526f9528",
+        "tree": "562a3c1dd18cfa846d2476d3227147e57cfc0624",
+        "accepted_main_commit": "5f6d885ed7e31e0d3b5db036db39636d84e84875",
+        "status_before": "",
+        "known_original_test_outputs": [],
+        "result": "Completed local ref removed; exact original local execution snapshot and every file retained in detached worktree"
+      },
+      {
+        "worktree": "/workspace/scratch/36bf9939e558/wt-ordinary-closure-abi",
+        "branch": "task/ordinary-closure-abi",
+        "upstream": "",
+        "local_head": "ce05ae5fc0ca2afd4e6c8b2b23c8624bbe6c1e71",
+        "tree": "2e74b62806a443863d21fcbd9383112bc0183371",
+        "accepted_main_commit": "b4b6718359849c9ddb6e4ba8ebea4181a36e374c",
+        "status_before": "?? crates/zil-driver/aggregate\n?? crates/zil-driver/aggregate.ll",
+        "known_original_test_outputs": [
+          {
+            "path": "crates/zil-driver/aggregate",
+            "sha256": "0164e731416b288ddab3cf41f5907c58f56298169385554917228410e90addb7",
+            "untouched": true
+          },
+          {
+            "path": "crates/zil-driver/aggregate.ll",
+            "sha256": "8d945fb079579130603f1e12fa5fa90287b12cf35d8cac88a34bb596e494efe5",
+            "untouched": true
+          }
+        ],
+        "result": "Completed local ref removed; exact original local execution snapshot and every file retained in detached worktree"
+      }
+    ],
+    "remote_local_commit_identity_claimed": false,
+    "exact_local_commits_remain_in_detached_worktrees": true,
+    "accepted_complete_trees_reachable_from_archive": true
+  },
+  "scope": "Preserve the tenth scoped accepted batch, ordinary owner observations with stored loans, before retiring its completed publication branch. Also record removal of nine already accepted local branch refs, preserving every original execution commit, worktree, log and known untracked artifact. Original unfinished task/G3.4.22, task/G9.3.11.1 and task/G10.3.6 remain retained; their broader work is not accepted by this archive."
 }
