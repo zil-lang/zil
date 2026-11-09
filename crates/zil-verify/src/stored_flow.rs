@@ -13,6 +13,8 @@ pub(super) mod owned_byte_views;
 mod relation_index;
 #[cfg(test)]
 mod result_row_tests;
+#[cfg(test)]
+mod set_bits_tests;
 mod ssa_loan_groups;
 use live_words::WordRow;
 #[cfg(test)]
@@ -3920,11 +3922,11 @@ fn live_loans(
     indexed: Option<&[usize]>,
     b: &mut Budget,
 ) -> Check<Vec<usize>> {
-    b.spend(indexed.map_or(live.len(), |ids| {
+    b.spend(indexed.map_or(live.work(), |ids| {
         ids.len().saturating_add(live.len() - solution.values.len())
     }))?;
     let mut loans = live_loan_ids::SortedLoanIds::default();
-    let mut collect = |id: usize| -> Check<()> {
+    let mut collect = |id: usize, b: &mut Budget| -> Check<()> {
         if !live.is_live(id)? || definition.is_some_and(|value| value.0 as usize == id) {
             return Ok(());
         }
@@ -3946,14 +3948,15 @@ fn live_loans(
     };
     if let Some(ids) = indexed {
         for &id in ids {
-            collect(id)?;
+            collect(id, b)?;
         }
         for id in solution.values.len()..live.len() {
-            collect(id)?;
+            collect(id, b)?;
         }
     } else {
-        for id in 0..live.len() {
-            collect(id)?;
+        for id in live.ones() {
+            b.spend(1)?;
+            collect(id, b)?;
         }
     }
     if b.task_borrowed_results {

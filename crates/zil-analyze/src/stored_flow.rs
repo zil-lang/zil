@@ -8,6 +8,8 @@ mod byte_queries;
 mod live_words;
 pub(super) mod owned_byte_views;
 mod permission_access;
+#[cfg(test)]
+mod set_bits_tests;
 use live_words::LiveRow;
 #[cfg(test)]
 mod active_projection_tests;
@@ -3926,11 +3928,9 @@ fn active(
     b: &mut Budget,
 ) -> CompileResult<Loans> {
     let mut direct = Loans::new();
-    fee(b, live.len())?;
-    for i in 0..live.len() {
-        if !live.at(i)? {
-            continue;
-        }
+    fee(b, live.work())?;
+    for i in live.ones() {
+        fee(b, 1)?;
         let value = if i < values.len() {
             Some(&values[i])
         } else {
