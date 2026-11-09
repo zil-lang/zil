@@ -752,6 +752,7 @@ fn call_with_outer(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn address_field(
     f: &TypedFunction,
     address: ValueId,

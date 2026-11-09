@@ -1,10 +1,12 @@
 use super::*;
+#[allow(dead_code)]
 mod fixture {
     include!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
     ));
 }
+#[allow(clippy::too_many_arguments)]
 fn address_field_by_scan(
     f: &TypedFunction,
     address: ValueId,
