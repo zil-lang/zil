@@ -3778,11 +3778,19 @@ fn analyze_function_program(
     if f.foreign.is_some() {
         return Ok(Effect::default());
     }
-    let sums = sums::Plan::new(f, budget)?;
-    let mut shapes = shapes(module, f, budget)?;
-    if let Some(program) = replacements {
-        program.extend_shapes(f, &mut shapes, budget)?;
-    }
+    let computed;
+    let structure = if let Some(program) = replacements {
+        program.structure(f.id, budget)?
+    } else {
+        computed = replacements::FunctionStructure {
+            sums: sums::Plan::new(f, budget)?,
+            shapes: shapes(module, f, budget)?,
+            ranks: Vec::new(),
+        };
+        &computed
+    };
+    let shapes = &structure.shapes;
+    let sums = structure.sums.as_ref();
     if shapes.is_empty()
         && sums.is_none()
         && !(replacements.is_some() && forwards_replacement_effect(f, reachable, effects, budget)?)
@@ -3793,7 +3801,7 @@ fn analyze_function_program(
     // Flow::after are inside `check` branches. Build it only for the final
     // ordered ownership validation, not once per effect-frontier revisit.
     let after = if check {
-        afters(f, reachable, &shapes, budget)?
+        afters(f, reachable, shapes, budget)?
     } else {
         Vec::new()
     };
@@ -3814,7 +3822,7 @@ fn analyze_function_program(
             .unwrap_or_default(),
         ..State::default()
     };
-    for (place, s) in &shapes {
+    for (place, s) in shapes {
         budget.lookup(initial.cells.len(), "initial resource state")?;
         let mut fact = Fact::default();
         if s.owned {
@@ -3885,12 +3893,18 @@ fn analyze_function_program(
     let mut input: Vec<Option<State>> = vec![None; f.blocks.len()];
     input[f.entry.0 as usize] = Some(initial);
     let mut stack = vec![f.entry.0 as usize];
-    let ranks =
-        if budget.pod_stores || (budget.store_option_results && budget.ordinary_error_places) {
-            pod_resource_ranks(f, budget)?
-        } else {
-            Vec::new()
-        };
+    let computed_ranks;
+    let ranks = if replacements.is_some() {
+        &structure.ranks
+    } else {
+        computed_ranks =
+            if budget.pod_stores || (budget.store_option_results && budget.ordinary_error_places) {
+                pod_resource_ranks(f, budget)?
+            } else {
+                Vec::new()
+            };
+        &computed_ranks
+    };
     let mut frontier = BinaryHeap::new();
     if !ranks.is_empty() {
         budget.lookup(f.blocks.len(), "POD resource frontier insertion")?;
@@ -3912,12 +3926,12 @@ fn analyze_function_program(
     let flow = Flow {
         module,
         function: f,
-        shapes: &shapes,
+        shapes,
         after: &after,
         effects,
         views: &views,
         dependencies,
-        sums: sums.as_ref(),
+        sums,
         replacements,
     };
     let mut effect = Effect::default();
@@ -3934,7 +3948,7 @@ fn analyze_function_program(
         flow.run(b, &mut state, &mut effect, false, budget)?;
         for successor in next(&f.blocks[b]) {
             budget.spend(1, "resource diagnostic edge")?;
-            let edge_state = if let Some(plan) = &sums {
+            let edge_state = if let Some(plan) = sums {
                 let mut edge = clone_state(&state, budget)?;
                 if !plan.edge(f, b, successor, &mut edge.sums, budget)? {
                     continue;

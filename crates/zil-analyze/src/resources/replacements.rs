@@ -38,6 +38,14 @@ pub(super) struct Program {
     retirement_pairs: RefCell<Vec<retirement::Pairs>>,
     exact_retirement: bool,
     whole_helpers: BTreeSet<FunctionId>,
+    structures: Vec<Option<FunctionStructure>>,
+}
+// Immutable metadata derived from this request's actual TypedFunction. Each
+// solve still constructs its own State, effects and retirement obligations.
+pub(super) struct FunctionStructure {
+    pub(super) shapes: Shapes,
+    pub(super) sums: Option<sums::Plan>,
+    pub(super) ranks: Vec<usize>,
 }
 fn fee(b: &mut Budget, n: usize) -> CompileResult<()> {
     b.spend(n, "actual replacement origin transfer")
@@ -287,14 +295,49 @@ impl Program {
         } else {
             Vec::new()
         };
-        Ok(Self {
+        fee(b, module.functions.len())?;
+        let mut program = Self {
             routes,
             definitions,
             retirement_pairs: RefCell::new(retirement_pairs),
             exact_retirement,
             whole_helpers,
-        })
+            structures: Vec::with_capacity(module.functions.len()),
+        };
+        for f in &module.functions {
+            let structure = if f.foreign.is_some() {
+                None
+            } else {
+                let sums = sums::Plan::new(f, b)?;
+                let mut shapes = shapes(module, f, b)?;
+                program.extend_shapes(f, &mut shapes, b)?;
+                let ranks = if b.pod_stores || (b.store_option_results && b.ordinary_error_places) {
+                    pod_resource_ranks(f, b)?
+                } else {
+                    Vec::new()
+                };
+                Some(FunctionStructure {
+                    shapes,
+                    sums,
+                    ranks,
+                })
+            };
+            program.structures.push(structure);
+        }
+        Ok(program)
     }
+    pub(super) fn structure(
+        &self,
+        id: FunctionId,
+        b: &mut Budget,
+    ) -> CompileResult<&FunctionStructure> {
+        fee(b, 1)?;
+        self.structures
+            .get(id.0 as usize)
+            .and_then(Option::as_ref)
+            .ok_or_else(|| error("replacement function structure absent"))
+    }
+
     pub(super) fn whole_helper(&self, id: FunctionId, b: &mut Budget) -> CompileResult<bool> {
         if self.whole_helpers.is_empty() {
             return Ok(false);
