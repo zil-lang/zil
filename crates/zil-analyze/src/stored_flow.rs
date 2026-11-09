@@ -6,8 +6,12 @@ use super::*;
 mod active_index_tests;
 mod array_index;
 mod array_snapshot;
+#[cfg(test)]
+mod binding_index_tests;
 mod byte_queries;
 mod live_words;
+#[cfg(test)]
+mod snapshot_tests;
 use live_words::LiveRow;
 pub(super) mod enum_address;
 mod nominal;
@@ -550,7 +554,53 @@ fn merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileResult<bool> {
     Ok(changed)
 }
 
+fn permission_clone_work(value: &Permission, b: &mut Budget) -> CompileResult<()> {
+    fee(b, value.loans.len().saturating_add(1))?;
+    target_work(&value.targets, b)
+}
+fn copy_permission(value: &Permission, b: &mut Budget) -> CompileResult<Permission> {
+    permission_clone_work(value, b)?;
+    Ok(value.clone())
+}
+fn copy_permission_rows<P: Copy + Ord>(
+    rows: &BTreeMap<Vec<P>, Permission>,
+    b: &mut Budget,
+) -> CompileResult<BTreeMap<Vec<P>, Permission>> {
+    // Clone the already ordered tree in one traversal, rather than rebuilding
+    // it through per-key searches. Every owned path/target and loan is paid.
+    fee(b, rows.len().saturating_add(1))?;
+    for (path, permission) in rows {
+        fee(b, path.len())?;
+        permission_clone_work(permission, b)?;
+    }
+    Ok(rows.clone())
+}
 fn snapshot(value: &Value, b: &mut Budget) -> CompileResult<Value> {
+    fee(b, 1)?;
+    // Keep the established variant normalization and retained-port projection.
+    // This is a copy of current facts, never a cache or a new permission.
+    let mut enum_variants = enum_address::Variants::default();
+    enum_variants.join(&value.enum_variants, b)?;
+    let mut option_variants = option_address::Variants::default();
+    option_variants.join(&value.option_variants, b)?;
+    Ok(Value {
+        enum_variants,
+        option_variants,
+        pointer: copy_permission(&value.pointer, b)?,
+        store_description: copy_permission(&value.store_description, b)?,
+        task_ports: if b.task_borrowed_results {
+            copy_permission_rows(&value.task_ports, b)?
+        } else {
+            BTreeMap::new()
+        },
+        slots: copy_permission_rows(&value.slots, b)?,
+        held: copy_permission(&value.held, b)?,
+        environment: copy_permission_rows(&value.environment, b)?,
+        creation_complete: value.creation_complete,
+    })
+}
+#[cfg(test)]
+fn snapshot_by_union(value: &Value, b: &mut Budget) -> CompileResult<Value> {
     let mut result = Value::default();
     merge(&mut result, value, b)?;
     Ok(result)
@@ -1231,6 +1281,108 @@ pub(super) fn inventory(
 }
 
 fn binding(
+    f: &TypedFunction,
+    base: StorageBase,
+    path: &[PlaceProjection],
+    b: &mut Budget,
+) -> CompileResult<StorageBinder> {
+    let c = f
+        .storage_life
+        .as_ref()
+        .ok_or_else(|| failure("stored signature lacks complete relation"))?;
+    if path.is_empty() {
+        fee(b, c.bindings.len())?;
+        return super::signature_life::outer(c, base)
+            .ok_or_else(|| failure("signature omits actual outer borrow"));
+    }
+    let ty = match base {
+        StorageBase::Parameter(i) => f
+            .parameters
+            .get(i as usize)
+            .and_then(|l| f.locals.get(l.0 as usize))
+            .map(|l| &l.ty),
+        StorageBase::Result => Some(&f.return_type),
+        StorageBase::Capture(_) => None,
+    }
+    .ok_or_else(|| failure("stored relation base is absent"))?;
+    let array = if let Type::Address { inner, .. } = ty {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    if shared_array_shape(array, b)? {
+        let Type::Array { length, .. } = array else {
+            unreachable!()
+        };
+        if !matches!(path, [PlaceProjection::Field(index)] if *index < *length) {
+            return Err(failure("array relation has no actual bounded element"));
+        }
+        fee(b, c.bindings.len().saturating_mul(2))?;
+        return c.bindings.iter().find(|row| row.position.base == base
+            && matches!(row.position.path.as_slice(), [ContractProjection::Place(step)] if *step == path[0]))
+            .map(|row| row.binder).ok_or_else(|| failure("array element lacks its actual signature binding"));
+    }
+    let mut boundary = ty;
+    let mut leaf_path = path;
+    let mut class_path = Vec::new();
+    if b.stored_enum_addresses {
+        while let Type::ErrorUnion { error, result } = boundary {
+            fee(b, 1)?;
+            let Some(PlaceProjection::ErrorArm(arm)) = leaf_path.first() else {
+                return Err(failure(
+                    "stored sum relation omits its actual ErrorArm boundary",
+                ));
+            };
+            class_path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(*arm)));
+            boundary = if *arm {
+                error.as_ref()
+            } else {
+                result.as_ref()
+            };
+            leaf_path = &leaf_path[1..];
+        }
+    }
+    let ((_, shape), pointee) = if let Some(q) = carrier(boundary) {
+        (q, false)
+    } else {
+        (
+            pointed_carrier(boundary)
+                .ok_or_else(|| failure("physical leaf has no actual qualified boundary"))?,
+            true,
+        )
+    };
+    let (local, duplicate) = b
+        .physical_slot(shape, leaf_path)?
+        .ok_or_else(|| failure("relation selected an absent physical stored leaf"))?;
+    if duplicate {
+        return Err(failure("duplicate actual stored leaf"));
+    }
+    if pointee && !class_path.is_empty() {
+        class_path.insert(0, LifeTypeProjection::Pointee);
+    }
+    fee(b, c.classes.len())?;
+    for row in &c.classes {
+        fee(b, row.position.path.len().saturating_add(1))?;
+        if row.position.base == base
+            && row.position.class == local
+            && if class_path.is_empty() {
+                if pointee {
+                    row.position.path.as_slice() == [LifeTypeProjection::Pointee]
+                } else {
+                    row.position.path.is_empty()
+                }
+            } else {
+                row.position.path == class_path
+            }
+        {
+            return Ok(row.binder);
+        }
+    }
+    Err(failure("signature omits actual qualified local class"))
+}
+
+#[cfg(test)]
+fn binding_by_scan(
     f: &TypedFunction,
     base: StorageBase,
     path: &[PlaceProjection],
@@ -3769,7 +3921,94 @@ fn loan_value_ids(values: &[Value], b: &mut Budget) -> CompileResult<Vec<usize>>
     }
     Ok(ids)
 }
+// The active result is only a set of loan ancestors. Real permission and
+// arena targets remain in their original ledgers for access/separation checks;
+// copying them into this temporary accumulator never contributed to its result.
+fn active_loans_union(to: &mut Loans, from: &Permission, b: &mut Budget) -> CompileResult<()> {
+    for loan in &from.loans {
+        ordered(b, to.len(), 0)?;
+        to.insert(*loan);
+    }
+    Ok(())
+}
 fn active(
+    values: &[Value],
+    state: &State,
+    live: &LiveRow,
+    defining: Option<ValueId>,
+    loan_values: Option<&[usize]>,
+    loans: &[Loan],
+    b: &mut Budget,
+) -> CompileResult<Loans> {
+    let mut direct = Loans::new();
+    fee(
+        b,
+        loan_values.map_or(live.len(), |ids| {
+            ids.len().saturating_add(live.len() - values.len())
+        }),
+    )?;
+    let mut collect = |i: usize| -> CompileResult<()> {
+        if !live.at(i)? || defining.is_some_and(|value| value.0 as usize == i) {
+            return Ok(());
+        }
+        let value = if i < values.len() {
+            Some(&values[i])
+        } else {
+            ordered(b, state.locals.len(), 0)?;
+            state.locals.get(&LocalId((i - values.len()) as u32))
+        };
+        if let Some(value) = value {
+            active_loans_union(&mut direct, &value.pointer, b)?;
+            active_loans_union(&mut direct, &value.held, b)?;
+            if b.task_borrowed_results {
+                for permission in value.task_ports.values() {
+                    active_loans_union(&mut direct, permission, b)?;
+                }
+            }
+            for leaf in value.slots.values() {
+                active_loans_union(&mut direct, leaf, b)?;
+            }
+        }
+        Ok(())
+    };
+    if let Some(ids) = loan_values {
+        for &id in ids {
+            collect(id)?;
+        }
+        for id in values.len()..live.len() {
+            collect(id)?;
+        }
+    } else {
+        for id in 0..live.len() {
+            collect(id)?;
+        }
+    }
+    if b.task_borrowed_results {
+        // Retained ports are frame obligations, even when this particular
+        // borrowed head has no further SSA use in the callee.
+        for value in state.locals.values() {
+            for permission in value.task_ports.values() {
+                active_loans_union(&mut direct, permission, b)?;
+            }
+        }
+    }
+    for value in state.captures.values() {
+        active_loans_union(&mut direct, &value.pointer, b)?;
+        for leaf in value.slots.values() {
+            active_loans_union(&mut direct, leaf, b)?;
+        }
+    }
+    if b.stored_slot_updates {
+        for slots in state.external.values() {
+            for leaf in slots.values() {
+                active_loans_union(&mut direct, leaf, b)?;
+            }
+        }
+    }
+    ancestry(&direct, loans, b)
+}
+#[cfg(test)]
+fn active_by_permission(
     values: &[Value],
     state: &State,
     live: &LiveRow,
@@ -6474,10 +6713,10 @@ mod tests {
             }
         }
         assert_eq!(
-            // Actual bounded-word copies/joins replace the dense Boolean
-            // rows; all target/loan and retained-boundary work remains paid.
+            // Pay the current bounded-word rows, linear fact snapshots and
+            // actual active-loan projection; all permission checks remain.
             low,
-            12_870,
+            12_566,
             "bounded actual identity/ownership work changed"
         );
         // The previous dense-row boundary now succeeds through less work.

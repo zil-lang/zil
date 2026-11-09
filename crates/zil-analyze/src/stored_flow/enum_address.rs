@@ -1153,3 +1153,30 @@ pub(super) fn poll_instance(instance: &LifeNominalInstance, b: &mut Budget) -> C
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[test]
+fn snapshot_keeps_original_join_normalization_of_nonpresent_enum_rows() {
+    let child = Variants {
+        domain: 0,
+        constructed: BTreeSet::from([1]),
+        ..Variants::default()
+    };
+    for domain in [0, 2] {
+        let value = Value {
+            enum_variants: Variants {
+                domain,
+                constructed: BTreeSet::from([1]),
+                nested: BTreeMap::from([(vec![PlaceProjection::ErrorArm(false)], child.clone())]),
+                ..Variants::default()
+            },
+            ..Value::default()
+        };
+        let mut old = Budget::new(&Limits::default());
+        let mut new = Budget::new(&Limits::default());
+        assert_eq!(
+            super::snapshot(&value, &mut new).unwrap(),
+            super::snapshot_by_union(&value, &mut old).unwrap()
+        );
+    }
+}

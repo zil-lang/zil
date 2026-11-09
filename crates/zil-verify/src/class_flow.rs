@@ -752,6 +752,66 @@ fn call_with_outer(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
+fn address_field(
+    f: &TypedFunction,
+    address: ValueId,
+    index: u32,
+    parent: &Ports,
+    out: &Ports,
+    e: &mut Equations,
+    outer: Option<&array_outer::Flow>,
+    b: &mut Budget,
+) -> Check<()> {
+    if !out.array_elements.is_empty() {
+        let shape = shape(&f.values[address.0 as usize])
+            .ok_or_else(|| bad("array field projection has no actual qualified parent"))?;
+        b.spend(out.array_elements.len().saturating_add(1))?;
+        let mut first_rows = vec![None; out.array_elements.len()];
+        for (position, row) in shape.slots.iter().enumerate() {
+            b.spend(1)?; // row and complete path arity
+            if row.path.len() == 2 {
+                b.spend(3)?; // both scalar Projections and current-field comparison
+                if let [
+                    PlaceProjection::Field(field),
+                    PlaceProjection::Field(element),
+                ] = row.path.as_slice()
+                    && *field == index
+                {
+                    b.spend(1)?; // bounded ordinal lookup
+                    if let Some(first) = first_rows.get_mut(*element as usize) {
+                        b.spend(1)?;
+                        if first.is_none() {
+                            b.spend(1)?;
+                            *first = Some(position);
+                        }
+                    }
+                }
+            }
+        }
+        for (ordinal, upper) in out.array_elements.iter().enumerate() {
+            b.spend(2)?; // table cell and original physical row
+            let position = first_rows[ordinal]
+                .ok_or_else(|| bad("array field lacks its actual physical class row"))?;
+            let row = &shape.slots[position];
+            array_outer::transport(e, *upper, parent.classes[row.binder as usize], outer, b)?;
+        }
+    }
+
+    if let (Some(a), Some(z)) = (out.outer, parent.outer) {
+        array_outer::transport(e, a, z, outer, b)?;
+    }
+    link_projection(
+        &f.values[address.0 as usize],
+        parent,
+        out,
+        LifeTypeProjection::Place(PlaceProjection::Field(index)),
+        e,
+        b,
+    )?;
+    Ok(())
+}
+
 pub(super) fn check(
     module: &TypedModule,
     f: &TypedFunction,
@@ -1138,45 +1198,14 @@ fn check_with(
                     InstructionKind::AddressField { address, index } => {
                         if let Some(out) = out {
                             let parent = &values[address.0 as usize];
-                            if !out.array_elements.is_empty() {
-                                let shape =
-                                    shape(&f.values[address.0 as usize]).ok_or_else(|| {
-                                        bad("array field projection has no actual qualified parent")
-                                    })?;
-                                b.spend(out.array_elements.len().saturating_mul(
-                                    shape.slots.len().saturating_mul(3).saturating_add(1),
-                                ))?;
-                                for (ordinal, upper) in out.array_elements.iter().enumerate() {
-                                    let path = [
-                                        PlaceProjection::Field(*index),
-                                        PlaceProjection::Field(ordinal as u32),
-                                    ];
-                                    let row = shape
-                                        .slots
-                                        .iter()
-                                        .find(|row| row.path == path)
-                                        .ok_or_else(|| {
-                                            bad("array field lacks its actual physical class row")
-                                        })?;
-                                    array_outer::transport(
-                                        &mut e,
-                                        *upper,
-                                        parent.classes[row.binder as usize],
-                                        outer.as_ref(),
-                                        b,
-                                    )?;
-                                }
-                            }
-
-                            if let (Some(a), Some(z)) = (out.outer, parent.outer) {
-                                array_outer::transport(&mut e, a, z, outer.as_ref(), b)?;
-                            }
-                            link_projection(
-                                &f.values[address.0 as usize],
+                            address_field(
+                                f,
+                                *address,
+                                *index,
                                 parent,
                                 out,
-                                LifeTypeProjection::Place(PlaceProjection::Field(*index)),
                                 &mut e,
+                                outer.as_ref(),
                                 b,
                             )?;
                         }

@@ -501,3 +501,23 @@ pub(super) fn refine(
     }
     Ok(changed.then_some(proof))
 }
+
+#[cfg(test)]
+#[test]
+fn snapshot_keeps_original_join_normalization_of_option_input_rows() {
+    let value = Value {
+        option_variants: Variants {
+            constructed: 1,
+            inputs: vec![3, 1, 3],
+        },
+        ..Value::default()
+    };
+    let mut old = Budget::new(&Limits::default());
+    let mut new = Budget::new(&Limits::default());
+    let snapshot = super::snapshot(&value, &mut new).unwrap();
+    assert_eq!(
+        snapshot,
+        super::snapshot_by_union(&value, &mut old).unwrap()
+    );
+    assert_eq!(snapshot.option_variants.inputs, vec![1, 3]);
+}

@@ -9,7 +9,7 @@ pub(super) struct WordRow {
 }
 impl WordRow {
     fn count(width: usize) -> usize {
-        width / 64 + usize::from(width % 64 != 0)
+        width / 64 + usize::from(!width.is_multiple_of(64))
     }
     pub(super) fn work_for(width: usize) -> usize {
         Self::count(width) + 1
@@ -53,6 +53,23 @@ impl WordRow {
             *left |= *right;
         }
         Ok(())
+    }
+    pub(super) fn ones(&self) -> impl Iterator<Item = usize> + '_ {
+        self.words
+            .iter()
+            .enumerate()
+            .flat_map(|(word, &bits)| {
+                let mut pending = bits;
+                std::iter::from_fn(move || {
+                    if pending == 0 {
+                        return None;
+                    }
+                    let bit = pending.trailing_zeros() as usize;
+                    pending &= pending - 1;
+                    Some(word * 64 + bit)
+                })
+            })
+            .take_while(move |&id| id < self.width)
     }
     #[cfg(test)]
     pub(super) fn from_bools(flags: &[bool]) -> Self {
@@ -175,7 +192,7 @@ mod tests {
                     .is_err()
             );
             assert_eq!(row, before);
-            if width % 64 != 0 {
+            if !width.is_multiple_of(64) {
                 assert_eq!(row.words.last().unwrap() >> (width % 64), 0);
             }
             for index in 0..width {

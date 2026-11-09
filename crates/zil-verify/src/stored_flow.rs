@@ -3,11 +3,18 @@
 use super::*;
 #[cfg(test)]
 mod active_index_tests;
+#[cfg(test)]
+mod ancestry_tests;
 mod array_index;
 mod array_snapshot;
 mod byte_queries;
 mod leaf_rows;
+mod live_loan_ids;
 mod live_words;
+#[cfg(test)]
+mod loan_union_tests;
+#[cfg(test)]
+mod result_row_tests;
 use live_words::WordRow;
 pub(super) mod owned_byte_views;
 #[path = "stored_flow_pure_copy.rs"]
@@ -502,7 +509,85 @@ fn add_sources(to: &mut Vec<Source>, from: &[Source], b: &mut Budget) -> Check<b
     to.sort();
     Ok(changed)
 }
+fn sort_loan_ids(to: &mut [usize], b: &mut Budget) -> Check<()> {
+    // Most callers already produced canonical rows. Check the actual row,
+    // rather than assuming an invariant for every internal construction path.
+    let mut ordered = true;
+    for pair in to.windows(2) {
+        b.spend(1)?;
+        if pair[0] > pair[1] {
+            ordered = false;
+            break;
+        }
+    }
+    if ordered {
+        return Ok(());
+    }
+    b.spend(to.len().saturating_add(1))?;
+    let mut scratch = vec![0; to.len()];
+    let mut run = 1usize;
+    while run < to.len() {
+        let mut start = 0usize;
+        while start < to.len() {
+            let mid = start.saturating_add(run).min(to.len());
+            let end = mid.saturating_add(run).min(to.len());
+            let (mut left, mut right, mut out) = (start, mid, start);
+            while left < mid && right < end {
+                b.spend(2)?; // one actual integer comparison and output cell
+                if to[left] <= to[right] {
+                    scratch[out] = to[left];
+                    left += 1;
+                } else {
+                    scratch[out] = to[right];
+                    right += 1;
+                }
+                out += 1;
+            }
+            b.spend((mid - left).saturating_add(end - right))?;
+            scratch[out..out + mid - left].copy_from_slice(&to[left..mid]);
+            out += mid - left;
+            scratch[out..out + end - right].copy_from_slice(&to[right..end]);
+            start = end;
+        }
+        b.spend(to.len())?;
+        to.copy_from_slice(&scratch);
+        run = run.saturating_mul(2);
+    }
+    Ok(())
+}
 fn add_loans(to: &mut Vec<usize>, from: &[usize], b: &mut Budget) -> Check<bool> {
+    b.spend(1)?;
+    sort_loan_ids(to, b)?;
+    let mut changed = false;
+    for id in from {
+        let (mut low, mut high) = (0usize, to.len());
+        let mut found = false;
+        while low < high {
+            b.spend(1)?;
+            let mid = low + (high - low) / 2;
+            match to[mid].cmp(id) {
+                std::cmp::Ordering::Less => low = mid + 1,
+                std::cmp::Ordering::Greater => high = mid,
+                std::cmp::Ordering::Equal => {
+                    found = true;
+                    break;
+                }
+            }
+        }
+        if !found {
+            b.spend(to.len().saturating_sub(low).saturating_add(1))?;
+            if to.len() == to.capacity() {
+                b.spend(to.len().saturating_add(1))?;
+            }
+            to.insert(low, *id);
+            changed = true;
+        }
+    }
+    Ok(changed)
+}
+
+#[cfg(test)]
+fn add_loans_by_scan(to: &mut Vec<usize>, from: &[usize], b: &mut Budget) -> Check<bool> {
     let mut changed = false;
     b.spend(amount(
         to.len().saturating_add(from.len()).saturating_add(1),
@@ -1830,6 +1915,47 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
 }
 
 fn ancestry(ids: &[usize], loans: &[Loan], b: &mut Budget) -> Check<Vec<usize>> {
+    // Empty roots have an empty closure without inspecting the arena.
+    b.spend(1)?;
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    b.spend(ids.len().saturating_add(1))?;
+    let mut todo = ids.to_vec();
+    b.spend(WordRow::work_for(loans.len()))?;
+    let mut visited = WordRow::empty(loans.len());
+    let mut count = 0usize;
+    while let Some(id) = todo.pop() {
+        b.spend(1)?;
+        // Preserve the original diagnostic before any bounded bit access.
+        let row = loans
+            .get(id)
+            .ok_or_else(|| err("loan parent outside actual arena"))?;
+        b.spend(1)?;
+        if visited.is_live(id)? {
+            continue;
+        }
+        b.spend(1)?;
+        visited.assign(id, true)?;
+        count += 1;
+        b.spend(row.parents.len())?;
+        if todo.capacity().saturating_sub(todo.len()) < row.parents.len() {
+            b.spend(todo.len().saturating_add(1))?;
+        }
+        // Same LIFO traversal and parent discovery order as the original DFS.
+        todo.extend(&row.parents);
+    }
+    // Scan actual words, clear each enumerated bit and store every result ID.
+    // Enumeration is already ascending; no comparison sort is performed.
+    b.spend(visited.work())?;
+    b.spend(amount(count, 2)?.saturating_add(1))?;
+    let mut result = Vec::with_capacity(count);
+    result.extend(visited.ones());
+    Ok(result)
+}
+
+#[cfg(test)]
+fn ancestry_by_linear_set(ids: &[usize], loans: &[Loan], b: &mut Budget) -> Check<Vec<usize>> {
     b.spend(ids.len())?;
     let mut todo = ids.to_vec();
     let mut result = Vec::new();
@@ -3783,7 +3909,7 @@ fn live_loans(
     b.spend(indexed.map_or(live.len(), |ids| {
         ids.len().saturating_add(live.len() - solution.values.len())
     }))?;
-    let mut loans = Vec::new();
+    let mut loans = live_loan_ids::SortedLoanIds::default();
     let mut collect = |id: usize| -> Check<()> {
         if !live.is_live(id)? || definition.is_some_and(|value| value.0 as usize == id) {
             return Ok(());
@@ -3793,14 +3919,14 @@ fn live_loans(
         } else {
             &state.locals[id - solution.values.len()]
         };
-        add_loans(&mut loans, &payload.address.loans, b)?;
+        loans.add(&payload.address.loans, b)?;
         if b.task_borrowed_results {
             for (_, p) in &payload.task_ports {
-                add_loans(&mut loans, &p.loans, b)?;
+                loans.add(&p.loans, b)?;
             }
         }
         for (_, p) in &payload.leaves {
-            add_loans(&mut loans, &p.loans, b)?;
+            loans.add(&p.loans, b)?;
         }
         Ok(())
     };
@@ -3821,7 +3947,7 @@ fn live_loans(
         // or is discharged; dead SSA uses of a head do not discharge a frame.
         for payload in &state.locals {
             for (_, permission) in &payload.task_ports {
-                add_loans(&mut loans, &permission.loans, b)?;
+                loans.add(&permission.loans, b)?;
             }
         }
     }
@@ -3830,11 +3956,11 @@ fn live_loans(
     if b.stored_slot_updates {
         for holder in &state.external {
             for (_, p) in &holder.leaves {
-                add_loans(&mut loans, &p.loans, b)?;
+                loans.add(&p.loans, b)?;
             }
         }
     }
-    ancestry(&loans, &solution.loans, b)
+    ancestry(loans.as_slice(), &solution.loans, b)
 }
 #[allow(clippy::too_many_arguments)]
 fn check_call(
@@ -4778,25 +4904,6 @@ fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
     }
     Ok(())
 }
-fn result_row(
-    summary: &mut Summary,
-    path: &[PlaceProjection],
-    sources: &[Source],
-    b: &mut Budget,
-) -> Check<()> {
-    b.spend(amount(
-        summary.result.len().saturating_add(1),
-        path.len().saturating_add(1),
-    )?)?;
-    if let Some((_, row)) = summary.result.iter_mut().find(|(p, _)| p == path) {
-        add_sources(row, sources, b)?;
-    } else {
-        b.spend(path.len())?;
-        source_work(sources, b)?;
-        summary.result.push((path.to_vec(), sources.to_vec()));
-    }
-    Ok(())
-}
 fn summarize(
     module: &TypedModule,
     f: &TypedFunction,
@@ -4808,6 +4915,56 @@ fn summarize(
     let mut summary = Summary {
         complete: true,
         ..Summary::default()
+    };
+    // This closure alone appends rows to this invocation's fresh Summary.
+    // Its private index records ordinals; it never reorders or certifies rows.
+    b.spend(1)?;
+    let mut result_index: Vec<(Path, usize)> = Vec::new();
+    let mut result_row = |summary: &mut Summary,
+                          path: &[PlaceProjection],
+                          sources: &[Source],
+                          b: &mut Budget|
+     -> Check<()> {
+        b.spend(1)?;
+        let (mut low, mut high) = (0usize, result_index.len());
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let existing = &result_index[mid].0;
+            b.spend(existing.len().saturating_add(path.len()).saturating_add(1))?;
+            match existing.as_slice().cmp(path) {
+                std::cmp::Ordering::Less => low = mid + 1,
+                std::cmp::Ordering::Greater => high = mid,
+                std::cmp::Ordering::Equal => {
+                    b.spend(1)?;
+                    return add_sources(&mut summary.result[result_index[mid].1].1, sources, b)
+                        .map(|_| ());
+                }
+            }
+        }
+        let index_growth = if result_index.len() == result_index.capacity() {
+            result_index.len()
+        } else {
+            0
+        };
+        let result_growth = if summary.result.len() == summary.result.capacity() {
+            summary.result.len()
+        } else {
+            0
+        };
+        // Both complete keys, both records, shifts and actual reallocations
+        // are paid before either table publishes the new row.
+        b.spend(
+            amount(path.len(), 2)?
+                .saturating_add(2)
+                .saturating_add(result_index.len() - low)
+                .saturating_add(index_growth)
+                .saturating_add(result_growth),
+        )?;
+        source_work(sources, b)?;
+        let ordinal = summary.result.len();
+        summary.result.push((path.to_vec(), sources.to_vec()));
+        result_index.insert(low, (path.to_vec(), ordinal));
+        Ok(())
     };
     for (bi, block) in f.blocks.iter().enumerate() {
         if g.reachable[bi] && matches!(block.terminator, Terminator::Return(_)) {

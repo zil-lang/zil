@@ -1141,24 +1141,24 @@ fn check_with(
                                 bad("array field projection has no actual qualified parent")
                             })?;
                             b.spend(
-                                out.array_elements.len().saturating_mul(
-                                    shape.slots.len().saturating_mul(3).saturating_add(1),
-                                ),
-                                "array field physical upper lookup",
+                                out.array_elements.len(),
+                                "array field physical upper inventory",
                             )?;
                             for (ordinal, upper) in out.array_elements.iter().enumerate() {
                                 let path = [
                                     PlaceProjection::Field(*index),
                                     PlaceProjection::Field(ordinal as u32),
                                 ];
-                                let row =
-                                    shape.slots.iter().find(|row| row.path == path).ok_or_else(
-                                        || bad("array field lacks its actual physical class row"),
-                                    )?;
+                                // Preserve the original first-row policy; independent
+                                // physical inventory still authenticates the shape.
+                                let (binder, _) =
+                                    b.physical_slot(shape, &path)?.ok_or_else(|| {
+                                        bad("array field lacks its actual physical class row")
+                                    })?;
                                 array_outer::transport(
                                     &mut e,
                                     *upper,
-                                    parent.classes[row.binder as usize],
+                                    parent.classes[binder as usize],
                                     outer.as_ref(),
                                     b,
                                 )?;
