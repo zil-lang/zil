@@ -386,14 +386,14 @@ fn ordinary_package_fields_have_exact_fresh_analysis_and_verification_work() {
                 .all(|d| d.category == ResultCategory::ResourceLimit)
         );
         run(high).unwrap();
-        // This control predates ordinary error-place scheduling; its actual
-        // independent work must remain unchanged.
+        // The original control/source is unchanged. Analyze retains its
+        // legacy work; Verify now copies and joins actual liveness words.
         assert_eq!(
             high,
             if phase == Phase::Analyze {
                 417206
             } else {
-                645564
+                557354
             }
         );
         eprintln!("ordinary Package Copy observation {phase:?} N={high}; N-1/fresh agree");
@@ -920,6 +920,14 @@ fn complete_owned_byte_pipeline_has_exact_fresh_independent_kernel_work() {
                 }
             }
         }
+        assert_eq!(
+            high,
+            if phase == Phase::Analyze {
+                7_122_869
+            } else {
+                7_814_112
+            }
+        );
         eprintln!("complete four-module owned byte pipeline {phase:?} N={high}; N-1/fresh agree");
     }
 }
@@ -1239,7 +1247,7 @@ fn ordinary_error_places_have_exact_fresh_independent_resource_work() {
             if phase == Phase::Analyze {
                 570159
             } else {
-                648698
+                544043
             }
         );
         eprintln!("ordinary Error/Option resource {phase:?} N={high}; N-1/fresh agree");
