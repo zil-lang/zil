@@ -10,6 +10,8 @@ mod array_snapshot;
 mod byte_queries;
 mod leaf_rows;
 mod live_words;
+#[cfg(test)]
+mod loan_union_tests;
 use live_words::WordRow;
 pub(super) mod owned_byte_views;
 #[path = "stored_flow_pure_copy.rs"]
@@ -504,7 +506,85 @@ fn add_sources(to: &mut Vec<Source>, from: &[Source], b: &mut Budget) -> Check<b
     to.sort();
     Ok(changed)
 }
+fn sort_loan_ids(to: &mut [usize], b: &mut Budget) -> Check<()> {
+    // Most callers already produced canonical rows. Check the actual row,
+    // rather than assuming an invariant for every internal construction path.
+    let mut ordered = true;
+    for pair in to.windows(2) {
+        b.spend(1)?;
+        if pair[0] > pair[1] {
+            ordered = false;
+            break;
+        }
+    }
+    if ordered {
+        return Ok(());
+    }
+    b.spend(to.len().saturating_add(1))?;
+    let mut scratch = vec![0; to.len()];
+    let mut run = 1usize;
+    while run < to.len() {
+        let mut start = 0usize;
+        while start < to.len() {
+            let mid = start.saturating_add(run).min(to.len());
+            let end = mid.saturating_add(run).min(to.len());
+            let (mut left, mut right, mut out) = (start, mid, start);
+            while left < mid && right < end {
+                b.spend(2)?; // one actual integer comparison and output cell
+                if to[left] <= to[right] {
+                    scratch[out] = to[left];
+                    left += 1;
+                } else {
+                    scratch[out] = to[right];
+                    right += 1;
+                }
+                out += 1;
+            }
+            b.spend((mid - left).saturating_add(end - right))?;
+            scratch[out..out + mid - left].copy_from_slice(&to[left..mid]);
+            out += mid - left;
+            scratch[out..out + end - right].copy_from_slice(&to[right..end]);
+            start = end;
+        }
+        b.spend(to.len())?;
+        to.copy_from_slice(&scratch);
+        run = run.saturating_mul(2);
+    }
+    Ok(())
+}
 fn add_loans(to: &mut Vec<usize>, from: &[usize], b: &mut Budget) -> Check<bool> {
+    b.spend(1)?;
+    sort_loan_ids(to, b)?;
+    let mut changed = false;
+    for id in from {
+        let (mut low, mut high) = (0usize, to.len());
+        let mut found = false;
+        while low < high {
+            b.spend(1)?;
+            let mid = low + (high - low) / 2;
+            match to[mid].cmp(id) {
+                std::cmp::Ordering::Less => low = mid + 1,
+                std::cmp::Ordering::Greater => high = mid,
+                std::cmp::Ordering::Equal => {
+                    found = true;
+                    break;
+                }
+            }
+        }
+        if !found {
+            b.spend(to.len().saturating_sub(low).saturating_add(1))?;
+            if to.len() == to.capacity() {
+                b.spend(to.len().saturating_add(1))?;
+            }
+            to.insert(low, *id);
+            changed = true;
+        }
+    }
+    Ok(changed)
+}
+
+#[cfg(test)]
+fn add_loans_by_scan(to: &mut Vec<usize>, from: &[usize], b: &mut Budget) -> Check<bool> {
     let mut changed = false;
     b.spend(amount(
         to.len().saturating_add(from.len()).saturating_add(1),
