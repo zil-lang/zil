@@ -10,6 +10,7 @@ mod live_words;
 mod relation_index;
 #[cfg(test)]
 mod result_row_tests;
+mod ssa_loan_groups;
 use live_words::WordRow;
 #[cfg(test)]
 mod ancestry_tests;
@@ -4175,6 +4176,7 @@ fn windows(
         b,
     )?;
     let output_live = live_out(module, f, g, b)?;
+    let ssa_groups = ssa_loan_groups::Sources::collect(&solution.values, b)?;
     for (bi, block) in f.blocks.iter().enumerate() {
         b.spend(1)?;
         if !g.reachable[bi] {
@@ -4201,7 +4203,20 @@ fn windows(
             if let Some(id) = i.result {
                 live.assign(id.0 as usize, false)?;
             }
-            let mut active = live_loans(solution, &state, &live, None, None, b)?;
+            b.spend(1)?;
+            let selected = ssa_groups
+                .as_ref()
+                .map(|groups| groups.select(&live, None, b))
+                .transpose()?
+                .flatten();
+            let mut active = live_loans(
+                solution,
+                &state,
+                &live,
+                None,
+                selected.as_ref().map(|ids| ids.as_slice()),
+                b,
+            )?;
             let pointer = |v: ValueId| -> Check<&Permission> {
                 solution
                     .values

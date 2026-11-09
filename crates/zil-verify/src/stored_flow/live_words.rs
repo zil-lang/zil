@@ -71,6 +71,32 @@ impl WordRow {
             })
             .take_while(move |&id| id < self.width)
     }
+    pub(super) fn first_common(
+        &self,
+        live: &Self,
+        excluded: Option<ValueId>,
+        b: &mut Budget,
+    ) -> Check<Option<usize>> {
+        b.spend(1)?;
+        let excluded = excluded.map(|id| {
+            let id = id.0 as usize;
+            (id / 64, !(1u64 << (id % 64)))
+        });
+        for (word, (support, current)) in self.words.iter().zip(&live.words).enumerate() {
+            b.spend(2)?;
+            let mut common = *support & *current;
+            if let Some((at, mask)) = excluded
+                && word == at
+            {
+                common &= mask;
+            }
+            if common != 0 {
+                b.spend(1)?;
+                return Ok(Some(word * 64 + common.trailing_zeros() as usize));
+            }
+        }
+        Ok(None)
+    }
     #[cfg(test)]
     pub(super) fn from_bools(flags: &[bool]) -> Self {
         let mut row = Self::empty(flags.len());

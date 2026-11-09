@@ -229,3 +229,103 @@ fn permission_rows_and_empty_outer_visits_are_paid_in_indexed_and_full_lanes() {
         }
     }
 }
+
+#[test]
+fn actual_representatives_match_the_complete_independent_main_collector() {
+    let limit = Limits::default().max_analysis_steps;
+    for tasks in [false, true] {
+        for external in [false, true] {
+            for malformed in 0..3 {
+                let mut values = vec![Payload::default(); 256];
+                for value in &mut values {
+                    value.address = permission(&[2, 1, 2]);
+                }
+                let mut b = budget(tasks, external, limit);
+                values[126]
+                    .leaves
+                    .push((vec![], permission(&[3])), &mut b)
+                    .unwrap();
+                values[127].task_ports.push((vec![], permission(&[4])));
+                if malformed == 1 {
+                    values[0].address.loans = vec![usize::MAX];
+                }
+                let mut frame = Frame {
+                    locals: vec![Payload::default(); 2],
+                    external: vec![Payload::default(); 2],
+                    ..Frame::default()
+                };
+                frame.locals[0].task_ports.push((vec![], permission(&[5])));
+                frame.external[0]
+                    .leaves
+                    .push((vec![], permission(&[6])), &mut b)
+                    .unwrap();
+                let mut loans = vec![Loan::default(); 7];
+                loans[1].parents = if malformed == 2 {
+                    vec![usize::MAX]
+                } else {
+                    vec![2]
+                };
+                loans[2].parents = vec![1];
+                let solution = solution(values, loans);
+                let before = (
+                    solution.values.clone(),
+                    frame.clone(),
+                    solution.loans.clone(),
+                );
+                let groups = ssa_loan_groups::Sources::collect(&solution.values, &mut b).unwrap();
+                assert!(
+                    groups.is_some(),
+                    "real repeated complete sequences select the bounded index"
+                );
+                for definition in [None, Some(ValueId(0)), Some(ValueId(127))] {
+                    for sparse in [false, true] {
+                        let mut flags = vec![!sparse; 258];
+                        flags[0] = true;
+                        flags[1] = true;
+                        flags[256] = false;
+                        flags[257] = false;
+                        let live = WordRow::from_bools(&flags);
+                        let mut original_flags = flags.clone();
+                        if let Some(id) = definition {
+                            original_flags[id.0 as usize] = false;
+                        }
+                        let expected = live_loans_main_fullscan(
+                            &solution,
+                            &frame,
+                            &original_flags,
+                            &mut budget(tasks, external, limit),
+                        );
+                        let selected = groups
+                            .as_ref()
+                            .unwrap()
+                            .select(&live, definition, &mut b)
+                            .unwrap()
+                            .unwrap();
+                        let actual = live_loans(
+                            &solution,
+                            &frame,
+                            &live,
+                            definition,
+                            Some(selected.as_slice()),
+                            &mut budget(tasks, external, limit),
+                        );
+                        assert_eq!(
+                            actual, expected,
+                            "tasks={tasks} external={external} malformed={malformed} definition={definition:?} sparse={sparse}"
+                        );
+                        if malformed == 0 && definition == Some(ValueId(0)) {
+                            assert!(
+                                actual.unwrap().contains(&2),
+                                "the other SSA still retains the excluded producer's contribution"
+                            );
+                        }
+                    }
+                }
+                assert_eq!(
+                    (&solution.values, &frame, &solution.loans),
+                    (&before.0, &before.1, &before.2)
+                );
+            }
+        }
+    }
+}
