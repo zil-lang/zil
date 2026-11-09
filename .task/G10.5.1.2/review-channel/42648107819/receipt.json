@@ -1,0 +1,18 @@
+{
+  "head": "906940ea78dcd5298c9168c4d17197b5983bf954",
+  "pr": 65,
+  "request": {
+    "exit": 0,
+    "stdout": "{\"data\":{\"requestReviewsByLogin\":{\"pullRequest\":{\"number\":65}}}}",
+    "stderr": ""
+  },
+  "new_started_events": [],
+  "reviews": [],
+  "requested_reviewers": {
+    "users": [],
+    "teams": []
+  },
+  "updated_at": "2026-11-09T15:48:02.667313+00:00",
+  "scope": "Only request/observe external review; never approve or merge",
+  "main_modified": false
+}
