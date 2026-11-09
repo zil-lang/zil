@@ -7,6 +7,8 @@ use zil_ir::{Instruction, InstructionKind, ValueId};
 
 #[path = "collected_pipeline/consumers.rs"]
 mod collected_pipeline;
+#[path = "owned_byte_views/consumers.rs"]
+mod owned_byte_views;
 #[path = "owned_results/consumers.rs"]
 mod owned_results;
 
