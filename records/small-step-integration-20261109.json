@@ -1,0 +1,220 @@
+{
+  "schema_version": 1,
+  "recorded_utc": "2026-11-09 13:05 UTC",
+  "status": "Ten scoped batches merged; their completed remote and local branch refs retired. Array and Map work remains active.",
+  "accepted_main": "82a69812582856b012468db3d019930d8e390f64",
+  "accepted_tree": "fab0e0363c2a46050f14740a5ad8ce5287db8df7",
+  "archive": "8493b709158052265e9f5085c2b0c01eea223b25",
+  "remote_retirements": [
+    {
+      "pr": 55,
+      "branch": "task/G8.5.2",
+      "scope": "Internal worker helper Unit/Bool results",
+      "status": "Merged, history archived, UI deletion observed and API ref returned 404"
+    },
+    {
+      "pr": 56,
+      "branch": "task/G2.4.11",
+      "scope": "Ordinary owning Package trait results",
+      "status": "Merged, history archived, UI deletion observed and API ref returned 404"
+    },
+    {
+      "pr": 57,
+      "branch": "task/G2.4.12",
+      "scope": "Ordinary generic lending composition",
+      "status": "Merged, history archived, UI deletion observed and API ref returned 404"
+    },
+    {
+      "pr": 58,
+      "branch": "task/G3.5.1",
+      "scope": "Borrowed-input owned-result callbacks",
+      "status": "Merged, history archived, UI deletion observed and API ref returned 404"
+    },
+    {
+      "pr": 59,
+      "branch": "task/normative-index-sync",
+      "scope": "Normative input hashes",
+      "status": "Merged, history archived, UI deletion observed and API ref returned 404"
+    },
+    {
+      "pr": 60,
+      "branch": "task/G10.3.2",
+      "scope": "Ordinary 512 shared-address array analysis",
+      "status": "Merged, history archived, UI deletion observed and API ref returned 404"
+    },
+    {
+      "pr": 61,
+      "branch": "task/G3.4.17",
+      "scope": "Dynamic shared-array selection",
+      "status": "Merged, history archived, UI deletion observed and API ref returned 404"
+    },
+    {
+      "pr": 62,
+      "branch": "task/G10.3.3",
+      "scope": "Large ordinary owning Package snapshot/internal ABI",
+      "status": "Merged, history archived, UI deletion observed and API ref returned 404"
+    },
+    {
+      "pr": 63,
+      "branch": "task/ordinary-closure-abi",
+      "scope": "Concrete Closure large owning argument/result ABI",
+      "status": "Merged, history archived, UI deletion observed and API ref returned 404"
+    },
+    {
+      "pr": 64,
+      "branch": "task/stored-owned-composition",
+      "scope": "Original stored-owner observation consumers",
+      "status": "Merged, history archived, UI deletion observed and API ref returned 404"
+    }
+  ],
+  "local_ref_retirements": [
+    {
+      "worktree": "/workspace/scratch/36bf9939e558/wt-worker-helper-returns",
+      "branch": "task/worker-helper-returns",
+      "upstream": "refs/remotes/origin/main",
+      "local_head": "93254773f4d3c3849d38a914a1c613021b308e2d",
+      "tree": "60308d10c0a91eac9a86fcf6b32b0eb121bdc9ef",
+      "accepted_main_commit": "795216a6b3c51e8c7c8a0fb91f37743fbee9666e",
+      "status_before": "",
+      "known_original_test_outputs": [],
+      "result": "Completed local ref removed; exact original local execution snapshot and every file retained in detached worktree"
+    },
+    {
+      "worktree": "/workspace/scratch/36bf9939e558/wt-owning-trait-results",
+      "branch": "task/owning-trait-results",
+      "upstream": "refs/remotes/origin/main",
+      "local_head": "d0de11ee10b9f97fbe7ba92d1a0897001e7ef659",
+      "tree": "52d013cc8464ee6673edff9b1f3e18317b776c42",
+      "accepted_main_commit": "fcf679e97a32f2f0f4d08c6ad954012cb7538ac9",
+      "status_before": "",
+      "known_original_test_outputs": [],
+      "result": "Completed local ref removed; exact original local execution snapshot and every file retained in detached worktree"
+    },
+    {
+      "worktree": "/workspace/scratch/36bf9939e558/wt-generic-lending-composition",
+      "branch": "task/generic-lending-composition",
+      "upstream": "refs/remotes/origin/main",
+      "local_head": "4a7676c2d7a76d6022678aaba4c538fc813822be",
+      "tree": "98438c1e57c297e71c72ee10ef54f2178abf81bf",
+      "accepted_main_commit": "ce5903d20a7b63d48a531c831db6c3d79109d901",
+      "status_before": "",
+      "known_original_test_outputs": [],
+      "result": "Completed local ref removed; exact original local execution snapshot and every file retained in detached worktree"
+    },
+    {
+      "worktree": "/workspace/scratch/36bf9939e558/wt-borrowed-owned-callbacks",
+      "branch": "task/borrowed-owned-callbacks",
+      "upstream": "refs/remotes/origin/main",
+      "local_head": "0644d0a421f95f609c32f695838cf81a7cd75cb0",
+      "tree": "0731765a89d9b348234f4f565b639d7a660f0bf8",
+      "accepted_main_commit": "e308286433d2230182bafddbcb90fadf945c5664",
+      "status_before": "",
+      "known_original_test_outputs": [],
+      "result": "Completed local ref removed; exact original local execution snapshot and every file retained in detached worktree"
+    },
+    {
+      "worktree": "/workspace/scratch/36bf9939e558/wt-normative-index-sync",
+      "branch": "task/normative-index-sync",
+      "upstream": "",
+      "local_head": "9355f9af96b0880caf1ced136b543476f64bef01",
+      "tree": "5a2f039f8e331c1db8094a304c1aa3c1c8a319ca",
+      "accepted_main_commit": "bbcfef9a1117985b22ca93f301c09db9b48f6296",
+      "status_before": "",
+      "known_original_test_outputs": [],
+      "result": "Completed local ref removed; exact original local execution snapshot and every file retained in detached worktree"
+    },
+    {
+      "worktree": "/workspace/scratch/36bf9939e558/wt-ordinary-array-scale",
+      "branch": "task/ordinary-array-scale",
+      "upstream": "",
+      "local_head": "187c25d01ebe88804f72a1ae74e103601f2be694",
+      "tree": "ade68aa9d2fb48cb3b14723379b26a10a2e0d592",
+      "accepted_main_commit": "327eccfaf3169d1404534ddc16359310a21a40ad",
+      "status_before": "",
+      "known_original_test_outputs": [],
+      "result": "Completed local ref removed; exact original local execution snapshot and every file retained in detached worktree"
+    },
+    {
+      "worktree": "/workspace/scratch/36bf9939e558/wt-shared-array-dynamic",
+      "branch": "task/shared-array-dynamic",
+      "upstream": "",
+      "local_head": "5f84350ffe16102d29c6a0d64fc46742eab2f18b",
+      "tree": "742bbce0f1a1663a164bd79e3795feefb8c35ea0",
+      "accepted_main_commit": "e3ce439c28348ea6599f1fb70b4fc08c3ef86ec3",
+      "status_before": "",
+      "known_original_test_outputs": [],
+      "result": "Completed local ref removed; exact original local execution snapshot and every file retained in detached worktree"
+    },
+    {
+      "worktree": "/workspace/scratch/36bf9939e558/wt-large-owned-abi",
+      "branch": "task/large-owned-abi",
+      "upstream": "",
+      "local_head": "f3e94adbf6b8f6859d15b211f3865b34526f9528",
+      "tree": "562a3c1dd18cfa846d2476d3227147e57cfc0624",
+      "accepted_main_commit": "5f6d885ed7e31e0d3b5db036db39636d84e84875",
+      "status_before": "",
+      "known_original_test_outputs": [],
+      "result": "Completed local ref removed; exact original local execution snapshot and every file retained in detached worktree"
+    },
+    {
+      "worktree": "/workspace/scratch/36bf9939e558/wt-ordinary-closure-abi",
+      "branch": "task/ordinary-closure-abi",
+      "upstream": "",
+      "local_head": "ce05ae5fc0ca2afd4e6c8b2b23c8624bbe6c1e71",
+      "tree": "2e74b62806a443863d21fcbd9383112bc0183371",
+      "accepted_main_commit": "b4b6718359849c9ddb6e4ba8ebea4181a36e374c",
+      "status_before": "?? crates/zil-driver/aggregate\n?? crates/zil-driver/aggregate.ll",
+      "known_original_test_outputs": [
+        {
+          "path": "crates/zil-driver/aggregate",
+          "sha256": "0164e731416b288ddab3cf41f5907c58f56298169385554917228410e90addb7",
+          "untouched": true
+        },
+        {
+          "path": "crates/zil-driver/aggregate.ll",
+          "sha256": "8d945fb079579130603f1e12fa5fa90287b12cf35d8cac88a34bb596e494efe5",
+          "untouched": true
+        }
+      ],
+      "result": "Completed local ref removed; exact original local execution snapshot and every file retained in detached worktree"
+    }
+  ],
+  "additional_local_ref_retirement": {
+    "recorded_utc": "2026-11-09T13:01:19.884080+00:00",
+    "branch": "task/stored-owned-composition",
+    "local_head": "aa21998e2545e201f4f3792c7eefab25857f8e15",
+    "tree": "fab0e0363c2a46050f14740a5ad8ce5287db8df7",
+    "accepted_main": "82a69812582856b012468db3d019930d8e390f64",
+    "verified_archive": "8493b709158052265e9f5085c2b0c01eea223b25",
+    "worktree": "/workspace/scratch/36bf9939e558/wt-stored-owned-composition",
+    "result": "Completed local branch removed; original exact execution snapshot, full tree and every evidence file retained in detached worktree",
+    "remote_publication_branch_deleted": true,
+    "remote_head_before_deletion": "97ef745821548fe0b299919622b8cb2ad73df8b0",
+    "remote_identity_claimed_for_local_commit": false
+  },
+  "preservation": "Every exact local execution commit remains at its detached worktree with all files and logs. Each complete accepted tree matches an archived main commit; local commit metadata is not represented as remotely identical. Two known original Closure test outputs are preserved, not unique source.",
+  "current_batch_receipt": "https://github.com/zil-lang/zil/blob/82a69812582856b012468db3d019930d8e390f64/validation/stored-owned-observations.json",
+  "current_batch": {
+    "source": "7dc17ebeb1ab1899048ec2686d52f156ad97ac95",
+    "source_tree": "f89f668b861d574f69ce7903ddc9a5ed35c793ae",
+    "published_source": "b20fb4149d6681354ae5b0c73b88d246e6f555f7",
+    "published_receipt": "97ef745821548fe0b299919622b8cb2ad73df8b0",
+    "tests": {
+      "traits": 197,
+      "analyze": 207,
+      "verify": 459,
+      "llvm_backend": 182,
+      "legacy_budget": 23,
+      "shared_arrays": 54
+    },
+    "focused_12_included_in_traits": true,
+    "selected_native": 8,
+    "strict_fmt_docs": "Pass",
+    "root_native_check_sha256": "076a18f8c053c0d7d64ca6862f3b4aee914e729561077a56001388c376ba523d"
+  },
+  "remaining": {
+    "arrays": "0fae: 18 oracles pass, full Analyze 224/1 on changed exact historical cost pin; original default Source Analyze pending. V/backend and final native combination remains unaccepted.",
+    "map": "118b: 6/535/7 pass, unchanged complete Map still default Verify ResourceLimit. Ledger 6 completes replacement final validation, then exhausts at ordinary resource-state copy work."
+  },
+  "release_scope": "No full local workspace test or 1.0 claim; main82 remote documentation succeeds while two workspace checks are still running."
+}
