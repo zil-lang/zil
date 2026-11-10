@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-10T05:44:58.421710+00:00",
-  "read_goal": "cfb21890569ac15dedb3d37b6a92a523b351b5ad",
+  "recorded_utc": "2026-11-10T06:15:36.983724+00:00",
+  "read_goal": "2721353954c06a3e6495ee349f740c4409efc0dd",
   "authorization": "User directs one implementation branch where dependencies permit, separate branches only for independent work; compiler-speed work stays with its original conversation; this conversation continues all other unfinished work.",
   "active_language_branch": "task/ordinary-collections",
   "compiler_branches_untouched": [
@@ -76,7 +76,7 @@
         655
       ],
       "strict_and_native_controls": "Pass",
-      "repair": "Investigating exact newly paid work before restoring the full-suite boundary pin; no limit change."
+      "repair": "Resolved by PR74; exact newly paid work and six boundaries confirmed. Original failed run retained; final repaired workflows all succeeded."
     },
     "budget_pin_repair": {
       "pr": 74,
@@ -94,7 +94,24 @@
       "temporary_branch": "fix/store-budget-boundary",
       "temporary_branch_deleted": true,
       "remote_readback": "main equals accepted_main; temporary ref absent; seven remote heads retained.",
-      "remote_checks": "Structure success; final main/research workspace workflows still running, not claimed green."
+      "remote_checks": "All three workflows completed successfully on published6b0ebec, identical tree to main8b5989; raw historical failure remains recorded separately.",
+      "remote_workflows": [
+        {
+          "id": 42762499536,
+          "name": "Repository structure",
+          "conclusion": "success"
+        },
+        {
+          "id": 42762499301,
+          "name": "Main source verification",
+          "conclusion": "success"
+        },
+        {
+          "id": 42762499362,
+          "name": "Research LLVM verification",
+          "conclusion": "success"
+        }
+      ]
     }
   },
   "retirements": [
@@ -149,15 +166,15 @@
     "functional_source": "ede4945d1ed37ca6e89f712fc2258379d84d5e37",
     "functional_paths": 27,
     "functional_scope": "3 library paths, 6 ordinary Input/public capture replacement paths, actual parent/generation, complete original fixtures and consumers; no optional old cost caches or broader ABI/compiler changes.",
-    "latest_measured_source": "4b74581321b28a1e8597cb9f73f0631494b7b8a7",
+    "latest_measured_source": "872e5eca3d5e171c8ebbf01c258fe0ffffd43397",
     "latest_default_result": "Analyze completed; independent Verify ResourceLimit, verification_runs=1",
     "complete_inventory_join_oracles": "3/3; N4667 vs original lookup6454; N-1 and retry pass",
     "source_raw_wire_recent_controls": "7/7",
-    "next": "Independently diagnose current Verify costs on the complete original program; select minimum required verifier mechanisms before the original 64 native executions.",
+    "next": "Verify author applies only the complete shared Copy Sum outer-COW fixed-point step, with original full OldFlow oracle and independent exact-source review; complete original consumer/default budget remains the gate.",
     "unaccepted_candidates": "Analyze accepted only for this original default consumer and component controls. Complete Map remains unaccepted until independent Verify and native matrix pass. Old Verify caches/checkpoints/pages require actual current hotspot and full original oracle.",
-    "published_continuation": "b94c3231c4e2287c9a28ebe775fb77cbc12e0d9a",
-    "published_tree": "396df31e52cc8b74d9b6307b1ad2c620f80058db",
-    "identical_local_tree": "4b74581321b28a1e8597cb9f73f0631494b7b8a7",
+    "published_continuation": "edfe9e9d40c4231cc40d7d778f8f2bb95eaa62a1",
+    "published_tree": "ec4ce9f7c64165e9223570e9d5d6f7348df15f4d",
+    "identical_local_tree": "872e5eca3d5e171c8ebbf01c258fe0ffffd43397",
     "complete_analyze_library": "262/262 passed",
     "unknown_fixedpoint": "4 semantic/reconstruction controls, exact N144 versus old188; N-1/fresh; independent input-isolation correction610746 then1/1 rerun",
     "same_fee_diagnostic": {
@@ -180,7 +197,7 @@
       "final_validation_entered": false,
       "interpretation": "This is an accepted-work prefix histogram, not complete-request net savings."
     },
-    "latest_run": "out/runs/map-shared-page-keep-20261110T054015Z",
+    "latest_run": "out/runs/map-verify-ssa-pages-20261110T060303Z",
     "set_source": "1/1 Success Verify, verification_runs=1",
     "ssa_pages": {
       "source": "bcfec60ca894eb4c37b380a7f1f626887a7fc3fa",
@@ -268,6 +285,90 @@
       "tagged_locals_expansion": "2eafe9e69 had been reverted for measured regression; not restored.",
       "shared_read_precheck": "d2bc7accd preserved in archive but not adopted: current Map cutoff does not execute that stored-flow tail; main already filters the main read-candidate path.",
       "templates_and_frontier": "Not adopted without current actual construction or scheduling hotspot."
+    },
+    "complete_verify_library": "522/522 passed",
+    "verify_steps": [
+      {
+        "source": "b071ab2f4467308b78f068eeb9a2a83a3d73550d",
+        "mechanism": "Complete Copy unknown-tag fixed point, retaining full reconstruction fallback",
+        "oracles": "5 complete old-reconstruction controls, component N1708 vs6508; N-1/fresh",
+        "first_run": "out/runs/map-verify-copy-fixedpoint-20261110T054910Z",
+        "first_library": "515 pass / one existing shared-product budget pin fail; all new controls passed",
+        "group": "9 pass / original Map Verify ResourceLimit"
+      },
+      {
+        "source": "2bcd4919ad3a1c6dfacef9c8ffe188401c8bb8d6",
+        "mechanism": "Test-only precise two shared-product pins and equivalent strict lint adaptations",
+        "new_pins": [
+          15518,
+          18249
+        ],
+        "previous_pins": [
+          15516,
+          18247
+        ],
+        "cause": "Functional ede494 real descriptor-parent reconstruction for OwnedStoreBorrow/Mut pays empty parent join1 in each of two stable rounds; not unknown-tag fixed-point change. Other three modes unchanged.",
+        "isolated_before_change": "zil-verify-4b-baseline/out/runs/shared-product-exact-4b-20261110-1; same two exact actual costs, original stale pin fails after N/N-1/fresh succeeded",
+        "isolated_log_sha256": "9908f358c423657ef6135aaa750f5495c0fc65242d0f5ee99673ecc15118e128"
+      },
+      {
+        "source": "872e5eca3d5e171c8ebbf01c258fe0ffffd43397",
+        "mechanism": "Actual 32-wide SSA pages, complete inventory checks, prepaid page COW and independent Content alias cost",
+        "oracles": "6 complete FlatState controls; component clone16+identity merge N6192 vs flat34304 excluding setup; N36 uses same Fresh payload before/after failure; every slot/base checked; N-1/fresh",
+        "libraries": {
+          "analyze": 262,
+          "verify": 522,
+          "failed": 0
+        },
+        "group": {
+          "passed": 9,
+          "failed": 1,
+          "failure": "original5008 Map at Verify ResourceLimit, verification_runs=1"
+        },
+        "strict": "all-target clippy for both kernels passed",
+        "review": "Independent exact-source and complete output accepted for this mechanism only"
+      }
+    ],
+    "verify_same_fee_diagnostics": [
+      {
+        "source": "4b74581321b28a1e8597cb9f73f0631494b7b8a7",
+        "run": "out/runs/map-verify-ledger-20261110-1-4b745813",
+        "first_records_complete": false,
+        "cutoff": "Sum addressed_copy_sum; no final/resource entry",
+        "accepted_work": 9999998,
+        "remaining": 2,
+        "rejected_charge": 5
+      },
+      {
+        "source": "b071ab2f4467308b78f068eeb9a2a83a3d73550d",
+        "run": "out/runs/map-verify-ledger-20261110-2-b071ab2f",
+        "first_records_complete_cost": 3025226,
+        "first_complete_34_sum_cost": 3393103,
+        "second_records_entry_remaining": 1142775,
+        "cutoff": "State cost; second records incomplete; no final/resource entry"
+      },
+      {
+        "source": "872e5eca3d5e171c8ebbf01c258fe0ffffd43397",
+        "run": "out/runs/map-verify-ledger-20261110-3-872e5eca",
+        "handoff_sha256": "6d331953e9dbe921f54419096d91708e5e52a1fffa196a8de767d2511e22173b",
+        "first_records_complete_cost": 2439550,
+        "first_complete_34_sum_cost": 2767501,
+        "same_complete_34_sum_saving": 625602,
+        "second_records_entry_remaining": 1768377,
+        "accepted_work": 9999999,
+        "remaining": 1,
+        "rejected_charge": 2,
+        "cutoff": "tags_unknown; second records incomplete; no final/resource entry",
+        "interpretation": "18.44% net saving applies only to the same complete first34 Sum summaries, including20 smaller functions increasing by1366. Content traversal1400791 and tags_unknown1152135 are actual cutoff-prefix totals, not entirely removable or whole-request costs."
+      }
+    ],
+    "same_fee_diagnostic_invariants": "Every diagnostic used original5008 source and default limits, preserved original charges, counted accepted work only, then restored exact source bytes and clean tree.",
+    "latest_gate_evidence": {
+      "run": "out/runs/map-verify-ssa-pages-20261110T060303Z",
+      "library_log_sha256": "173f876956e0acdcebcb2d7f13ec9587f7e2a5cf5561cdd339cc3274d078b9d9",
+      "group_log_sha256": "06b2d8d905f9816e9750e324369b243bb417959fc88495220c388ea16ebd183f",
+      "strict_run": "out/runs/map-kernels-strict-20261110T060420Z",
+      "strict_log_sha256": "b94a3d5603fba14c06248a5da6ce5f7466ff85e4672180f778edb9a2e2c29f44"
     }
   },
   "first_failures": [

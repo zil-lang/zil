@@ -14,11 +14,11 @@
 
 用户本轮明确：可由一个分支承接的工作只保留一个入口，确有独立实施需要才拆分。编译提速仍由原编译对话实施；其余未完成工作由本对话接续。当前Store、Map依次使用 `task/ordinary-collections`，固定 `archive/source-history` 只保全历史与候选，goal继续作为唯一看板。
 
-PR73从main21b1最小提取五个生产文件，补重借用与RHS准备失败证据后接受。精确执行6c979/tree d3fb5，发布代码597d81同tree；12专项、完整nominal231、Expand77/Types60/Verify511通过，五程序×双后端×O0/O2每轮20原生、两轮均通过；Source N42126、Types2805/3141保留N−1及fresh/warm/retry。严格目标Clippy、fmt与结构门通过，非作者独审接受。远端完整回归暴露的Expand旧预算pin已由PR74最小修复：新增实际分类费168 work/24 nodes，完整generics30/30及六N/N−1/fresh通过，非作者接受，临时ref已删。最新完整远端回归仍在运行，未冒称全工作区或完整产品门通过。见[语言接续](records/ordinary-collections-continuation.json)。
+PR73从main21b1最小提取五个生产文件，补重借用与RHS准备失败证据后接受。精确执行6c979/tree d3fb5，发布代码597d81同tree；12专项、完整nominal231、Expand77/Types60/Verify511通过，五程序×双后端×O0/O2每轮20原生、两轮均通过；Source N42126、Types2805/3141保留N−1及fresh/warm/retry。严格目标Clippy、fmt与结构门通过，非作者独审接受。远端完整回归暴露的Expand旧预算pin已由PR74最小修复：新增实际分类费168 work/24 nodes，完整generics30/30及六N/N−1/fresh通过，非作者接受，临时ref已删。PR74三个远端工作流（仓库结构、正式LLVM完整验证、研究LLVM验证）已全部成功；有限交付不关闭完整产品父门。见[语言接续](records/ordinary-collections-continuation.json)。
 
 旧三条混合ref的已交付部分由main承载，Store已合PR73，未完Map和一般语言能力由上述入口及本看板承接；共享读预检d2bc7accd等未采用候选保留在固定归档，须有当前完整消费者净收益才采用。本轮用户说明已解决旧“等待明确确认”的接续歧义；实际删除情况以接续记录为准。此前退役13条原ref和PR71临时ref、原自动审批拒绝及首败仍保留在[历史分支核对](records/branch-reconciliation-20261110.json)，不改写历史。
 
-Map原5008B与7583B库输入保持原字节。b94c3231（本地精确执行4b745813同tree）已通过默认Analyze并进入独立Verify；Analyze262/262、Set、Store field refill及7项Source/raw/Wire来源反例通过。当前唯独原Map仍在Verify默认预算耗尽、V1，正在按独立核实际热点实施；原64次双后端/O0/O2/分配失败执行须待Verify过门后重验。已合主线的PR74测试修复完整保留，未恢复退化tagged扫描、无效shared预检或未测模板。Map及一般语言1.0父门仍开放。
+Map原5008B与7583B库输入保持原字节。edfe9e9d（精确执行872e5eca同tree）已通过默认Analyze并进入独立Verify；Analyze262/262、Verify522/522、双核all-target strict通过，Set、Store field refill及7项Source/raw/Wire来源反例通过。当前原Map仍在Verify默认预算耗尽、V1。真实SSA分页使同一首轮34个完整Sum分析净减少625602（18.44%，含退化小函数），第二轮仍未完成；正在独立实施完整共享Copy Sum固定点后再复制的最小片。原64次双后端/O0/O2/分配失败执行待Verify过门后重验。两旧shared-product预算pin的+2已在优化前4b隔离复现并归因于真实parent join，N/N−1/fresh完整保留。Map及一般语言1.0父门仍开放。
 
 ## G1 · 基础类型与模式
 
@@ -202,7 +202,7 @@ Map原5008B与7583B库输入保持原字节。b94c3231（本地精确执行4b745
 | G3.4.17 | 固定共享地址数组的运行时下标与真实借入来源 | 已合入 | — | root；build_environment 独占抽取 | PR61/main e3ce439c2；执行327927a2/tree df99e8e0，同树发布b3cc0101，收据e9db96c0/tree742bbce0。原任务17路径全部覆盖；54数组、双核664、旧预算23均0失败；新增四配置12成功/8真实SIGILL，另保留旧44native。strict/fmt/完整文档通过；原215B输入/负例/预算未变。原task/G3.4.17归档9ed19a29后删除并API404；完整拥有snapshot和一般混合上界消费者另行验收。 |
 | G3.4.18 | Byte查询与拥有Package地址数组的共同来源/资源验收 | 已合入 | — | — | main@53e3e092d；保主线bounded Array resolver和全部16准入；同一程序Byte len/cap与Array叶读取四native及唯一target写冲突控制通过，97条旧N、3capture阈值及104默认栈保持。 |
 | G3.4.19 | 整共享地址数组读取逐实际根核初始化 | 已合入 | — | — | main@b07b85dd4；精确源码057308f16相关API四目标690/0、snapshot/Byte组92/0、全目标strict/fmt及结构3979通过；含4配置snapshot原生。新增全量/冷恢复未跑，不等于动态下标完成。 |
-| G3.4.20 | 借入泛型Package的Managed Store字段替换 | 已合入 | — | — | [PR73](https://github.com/zil-lang/zil/pull/73)已合main4f3b623ea；五生产文件最小提取，原输入与反例完整保留，新增reborrow真实来源和RHS准备失败后旧值/清理证据。12专项、nominal231、三库648、每轮20原生×两轮通过，N/N−1/fresh/warm保留，非作者精确独审接受。语义spec/ordinary-store-ownership.md，精简收据validation/borrowed-store-field-replacement.json；旧ref已固定归档并删除；旧预算pin已由PR74及30/30泛型回归恢复，临时修复ref已删；完整远端回归另行观察，见接续记录。 |
+| G3.4.20 | 借入泛型Package的Managed Store字段替换 | 已合入 | — | — | [PR73](https://github.com/zil-lang/zil/pull/73)已合main4f3b623ea；五生产文件最小提取，原输入与反例完整保留，新增reborrow真实来源和RHS准备失败后旧值/清理证据。12专项、nominal231、三库648、每轮20原生×两轮通过，N/N−1/fresh/warm保留，非作者精确独审接受。语义spec/ordinary-store-ownership.md，精简收据validation/borrowed-store-field-replacement.json；旧ref已固定归档并删除；旧预算pin已由PR74及30/30泛型回归恢复，临时修复ref已删；修复后三个远端工作流全部成功，见接续记录。 |
 | G3.4.21 | 普通拥有字段Copy观察、共享错误臂及标量入口组合 | 已合入 | — | root · 独立复核 | PR64/main82a698125，受测7dc17/treef89f668b同树发布b20fb414，收据97ef7458/treefab0e036。原四Source/21完整函数/12tests/五硬pin保留；traits197含12、A207/V459/backend182/旧预算23/数组54、strict/fmt/docs全过，8次选定native逐报告核实。独审无blocker，直接共享pure Copy ErrorArm与普通Package成功侧限定明确；完成分支已归档8493b709并删除。pipeline另批。 |
 | G3.4.22 | 存储借入程序中局部拥有ByteBuffer字段的共享字节视图 | 已合入 | — | — | 原6052B四模块由PR68合main，7547B collected由PR69合入，PR71补齐原pipeline安全反例；原精确Source/raw/Wire/native证据保留。旧混合ref由本轮统一接续退役，不代表其中所有优化已采用；d2bc7accd共享读预检及三测试完整保全，归当前Map后续按完整净收益评估。 |
 
@@ -424,7 +424,7 @@ Map原5008B与7583B库输入保持原字节。b94c3231（本地精确执行4b745
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | Chat语言接续 · task/ordinary-collections；两核独立复核 | b94c3231（执行4b745813同tree）保完整原程序和35组件oracle；默认Analyze已过，独立Verify仍ResourceLimit、V1。Analyze262/262、Set/refill及7来源反例通过；现由Verify作者独立定位实际费用后最小实施，原64次native矩阵尚待重验。旧b731及未采用候选归档，不作为新树验收；见接续记录。 |
+| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | Chat语言接续 · task/ordinary-collections；两核独立复核 | edfe9e9d（执行872e5eca同tree）保完整原程序和全部旧oracle；默认Analyze已过，独立Verify仍ResourceLimit、V1。Analyze262/262、Verify522/522及双核strict通过；Set/refill与7来源反例通过。Verify分页首轮完整34个Sum净省18.44%，正在按下一真实热点实施最小片，原64次native矩阵尚待重验。旧候选归档不作为新树验收；见接续记录。 |
 
 </details>
 
@@ -543,7 +543,7 @@ Map原5008B与7583B库输入保持原字节。b94c3231（本地精确执行4b745
 | --- | --- | --- | --- | --- | --- |
 | G10.6.1 | 语言初稿开发预览：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 已合入 | — | — | [PR51 验收][e-pr51]：精确源码 `a8c7953e7` 默认5190/0、参考5078/0、文本70/0；双严格检查、release、10项工程门及远端源码恢复构建运行通过。有限预览不替代 B0/完整语言。 |
 | G10.6.2 | 通用 Native 库与异步资源联合验收：精确源码、真实消费者、独审和远端恢复 | 已合入 | — | — | `main@e800b39d5`：默认5269/0、参考5157/0、文本70/0；真实联合双后端 O0/O2、3735文件远端恢复/空缓存构建、16次 API 构建/128次运行/56次故障注入均通过。[本批记录][e-native-foundations]。 |
-| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | Chat语言接续 · root集成 | 有限语言范围及PR71、PR73已接受；最新main4f3b623ea，Store本片完整证据在主树，Map和一般缺口继续。非编译未完工作由本对话统一承接，当前单一task/ordinary-collections；旧混合ref按固定归档与具体任务接续清理，实际状态见records/ordinary-collections-continuation.json。编译专项由原对话负责，不关闭语言1.0或其他父门。 |
+| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | Chat语言接续 · root集成 | 有限语言范围及PR71、PR73已接受；最新main8b5989dd1（含PR74已恢复完整回归），Store本片完整证据在主树，Map和一般缺口继续。非编译未完工作由本对话统一承接，当前单一task/ordinary-collections；旧混合ref按固定归档与具体任务接续清理，实际状态见records/ordinary-collections-continuation.json。编译专项由原对话负责，不关闭语言1.0或其他父门。 |
 | G10.6.4 | 全量回归中的旧Store/实际callback Package准入 | 已合入 | — | — | `6c1ac6fdf`已合候选；恢复旧flat callback/Store真实root快路，保留新borrowed Product分类，84项与原CLI/window正反例专项通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.5 | 新共享构造检查的两核实际独占loan发现与旧fee保持 | 已合入 | — | — | `e5c52c936/396c183c`已合：复用付费建表，无额外扫描，原两预算控制恢复原值、28独占构造/slot控制通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.6 | 默认worker深调用与life组合栈溢出 | 已合入 | — | — | 既有递归帧修复由main@222e550af验收；source_life合流回归的子项也已由main@0e770a26e交付。原默认栈/深调用/费用控制保留。 |
