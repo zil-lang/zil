@@ -1,0 +1,140 @@
+name: Closure growth bounded acceptance
+on:
+  push:
+    branches: [task/G10.5.1.4]
+    paths: [.github/workflows/compiler-closure-recheck.yml]
+permissions:
+  contents: write
+concurrency:
+  group: compiler-closure-growth
+  cancel-in-progress: false
+jobs:
+  experiment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Freeze exact source, pinned tools and original eight-case protocol
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/recheck-setup" "$RUNNER_TEMP/recheck-bench"
+          test "$(git hash-object crates/zil-backend-llvm/src/emit/byte_buffer.rs)" = 8922e0eccded8e5800bac50a2bb29e055f3f0f15
+          test "$(git hash-object crates/zil-backend-llvm/src/emit/byte_buffer/reserve_tests.rs)" = 677dd4b743110292bac0eecd48f45d27dc763b7d
+          git rev-parse HEAD > "$RUNNER_TEMP/recheck-setup/source.txt"
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          cargo fetch --locked
+          sudo apt-get update -qq
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/recheck-llvm" > "$RUNNER_TEMP/recheck-setup/llvm.log" 2>&1
+          echo "ZIL_CLANG=$RUNNER_TEMP/recheck-llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/recheck-llvm/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/recheck-llvm/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/recheck-llvm/bin" >> "$GITHUB_PATH"
+          git fetch --depth=1 --no-tags origin cadc656c0caefa70827f7ec1e608a04291c8ae9f
+          git worktree add --detach "$RUNNER_TEMP/recheck-base" cadc656c0caefa70827f7ec1e608a04291c8ae9f
+          git fetch --depth=1 --no-tags origin 95af0f0c205a0892e6087f5304ad9981461a7fed
+          for file in corpus.py measure.py; do
+            git show 95af0f0c205a0892e6087f5304ad9981461a7fed:.task/G10.5.1.3/bench/$file > "$RUNNER_TEMP/recheck-bench/$file"
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          root=Path(os.environ['RUNNER_TEMP'])/'recheck-bench'
+          assert "('shared4096','graph',4096)" in (root/'corpus.py').read_text()
+          assert "('owned64','resource',64)" not in (root/'corpus.py').read_text()
+          p=root/'measure.py';s=p.read_text().replace('e69091059ed999a5279303cdd07e9f602703f079','cadc656c0caefa70827f7ec1e608a04291c8ae9f')
+          s=s.replace("arms=['base','cand','rust'] if mode=='O2' else ['base','cand']","arms=['base','cand','rust'] if mode=='O2' and case['group']=='resource' else ['base','cand']")
+          s=s.replace("if not eq:raise AssertionError('planner-only optimization changed emitted text')","if not eq and case['group']!='resource':raise AssertionError('unaffected workload changed emitted text')")
+          s=s.replace("arms=['base','cand','rust'];random.Random", "arms=(['base','cand','rust'] if case['group']=='resource' else ['base','cand']);random.Random")
+          p.write_text(s)
+          PY
+          rustc -vV > "$RUNNER_TEMP/recheck-setup/rustc.txt"
+      - name: Affected controls and identical-profile independent release builds
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/recheck-tests"
+          cargo test --locked --offline -p zil-backend-llvm --features llvm-api --lib > "$RUNNER_TEMP/recheck-setup/backend-tests.log" 2>&1
+          cargo test --locked --offline -p zil-llvm-api --features native --lib > "$RUNNER_TEMP/recheck-setup/llvm-tests.log" 2>&1
+          cargo clippy --locked --offline -p zil-backend-llvm --features llvm-api --lib --tests -- -D warnings > "$RUNNER_TEMP/recheck-setup/clippy.log" 2>&1
+          cargo fmt --all -- --check
+          CARGO_TARGET_DIR="$RUNNER_TEMP/recheck-base-target" cargo build --locked --offline --release --manifest-path "$RUNNER_TEMP/recheck-base/Cargo.toml" -p zil-cli > "$RUNNER_TEMP/recheck-setup/base-build.log" 2>&1
+          CARGO_TARGET_DIR="$RUNNER_TEMP/recheck-candidate-target" cargo build --locked --offline --release -p zil-cli > "$RUNNER_TEMP/recheck-setup/candidate-build.log" 2>&1
+      - name: Preserve actual unsupported 64-closure boundary without changing limits
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,pathlib,sys,json,hashlib,subprocess,time
+          t=pathlib.Path(os.environ['RUNNER_TEMP']);sys.path.insert(0,str(t/'recheck-bench'));import corpus
+          os.sched_setaffinity(0,sorted(os.sched_getaffinity(0))[:2])
+          out=t/'recheck-boundary';out.mkdir();src=out/'owned64.zil';src.write_text(corpus.resources(64,'zil',False)+corpus.io_source('zil'))
+          observations=[]
+          for arm,folder in [('base','recheck-base-target'),('cand','recheck-candidate-target')]:
+              start=time.perf_counter();r=subprocess.run([t/folder/'release/zil','check',src,'--json'],capture_output=True,timeout=120);wall=1000*(time.perf_counter()-start)
+              (out/(arm+'.json')).write_bytes(r.stdout);(out/(arm+'.stderr')).write_bytes(r.stderr)
+              d=json.loads(r.stdout);assert r.returncode!=0 and d['status']=='ResourceLimit' and d['phase']=='analyze' and d['verification_runs']==0,d
+              assert any('resource order removal' in x['message'] for x in d['diagnostics'])
+              observations.append({'arm':arm,'wall_ms':wall,'exit':r.returncode,'report':d})
+          (out/'summary.json').write_text(json.dumps({'status':'Known unresolved boundary reproduced, not a successful compile','source_sha256':hashlib.sha256(src.read_bytes()).hexdigest(),'observations':observations},indent=2))
+          PY
+      - name: Allocation-failure and hot capacity path controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .task/G10.5.1.4/controls.py --base "$RUNNER_TEMP/recheck-base-target/release/zil" --candidate "$RUNNER_TEMP/recheck-candidate-target/release/zil" --out "$RUNNER_TEMP/recheck-controls" > "$RUNNER_TEMP/recheck-setup/controls.log" 2>&1
+      - name: Complete legacy eight-case compile and runtime matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "$RUNNER_TEMP/recheck-bench/measure.py" --base "$RUNNER_TEMP/recheck-base-target/release/zil" --candidate "$RUNNER_TEMP/recheck-candidate-target/release/zil" --out "$RUNNER_TEMP/recheck-data" --rounds 5 > "$RUNNER_TEMP/recheck-setup/matrix.log" 2>&1
+      - name: Existing native resource consumer
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/research/native-api-validation/validate.py --repo "$GITHUB_WORKSPACE" --cli "$RUNNER_TEMP/recheck-candidate-target/release/zil" --clang "$ZIL_CLANG" --out "$RUNNER_TEMP/recheck-consumer" > "$RUNNER_TEMP/recheck-setup/consumer.log" 2>&1
+      - name: Preserve all observations; no automatic acceptance or merge
+        if: ${{ always() }}
+        shell: bash
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,pathlib,json,shutil,tarfile,hashlib
+          P=pathlib.Path;t=P(os.environ['RUNNER_TEMP']);dst=P('.task/G10.5.1.4/runs')/os.environ['GITHUB_RUN_ID'];dst.mkdir(parents=True,exist_ok=False)
+          for name in ('manifest.json','summary.json','rows.jsonl','cells.json','failures.json','equivalence.json','runtime.jsonl'):
+              p=t/'recheck-data'/name
+              if p.exists():shutil.copyfile(p,dst/name)
+          for folder,name in [('recheck-controls','extra-controls.json'),('recheck-consumer','consumer.json'),('recheck-boundary','owned64-boundary.json')]:
+              p=t/folder/'summary.json'
+              if p.exists():shutil.copyfile(p,dst/name)
+          with tarfile.open(dst/'raw.tar.gz','w:gz') as a:
+              for p,label in [(t/'recheck-setup','setup'),(t/'recheck-controls','controls'),(t/'recheck-boundary','boundary'),(t/'recheck-bench','bench'),(t/'recheck-data/logs','logs'),(t/'recheck-data/runtime-logs','runtime-logs'),(t/'recheck-data/corpus','corpus')]:
+                  if p.exists():a.add(p,arcname=label)
+          assert (dst/'raw.tar.gz').stat().st_size<48*1024*1024
+          receipt={'baseline':'cadc656c0caefa70827f7ec1e608a04291c8ae9f','measured_source':os.environ['GITHUB_SHA'],'status_before_preservation':os.environ['PRIOR_STATUS'],'scope':'separate preexisting eight-case protocol; original nine-case failure remains unresolved','files':{p.name:{'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in dst.iterdir() if p.is_file()},'external_ai_review_requested':False,'main_modified':False,'acceptance':'Pending direct review, weighted and runtime audit'}
+          (dst/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt,indent=2))
+          PY
+          git fetch --no-tags origin refs/heads/task/G10.5.1.4
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git add -- ".task/G10.5.1.4/runs/$GITHUB_RUN_ID"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Preserve bounded closure recheck $GITHUB_RUN_ID and unresolved 64 boundary"
+          git push origin HEAD:refs/heads/task/G10.5.1.4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: closure-recheck-${{ github.run_id }}
+          path: .task/G10.5.1.4/runs/${{ github.run_id }}
+          retention-days: 30
