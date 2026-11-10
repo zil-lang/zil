@@ -1,0 +1,17 @@
+# Closure resource-order cost
+
+Baseline main 8b5989dd19d9ffa7549ec3de282aafc431c13593. Prior PR70 is already integrated; rejected outlining A/B are NOT included. Current Chat owns Analyze resources.rs and new resources/order.rs/tests.rs only; Verify, codegen, global Limits, trait/collection implementation and public schemas remain untouched. task/ordinary-collections is independent work.
+
+## Hypothesis and invariant
+The resource may-initialization relation is materialized as individual (older,newer) edges. Every removal and automatic cleanup scans unrelated edges; dense sets also make state cloning expensive. Keep the legacy small-set representation through 256 edges. Above that, store only nonzero 64-bit destination words keyed by exact source LocalId and word index. This is exact packing, not a transitive reduction: union, repeated births, cycles and branch alternatives preserve the same ordered edge set. Sparse maximum IDs never allocate an ID-sized matrix. Clone/removal/join fees cover the actual word work and index costs; the one-time conversion prepays a conservative complete bound. Default limits are not raised. Independent Verify is unchanged.
+
+## Controls
+Exhaustively compare all 65536 four-vertex relations and each deletion/successor query with an independent BTreeSet reference, plus mixed joins, duplicate edges, repeated initialization, sparse maximum IDs, word boundaries and exhaustion-before-word-mutation controls. Run affected Analyze/driver library tests, exact-source lint and relevant owned-resource consumers. Compare generated machine .text for every paired native build; any difference is a blocker until explained. A test failure or ResourceLimit is not a pass.
+
+## Frozen performance protocol
+Reuse the original eight-case corpus from 95af0f0c205a0892e6087f5304ad9981461a7fed, unchanged source bytes and weights: graph45%, trait25%, resource30%, equally split within groups; check/O0/O2 interactive30/50/20 and release10/20/70. Histories cold/warm/body/edit-warm/signature/restore use edit10/15/45/10/10/10 and clean70/5/10/5/10/0. Five formal paired cache histories plus one warm-up, full new CLI process through linking on the same two CPUs and pinned identical compiler profiles. Rust reference is rerun for resource O2; no Rust aggregate is inferred for unmeasured cells. Arithmetic frequency-weighted total wait and absolute seconds saved are primary; all cells and substantial regressions remain visible. Weights are assumptions, not telemetry.
+
+Known unsupported owned64 and added owned96/128 are a separate scalability lane, NEVER dropped from a purported nine-case aggregate. Record both base and candidate outcomes at unchanged default limits, and execute only successful native programs against the independent output model. Passing eight cases does not close the scale lane. Existing source-budget hard pins may not be silently updated. No external Codex/Copilot review, no automatic main merge.
+
+## Research basis
+Rust CGU partitioning separates stable/non-generic work from volatile instantiations (rustc-dev-guide backend/monomorph). LLVM's February 2026 inliner discussion identifies global-budget/expansion issues; two prior ZIL noinline experiments have runtime NoGo evidence, so this change does not change inlining. The 2026 formal optimization-bound work motivates separate compile-time and generated-performance gates, not a ready-made optimization to claim implemented.
