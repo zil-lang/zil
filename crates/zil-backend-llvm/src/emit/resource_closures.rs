@@ -51,6 +51,11 @@ pub(super) fn drop_functions(
     resources: &[ResourceDefinition],
 ) -> CompileResult<m::Code> {
     let mut text = m::Code::new();
+    // A large family of owning environments can repeatedly expand teardown
+    // state into its users. Keep just those destructor boundaries; ordinary
+    // callable bodies and buffer growth retain their original inline policy.
+    // This attribute asserts no coldness, aliasing or lifetime facts.
+    let bounded_teardown = closures.iter().filter(|c| owns(c)).take(16).count() == 16;
     // Every concrete environment has an addressable field cleanup entry.
     // Resource-free callbacks simply return; this preserves unique field slots
     // without inventing a capture cleanup obligation.
@@ -70,7 +75,11 @@ pub(super) fn drop_functions(
                     }],
                     variadic: false,
                 },
-                attrs: vec![],
+                attrs: if bounded_teardown && owns(definition) {
+                    vec![m::Attr::NoInline]
+                } else {
+                    vec![]
+                },
                 blocks: None,
             }),
             m::Event::Label("entry".into()),
@@ -808,3 +817,6 @@ impl FunctionEmitter<'_> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod destructor_policy_tests;
