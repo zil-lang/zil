@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-10T17:02:41.923804+00:00",
-  "read_goal": "a1b9603c1c298a89c4cb86224fc5f4c06c359623",
+  "recorded_utc": "2026-11-10T17:42:00Z",
+  "read_goal": "9514bba7ff71c7c4c234a4b8a74f167817c253b4",
   "authorization": "User directs one implementation branch where dependencies permit, separate branches only for independent work; compiler-speed work stays with its original conversation; this conversation continues all other unfinished work.",
   "active_language_branch": "task/ordinary-collections",
   "compiler_branches_untouched": [
@@ -178,11 +178,11 @@
     "functional_source": "ede4945d1ed37ca6e89f712fc2258379d84d5e37",
     "functional_paths": 27,
     "functional_scope": "3 library paths, 6 ordinary Input/public capture replacement paths, actual parent/generation, complete original fixtures and consumers; no optional old cost caches or broader ABI/compiler changes.",
-    "latest_measured_source": "75379491b26f8cfdcb6f6aafb91cd6e3def9a444",
-    "latest_default_result": "Original Map and native acceptance remain valid with byte-exact production and inputs. All 13 remaining budget controls are causally reconciled; 1,019 complete affected-target tests and seven strict/static gates pass on 75379491. Final receipt-only delivery is PR81; three remote workflows are running, not yet accepted.",
+    "latest_measured_source": "5bfceb86f6ff5525cba090f9fb0bcb760f0d0343",
+    "latest_default_result": "PR81 merged after all three actual workflows passed. Main CI has 6037 workspace, 5923 reference and 70 text-reference tests with zero failures/ignores/filters; original semantic/native and exact-budget controls remain accepted. General owning hash and language-1.0 parent gates remain open.",
     "complete_inventory_join_oracles": "3/3; N4667 vs original lookup6454; N-1 and retry pass",
     "source_raw_wire_recent_controls": "7/7 source controls, including Source/raw/Wire negative controls; not seven negative-only tests",
-    "next": "Wait for all three actual PR81 workflows to pass, recheck main and exact head, merge Map, then continue geometric Store.push_growing on the same ordinary branch.",
+    "next": "Map finite scope complete. Continue Store.push_growing on the same ordinary branch through PR82; accept only actual frozen-source CI results and necessary semantic receipt.",
     "unaccepted_candidates": "Original Map remains unaccepted. Ordered scheduler and stable complete-input checkpoints have independently reviewed complete Sum savings126612 and726534 respectively. Retirement pages, retirement identity/no-change, cold-history reuse and other candidates remain unadopted until selected from current evidence.",
     "published_continuation": "82087b3fd81dffac0966206f3b9f1800e40823eb",
     "published_tree": "e17e0d0a0ad8228329ffdfc2c27721cf4ed10296",
@@ -1558,25 +1558,243 @@
     ],
     "same_fee_diagnostic_invariants": "Every diagnostic used original5008 source and default limits, preserved original charges, counted accepted work only, then restored exact source bytes and clean tree.",
     "latest_gate_evidence": {
-      "source": "75379491b26f8cfdcb6f6aafb91cd6e3def9a444",
-      "tree": "4051b503e4b88c927667932d4290b20194af79d3",
-      "status": "All affected-target and strict/static gates pass; full remote CI is running.",
-      "affected_targets": {
-        "run": "out/runs/map-workspace-budget-acceptance-20261110T165530Z",
-        "index_sha256": "75cc09bb1e770d594399b75e9177ff2320e563690e3aa6a109ec13f2d76ceee5",
-        "passed": 1019,
-        "failed": 0,
-        "ignored": 0,
-        "filtered": 0
+      "status": "Pass",
+      "pr": 81,
+      "head": "82087b3fd81dffac0966206f3b9f1800e40823eb",
+      "checkout": "5bfceb86f6ff5525cba090f9fb0bcb760f0d0343",
+      "tree": "e17e0d0a0ad8228329ffdfc2c27721cf4ed10296",
+      "workflow_runs": [
+        {
+          "id": 42860576793,
+          "name": "Repository structure",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 42860576640,
+          "name": "Main source verification",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 42860576473,
+          "name": "Research LLVM verification",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ],
+      "main_ci": {
+        "schema": 1,
+        "evidence_kind": "decoded_GitHub_job_log_and_read_only_metadata",
+        "repo": "zil-lang/zil",
+        "pr": 81,
+        "run": {
+          "id": 42860576640,
+          "attempt": 1,
+          "url": "https://github.com/zil-lang/zil/actions/runs/42860576640",
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-11-10T17:26:51Z"
+        },
+        "job": {
+          "id": 129985264839,
+          "status": "completed",
+          "conclusion": "success",
+          "all_step_outcomes": "success"
+        },
+        "identity": {
+          "checkout": "5bfceb86f6ff5525cba090f9fb0bcb760f0d0343",
+          "tree": "e17e0d0a0ad8228329ffdfc2c27721cf4ed10296",
+          "parents": [
+            "099d0af969a51260355437603b77d3f9030d83bc",
+            "82087b3fd81dffac0966206f3b9f1800e40823eb"
+          ],
+          "head": "82087b3fd81dffac0966206f3b9f1800e40823eb",
+          "compact_commit_matches_checkout": true,
+          "tree_equals_pr_head_tree": true
+        },
+        "decoded_job_log": {
+          "utf8_bytes": 1811761,
+          "sha256": "3079b355d4d0c3f129635f66ff5e8f6fcb2d705123497e6e94c6eea1d7cac35f",
+          "hash_scope": "exact connector decoded string UTF-8, including BOM and timestamps; NOT original workspace.log bytes",
+          "complete_tail": "Cleaning up orphan processes"
+        },
+        "compact": {
+          "commit": "5bfceb86f6ff5525cba090f9fb0bcb760f0d0343",
+          "steps": {
+            "fmt": "success",
+            "workspace": "success",
+            "reference": "success",
+            "consumer": "success",
+            "clippy": "success",
+            "text": "success",
+            "ci_test": "success"
+          },
+          "logs": {
+            "fmt": {
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "test_summaries": 0,
+              "totals": {
+                "passed": 0,
+                "failed": 0,
+                "ignored": 0,
+                "measured": 0,
+                "filtered": 0
+              }
+            },
+            "workspace": {
+              "sha256": "79a816e6169f2b512556a12001c18c1849ffca7e1ae7fafa2134660d1cd0ef29",
+              "test_summaries": 430,
+              "totals": {
+                "passed": 6037,
+                "failed": 0,
+                "ignored": 0,
+                "measured": 0,
+                "filtered": 0
+              }
+            },
+            "reference": {
+              "sha256": "e456509fedb9aebdea80945abccd33fd66b59f2bb56e96242c1722878399ee97",
+              "test_summaries": 430,
+              "totals": {
+                "passed": 5923,
+                "failed": 0,
+                "ignored": 0,
+                "measured": 0,
+                "filtered": 0
+              }
+            },
+            "clippy": {
+              "sha256": "85f7e3317826d0eba20689e60ebefe7ef8397493eed645c40f36a80159e89ecf",
+              "test_summaries": 0,
+              "totals": {
+                "passed": 0,
+                "failed": 0,
+                "ignored": 0,
+                "measured": 0,
+                "filtered": 0
+              }
+            },
+            "text-reference": {
+              "sha256": "2d33b09478fe503ef36249a46d5ce2590ebb233a58990ef8e2bcef08c8cf0dfd",
+              "test_summaries": 10,
+              "totals": {
+                "passed": 70,
+                "failed": 0,
+                "ignored": 0,
+                "measured": 0,
+                "filtered": 0
+              }
+            },
+            "migration-runner": {
+              "sha256": "80813fea2a5c418cf207c936fb2200286c24f040ff6f1c23936712ed80c7e1bb",
+              "test_summaries": 0,
+              "totals": {
+                "passed": 0,
+                "failed": 0,
+                "ignored": 0,
+                "measured": 0,
+                "filtered": 0
+              }
+            }
+          }
+        },
+        "independent_summary_recount": {
+          "workspace": {
+            "test_summaries": 430,
+            "totals": {
+              "passed": 6037,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            },
+            "equals_compact": true
+          },
+          "reference": {
+            "test_summaries": 430,
+            "totals": {
+              "passed": 5923,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            },
+            "equals_compact": true
+          },
+          "text": {
+            "test_summaries": 10,
+            "totals": {
+              "passed": 70,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            },
+            "equals_compact": true
+          }
+        },
+        "named_coverage": {
+          "workspace": {
+            "growing_hash_collections": 11,
+            "collected_pipeline": 3,
+            "all_status": "ok"
+          },
+          "reference": {
+            "growing_hash_collections": 11,
+            "collected_pipeline": 3,
+            "all_status": "ok"
+          }
+        },
+        "kernel_libraries_each_mode": {
+          "analyze": 267,
+          "verify": 605,
+          "failed": 0,
+          "ignored": 0,
+          "filtered": 0
+        },
+        "native_consumer": {
+          "status": "Pass",
+          "builds": 16,
+          "executions": 128,
+          "injected_failures": 56,
+          "scope": "tools/research/native-api-validation/validate.py, distinct from growing Map/Set native matrix",
+          "per_report_files_read": false
+        },
+        "clippy": {
+          "command": "cargo clippy --locked --workspace --all-targets -- -D warnings",
+          "status": "success"
+        },
+        "python_tests": {
+          "migration_runner": {
+            "passed": 9,
+            "status": "OK"
+          },
+          "evidence_transport": {
+            "passed": 6,
+            "status": "OK"
+          },
+          "compact_results": {
+            "passed": 3,
+            "status": "OK"
+          }
+        },
+        "summary_artifact": {
+          "id": 13787385886,
+          "name": "zil-main-42860576640-1-summary",
+          "bytes": 6895,
+          "digest_reported_by_GitHub": "sha256:633bbf515966963c489fffca674f7bb514cd5eea76407d6efeb1162f6aacb63c",
+          "expired": false,
+          "contents_downloaded": false
+        },
+        "limits": [
+          "compact.logs.*.sha256 are CI-reported original-file digests, not independently rehashed from job text",
+          "No compile JSON / execute TXT reports were recovered",
+          "Research LLVM CI is not covered by this result",
+          "Store push_growing candidate is not present and is not covered"
+        ]
       },
-      "strict": {
-        "run": "out/runs/map-final-strict-20261110T165721Z",
-        "index_sha256": "9d63d99596387da1575680cf949fc5f4dd66ccfb732abb812eb051a74fbdb7e3",
-        "gates": 7,
-        "all_exit_zero": true
-      },
-      "source_clean_after": true,
-      "causal_detail": "workspace_budget_reconciliation_21"
+      "map_native_scope": "Original 16 builds / 64 processes remains bound to validation/pod-hash-collections.json; independent native-consumer 16 / 128 is a different scope."
     },
     "scheduler_diagnostic_pending": {
       "baseline": "a168bff66b9b2b9363b61c3ce9c39556244927ac",
@@ -2117,6 +2335,27 @@
           }
         ],
         "status": "Not accepted for merge:13 additional budget controls remain. All other tests and workspace strictClippy/fmt/layout/contracts/conformance/index checks passed."
+      },
+      {
+        "source": "75379491b26f8cfdcb6f6aafb91cd6e3def9a444",
+        "tree": "4051b503e4b88c927667932d4290b20194af79d3",
+        "status": "All affected-target and strict/static gates pass; full remote CI is running.",
+        "affected_targets": {
+          "run": "out/runs/map-workspace-budget-acceptance-20261110T165530Z",
+          "index_sha256": "75cc09bb1e770d594399b75e9177ff2320e563690e3aa6a109ec13f2d76ceee5",
+          "passed": 1019,
+          "failed": 0,
+          "ignored": 0,
+          "filtered": 0
+        },
+        "strict": {
+          "run": "out/runs/map-final-strict-20261110T165721Z",
+          "index_sha256": "9d63d99596387da1575680cf949fc5f4dd66ccfb732abb812eb051a74fbdb7e3",
+          "gates": 7,
+          "all_exit_zero": true
+        },
+        "source_clean_after": true,
+        "causal_detail": "workspace_budget_reconciliation_21"
       }
     ],
     "move_state_candidate": {
@@ -3047,7 +3286,7 @@
       "tree": "4051b503e4b88c927667932d4290b20194af79d3",
       "published_same_tree": "758302646aed941598a4563e55226bf825ce0862",
       "old_complete_analyze_and_verify": "099d0af969a51260355437603b77d3f9030d83bc",
-      "status": "Paired cause independently accepted; pure numeric boundary update passed all1019 affected-target tests and7 strict/static gates. Remote CI and merge pending.",
+      "status": "Complete two-kernel cause and all original boundary tests accepted; final PR81 full workspace/reference and all three workflows passed, then merged.",
       "original_workspace": {
         "total": 6037,
         "passed": 6024,
@@ -3737,7 +3976,8 @@
       "whole_workspace_rerun": "Not performed after this pure numeric update; the original6037-run13 failures remain recorded. Remote CI will run the complete suite.",
       "delivery_pull_request": {
         "url": "https://github.com/zil-lang/zil/pull/81",
-        "status": "Opened; remote CI/merge result not inferred."
+        "merged": true,
+        "merge_commit": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852"
       }
     },
     "delivery_pull_request": {
@@ -3760,18 +4000,24 @@
         {
           "id": 42860576640,
           "name": "Main source verification",
-          "status": "in_progress",
-          "conclusion": null
+          "status": "completed",
+          "conclusion": "success"
         },
         {
           "id": 42860576473,
           "name": "Research LLVM verification",
-          "status": "in_progress",
-          "conclusion": null
+          "status": "completed",
+          "conclusion": "success"
         }
       ],
-      "merged": false
-    }
+      "merged": true,
+      "merge_commit": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852",
+      "accepted_tree": "e17e0d0a0ad8228329ffdfc2c27721cf4ed10296",
+      "readback_verified": true
+    },
+    "current": "Merged",
+    "accepted_main": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852",
+    "accepted_tree": "e17e0d0a0ad8228329ffdfc2c27721cf4ed10296"
   },
   "first_failures": [
     {
@@ -3893,32 +4139,23 @@
     }
   },
   "execution_interruption": {
-    "observed_utc": "2026-11-10T08:42:00Z",
-    "kind": "execution_environment_unavailable",
+    "observed_utc": "2026-11-10T17:12:15Z",
+    "kind": "local_environment_unavailable",
     "observed_error": "No usable execution environment is available.",
-    "last_confirmed_clean_source": "42c3ab6bf909d4beabb0ca19897b1b287d97def4",
-    "last_confirmed_tree": "7500a81cbe5a9935b6781c8ad550696d31e4d634",
+    "last_confirmed_clean_source": "6edf671961953e96c7e542afe91f5ca961b84648",
+    "last_confirmed_tree": "e17e0d0a0ad8228329ffdfc2c27721cf4ed10296",
     "temporary_instrumentation_at_interruption": false,
-    "latest_diagnostic_started": false,
-    "source_recovery": {
-      "status": "Exact tested tree restored and published to existing task/ordinary-collections",
-      "published_source": "e965133d052c3db371bc83014bf6591aaa3ca3df",
-      "parent": "88006c258324cc9b2c577abff6abf0381eefeb2c",
-      "tree": "7500a81cbe5a9935b6781c8ad550696d31e4d634",
-      "independent_remote_review": "Git Trees recursive4810 entries, truncated=false; exactly6 changed paths versuseb12; all6 blobs and100644 modes equal frozen42c3. All other leaves identical,146 other Verify .rs preserved.",
-      "raw_logs_published": false
-    },
-    "local_evidence_access": "Last gate logs and hashes were read and independently verified before disconnection; original out/runs files are currently inaccessible. No diagnostic12 output exists.",
-    "no_main_merge": true,
+    "source_recovery": "Map code and receipt and goal already published. Store recovered as six exact files plus one explicitly new borrower witness; all seven blobs and full tree independently read back.",
+    "local_evidence_access": "Unavailable. Existing GitHub PR CI is used for subsequent real execution.",
     "no_permission_request_required": true
   },
   "next_standard_library_candidate": {
     "capability": "std.store.push_growing",
-    "status": "Prepared only; not applied, built, committed or accepted",
-    "after": "Complete current Map acceptance on the same task/ordinary-collections branch",
+    "status": "In implementation on PR82 after accepted Map PR81; first actual remote CI pending.",
+    "after": "Map PR81 is merged as 2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852.",
     "proposal": "Reuse existing collect reserve/ownership transaction: overflow or reserve failure returns the actual incoming owner; success pushes once. Fixed push stays unchanged.",
     "scratch_patch_sha256": "e34e0df9b2223e22bd77c24fdc5aaa47480975c5b297b8c4e64f30f0b12efeec",
-    "scratch_patch_currently_accessible": true,
+    "scratch_patch_currently_accessible": false,
     "requirements": [
       "RHS item(...) executed directly inside push_growing; abc/created proves single evaluation",
       "Keep the existing7547B collected_pipeline inputs and rerun their3 tests",
@@ -3940,14 +4177,15 @@
       "planned_new_native": 32,
       "original_collected_native_preserved": 56,
       "original_collected_bytes": 7547
-    }
+    },
+    "remote_execution": "store_growth"
   },
   "current_remote_readback": {
     "observed_utc": "2026-11-10T16:38:01.257253+00:00",
     "heads_total": 19,
-    "source": "82087b3fd81dffac0966206f3b9f1800e40823eb",
-    "source_tree": "e17e0d0a0ad8228329ffdfc2c27721cf4ed10296",
-    "main": "099d0af969a51260355437603b77d3f9030d83bc",
+    "source": "07eaad81f9dd358eac084e3f6aabbe9af5263c8d",
+    "source_tree": "e32d81cf65fdf3a719ab9536013dbbd133fc27f3",
+    "main": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852",
     "archive": "18d6494299365dc98981d4103a5f648dd4a09926",
     "compiler_refs_untouched": [
       "task/G10.5.1.3",
@@ -3968,13 +4206,13 @@
     ],
     "noncompiler_redundant_refs": 0,
     "source_readback": true,
-    "source_observed_utc": "2026-11-10T17:02:41.923804+00:00",
-    "latest_main_observed": "099d0af969a51260355437603b77d3f9030d83bc",
+    "source_observed_utc": "2026-11-10T17:42:00Z",
+    "latest_main_observed": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852",
     "main_sync_pending": false,
-    "main_sync_source": "42a3d9ab5bc4cc704d7e977357c298d694547066"
+    "main_sync_source": "ec40f0050d186f2078c140906da0ccd3b73e9b89"
   },
   "goal_concurrency_preserved": {
-    "read_goal": "a1b9603c1c298a89c4cb86224fc5f4c06c359623",
+    "read_goal": "9514bba7ff71c7c4c234a4b8a74f167817c253b4",
     "compiler_task_rows": 12,
     "compiler_task_rows_unchanged": true,
     "compiler_records_preserved": [
@@ -3990,7 +4228,7 @@
       "records/compiler-signature-facets.json",
       "records/compiler-signature-merge.json"
     ],
-    "update": "Normal merge of fetched goal; change only ordinary-language progress and continuation record. No force update."
+    "update": "Read current remote goal and commit on its exact tree; update only ordinary-language rows and continuation record. No local execution or forced ref update."
   },
   "resumption": {
     "environment": "New empty workspace; exact remote source e965/tree7500 restored and source hash checked before edits",
@@ -4260,5 +4498,144 @@
       "upstream_removed_ref": "task/anonymous-closure-linkage is absent after its PR79 merged; this language session did not delete it.",
       "noncompiler_redundant_refs": 0
     }
-  ]
+  ],
+  "execution_interruption_history": [
+    {
+      "observed_utc": "2026-11-10T08:42:00Z",
+      "kind": "execution_environment_unavailable",
+      "observed_error": "No usable execution environment is available.",
+      "last_confirmed_clean_source": "42c3ab6bf909d4beabb0ca19897b1b287d97def4",
+      "last_confirmed_tree": "7500a81cbe5a9935b6781c8ad550696d31e4d634",
+      "temporary_instrumentation_at_interruption": false,
+      "latest_diagnostic_started": false,
+      "source_recovery": {
+        "status": "Exact tested tree restored and published to existing task/ordinary-collections",
+        "published_source": "e965133d052c3db371bc83014bf6591aaa3ca3df",
+        "parent": "88006c258324cc9b2c577abff6abf0381eefeb2c",
+        "tree": "7500a81cbe5a9935b6781c8ad550696d31e4d634",
+        "independent_remote_review": "Git Trees recursive4810 entries, truncated=false; exactly6 changed paths versuseb12; all6 blobs and100644 modes equal frozen42c3. All other leaves identical,146 other Verify .rs preserved.",
+        "raw_logs_published": false
+      },
+      "local_evidence_access": "Last gate logs and hashes were read and independently verified before disconnection; original out/runs files are currently inaccessible. No diagnostic12 output exists.",
+      "no_main_merge": true,
+      "no_permission_request_required": true
+    }
+  ],
+  "store_growth": {
+    "status": "Published; first remote CI in progress, not accepted.",
+    "pr": 82,
+    "url": "https://github.com/zil-lang/zil/pull/82",
+    "base": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852",
+    "sync_commit": "ec40f0050d186f2078c140906da0ccd3b73e9b89",
+    "candidate_commit": "07eaad81f9dd358eac084e3f6aabbe9af5263c8d",
+    "candidate_tree": "e32d81cf65fdf3a719ab9536013dbbd133fc27f3",
+    "source_files": [
+      {
+        "path": "lib/std/store.zil",
+        "blob": "376c5fdcc61cf317e3cb51d32b20e52375addb2a",
+        "bytes": 3120,
+        "sha256": "695451f8dc8b996b748016ba8d094de446291bb849101dd79d18eb9846cc6d09"
+      },
+      {
+        "path": "spec/store-growth.md",
+        "blob": "245aee7acbc57c461b6e902f6aed64042a66662a",
+        "bytes": 2918,
+        "sha256": "34db79b0fb9ea01ec479a9481ce2c99e1ab0c0a5fd626ef33b19503cdf5b9c24"
+      },
+      {
+        "path": "tests/language-readiness/owning-trait-hosts/consumers.rs",
+        "blob": "2aa3ec92a820ff8e4cd2f737ca6fe8116f24d2da",
+        "bytes": 42974,
+        "sha256": "632acebe5d15028f20f7fb413add05972118a1e8d8c4ab3176443b34438ba19f"
+      },
+      {
+        "path": "tests/language-readiness/owning-trait-hosts/store_push_growing/borrow.zil",
+        "blob": "64631e58ace576d90ec45508de524dd51ad61833",
+        "bytes": 467,
+        "sha256": "0f6241b1804b40d6ae0f14b9943a5a1a39612356877f3c348aa300f0edb0a70d"
+      },
+      {
+        "path": "tests/language-readiness/owning-trait-hosts/store_push_growing/capture.zil",
+        "blob": "809ed209b441b8b389a4ff1dd3b890d98e93992f",
+        "bytes": 1185,
+        "sha256": "6c7577f068165255b7627274abbe33ffb58b575dd6918a00b478167bcbc9a635"
+      },
+      {
+        "path": "tests/language-readiness/owning-trait-hosts/store_push_growing/consumers.rs",
+        "blob": "89b7a17c9d2cb43e2eba987acb608e0a831b57db",
+        "bytes": 4901,
+        "sha256": "d6d1a4ed7b63a70aa7064a7588a230246f9f461253306ce5d4c2cf1411b960e0"
+      },
+      {
+        "path": "tests/language-readiness/owning-trait-hosts/store_push_growing/main.zil",
+        "blob": "194da6801a83b8c88ac90e0aa0cbd1cd595264fe",
+        "bytes": 3177,
+        "sha256": "5952ca2542590fe88eaaa7f3584c3b6f25a8959d0fb36529f8d2365572a346ac"
+      }
+    ],
+    "scope": "Geometric Store.push_growing, actual incoming-owner return on preparation failure, Copy/owning/FnMut/last-use controls and unchanged collected pipeline.",
+    "recovery": {
+      "original_six_files_byte_exact": true,
+      "original_borrow": {
+        "bytes": 447,
+        "sha256": "b8c7e882b7f5b9568f53581f37acdd3a5860cbdef4dbe990ebd5d4a2835ad279",
+        "body_unavailable": true
+      },
+      "new_borrow": {
+        "bytes": 467,
+        "sha256": "0f6241b1804b40d6ae0f14b9943a5a1a39612356877f3c348aa300f0edb0a70d",
+        "independent_static_review": "Accepted; positive ends held use before growth, adjacent negative uses held after growth."
+      },
+      "old_patch_equivalence_claimed": false,
+      "new_contract_blob": "f8922d1c943fc7bf9fa2f485626590000caf0b68",
+      "new_contract_sha256": "2a50c5a8b73e712ccc3dbe0c614b6e57c85ef0385ffb97687b3c1de7cbc31a9d"
+    },
+    "independent_tree_review": {
+      "base_tree": "e17e0d0a0ad8228329ffdfc2c27721cf4ed10296",
+      "tree": "e32d81cf65fdf3a719ab9536013dbbd133fc27f3",
+      "changed_paths": 7,
+      "modified": 2,
+      "added": 5,
+      "deleted": 0,
+      "all_other_tree_entries_same": true
+    },
+    "validation": {
+      "mode": "Existing complete PR workspace/reference workflows",
+      "local_filtered_3_3_full_runner_executed": false,
+      "workflow_runs": [
+        {
+          "id": 42867518732,
+          "name": "Repository structure",
+          "status": "in_progress",
+          "conclusion": null,
+          "run_number": 67,
+          "jobs_url": "https://api.github.com/repos/zil-lang/zil/actions/runs/42867518732/jobs",
+          "logs_url": "https://api.github.com/repos/zil-lang/zil/actions/runs/42867518732/logs",
+          "workflow_id": 410214371
+        },
+        {
+          "id": 42867517928,
+          "name": "Research LLVM verification",
+          "status": "in_progress",
+          "conclusion": null,
+          "run_number": 259,
+          "jobs_url": "https://api.github.com/repos/zil-lang/zil/actions/runs/42867517928/jobs",
+          "logs_url": "https://api.github.com/repos/zil-lang/zil/actions/runs/42867517928/logs",
+          "workflow_id": 402816294
+        },
+        {
+          "id": 42867517812,
+          "name": "Main source verification",
+          "status": "in_progress",
+          "conclusion": null,
+          "run_number": 311,
+          "jobs_url": "https://api.github.com/repos/zil-lang/zil/actions/runs/42867517812/jobs",
+          "logs_url": "https://api.github.com/repos/zil-lang/zil/actions/runs/42867517812/logs",
+          "workflow_id": 397080234
+        }
+      ],
+      "candidate_execution_result_not_yet_known": true,
+      "scope_limits": "CI deletes per-process reports. Claim only actual selected tests and their Success/V1/backend/fallback/exit/stdout/stderr assertions, not independently recovered JSON/TXT or untested builder fields."
+    }
+  }
 }
