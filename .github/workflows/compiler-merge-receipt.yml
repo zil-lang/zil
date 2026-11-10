@@ -1,0 +1,93 @@
+name: Record compiler partition integration
+on:
+  push:
+    branches: [task/G10.5.1]
+    paths: ['.github/workflows/compiler-merge-receipt.yml']
+permissions:
+  contents: write
+  pull-requests: read
+concurrency:
+  group: compiler-partition-integration-receipt
+  cancel-in-progress: false
+jobs:
+  receipt:
+    if: github.repository == 'zil-lang/zil' && github.ref == 'refs/heads/task/G10.5.1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MERGE: e69091059ed999a5279303cdd07e9f602703f079
+      HEAD: 906940ea78dcd5298c9168c4d17197b5983bf954
+      BASE: fc18d05d59321423570bb46123c756f2ad7e2e88
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 1
+      - name: Verify delivered source, update only related goal rows, and retire merged ref
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import datetime,json,os,pathlib,subprocess
+          repo='zil-lang/zil'; merge=os.environ['MERGE']; head=os.environ['HEAD']; base=os.environ['BASE']
+          def run(*args,cwd=None,check=True):
+              return subprocess.run(list(args),cwd=cwd,text=True,capture_output=True,check=check)
+          def api(path): return json.loads(run('gh','api',f'repos/{repo}/{path}').stdout)
+          pr=api('pulls/65')
+          assert pr['merged'] and pr['merge_commit_sha']==merge and pr['head']['sha']==head
+          assert api(f'compare/{merge}...main')['status'] in ('identical','ahead')
+          expected=['crates/zil-backend-llvm/src/machine_cgu.rs','crates/zil-cli/src/main.rs','crates/zil-driver/src/lib.rs','docs/guide/build.md']
+          change=api(f'compare/{base}...{merge}')
+          assert sorted(f['filename'] for f in change['files'])==sorted(expected)
+          run('git','fetch','--no-tags','--depth=2','origin',merge,head)
+          for path in expected:
+              assert run('git','rev-parse',merge+':'+path).stdout==run('git','rev-parse',head+':'+path).stdout,path
+          commit=api('git/commits/'+merge)
+          assert [p['sha'] for p in commit['parents']]==[base,head]
+          stamp=datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).isoformat(timespec='seconds')
+          receipt={'status':'Merged; pre-existing main CI failures disclosed','pr':65,'head':head,'main_before_merge':base,'merge_commit':merge,'tree':commit['tree']['sha'],'changed_files':expected,'production_blobs_equal_reviewed_candidate':True,'review':'Current Chat source review under explicit repository-owner authorization; not a non-author or external-bot review','external_review_requested_this_round':False,'prior_candidate_ci':[42637553501,42637553555,42637553818],'main_preexisting_failed_run':42669324206,'main_preexisting_failures':['array_billing_mode_is_consistent_across_scalar_reuse_and_function_order','rich_call_completeness_costs_grow_with_actual_input_and_output_ports','ordinary_wide_array_completes_source_raw_and_wire_verification','whole_snapshot_initialization_costs_grow_with_actual_roots_and_slots'],'failure_scope':'Exact Analyze/Verify budget assertions before Codegen on pre-merge main; not repaired or hidden in this merge','new_combined_workspace_retest':'NotRun at receipt creation; previous candidate results do not claim fully green current main','excluded_candidate':'49889241d87cf67dba7f445e03293a9b3e446cb1 (insufficient weighted benefit)','updated_at':stamp}
+          published=None
+          for attempt in range(3):
+              current=api('git/ref/heads/goal')['object']['sha']
+              run('git','fetch','--no-tags','origin',current)
+              work=pathlib.Path(os.environ['RUNNER_TEMP'])/f'compiler-merge-goal-{attempt}'
+              run('git','worktree','add','--detach',str(work),current)
+              path=work/'goal.md'; original=path.read_text(); lines=original.splitlines(keepends=True)
+              changed=0
+              for i,line in enumerate(lines):
+                  if line.startswith('| G10.5.1.1 |'):
+                      cells=line.rstrip('\n').split('|'); assert len(cells)==8
+                      cells[3]=' 已合入 '; cells[4]=' — '; cells[5]=' Chat直接复核 '
+                      cells[6]=' PR65@906940ea已按用户本次直接复核授权合main@e69091059；仅4生产路径及build.md决策。原候选完整CI通过；后来main原有4项Analyze/Verify预算断言失败另行跟踪，不宣称全绿。见[合入收据](records/compiler-partition-release.json)。 '
+                      lines[i]='|'.join(cells)+'\n'; changed+=1
+              assert changed==1,('expected one child row',changed)
+              path.write_text(''.join(lines))
+              record=work/'records/compiler-partition-release.json'; old=json.loads(record.read_text())
+              old['integration']=dict(receipt,goal_read_sha=current)
+              record.write_text(json.dumps(old,ensure_ascii=False,indent=2)+'\n')
+              run('git','diff','--check',cwd=work)
+              assert sorted(run('git','diff','--name-only',cwd=work).stdout.splitlines())==['goal.md','records/compiler-partition-release.json']
+              run('git','add','--','goal.md','records/compiler-partition-release.json',cwd=work)
+              run('git','-c','user.name=github-actions[bot]','-c','user.email=41898282+github-actions[bot]@users.noreply.github.com','commit','-m','Record PR65 integration authorized for direct Chat review; retain pre-existing CI failures',cwd=work)
+              pushed=run('git','push','origin','HEAD:refs/heads/goal',cwd=work,check=False)
+              if pushed.returncode==0:
+                  published=run('git','rev-parse','HEAD',cwd=work).stdout.strip()
+                  assert api('git/ref/heads/goal')['object']['sha']==published
+                  row=api(f'contents/goal.md?ref={published}')
+                  assert row['sha']==run('git','rev-parse','HEAD:goal.md',cwd=work).stdout.strip()
+                  break
+          assert published,'goal changed concurrently; no force push attempted'
+          ref=run('gh','api',f'repos/{repo}/git/ref/heads/task/compiler-partition-fallback',check=False)
+          if ref.returncode==0:
+              assert json.loads(ref.stdout)['object']['sha']==head,'merged branch advanced; preserve it'
+              run('gh','api','--method','DELETE',f'repos/{repo}/git/refs/heads/task/compiler-partition-fallback')
+          retired=run('gh','api',f'repos/{repo}/git/ref/heads/task/compiler-partition-fallback',check=False)
+          assert retired.returncode!=0 and ('404' in retired.stderr or '404' in retired.stdout),'retirement not confirmed'
+          receipt.update(goal_commit=published,merged_branch_deleted=True,main_readback=api('git/ref/heads/main')['object']['sha'])
+          out=pathlib.Path('.task/G10.5.1/merge')/os.environ['GITHUB_RUN_ID']; out.mkdir(parents=True,exist_ok=False)
+          (out/'receipt.json').write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps(receipt,ensure_ascii=False,indent=2))
+          run('git','add','--',str(out))
+          run('git','-c','user.name=github-actions[bot]','-c','user.email=41898282+github-actions[bot]@users.noreply.github.com','commit','-m','Preserve direct-Chat integration readback and merged-branch retirement')
+          run('git','push','origin','HEAD:refs/heads/task/G10.5.1')
+          PY
