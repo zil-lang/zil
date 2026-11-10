@@ -565,6 +565,7 @@ fn registered_pod_carrier_states_match_in_every_original_summary_round() {
     let seed_key = seed as *const Type as usize;
     let run = |full| {
         let _mode = trace::Mode::enter(full);
+        checkpoint::drain_hits();
         trace::start();
         let mut b = budget(&module, 10_000_000);
         // Use the production raw-root order and complete shape check. No cache
@@ -592,6 +593,15 @@ fn registered_pod_carrier_states_match_in_every_original_summary_round() {
         let proof = check(&module, &graphs(&module), &mut b)
             .map(Proof::from)
             .unwrap();
+        let hits = checkpoint::drain_hits();
+        if full {
+            assert!(hits.is_empty());
+        } else {
+            assert!(
+                hits.contains(&0),
+                "registered actual carriers must participate in a guarded checkpoint hit"
+            );
+        }
         let after = b.pod_carriers.as_ref().unwrap().snapshot();
         assert_eq!(after.0, module_key);
         assert_eq!(

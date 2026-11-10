@@ -2254,6 +2254,35 @@ fn run_with_replacements(
     budget: &mut Budget,
     replacements: Option<&replacements::Context<'_>>,
 ) -> Check<Solved> {
+    run_retaining(
+        module,
+        f,
+        graph,
+        summaries,
+        validate,
+        budget,
+        replacements,
+        false,
+    )
+    .map(|(solved, _)| solved)
+}
+#[allow(clippy::too_many_arguments)]
+fn run_retaining<'m>(
+    module: &'m TypedModule,
+    f: &'m TypedFunction,
+    graph: &'m FunctionGraph,
+    summaries: &[Content],
+    validate: bool,
+    budget: &mut Budget,
+    replacements: Option<&replacements::Context<'_>>,
+    retain: bool,
+) -> Check<(Solved, Option<replacements::checkpoint::Entry<'m>>)> {
+    let checkpoint_start = if retain {
+        Some(replacements::checkpoint::Start::new(budget)?)
+    } else {
+        None
+    };
+
     let mut locals = Vec::new();
     budget.spend(
         f.locals
@@ -2462,6 +2491,37 @@ fn run_with_replacements(
             *capture = Some(inputs.clone());
         }
     });
+    let checkpoint = if let Some(start) = checkpoint_start {
+        start.save(
+            module,
+            f,
+            graph,
+            &flow,
+            &inputs,
+            &excluded_edges,
+            replacements,
+            budget,
+        )?
+    } else {
+        None
+    };
+    let (result, rows) = replay_inputs(&flow, inputs, validate, budget)?;
+    let checkpoint = if let Some(checkpoint) = checkpoint {
+        checkpoint.finish(flow, budget)?
+    } else {
+        None
+    };
+    Ok(((result, rows, excluded_edges), checkpoint))
+}
+
+fn replay_inputs(
+    flow: &Flow<'_>,
+    inputs: Vec<Option<State>>,
+    validate: bool,
+    budget: &mut Budget,
+) -> Check<(Content, Vec<Vec<Bridge>>)> {
+    let f = flow.f;
+    let module = flow.module;
     let mut result = content(&f.return_type, None, &mut Vec::new(), true, budget)?;
     let mut rows = vec![Vec::new(); f.blocks.len()];
     for (block, input) in inputs.into_iter().enumerate() {
@@ -2487,7 +2547,7 @@ fn run_with_replacements(
             }
         }
     }
-    Ok((result, rows, excluded_edges))
+    Ok((result, rows))
 }
 
 #[cfg(test)]
