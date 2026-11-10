@@ -1,0 +1,120 @@
+name: Resident CLI production validation
+on:
+  push:
+    branches: [task/compiler-resident-cli]
+    paths: [.github/workflows/compiler-resident-cli.yml]
+permissions:
+  contents: write
+concurrency:
+  group: compiler-resident-cli
+  cancel-in-progress: false
+jobs:
+  experiment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Pinned tools and complete resident protocol
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/resident-cli-setup" .task/resident-cli/bench
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          cargo fetch --locked
+          sudo apt-get update -qq
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/resident-cli-llvm" > "$RUNNER_TEMP/resident-cli-setup/llvm.log" 2>&1
+          echo "ZIL_CLANG=$RUNNER_TEMP/resident-cli-llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/resident-cli-llvm/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/resident-cli-llvm/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/resident-cli-llvm/bin" >> "$GITHUB_PATH"
+          git fetch --depth=1 --no-tags origin b3393f9c741d1a0dab34577e87a52c2620a18fb6
+          for f in corpus.py measure.py; do git show b3393f9c741d1a0dab34577e87a52c2620a18fb6:.task/resident/bench/$f > .task/resident-cli/bench/$f; done
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('.task/resident-cli/bench/measure.py');s=p.read_text().replace('3e4a2a2ae368380e86ea99da32d7f3eef68cf3b4','fc6620a3b975258643eb8f9c3ee77d868ff67a69');p.write_text(s)
+          PY
+      - name: Freeze actual CLI implementation before checks
+        run: |
+          set -euo pipefail
+          python3 .task/resident-cli/apply.py
+          rustfmt --edition 2024 crates/zil-cli/src/main.rs crates/zil-cli/tests/resident_session.rs
+          chmod +x .task/resident-cli/adapter.py
+          python3 -m py_compile .task/resident-cli/*.py .task/resident-cli/bench/*.py
+          git diff --check
+          git diff > "$RUNNER_TEMP/resident-cli-setup/candidate.patch"
+          git add crates/zil-cli/src/main.rs crates/zil-cli/src/resident.rs crates/zil-cli/tests/resident_session.rs docs/guide/resident-compilation.md .task/resident-cli
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Freeze explicit resident CLI and complete request/reset regression controls'
+          git rev-parse HEAD > "$RUNNER_TEMP/resident-cli-setup/source.txt"
+          git fetch --no-tags origin refs/heads/task/compiler-resident-cli
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git push origin HEAD:refs/heads/task/compiler-resident-cli
+          rustc -vV > "$RUNNER_TEMP/resident-cli-setup/rustc.txt"
+      - name: Entire CLI default and reference tests plus driver controls
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/resident-cli-tests"
+          cargo test --locked --offline -p zil-cli 2>&1 | tee "$RUNNER_TEMP/resident-cli-setup/cli.log"
+          grep 'resident_reopens_changed_manifests_and_rejects_stale_dependency_locks .*ok' "$RUNNER_TEMP/resident-cli-setup/cli.log"
+          cargo test --locked --offline -p zil-cli --no-default-features 2>&1 | tee "$RUNNER_TEMP/resident-cli-setup/reference.log"
+          cargo test --locked --offline -p zil-driver --features llvm-api --lib 2>&1 | tee "$RUNNER_TEMP/resident-cli-setup/driver.log"
+          cargo clippy --locked --offline -p zil-cli --all-targets -- -D warnings 2>&1 | tee "$RUNNER_TEMP/resident-cli-setup/clippy.log"
+          cargo fmt --all -- --check
+      - name: One identical release CLI for fresh and resident arms
+        id: build
+        run: |
+          set -euo pipefail
+          CARGO_TARGET_DIR="$RUNNER_TEMP/resident-cli-target" cargo build --locked --offline --release -p zil-cli > "$RUNNER_TEMP/resident-cli-setup/build.log" 2>&1
+          echo "ZIL_RESIDENT_CLI=$RUNNER_TEMP/resident-cli-target/release/zil" >> "$GITHUB_ENV"
+      - name: Repeated edits cross whole-session lifetime boundaries
+        run: |
+          set -euo pipefail
+          python3 .task/resident-cli/lifetime.py --cli "$ZIL_RESIDENT_CLI" --out "$RUNNER_TEMP/resident-cli-lifetime" 2>&1 | tee "$RUNNER_TEMP/resident-cli-setup/lifetime.log"
+      - name: Full fixed matrix with startup IPC memory and exact machine equality
+        run: |
+          set -euo pipefail
+          python3 .task/resident-cli/bench/measure.py --base "$ZIL_RESIDENT_CLI" --candidate "$GITHUB_WORKSPACE/.task/resident-cli/adapter.py" --out "$RUNNER_TEMP/resident-cli-data" --rounds 5 2>&1 | tee "$RUNNER_TEMP/resident-cli-setup/measure.log"
+      - name: Native resource and failure consumers
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 tools/research/native-api-validation/validate.py --repo "$GITHUB_WORKSPACE" --cli "$ZIL_RESIDENT_CLI" --clang "$ZIL_CLANG" --out "$RUNNER_TEMP/resident-cli-consumer" > "$RUNNER_TEMP/resident-cli-setup/consumer.log" 2>&1
+      - name: Preserve successful and failed evidence without main edits
+        if: ${{ always() }}
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib,os,json,hashlib,tarfile,shutil
+          P=pathlib.Path;t=P(os.environ['RUNNER_TEMP']);d=P('.task/resident-cli/runs')/os.environ['GITHUB_RUN_ID'];d.mkdir(parents=True);data=t/'resident-cli-data'
+          for n in ('manifest.json','summary.json','rows.jsonl','cells.json','failures.json','equivalence.json','runtime.jsonl'):
+              if (data/n).exists():shutil.copyfile(data/n,d/n)
+          for folder,name in [('resident-cli-lifetime','lifetime.json'),('resident-cli-consumer','consumer.json')]:
+              if (t/folder/'summary.json').exists():shutil.copyfile(t/folder/'summary.json',d/name)
+          with tarfile.open(d/'raw.tar.gz','w:gz') as tar:
+              for path,label in [(t/'resident-cli-setup','setup'),(t/'resident-cli-lifetime','lifetime'),(data/'logs','logs'),(data/'runtime-logs','runtime-logs'),(data/'corpus','corpus')]:
+                  if path.exists():tar.add(path,arcname=label)
+          assert (d/'raw.tar.gz').stat().st_size<48*1024*1024
+          source=t/'resident-cli-setup/source.txt';receipt={'base_production':'fc6620a3b975258643eb8f9c3ee77d868ff67a69','source':source.read_text().strip() if source.exists() else None,'recipe':os.environ['GITHUB_SHA'],'status_before_preservation':os.environ['PRIOR_STATUS'],'scope':'same release CLI fresh process vs explicit resident; no changed compiler backend','files':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in d.iterdir()},'main_modified':False,'external_ai_review':False,'acceptance':'Pending source and raw numerical review'}
+          (d/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
+          PY
+          git fetch --no-tags origin refs/heads/task/compiler-resident-cli
+          expected="$GITHUB_SHA"; if test -f "$RUNNER_TEMP/resident-cli-setup/source.txt"; then expected="$(cat "$RUNNER_TEMP/resident-cli-setup/source.txt")"; fi
+          test "$(git rev-parse FETCH_HEAD)" = "$expected"
+          git add -- ".task/resident-cli/runs/$GITHUB_RUN_ID"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Preserve resident CLI request and memory evidence $GITHUB_RUN_ID"
+          git push origin HEAD:refs/heads/task/compiler-resident-cli
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: resident-cli-${{ github.run_id }}
+          path: .task/resident-cli/runs/${{ github.run_id }}
+          retention-days: 30
