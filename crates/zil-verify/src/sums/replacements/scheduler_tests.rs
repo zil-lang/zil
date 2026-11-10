@@ -317,8 +317,7 @@ fn ordered_summary_requests_keep_exact_fresh_budget_boundaries() {
     println!("V ordered full check N={n}, full scan={old}; N-1/fresh checked");
 }
 
-#[path = "scheduler_contexts.rs"]
-mod contexts;
+use super::scheduler_contexts as contexts;
 #[test]
 fn actual_public_helper_and_callback_reads_are_registered_before_their_rows_grow() {
     let module = contexts::public_callback_input_fixture();

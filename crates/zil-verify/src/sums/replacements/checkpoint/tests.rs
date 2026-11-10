@@ -2,8 +2,7 @@
 use super::*;
 use crate::place_replacements::fixture;
 include!("reference.rs");
-#[path = "../scheduler_contexts.rs"]
-mod contexts;
+use super::super::scheduler_contexts as contexts;
 type BridgeFacts = (Option<u8>, FieldFresh, Vec<UnpackedFresh>);
 thread_local! { static HITS:RefCell<Vec<usize>>=const {RefCell::new(Vec::new())}; }
 type CaptureRow = Vec<Option<Content>>;

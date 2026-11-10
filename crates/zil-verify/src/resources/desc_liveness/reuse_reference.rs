@@ -78,6 +78,8 @@ fn old_liveness(
     old_history(f, slots, &output, budget)
 }
 
+// Preserve the complete pre-reuse algorithm and its original parameter boundary.
+#[allow(clippy::too_many_arguments)]
 fn old_run(
     module: &TypedModule,
     f: &TypedFunction,

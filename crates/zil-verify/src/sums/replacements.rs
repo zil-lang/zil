@@ -8,6 +8,8 @@ pub(super) mod checkpoint;
 mod helper_result_tests;
 mod ordered;
 #[cfg(test)]
+mod scheduler_contexts;
+#[cfg(test)]
 mod scheduler_tests;
 #[cfg(test)]
 mod trace;

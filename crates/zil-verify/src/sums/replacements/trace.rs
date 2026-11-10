@@ -161,10 +161,10 @@ pub(super) fn final_state(
 }
 pub(super) fn store(store: &BTreeSet<usize>) {
     TRACE.with(|v| {
-        if let Some(trace) = v.borrow_mut().as_mut() {
-            if trace.store_history.last() != Some(store) {
-                trace.store_history.push(store.clone());
-            }
+        if let Some(trace) = v.borrow_mut().as_mut()
+            && trace.store_history.last() != Some(store)
+        {
+            trace.store_history.push(store.clone());
         }
     });
 }

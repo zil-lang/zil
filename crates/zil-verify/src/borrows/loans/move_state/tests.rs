@@ -207,8 +207,8 @@ fn move_rows_keep_complete_ssa_width_tail_and_dense_payload() {
         assert_eq!(actual.logical(), expected);
         assert_eq!(alias.logical(), original);
         assert_eq!(other.logical(), from);
-        for i in 0..width {
-            assert_eq!(actual.get(i, &mut budget(ROOM)).unwrap(), expected[i]);
+        for (i, expected) in expected.iter().enumerate() {
+            assert_eq!(actual.get(i, &mut budget(ROOM)).unwrap(), *expected);
         }
         let before = actual.logical();
         for index in [width, usize::MAX] {

@@ -1,5 +1,6 @@
 //! Raw context inputs only: neither analyzer summaries nor certificates.
 use super::*;
+use crate::place_replacements::fixture;
 pub(super) fn public_callback_input_fixture() -> TypedModule {
     use zil_ir::{
         CallEvent, CallableCleanup, CallableExit, CallableParameterContract, CallableRole,
