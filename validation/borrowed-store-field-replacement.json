@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "scope": "Actual direct mutable Package Managed Store field replacement, including reborrow origins and preparation failure; not general Map, callable capture or whole-Package replacement acceptance.",
+  "status": "Pass within this scope",
+  "source": {
+    "base_main": "21b1feefc47e05d5d88a7d4738034831e8bc17f0",
+    "tested_code": "597d81af89fac16140c001e8d2865c2b4f9ff50b",
+    "tested_tree": "d3fb5a3d8388c8f7b42e2c4fcc0a62d0648cb61a",
+    "following_delta": "This receipt only; production, consumers and source inputs remain identical to the tested tree."
+  },
+  "contract": "spec/ordinary-store-ownership.md",
+  "inputs": [
+    {
+      "path": "tests/language-readiness/borrowed-store-field-replacement/caller-descriptor.zil",
+      "bytes": 608,
+      "sha256": "97d2975c55434c043774c9c0281c975efac265036873a4e430c6015747fa9cd0"
+    },
+    {
+      "path": "tests/language-readiness/borrowed-store-field-replacement/prepare-error.zil",
+      "bytes": 992,
+      "sha256": "99f83a5ae96c5393a42a5a6802fefd477ba313f17731450a62b58b7497127a22"
+    },
+    {
+      "path": "tests/language-readiness/borrowed-store-field-replacement/record-refill.zil",
+      "bytes": 810,
+      "sha256": "c87a429f13dca01ff4f906404ff98e19708966ac35f6bf9abac5d588245a51d9"
+    },
+    {
+      "path": "tests/language-readiness/borrowed-store-field-replacement/refill.zil",
+      "bytes": 547,
+      "sha256": "68181a894bfde9ebd5eae2e00164efefaca08804e50ea777ad376412c1ca4af2"
+    },
+    {
+      "path": "tests/language-readiness/borrowed-store-field-replacement/rhs-once.zil",
+      "bytes": 747,
+      "sha256": "5896a631349ae360f1957c7fbab8432ae17a208dab96e7055a77b328b99a2f9f"
+    },
+    {
+      "path": "tests/language-readiness/borrowed-store-field-replacement/two-inputs.zil",
+      "bytes": 732,
+      "sha256": "bbb83b528e79795dcb4d985042cbc10c81f16b16dd38f1c1095b277c124d35d7"
+    }
+  ],
+  "derived_input": "Reborrow control substitutes let alias=&mut *holder;alias.items=give next for the single original refill assignment; original fixture files remain complete.",
+  "verified_invariants": [
+    "Actual exclusive Package referent and declaring-module field privacy",
+    "Exact complete canonical Store type and single transfer of incoming responsibility",
+    "Old descriptor and element loans remain invalid after helper replacement in Source, independent raw Verify and Wire",
+    "Named and explicit dereference select the same reservation/commit endpoint",
+    "RHS runs once; failed preparation aborts the reservation, preserves old value 11 and frees the prepared input once"
+  ],
+  "budget": {
+    "default_limits_unchanged": true,
+    "source_named": 42126,
+    "source_explicit": 42126,
+    "types_named": 2805,
+    "types_explicit": 3141,
+    "controls": "Success at N, ResourceLimit at N-1, fresh/warm/retry for Source and fresh retry for Types; no relaxed input or assertion."
+  },
+  "native": {
+    "toolchain": {
+      "rustc": "1.99.1",
+      "clang": "23.1.4",
+      "llvm_api": "23.1.4",
+      "host": "x86_64-unknown-linux-gnu"
+    },
+    "programs": [
+      "scalar",
+      "record",
+      "rhs-once",
+      "reborrow",
+      "prepare-error"
+    ],
+    "configurations": [
+      "Clang/O0",
+      "Clang/O2",
+      "LlvmApi/O0",
+      "LlvmApi/O2"
+    ],
+    "executions_per_matrix": 20,
+    "matrices": 2,
+    "fallbacks": 0,
+    "expected_exit": 0,
+    "cleanup_per_execution": {
+      "allocated": 2,
+      "frees": 2,
+      "failures": 0,
+      "live": 0
+    },
+    "stdout": "X exactly once for rhs-once; empty for every other program, including prepare-error."
+  },
+  "tests": {
+    "focused": {
+      "passed": 12,
+      "failed": 0
+    },
+    "nominal_trait_bounds": {
+      "passed": 231,
+      "failed": 0,
+      "includes_focused": true
+    },
+    "libraries": {
+      "zil_expand": 77,
+      "zil_types": 60,
+      "zil_verify": 511,
+      "failed": 0
+    },
+    "strict_target_clippy": "Pass",
+    "format": "Pass",
+    "repository_layout": "Pass",
+    "static_contracts_and_conformance": "Pass",
+    "non_author_exact_tree_review": "Accepted"
+  },
+  "reproduce": [
+    "cargo test --locked --offline -p zil-driver --features llvm-api --test nominal_trait_bounds borrowed_store_field_replacement -- --nocapture",
+    "cargo test --locked --offline -p zil-driver --features llvm-api --test nominal_trait_bounds",
+    "cargo test --locked --offline -p zil-expand -p zil-types -p zil-verify --lib"
+  ],
+  "unmeasured": "No new full-workspace or end-product gate is claimed by this scoped receipt."
+}
