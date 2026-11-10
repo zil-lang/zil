@@ -1,0 +1,44 @@
+{
+  "pr": 75,
+  "head": "3e4a2a2ae368380e86ea99da32d7f3eef68cf3b4",
+  "merge": "e12b158e178ddfec783bd4502ac596a1baab9443",
+  "production_blobs": {
+    "crates/zil-analyze/src/resources.rs": "eb736c00141abba42c8590de14ed6faee7a13e35",
+    "crates/zil-analyze/src/resources/order.rs": "f3f6c478008fe0a50fb11f7c70a41bb86ab6d229",
+    "crates/zil-analyze/src/resources/order/tests.rs": "e3aaf551e550873bf87d4eb8719b558cc21d263b",
+    "docs/guide/resource-order-analysis.md": "7cee7ad92a567fc351e6cda059db26aae9f47a13"
+  },
+  "experiment_source": "d7a8d307ff04d9b6f1dc1240de1be203aa244209",
+  "experiment_run": 42766117593,
+  "ci_runs": [
+    42767461822,
+    42767461700
+  ],
+  "source_tree": "e125ec21c4dd70cdd1a9b91b15f44e5aeb7f3200",
+  "per_ci": {
+    "workspace": 5883,
+    "reference": 5769,
+    "text_reference": 70,
+    "failures": 0
+  },
+  "matrix": {
+    "requests": 1800,
+    "formal": 1500,
+    "native_outputs": 3672,
+    "identical_text_pairs": 576,
+    "current_verification_requests": 1728
+  },
+  "scale": {
+    "owned64": "Check and native O2 now succeed at unchanged defaults",
+    "owned96": "ResourceLimit remains",
+    "owned128": "ResourceLimit remains"
+  },
+  "weighted_reduction_percent_range": [
+    0.0525,
+    0.223
+  ],
+  "review": "current Chat direct source/evidence review under explicit owner authorization; no external AI review",
+  "goal_read_before": "7f810391282c5b371dd62370850baf18499bd403",
+  "updated_at": "2026-11-10T16:50:51.313303+08:00",
+  "research": "https://github.com/zil-lang/zil/blob/f50aecf885aa1622575e5dca13bb311e6a1536c9/.task/G10.5.1.5/BLAZE-V2.md"
+}
