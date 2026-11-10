@@ -228,6 +228,10 @@ impl Rows {
             (Storage::Pages { pages, .. }, Storage::Pages { pages: from, .. }) => {
                 for (target, source) in pages.iter_mut().zip(from) {
                     b.spend(2)?;
+                    b.spend(1)?; // actual immutable Arc page identity comparison
+                    if Arc::ptr_eq(target, source) {
+                        continue;
+                    }
                     changed |= merge_rows(unique_page(target, b)?, source, true, b)?;
                 }
             }
@@ -252,3 +256,6 @@ impl Rows {
 }
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod identity_tests;
