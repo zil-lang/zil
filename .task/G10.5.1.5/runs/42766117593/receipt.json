@@ -1,0 +1,21 @@
+{
+  "baseline": "8b5989dd19d9ffa7549ec3de282aafc431c13593",
+  "source": "d7a8d307ff04d9b6f1dc1240de1be203aa244209",
+  "recipe": "7b6effae15591e4a0937366ce747f3df58ee578f",
+  "status": "success",
+  "files": {
+    "scale.json": "5c490dd311b93e696ec4f64ccb4b89d610d995ce6e078ea47368c0c7bc5ca7b4",
+    "failures.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "manifest.json": "41e853db7f29872dafd01cacd217639ca5dd06b071699c341943df5001f2e809",
+    "runtime.jsonl": "02b416342808119b608772dab5d85f93dea5d125d7bd77e4018fca459b934443",
+    "consumer.json": "48d03c499bf225be17929c565f73ed9da7b29efb46b5f5d31b97ff84b16fb729",
+    "equivalence.json": "8993067a3c36761d7a07434566a5370584e2294890a9802ecde89b6fd8063404",
+    "rows.jsonl": "e4ee87f5b8e4e9c67477ba4214e945af75ef6c751f39255824ebf956bba2c733",
+    "raw.tar.gz": "327a7609697371555d36a016d592dea1f1b373baf73130f2c80fc041193c7c03",
+    "summary.json": "b224b2c99e862bfdb6eaa21dd8ebc897fa47c15bbb82ff6ca35fb82fdfbf625a",
+    "cells.json": "4317e292a0d49a30dd338521a0c775bc0f60e592d457ed3327ec62138c9ffc99"
+  },
+  "main_modified": false,
+  "external_ai_review": false,
+  "acceptance": "Pending source/evidence audit; no automated merge"
+}

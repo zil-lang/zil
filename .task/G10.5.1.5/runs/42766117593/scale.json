@@ -1,0 +1,1359 @@
+[
+  {
+    "n": 32,
+    "arm": "base",
+    "mode": "check",
+    "wall_ms": 41.47227800001474,
+    "exit": 0,
+    "report": {
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "artifacts": {},
+      "input_fingerprint": "1410a7a8f85f2dab32d368860cc9388a51d63b90ea5cf6ce3d92c16fbab4da49",
+      "seconds": 0.033973105,
+      "cache_hit": false,
+      "commands": [],
+      "native_codegen": null,
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        },
+        {
+          "phase": "verify",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 1,
+      "source_files": {
+        "0": "/home/runner/work/_temp/order-scale/owned32.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+          "implementation_fingerprint": "e29156da0343a117664bfeac9adde3e5e3a2195f9e95c92d464e89bffc83f3ca",
+          "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+          "result_origins": [],
+          "callable_contracts": [],
+          "callable_returns": [],
+          "exports": []
+        }
+      ]
+    },
+    "observations": []
+  },
+  {
+    "n": 32,
+    "arm": "base",
+    "mode": "O2",
+    "wall_ms": 884.8234490000095,
+    "exit": 0,
+    "report": {
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "artifacts": {
+        "executable": "/home/runner/work/_temp/order-scale/base-32",
+        "llvm": "/home/runner/work/_temp/order-scale/base-32.ll"
+      },
+      "input_fingerprint": "1410a7a8f85f2dab32d368860cc9388a51d63b90ea5cf6ce3d92c16fbab4da49",
+      "seconds": 0.873228424,
+      "cache_hit": false,
+      "commands": [
+        [
+          "/home/runner/work/_temp/order-llvm/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-O2",
+          "/home/runner/work/_temp/order-scale/.zil-driver-5262-0/.zil-build-5262-0/unit-0.o",
+          "/home/runner/work/_temp/order-scale/.zil-driver-5262-0/.zil-build-5262-0/unit-1.o",
+          "-o",
+          "/home/runner/work/_temp/order-scale/.zil-driver-5262-0/.zil-build-5262-0/program"
+        ]
+      ],
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>|merge-functions=after|aliases=false",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 50144,
+            "input_kind": "builder",
+            "preflight_ns": 5640546,
+            "builder_ns": 7946376,
+            "parse_ns": 0,
+            "optimize_ns": 558324732,
+            "emit_ns": 229102959,
+            "total_ns": 803461696
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>|merge-functions=after|aliases=false",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 480,
+            "input_kind": "builder",
+            "preflight_ns": 44953,
+            "builder_ns": 153235,
+            "parse_ns": 0,
+            "optimize_ns": 1351204,
+            "emit_ns": 1358818,
+            "total_ns": 3232966
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 8,
+        "actual_units": 2,
+        "jobs": 2,
+        "fallback": null,
+        "task_abis": []
+      },
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        },
+        {
+          "phase": "verify",
+          "disposition": "executed"
+        },
+        {
+          "phase": "lower",
+          "disposition": "executed"
+        },
+        {
+          "phase": "link",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 1,
+      "source_files": {
+        "0": "/home/runner/work/_temp/order-scale/owned32.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+          "implementation_fingerprint": "e29156da0343a117664bfeac9adde3e5e3a2195f9e95c92d464e89bffc83f3ca",
+          "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+          "result_origins": [],
+          "callable_contracts": [],
+          "callable_returns": [],
+          "exports": []
+        }
+      ]
+    },
+    "observations": [
+      {
+        "input": "01000001",
+        "actual": "3500",
+        "expected": "3500",
+        "exit": 0,
+        "pass": true
+      },
+      {
+        "input": "1d020002",
+        "actual": "1800",
+        "expected": "1800",
+        "exit": 0,
+        "pass": true
+      },
+      {
+        "input": "fb050003",
+        "actual": "1c00",
+        "expected": "1c00",
+        "exit": 0,
+        "pass": true
+      }
+    ]
+  },
+  {
+    "n": 32,
+    "arm": "cand",
+    "mode": "check",
+    "wall_ms": 36.466971999971065,
+    "exit": 0,
+    "report": {
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "artifacts": {},
+      "input_fingerprint": "1410a7a8f85f2dab32d368860cc9388a51d63b90ea5cf6ce3d92c16fbab4da49",
+      "seconds": 0.029428365,
+      "cache_hit": false,
+      "commands": [],
+      "native_codegen": null,
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        },
+        {
+          "phase": "verify",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 1,
+      "source_files": {
+        "0": "/home/runner/work/_temp/order-scale/owned32.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+          "implementation_fingerprint": "e29156da0343a117664bfeac9adde3e5e3a2195f9e95c92d464e89bffc83f3ca",
+          "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+          "result_origins": [],
+          "callable_contracts": [],
+          "callable_returns": [],
+          "exports": []
+        }
+      ]
+    },
+    "observations": []
+  },
+  {
+    "n": 32,
+    "arm": "cand",
+    "mode": "O2",
+    "wall_ms": 887.9510829999617,
+    "exit": 0,
+    "report": {
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "artifacts": {
+        "executable": "/home/runner/work/_temp/order-scale/cand-32",
+        "llvm": "/home/runner/work/_temp/order-scale/cand-32.ll"
+      },
+      "input_fingerprint": "1410a7a8f85f2dab32d368860cc9388a51d63b90ea5cf6ce3d92c16fbab4da49",
+      "seconds": 0.876942779,
+      "cache_hit": false,
+      "commands": [
+        [
+          "/home/runner/work/_temp/order-llvm/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-O2",
+          "/home/runner/work/_temp/order-scale/.zil-driver-5271-0/.zil-build-5271-0/unit-0.o",
+          "/home/runner/work/_temp/order-scale/.zil-driver-5271-0/.zil-build-5271-0/unit-1.o",
+          "-o",
+          "/home/runner/work/_temp/order-scale/.zil-driver-5271-0/.zil-build-5271-0/program"
+        ]
+      ],
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>|merge-functions=after|aliases=false",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 50144,
+            "input_kind": "builder",
+            "preflight_ns": 5603095,
+            "builder_ns": 7904858,
+            "parse_ns": 0,
+            "optimize_ns": 564006328,
+            "emit_ns": 231267374,
+            "total_ns": 811269112
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>|merge-functions=after|aliases=false",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 480,
+            "input_kind": "builder",
+            "preflight_ns": 32119,
+            "builder_ns": 80851,
+            "parse_ns": 0,
+            "optimize_ns": 982217,
+            "emit_ns": 1011462,
+            "total_ns": 2462611
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 8,
+        "actual_units": 2,
+        "jobs": 2,
+        "fallback": null,
+        "task_abis": []
+      },
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        },
+        {
+          "phase": "verify",
+          "disposition": "executed"
+        },
+        {
+          "phase": "lower",
+          "disposition": "executed"
+        },
+        {
+          "phase": "link",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 1,
+      "source_files": {
+        "0": "/home/runner/work/_temp/order-scale/owned32.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+          "implementation_fingerprint": "e29156da0343a117664bfeac9adde3e5e3a2195f9e95c92d464e89bffc83f3ca",
+          "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+          "result_origins": [],
+          "callable_contracts": [],
+          "callable_returns": [],
+          "exports": []
+        }
+      ]
+    },
+    "observations": [
+      {
+        "input": "01000001",
+        "actual": "3500",
+        "expected": "3500",
+        "exit": 0,
+        "pass": true
+      },
+      {
+        "input": "1d020002",
+        "actual": "1800",
+        "expected": "1800",
+        "exit": 0,
+        "pass": true
+      },
+      {
+        "input": "fb050003",
+        "actual": "1c00",
+        "expected": "1c00",
+        "exit": 0,
+        "pass": true
+      }
+    ]
+  },
+  {
+    "n": 64,
+    "arm": "base",
+    "mode": "check",
+    "wall_ms": 84.43470600002456,
+    "exit": 4,
+    "report": {
+      "status": "ResourceLimit",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "ResourceLimit",
+          "code": "E-RESOURCE-LIMIT",
+          "message": "analysis budget exceeded during resource order removal",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "artifacts": {},
+      "input_fingerprint": "fb27f1c12722076c4cf253d698926cf488a4763992d37e907bb56eb19dea895e",
+      "seconds": 0.072590905,
+      "cache_hit": false,
+      "commands": [],
+      "native_codegen": null,
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 0,
+      "source_files": {
+        "0": "/home/runner/work/_temp/order-scale/owned64.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+          "implementation_fingerprint": "914036677ab597951b7758c98388c9cdf206be214bf42cfeba21302ca088317b",
+          "contract_fingerprint": null,
+          "result_origins": null,
+          "callable_contracts": null,
+          "callable_returns": null,
+          "exports": []
+        }
+      ]
+    },
+    "observations": []
+  },
+  {
+    "n": 64,
+    "arm": "base",
+    "mode": "O2",
+    "wall_ms": 83.46689099994364,
+    "exit": 4,
+    "report": {
+      "status": "ResourceLimit",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "ResourceLimit",
+          "code": "E-RESOURCE-LIMIT",
+          "message": "analysis budget exceeded during resource order removal",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "artifacts": {},
+      "input_fingerprint": "fb27f1c12722076c4cf253d698926cf488a4763992d37e907bb56eb19dea895e",
+      "seconds": 0.071489696,
+      "cache_hit": false,
+      "commands": [],
+      "native_codegen": null,
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 0,
+      "source_files": {
+        "0": "/home/runner/work/_temp/order-scale/owned64.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+          "implementation_fingerprint": "914036677ab597951b7758c98388c9cdf206be214bf42cfeba21302ca088317b",
+          "contract_fingerprint": null,
+          "result_origins": null,
+          "callable_contracts": null,
+          "callable_returns": null,
+          "exports": []
+        }
+      ]
+    },
+    "observations": []
+  },
+  {
+    "n": 64,
+    "arm": "cand",
+    "mode": "check",
+    "wall_ms": 103.34115900002416,
+    "exit": 0,
+    "report": {
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "artifacts": {},
+      "input_fingerprint": "fb27f1c12722076c4cf253d698926cf488a4763992d37e907bb56eb19dea895e",
+      "seconds": 0.093601478,
+      "cache_hit": false,
+      "commands": [],
+      "native_codegen": null,
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        },
+        {
+          "phase": "verify",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 1,
+      "source_files": {
+        "0": "/home/runner/work/_temp/order-scale/owned64.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+          "implementation_fingerprint": "914036677ab597951b7758c98388c9cdf206be214bf42cfeba21302ca088317b",
+          "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+          "result_origins": [],
+          "callable_contracts": [],
+          "callable_returns": [],
+          "exports": []
+        }
+      ]
+    },
+    "observations": []
+  },
+  {
+    "n": 64,
+    "arm": "cand",
+    "mode": "O2",
+    "wall_ms": 4218.116452000004,
+    "exit": 0,
+    "report": {
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "artifacts": {
+        "executable": "/home/runner/work/_temp/order-scale/cand-64",
+        "llvm": "/home/runner/work/_temp/order-scale/cand-64.ll"
+      },
+      "input_fingerprint": "fb27f1c12722076c4cf253d698926cf488a4763992d37e907bb56eb19dea895e",
+      "seconds": 4.196323328,
+      "cache_hit": false,
+      "commands": [
+        [
+          "/home/runner/work/_temp/order-llvm/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-O2",
+          "/home/runner/work/_temp/order-scale/.zil-driver-5282-0/.zil-build-5282-0/unit-0.o",
+          "/home/runner/work/_temp/order-scale/.zil-driver-5282-0/.zil-build-5282-0/unit-1.o",
+          "-o",
+          "/home/runner/work/_temp/order-scale/.zil-driver-5282-0/.zil-build-5282-0/program"
+        ]
+      ],
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>|merge-functions=after|aliases=false",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 109120,
+            "input_kind": "builder",
+            "preflight_ns": 19389657,
+            "builder_ns": 27676055,
+            "parse_ns": 0,
+            "optimize_ns": 3339351803,
+            "emit_ns": 646793335,
+            "total_ns": 4039844843
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>|merge-functions=after|aliases=false",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 480,
+            "input_kind": "builder",
+            "preflight_ns": 47969,
+            "builder_ns": 107050,
+            "parse_ns": 0,
+            "optimize_ns": 1001473,
+            "emit_ns": 1042540,
+            "total_ns": 2574641
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 8,
+        "actual_units": 2,
+        "jobs": 2,
+        "fallback": null,
+        "task_abis": []
+      },
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        },
+        {
+          "phase": "verify",
+          "disposition": "executed"
+        },
+        {
+          "phase": "lower",
+          "disposition": "executed"
+        },
+        {
+          "phase": "link",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 1,
+      "source_files": {
+        "0": "/home/runner/work/_temp/order-scale/owned64.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+          "implementation_fingerprint": "914036677ab597951b7758c98388c9cdf206be214bf42cfeba21302ca088317b",
+          "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+          "result_origins": [],
+          "callable_contracts": [],
+          "callable_returns": [],
+          "exports": []
+        }
+      ]
+    },
+    "observations": [
+      {
+        "input": "01000001",
+        "actual": "9100",
+        "expected": "9100",
+        "exit": 0,
+        "pass": true
+      },
+      {
+        "input": "1d020002",
+        "actual": "7d00",
+        "expected": "7d00",
+        "exit": 0,
+        "pass": true
+      },
+      {
+        "input": "fb050003",
+        "actual": "4b00",
+        "expected": "4b00",
+        "exit": 0,
+        "pass": true
+      }
+    ]
+  },
+  {
+    "n": 96,
+    "arm": "base",
+    "mode": "check",
+    "wall_ms": 119.66982199999165,
+    "exit": 4,
+    "report": {
+      "status": "ResourceLimit",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "ResourceLimit",
+          "code": "E-RESOURCE-LIMIT",
+          "message": "analysis budget exceeded during resource order removal",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "artifacts": {},
+      "input_fingerprint": "60d172688766198e6c2778dc758c1b7af39b3a2329254b7d2bf728220cbfca25",
+      "seconds": 0.106996962,
+      "cache_hit": false,
+      "commands": [],
+      "native_codegen": null,
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 0,
+      "source_files": {
+        "0": "/home/runner/work/_temp/order-scale/owned96.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+          "implementation_fingerprint": "d74f08ad67a9614723fe94c96541a82a26e99e05a4344440a2b328137892d784",
+          "contract_fingerprint": null,
+          "result_origins": null,
+          "callable_contracts": null,
+          "callable_returns": null,
+          "exports": []
+        }
+      ]
+    },
+    "observations": []
+  },
+  {
+    "n": 96,
+    "arm": "base",
+    "mode": "O2",
+    "wall_ms": 122.7372790000345,
+    "exit": 4,
+    "report": {
+      "status": "ResourceLimit",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "ResourceLimit",
+          "code": "E-RESOURCE-LIMIT",
+          "message": "analysis budget exceeded during resource order removal",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "artifacts": {},
+      "input_fingerprint": "60d172688766198e6c2778dc758c1b7af39b3a2329254b7d2bf728220cbfca25",
+      "seconds": 0.108539222,
+      "cache_hit": false,
+      "commands": [],
+      "native_codegen": null,
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 0,
+      "source_files": {
+        "0": "/home/runner/work/_temp/order-scale/owned96.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+          "implementation_fingerprint": "d74f08ad67a9614723fe94c96541a82a26e99e05a4344440a2b328137892d784",
+          "contract_fingerprint": null,
+          "result_origins": null,
+          "callable_contracts": null,
+          "callable_returns": null,
+          "exports": []
+        }
+      ]
+    },
+    "observations": []
+  },
+  {
+    "n": 96,
+    "arm": "cand",
+    "mode": "check",
+    "wall_ms": 115.44208600003003,
+    "exit": 4,
+    "report": {
+      "status": "ResourceLimit",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "ResourceLimit",
+          "code": "E-RESOURCE-LIMIT",
+          "message": "analysis budget exceeded during resource order word removal",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "artifacts": {},
+      "input_fingerprint": "60d172688766198e6c2778dc758c1b7af39b3a2329254b7d2bf728220cbfca25",
+      "seconds": 0.102617073,
+      "cache_hit": false,
+      "commands": [],
+      "native_codegen": null,
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 0,
+      "source_files": {
+        "0": "/home/runner/work/_temp/order-scale/owned96.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+          "implementation_fingerprint": "d74f08ad67a9614723fe94c96541a82a26e99e05a4344440a2b328137892d784",
+          "contract_fingerprint": null,
+          "result_origins": null,
+          "callable_contracts": null,
+          "callable_returns": null,
+          "exports": []
+        }
+      ]
+    },
+    "observations": []
+  },
+  {
+    "n": 96,
+    "arm": "cand",
+    "mode": "O2",
+    "wall_ms": 119.2052669999839,
+    "exit": 4,
+    "report": {
+      "status": "ResourceLimit",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "ResourceLimit",
+          "code": "E-RESOURCE-LIMIT",
+          "message": "analysis budget exceeded during resource order word removal",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "artifacts": {},
+      "input_fingerprint": "60d172688766198e6c2778dc758c1b7af39b3a2329254b7d2bf728220cbfca25",
+      "seconds": 0.106228403,
+      "cache_hit": false,
+      "commands": [],
+      "native_codegen": null,
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 0,
+      "source_files": {
+        "0": "/home/runner/work/_temp/order-scale/owned96.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+          "implementation_fingerprint": "d74f08ad67a9614723fe94c96541a82a26e99e05a4344440a2b328137892d784",
+          "contract_fingerprint": null,
+          "result_origins": null,
+          "callable_contracts": null,
+          "callable_returns": null,
+          "exports": []
+        }
+      ]
+    },
+    "observations": []
+  },
+  {
+    "n": 128,
+    "arm": "base",
+    "mode": "check",
+    "wall_ms": 192.7629799999977,
+    "exit": 4,
+    "report": {
+      "status": "ResourceLimit",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "ResourceLimit",
+          "code": "E-RESOURCE-LIMIT",
+          "message": "analysis budget exceeded during resource order removal",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "artifacts": {},
+      "input_fingerprint": "24acfb1dc6ea92dc6737b8ebdcc44b0f4df9d871aa68661fff039fe45a778109",
+      "seconds": 0.18003017,
+      "cache_hit": false,
+      "commands": [],
+      "native_codegen": null,
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 0,
+      "source_files": {
+        "0": "/home/runner/work/_temp/order-scale/owned128.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+          "implementation_fingerprint": "3b0b9d3e49155a35387c4537e1907e3e2de9aa88f268be162b7e1b31941eaefd",
+          "contract_fingerprint": null,
+          "result_origins": null,
+          "callable_contracts": null,
+          "callable_returns": null,
+          "exports": []
+        }
+      ]
+    },
+    "observations": []
+  },
+  {
+    "n": 128,
+    "arm": "base",
+    "mode": "O2",
+    "wall_ms": 191.9103630000336,
+    "exit": 4,
+    "report": {
+      "status": "ResourceLimit",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "ResourceLimit",
+          "code": "E-RESOURCE-LIMIT",
+          "message": "analysis budget exceeded during resource order removal",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "artifacts": {},
+      "input_fingerprint": "24acfb1dc6ea92dc6737b8ebdcc44b0f4df9d871aa68661fff039fe45a778109",
+      "seconds": 0.179294621,
+      "cache_hit": false,
+      "commands": [],
+      "native_codegen": null,
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 0,
+      "source_files": {
+        "0": "/home/runner/work/_temp/order-scale/owned128.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+          "implementation_fingerprint": "3b0b9d3e49155a35387c4537e1907e3e2de9aa88f268be162b7e1b31941eaefd",
+          "contract_fingerprint": null,
+          "result_origins": null,
+          "callable_contracts": null,
+          "callable_returns": null,
+          "exports": []
+        }
+      ]
+    },
+    "observations": []
+  },
+  {
+    "n": 128,
+    "arm": "cand",
+    "mode": "check",
+    "wall_ms": 123.26666599994951,
+    "exit": 4,
+    "report": {
+      "status": "ResourceLimit",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "ResourceLimit",
+          "code": "E-RESOURCE-LIMIT",
+          "message": "analysis budget exceeded during resource order word removal",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "artifacts": {},
+      "input_fingerprint": "24acfb1dc6ea92dc6737b8ebdcc44b0f4df9d871aa68661fff039fe45a778109",
+      "seconds": 0.111468962,
+      "cache_hit": false,
+      "commands": [],
+      "native_codegen": null,
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 0,
+      "source_files": {
+        "0": "/home/runner/work/_temp/order-scale/owned128.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+          "implementation_fingerprint": "3b0b9d3e49155a35387c4537e1907e3e2de9aa88f268be162b7e1b31941eaefd",
+          "contract_fingerprint": null,
+          "result_origins": null,
+          "callable_contracts": null,
+          "callable_returns": null,
+          "exports": []
+        }
+      ]
+    },
+    "observations": []
+  },
+  {
+    "n": 128,
+    "arm": "cand",
+    "mode": "O2",
+    "wall_ms": 123.84867599996596,
+    "exit": 4,
+    "report": {
+      "status": "ResourceLimit",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "ResourceLimit",
+          "code": "E-RESOURCE-LIMIT",
+          "message": "analysis budget exceeded during resource order word removal",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "artifacts": {},
+      "input_fingerprint": "24acfb1dc6ea92dc6737b8ebdcc44b0f4df9d871aa68661fff039fe45a778109",
+      "seconds": 0.112039024,
+      "cache_hit": false,
+      "commands": [],
+      "native_codegen": null,
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 0,
+      "source_files": {
+        "0": "/home/runner/work/_temp/order-scale/owned128.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+          "implementation_fingerprint": "3b0b9d3e49155a35387c4537e1907e3e2de9aa88f268be162b7e1b31941eaefd",
+          "contract_fingerprint": null,
+          "result_origins": null,
+          "callable_contracts": null,
+          "callable_returns": null,
+          "exports": []
+        }
+      ]
+    },
+    "observations": []
+  }
+]
