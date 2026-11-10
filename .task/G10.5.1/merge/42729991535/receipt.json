@@ -1,0 +1,36 @@
+{
+  "status": "Merged; pre-existing main CI failures disclosed",
+  "pr": 65,
+  "head": "906940ea78dcd5298c9168c4d17197b5983bf954",
+  "main_before_merge": "fc18d05d59321423570bb46123c756f2ad7e2e88",
+  "merge_commit": "e69091059ed999a5279303cdd07e9f602703f079",
+  "tree": "2e7432d26139dca6f006036e1217edd0d9dd12dc",
+  "changed_files": [
+    "crates/zil-backend-llvm/src/machine_cgu.rs",
+    "crates/zil-cli/src/main.rs",
+    "crates/zil-driver/src/lib.rs",
+    "docs/guide/build.md"
+  ],
+  "production_blobs_equal_reviewed_candidate": true,
+  "review": "Current Chat source review under explicit repository-owner authorization; not a non-author or external-bot review",
+  "external_review_requested_this_round": false,
+  "prior_candidate_ci": [
+    42637553501,
+    42637553555,
+    42637553818
+  ],
+  "main_preexisting_failed_run": 42669324206,
+  "main_preexisting_failures": [
+    "array_billing_mode_is_consistent_across_scalar_reuse_and_function_order",
+    "rich_call_completeness_costs_grow_with_actual_input_and_output_ports",
+    "ordinary_wide_array_completes_source_raw_and_wire_verification",
+    "whole_snapshot_initialization_costs_grow_with_actual_roots_and_slots"
+  ],
+  "failure_scope": "Exact Analyze/Verify budget assertions before Codegen on pre-merge main; not repaired or hidden in this merge",
+  "new_combined_workspace_retest": "NotRun at receipt creation; previous candidate results do not claim fully green current main",
+  "excluded_candidate": "49889241d87cf67dba7f445e03293a9b3e446cb1 (insufficient weighted benefit)",
+  "updated_at": "2026-11-10T08:39:53+08:00",
+  "goal_commit": "5ec8a2a9fa6726bae2ee7cec5f6e3f2150a35ce1",
+  "merged_branch_deleted": true,
+  "main_readback": "e69091059ed999a5279303cdd07e9f602703f079"
+}
