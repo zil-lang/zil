@@ -98,7 +98,7 @@ fn ordinary_store_growth_keeps_consumed_owner_and_live_borrow_rejections() {
         );
         assert!(control.diagnostics.iter().any(|d| match label {
             "consumed-owner" => d.code == "E-UNINITIALIZED",
-            _ => d.code == "E-BORROW-CONFLICT" || (d.code == "E-ANALYZE-IR" && d.message == "stored target proof: simultaneously live access overlaps an actual stored target/parent loan"),
+            _ => d.code == "E-ANALYZE-IR" && d.message == "actual borrowed resource access conflicts with a live child or unrelated address window",
         }), "{label}: {}", control.to_json());
         assert_eq!(
             diagnostics(&report),
