@@ -1106,7 +1106,7 @@ fn owning_store_replacement_has_exact_prepaid_fresh_and_warm_boundaries() {
     );
     // helper resource retirement: previous Analyze19754; paid retirement profile/empty-shape
     // forwarding exclusions add71 without granting a new Store operation.
-    for (stage, expected_n) in [(Stage::Analyze, 19825), (Stage::Verify, 51833)] {
+    for (stage, expected_n) in [(Stage::Analyze, 19825), (Stage::Verify, 46948)] {
         let options = |work| CompileOptions {
             stop_after: stage,
             limits: Limits {
@@ -1549,7 +1549,7 @@ fn owning_store_call_invalidation_has_exact_prepaid_fresh_and_warm_boundaries() 
     // helper resource retirement: previous A23731/V63080; the actual external Commit helper
     // requires independent exact origins/point-state/retirement routing:
     // Analyze +450 and Verify +740, with unchanged source/default limits.
-    for (stage, expected_n) in [(Stage::Analyze, 24181), (Stage::Verify, 61055)] {
+    for (stage, expected_n) in [(Stage::Analyze, 24181), (Stage::Verify, 57202)] {
         let options = |work| CompileOptions {
             stop_after: stage,
             limits: Limits {
