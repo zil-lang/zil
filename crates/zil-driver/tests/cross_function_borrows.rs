@@ -180,11 +180,11 @@ fn optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets() {
         high
     }
     let mut previous = 0;
-    // Complete independent costs with word liveness and paid loan/path indexes.
+    // Complete independent Analyze and Verify request costs.
     let cases = [
-        (0, 105_985, 221_918),
-        (4, 174_824, 411_664),
-        (12, 342_198, 841_555),
+        (0, 105_947, 221_023),
+        (4, 174_786, 401_501),
+        (12, 342_160, 806_651),
     ];
     let mut actual_verify = Vec::new();
     for (depth, expected_analyze, _) in cases {

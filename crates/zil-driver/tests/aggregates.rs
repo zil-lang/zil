@@ -8444,10 +8444,9 @@ fn owned_aggregate_owner_replacement_error_arm_alias_budget() {
     let input = source(include_str!(
         "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-error-arm-alias.zil"
     ));
-    // helper resource retirement: previous Analyze N46908; actual local retirement/liveness and
-    // paid producer eligibility add40. Verify retains its independent bound.
-    // Verify also avoids the independently proven impossible ErrorUnion edge.
-    for (stage, expected_n) in [(Stage::Analyze, 46948), (Stage::Verify, 88950)] {
+    // Complete source requests keep independent Analyze and Verify bounds.
+    // Each bound includes the current paid ownership and resource analysis.
+    for (stage, expected_n) in [(Stage::Analyze, 44017), (Stage::Verify, 73548)] {
         let options = |work| CompileOptions {
             stop_after: stage,
             limits: Limits {

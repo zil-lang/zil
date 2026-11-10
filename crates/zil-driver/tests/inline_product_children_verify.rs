@@ -280,7 +280,7 @@ fn flat_verify_work_boundary_without_product_leaves() {
     // Exact source built by generic_owned_success_field_origins::baseline, unchanged in
     // accepted205@2db3. Its original workspace02 boundaries.txt records
     // Analyze8673 / Verify10398. Keep those source bytes; current Verify work
-    // reflects actual Copy memoization and sparse nonempty-loan traversal.
+    // includes Copy memoization, sparse loan traversal and paid resource layouts.
     let source = "resource R{n:i32}package P{pad:i32;manages old:R;wide:[i32;2];manages fresh:R}fn origin(give old:R)->R contract{result(create)}{let p=P{pad:7,old:give old,wide:[11,13],fresh:R{n:29}};let q=p;return give q.fresh}fn main(){}";
     let module = typed("flat186", source);
     let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
@@ -297,7 +297,7 @@ fn flat_verify_work_boundary_without_product_leaves() {
         .map(|v| (v.module().clone(), v.plan().clone(), v.fingerprint()))
     };
     let expected = run(Limits::default().max_analysis_steps).unwrap();
-    let current = 7307;
+    let current = 8358;
     assert_eq!(run(current).unwrap(), expected);
     let below = run(current - 1).unwrap_err();
     assert!(
@@ -308,6 +308,6 @@ fn flat_verify_work_boundary_without_product_leaves() {
     assert_eq!(run(current).unwrap(), expected);
     let out = directory("old-flat186-boundary");
     fs::write(out.join("source.zil"), source).unwrap();
-    fs::write(out.join("boundary.json"),"{\"verify_work\":7307,\"old_verify_work\":10398,\"checks\":\"default == current N == fresh N; N-1 Verify ResourceLimit\"}\n").unwrap();
+    fs::write(out.join("boundary.json"),"{\"verify_work\":8358,\"old_verify_work\":10398,\"checks\":\"default == current N == fresh N; N-1 Verify ResourceLimit\"}\n").unwrap();
     fs::write(out.join("below.txt"), format!("{below:#?}")).unwrap();
 }

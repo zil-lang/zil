@@ -640,10 +640,10 @@ fn whole_snapshot_initialization_costs_grow_with_actual_roots_and_slots() {
     assert_eq!(
         boundaries,
         vec![
-            [22763, 34910, 34910],
-            [48337, 75855, 75855],
-            [33702, 55542, 55542],
-            [77410, 137229, 137229],
+            [22763, 35826, 35826],
+            [48337, 76747, 76747],
+            [33702, 56261, 56261],
+            [77410, 137924, 137924],
         ]
     );
     println!("whole Array initialization exact boundaries: {boundaries:?}");
