@@ -1,0 +1,3270 @@
+{
+  "status": "Pass",
+  "builds": 18,
+  "failure_checks": 64,
+  "hot_iterations": 67108864,
+  "hot_median_ms": {
+    "base": 275.962661,
+    "cand": 273.01249
+  },
+  "hot_ratio": 0.9893095283640564,
+  "hot_runtime_screen_pass": true,
+  "observations": [
+    {
+      "name": "base/llvm-api/O0/u1",
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "base/llvm-api/O0/u1",
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "base/llvm-api/O0/u1",
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "base/llvm-api/O0/u1",
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "base/llvm-api/O0/u8",
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "base/llvm-api/O0/u8",
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "base/llvm-api/O0/u8",
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "base/llvm-api/O0/u8",
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "base/llvm-api/O2/u1",
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "base/llvm-api/O2/u1",
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "base/llvm-api/O2/u1",
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "base/llvm-api/O2/u1",
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "base/llvm-api/O2/u8",
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "base/llvm-api/O2/u8",
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "base/llvm-api/O2/u8",
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "base/llvm-api/O2/u8",
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "base/clang/O0/u1",
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "base/clang/O0/u1",
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "base/clang/O0/u1",
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "base/clang/O0/u1",
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "base/clang/O0/u8",
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "base/clang/O0/u8",
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "base/clang/O0/u8",
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "base/clang/O0/u8",
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "base/clang/O2/u1",
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "base/clang/O2/u1",
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "base/clang/O2/u1",
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "base/clang/O2/u1",
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "base/clang/O2/u8",
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "base/clang/O2/u8",
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "base/clang/O2/u8",
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "base/clang/O2/u8",
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "cand/llvm-api/O0/u1",
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "cand/llvm-api/O0/u1",
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "cand/llvm-api/O0/u1",
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "cand/llvm-api/O0/u1",
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "cand/llvm-api/O0/u8",
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "cand/llvm-api/O0/u8",
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "cand/llvm-api/O0/u8",
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "cand/llvm-api/O0/u8",
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "cand/llvm-api/O2/u1",
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "cand/llvm-api/O2/u1",
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "cand/llvm-api/O2/u1",
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "cand/llvm-api/O2/u1",
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "cand/llvm-api/O2/u8",
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "cand/llvm-api/O2/u8",
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "cand/llvm-api/O2/u8",
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "cand/llvm-api/O2/u8",
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "cand/clang/O0/u1",
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "cand/clang/O0/u1",
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "cand/clang/O0/u1",
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "cand/clang/O0/u1",
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "cand/clang/O0/u8",
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "cand/clang/O0/u8",
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "cand/clang/O0/u8",
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "cand/clang/O0/u8",
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "cand/clang/O2/u1",
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "cand/clang/O2/u1",
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "cand/clang/O2/u1",
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "cand/clang/O2/u1",
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "cand/clang/O2/u8",
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    },
+    {
+      "name": "cand/clang/O2/u8",
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "cand/clang/O2/u8",
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "cand/clang/O2/u8",
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      }
+    }
+  ],
+  "runtime": [
+    {
+      "argv": [
+        "/home/runner/work/_temp/recheck-controls/cand-hot"
+      ],
+      "input": "04000000",
+      "exit": 0,
+      "wall_ms": 273.686567,
+      "env": {},
+      "arm": "cand",
+      "rep": -1
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/recheck-controls/base-hot"
+      ],
+      "input": "04000000",
+      "exit": 0,
+      "wall_ms": 276.083306,
+      "env": {},
+      "arm": "base",
+      "rep": -1
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/recheck-controls/base-hot"
+      ],
+      "input": "04000000",
+      "exit": 0,
+      "wall_ms": 276.394646,
+      "env": {},
+      "arm": "base",
+      "rep": 0
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/recheck-controls/cand-hot"
+      ],
+      "input": "04000000",
+      "exit": 0,
+      "wall_ms": 273.271673,
+      "env": {},
+      "arm": "cand",
+      "rep": 0
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/recheck-controls/cand-hot"
+      ],
+      "input": "04000000",
+      "exit": 0,
+      "wall_ms": 273.133184,
+      "env": {},
+      "arm": "cand",
+      "rep": 1
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/recheck-controls/base-hot"
+      ],
+      "input": "04000000",
+      "exit": 0,
+      "wall_ms": 275.862485,
+      "env": {},
+      "arm": "base",
+      "rep": 1
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/recheck-controls/cand-hot"
+      ],
+      "input": "04000000",
+      "exit": 0,
+      "wall_ms": 272.962307,
+      "env": {},
+      "arm": "cand",
+      "rep": 2
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/recheck-controls/base-hot"
+      ],
+      "input": "04000000",
+      "exit": 0,
+      "wall_ms": 276.14454,
+      "env": {},
+      "arm": "base",
+      "rep": 2
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/recheck-controls/cand-hot"
+      ],
+      "input": "04000000",
+      "exit": 0,
+      "wall_ms": 272.915609,
+      "env": {},
+      "arm": "cand",
+      "rep": 3
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/recheck-controls/base-hot"
+      ],
+      "input": "04000000",
+      "exit": 0,
+      "wall_ms": 275.89795,
+      "env": {},
+      "arm": "base",
+      "rep": 3
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/recheck-controls/cand-hot"
+      ],
+      "input": "04000000",
+      "exit": 0,
+      "wall_ms": 273.01249,
+      "env": {},
+      "arm": "cand",
+      "rep": 4
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/recheck-controls/base-hot"
+      ],
+      "input": "04000000",
+      "exit": 0,
+      "wall_ms": 276.096782,
+      "env": {},
+      "arm": "base",
+      "rep": 4
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/recheck-controls/base-hot"
+      ],
+      "input": "04000000",
+      "exit": 0,
+      "wall_ms": 275.856734,
+      "env": {},
+      "arm": "base",
+      "rep": 5
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/recheck-controls/cand-hot"
+      ],
+      "input": "04000000",
+      "exit": 0,
+      "wall_ms": 272.828367,
+      "env": {},
+      "arm": "cand",
+      "rep": 5
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/recheck-controls/cand-hot"
+      ],
+      "input": "04000000",
+      "exit": 0,
+      "wall_ms": 274.605964,
+      "env": {},
+      "arm": "cand",
+      "rep": 6
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/recheck-controls/base-hot"
+      ],
+      "input": "04000000",
+      "exit": 0,
+      "wall_ms": 276.482931,
+      "env": {},
+      "arm": "base",
+      "rep": 6
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/recheck-controls/base-hot"
+      ],
+      "input": "04000000",
+      "exit": 0,
+      "wall_ms": 275.840533,
+      "env": {},
+      "arm": "base",
+      "rep": 7
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/recheck-controls/cand-hot"
+      ],
+      "input": "04000000",
+      "exit": 0,
+      "wall_ms": 272.968498,
+      "env": {},
+      "arm": "cand",
+      "rep": 7
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/recheck-controls/cand-hot"
+      ],
+      "input": "04000000",
+      "exit": 0,
+      "wall_ms": 273.068484,
+      "env": {},
+      "arm": "cand",
+      "rep": 8
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/recheck-controls/base-hot"
+      ],
+      "input": "04000000",
+      "exit": 0,
+      "wall_ms": 275.962661,
+      "env": {},
+      "arm": "base",
+      "rep": 8
+    }
+  ],
+  "build_reports": [
+    {
+      "name": "base/llvm-api/O0/u1",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/recheck-controls/base-llvm-api-O0-u1-edge",
+          "llvm": "/home/runner/work/_temp/recheck-controls/base-llvm-api-O0-u1-edge.ll"
+        },
+        "input_fingerprint": "fb712fa466aaba8bd86a7dd2df82b8c8598a2ea535a0c6e0419e58ad3b042d8c",
+        "seconds": 0.045444428,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O0",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10091-0/.zil-build-10091-0/unit-0.o",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10091-0/.zil-build-10091-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O0>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 2792,
+              "input_kind": "builder",
+              "preflight_ns": 162062,
+              "builder_ns": 315969,
+              "parse_ns": 0,
+              "optimize_ns": 169447,
+              "emit_ns": 2633100,
+              "total_ns": 3715389
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/recheck-controls/edge.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "c04908c5ad1835bd27700b5e13ed51eaba5f3d25ac396fb53e410d96cea5bd04",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "base/llvm-api/O0/u8",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/recheck-controls/base-llvm-api-O0-u8-edge",
+          "llvm": "/home/runner/work/_temp/recheck-controls/base-llvm-api-O0-u8-edge.ll"
+        },
+        "input_fingerprint": "fb712fa466aaba8bd86a7dd2df82b8c8598a2ea535a0c6e0419e58ad3b042d8c",
+        "seconds": 0.046144323,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O0",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10099-0/.zil-build-10099-0/unit-0.o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10099-0/.zil-build-10099-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10099-0/.zil-build-10099-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O0>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 2632,
+              "input_kind": "builder",
+              "preflight_ns": 245318,
+              "builder_ns": 346135,
+              "parse_ns": 0,
+              "optimize_ns": 65553,
+              "emit_ns": 2569161,
+              "total_ns": 3700341
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O0>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 832,
+              "input_kind": "builder",
+              "preflight_ns": 17122,
+              "builder_ns": 71353,
+              "parse_ns": 0,
+              "optimize_ns": 165709,
+              "emit_ns": 2047729,
+              "total_ns": 2703833
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/recheck-controls/edge.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "c04908c5ad1835bd27700b5e13ed51eaba5f3d25ac396fb53e410d96cea5bd04",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "base/llvm-api/O2/u1",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/recheck-controls/base-llvm-api-O2-u1-edge",
+          "llvm": "/home/runner/work/_temp/recheck-controls/base-llvm-api-O2-u1-edge.ll"
+        },
+        "input_fingerprint": "fb712fa466aaba8bd86a7dd2df82b8c8598a2ea535a0c6e0419e58ad3b042d8c",
+        "seconds": 0.048622525,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10108-0/.zil-build-10108-0/unit-0.o",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10108-0/.zil-build-10108-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 1016,
+              "input_kind": "builder",
+              "preflight_ns": 169145,
+              "builder_ns": 310358,
+              "parse_ns": 0,
+              "optimize_ns": 3696774,
+              "emit_ns": 2608906,
+              "total_ns": 7218191
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/recheck-controls/edge.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "c04908c5ad1835bd27700b5e13ed51eaba5f3d25ac396fb53e410d96cea5bd04",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "base/llvm-api/O2/u8",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/recheck-controls/base-llvm-api-O2-u8-edge",
+          "llvm": "/home/runner/work/_temp/recheck-controls/base-llvm-api-O2-u8-edge.ll"
+        },
+        "input_fingerprint": "fb712fa466aaba8bd86a7dd2df82b8c8598a2ea535a0c6e0419e58ad3b042d8c",
+        "seconds": 0.04834115,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10116-0/.zil-build-10116-0/unit-0.o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10116-0/.zil-build-10116-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10116-0/.zil-build-10116-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 1016,
+              "input_kind": "builder",
+              "preflight_ns": 218327,
+              "builder_ns": 343580,
+              "parse_ns": 0,
+              "optimize_ns": 4014777,
+              "emit_ns": 2285723,
+              "total_ns": 7318578
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 17212,
+              "builder_ns": 70562,
+              "parse_ns": 0,
+              "optimize_ns": 1185220,
+              "emit_ns": 1346361,
+              "total_ns": 3006717
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/recheck-controls/edge.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "c04908c5ad1835bd27700b5e13ed51eaba5f3d25ac396fb53e410d96cea5bd04",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "base/clang/O0/u1",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/recheck-controls/base-clang-O0-u1-edge",
+          "llvm": "/home/runner/work/_temp/recheck-controls/base-clang-O0-u1-edge.ll"
+        },
+        "input_fingerprint": "fb712fa466aaba8bd86a7dd2df82b8c8598a2ea535a0c6e0419e58ad3b042d8c",
+        "seconds": 0.052643771,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O0",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10125-0/.zil-build-10125-0/module.ll",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10125-0/.zil-build-10125-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/recheck-controls/edge.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "c04908c5ad1835bd27700b5e13ed51eaba5f3d25ac396fb53e410d96cea5bd04",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "base/clang/O0/u8",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/recheck-controls/base-clang-O0-u8-edge",
+          "llvm": "/home/runner/work/_temp/recheck-controls/base-clang-O0-u8-edge.ll"
+        },
+        "input_fingerprint": "fb712fa466aaba8bd86a7dd2df82b8c8598a2ea535a0c6e0419e58ad3b042d8c",
+        "seconds": 0.077393215,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O0",
+            "-c",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10133-0/.zil-build-10133-0/unit-0.ll",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10133-0/.zil-build-10133-0/unit-0.o"
+          ],
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O0",
+            "-c",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10133-0/.zil-build-10133-0/unit-1.ll",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10133-0/.zil-build-10133-0/unit-1.o"
+          ],
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O0",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10133-0/.zil-build-10133-0/unit-0.o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10133-0/.zil-build-10133-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10133-0/.zil-build-10133-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/recheck-controls/edge.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "c04908c5ad1835bd27700b5e13ed51eaba5f3d25ac396fb53e410d96cea5bd04",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "base/clang/O2/u1",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/recheck-controls/base-clang-O2-u1-edge",
+          "llvm": "/home/runner/work/_temp/recheck-controls/base-clang-O2-u1-edge.ll"
+        },
+        "input_fingerprint": "fb712fa466aaba8bd86a7dd2df82b8c8598a2ea535a0c6e0419e58ad3b042d8c",
+        "seconds": 0.058914206,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O2",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10144-0/.zil-build-10144-0/module.ll",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10144-0/.zil-build-10144-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/recheck-controls/edge.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "c04908c5ad1835bd27700b5e13ed51eaba5f3d25ac396fb53e410d96cea5bd04",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "base/clang/O2/u8",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/recheck-controls/base-clang-O2-u8-edge",
+          "llvm": "/home/runner/work/_temp/recheck-controls/base-clang-O2-u8-edge.ll"
+        },
+        "input_fingerprint": "fb712fa466aaba8bd86a7dd2df82b8c8598a2ea535a0c6e0419e58ad3b042d8c",
+        "seconds": 0.08066688,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O2",
+            "-c",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10152-0/.zil-build-10152-0/unit-0.ll",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10152-0/.zil-build-10152-0/unit-0.o"
+          ],
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O2",
+            "-c",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10152-0/.zil-build-10152-0/unit-1.ll",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10152-0/.zil-build-10152-0/unit-1.o"
+          ],
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10152-0/.zil-build-10152-0/unit-0.o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10152-0/.zil-build-10152-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10152-0/.zil-build-10152-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/recheck-controls/edge.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "c04908c5ad1835bd27700b5e13ed51eaba5f3d25ac396fb53e410d96cea5bd04",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "base/hot",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/recheck-controls/base-hot",
+          "llvm": "/home/runner/work/_temp/recheck-controls/base-hot.ll"
+        },
+        "input_fingerprint": "af79c3ae13044fafd922b70385571b67e8965f0710864a06d955a4594625dd3c",
+        "seconds": 0.037115849,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/recheck-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10163-0/.zil-build-10163-0/unit-0.o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10163-0/.zil-build-10163-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10163-0/.zil-build-10163-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 1304,
+              "input_kind": "builder",
+              "preflight_ns": 144680,
+              "builder_ns": 280633,
+              "parse_ns": 0,
+              "optimize_ns": 6110805,
+              "emit_ns": 3721920,
+              "total_ns": 10721462
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 28764,
+              "builder_ns": 89708,
+              "parse_ns": 0,
+              "optimize_ns": 1260601,
+              "emit_ns": 1324429,
+              "total_ns": 3110380
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/recheck-controls/hot.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "f80e4b8643a3c081640d5ab1164688aa5b87193e2e72ed47d7ccd357dd68504e",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "cand/llvm-api/O0/u1",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/recheck-controls/cand-llvm-api-O0-u1-edge",
+          "llvm": "/home/runner/work/_temp/recheck-controls/cand-llvm-api-O0-u1-edge.ll"
+        },
+        "input_fingerprint": "fb712fa466aaba8bd86a7dd2df82b8c8598a2ea535a0c6e0419e58ad3b042d8c",
+        "seconds": 0.044442579,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O0",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10168-0/.zil-build-10168-0/unit-0.o",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10168-0/.zil-build-10168-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O0>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 2960,
+              "input_kind": "builder",
+              "preflight_ns": 170658,
+              "builder_ns": 327972,
+              "parse_ns": 0,
+              "optimize_ns": 125474,
+              "emit_ns": 2776017,
+              "total_ns": 3856151
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/recheck-controls/edge.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "c04908c5ad1835bd27700b5e13ed51eaba5f3d25ac396fb53e410d96cea5bd04",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "cand/llvm-api/O0/u8",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/recheck-controls/cand-llvm-api-O0-u8-edge",
+          "llvm": "/home/runner/work/_temp/recheck-controls/cand-llvm-api-O0-u8-edge.ll"
+        },
+        "input_fingerprint": "fb712fa466aaba8bd86a7dd2df82b8c8598a2ea535a0c6e0419e58ad3b042d8c",
+        "seconds": 0.045126016,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O0",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10176-0/.zil-build-10176-0/unit-0.o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10176-0/.zil-build-10176-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10176-0/.zil-build-10176-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O0>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 2816,
+              "input_kind": "builder",
+              "preflight_ns": 254123,
+              "builder_ns": 346736,
+              "parse_ns": 0,
+              "optimize_ns": 66724,
+              "emit_ns": 2817033,
+              "total_ns": 3949154
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O0>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 832,
+              "input_kind": "builder",
+              "preflight_ns": 17242,
+              "builder_ns": 74418,
+              "parse_ns": 0,
+              "optimize_ns": 167813,
+              "emit_ns": 2094766,
+              "total_ns": 2782569
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/recheck-controls/edge.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "c04908c5ad1835bd27700b5e13ed51eaba5f3d25ac396fb53e410d96cea5bd04",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "cand/llvm-api/O2/u1",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/recheck-controls/cand-llvm-api-O2-u1-edge",
+          "llvm": "/home/runner/work/_temp/recheck-controls/cand-llvm-api-O2-u1-edge.ll"
+        },
+        "input_fingerprint": "fb712fa466aaba8bd86a7dd2df82b8c8598a2ea535a0c6e0419e58ad3b042d8c",
+        "seconds": 0.049519188,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10185-0/.zil-build-10185-0/unit-0.o",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10185-0/.zil-build-10185-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 1376,
+              "input_kind": "builder",
+              "preflight_ns": 170919,
+              "builder_ns": 327711,
+              "parse_ns": 0,
+              "optimize_ns": 4354270,
+              "emit_ns": 3944244,
+              "total_ns": 9261981
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/recheck-controls/edge.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "c04908c5ad1835bd27700b5e13ed51eaba5f3d25ac396fb53e410d96cea5bd04",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "cand/llvm-api/O2/u8",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/recheck-controls/cand-llvm-api-O2-u8-edge",
+          "llvm": "/home/runner/work/_temp/recheck-controls/cand-llvm-api-O2-u8-edge.ll"
+        },
+        "input_fingerprint": "fb712fa466aaba8bd86a7dd2df82b8c8598a2ea535a0c6e0419e58ad3b042d8c",
+        "seconds": 0.050188676,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10193-0/.zil-build-10193-0/unit-0.o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10193-0/.zil-build-10193-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10193-0/.zil-build-10193-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 1376,
+              "input_kind": "builder",
+              "preflight_ns": 224839,
+              "builder_ns": 365993,
+              "parse_ns": 0,
+              "optimize_ns": 4678213,
+              "emit_ns": 3674602,
+              "total_ns": 9403063
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 16511,
+              "builder_ns": 73757,
+              "parse_ns": 0,
+              "optimize_ns": 1185911,
+              "emit_ns": 1356519,
+              "total_ns": 3022756
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/recheck-controls/edge.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "c04908c5ad1835bd27700b5e13ed51eaba5f3d25ac396fb53e410d96cea5bd04",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "cand/clang/O0/u1",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/recheck-controls/cand-clang-O0-u1-edge",
+          "llvm": "/home/runner/work/_temp/recheck-controls/cand-clang-O0-u1-edge.ll"
+        },
+        "input_fingerprint": "fb712fa466aaba8bd86a7dd2df82b8c8598a2ea535a0c6e0419e58ad3b042d8c",
+        "seconds": 0.052312456,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O0",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10202-0/.zil-build-10202-0/module.ll",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10202-0/.zil-build-10202-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/recheck-controls/edge.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "c04908c5ad1835bd27700b5e13ed51eaba5f3d25ac396fb53e410d96cea5bd04",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "cand/clang/O0/u8",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/recheck-controls/cand-clang-O0-u8-edge",
+          "llvm": "/home/runner/work/_temp/recheck-controls/cand-clang-O0-u8-edge.ll"
+        },
+        "input_fingerprint": "fb712fa466aaba8bd86a7dd2df82b8c8598a2ea535a0c6e0419e58ad3b042d8c",
+        "seconds": 0.076489135,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O0",
+            "-c",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10210-0/.zil-build-10210-0/unit-0.ll",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10210-0/.zil-build-10210-0/unit-0.o"
+          ],
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O0",
+            "-c",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10210-0/.zil-build-10210-0/unit-1.ll",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10210-0/.zil-build-10210-0/unit-1.o"
+          ],
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O0",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10210-0/.zil-build-10210-0/unit-0.o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10210-0/.zil-build-10210-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10210-0/.zil-build-10210-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/recheck-controls/edge.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "c04908c5ad1835bd27700b5e13ed51eaba5f3d25ac396fb53e410d96cea5bd04",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "cand/clang/O2/u1",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/recheck-controls/cand-clang-O2-u1-edge",
+          "llvm": "/home/runner/work/_temp/recheck-controls/cand-clang-O2-u1-edge.ll"
+        },
+        "input_fingerprint": "fb712fa466aaba8bd86a7dd2df82b8c8598a2ea535a0c6e0419e58ad3b042d8c",
+        "seconds": 0.056677846,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O2",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10221-0/.zil-build-10221-0/module.ll",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10221-0/.zil-build-10221-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/recheck-controls/edge.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "c04908c5ad1835bd27700b5e13ed51eaba5f3d25ac396fb53e410d96cea5bd04",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "cand/clang/O2/u8",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/recheck-controls/cand-clang-O2-u8-edge",
+          "llvm": "/home/runner/work/_temp/recheck-controls/cand-clang-O2-u8-edge.ll"
+        },
+        "input_fingerprint": "fb712fa466aaba8bd86a7dd2df82b8c8598a2ea535a0c6e0419e58ad3b042d8c",
+        "seconds": 0.081849926,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O2",
+            "-c",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10229-0/.zil-build-10229-0/unit-0.ll",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10229-0/.zil-build-10229-0/unit-0.o"
+          ],
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O2",
+            "-c",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10229-0/.zil-build-10229-0/unit-1.ll",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10229-0/.zil-build-10229-0/unit-1.o"
+          ],
+          [
+            "/home/runner/work/_temp/recheck-controls/link.py",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10229-0/.zil-build-10229-0/unit-0.o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10229-0/.zil-build-10229-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10229-0/.zil-build-10229-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/recheck-controls/edge.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "c04908c5ad1835bd27700b5e13ed51eaba5f3d25ac396fb53e410d96cea5bd04",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "cand/hot",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/recheck-controls/cand-hot",
+          "llvm": "/home/runner/work/_temp/recheck-controls/cand-hot.ll"
+        },
+        "input_fingerprint": "af79c3ae13044fafd922b70385571b67e8965f0710864a06d955a4594625dd3c",
+        "seconds": 0.036828353,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/recheck-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10240-0/.zil-build-10240-0/unit-0.o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10240-0/.zil-build-10240-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/recheck-controls/.zil-driver-10240-0/.zil-build-10240-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 1448,
+              "input_kind": "builder",
+              "preflight_ns": 155319,
+              "builder_ns": 299890,
+              "parse_ns": 0,
+              "optimize_ns": 6342697,
+              "emit_ns": 4595640,
+              "total_ns": 11863702
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 28172,
+              "builder_ns": 91871,
+              "parse_ns": 0,
+              "optimize_ns": 1269578,
+              "emit_ns": 1360488,
+              "total_ns": 3128604
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/recheck-controls/hot.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "f80e4b8643a3c081640d5ab1164688aa5b87193e2e72ed47d7ccd357dd68504e",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    }
+  ]
+}
