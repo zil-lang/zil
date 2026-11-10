@@ -1,0 +1,17 @@
+[
+  {
+    "path": "data/work/dispatch16/-1/before-inline/app",
+    "sha256": "bea5bb224e9236810040d6b6cc0e76addcba3bedda676bd67e1d4dca1581e9b8",
+    "bytes": 24080
+  },
+  {
+    "path": "data/work/dispatch16/-1/after-inline/app",
+    "sha256": "bbc2ee12cb354132487c2b276ab57def37ad7c3d282805d0a77adc166c3af84d",
+    "bytes": 24080
+  },
+  {
+    "path": "data/work/dispatch16/-1/raw/app",
+    "sha256": "17b83ecc016c0d38ccfc20902190935e0df90cb3190e8fb0a0ca5cb68d044b90",
+    "bytes": 24080
+  }
+]

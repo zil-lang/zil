@@ -1,0 +1,17 @@
+{
+  "baseline": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852",
+  "source": "11060ba02a045f9ba2ea1d12528762e81e954593",
+  "recipe": "877dbcc33966c2a05f12428f9c7022f075a2f2fa",
+  "prior_raw_before_merge_runtime_failure": 42924878932,
+  "status_before_preservation": "failure",
+  "scope": "research-only generated pinned pass strings; focused screen, not production or weighted acceptance",
+  "files": {
+    "manifest.json": "f44716a6b271c187c9275b86df42f23363d398e1607e08819a953280b7e790c8",
+    "rows.jsonl": "14a75cede623ef8eec7100c70111822d57ae994e79ad6fa3c6b3f1905309acf9",
+    "raw.tar.gz": "f9ad2455cbf5dfdc72eec2dbd455496035822271eabf2516e4720b2571a6391a",
+    "summary.json": "db3e3511b0de9d234edc6a2bcad76aaeff4e033c823c717086d9ac2f799d033d",
+    "omitted-elf.json": "46a0fa4f16670752bc13b6da933731e4850238423c3f322564ca219c88e56130",
+    "pipelines.json": "6e779563a0eb427d6fdb0a6f3ad4fea1854976767be2ecb6b3e58be1a657699a"
+  },
+  "main_modified": false
+}

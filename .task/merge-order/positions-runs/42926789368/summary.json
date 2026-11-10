@@ -1,0 +1,999 @@
+{
+  "complete": false,
+  "compile_requests": 3,
+  "formal_requests": 0,
+  "output_checks": 51,
+  "runtime_requests": 0,
+  "cells": [
+    {
+      "case": "dispatch16",
+      "snapshot": "base",
+      "base": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "raw": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "normalize": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "before-inline": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "after-inline": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "after-cleanup": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "default-expanded": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      }
+    },
+    {
+      "case": "dispatch16",
+      "snapshot": "private",
+      "base": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "raw": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "normalize": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "before-inline": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "after-inline": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "after-cleanup": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "default-expanded": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      }
+    },
+    {
+      "case": "pipeline16",
+      "snapshot": "base",
+      "base": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "raw": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "normalize": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "before-inline": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "after-inline": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "after-cleanup": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "default-expanded": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      }
+    },
+    {
+      "case": "pipeline16",
+      "snapshot": "private",
+      "base": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "raw": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "normalize": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "before-inline": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "after-inline": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "after-cleanup": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "default-expanded": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      }
+    },
+    {
+      "case": "owned32",
+      "snapshot": "base",
+      "base": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "raw": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "normalize": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "before-inline": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "after-inline": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "after-cleanup": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "default-expanded": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      }
+    },
+    {
+      "case": "owned32",
+      "snapshot": "private",
+      "base": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "raw": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "normalize": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "before-inline": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "after-inline": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "after-cleanup": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "default-expanded": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      }
+    },
+    {
+      "case": "unequal16",
+      "snapshot": "base",
+      "base": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "raw": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "normalize": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "before-inline": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "after-inline": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "after-cleanup": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "default-expanded": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      }
+    },
+    {
+      "case": "unequal16",
+      "snapshot": "private",
+      "base": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "raw": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "normalize": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "before-inline": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "after-inline": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "after-cleanup": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      },
+      "default-expanded": {
+        "n": 0,
+        "mean_ms": null,
+        "values_ms": []
+      }
+    }
+  ],
+  "quality": [
+    {
+      "case": "dispatch16",
+      "snapshot": "base",
+      "depth": 0,
+      "arms": {
+        "base": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "raw": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "normalize": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "before-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-cleanup": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "default-expanded": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        }
+      }
+    },
+    {
+      "case": "dispatch16",
+      "snapshot": "base",
+      "depth": 11,
+      "arms": {
+        "base": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "raw": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "normalize": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "before-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-cleanup": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "default-expanded": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        }
+      }
+    },
+    {
+      "case": "dispatch16",
+      "snapshot": "private",
+      "depth": 0,
+      "arms": {
+        "base": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "raw": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "normalize": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "before-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-cleanup": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "default-expanded": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        }
+      }
+    },
+    {
+      "case": "dispatch16",
+      "snapshot": "private",
+      "depth": 11,
+      "arms": {
+        "base": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "raw": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "normalize": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "before-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-cleanup": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "default-expanded": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        }
+      }
+    },
+    {
+      "case": "pipeline16",
+      "snapshot": "base",
+      "depth": 0,
+      "arms": {
+        "base": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "raw": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "normalize": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "before-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-cleanup": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "default-expanded": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        }
+      }
+    },
+    {
+      "case": "pipeline16",
+      "snapshot": "base",
+      "depth": 11,
+      "arms": {
+        "base": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "raw": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "normalize": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "before-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-cleanup": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "default-expanded": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        }
+      }
+    },
+    {
+      "case": "pipeline16",
+      "snapshot": "private",
+      "depth": 0,
+      "arms": {
+        "base": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "raw": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "normalize": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "before-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-cleanup": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "default-expanded": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        }
+      }
+    },
+    {
+      "case": "pipeline16",
+      "snapshot": "private",
+      "depth": 11,
+      "arms": {
+        "base": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "raw": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "normalize": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "before-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-cleanup": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "default-expanded": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        }
+      }
+    },
+    {
+      "case": "owned32",
+      "snapshot": "base",
+      "depth": 0,
+      "arms": {
+        "base": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "raw": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "normalize": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "before-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-cleanup": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "default-expanded": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        }
+      }
+    },
+    {
+      "case": "owned32",
+      "snapshot": "base",
+      "depth": 11,
+      "arms": {
+        "base": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "raw": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "normalize": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "before-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-cleanup": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "default-expanded": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        }
+      }
+    },
+    {
+      "case": "owned32",
+      "snapshot": "private",
+      "depth": 0,
+      "arms": {
+        "base": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "raw": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "normalize": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "before-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-cleanup": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "default-expanded": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        }
+      }
+    },
+    {
+      "case": "owned32",
+      "snapshot": "private",
+      "depth": 11,
+      "arms": {
+        "base": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "raw": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "normalize": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "before-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-cleanup": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "default-expanded": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        }
+      }
+    },
+    {
+      "case": "unequal16",
+      "snapshot": "base",
+      "depth": 0,
+      "arms": {
+        "base": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "raw": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "normalize": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "before-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-cleanup": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "default-expanded": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        }
+      }
+    },
+    {
+      "case": "unequal16",
+      "snapshot": "base",
+      "depth": 11,
+      "arms": {
+        "base": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "raw": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "normalize": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "before-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-cleanup": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "default-expanded": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        }
+      }
+    },
+    {
+      "case": "unequal16",
+      "snapshot": "private",
+      "depth": 0,
+      "arms": {
+        "base": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "raw": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "normalize": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "before-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-cleanup": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "default-expanded": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        }
+      }
+    },
+    {
+      "case": "unequal16",
+      "snapshot": "private",
+      "depth": 11,
+      "arms": {
+        "base": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "raw": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "normalize": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "before-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-inline": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "after-cleanup": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        },
+        "default-expanded": {
+          "n": 0,
+          "median_ms": null,
+          "values_ms": []
+        }
+      }
+    }
+  ],
+  "failures": [
+    "AssertionError(({'argv': ['/home/runner/work/_temp/position-target/release/zil', 'build', '/home/runner/work/_temp/position-data/work/dispatch16/-1/normalize/main.zil', '--json', '--opt', 'O2', '--backend', 'llvm-api', '--clang', '/home/runner/work/_temp/position-llvm/bin/clang', '--codegen-units', '8', '--codegen-jobs', '2', '--incremental-o2', '--function-merging', 'before-and-after', '--semantic-cache', '/home/runner/work/_temp/position-data/work/dispatch16/-1/normalize/semantic', '--object-cache', '/home/runner/work/_temp/position-data/work/dispatch16/-1/normalize/objects', '-o', '/home/runner/work/_temp/position-data/work/dispatch16/-1/normalize/app'], 'wall_ms': 76.596144, 'cpu_ms': 80.241, 'rss_kib': 79216, 'exit': 1, 'timeout': False, 'log': '/home/runner/work/_temp/position-data/logs/3', 'case': 'dispatch16', 'snapshot': 'base', 'block': -1, 'arm': 'normalize', 'warmup': True, 'valid': False, 'env': {'ZIL_RESEARCH_PASS_POSITION': 'normalize'}, 'checks': []}, b'', b\"LLVM ERROR: Instruction Combining on zil.fn.8 did not reach a fixpoint after 1 iterations. Use 'instcombine<no-verify-fixpoint>' or function attribute 'instcombine-no-verify-fixpoint' to suppress this error.\\n\"))"
+  ],
+  "acceptance": "Screen only; no automatic main integration or regression waiver"
+}
