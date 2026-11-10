@@ -9,6 +9,7 @@ use std::collections::BinaryHeap;
 pub(super) fn head_address(ty: &Type) -> bool {
     matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}|Type::AsyncRegistration{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
 }
+mod order;
 pub(super) mod product;
 mod replacements;
 mod summary_graph;
@@ -217,7 +218,7 @@ struct Fact {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct State {
     cells: BTreeMap<Place, Fact>,
-    later: BTreeSet<(LocalId, LocalId)>,
+    later: order::Order,
     // Complete SSA Packages carry the actual birth of each direct Managed
     // field. Local Packages already have separate lifecycle cells. Unknown
     // producers keep Incoming; packaging itself never creates a resource.
@@ -319,7 +320,7 @@ fn clone_state(state: &State, budget: &mut Budget) -> CompileResult<State> {
         state
             .cells
             .len()
-            .saturating_add(state.later.len())
+            .saturating_add(state.later.storage_cost())
             .saturating_add(state.package_values.len()),
         "resource state clone",
     )?;
@@ -350,13 +351,7 @@ fn join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResult<bool
         target.birth.extend(&source.birth);
         changed |= before != (target.life.len(), target.sources.len(), target.birth.len());
     }
-    budget.spend(
-        to.later.len().saturating_add(from.later.len()),
-        "resource initialization order join",
-    )?;
-    let before = to.later.len();
-    to.later.extend(&from.later);
-    changed |= before != to.later.len();
+    changed |= to.later.join(&from.later, budget)?;
     for (key, source) in &from.package_values {
         budget.lookup(to.package_values.len(), "Package SSA birth join lookup")?;
         let target = to
@@ -1211,9 +1206,7 @@ fn no_later_use(
     Ok(())
 }
 fn forget_order(state: &mut State, local: LocalId, budget: &mut Budget) -> CompileResult<()> {
-    budget.spend(state.later.len(), "resource order removal")?;
-    state.later.retain(|(a, b)| *a != local && *b != local);
-    Ok(())
+    state.later.forget(local, budget)
 }
 
 // Only local aggregate slots can be partial. Every SSA carrier and function ABI
@@ -1649,8 +1642,12 @@ impl Flow<'_> {
                                     && older != target
                                     && fact.life.contains(&Life::Available)
                                 {
-                                    budget.lookup(state.later.len(), "Unpack order insertion")?;
-                                    state.later.insert((*older, *target));
+                                    state.later.insert(
+                                        (*older, *target),
+                                        budget,
+                                        true,
+                                        "Unpack order insertion",
+                                    )?;
                                 }
                             }
                             replace(
@@ -2975,8 +2972,12 @@ impl Flow<'_> {
                                             continue;
                                         }
                                     }
-                                    budget.lookup(state.later.len(), "resource order insertion")?;
-                                    state.later.insert((*other, *local));
+                                    state.later.insert(
+                                        (*other, *local),
+                                        budget,
+                                        true,
+                                        "resource order insertion",
+                                    )?;
                                 }
                             }
                             source.life = BTreeSet::from([Life::Available]);
@@ -3081,10 +3082,10 @@ impl Flow<'_> {
                                 local.0, f.name, b, position, i.kind
                             )));
                         }
-                        for (before, later) in &state.later {
+                        for (before, later) in state.later.cleanup_edges(*local, budget)? {
                             budget.spend(1, "resource cleanup order")?;
-                            if *before == *local
-                                && copied(state, Place::Local(*later), budget)?
+                            if before == *local
+                                && copied(state, Place::Local(later), budget)?
                                     .life
                                     .contains(&Life::Available)
                             {
@@ -3869,7 +3870,12 @@ fn analyze_function_program(
                     if let Place::Local(older) = place
                         && old.life.contains(&Life::Available)
                     {
-                        initial.later.insert((*older, *local));
+                        initial.later.insert(
+                            (*older, *local),
+                            budget,
+                            false,
+                            "incoming resource order insertion",
+                        )?;
                     }
                 }
             }
@@ -4377,7 +4383,12 @@ fn analyze_function_eager_reference(
                     if let Place::Local(older) = place
                         && old.life.contains(&Life::Available)
                     {
-                        initial.later.insert((*older, *local));
+                        initial.later.insert(
+                            (*older, *local),
+                            budget,
+                            false,
+                            "incoming resource order insertion",
+                        )?;
                     }
                 }
             }
