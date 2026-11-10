@@ -1,0 +1,128 @@
+name: Interned closure cleanup tails
+on:
+  push:
+    branches: [task/G10.5.1.6]
+    paths: [.github/workflows/compiler-cleanup-tails.yml]
+permissions:
+  contents: write
+concurrency:
+  group: compiler-cleanup-tails
+  cancel-in-progress: false
+jobs:
+  experiment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Pin source, toolchain and unchanged weighted corpus
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/tails-setup" .task/G10.5.1.6/bench
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          cargo fetch --locked
+          sudo apt-get update -qq
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/tails-llvm" > "$RUNNER_TEMP/tails-setup/llvm.log" 2>&1
+          echo "ZIL_CLANG=$RUNNER_TEMP/tails-llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/tails-llvm/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/tails-llvm/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/tails-llvm/bin" >> "$GITHUB_PATH"
+          git fetch --depth=1 --no-tags origin 3e4a2a2ae368380e86ea99da32d7f3eef68cf3b4
+          git worktree add --detach "$RUNNER_TEMP/tails-base" 3e4a2a2ae368380e86ea99da32d7f3eef68cf3b4
+          git fetch --depth=1 --no-tags origin ae490fb2ca6e021505615a39a58af4a5f5f96ad2
+          for f in corpus.py measure.py; do git show ae490fb2ca6e021505615a39a58af4a5f5f96ad2:.task/G10.5.1.5/bench/$f > .task/G10.5.1.6/bench/$f; done
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('.task/G10.5.1.6/bench/measure.py');s=p.read_text().replace('8b5989dd19d9ffa7549ec3de282aafc431c13593','3e4a2a2ae368380e86ea99da32d7f3eef68cf3b4')
+          s=s.replace("if not eq:raise AssertionError('planner-only optimization changed emitted text')","if not eq and case['group']!='resource':raise AssertionError('unaffected machine code changed')")
+          s=s.replace('if elapsed>=.12 or iterations>=16384:break','if (elapsed>=.12 and case[\'group\']!=\'resource\') or iterations>=65535:break')
+          s=s.replace('iterations*=4','iterations=min(65535,iterations*4)')
+          p.write_text(s)
+          PY
+      - name: Freeze actual production patch before testing
+        id: source
+        run: |
+          set -euo pipefail
+          if ! grep -q 'mod cleanup_tails;' crates/zil-backend-llvm/src/emit.rs; then python3 .task/G10.5.1.6/apply.py; fi
+          rustfmt --edition 2024 --config skip_children=true crates/zil-backend-llvm/src/emit.rs crates/zil-backend-llvm/src/emit/cleanup_tails.rs
+          python3 -m py_compile .task/G10.5.1.6/*.py .task/G10.5.1.6/bench/*.py
+          git diff --check
+          git diff > "$RUNNER_TEMP/tails-setup/candidate.patch"
+          git add -- crates/zil-backend-llvm/src/emit.rs crates/zil-backend-llvm/src/emit/cleanup_tails.rs .task/G10.5.1.6/bench
+          if ! git diff --cached --quiet; then git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Freeze bounded cleanup suffix sharing; verification and runtime acceptance pending'; fi
+          git rev-parse HEAD > "$RUNNER_TEMP/tails-setup/source.txt"
+          git fetch --no-tags origin refs/heads/task/G10.5.1.6
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git push origin HEAD:refs/heads/task/G10.5.1.6
+          rustc -vV > "$RUNNER_TEMP/tails-setup/rustc.txt"
+      - name: Exact cleanup oracle, backend and existing ownership controls
+        id: controls
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/tails-tests"
+          cargo test --locked --offline -p zil-backend-llvm --features llvm-api --lib 2>&1 | tee "$RUNNER_TEMP/tails-setup/backend.log"
+          grep 'cleanup_tail_interning_preserves_every_order_and_repeated_local .*ok' "$RUNNER_TEMP/tails-setup/backend.log"
+          cargo test --locked --offline -p zil-llvm-api --features native --lib 2>&1 | tee "$RUNNER_TEMP/tails-setup/llvm.log.tests"
+          cargo test --locked --offline -p zil-driver --features llvm-api --test resource_cleanup_pipeline --test resource_closure_cleanup --test resource_closure_lifecycle --test persistent_mutable_closure_state --test product_capture_cleanup_raw --test product_capture_cleanup_machine 2>&1 | tee "$RUNNER_TEMP/tails-setup/owners.log"
+          cargo clippy --locked --offline -p zil-backend-llvm --features llvm-api --lib --tests -- -D warnings 2>&1 | tee "$RUNNER_TEMP/tails-setup/clippy.log"
+          cargo fmt --all -- --check
+      - name: Separate identical-profile release compilers
+        id: build
+        run: |
+          set -euo pipefail
+          CARGO_TARGET_DIR="$RUNNER_TEMP/tails-base-target" cargo build --locked --offline --release --manifest-path "$RUNNER_TEMP/tails-base/Cargo.toml" -p zil-cli > "$RUNNER_TEMP/tails-setup/base-build.log" 2>&1
+          CARGO_TARGET_DIR="$RUNNER_TEMP/tails-candidate-target" cargo build --locked --offline --release -p zil-cli > "$RUNNER_TEMP/tails-setup/candidate-build.log" 2>&1
+      - name: Actual activation, independent outputs and exact allocation/free traces
+        run: |
+          set -euo pipefail
+          python3 .task/G10.5.1.6/controls.py --base "$RUNNER_TEMP/tails-base-target/release/zil" --candidate "$RUNNER_TEMP/tails-candidate-target/release/zil" --out "$RUNNER_TEMP/tails-controls" 2>&1 | tee "$RUNNER_TEMP/tails-setup/native-traces.log"
+      - name: Full fixed-frequency matrix and long generated-program runs
+        run: |
+          set -euo pipefail
+          python3 .task/G10.5.1.6/bench/measure.py --base "$RUNNER_TEMP/tails-base-target/release/zil" --candidate "$RUNNER_TEMP/tails-candidate-target/release/zil" --out "$RUNNER_TEMP/tails-data" --rounds 5 2>&1 | tee "$RUNNER_TEMP/tails-setup/measure.log"
+      - name: Existing allocation-failure consumers
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 tools/research/native-api-validation/validate.py --repo "$GITHUB_WORKSPACE" --cli "$RUNNER_TEMP/tails-candidate-target/release/zil" --clang "$ZIL_CLANG" --out "$RUNNER_TEMP/tails-consumer" 2>&1 | tee "$RUNNER_TEMP/tails-setup/consumer.log"
+      - name: Preserve actual outcomes including first failures
+        if: ${{ always() }}
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib,os,json,tarfile,hashlib,shutil
+          P=pathlib.Path;t=P(os.environ['RUNNER_TEMP']);dst=P('.task/G10.5.1.6/runs')/os.environ['GITHUB_RUN_ID'];dst.mkdir(parents=True,exist_ok=False);data=t/'tails-data'
+          for name in ('manifest.json','summary.json','rows.jsonl','cells.json','failures.json','equivalence.json','runtime.jsonl'):
+              if (data/name).exists():shutil.copyfile(data/name,dst/name)
+          for folder,name in [('tails-controls','controls.json'),('tails-consumer','consumer.json')]:
+              if (t/folder/'summary.json').exists():shutil.copyfile(t/folder/'summary.json',dst/name)
+          with tarfile.open(dst/'raw.tar.gz','w:gz') as tar:
+              for path,label in [(t/'tails-setup','setup'),(t/'tails-controls','controls'),(data/'logs','logs'),(data/'runtime-logs','runtime-logs'),(data/'corpus','corpus')]:
+                  if path.exists():tar.add(path,arcname=label)
+          assert (dst/'raw.tar.gz').stat().st_size<48*1024*1024
+          source=t/'tails-setup/source.txt'
+          receipt={'baseline':'3e4a2a2ae368380e86ea99da32d7f3eef68cf3b4','source':source.read_text().strip() if source.exists() else None,'recipe':os.environ['GITHUB_SHA'],'status':os.environ['PRIOR_STATUS'],'files':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in dst.iterdir()},'main_modified':False,'external_ai_review':False,'acceptance':'Pending explicit performance and safety audit, no automated merge'}
+          (dst/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt,indent=2))
+          PY
+          git fetch --no-tags origin refs/heads/task/G10.5.1.6
+          expected="$GITHUB_SHA"; if test -f "$RUNNER_TEMP/tails-setup/source.txt"; then expected="$(cat "$RUNNER_TEMP/tails-setup/source.txt")"; fi
+          test "$(git rev-parse FETCH_HEAD)" = "$expected"
+          git add -- ".task/G10.5.1.6/runs/$GITHUB_RUN_ID"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Preserve interned cleanup experiment $GITHUB_RUN_ID, no automatic main integration"
+          git push origin HEAD:refs/heads/task/G10.5.1.6
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: cleanup-tails-${{ github.run_id }}
+          path: .task/G10.5.1.6
+          retention-days: 30
