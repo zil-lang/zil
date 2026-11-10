@@ -1,0 +1,37 @@
+{
+  "baseline": "099d0af969a51260355437603b77d3f9030d83bc",
+  "source": "0d18886608738e4de351885c6b1c0e9fae089476",
+  "recipe": "0bdb1b3b1a2aa8346561d608c250592e7e2e03bd",
+  "status_before_preservation": "success",
+  "prior_rejected_runs": [
+    42850687888,
+    42857487501
+  ],
+  "source_import_cost_limit": 32,
+  "tail_dispatch_locality": true,
+  "main_modified": false,
+  "external_ai_review": false,
+  "original_weights_unchanged": true,
+  "multi_cases_are_separate": true,
+  "files": {
+    "omitted-rebuildable-elf.json": "bef1a6b6ea42d4fe00417e6bc7aead858e07f0055cc2307480b4ab8c28d65bfe",
+    "raw.tar.gz": "873fc45dc5f1e0290ed2b0f037fba4759efa9019201c3fe466a755e8c2ad2a2e",
+    "multi/manifest.json": "5e13971a2aba33ea71c0d6acce9414b97d01beb9192a7368cac94a0018f63f85",
+    "multi/runtime.jsonl": "fd27cff4fa9a975755b1324885b1318dc1d67cd8ce024cceb008dbd0bd92fb26",
+    "multi/rows.jsonl": "b2f1a46feb57260e9469d60e2f49a20bcca81330943583b8f8f388eb3be152ba",
+    "multi/summary.json": "28a20d9681239ee8923c160c1facf1552dd7fbd6b24b41688d53597747d400ea",
+    "neighbors/summary.json": "38843769137257ccc89f65f7d705add78d9f903e97981b44e452f7179d4f7575",
+    "multi-controls/summary.json": "15c95cf79723a54c6db481005d7fcbb77709b56f57ee3764479b662fdb76e732",
+    "primary/failures.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "primary/manifest.json": "b53d038f1b63a8f48a6189716660a9041d9ebdee5085f735532d8d38cd3398aa",
+    "primary/runtime.jsonl": "61f649a86456bc64dc7cf4a5e0eae76bcabf212447508ee3fa017431eaa2da89",
+    "primary/equivalence.json": "8993067a3c36761d7a07434566a5370584e2294890a9802ecde89b6fd8063404",
+    "primary/rows.jsonl": "d5f5cb1a472a2cc9d000b62b9315ce724c48043daf244573d3cd8abd55682018",
+    "primary/summary.json": "cb32d050475e8497e7fc0bb038b80117971911838a39192efae07767767eaf98",
+    "primary/cells.json": "d4e9b25ce68e38ab80a9a8d0d7c5148f7108793e912bdb2708af3498d8e4ad3a",
+    "consumer/summary.json": "43711ea8469f2d2cd91db10211fcd3c523c28398499e2c343bd3417cd8200d7a",
+    "controls/summary.json": "cf2da37b2c8463765ca5ef5eafc22749149af0a3fe2d1a6d4bfdf80d387266b2",
+    "quality/summary.json": "d293845b7f1c55db1c6e7206d6466d626ddc37bc5481e6a205472843e7579d6d"
+  },
+  "acceptance": "Requires complete source/current-input/quality and absolute-wait review, not workflow status"
+}
