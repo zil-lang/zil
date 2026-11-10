@@ -1,0 +1,166 @@
+name: Resource helper dependency partition
+on:
+  push:
+    branches: [task/closure-helper-partition]
+    paths: [.github/workflows/compiler-helper-partition.yml]
+permissions:
+  contents: write
+concurrency:
+  group: compiler-helper-partition
+  cancel-in-progress: false
+jobs:
+  experiment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Pin baseline tools and prior frozen scenarios
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/helper-setup" .task/helper-partition/bench .task/helper-partition/neighbors
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          cargo fetch --locked
+          sudo apt-get update -qq
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/helper-llvm" > "$RUNNER_TEMP/helper-setup/llvm.log" 2>&1
+          echo "ZIL_CLANG=$RUNNER_TEMP/helper-llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/helper-llvm/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/helper-llvm/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/helper-llvm/bin" >> "$GITHUB_PATH"
+          git fetch --depth=1 --no-tags origin 099d0af969a51260355437603b77d3f9030d83bc bf3acbd2b68a507819a5578457422d4b68be44cc
+          git worktree add --detach "$RUNNER_TEMP/helper-base" 099d0af969a51260355437603b77d3f9030d83bc
+          for f in corpus.py measure.py; do git show bf3acbd2b68a507819a5578457422d4b68be44cc:.task/closure-dependencies/bench/$f > .task/helper-partition/bench/$f; done
+          for f in quality.py controls.py; do git show bf3acbd2b68a507819a5578457422d4b68be44cc:.task/closure-dependencies/$f > .task/helper-partition/$f; done
+          for f in check.py corpus.py; do git show bf3acbd2b68a507819a5578457422d4b68be44cc:.task/closure-dependencies/neighbors/$f > .task/helper-partition/neighbors/$f; done
+      - name: Freeze source and current accepted linkage expectations
+        run: |
+          set -euo pipefail
+          python3 .task/helper-partition/apply.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('.task/helper-partition/bench/measure.py');s=p.read_text().replace('947063a63880b375889ff30b3beba6151abf55f3','099d0af969a51260355437603b77d3f9030d83bc');p.write_text(s)
+          p=Path('.task/helper-partition/controls.py');s=p.read_text()
+          old="       if arm=='base':assert all(body in public for body in bodies),(name,'baseline anonymous exports changed')\n       else:assert all(body not in public for body in bodies),(name,'candidate anonymous exports retained')"
+          new="       assert all(body not in public for body in bodies),(name,'accepted PR79 anonymous linkage changed')"
+          assert s.count(old)==1;s=s.replace(old,new);p.write_text(s)
+          p=Path('.task/helper-partition/multimodule.py');s=p.read_text()
+          old="    m.dump(out/'manifest.json',manifest)"
+          new="""    for kind,n in SPECS:
+                  for snapshot in ['base','private','public']:
+                   for lang in ['zil','rust']:
+                    folder=out/'corpus'/kind/snapshot/lang;folder.mkdir(parents=True)
+                    for name,text in files(kind,n,lang,snapshot).items():(folder/name).write_text(text)
+              manifest['source_hashes']={str(p.relative_to(out)):m.sha(p) for p in (out/'corpus').rglob('*') if p.is_file()}
+              m.dump(out/'manifest.json',manifest)"""
+          new='\n'.join(line[10:] if line.startswith('              ') else line for line in new.splitlines())
+          assert s.count(old)==1;s=s.replace(old,new);p.write_text(s)
+          PY
+          rustfmt --edition 2024 crates/zil-backend-llvm/src/machine_cgu.rs
+          python3 -m py_compile .task/helper-partition/*.py .task/helper-partition/bench/*.py .task/helper-partition/neighbors/*.py
+          git diff --check
+          git diff > "$RUNNER_TEMP/helper-setup/source.patch"
+          git add crates/zil-backend-llvm/src/machine_cgu.rs crates/zil-backend-llvm/src/machine_cgu/resource_helpers.rs crates/zil-backend-llvm/src/machine_cgu/resource_helpers/tests.rs .task/helper-partition
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Freeze bounded helper-code partition and exact retained benchmark protocol'
+          git rev-parse HEAD > "$RUNNER_TEMP/helper-setup/source.txt"
+          git fetch --no-tags origin refs/heads/task/closure-helper-partition
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git push origin HEAD:refs/heads/task/closure-helper-partition
+          rustc -vV > "$RUNNER_TEMP/helper-setup/rustc.txt"
+      - name: Full backend LLVM and strict controls
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/helper-tests"
+          cargo test --locked --offline -p zil-backend-llvm --features llvm-api --lib 2>&1 | tee "$RUNNER_TEMP/helper-setup/backend.log"
+          grep 'shared_call_only_helpers_do_not_join_independent_source_modules .*ok' "$RUNNER_TEMP/helper-setup/backend.log"
+          grep 'duplicated_helper_code_preserves_real_external_effects_and_native_results .*ok' "$RUNNER_TEMP/helper-setup/backend.log"
+          cargo test --locked --offline -p zil-llvm-api --features native --lib 2>&1 | tee "$RUNNER_TEMP/helper-setup/llvm-tests.log"
+          cargo clippy --locked --offline -p zil-backend-llvm --features llvm-api --lib --tests -- -D warnings 2>&1 | tee "$RUNNER_TEMP/helper-setup/clippy.log"
+          cargo fmt --all -- --check
+      - name: Independent same-profile release compilers
+        id: build
+        run: |
+          set -euo pipefail
+          CARGO_TARGET_DIR="$RUNNER_TEMP/helper-base-target" cargo build --locked --offline --release --manifest-path "$RUNNER_TEMP/helper-base/Cargo.toml" -p zil-cli > "$RUNNER_TEMP/helper-setup/base-build.log" 2>&1
+          CARGO_TARGET_DIR="$RUNNER_TEMP/helper-candidate-target" cargo build --locked --offline --release -p zil-cli > "$RUNNER_TEMP/helper-setup/candidate-build.log" 2>&1
+      - name: Multi-module actual edits and complete runtime reference
+        run: |
+          set -euo pipefail
+          python3 .task/helper-partition/multimodule.py --base "$RUNNER_TEMP/helper-base-target/release/zil" --candidate "$RUNNER_TEMP/helper-candidate-target/release/zil" --out "$RUNNER_TEMP/helper-multi" --rounds 5 2>&1 | tee "$RUNNER_TEMP/helper-setup/multi.log"
+      - name: Multi-module API Clang failures and cleanup order
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 .task/helper-partition/multi_controls.py --base "$RUNNER_TEMP/helper-base-target/release/zil" --candidate "$RUNNER_TEMP/helper-candidate-target/release/zil" --out "$RUNNER_TEMP/helper-multi-controls" 2>&1 | tee "$RUNNER_TEMP/helper-setup/multi-controls.log"
+      - name: Original frozen weighted matrix unchanged
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 .task/helper-partition/bench/measure.py --base "$RUNNER_TEMP/helper-base-target/release/zil" --candidate "$RUNNER_TEMP/helper-candidate-target/release/zil" --out "$RUNNER_TEMP/helper-primary" --rounds 5 2>&1 | tee "$RUNNER_TEMP/helper-setup/primary.log"
+      - name: Original allocation-failure and cleanup controls
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 .task/helper-partition/controls.py --base "$RUNNER_TEMP/helper-base-target/release/zil" --candidate "$RUNNER_TEMP/helper-candidate-target/release/zil" --out "$RUNNER_TEMP/helper-controls" > "$RUNNER_TEMP/helper-setup/controls.log" 2>&1
+      - name: Original active and inactive runtime gates
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 .task/helper-partition/quality.py --base "$RUNNER_TEMP/helper-base-target/release/zil" --candidate "$RUNNER_TEMP/helper-candidate-target/release/zil" --out "$RUNNER_TEMP/helper-quality" > "$RUNNER_TEMP/helper-setup/quality.log" 2>&1
+          python3 .task/helper-partition/neighbors/check.py --base "$RUNNER_TEMP/helper-base-target/release/zil" --candidate "$RUNNER_TEMP/helper-candidate-target/release/zil" --out "$RUNNER_TEMP/helper-neighbors" > "$RUNNER_TEMP/helper-setup/neighbors.log" 2>&1
+      - name: Existing native consumers
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 tools/research/native-api-validation/validate.py --repo "$GITHUB_WORKSPACE" --cli "$RUNNER_TEMP/helper-candidate-target/release/zil" --clang "$ZIL_CLANG" --out "$RUNNER_TEMP/helper-consumer" > "$RUNNER_TEMP/helper-setup/consumer.log" 2>&1
+      - name: Preserve all outcomes and source identities
+        if: ${{ always() }}
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,json,hashlib,tarfile,shutil,io
+          t=Path(os.environ['RUNNER_TEMP']);d=Path('.task/helper-partition/runs')/os.environ['GITHUB_RUN_ID'];d.mkdir(parents=True)
+          for folder,label in [('helper-primary','primary'),('helper-multi','multi'),('helper-controls','controls'),('helper-multi-controls','multi-controls'),('helper-quality','quality'),('helper-neighbors','neighbors'),('helper-consumer','consumer')]:
+              src=t/folder
+              if src.exists():
+                  target=d/label;target.mkdir()
+                  for name in ('summary.json','manifest.json','rows.jsonl','runtime.jsonl','cells.json','equivalence.json','failures.json','failure.json'):
+                      if (src/name).exists():shutil.copyfile(src/name,target/name)
+          skipped=[]
+          with tarfile.open(d/'raw.tar.gz','w:gz') as archive:
+              for folder,label in [('helper-setup','setup'),('helper-primary','primary'),('helper-multi','multi'),('helper-controls','controls'),('helper-multi-controls','multi-controls'),('helper-quality','quality'),('helper-neighbors','neighbors')]:
+                  src=t/folder
+                  if not src.exists():continue
+                  for p in src.rglob('*'):
+                      if not p.is_file() or any(part in ('incremental','semantic','objects') for part in p.relative_to(src).parts):continue
+                      data=p.read_bytes();name=label+'/'+str(p.relative_to(src))
+                      if data.startswith(b'\x7fELF'):
+                          skipped.append({'name':name,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()});continue
+                      info=tarfile.TarInfo(name);info.size=len(data);archive.addfile(info,io.BytesIO(data))
+          (d/'omitted-rebuildable-elf.json').write_text(json.dumps(skipped,indent=2)+'\n')
+          f=t/'helper-setup/source.txt';r={'baseline':'099d0af969a51260355437603b77d3f9030d83bc','source':f.read_text().strip() if f.exists() else None,'recipe':os.environ['GITHUB_SHA'],'status_before_preservation':os.environ['PRIOR_STATUS'],'main_modified':False,'external_ai_review':False,'original_weights_unchanged':True,'multi_cases_are_separate':True,'files':{str(p.relative_to(d)):hashlib.sha256(p.read_bytes()).hexdigest() for p in d.rglob('*') if p.is_file()},'acceptance':'Requires complete source/current-input/quality and absolute-wait review, not workflow status'}
+          (d/'receipt.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r,indent=2))
+          assert (d/'raw.tar.gz').stat().st_size<48*1024*1024
+          PY
+          git fetch --no-tags origin refs/heads/task/closure-helper-partition
+          expected="$GITHUB_SHA"; if test -f "$RUNNER_TEMP/helper-setup/source.txt"; then expected="$(cat "$RUNNER_TEMP/helper-setup/source.txt")"; fi
+          test "$(git rev-parse FETCH_HEAD)" = "$expected"
+          git add -- ".task/helper-partition/runs/$GITHUB_RUN_ID"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Preserve complete helper dependency experiment $GITHUB_RUN_ID including every failure"
+          git push origin HEAD:refs/heads/task/closure-helper-partition
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: helper-partition-${{ github.run_id }}
+          path: .task/helper-partition/runs/${{ github.run_id }}
+          retention-days: 30
