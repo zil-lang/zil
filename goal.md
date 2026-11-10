@@ -18,7 +18,7 @@ PR73从main21b1最小提取五个生产文件，补重借用与RHS准备失败�
 
 旧三条混合ref的已交付部分由main承载，Store已合PR73，未完Map和一般语言能力由上述入口及本看板承接；共享读预检d2bc7accd等未采用候选保留在固定归档，须有当前完整消费者净收益才采用。本轮用户说明已解决旧“等待明确确认”的接续歧义；实际删除情况以接续记录为准。此前退役13条原ref和PR71临时ref、原自动审批拒绝及首败仍保留在[历史分支核对](records/branch-reconciliation-20261110.json)，不改写历史。
 
-Map原5008B与7583B库输入保持原字节。最新发布0d34d988（执行0acd176b同tree06384ae3，parent3efe04cc为81af POD同树发布）已通过默认Analyze，独立Verify546/546、非native组9/10；Set、Store field refill及7项来源控制（含Source/raw/Wire反例）通过，唯独原Map仍Verify ResourceLimit、V1。第6—8同费账本保全；当前68个Sum摘要与34个最终body核验全部完成，资源首records完成Slots/Plan准备55514后余3482，首次liveness库存预付27648被拒，尚未执行其固定点或Transfer。POD实际Type资格复用与共享异页完整no-new-facts均保全冷路径、费用及完整旧oracle，不把前缀收益当整请求通过。原Analyze262全库证据属于更早4b/872，未称0acd重跑；strict最近仍872，当前待验。初始化库存小片正在实施、未验收；原16构建/64次双后端O0/O2及分配失败执行仍待Verify过门后重验。两旧shared-product预算pin的+2归因及N/N−1/失败后fresh保留。Map及语言1.0父门仍开放。
+Map原5008B与7583B库保持原字节。发布f3b6e310与执行99e542b同tree69ee1876；默认Analyze及全部68次Sum摘要、34次Sum最终核验完成，Verify全库551/551、非native组9/10，原Map仍Verify ResourceLimit、V1。第9同费账本确认初始化真实表示使完整Sum净省113190，包含小库存及其他函数退化；首资源records已通过冷CFG活跃性固定点，历史快照完成76块后余224拒576，尚未进入Transfer，继续最小历史表示片。Set/refill与7来源控制（含Source/raw/Wire反例）保持；Analyze262全库与strict属较早绑定证据，当前完整门及原16构建/64native待验。源码、完整旧oracle、精确边界及必要证据见[语言接续](records/ordinary-collections-continuation.json)，Map及语言1.0父门仍开放。
 
 ## G1 · 基础类型与模式
 
@@ -424,7 +424,7 @@ Map原5008B与7583B库输入保持原字节。最新发布0d34d988（执行0acd1
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | Chat语言接续 · task/ordinary-collections；两核独立复核 | 最新发布0d34d988与执行0acd176b同tree06384ae3；完整原输入/旧oracle保留，默认Analyze已过，Verify546/546、非native9/10及7来源控制（含Source/raw/Wire反例）通过；原Map仍Verify限额、V1。第8账本已完成全部68摘要/34最终Sum核验，资源首records在Slots/Plan55514后余3482拒liveness27648，未到Transfer。81af POD与0acd共享页逐片记录，ad4初始化库存正在实施、未验收；原Analyze262为历史全库证据，当前strict及16build/64native待验。不以归档或前缀收益替代接受；见接续记录。 |
+| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | Chat语言接续 · task/ordinary-collections；两核独立复核 | 发布f3b6e310/执行99e542b同tree；原输入/完整旧oracle不变。Analyze与全部Sum完成，Verify551/551、非native9/10；唯一Map仍默认Verify限额。首资源cold CFG已过，历史快照76块后拒576；继续有实际热点依据的最小历史表示，原16build/64native和当前严格门待验，详接续记录。 |
 
 </details>
 

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-10T07:30:14.372606+00:00",
-  "read_goal": "de1e2e88775b8982a3655b3a20c1f5b7529ab1f4",
+  "recorded_utc": "2026-11-10T07:36:23.674210+00:00",
+  "read_goal": "15e57581dc7f2e5497f58c8df746b08ace5c1440",
   "authorization": "User directs one implementation branch where dependencies permit, separate branches only for independent work; compiler-speed work stays with its original conversation; this conversation continues all other unfinished work.",
   "active_language_branch": "task/ordinary-collections",
   "compiler_branches_untouched": [
@@ -166,15 +166,15 @@
     "functional_source": "ede4945d1ed37ca6e89f712fc2258379d84d5e37",
     "functional_paths": 27,
     "functional_scope": "3 library paths, 6 ordinary Input/public capture replacement paths, actual parent/generation, complete original fixtures and consumers; no optional old cost caches or broader ABI/compiler changes.",
-    "latest_measured_source": "0acd176ba20d065193a5aacfe430f3da93dbdf84",
-    "latest_default_result": "Original Map Analyze completed; all 68 Sum summaries and 34 Sum final validations completed; independent Verify ResourceLimit in first resource records liveness reservation, verification_runs=1",
+    "latest_measured_source": "99e542b98e01b74bc157ddbd2fbfbe65d7bfe333",
+    "latest_default_result": "Original Map Analyze and all Sum verification complete; Verify ResourceLimit in first resource records description history after 76 complete blocks, V1",
     "complete_inventory_join_oracles": "3/3; N4667 vs original lookup6454; N-1 and retry pass",
     "source_raw_wire_recent_controls": "7/7 source controls, including Source/raw/Wire negative controls; not seven negative-only tests",
-    "next": "Frozen initialization candidate99e542b awaits ninth same-fee diagnostic and whole-source net-effect review; no candidate acceptance or publication. Preserve complete first-cold resource preparation, final validation and default limits; native and current strict remain pending.",
+    "next": "Implement and independently review only complete description-history representation from d302 at the measured history hotspot; no cold liveness reuse or unrelated resource layouts. Original inputs, default limits and native acceptance boundary remain unchanged.",
     "unaccepted_candidates": "Complete Map remains unaccepted until independent Verify and the original native matrix pass. Actual POD qualification and shared-page no-change mechanisms have current component/library evidence only; initialization, scheduling, templates and checkpoints require separate current evidence.",
-    "published_continuation": "0d34d9888a90d59a5f02f97192ebd2a1367c39be",
-    "published_tree": "06384ae3add3367542ab2907744243385656c821",
-    "identical_local_tree": "0acd176ba20d065193a5aacfe430f3da93dbdf84",
+    "published_continuation": "f3b6e3106c6c01ce12ab48ba0590c28edff9fe95",
+    "published_tree": "69ee1876f8743b4d6411e80374ea8bfa9b3bdc57",
+    "identical_local_tree": "99e542b98e01b74bc157ddbd2fbfbe65d7bfe333",
     "complete_analyze_library": "262/262 passed at 4b745813 and 872e5eca; historical complete-library evidence, not rerun on 0acd",
     "unknown_fixedpoint": "4 semantic/reconstruction controls, exact N144 versus old188; N-1/fresh; independent input-isolation correction610746 then1/1 rerun",
     "same_fee_diagnostic": {
@@ -197,7 +197,7 @@
       "final_validation_entered": false,
       "interpretation": "This is an accepted-work prefix histogram, not complete-request net savings."
     },
-    "latest_run": "out/runs/map-verify-shared-ssa-keep-20261110T070022Z",
+    "latest_run": "out/runs/map-verify-adaptive-initialization-20261110T072657Z",
     "set_source": "1/1 Success Verify, verification_runs=1",
     "ssa_pages": {
       "source": "bcfec60ca894eb4c37b380a7f1f626887a7fc3fa",
@@ -286,7 +286,7 @@
       "shared_read_precheck": "d2bc7accd preserved in archive but not adopted: current Map cutoff does not execute that stored-flow tail; main already filters the main read-candidate path.",
       "templates_and_frontier": "Not adopted without current actual construction or scheduling hotspot."
     },
-    "complete_verify_library": "546/546 passed at 0acd176b",
+    "complete_verify_library": "551/551 passed at 99e542b",
     "verify_steps": [
       {
         "source": "b071ab2f4467308b78f068eeb9a2a83a3d73550d",
@@ -386,6 +386,19 @@
         "component_boundaries": "Shared-page component N287 versus eager352; both N-1/fresh, complete outputs, semantic-error prefixes and aliases checked",
         "run": "out/runs/map-verify-shared-ssa-keep-20261110T070022Z",
         "acceptance_boundary": "All current Sum work completed in same-fee diagnostic, but first resource function remains incomplete; no full Map acceptance"
+      },
+      {
+        "source": "99e542b98e01b74bc157ddbd2fbfbe65d7bfe333",
+        "published_same_tree": "f3b6e3106c6c01ce12ab48ba0590c28edff9fe95",
+        "tree": "69ee1876f8743b4d6411e80374ea8bfa9b3bdc57",
+        "mechanism": "Actual four-state initialized-local bytes for tiny inventories, two-bit words for larger inventories; complete zip/OR suffix semantics and prepaid construction, get/set, validation and merge",
+        "old_oracle": "Five complete scalar-reference tests added; all preceding546 test names retained; complete OldFlow and FlatState preserved",
+        "verify_library": "551/551",
+        "group": "9 pass / original Map Verify ResourceLimit V1; native skipped",
+        "component_boundaries": "Atomic set N3 small/N11 packed, both N-1 and after-failure fresh; 1025locals x16 clone/OR N3360 vs scalar32800",
+        "regressions": "Current outer32 N3188->3348 and full State N6192->6512; five shared-product pins unchanged; component savings do not replace complete consumer accounting",
+        "run": "out/runs/map-verify-adaptive-initialization-20261110T072657Z",
+        "acceptance_boundary": "Complete Sum net113190 including all fees and regressed functions; complete Map still unaccepted"
       }
     ],
     "verify_same_fee_diagnostics": [
@@ -528,17 +541,46 @@
         "completed_resource_functions": 0,
         "cutoff": "First resource records completed Slots::new/Plan::extend_slots/Plan::writes; first liveness dense inventory requests27648 with3482 remaining; no liveness fixed point or Transfer executed",
         "interpretation": "Same68 summaries net441474 includes20 regressed solves adding2016 and all successful/rejected probes plus actual COW. Complete current Sum4757240 has no full prior-phase comparison; the first cold liveness rejection does not establish its whole-solve dominance."
+      },
+      {
+        "source": "99e542b98e01b74bc157ddbd2fbfbe65d7bfe333",
+        "run": "out/runs/map-verify-ledger-20261110-9-99e542b9",
+        "handoff_sha256": "62d9e54ae0fc9e59bc7aa869d09bca4f90c053752eba2346bd50b9de8842ca2e",
+        "complete_sum_summaries": 68,
+        "complete_sum_final_functions": 34,
+        "sum_before": 4757240,
+        "sum_after": 4644050,
+        "same_complete_sum_saving": 113190,
+        "state_initialized_inventory_before": 355896,
+        "state_initialized_inventory_after": 32535,
+        "new_operation_work": 210171,
+        "regressed_complete_solves": 99,
+        "regressed_solve_added_work": 51744,
+        "small_inventory_net_added_work": 7500,
+        "sum_end_remaining": 229394,
+        "resource_module_preparation": 57208,
+        "resource_slots_and_plan": 55514,
+        "complete_cold_cfg_liveness": 59352,
+        "history_entry_remaining": 57320,
+        "history_complete_blocks": 76,
+        "history_accepted_work": 57096,
+        "remaining": 224,
+        "rejected_charge": 576,
+        "cutoff": "First resource records: block76 description history; initial state and transfer not entered",
+        "source_restored_byte_exact_and_clean": true,
+        "original_inputs_and_limits": true,
+        "interpretation": "Both complete Sum phases compared, all new operations counted once; resource prefixes differ and are not treated as complete net results."
       }
     ],
     "same_fee_diagnostic_invariants": "Every diagnostic used original5008 source and default limits, preserved original charges, counted accepted work only, then restored exact source bytes and clean tree.",
     "latest_gate_evidence": {
-      "source": "0acd176ba20d065193a5aacfe430f3da93dbdf84",
-      "tree": "06384ae3add3367542ab2907744243385656c821",
-      "run": "out/runs/map-verify-shared-ssa-keep-20261110T070022Z",
-      "library_log_sha256": "19fd535a3f117d3845a548ad6d01210e6d1991785842d2521ee42535d8c12b82",
-      "group_log_sha256": "763b97c9bd4825529626f316357cb34b77f4f5aa685955e33f95feacbba28e2a",
+      "source": "99e542b98e01b74bc157ddbd2fbfbe65d7bfe333",
+      "tree": "69ee1876f8743b4d6411e80374ea8bfa9b3bdc57",
+      "run": "out/runs/map-verify-adaptive-initialization-20261110T072657Z",
+      "library_log_sha256": "2d557c46594a010c640cee43282b569f982b0851659fce0350865d121213a267",
+      "group_log_sha256": "9ace90753a5bca9d4256f20ba91859a2f809dc743e738793bae0c13caa089e54",
       "verify_library": {
-        "passed": 546,
+        "passed": 551,
         "failed": 0
       },
       "non_native_group": {
@@ -551,13 +593,13 @@
       "native_current_pending": true
     },
     "current_unaccepted_candidate": {
-      "source": "99e542b98e01b74bc157ddbd2fbfbe65d7bfe333",
-      "tree": "69ee1876f8743b4d6411e80374ea8bfa9b3bdc57",
-      "scope": "Actual initialized-local inventory representation from archived ad4ada448",
-      "run": "out/runs/map-verify-adaptive-initialization-20261110T072657Z",
-      "verify_library": "551/551; all prior546 test names retained as confirmed by root",
-      "non_native_group": "9 pass / original Map Verify ResourceLimit V1; native skipped",
-      "status": "Frozen and tested as a candidate only; ninth same-fee diagnostic and whole-source net effect pending; unpublished and unaccepted"
+      "source": "a465664f074112514bbc85c06c6ac01371a63591",
+      "tree": "b228a52b1dabadda371e79c764547d1b04f5ed88",
+      "scope": "Complete actual description history storage from archived d302; original cold CFG body remains byte exact",
+      "run": "out/runs/map-verify-description-history-20261110T074033Z",
+      "verify_library": "556/556; preceding551 retained by source",
+      "non_native_group": "9 pass / original Map Verify ResourceLimit V1",
+      "status": "Exact candidate under independent review; tenth same-fee diagnostic pending, not yet accepted or published"
     }
   },
   "first_failures": [
