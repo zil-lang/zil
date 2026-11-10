@@ -188,8 +188,8 @@ fn dense(
 }
 
 // One immutable actual function/selected graph for this resource-check request.
-// Slots themselves are always rebuilt; only an exactly matching description
-// coordinate inventory can reuse this permission-free after table.
+// A sealed request may retain complete Slots. This permission-free after
+// table still requires an exactly matching complete description inventory.
 pub(super) struct Binding<'a> {
     f: &'a TypedFunction,
     graph: &'a FunctionGraph,

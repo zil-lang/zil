@@ -220,3 +220,30 @@ impl Fields {
 }
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+#[derive(Debug, PartialEq, Eq)]
+pub(in crate::resources) struct LayoutSnapshot {
+    widths: Vec<usize>,
+    shared: Option<SharedSnapshot>,
+}
+
+#[cfg(test)]
+#[derive(Debug, PartialEq, Eq)]
+struct SharedSnapshot {
+    offsets: Vec<usize>,
+    width: usize,
+}
+
+#[cfg(test)]
+impl Plan {
+    pub(in crate::resources) fn layout_snapshot(&self) -> LayoutSnapshot {
+        LayoutSnapshot {
+            widths: self.widths.clone(),
+            shared: self.shared.as_ref().map(|shared| SharedSnapshot {
+                offsets: shared.offsets.clone(),
+                width: shared.width,
+            }),
+        }
+    }
+}

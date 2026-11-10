@@ -15,6 +15,7 @@ mod product;
 pub(super) mod public_roles;
 mod replacements;
 pub(super) mod schedule;
+mod slot_layout;
 pub(crate) mod task_frames;
 
 const EMPTY: u8 = 1;
@@ -2954,6 +2955,7 @@ fn run_function_with_sums(
         None,
     )
 }
+#[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 fn run_function_data(
     module: &TypedModule,
@@ -2973,6 +2975,31 @@ fn run_function_data(
     if let Some(plan) = replacements {
         plan.extend_slots(f, &mut slots, budget)?;
     }
+    run_with_slots(
+        module,
+        binding,
+        &slots,
+        effects,
+        validate,
+        sum_rows,
+        budget,
+        replacements,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_with_slots(
+    module: &TypedModule,
+    binding: &mut desc_liveness::Binding<'_>,
+    slots: &Slots,
+    effects: &[BTreeSet<Root>],
+    validate: bool,
+    sum_rows: Option<&[Vec<sums::Bridge>]>,
+    budget: &mut Budget,
+    replacements: Option<&replacements::Plan>,
+) -> Check<BTreeSet<Root>> {
+    let f = binding.function();
+    let graph = binding.graph();
     if slots.debt_count == 0 && slots.desc_count == 0 && !slots.retirement {
         return Ok(BTreeSet::new());
     }
@@ -2981,7 +3008,7 @@ fn run_function_data(
     } else {
         BTreeSet::new()
     };
-    let after = binding.after(&slots, budget)?;
+    let after = binding.after(slots, budget)?;
     let mut initial = slots.empty(budget)?;
     // Charge actual initialization work, including the old Managed-only scan.
     budget.spend(slots.capture_debt.len())?;
@@ -3021,10 +3048,10 @@ fn run_function_data(
         }
     }
     if let Some(plan) = replacements {
-        plan.seed_sources(module, f, &slots, &mut initial, budget)?;
+        plan.seed_sources(module, f, slots, &mut initial, budget)?;
     }
     if validate {
-        task_frames::start(f, &slots, &initial, budget)?;
+        task_frames::start(f, slots, &initial, budget)?;
     }
     budget.spend(f.blocks.len().saturating_mul(2))?;
     let mut inputs = vec![None; f.blocks.len()];
@@ -3040,7 +3067,7 @@ fn run_function_data(
     let transfer = Transfer {
         module,
         f,
-        slots: &slots,
+        slots,
         after: after.history(),
         effects,
         sum_rows,
@@ -3181,96 +3208,13 @@ pub(super) fn effect_closure_target(module: &TypedModule, ty: &Type, span: Span)
     Ok(entry.0 as usize)
 }
 
-fn liveness_bindings<'a>(
-    module: &'a TypedModule,
-    graphs: &'a [FunctionGraph],
-    refined: Option<&'a BTreeMap<usize, FunctionGraph>>,
-    b: &mut Budget,
-) -> Check<Vec<desc_liveness::Binding<'a>>> {
-    let words =
-        std::mem::size_of::<desc_liveness::Binding<'_>>().div_ceil(std::mem::size_of::<usize>());
-    let outer = std::mem::size_of::<Vec<desc_liveness::Binding<'_>>>()
-        .div_ceil(std::mem::size_of::<usize>());
-    // Actual binding slots plus their eventual entry dispatch, and the full
-    // outer Vec record with allocation/release. No Arc owners are introduced.
-    b.spend(
-        module
-            .functions
-            .len()
-            .saturating_mul(words.saturating_add(1))
-            .saturating_add(outer)
-            .saturating_add(2),
-    )?;
-    let mut bindings = Vec::with_capacity(module.functions.len());
-    for (index, f) in module.functions.iter().enumerate() {
-        b.spend(3)?; // actual function/graph ordinal reads and binding write
-        let graph = if let Some(rows) = refined {
-            b.spend(rows.len().saturating_add(1))?;
-            rows.get(&index).unwrap_or(&graphs[index])
-        } else {
-            &graphs[index]
-        };
-        bindings.push(desc_liveness::Binding::new(f, graph));
-    }
-    Ok(bindings)
-}
-
 #[cfg(test)]
 fn infer_effects(
     module: &TypedModule,
     graphs: &[FunctionGraph],
     budget: &mut Budget,
 ) -> Check<Vec<BTreeSet<Root>>> {
-    let mut bindings = liveness_bindings(module, graphs, None, budget)?;
-    infer_effects_data(module, graphs, budget, None, &mut bindings)
-}
-fn infer_effects_data(
-    module: &TypedModule,
-    graphs: &[FunctionGraph],
-    budget: &mut Budget,
-    replacements: Option<&replacements::Plan>,
-    bindings: &mut [desc_liveness::Binding<'_>],
-) -> Check<Vec<BTreeSet<Root>>> {
-    budget.spend(module.functions.len())?;
-    let mut effects = vec![BTreeSet::new(); module.functions.len()];
-    let dependents = effect_dependents(module, graphs, budget)?;
-    // Independent verifier scheduling: finish a batch before processing its
-    // notifications. Every function runs initially; growing rows wake consumers.
-    let mut dirty: Vec<usize> = (0..module.functions.len()).rev().collect();
-    let mut next = Vec::new();
-    let mut scheduled = vec![true; module.functions.len()];
-    while !dirty.is_empty() {
-        while let Some(index) = dirty.pop() {
-            budget.spend(1)?;
-            scheduled[index] = false;
-            #[cfg(test)]
-            TEST_EFFECT_SOLVES.with(|value| value.set(value.get() + 1));
-            let found = run_function_data(
-                module,
-                &mut bindings[index],
-                &effects,
-                false,
-                None,
-                budget,
-                replacements,
-            )?;
-            budget.spend(found.len().saturating_add(effects[index].len()))?;
-            let before = effects[index].len();
-            effects[index].extend(found);
-            if effects[index].len() != before {
-                budget.spend(dependents[index].len())?;
-                for &user in &dependents[index] {
-                    if !scheduled[user] {
-                        budget.spend(1)?;
-                        scheduled[user] = true;
-                        next.push(user);
-                    }
-                }
-            }
-        }
-        std::mem::swap(&mut dirty, &mut next);
-    }
-    Ok(effects)
+    slot_layout::Request::new(module, graphs, None, None, budget)?.infer_effects()
 }
 
 #[cfg(test)]
@@ -3431,13 +3375,17 @@ pub(super) fn check_module(
             budget,
         )?)
     };
-    let mut bindings = liveness_bindings(module, graphs, refined.as_ref(), budget)?;
-    let effects = infer_effects_data(module, graphs, budget, replacements.as_ref(), &mut bindings)?;
-    for binding in &mut bindings {
-        let function = binding.function();
-        run_function_data(
-            module,
-            binding,
+    let mut request = slot_layout::Request::new(
+        module,
+        graphs,
+        refined.as_ref(),
+        replacements.as_ref(),
+        budget,
+    )?;
+    let effects = request.infer_effects()?;
+    for (index, function) in module.functions.iter().enumerate() {
+        request.run(
+            index,
             &effects,
             true,
             sum_proofs
@@ -3445,13 +3393,9 @@ pub(super) fn check_module(
                 .get(function.id.0 as usize)
                 .filter(|rows| !rows.is_empty())
                 .map(Vec::as_slice),
-            budget,
-            replacements.as_ref(),
         )?;
     }
-    if let Some(plan) = &replacements {
-        plan.close_pairs(module, budget)?;
-    }
+    request.close_pairs()?;
     Ok(())
 }
 

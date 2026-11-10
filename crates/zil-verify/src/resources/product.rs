@@ -276,3 +276,40 @@ impl Plan {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[derive(Debug, PartialEq, Eq)]
+pub(in crate::resources) struct LayoutSnapshot {
+    locals: Vec<Option<ShapeSnapshot>>,
+    values: Vec<Option<ShapeSnapshot>>,
+    width: usize,
+}
+
+#[cfg(test)]
+#[derive(Debug, PartialEq, Eq)]
+struct ShapeSnapshot {
+    whole: Range<usize>,
+    fields: Vec<Range<usize>>,
+}
+
+#[cfg(test)]
+impl Plan {
+    pub(in crate::resources) fn layout_snapshot(&self) -> LayoutSnapshot {
+        fn rows(shapes: &[Option<Shape>]) -> Vec<Option<ShapeSnapshot>> {
+            shapes
+                .iter()
+                .map(|shape| {
+                    shape.as_ref().map(|shape| ShapeSnapshot {
+                        whole: shape.whole.clone(),
+                        fields: shape.fields.clone(),
+                    })
+                })
+                .collect()
+        }
+        LayoutSnapshot {
+            locals: rows(&self.locals),
+            values: rows(&self.values),
+            width: self.width,
+        }
+    }
+}
