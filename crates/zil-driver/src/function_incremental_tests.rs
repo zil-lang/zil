@@ -112,17 +112,20 @@ fn function_types_declarations_visibility_and_id_shifts_invalidate_context() {
     let options = CompileOptions::default();
     let mut s = CompilationSession::default();
     success(&s.compile_project(&d.project(MAIN, LIBRARY), &options));
-    for library in [
-        format!("fn inserted()->i32{{return 5;}} {LIBRARY}"),
-        format!("fn inserted(x:bool)->bool{{return x;}} {LIBRARY}"),
-        LIBRARY.replace("pub fn answer", "fn answer"),
+    for (library, reused) in [
+        (format!("fn inserted()->i32{{return 5;}} {LIBRARY}"), 0),
+        (
+            format!("fn inserted(x:bool)->bool{{return x;}} {LIBRARY}"),
+            3,
+        ),
+        (LIBRARY.replace("pub fn answer", "fn answer"), 0),
     ] {
         let p = d.project(MAIN, &library);
         let r = s.compile_project(&p, &options);
         compare_fresh(&s, &r, &p, &options);
         // A failed Types query rolls back its previous successful cache epoch.
         if r.status == ResultCategory::Success {
-            assert_eq!(s.function_type_stats().reused_functions, 0);
+            assert_eq!(s.function_type_stats().reused_functions, reused);
         } else {
             assert!(r.diagnostics.iter().any(|e| e.code == "E-MODULE-PRIVATE"));
         }
@@ -293,4 +296,82 @@ fn function_types_trivial_leaves_do_not_create_persistent_work_products() {
     assert_eq!(session.function_type_stats().reused_functions, 0);
     assert!(!d.0.join("cache/function-types-v1").exists());
     compare_fresh(&session, &r, &p, &options);
+}
+
+#[test]
+fn function_types_signature_facets_only_invalidate_current_direct_users() {
+    let d = Directory::new();
+    let options = CompileOptions::default();
+    let extra = " fn unrelated(x:i32)->i32{if x<3{return x+1;}else{return x+2;}}";
+    let mut session = CompilationSession::default();
+    success(&session.compile_project(&d.project(MAIN, &(LIBRARY.to_owned() + extra)), &options));
+    let changed = extra
+        .replace("unrelated(x:i32)", "unrelated(x:i64)")
+        .replace("return x+1;", "return i32(x)+1;")
+        .replace("return x+2;", "return i32(x)+2;");
+    let changed = LIBRARY.to_owned() + &changed;
+    let project = d.project(MAIN, &changed);
+    let report = session.compile_project(&project, &options);
+    success(&report);
+    assert_eq!(session.function_type_stats().reused_functions, 3);
+    assert_eq!(session.function_type_stats().executed_functions, 1);
+    compare_fresh(&session, &report, &project, &options);
+
+    let library = changed
+        .replace("leaf(x:i32)", "leaf(x:i32,bias:i32)")
+        .replace("leaf(41)", "leaf(41,0)");
+    let project = d.project(MAIN, &library);
+    let report = session.compile_project(&project, &options);
+    success(&report);
+    assert_eq!(session.function_type_stats().reused_functions, 2);
+    assert_eq!(session.function_type_stats().executed_functions, 2);
+    compare_fresh(&session, &report, &project, &options);
+}
+
+#[test]
+fn function_types_signature_facets_recheck_unchanged_callers_and_current_errors() {
+    let d = Directory::new();
+    let options = CompileOptions::default();
+    let mut session = CompilationSession::default();
+    success(&session.compile_project(&d.project(MAIN, LIBRARY), &options));
+    for library in [
+        LIBRARY.replace("leaf(x:i32)", "leaf(x:bool)"),
+        LIBRARY.replace("pub fn answer()->i32", "pub fn answer(extra:i32)->i32"),
+        LIBRARY.replace("pub fn answer", "fn answer"),
+    ] {
+        let project = d.project(MAIN, &library);
+        let report = session.compile_project(&project, &options);
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        compare_fresh(&session, &report, &project, &options);
+        success(&session.compile_project(&d.project(MAIN, LIBRARY), &options));
+    }
+}
+
+#[test]
+fn function_types_signature_facets_survive_a_new_disk_cache_session() {
+    let d = Directory::new();
+    let options = CompileOptions {
+        semantic_cache: Some(d.0.join("cache")),
+        ..Default::default()
+    };
+    let extra = " fn unused(x:i32)->i32{if x<2{return x;}else{return x+1;}}";
+    let library = LIBRARY.to_owned() + extra;
+    success(&CompilationSession::default().compile_project(&d.project(MAIN, &library), &options));
+    let changed = LIBRARY.to_owned()
+        + &extra
+            .replace("x:i32", "x:i64")
+            .replace("return x;", "return i32(x);")
+            .replace("return x+1;", "return i32(x)+1;");
+    let project = d.project(MAIN, &changed);
+    let mut session = CompilationSession::default();
+    let report = session.compile_project(&project, &options);
+    success(&report);
+    assert_eq!(session.function_type_stats().reused_functions, 3);
+    assert_eq!(session.function_type_stats().executed_functions, 1);
+    compare_fresh(&session, &report, &project, &options);
 }
