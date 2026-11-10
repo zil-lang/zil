@@ -8447,7 +8447,7 @@ fn owned_aggregate_owner_replacement_error_arm_alias_budget() {
     // helper resource retirement: previous Analyze N46908; actual local retirement/liveness and
     // paid producer eligibility add40. Verify retains its independent bound.
     // Verify also avoids the independently proven impossible ErrorUnion edge.
-    for (stage, expected_n) in [(Stage::Analyze, 46948), (Stage::Verify, 95621)] {
+    for (stage, expected_n) in [(Stage::Analyze, 46948), (Stage::Verify, 88950)] {
         let options = |work| CompileOptions {
             stop_after: stage,
             limits: Limits {
@@ -8950,8 +8950,8 @@ fn owned_aggregate_package_terminal_exact_request_budget() {
                 // helper resource retirement paid producer exclusion inventory: previous13945+9.
                 13_954
             } else {
-                // Current independent work after Copy-shape memoization and sparse loan visits.
-                26_341
+                // Current independent work with word liveness and canonical local head rows.
+                20_371
             },
             "{stage:?}: actual Package work changed"
         );

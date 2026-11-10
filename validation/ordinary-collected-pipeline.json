@@ -1,0 +1,1940 @@
+{
+  "schema_version": 1,
+  "status": "Pass for the original borrowed-input owned-output collection within the exact recorded scope",
+  "contract": "spec/ordinary-collected-pipeline.md",
+  "scope": "Complete four-module trait/lending/borrowed callback consumer returning fresh owners into growing Store, including all allocation-failure responsibility returns and cleanup.",
+  "source": {
+    "base_main": "fc18d05d59321423570bb46123c756f2ad7e2e88",
+    "author_source": "e86084a5a2bca3a5e05f4d4db5bec674f9abac01",
+    "author_published": "f942fb506f0a9579e1af69a4a9d7cdde9593ebcd",
+    "minimal_extraction": "c6e234e08035280043571ffd01126df22b5cdceb",
+    "complete_source_raw_wire_native": "1a69f9da79debd6d0de42de8a7a51c3eb645c7d3",
+    "complete_source_raw_wire_native_tree": "31bc3c7ce0521e813eac74fb2160174ef910e3a7",
+    "budget_tested_code": "a62c9fa8acbffe19827615d7318d584c394e13c1",
+    "budget_tested_tree": "f700fa8ef0c7a08596b0eaf3382786bb394f9d19",
+    "final_code": "1b96bfbf3d7bbcb7563a1c9900b829e5c50f2a73",
+    "final_code_tree": "690f7e01d605f417c726cf29c78f3ad3aea274b7",
+    "post_budget_delta": "Rustfmt module ordering/wrapping and a type alias for the unchanged complete oracle trace tuple; no production or assertion change.",
+    "later_changes": "The original receipt completion changed only contracts and generated indexes. The subsequent CI revalidation below changes seven test files with fifteen exact work/annotation replacements; all production code, original inputs and semantic/boundary assertions remain unchanged. Its final delivery adds this receipt and generated indexes only.",
+    "ci_budget_followup_local": "92a4f2cb40d3a3519c76e809ef677a51ff2a7a06",
+    "ci_budget_followup_published": "521e870e01bb4cfbaefe9947e9c55f5a2ff85023",
+    "ci_budget_followup_tree": "33616fac0384859f1fc0ba35050cef38a2aad47c"
+  },
+  "runtime": {
+    "host": "x86_64-unknown-linux-gnu",
+    "rustc": "1.99.1 (58cf8f9c3 2026-10-13)",
+    "rustc_bundled_llvm": "23.1.1",
+    "clang_and_llvm_api": "23.1.4",
+    "incremental": false,
+    "dev_and_test_debug": 0,
+    "dev_and_test_strip": "symbols"
+  },
+  "inputs": {
+    "files": [
+      {
+        "path": "tests/language-readiness/owning-trait-hosts/collected_pipeline/main.zil",
+        "bytes": 51,
+        "sha256": "881fba7254f1a2914e41005d97302a3d26344b5f3abe64c5eab63886cf16143e"
+      },
+      {
+        "path": "tests/language-readiness/owning-trait-hosts/collected_pipeline/protocol.zil",
+        "bytes": 308,
+        "sha256": "13b3484fbd554bd395baefcfeff7342e5cca567ed69579d382a74cc48cc5027c"
+      },
+      {
+        "path": "tests/language-readiness/owning-trait-hosts/collected_pipeline/library.zil",
+        "bytes": 586,
+        "sha256": "1c199d422dd5233ce5fc56613d7fe4c928ee06f8957ab1ad847488328e830e51"
+      },
+      {
+        "path": "tests/language-readiness/owning-trait-hosts/collected_pipeline/model.zil",
+        "bytes": 6602,
+        "sha256": "38f4ba9012552c7a96f701949d1d227c1dd8882f0ecc073a9a0382e3188fdfa8"
+      }
+    ],
+    "total_bytes": 7547,
+    "order": [
+      "main",
+      "protocol",
+      "library",
+      "model"
+    ],
+    "project_fingerprint": "4011cf8d1255cbf085e02cce4cd9d9fc54c28797bebf9e61cd06bbfbc855dd7f",
+    "original_four_sources_and_three_tests_unchanged": true,
+    "consumers": {
+      "path": "tests/language-readiness/owning-trait-hosts/collected_pipeline/consumers.rs",
+      "sha256": "eabd6c14a48a20da472e30ce3803f81bbc5b763101e6761210adf5a96a4bb3d6",
+      "unchanged_from_author": true
+    }
+  },
+  "semantics": {
+    "source_test": "owning_trait_hosts::collected_pipeline::owned_replies_flow_from_lending_callbacks_into_a_growing_collection",
+    "raw_wire_test": "owning_trait_hosts::owned_results::stored_composition::collected_pipeline_raw_and_wire_reconstruct_the_complete_project",
+    "raw_wire_complete_modules": true,
+    "raw_wire_uses_default_limits_and_independent_verifier": true,
+    "negative_test": "owning_trait_hosts::collected_pipeline::collecting_fresh_outputs_does_not_release_the_input_iterator_loan",
+    "negative_status": "SafeReject",
+    "negative_phase": "Analyze",
+    "negative_verification_runs": 0,
+    "negative_diagnostic_code": "E-ANALYZE-IR",
+    "negative_diagnostic_message": "stored target proof: simultaneously live access overlaps an actual stored target/parent loan",
+    "growing_store_failure": "Return the same incoming owner while preserving previously collected elements; every exit consumes only the responsibilities actually acquired."
+  },
+  "algorithms": {
+    "ordinary_borrow_liveness": "Both independent ordinary-borrow liveness solvers use logical-width word rows, preserving fixed points, transfer order and every after snapshot. Actual word and operand work is prepaid; four-state lifetime and affine ownership tables are unchanged.",
+    "head_access": "Canonical sparse local rows retain logical width, sorted unique local identities and all nonempty Rows, including paths with empty constraints; complete body transfer and proof checks remain independent.",
+    "oracles": "Frozen complete bool liveness solvers and frozen complete dense head body compare actual facts, rounds, contracts and diagnostics. All new oracle controls are included in the 511 passing verifier tests.",
+    "default_analysis_limit_changed": false,
+    "stack_limit_changed": false,
+    "cross_request_proof_cache": false
+  },
+  "native": {
+    "source": "1a69f9da79debd6d0de42de8a7a51c3eb645c7d3",
+    "configurations": [
+      {
+        "configuration": "Clang/O0",
+        "backend": "clang",
+        "optimization": "O0",
+        "input_fingerprint": "4011cf8d1255cbf085e02cce4cd9d9fc54c28797bebf9e61cd06bbfbc855dd7f",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "disk_cache": "disabled",
+        "fallback": null,
+        "compile": {
+          "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/compile-Clang-O0.json",
+          "sha256": "16c52fcd1d37503c4bd2e1e7bc190e728459961c467b4555f3c85e4f7ae1459e"
+        },
+        "actual_binary": {
+          "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/program-Clang-O0",
+          "bytes": 54856,
+          "sha256": "4c56c1e06acdfb6d238aac98422944543bc65b3604e00286efe9971d0108a18a"
+        },
+        "llvm": {
+          "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/program-Clang-O0.ll",
+          "bytes": 296865,
+          "sha256": "8599b95bb9a576e52c430f67dfb23310842b655bc7297dd5fc912ca35f88c0a7"
+        },
+        "executions": [
+          {
+            "case": "none",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O0-none.txt",
+            "sha256": "c92b8abff679c7290ee6602fe11fba1c8d1ff03d60334d92b767c0331bf7c465",
+            "actual_exit": 0
+          },
+          {
+            "case": "1",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O0-1.txt",
+            "sha256": "b432356814bed4d8de94c0ae15f9a09286c80a9bae5ffbd50cb47792b23a29c6",
+            "actual_exit": 1
+          },
+          {
+            "case": "2",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O0-2.txt",
+            "sha256": "833e75e71ae53e3ae0c5936556f5eaa7ec3dcd57e7f0c33085a984d652e5215b",
+            "actual_exit": 2
+          },
+          {
+            "case": "3",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O0-3.txt",
+            "sha256": "d3d9f4573240b4b3ddaf681e7cdbc378a73d5ded1ed9135e1b59cc6b7916f5fc",
+            "actual_exit": 3
+          },
+          {
+            "case": "4",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O0-4.txt",
+            "sha256": "2027d2e57565e8f80d829062184ff5675b965acadafdd9a058715e4061fae13c",
+            "actual_exit": 10
+          },
+          {
+            "case": "5",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O0-5.txt",
+            "sha256": "c09732eeede9c103ce2125071a04e2ec61bd1f5c080109067e48e2094ff6ffef",
+            "actual_exit": 14
+          },
+          {
+            "case": "6",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O0-6.txt",
+            "sha256": "6382c8683b18e93e4d5d88b4280c74ffc265a35c86eccb18d2a4f3bd1485a5b3",
+            "actual_exit": 15
+          },
+          {
+            "case": "7",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O0-7.txt",
+            "sha256": "1bb1e33f7bb15fe8431e29d02f978b70989e0459f10d27856ec9dce015071279",
+            "actual_exit": 30
+          },
+          {
+            "case": "8",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O0-8.txt",
+            "sha256": "d207a7a41f3dc56cb9ce567e67f50108f5faf20cc8ffe6aac2836937d5a204ac",
+            "actual_exit": 50
+          },
+          {
+            "case": "9",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O0-9.txt",
+            "sha256": "911ae19baaa861ff4e0abff39de2994ac8140bdf98d638f822acaa181b273f7a",
+            "actual_exit": 20
+          },
+          {
+            "case": "10",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O0-10.txt",
+            "sha256": "76735e58e5f808d9a9b58a6a9c7699718988e21c96d6b0492dfc5311b99044e4",
+            "actual_exit": 24
+          },
+          {
+            "case": "11",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O0-11.txt",
+            "sha256": "4eb960d3eb33fce77b6cb25a012c02331e9f0f9be818d911361084607e87b271",
+            "actual_exit": 25
+          },
+          {
+            "case": "12",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O0-12.txt",
+            "sha256": "b2b17f1daff1b5de941db199af10bedfa050255c012313355a1d61f03663b1a7",
+            "actual_exit": 40
+          },
+          {
+            "case": "13",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O0-13.txt",
+            "sha256": "e9125ac413c03835810748a6fb371d650cfabb2a7c20fce7d13c045398748e2d",
+            "actual_exit": 51
+          }
+        ]
+      },
+      {
+        "configuration": "Clang/O2",
+        "backend": "clang",
+        "optimization": "O2",
+        "input_fingerprint": "4011cf8d1255cbf085e02cce4cd9d9fc54c28797bebf9e61cd06bbfbc855dd7f",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "disk_cache": "disabled",
+        "fallback": null,
+        "compile": {
+          "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/compile-Clang-O2.json",
+          "sha256": "3279b5e243e3fca554ece30a44a658ac43c7e25b99236320c4e6d1236eb30a31"
+        },
+        "actual_binary": {
+          "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/program-Clang-O2",
+          "bytes": 21344,
+          "sha256": "f8ddb916ed3617841836571a1f51c7e762e98e1441e9df56d68266832b73dcac"
+        },
+        "llvm": {
+          "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/program-Clang-O2.ll",
+          "bytes": 296865,
+          "sha256": "8599b95bb9a576e52c430f67dfb23310842b655bc7297dd5fc912ca35f88c0a7"
+        },
+        "executions": [
+          {
+            "case": "none",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O2-none.txt",
+            "sha256": "c92b8abff679c7290ee6602fe11fba1c8d1ff03d60334d92b767c0331bf7c465",
+            "actual_exit": 0
+          },
+          {
+            "case": "1",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O2-1.txt",
+            "sha256": "b432356814bed4d8de94c0ae15f9a09286c80a9bae5ffbd50cb47792b23a29c6",
+            "actual_exit": 1
+          },
+          {
+            "case": "2",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O2-2.txt",
+            "sha256": "833e75e71ae53e3ae0c5936556f5eaa7ec3dcd57e7f0c33085a984d652e5215b",
+            "actual_exit": 2
+          },
+          {
+            "case": "3",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O2-3.txt",
+            "sha256": "d3d9f4573240b4b3ddaf681e7cdbc378a73d5ded1ed9135e1b59cc6b7916f5fc",
+            "actual_exit": 3
+          },
+          {
+            "case": "4",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O2-4.txt",
+            "sha256": "2027d2e57565e8f80d829062184ff5675b965acadafdd9a058715e4061fae13c",
+            "actual_exit": 10
+          },
+          {
+            "case": "5",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O2-5.txt",
+            "sha256": "c09732eeede9c103ce2125071a04e2ec61bd1f5c080109067e48e2094ff6ffef",
+            "actual_exit": 14
+          },
+          {
+            "case": "6",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O2-6.txt",
+            "sha256": "6382c8683b18e93e4d5d88b4280c74ffc265a35c86eccb18d2a4f3bd1485a5b3",
+            "actual_exit": 15
+          },
+          {
+            "case": "7",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O2-7.txt",
+            "sha256": "1bb1e33f7bb15fe8431e29d02f978b70989e0459f10d27856ec9dce015071279",
+            "actual_exit": 30
+          },
+          {
+            "case": "8",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O2-8.txt",
+            "sha256": "d207a7a41f3dc56cb9ce567e67f50108f5faf20cc8ffe6aac2836937d5a204ac",
+            "actual_exit": 50
+          },
+          {
+            "case": "9",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O2-9.txt",
+            "sha256": "911ae19baaa861ff4e0abff39de2994ac8140bdf98d638f822acaa181b273f7a",
+            "actual_exit": 20
+          },
+          {
+            "case": "10",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O2-10.txt",
+            "sha256": "76735e58e5f808d9a9b58a6a9c7699718988e21c96d6b0492dfc5311b99044e4",
+            "actual_exit": 24
+          },
+          {
+            "case": "11",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O2-11.txt",
+            "sha256": "4eb960d3eb33fce77b6cb25a012c02331e9f0f9be818d911361084607e87b271",
+            "actual_exit": 25
+          },
+          {
+            "case": "12",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O2-12.txt",
+            "sha256": "b2b17f1daff1b5de941db199af10bedfa050255c012313355a1d61f03663b1a7",
+            "actual_exit": 40
+          },
+          {
+            "case": "13",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-Clang-O2-13.txt",
+            "sha256": "e9125ac413c03835810748a6fb371d650cfabb2a7c20fce7d13c045398748e2d",
+            "actual_exit": 51
+          }
+        ]
+      },
+      {
+        "configuration": "LlvmApi/O0",
+        "backend": "llvm-api",
+        "optimization": "O0",
+        "input_fingerprint": "4011cf8d1255cbf085e02cce4cd9d9fc54c28797bebf9e61cd06bbfbc855dd7f",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "disk_cache": "disabled",
+        "fallback": null,
+        "compile": {
+          "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/compile-LlvmApi-O0.json",
+          "sha256": "9ed4a29e1763509f9d8ed6820b8a01b3dab82161d03d64ca185071ff72829453"
+        },
+        "actual_binary": {
+          "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/program-LlvmApi-O0",
+          "bytes": 54856,
+          "sha256": "ce0e969b3469606134c8ce118868ab5559e6803c4327681110f15a1d240cbe97"
+        },
+        "llvm": {
+          "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/program-LlvmApi-O0.ll",
+          "bytes": 296865,
+          "sha256": "8599b95bb9a576e52c430f67dfb23310842b655bc7297dd5fc912ca35f88c0a7"
+        },
+        "executions": [
+          {
+            "case": "none",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O0-none.txt",
+            "sha256": "c92b8abff679c7290ee6602fe11fba1c8d1ff03d60334d92b767c0331bf7c465",
+            "actual_exit": 0
+          },
+          {
+            "case": "1",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O0-1.txt",
+            "sha256": "b432356814bed4d8de94c0ae15f9a09286c80a9bae5ffbd50cb47792b23a29c6",
+            "actual_exit": 1
+          },
+          {
+            "case": "2",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O0-2.txt",
+            "sha256": "833e75e71ae53e3ae0c5936556f5eaa7ec3dcd57e7f0c33085a984d652e5215b",
+            "actual_exit": 2
+          },
+          {
+            "case": "3",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O0-3.txt",
+            "sha256": "d3d9f4573240b4b3ddaf681e7cdbc378a73d5ded1ed9135e1b59cc6b7916f5fc",
+            "actual_exit": 3
+          },
+          {
+            "case": "4",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O0-4.txt",
+            "sha256": "2027d2e57565e8f80d829062184ff5675b965acadafdd9a058715e4061fae13c",
+            "actual_exit": 10
+          },
+          {
+            "case": "5",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O0-5.txt",
+            "sha256": "c09732eeede9c103ce2125071a04e2ec61bd1f5c080109067e48e2094ff6ffef",
+            "actual_exit": 14
+          },
+          {
+            "case": "6",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O0-6.txt",
+            "sha256": "6382c8683b18e93e4d5d88b4280c74ffc265a35c86eccb18d2a4f3bd1485a5b3",
+            "actual_exit": 15
+          },
+          {
+            "case": "7",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O0-7.txt",
+            "sha256": "1bb1e33f7bb15fe8431e29d02f978b70989e0459f10d27856ec9dce015071279",
+            "actual_exit": 30
+          },
+          {
+            "case": "8",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O0-8.txt",
+            "sha256": "d207a7a41f3dc56cb9ce567e67f50108f5faf20cc8ffe6aac2836937d5a204ac",
+            "actual_exit": 50
+          },
+          {
+            "case": "9",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O0-9.txt",
+            "sha256": "911ae19baaa861ff4e0abff39de2994ac8140bdf98d638f822acaa181b273f7a",
+            "actual_exit": 20
+          },
+          {
+            "case": "10",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O0-10.txt",
+            "sha256": "76735e58e5f808d9a9b58a6a9c7699718988e21c96d6b0492dfc5311b99044e4",
+            "actual_exit": 24
+          },
+          {
+            "case": "11",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O0-11.txt",
+            "sha256": "4eb960d3eb33fce77b6cb25a012c02331e9f0f9be818d911361084607e87b271",
+            "actual_exit": 25
+          },
+          {
+            "case": "12",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O0-12.txt",
+            "sha256": "b2b17f1daff1b5de941db199af10bedfa050255c012313355a1d61f03663b1a7",
+            "actual_exit": 40
+          },
+          {
+            "case": "13",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O0-13.txt",
+            "sha256": "e9125ac413c03835810748a6fb371d650cfabb2a7c20fce7d13c045398748e2d",
+            "actual_exit": 51
+          }
+        ]
+      },
+      {
+        "configuration": "LlvmApi/O2",
+        "backend": "llvm-api",
+        "optimization": "O2",
+        "input_fingerprint": "4011cf8d1255cbf085e02cce4cd9d9fc54c28797bebf9e61cd06bbfbc855dd7f",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "disk_cache": "disabled",
+        "fallback": null,
+        "compile": {
+          "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/compile-LlvmApi-O2.json",
+          "sha256": "c2d7fd9d245745e6432f73cd8b364f63defec65325250e024f4471619a0dbb2d"
+        },
+        "actual_binary": {
+          "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/program-LlvmApi-O2",
+          "bytes": 21344,
+          "sha256": "56ee319706538123ba482bc91647442a7806bba31a47ca3db1edeb500b3a9d56"
+        },
+        "llvm": {
+          "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/program-LlvmApi-O2.ll",
+          "bytes": 296865,
+          "sha256": "8599b95bb9a576e52c430f67dfb23310842b655bc7297dd5fc912ca35f88c0a7"
+        },
+        "executions": [
+          {
+            "case": "none",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O2-none.txt",
+            "sha256": "c92b8abff679c7290ee6602fe11fba1c8d1ff03d60334d92b767c0331bf7c465",
+            "actual_exit": 0
+          },
+          {
+            "case": "1",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O2-1.txt",
+            "sha256": "b432356814bed4d8de94c0ae15f9a09286c80a9bae5ffbd50cb47792b23a29c6",
+            "actual_exit": 1
+          },
+          {
+            "case": "2",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O2-2.txt",
+            "sha256": "833e75e71ae53e3ae0c5936556f5eaa7ec3dcd57e7f0c33085a984d652e5215b",
+            "actual_exit": 2
+          },
+          {
+            "case": "3",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O2-3.txt",
+            "sha256": "d3d9f4573240b4b3ddaf681e7cdbc378a73d5ded1ed9135e1b59cc6b7916f5fc",
+            "actual_exit": 3
+          },
+          {
+            "case": "4",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O2-4.txt",
+            "sha256": "2027d2e57565e8f80d829062184ff5675b965acadafdd9a058715e4061fae13c",
+            "actual_exit": 10
+          },
+          {
+            "case": "5",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O2-5.txt",
+            "sha256": "c09732eeede9c103ce2125071a04e2ec61bd1f5c080109067e48e2094ff6ffef",
+            "actual_exit": 14
+          },
+          {
+            "case": "6",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O2-6.txt",
+            "sha256": "6382c8683b18e93e4d5d88b4280c74ffc265a35c86eccb18d2a4f3bd1485a5b3",
+            "actual_exit": 15
+          },
+          {
+            "case": "7",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O2-7.txt",
+            "sha256": "1bb1e33f7bb15fe8431e29d02f978b70989e0459f10d27856ec9dce015071279",
+            "actual_exit": 30
+          },
+          {
+            "case": "8",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O2-8.txt",
+            "sha256": "d207a7a41f3dc56cb9ce567e67f50108f5faf20cc8ffe6aac2836937d5a204ac",
+            "actual_exit": 50
+          },
+          {
+            "case": "9",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O2-9.txt",
+            "sha256": "911ae19baaa861ff4e0abff39de2994ac8140bdf98d638f822acaa181b273f7a",
+            "actual_exit": 20
+          },
+          {
+            "case": "10",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O2-10.txt",
+            "sha256": "76735e58e5f808d9a9b58a6a9c7699718988e21c96d6b0492dfc5311b99044e4",
+            "actual_exit": 24
+          },
+          {
+            "case": "11",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O2-11.txt",
+            "sha256": "4eb960d3eb33fce77b6cb25a012c02331e9f0f9be818d911361084607e87b271",
+            "actual_exit": 25
+          },
+          {
+            "case": "12",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O2-12.txt",
+            "sha256": "b2b17f1daff1b5de941db199af10bedfa050255c012313355a1d61f03663b1a7",
+            "actual_exit": 40
+          },
+          {
+            "case": "13",
+            "path": "out/runs/collected-pipeline-acceptance-root-20261109-1/native-evidence/zil-owning-mutable-traits-285-283/execute-LlvmApi-O2-13.txt",
+            "sha256": "e9125ac413c03835810748a6fb371d650cfabb2a7c20fce7d13c045398748e2d",
+            "actual_exit": 51
+          }
+        ]
+      }
+    ],
+    "compiles": 4,
+    "executions": 56,
+    "cases_per_configuration": 14,
+    "original_case_table": {
+      "none": {
+        "exit": 0,
+        "stdout": "13:12:12\n",
+        "stderr": ""
+      },
+      "1": {
+        "exit": 1,
+        "stdout": "1:0:0\n",
+        "stderr": ""
+      },
+      "2": {
+        "exit": 2,
+        "stdout": "2:1:1\n",
+        "stderr": ""
+      },
+      "3": {
+        "exit": 3,
+        "stdout": "3:2:2\n",
+        "stderr": ""
+      },
+      "4": {
+        "exit": 10,
+        "stdout": "4:3:3\n",
+        "stderr": ""
+      },
+      "5": {
+        "exit": 14,
+        "stdout": "5:4:4\n",
+        "stderr": ""
+      },
+      "6": {
+        "exit": 15,
+        "stdout": "6:5:5\n",
+        "stderr": ""
+      },
+      "7": {
+        "exit": 30,
+        "stdout": "7:6:6\n",
+        "stderr": ""
+      },
+      "8": {
+        "exit": 50,
+        "stdout": "8:7:7\n",
+        "stderr": ""
+      },
+      "9": {
+        "exit": 20,
+        "stdout": "9:8:8\n",
+        "stderr": ""
+      },
+      "10": {
+        "exit": 24,
+        "stdout": "10:9:9\n",
+        "stderr": ""
+      },
+      "11": {
+        "exit": 25,
+        "stdout": "11:10:10\n",
+        "stderr": ""
+      },
+      "12": {
+        "exit": 40,
+        "stdout": "12:11:11\n",
+        "stderr": ""
+      },
+      "13": {
+        "exit": 51,
+        "stdout": "13:12:12\n",
+        "stderr": ""
+      }
+    },
+    "normal_counter_meaning": "attempts:new_allocation_identities:releases; the successful realloc grows an existing identity",
+    "normal_stdout": "13:12:12\n",
+    "other_owned48_not_counted": true,
+    "independent_audit_sha256": "cd34a04e74dbe0b763e6dbc0c1328dd2ad19c4f347ef9add4a5bc6dead729a98"
+  },
+  "first_failure_evidence": [
+    {
+      "receipt": "out/runs/collected-pipeline-acceptance-root-20261109-1/verify.json",
+      "receipt_sha256": "f756e0f44226ec9aa19a63df93fca0912e1435167a91f0bc0262882c6c70b993",
+      "source": "1a69f9da79debd6d0de42de8a7a51c3eb645c7d3",
+      "tree": "31bc3c7ce0521e813eac74fb2160174ef910e3a7",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-verify",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "started_utc": "2026-11-09T18:25:07.824818+00:00",
+      "elapsed_seconds": 23.442,
+      "exit_code": 101,
+      "status": "Fail",
+      "test_groups": 1,
+      "tests": {
+        "passed": 510,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [
+        "package_tests::shared_product::shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets"
+      ],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "/workspace/scratch/36bf9939e558/wt-collected-pipeline-acceptance/out/runs/collected-pipeline-acceptance-root-20261109-1/verify.log",
+      "log_sha256": "c646c1df9b5b7922331115cc3c6a760510b12f28419e0f83115d73abf356bca4"
+    },
+    {
+      "receipt": "out/runs/collected-pipeline-acceptance-root-20261109-1/trait-consumers.json",
+      "receipt_sha256": "92eadd31ae56fdbc5db9af57e5cf2bb3d32cf6e7e81a9c9c3aefee05ce03a727",
+      "source": "1a69f9da79debd6d0de42de8a7a51c3eb645c7d3",
+      "tree": "31bc3c7ce0521e813eac74fb2160174ef910e3a7",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "nominal_trait_bounds",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "started_utc": "2026-11-09T18:27:04.888816+00:00",
+      "elapsed_seconds": 130.064,
+      "exit_code": 101,
+      "status": "Fail",
+      "test_groups": 1,
+      "tests": {
+        "passed": 214,
+        "failed": 2,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [
+        "owning_trait_hosts::owned_results::stored_composition::ordinary_error_places_have_exact_fresh_independent_resource_work",
+        "owning_trait_hosts::owned_results::stored_composition::ordinary_package_fields_have_exact_fresh_analysis_and_verification_work"
+      ],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "/workspace/scratch/36bf9939e558/wt-collected-pipeline-acceptance/out/runs/collected-pipeline-acceptance-root-20261109-1/trait-consumers.log",
+      "log_sha256": "8b93a44bc1294992db2d1faa8fc2f75fbfd08bade2ef075698776371b58e2975"
+    },
+    {
+      "receipt": "out/runs/collected-pipeline-acceptance-root-20261109-2/related-budget.json",
+      "receipt_sha256": "448b7614c65918609260cc3505a8f345fc81addf99e73bd6559e3f5001b3bc38",
+      "source": "9e5cc10c21ce01731d6e6fb5c7a4ec3b9eef4165",
+      "tree": "2aad30561fb0e7787e88a06147ca46e7b6015f68",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "aggregates",
+        "--test",
+        "cross_function_borrows",
+        "--test",
+        "generic_regressions",
+        "--no-fail-fast",
+        "budget",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "started_utc": "2026-11-09T18:37:02.944893+00:00",
+      "elapsed_seconds": 74.918,
+      "exit_code": 101,
+      "status": "Fail",
+      "test_groups": 3,
+      "tests": {
+        "passed": 52,
+        "failed": 3,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 686
+      },
+      "failed_tests": [
+        "optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets"
+      ],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "/workspace/scratch/36bf9939e558/wt-collected-pipeline-acceptance/out/runs/collected-pipeline-acceptance-root-20261109-2/related-budget.log",
+      "log_sha256": "d16bbbf1ca052f2e043f96291e0196b2e697548f464e75d59b43bb75dc445f82"
+    },
+    {
+      "receipt": "out/runs/collected-pipeline-acceptance-root-20261109-3/optional-store-costs.json",
+      "receipt_sha256": "75fcf4e244839d093996f26fc5f8dca6e0ffc1482ec591f9e49944c188b51ed5",
+      "source": "6220e31311789d38aac15d5d8cbbba146412b827",
+      "tree": "c112ef21c6d672e41ace53d304f590741798d299",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "cross_function_borrows",
+        "optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "started_utc": "2026-11-09T18:43:53.041879+00:00",
+      "elapsed_seconds": 7.186,
+      "exit_code": 101,
+      "status": "Fail",
+      "test_groups": 1,
+      "tests": {
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 118
+      },
+      "failed_tests": [
+        "optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets"
+      ],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "/workspace/scratch/36bf9939e558/wt-collected-pipeline-acceptance/out/runs/collected-pipeline-acceptance-root-20261109-3/optional-store-costs.log",
+      "log_sha256": "0c973b3b4451f8e7aa182141c5b629b580fd48753c1dd588d11d51aacb7e139e"
+    },
+    {
+      "receipt": "out/runs/collected-pipeline-acceptance-root-20261109-4/shared-arrays.json",
+      "receipt_sha256": "1ee0b88948177847933fe796070b7c79e121a4495132510d74c9442c809ef1dd",
+      "source": "a2677ea27e2ac786fe680a73a45be68c8dca8ed9",
+      "tree": "138bf8175e36beca52f03fe311acb00eba6e17a1",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "aggregates",
+        "mixed_holder::shared_address_array::",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "started_utc": "2026-11-09T18:45:37.511165+00:00",
+      "elapsed_seconds": 47.037,
+      "exit_code": 101,
+      "status": "Fail",
+      "test_groups": 1,
+      "tests": {
+        "passed": 51,
+        "failed": 4,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 353
+      },
+      "failed_tests": [
+        "mixed_holder::shared_address_array::array_billing_mode_is_consistent_across_scalar_reuse_and_function_order",
+        "mixed_holder::shared_address_array::dynamic_shared_array_index::rich_call_completeness_costs_grow_with_actual_input_and_output_ports",
+        "mixed_holder::shared_address_array::ordinary_wide_array_completes_source_raw_and_wire_verification",
+        "mixed_holder::shared_address_array::shared_array_snapshot_initialization::whole_snapshot_initialization_costs_grow_with_actual_roots_and_slots"
+      ],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "/workspace/scratch/36bf9939e558/wt-collected-pipeline-acceptance/out/runs/collected-pipeline-acceptance-root-20261109-4/shared-arrays.log",
+      "log_sha256": "0a8f94638dd766aae5b470fb5dfce3d8b0f928db80fb02760c1f8273094f5591"
+    }
+  ],
+  "zero_selection_attempt": {
+    "receipt": "out/runs/collected-pipeline-acceptance-root-final-20261109-2/liveness-oracles.json",
+    "receipt_sha256": "247c45efd04c8b4ac30d5790ac1c1a132c3f737e1b4fd9d671e73f270f187dfc",
+    "source": "1b96bfbf3d7bbcb7563a1c9900b829e5c50f2a73",
+    "tree": "690f7e01d605f417c726cf29c78f3ad3aea274b7",
+    "source_unchanged": true,
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "zil-verify",
+      "--lib",
+      "borrows::liveness_tests::",
+      "--",
+      "--test-threads=1"
+    ],
+    "started_utc": "2026-11-09T18:55:45.056952+00:00",
+    "elapsed_seconds": 17.707,
+    "exit_code": 0,
+    "status": "Fail",
+    "test_groups": 1,
+    "tests": {
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 511
+    },
+    "failed_tests": [],
+    "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+    "log": "/workspace/scratch/36bf9939e558/wt-collected-pipeline-acceptance/out/runs/collected-pipeline-acceptance-root-final-20261109-2/liveness-oracles.log",
+    "log_sha256": "8722891c92af390d924db2e154f47a34600b7401712493d2697628bb63e4e83a"
+  },
+  "zero_selection_note": "The first oracle filter selected zero tests and remains Fail despite command exit zero. The corrected exact module filter executed all six controls; only that nonzero run is accepted.",
+  "format_and_lint_corrections": [
+    {
+      "receipt": "out/runs/collected-pipeline-acceptance-root-final-20261109-1/fmt.json",
+      "receipt_sha256": "a6825595773bfdd2e1303285f87381f0a5e9b568309084a254b8177931585eda",
+      "source": "1323b1645bf4604a7f306e46ab79831e5a2b9536",
+      "tree": "05dc43a8bf929e070afdfa0002a578fe3a08162d",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--check"
+      ],
+      "started_utc": "2026-11-09T18:50:41.427000+00:00",
+      "elapsed_seconds": 9.406,
+      "exit_code": 1,
+      "status": "Fail",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "/workspace/scratch/36bf9939e558/wt-collected-pipeline-acceptance/out/runs/collected-pipeline-acceptance-root-final-20261109-1/fmt.log",
+      "log_sha256": "aa45f66af7737d81919f35164548e3e4910b2d2f3939eba96b8ba46241baface"
+    },
+    {
+      "receipt": "out/runs/collected-pipeline-acceptance-root-final-20261109-1/strict.json",
+      "receipt_sha256": "b332aad1e7c8d7b0be1104047b6370d728de775798c9d3149077c2c6db401a4a",
+      "source": "302f7037a1c05686dc50fa420c22f29019923e04",
+      "tree": "b63d90c70aa920a721b09a915d9ecf4cbe4b9865",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-verify",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--lib",
+        "--tests",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "started_utc": "2026-11-09T18:53:13.178668+00:00",
+      "elapsed_seconds": 27.377,
+      "exit_code": 101,
+      "status": "Fail",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "/workspace/scratch/36bf9939e558/wt-collected-pipeline-acceptance/out/runs/collected-pipeline-acceptance-root-final-20261109-1/strict.log",
+      "log_sha256": "aa257d48c1e0f651bd0a86e23e3d8870a908720cca44ec2256e29fd6bf2f6d24"
+    }
+  ],
+  "first_failure_explanation": "In the test harnesses, only stale exact-work expectations failed. The original full trait harness remains recorded as 214 passed / 2 failed; collected Source, raw/Wire, native and loan controls are among the 214 passes. No failed harness is relabeled Pass.",
+  "related_budget_failure_list_correction": "The raw three-harness log contains two aggregate failures plus optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets; its original runner JSON lists only the final harness failure. Both originals are retained.",
+  "successful_gates": [
+    {
+      "receipt": "out/runs/collected-pipeline-acceptance-root-20261109-2/verify.json",
+      "receipt_sha256": "04ba59b1386b1721cdab15ce611432b130b8ffd8ce02eaeed24dffe7efda5bca",
+      "source": "9e5cc10c21ce01731d6e6fb5c7a4ec3b9eef4165",
+      "tree": "2aad30561fb0e7787e88a06147ca46e7b6015f68",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-verify",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "started_utc": "2026-11-09T18:34:38.678551+00:00",
+      "elapsed_seconds": 17.824,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 1,
+      "tests": {
+        "passed": 511,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "/workspace/scratch/36bf9939e558/wt-collected-pipeline-acceptance/out/runs/collected-pipeline-acceptance-root-20261109-2/verify.log",
+      "log_sha256": "11c3a776330ab0bc985f86a1d2d419bca4c10b9d6ee1e0904b1a0e166c7728cb"
+    },
+    {
+      "receipt": "out/runs/collected-pipeline-acceptance-root-final-20261109-1/precise-budgets.json",
+      "receipt_sha256": "5fc4474629b8244bd6de50a7beaa6c75037b576b2ac0daddbfee6f691732384e",
+      "source": "a62c9fa8acbffe19827615d7318d584c394e13c1",
+      "tree": "f700fa8ef0c7a08596b0eaf3382786bb394f9d19",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "aggregates",
+        "--test",
+        "cross_function_borrows",
+        "--test",
+        "nominal_trait_bounds",
+        "--no-fail-fast",
+        "--",
+        "array_billing_mode_is_consistent_across_scalar_reuse_and_function_order",
+        "rich_call_completeness_costs_grow_with_actual_input_and_output_ports",
+        "ordinary_wide_array_completes_source_raw_and_wire_verification",
+        "whole_snapshot_initialization_costs_grow_with_actual_roots_and_slots",
+        "owned_aggregate_owner_replacement_error_arm_alias_budget",
+        "owned_aggregate_package_terminal_exact_request_budget",
+        "optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets",
+        "ordinary_package_fields_have_exact_fresh_analysis_and_verification_work",
+        "ordinary_error_places_have_exact_fresh_independent_resource_work",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "started_utc": "2026-11-09T18:47:36.374032+00:00",
+      "elapsed_seconds": 26.175,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 3,
+      "tests": {
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 734
+      },
+      "failed_tests": [],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "/workspace/scratch/36bf9939e558/wt-collected-pipeline-acceptance/out/runs/collected-pipeline-acceptance-root-final-20261109-1/precise-budgets.log",
+      "log_sha256": "db1825eb91093b14fb1f7a9e4ef03fe268b056b89d975f8323cc1a06b25553f2"
+    },
+    {
+      "receipt": "out/runs/collected-pipeline-acceptance-root-final-20261109-1/reference-budgets.json",
+      "receipt_sha256": "e255e2540830740405f70b49c9f4bf62c5c410670826710e6914dbcf0f308360",
+      "source": "a62c9fa8acbffe19827615d7318d584c394e13c1",
+      "tree": "f700fa8ef0c7a08596b0eaf3382786bb394f9d19",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--no-default-features",
+        "--test",
+        "aggregates",
+        "--test",
+        "cross_function_borrows",
+        "--test",
+        "nominal_trait_bounds",
+        "--no-fail-fast",
+        "--",
+        "array_billing_mode_is_consistent_across_scalar_reuse_and_function_order",
+        "rich_call_completeness_costs_grow_with_actual_input_and_output_ports",
+        "ordinary_wide_array_completes_source_raw_and_wire_verification",
+        "whole_snapshot_initialization_costs_grow_with_actual_roots_and_slots",
+        "owned_aggregate_owner_replacement_error_arm_alias_budget",
+        "owned_aggregate_package_terminal_exact_request_budget",
+        "optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets",
+        "ordinary_package_fields_have_exact_fresh_analysis_and_verification_work",
+        "ordinary_error_places_have_exact_fresh_independent_resource_work",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "started_utc": "2026-11-09T18:48:50.722910+00:00",
+      "elapsed_seconds": 36.717,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 3,
+      "tests": {
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 734
+      },
+      "failed_tests": [],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "/workspace/scratch/36bf9939e558/wt-collected-pipeline-acceptance/out/runs/collected-pipeline-acceptance-root-final-20261109-1/reference-budgets.log",
+      "log_sha256": "67600a67588b0ef204e1c6594ad6359968bc9147abd892a8bdbaa359c9fd1603"
+    },
+    {
+      "receipt": "out/runs/collected-pipeline-acceptance-root-final-20261109-2/fmt.json",
+      "receipt_sha256": "799b9978c014dc164dd1f2c43d7835e7e350c7ef954b25d7f4308e2a502f6502",
+      "source": "1b96bfbf3d7bbcb7563a1c9900b829e5c50f2a73",
+      "tree": "690f7e01d605f417c726cf29c78f3ad3aea274b7",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--check"
+      ],
+      "started_utc": "2026-11-09T18:54:59.565475+00:00",
+      "elapsed_seconds": 7.813,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "/workspace/scratch/36bf9939e558/wt-collected-pipeline-acceptance/out/runs/collected-pipeline-acceptance-root-final-20261109-2/fmt.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "receipt": "out/runs/collected-pipeline-acceptance-root-final-20261109-2/strict.json",
+      "receipt_sha256": "5f50ac758b5c4c692cf35184b1074e09f00d8fb444f16d4ab4c8dc707818169e",
+      "source": "1b96bfbf3d7bbcb7563a1c9900b829e5c50f2a73",
+      "tree": "690f7e01d605f417c726cf29c78f3ad3aea274b7",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-verify",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--lib",
+        "--tests",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "started_utc": "2026-11-09T18:55:07.451834+00:00",
+      "elapsed_seconds": 37.54,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 0,
+      "tests": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "failed_tests": [],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "/workspace/scratch/36bf9939e558/wt-collected-pipeline-acceptance/out/runs/collected-pipeline-acceptance-root-final-20261109-2/strict.log",
+      "log_sha256": "76860285885f459aa0dc3ed461bdc2f7af21f066cca5ebd2d912a83f40a0a9fb"
+    },
+    {
+      "receipt": "out/runs/collected-pipeline-acceptance-root-final-20261109-3/liveness-oracles.json",
+      "receipt_sha256": "20610b23e0c6be34e0345b2c0c46bbdf78b1c7aadbbb24912547c1ba9c9d2dd8",
+      "source": "1b96bfbf3d7bbcb7563a1c9900b829e5c50f2a73",
+      "tree": "690f7e01d605f417c726cf29c78f3ad3aea274b7",
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-verify",
+        "--lib",
+        "borrows::liveness::tests::",
+        "--",
+        "--test-threads=1"
+      ],
+      "started_utc": "2026-11-09T18:56:20.008140+00:00",
+      "elapsed_seconds": 0.061,
+      "exit_code": 0,
+      "status": "Pass",
+      "test_groups": 1,
+      "tests": {
+        "passed": 6,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 505
+      },
+      "failed_tests": [],
+      "runner_sha256": "401e02e71c1a080fef290358d1b56d33a13e8734790a0028ce75611dded11331",
+      "log": "/workspace/scratch/36bf9939e558/wt-collected-pipeline-acceptance/out/runs/collected-pipeline-acceptance-root-final-20261109-3/liveness-oracles.log",
+      "log_sha256": "b4108ea6898b78b2b42fef0bcc9b2c5c335235ff347453493b05b6b0bda7f076"
+    }
+  ],
+  "independent_review": {
+    "extraction_sha256": "76d02ca67655c4810747e15a46dc11820bfb7375701d7a8d1b2bfaa355fc6148",
+    "ordinary_liveness_source_sha256": "56c940045960079c70ec8722cebf7d42efa0b459444228587133d469f55867e4",
+    "ordinary_liveness_oracles_sha256": "87b8838651783b97fa266932623dce7c568c42acf3a7a1450d99463427e71964",
+    "head_source_sha256": "65fceb8596cd42eb9fa3b9a795eadcbcbe8a9ca674ac940f7c2dc0a1419ea02c",
+    "head_oracles_sha256": "e5620b67adf0f5e8cb731cacdad1712855387f2f3c2bdc5a0a35c587e147ecc0",
+    "budget_anchor_review_sha256": "e64aab7256393006783d88e361c610b7986cb573a4a1e6884e76c0d100de7178",
+    "native_audit_sha256": "cd34a04e74dbe0b763e6dbc0c1328dd2ad19c4f347ef9add4a5bc6dead729a98"
+  },
+  "limits_of_evidence": [
+    "This receipt covers the ordinary sequential Store collection consumer. It does not accept generic HashMap, owned Map or Set.",
+    "No local full-workspace rerun is claimed. The exact complete and selected harnesses, source commits and first failures above define the scope.",
+    "This finite development preview does not close the base-language or version 1.0 release gates."
+  ],
+  "ci_budget_revalidation": {
+    "status": "Pass for the same eight complete controls in reference and LLVM API configurations",
+    "scope": "Test-only exact work anchors exposed by the previous complete CI; no production or original consumer changes.",
+    "inherited_published_head": "b9ea50ff53b370180a43af282948195e7d1498cf",
+    "inherited_tree": "bd1f082e40280d17265624090618fe0b834bd1fa",
+    "first_corrected_local": "2838fc6325808675a1f7256259deb964d4886479",
+    "first_corrected_published": "537960392cfba09a987f75791a0b5c1e07204dc6",
+    "tested_local": "92a4f2cb40d3a3519c76e809ef677a51ff2a7a06",
+    "tested_published": "521e870e01bb4cfbaefe9947e9c55f5a2ff85023",
+    "tested_tree": "33616fac0384859f1fc0ba35050cef38a2aad47c",
+    "complete_ci_first_failure": {
+      "checkout": "5fd520ba05d6017d28b18bf250dfc8cfb81e1f98",
+      "tree": "bd1f082e40280d17265624090618fe0b834bd1fa",
+      "status": "Fail; original results are retained and are not relabeled by the later selected reruns",
+      "jobs": [
+        {
+          "toolchain": "official",
+          "run": 42678881310,
+          "job": 129367703040,
+          "workspace_passed": 5853,
+          "workspace_failed": 8,
+          "reference_passed": 5739,
+          "reference_failed": 8,
+          "harnesses_per_configuration": 429,
+          "log_sha256": "172600701553d86abf03c56d8a24932ae313d6da4a56f0cd22b54af7484b7472",
+          "artifact": 13702494662,
+          "artifact_sha256": "40d733e1e22da22a8c57135d6f931240e9fffc01c4ee7df4a3e578e6c9b37100"
+        },
+        {
+          "toolchain": "research",
+          "run": 42678881488,
+          "job": 129367695836,
+          "workspace_passed": 5853,
+          "workspace_failed": 8,
+          "reference_passed": 5739,
+          "reference_failed": 8,
+          "harnesses_per_configuration": 429,
+          "log_sha256": "1596ef157b4aaacd69a38c8c74c44b9e41bdbd3a57984c35c2a98aac19be8e05",
+          "artifact": 13704195951,
+          "artifact_sha256": "421974a28a3c573d210655fc64d13766f585850acfc6373405538b4691550990"
+        }
+      ],
+      "review": "/workspace/scratch/36bf9939e558/review-resume-20261110/out-pr69-ci-20261110-0837/review.md",
+      "review_sha256": "fddfeae0bcde78ccaa75df1b5facd70e83400de977b431a8e0f2ffafcd867349",
+      "evidence_manifest": "/workspace/scratch/36bf9939e558/review-resume-20261110/out-pr69-ci-20261110-0837/evidence-manifest.json",
+      "evidence_manifest_sha256": "397359564177753608a0cf3c15eac3ddc4f00bf1c16e7491279855184d89c871"
+    },
+    "infrastructure_first_attempt": {
+      "receipt": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-enum-boundary-first/receipt.json",
+      "receipt_sha256": "02f259d2b386efeb30003aed0eeb30bf30be68cc0f3f5ac12b7c4c59f29c3ec0",
+      "source": {
+        "head": "2838fc6325808675a1f7256259deb964d4886479",
+        "tree": "775c8c63686814a67e77dd1bd2487cedcc61df51",
+        "status": ""
+      },
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--no-default-features",
+        "--test",
+        "aggregates",
+        "enum_replacement_verify::enum_verify_current_raw_wire_and_source_request_boundaries",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "status": "Fail",
+      "exit_code": 101,
+      "started_utc": "2026-11-10T00:40:31.633777+00:00",
+      "elapsed_seconds": 0.3252025329998105,
+      "tests": 0,
+      "failed_tests": 0,
+      "failed_names": [],
+      "log": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-enum-boundary-first/command.log",
+      "log_sha256": "3585543d94ff2ba3be7944359d90ed4776df1743a433c4d84591b4db3a3189ae",
+      "runner_sha256": "d086bf08107be34f264ec9931871df0acb1b4549c3810476e5b331f6c8856bde"
+    },
+    "infrastructure_first_attempt_reason": "The restored Cargo dependency cache initially lacked rustc_apfloat; no tests executed. This attempt remains Fail. Locked fetch filled the cache without changing Cargo.lock.",
+    "newly_reached_source_boundary_first_failure": {
+      "receipt": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-source-boundaries-first/receipt.json",
+      "receipt_sha256": "6b12eb3de859840a00f83cfbfb1f1373b3ee9863592e82c77083654299437b68",
+      "source": {
+        "head": "2838fc6325808675a1f7256259deb964d4886479",
+        "tree": "775c8c63686814a67e77dd1bd2487cedcc61df51",
+        "status": ""
+      },
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--no-default-features",
+        "--test",
+        "aggregates",
+        "current_raw_wire_and_source",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "status": "Fail",
+      "exit_code": 101,
+      "started_utc": "2026-11-10T00:41:34.223820+00:00",
+      "elapsed_seconds": 65.02160940999966,
+      "tests": 0,
+      "failed_tests": 2,
+      "failed_names": [
+        "enum_replacement_verify::enum_verify_current_raw_wire_and_source_request_boundaries",
+        "helper_retirement_verify::verify_current_raw_wire_and_source_limits"
+      ],
+      "log": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-source-boundaries-first/command.log",
+      "log_sha256": "71f8988981154de9c0e9db918d3adee5494c88b907bcb305b2a941669356e9ef",
+      "runner_sha256": "3eebd025b77009cd93e59b85b190caa492fdffed46c19e125905d14c5259c852"
+    },
+    "source_boundary_explanation": "Raw/Wire N/N-1/fresh completed before the two old Source work assertions failed. Enum raw Verify is 89567 while whole Source is independently constrained by Analyze at 111249; helper Source/raw/Wire are 17400. Source limits were measured separately, not copied from raw Verify.",
+    "exact_current_work": {
+      "enum_raw_and_wire_verify": 89567,
+      "enum_source_and_analyze": 111249,
+      "helper_raw_wire_and_source": 17400,
+      "store_replacement_verify": 46948,
+      "store_call_invalidation_verify": 57202,
+      "generic_legacy_types_analyze_verify": [
+        418,
+        8673,
+        7307
+      ],
+      "single_module_and_imported_trait_source": [
+        242,
+        1446,
+        1273,
+        1414
+      ],
+      "flat_raw_verify": 7307,
+      "legacy_capture_expand_types_analyze_verify": [
+        190,
+        196,
+        2232,
+        2344
+      ]
+    },
+    "runtime": {
+      "setup_receipt": "/workspace/scratch/36bf9939e558/setup-resume-20261110/setup-receipt-01.json",
+      "setup_receipt_sha256": "7bfad93c3b25fa456c70f6a2ae232862f4bd4dc757f5847ee9c364d7ebe7c2bc",
+      "checks": {
+        "llvm": {
+          "path": "/workspace/scratch/36bf9939e558/setup-resume-20261110/llvm-sdk-23.1.4-01/lib/libLLVM.so.23.1",
+          "sha256": "4af7bc67bebd262ac4944cbd5a7996bdae1479cf61ee625ab1d98f44d1ceea75",
+          "version": "23.1.4"
+        },
+        "clang": {
+          "path": "/workspace/scratch/36bf9939e558/setup-resume-20261110/llvm-sdk-23.1.4-01/bin/clang-23",
+          "sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67",
+          "version": "23.1.4",
+          "banner": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)"
+        },
+        "lld_link": {
+          "path": "/workspace/scratch/36bf9939e558/setup-resume-20261110/llvm-sdk-23.1.4-01/bin/lld",
+          "sha256": "0f8d53acaf6ff4990506a26739c12fb90315fdcc0430ec4c305ca75115774d4b",
+          "version": "23.1.4",
+          "banner": "LLD 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)"
+        },
+        "rustc": {
+          "path": "/workspace/scratch/36bf9939e558/setup-resume-20261110/rust-1.99.1/bin/rustc",
+          "sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+          "version": "1.99.1",
+          "banner": "rustc 1.99.1 (58cf8f9c3 2026-10-13)"
+        },
+        "cargo": {
+          "path": "/workspace/scratch/36bf9939e558/setup-resume-20261110/rust-1.99.1/bin/cargo",
+          "sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+          "version": "1.99.1",
+          "banner": "cargo 1.99.1 (5f94df478 2026-08-27)"
+        }
+      },
+      "llvm_origin": "locally relinked from official PIC component archives; upstream Linux release does not include a libLLVM DSO",
+      "cargo_build_jobs": 2,
+      "incremental": false,
+      "dev_and_test_debug": 0
+    },
+    "configurations": [
+      {
+        "mode": "reference",
+        "summary": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-reference/summary.json",
+        "summary_sha256": "2a4779b7a190ffca5fc21bd634dc15e9b3650235e7669ec5f66dafb401d982de",
+        "status": "Pass",
+        "tests": 8,
+        "failed_tests": 0,
+        "cases": [
+          {
+            "target": "aggregates",
+            "test": "enum_replacement_verify::enum_verify_current_raw_wire_and_source_request_boundaries",
+            "receipt": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-reference/01-aggregates/receipt.json",
+            "receipt_sha256": "bc6e8119f10c34e1970eaf54e75edb512f0af928a1e7aea907b01c4ca35d1fd1",
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--no-default-features",
+              "--test",
+              "aggregates",
+              "enum_replacement_verify::enum_verify_current_raw_wire_and_source_request_boundaries",
+              "--",
+              "--exact",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "tests": 1,
+            "failed_tests": 0,
+            "started_utc": "2026-11-10T00:43:33.846424+00:00",
+            "elapsed_seconds": 7.9909089039997525,
+            "log": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-reference/01-aggregates/command.log",
+            "log_sha256": "cde035d8c2e4cee0d4480b3d2fe09000ef761ef772df200135cec211fef98255"
+          },
+          {
+            "target": "aggregates",
+            "test": "helper_retirement_verify::verify_current_raw_wire_and_source_limits",
+            "receipt": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-reference/02-aggregates/receipt.json",
+            "receipt_sha256": "4680ae53fcbb136ebee19048e14180d15a61aec8710bb0eb0a34151200599881",
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--no-default-features",
+              "--test",
+              "aggregates",
+              "helper_retirement_verify::verify_current_raw_wire_and_source_limits",
+              "--",
+              "--exact",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "tests": 1,
+            "failed_tests": 0,
+            "started_utc": "2026-11-10T00:43:41.906077+00:00",
+            "elapsed_seconds": 0.7134316800002125,
+            "log": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-reference/02-aggregates/command.log",
+            "log_sha256": "1e9b0b787bcf20d87ab1950eb63dfaaa23a8edabc7a77adaedeb9651b9edb6fd"
+          },
+          {
+            "target": "exclusive_store_elements_store_mut",
+            "test": "owning_store_replacement_has_exact_prepaid_fresh_and_warm_boundaries",
+            "receipt": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-reference/03-exclusive_store_elements_store_mut/receipt.json",
+            "receipt_sha256": "76a9bc107519dd4951852a2ed3c818ee723d33662eea2a8c38f15aa55d6db6cc",
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--no-default-features",
+              "--test",
+              "exclusive_store_elements_store_mut",
+              "owning_store_replacement_has_exact_prepaid_fresh_and_warm_boundaries",
+              "--",
+              "--exact",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "tests": 1,
+            "failed_tests": 0,
+            "started_utc": "2026-11-10T00:43:42.696708+00:00",
+            "elapsed_seconds": 1.7792802469998605,
+            "log": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-reference/03-exclusive_store_elements_store_mut/command.log",
+            "log_sha256": "6f70b8eb13ede69eb2ed68d7f9c981e7a472b4d0d3d0ad92a330c08fa0ce14c5"
+          },
+          {
+            "target": "exclusive_store_elements_store_mut",
+            "test": "owning_store_call_invalidation_has_exact_prepaid_fresh_and_warm_boundaries",
+            "receipt": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-reference/04-exclusive_store_elements_store_mut/receipt.json",
+            "receipt_sha256": "8305681dcd3d9d9dd76a22255ec494190a893fd667a3c0a9ef1a25971f70d777",
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--no-default-features",
+              "--test",
+              "exclusive_store_elements_store_mut",
+              "owning_store_call_invalidation_has_exact_prepaid_fresh_and_warm_boundaries",
+              "--",
+              "--exact",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "tests": 1,
+            "failed_tests": 0,
+            "started_utc": "2026-11-10T00:43:44.575066+00:00",
+            "elapsed_seconds": 0.5820423649997792,
+            "log": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-reference/04-exclusive_store_elements_store_mut/command.log",
+            "log_sha256": "8687079d26a15b6af9ec91822dc146d60c4635c67cb0db803e8c24425cf71915"
+          },
+          {
+            "target": "generic_defer_obligations_budget",
+            "test": "empty_tables_keep_frontend_cost_and_current_verify_boundary",
+            "receipt": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-reference/05-generic_defer_obligations_budget/receipt.json",
+            "receipt_sha256": "c4f6579399fb288661a446dfc079a0cfa550a82cdfe76fd0a063099d837767ca",
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--no-default-features",
+              "--test",
+              "generic_defer_obligations_budget",
+              "empty_tables_keep_frontend_cost_and_current_verify_boundary",
+              "--",
+              "--exact",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "tests": 1,
+            "failed_tests": 0,
+            "started_utc": "2026-11-10T00:43:45.233308+00:00",
+            "elapsed_seconds": 0.8392337420000331,
+            "log": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-reference/05-generic_defer_obligations_budget/command.log",
+            "log_sha256": "1c802d753bdead5403cd4d900a93bde7c5f64660e5e00e2b957abecb36cc959e"
+          },
+          {
+            "target": "imported_nominal_traits_modules",
+            "test": "original_single_module_and_drop_work_budgets_remain_exact",
+            "receipt": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-reference/06-imported_nominal_traits_modules/receipt.json",
+            "receipt_sha256": "99eeeb7f7bf9e86cf7ada80ada262f25a6ce588be1e5d0b0d93c0b0c4cfd4647",
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--no-default-features",
+              "--test",
+              "imported_nominal_traits_modules",
+              "original_single_module_and_drop_work_budgets_remain_exact",
+              "--",
+              "--exact",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "tests": 1,
+            "failed_tests": 0,
+            "started_utc": "2026-11-10T00:43:46.215194+00:00",
+            "elapsed_seconds": 1.2068635780001387,
+            "log": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-reference/06-imported_nominal_traits_modules/command.log",
+            "log_sha256": "c03f6dce3dfc7d972e3206104977df82830e7a49a0fdef670fdcb809a668ec67"
+          },
+          {
+            "target": "inline_product_children_verify",
+            "test": "flat_verify_work_boundary_without_product_leaves",
+            "receipt": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-reference/07-inline_product_children_verify/receipt.json",
+            "receipt_sha256": "edf15ecd88c9871712765b15aad8d03eeec8aa093bb40e4c27034484590280e3",
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--no-default-features",
+              "--test",
+              "inline_product_children_verify",
+              "flat_verify_work_boundary_without_product_leaves",
+              "--",
+              "--exact",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "tests": 1,
+            "failed_tests": 0,
+            "started_utc": "2026-11-10T00:43:47.491663+00:00",
+            "elapsed_seconds": 0.6469160420001572,
+            "log": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-reference/07-inline_product_children_verify/command.log",
+            "log_sha256": "f748a023e21990d1545621f7c5e7b3480a63645c7ee75990fe97904c49398394"
+          },
+          {
+            "target": "owned_store_capture_loan_safety",
+            "test": "legacy_byte_capture_has_exact_fresh_budget_control",
+            "receipt": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-reference/08-owned_store_capture_loan_safety/receipt.json",
+            "receipt_sha256": "c750645f397a0b84f37fe4e10da601982f7c7074f7471142cfbee252dc4b64cc",
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--no-default-features",
+              "--test",
+              "owned_store_capture_loan_safety",
+              "legacy_byte_capture_has_exact_fresh_budget_control",
+              "--",
+              "--exact",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "tests": 1,
+            "failed_tests": 0,
+            "started_utc": "2026-11-10T00:43:48.264074+00:00",
+            "elapsed_seconds": 1.345328702000188,
+            "log": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-reference/08-owned_store_capture_loan_safety/command.log",
+            "log_sha256": "24c99b51f87e5553f7d8555868a76aa5b808f1708659629d6d70dc001d36c378"
+          }
+        ]
+      },
+      {
+        "mode": "api",
+        "summary": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-api/summary.json",
+        "summary_sha256": "1640415be8e35ee879da88088c550972cf139d6f8e9c47b7787a84ed431089b5",
+        "status": "Pass",
+        "tests": 8,
+        "failed_tests": 0,
+        "cases": [
+          {
+            "target": "aggregates",
+            "test": "enum_replacement_verify::enum_verify_current_raw_wire_and_source_request_boundaries",
+            "receipt": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-api/01-aggregates/receipt.json",
+            "receipt_sha256": "5100f67299a66b55e24900ec4897b2c31d9bd07615dee94c2adffbbf7ed0166f",
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "aggregates",
+              "enum_replacement_verify::enum_verify_current_raw_wire_and_source_request_boundaries",
+              "--",
+              "--exact",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "tests": 1,
+            "failed_tests": 0,
+            "started_utc": "2026-11-10T00:44:26.694460+00:00",
+            "elapsed_seconds": 26.444926630999817,
+            "log": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-api/01-aggregates/command.log",
+            "log_sha256": "441daf3023c6c39fe405c296b27a92a394ee0ac2dd340e3fcb194917c8156e91"
+          },
+          {
+            "target": "aggregates",
+            "test": "helper_retirement_verify::verify_current_raw_wire_and_source_limits",
+            "receipt": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-api/02-aggregates/receipt.json",
+            "receipt_sha256": "d59d8e2e2e96eb899501e3ecb62fcf0767879082d26d8aabbc6b160444ec4d6f",
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "aggregates",
+              "helper_retirement_verify::verify_current_raw_wire_and_source_limits",
+              "--",
+              "--exact",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "tests": 1,
+            "failed_tests": 0,
+            "started_utc": "2026-11-10T00:44:53.235392+00:00",
+            "elapsed_seconds": 0.6690069780001977,
+            "log": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-api/02-aggregates/command.log",
+            "log_sha256": "f9923b073afd7a006abfa4e7e419d95a1e287307063e0e4d50d8cc03d1ba95c8"
+          },
+          {
+            "target": "exclusive_store_elements_store_mut",
+            "test": "owning_store_replacement_has_exact_prepaid_fresh_and_warm_boundaries",
+            "receipt": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-api/03-exclusive_store_elements_store_mut/receipt.json",
+            "receipt_sha256": "af438ae8cc4605eeabb7704a2338b3a89c3f509038e817107800923fac8eb722",
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "exclusive_store_elements_store_mut",
+              "owning_store_replacement_has_exact_prepaid_fresh_and_warm_boundaries",
+              "--",
+              "--exact",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "tests": 1,
+            "failed_tests": 0,
+            "started_utc": "2026-11-10T00:44:53.978163+00:00",
+            "elapsed_seconds": 1.9195936410001195,
+            "log": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-api/03-exclusive_store_elements_store_mut/command.log",
+            "log_sha256": "9a64d92fe6318bae9d4accbbcfdfadc30f445ac380c956e44708f72c3e8356f9"
+          },
+          {
+            "target": "exclusive_store_elements_store_mut",
+            "test": "owning_store_call_invalidation_has_exact_prepaid_fresh_and_warm_boundaries",
+            "receipt": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-api/04-exclusive_store_elements_store_mut/receipt.json",
+            "receipt_sha256": "9ace931475d3dd7c3512ae22416b1757230d792de64cc2a214602adcd8a29cad",
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "exclusive_store_elements_store_mut",
+              "owning_store_call_invalidation_has_exact_prepaid_fresh_and_warm_boundaries",
+              "--",
+              "--exact",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "tests": 1,
+            "failed_tests": 0,
+            "started_utc": "2026-11-10T00:44:55.998467+00:00",
+            "elapsed_seconds": 0.5669949570001336,
+            "log": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-api/04-exclusive_store_elements_store_mut/command.log",
+            "log_sha256": "d4cf1ddafa34dafa3c398b07d36a1f15b953173fb509b144f11d46d762c80a89"
+          },
+          {
+            "target": "generic_defer_obligations_budget",
+            "test": "empty_tables_keep_frontend_cost_and_current_verify_boundary",
+            "receipt": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-api/05-generic_defer_obligations_budget/receipt.json",
+            "receipt_sha256": "a1b2948c70ac172f90f13042f5e02f202c23c26c07c6cb5feab13e6286dc0a41",
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "generic_defer_obligations_budget",
+              "empty_tables_keep_frontend_cost_and_current_verify_boundary",
+              "--",
+              "--exact",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "tests": 1,
+            "failed_tests": 0,
+            "started_utc": "2026-11-10T00:44:56.640924+00:00",
+            "elapsed_seconds": 0.8986449359999824,
+            "log": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-api/05-generic_defer_obligations_budget/command.log",
+            "log_sha256": "bb86fdb2760331b4a73d765647819f72a9f37b1c375a926be2c55140c810d277"
+          },
+          {
+            "target": "imported_nominal_traits_modules",
+            "test": "original_single_module_and_drop_work_budgets_remain_exact",
+            "receipt": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-api/06-imported_nominal_traits_modules/receipt.json",
+            "receipt_sha256": "4e4aaa45f76d635814632b8139279fe4ff9c62a8a85a756b74d5188522c5237f",
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "imported_nominal_traits_modules",
+              "original_single_module_and_drop_work_budgets_remain_exact",
+              "--",
+              "--exact",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "tests": 1,
+            "failed_tests": 0,
+            "started_utc": "2026-11-10T00:44:57.616569+00:00",
+            "elapsed_seconds": 1.1137896929999442,
+            "log": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-api/06-imported_nominal_traits_modules/command.log",
+            "log_sha256": "f3fd733eaa5a25b93303561acd9ae3f271fbf1ce360af564cd290f579c6335e1"
+          },
+          {
+            "target": "inline_product_children_verify",
+            "test": "flat_verify_work_boundary_without_product_leaves",
+            "receipt": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-api/07-inline_product_children_verify/receipt.json",
+            "receipt_sha256": "76f2d06e4bf527e01abccbbe96d09f0269badaea69a9df73f8f4c5150c5b87a3",
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "inline_product_children_verify",
+              "flat_verify_work_boundary_without_product_leaves",
+              "--",
+              "--exact",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "tests": 1,
+            "failed_tests": 0,
+            "started_utc": "2026-11-10T00:44:58.936446+00:00",
+            "elapsed_seconds": 0.688294869999936,
+            "log": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-api/07-inline_product_children_verify/command.log",
+            "log_sha256": "72aaeca504a7b8b0204df8220717bff4223bd99d3dacff74f4c2c58de341be8b"
+          },
+          {
+            "target": "owned_store_capture_loan_safety",
+            "test": "legacy_byte_capture_has_exact_fresh_budget_control",
+            "receipt": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-api/08-owned_store_capture_loan_safety/receipt.json",
+            "receipt_sha256": "acfcacb2aece7413e10c6696d9991d65a69aaba489d1cd359bd64e522a5f1329",
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "owned_store_capture_loan_safety",
+              "legacy_byte_capture_has_exact_fresh_budget_control",
+              "--",
+              "--exact",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "tests": 1,
+            "failed_tests": 0,
+            "started_utc": "2026-11-10T00:44:59.700243+00:00",
+            "elapsed_seconds": 1.024086681999961,
+            "log": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-eight-api/08-owned_store_capture_loan_safety/command.log",
+            "log_sha256": "d927ed6d4344215cc4ddeec9c37cdd5d0b7be419cb9755e4544988bf475c6a1e"
+          }
+        ]
+      }
+    ],
+    "unique_controls": 8,
+    "executions": 16,
+    "counting_note": "Two configurations execute the same eight controls; these are not sixteen distinct controls.",
+    "format": {
+      "receipt": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-budget-fmt/receipt.json",
+      "receipt_sha256": "4cd10f040c8bdc7bf2c4c101aff1dfb23f02c509c317e98c4ba5065763b7f842",
+      "source": {
+        "head": "92a4f2cb40d3a3519c76e809ef677a51ff2a7a06",
+        "tree": "33616fac0384859f1fc0ba35050cef38a2aad47c",
+        "status": ""
+      },
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "status": "Pass",
+      "exit_code": 0,
+      "started_utc": "2026-11-10T00:47:20.757781+00:00",
+      "elapsed_seconds": 10.315082861000064,
+      "tests": 0,
+      "failed_tests": 0,
+      "failed_names": [],
+      "log": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-budget-fmt/command.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "runner_sha256": "3eebd025b77009cd93e59b85b190caa492fdffed46c19e125905d14c5259c852"
+    },
+    "strict_lint": {
+      "receipt": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-budget-strict/receipt.json",
+      "receipt_sha256": "2094e289e1522a52c951c2f2148d248595e02aad223b1c2d5c0b2a1705cf8e70",
+      "source": {
+        "head": "92a4f2cb40d3a3519c76e809ef677a51ff2a7a06",
+        "tree": "33616fac0384859f1fc0ba35050cef38a2aad47c",
+        "status": ""
+      },
+      "source_unchanged": true,
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "aggregates",
+        "--test",
+        "exclusive_store_elements_store_mut",
+        "--test",
+        "generic_defer_obligations_budget",
+        "--test",
+        "imported_nominal_traits_modules",
+        "--test",
+        "inline_product_children_verify",
+        "--test",
+        "owned_store_capture_loan_safety",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "status": "Pass",
+      "exit_code": 0,
+      "started_utc": "2026-11-10T00:45:34.529005+00:00",
+      "elapsed_seconds": 32.014740818000064,
+      "tests": 0,
+      "failed_tests": 0,
+      "failed_names": [],
+      "log": "/workspace/scratch/36bf9939e558/out/runs/20261110-collected-budget-strict/command.log",
+      "log_sha256": "0f5152ab43f2e01d6faaf7a3aef40d8ca38b097dde368b9ca6febd997092e3c6",
+      "runner_sha256": "3eebd025b77009cd93e59b85b190caa492fdffed46c19e125905d14c5259c852"
+    },
+    "independent_review": "/workspace/scratch/36bf9939e558/review-resume-20261110/out-pr69-ci-20261110-0837/acceptance-92a4f2cb4-eight-controls.json",
+    "independent_review_sha256": "d16bb83509bc3db488c30ef8a3e0c3e6bebe3c7910664b30b9db92bff9b5be62",
+    "evidence_limits": [
+      "This follow-up reruns the eight exact failing controls, format and the affected strict-lint targets; it does not claim a new local full-workspace run.",
+      "The original 7547-byte project, three consumers, complete raw/Wire control and all production code are unchanged. The previously recorded 56 native executions remain evidence for their original source and are not counted again here.",
+      "No default resource limit, stack limit, semantic assertion or input byte was relaxed."
+    ]
+  }
+}

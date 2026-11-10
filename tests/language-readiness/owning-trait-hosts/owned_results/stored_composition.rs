@@ -393,7 +393,7 @@ fn ordinary_package_fields_have_exact_fresh_analysis_and_verification_work() {
             if phase == Phase::Analyze {
                 271349
             } else {
-                502450
+                417813
             }
         );
         eprintln!("ordinary Package Copy observation {phase:?} N={high}; N-1/fresh agree");
@@ -889,7 +889,7 @@ fn ordinary_error_places_have_exact_fresh_independent_resource_work() {
             if phase == Phase::Analyze {
                 395048
             } else {
-                481549
+                377174
             }
         );
         eprintln!("ordinary Error/Option resource {phase:?} N={high}; N-1/fresh agree");
@@ -1108,6 +1108,21 @@ fn ordinary_owned_pipeline_executes_callbacks_and_allocation_cleanup_paths() {
 #[test]
 fn ordinary_owned_pipeline_raw_and_wire_reconstruct_the_complete_project() {
     let module = typed_project(&pipeline_files());
+    control(&module);
+}
+
+#[test]
+fn collected_pipeline_raw_and_wire_reconstruct_the_complete_project() {
+    let files = [
+        ("main", include_str!("../collected_pipeline/main.zil")),
+        (
+            "protocol",
+            include_str!("../collected_pipeline/protocol.zil"),
+        ),
+        ("library", include_str!("../collected_pipeline/library.zil")),
+        ("model", include_str!("../collected_pipeline/model.zil")),
+    ];
+    let module = typed_project(&files);
     control(&module);
 }
 

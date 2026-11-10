@@ -95,5 +95,5 @@ fn generic_product_types_analyze_verify_boundaries() {
 #[test]
 fn empty_tables_keep_frontend_cost_and_current_verify_boundary() {
     // Original Verify10398 remains historical; actual Copy/loan work is now lower.
-    assert_eq!(measure("legacy", OLD), [418, 8673, 8737]);
+    assert_eq!(measure("legacy", OLD), [418, 8673, 7307]);
 }

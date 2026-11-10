@@ -506,11 +506,11 @@ fn original_single_module_and_drop_work_budgets_remain_exact() {
         ("fn main()->i32=>0", 242),
         (
             "resource R{n:i32}impl Drop for R{fn drop(self:Self){}}fn main()->i32{let r=R{n:1};return 0}",
-            1453,
+            1446,
         ),
         (
             "trait Code{fn code(self:&Self)->i32;}struct Payload{n:i32}impl Code for Payload{fn code()->i32=>.n}fn main()->i32{let x=Payload{n:13};return x.code()-13}",
-            1455,
+            1273,
         ),
     ] {
         let unit = SourceUnit::new(FileId(0), ModuleId(0), "main.zil", text);
@@ -519,7 +519,7 @@ fn original_single_module_and_drop_work_budgets_remain_exact() {
             options.limits.max_analysis_steps = steps;
             compile_source(&unit, &options)
         });
-        eprintln!("single source {text:?}: N={minimum}, prior={expected_minimum}");
+        eprintln!("single source {text:?}: N={minimum}, expected={expected_minimum}");
         observed.push(minimum);
         recorded.push(expected_minimum);
         for (steps, expected) in [
@@ -547,9 +547,9 @@ fn original_single_module_and_drop_work_budgets_remain_exact() {
         options.limits.max_analysis_steps = steps;
         CompilationSession::default().compile_project(&project(&files), &options)
     });
-    eprintln!("two-module trait: N={project_minimum}, prior=1471");
+    eprintln!("two-module trait: N={project_minimum}, expected=1414");
     observed.push(project_minimum);
-    recorded.push(1471);
+    recorded.push(1414);
     for (steps, expected) in [
         (project_minimum, ResultCategory::Success),
         (project_minimum - 1, ResultCategory::ResourceLimit),

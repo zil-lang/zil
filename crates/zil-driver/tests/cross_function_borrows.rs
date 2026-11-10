@@ -181,11 +181,13 @@ fn optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets() {
     }
     let mut previous = 0;
     // Complete independent costs with word liveness and paid loan/path indexes.
-    for (depth, expected_analyze, expected_verify) in [
-        (0, 105_985, 245_258),
-        (4, 174_824, 444_008),
-        (12, 342_198, 896_345),
-    ] {
+    let cases = [
+        (0, 105_985, 221_918),
+        (4, 174_824, 411_664),
+        (12, 342_198, 841_555),
+    ];
+    let mut actual_verify = Vec::new();
+    for (depth, expected_analyze, _) in cases {
         let mut declarations = String::new();
         let mut value_type = "i64".to_string();
         let mut value = "42".to_string();
@@ -254,11 +256,12 @@ fn optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets() {
                 .map(|verified| verified.fingerprint())
         });
         assert_eq!(raw, encoded);
-        assert_eq!(raw, expected_verify);
+        actual_verify.push(raw);
         println!(
             "optional Store heap path depth={depth}: Analyze N={analyze}, Verify raw=Wire N={raw}; N-1/fresh/warm"
         );
     }
+    assert_eq!(actual_verify, cases.map(|(_, _, verify)| verify));
 }
 
 const BORROWED_LIFE_IDENTITY: &str =

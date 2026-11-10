@@ -297,7 +297,7 @@ fn flat_verify_work_boundary_without_product_leaves() {
         .map(|v| (v.module().clone(), v.plan().clone(), v.fingerprint()))
     };
     let expected = run(Limits::default().max_analysis_steps).unwrap();
-    let current = 8737;
+    let current = 7307;
     assert_eq!(run(current).unwrap(), expected);
     let below = run(current - 1).unwrap_err();
     assert!(
@@ -308,6 +308,6 @@ fn flat_verify_work_boundary_without_product_leaves() {
     assert_eq!(run(current).unwrap(), expected);
     let out = directory("old-flat186-boundary");
     fs::write(out.join("source.zil"), source).unwrap();
-    fs::write(out.join("boundary.json"),"{\"verify_work\":8737,\"old_verify_work\":10398,\"checks\":\"default == current N == fresh N; N-1 Verify ResourceLimit\"}\n").unwrap();
+    fs::write(out.join("boundary.json"),"{\"verify_work\":7307,\"old_verify_work\":10398,\"checks\":\"default == current N == fresh N; N-1 Verify ResourceLimit\"}\n").unwrap();
     fs::write(out.join("below.txt"), format!("{below:#?}")).unwrap();
 }

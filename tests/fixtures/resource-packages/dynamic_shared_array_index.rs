@@ -957,6 +957,6 @@ fn rich_call_completeness_costs_grow_with_actual_input_and_output_ports() {
     for (larger, smaller) in boundaries[1].iter().zip(&boundaries[0]) {
         assert!(larger > smaller);
     }
-    assert_eq!(boundaries, [[21499, 26549, 26549], [53749, 75273, 75273]]);
+    assert_eq!(boundaries, [[19903, 24932, 24932], [52027, 73467, 73467]]);
     println!("rich-call complete input/output requirement boundaries: {boundaries:?}");
 }
