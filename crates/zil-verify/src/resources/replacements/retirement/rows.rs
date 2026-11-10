@@ -39,6 +39,84 @@ fn unique_page<'a>(page: &'a mut Arc<Vec<Sources>>, b: &mut Budget) -> Check<&'a
     }
     Ok(Arc::make_mut(page))
 }
+// A sufficient proof that the original union leaves every Source field intact.
+// Compare complete ordered recipes, including base, full path and mutability.
+fn keeps_targets(to: &actual::Targets, from: &actual::Targets, b: &mut Budget) -> Check<bool> {
+    b.spend(to.len().saturating_add(from.len()))?;
+    let mut existing = to.iter();
+    let mut next = existing.next();
+    for incoming in from {
+        loop {
+            let Some(current) = next else {
+                return Ok(false);
+            };
+            b.spend(
+                current
+                    .steps
+                    .len()
+                    .saturating_add(incoming.steps.len())
+                    .saturating_add(2),
+            )?;
+            match current.cmp(incoming) {
+                std::cmp::Ordering::Less => next = existing.next(),
+                std::cmp::Ordering::Equal => {
+                    next = existing.next();
+                    break;
+                }
+                std::cmp::Ordering::Greater => return Ok(false),
+            }
+        }
+    }
+    Ok(true)
+}
+fn keeps_sources(to: &Sources, from: &Sources, b: &mut Budget) -> Check<bool> {
+    let Sources { direct, captures } = to;
+    let Sources {
+        direct: incoming_direct,
+        captures: incoming_captures,
+    } = from;
+    if !keeps_targets(direct, incoming_direct, b)? {
+        return Ok(false);
+    }
+    b.spend(captures.len().saturating_add(incoming_captures.len()))?;
+    let mut existing = captures.iter();
+    let mut next = existing.next();
+    for (incoming_key, incoming) in incoming_captures {
+        loop {
+            let Some((key, current)) = next else {
+                return Ok(false);
+            };
+            b.spend(1)?;
+            match key.cmp(incoming_key) {
+                std::cmp::Ordering::Less => next = existing.next(),
+                std::cmp::Ordering::Equal => {
+                    if !keeps_targets(current, incoming, b)? {
+                        return Ok(false);
+                    }
+                    next = existing.next();
+                    break;
+                }
+                std::cmp::Ordering::Greater => return Ok(false),
+            }
+        }
+    }
+    // An absent capture key must fail even if its incoming row is empty:
+    // merge_captures inserts that key without reporting a changed target set.
+    Ok(true)
+}
+fn keeps_page(to: &[Sources], from: &[Sources], b: &mut Budget) -> Check<bool> {
+    b.spend(1)?;
+    if to.len() != from.len() {
+        return Ok(false);
+    }
+    b.spend(to.len().saturating_add(from.len()))?;
+    for (target, source) in to.iter().zip(from) {
+        if !keeps_sources(target, source, b)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
 impl Rows {
     pub(in crate::resources) fn new(len: usize, b: &mut Budget) -> Check<Self> {
         if len <= SMALL {
@@ -195,6 +273,10 @@ impl Rows {
                     b.spend(2)?;
                     b.spend(1)?; // actual immutable Arc page identity comparison
                     if Arc::ptr_eq(target, source) {
+                        continue;
+                    }
+                    b.spend(1)?; // actual strong-count test before the read-only proof
+                    if Arc::strong_count(target) > 1 && keeps_page(target, source, b)? {
                         continue;
                     }
                     changed |= merge_rows(unique_page(target, b)?, source, true, b)?;
