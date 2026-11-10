@@ -1,61 +1,157 @@
 {
   "format": 1,
-  "created_utc": "2026-11-09 19:05:34 UTC",
-  "prior_archive": "5bb9798f935fe10742588fbe96a2efa471f1a424",
+  "created_utc": "2026-11-10T03:38:36.726027+00:00",
+  "prior_archive": "746b3e31962cc6cedbb0cb23228679b132d047df",
   "commit_parents": [
-    "5bb9798f935fe10742588fbe96a2efa471f1a424",
-    "b9ea50ff53b370180a43af282948195e7d1498cf",
+    "746b3e31962cc6cedbb0cb23228679b132d047df",
+    "2293d19b53b4882fac663ac8e669bf7cdade386b",
+    "44e1540eb0922f0058f0bab8f2f16676c5b435fc",
+    "7dd7bb0eb8d1a55429455794fa6a94e80c777739",
+    "b0200a07fb829966c072b4b00dde2ccddcb68529",
+    "f46254b886accba1c39f915a649b5d0ef6fbd788",
+    "6a95603edfe73688ab3b1531f9dec5065119120e",
+    "b731111d7476db1d3a3379f1b5cbf4dca70beeb0",
+    "9f91ccc5ee32b46b2bd68230c786f84ccdd24d5d",
+    "59dfb76dddc4db72b8c920342563cd8d3b9554e3",
+    "da1e94124344c812e348bab131f03868de2dccc9",
+    "e2ffe7033127e006342465611181367995e6115e",
+    "0a8929d4f6126683737d62ab9def1d8e67a784ca",
     "f942fb506f0a9579e1af69a4a9d7cdde9593ebcd"
   ],
   "commit_tips": [
-    "b9ea50ff53b370180a43af282948195e7d1498cf",
+    "0a8929d4f6126683737d62ab9def1d8e67a784ca",
+    "1bd22f6ed801725de554f374af54b9d1b80a956b",
+    "2293d19b53b4882fac663ac8e669bf7cdade386b",
+    "4095e7431988750809cc223a129741c22641e4fc",
+    "428eb2c549f5285efc0b7921b380e2eff54f808b",
+    "44e1540eb0922f0058f0bab8f2f16676c5b435fc",
+    "59dfb76dddc4db72b8c920342563cd8d3b9554e3",
+    "5cf970ba56ff26388df5abcf72a8946cc2c20350",
+    "6a95603edfe73688ab3b1531f9dec5065119120e",
+    "6c5162cd9e676c8d4e367e8966b75eb13a029b11",
+    "7dd7bb0eb8d1a55429455794fa6a94e80c777739",
+    "9f91ccc5ee32b46b2bd68230c786f84ccdd24d5d",
+    "b0200a07fb829966c072b4b00dde2ccddcb68529",
+    "b3037af95569ecb55b02489d893ada384c8e84b0",
+    "b731111d7476db1d3a3379f1b5cbf4dca70beeb0",
+    "da1e94124344c812e348bab131f03868de2dccc9",
+    "e2ffe7033127e006342465611181367995e6115e",
+    "f0ee4f8215938c27549a4cc1ff176445d2cb6bfe",
+    "f46254b886accba1c39f915a649b5d0ef6fbd788",
     "f942fb506f0a9579e1af69a4a9d7cdde9593ebcd"
   ],
-  "local_refs": {
-    "refs/heads/task/collected-pipeline-acceptance": "9534e59a93ea7f7801245d24f7e3115b9706bc49",
-    "refs/heads/task/owned-pipeline-composition": "e86084a5a2bca3a5e05f4d4db5bec674f9abac01"
-  },
+  "local_refs": {},
   "remote_refs": {
-    "refs/heads/main": "fc18d05d59321423570bb46123c756f2ad7e2e88",
-    "refs/heads/task/collected-pipeline-acceptance": "b9ea50ff53b370180a43af282948195e7d1498cf",
+    "refs/heads/main": "2293d19b53b4882fac663ac8e669bf7cdade386b",
+    "refs/heads/task/G2.4.11.1": "6c5162cd9e676c8d4e367e8966b75eb13a029b11",
+    "refs/heads/task/G2.4.12.1": "44e1540eb0922f0058f0bab8f2f16676c5b435fc",
+    "refs/heads/task/G3.4.20": "f0ee4f8215938c27549a4cc1ff176445d2cb6bfe",
+    "refs/heads/task/G3.4.21": "7dd7bb0eb8d1a55429455794fa6a94e80c777739",
+    "refs/heads/task/G3.4.22": "b0200a07fb829966c072b4b00dde2ccddcb68529",
+    "refs/heads/task/G3.5.1.1": "f46254b886accba1c39f915a649b5d0ef6fbd788",
+    "refs/heads/task/G3.5.1.2": "6a95603edfe73688ab3b1531f9dec5065119120e",
+    "refs/heads/task/G9.3.11.1": "b731111d7476db1d3a3379f1b5cbf4dca70beeb0",
+    "refs/heads/task/G10.3.4": "5cf970ba56ff26388df5abcf72a8946cc2c20350",
+    "refs/heads/task/G10.3.5": "9f91ccc5ee32b46b2bd68230c786f84ccdd24d5d",
+    "refs/heads/task/G10.3.6": "1bd22f6ed801725de554f374af54b9d1b80a956b",
+    "refs/heads/task/G10.5.1": "59dfb76dddc4db72b8c920342563cd8d3b9554e3",
+    "refs/heads/task/G10.5.1.1": "da1e94124344c812e348bab131f03868de2dccc9",
+    "refs/heads/task/G10.5.1.2": "e2ffe7033127e006342465611181367995e6115e",
+    "refs/heads/task/G10.5.1.3": "0a8929d4f6126683737d62ab9def1d8e67a784ca",
+    "refs/heads/task/G10.6.3": "428eb2c549f5285efc0b7921b380e2eff54f808b",
+    "refs/heads/task/G10.6.7": "4095e7431988750809cc223a129741c22641e4fc",
+    "refs/heads/task/collected-pipeline-acceptance": "b3037af95569ecb55b02489d893ada384c8e84b0",
     "refs/heads/task/owned-pipeline-composition": "f942fb506f0a9579e1af69a4a9d7cdde9593ebcd"
   },
   "worktrees": [],
   "missing_commit_objects": [],
+  "scope": "Preserve exact observed remote source histories before branch reconciliation. This archive is not source acceptance, a test run, or a snapshot of other sessions uncommitted work. Existing history and prior manifests remain reachable through prior_archive.",
   "retirements": [
     {
       "ref": "refs/heads/task/collected-pipeline-acceptance",
-      "head_before_retirement": "b9ea50ff53b370180a43af282948195e7d1498cf",
-      "pull_request": 69,
-      "retirement_completed": false,
-      "reason": "Final code, exact receipt, independent review and local gates passed; wait for GitHub's in-progress merge to become confirmed, then retire remote and local refs.",
-      "source_tree": "bd1f082e40280d17265624090618fe0b834bd1fa",
-      "local_execution_identity": {
-        "final": "9534e59a93ea7f7801245d24f7e3115b9706bc49",
-        "source_raw_wire_native": "1a69f9da79debd6d0de42de8a7a51c3eb645c7d3",
-        "final_code": "1b96bfbf3d7bbcb7563a1c9900b829e5c50f2a73",
-        "same_complete_final_tree": true,
-        "remote_commit_identity_claimed": false,
-        "receipt_sha256": "956076d593779d26a708e979a9efa34b029b65ac99c2e98ab555bbf14d52bb38",
-        "final_review_sha256": "e5332c9d360508434aa261101d13298761491e6ad83060793323b39e10134fe8",
-        "worktree": "/workspace/scratch/36bf9939e558/wt-collected-pipeline-acceptance"
-      }
+      "head_before_retirement": "b3037af95569ecb55b02489d893ada384c8e84b0",
+      "retirement_completed": true,
+      "reason": "Exact head b3037af is ancestor of main; PR69 merged."
     },
     {
       "ref": "refs/heads/task/owned-pipeline-composition",
       "head_before_retirement": "f942fb506f0a9579e1af69a4a9d7cdde9593ebcd",
-      "source_tree": "db19d9ac683054a93da72df2ba85b3b31a6499d2",
+      "retirement_completed": true,
+      "reason": "Exact head f942fb is preserved as archive parent. Archive manifest explicitly says all unique production and original collected input/tests covered by PR68/69; PR69 now merged."
+    },
+    {
+      "ref": "refs/heads/task/G2.4.11.1",
+      "head_before_retirement": "6c5162cd9e676c8d4e367e8966b75eb13a029b11",
       "retirement_completed": false,
-      "reason": "All unique production and original collected input/tests are covered by PR68 and PR69; retire only after PR69's merge is confirmed.",
-      "local_execution_identity": {
-        "final": "e86084a5a2bca3a5e05f4d4db5bec674f9abac01",
-        "same_complete_final_tree": true,
-        "remote_commit_identity_claimed": false,
-        "worktree": "/workspace/scratch/36bf9939e558/wt-owned-pipeline-composition",
-        "coverage_audit_sha256": "be70843c3a75d60d707f27b2a544b3fe2a6de91022c05d7a051faede32d2feb1",
-        "native_audit_sha256": "cd34a04e74dbe0b763e6dbc0c1328dd2ad19c4f347ef9add4a5bc6dead729a98"
-      }
+      "reason": "Both production/spec blobs identical to main. Original consumer body identical except main adds a three-line child module inclusion."
+    },
+    {
+      "ref": "refs/heads/task/G2.4.12.1",
+      "head_before_retirement": "44e1540eb0922f0058f0bab8f2f16676c5b435fc",
+      "retirement_completed": false,
+      "reason": "Both changed files identical to main."
+    },
+    {
+      "ref": "refs/heads/task/G3.5.1.1",
+      "head_before_retirement": "f46254b886accba1c39f915a649b5d0ef6fbd788",
+      "retirement_completed": false,
+      "reason": "All seven changed files identical to main."
+    },
+    {
+      "ref": "refs/heads/task/G3.4.21",
+      "head_before_retirement": "7dd7bb0eb8d1a55429455794fa6a94e80c777739",
+      "retirement_completed": false,
+      "reason": "PR64 production extraction receipt and exact original consumer mapping. All 23 functions retained; 20 identical, three exact-work boundaries adjusted by later accepted algorithm changes."
+    },
+    {
+      "ref": "refs/heads/task/G10.3.4",
+      "head_before_retirement": "5cf970ba56ff26388df5abcf72a8946cc2c20350",
+      "retirement_completed": false,
+      "reason": "PR64 explicitly preserves nine production stages through 5cf970ba. All 18 original consumer functions remain; changes strengthen diagnostic checks or pin later algorithm work."
+    },
+    {
+      "ref": "refs/heads/task/G10.3.5",
+      "head_before_retirement": "9f91ccc5ee32b46b2bd68230c786f84ccdd24d5d",
+      "retirement_completed": false,
+      "reason": "PR64 includes original 511c32f06 codegen stage and 9f91ccc5 native correction. All 19 original consumer functions remain. Reverse-check of 9f91ccc5 succeeds."
     }
   ],
-  "scope": "Preserve both complete source histories before cleanup. Main acceptance, remote deletion and local deletion are separate facts. The sandbox became unavailable before local bundle/detach/delete; no local cleanup is claimed. Earlier retirements remain reachable through prior_archive."
+  "research_sources": [
+    {
+      "ref": "refs/heads/task/G10.5.1",
+      "sha": "59dfb76dddc4db72b8c920342563cd8d3b9554e3",
+      "disposition": "Unadopted coarsening experiment. Preserve original code, results and rejection rationale; production continuation is the already accepted PR65 and current compile work."
+    },
+    {
+      "ref": "refs/heads/task/G10.5.1.1",
+      "sha": "da1e94124344c812e348bab131f03868de2dccc9",
+      "disposition": "All three changed production blobs exactly equal main@2293d19b. PR65 already accepted; preserve experiment and receipts only here."
+    },
+    {
+      "ref": "refs/heads/task/G10.5.1.2",
+      "sha": "e2ffe7033127e006342465611181367995e6115e",
+      "disposition": "Unadopted single-pass planner experiment. Weighted benefit not established. Preserve complete experimental histories; do not merge experiment to main."
+    },
+    {
+      "ref": "refs/heads/task/G10.5.1.3",
+      "sha": "0a8929d4f6126683737d62ab9def1d8e67a784ca",
+      "disposition": "Production and regression blobs exactly equal current PR70@cadc656c. Preserve original measurements here. PR70 acceptance is separate; its active ref is retained."
+    }
+  ],
+  "pending_regression_restoration": [
+    {
+      "branch": "task/G3.5.1.2",
+      "reason": "Production stored_callables in both Analyze and Verify is byte-identical to main. Meaningful last-commit 46-line budget-boundary test absent from main.",
+      "test": "stored_borrowed_callbacks_have_exact_fresh_kernel_work",
+      "snippet": "/workspace/scratch/4a034e35838f/audit-notes/missing-stored-callback-budget-test.rs"
+    },
+    {
+      "branch": "task/G10.6.7",
+      "reason": "Four original ZIL input blobs identical to main; default success and 48 native cases retained elsewhere. Two original safety tests absent in same complete pipeline; related lending/collected controls exist but combination coverage is not identical.",
+      "tests": [
+        "owning_pipeline_keeps_the_parent_loan_and_affine_fresh_results",
+        "owning_pipeline_raw_and_wire_recover_actual_store_roots"
+      ]
+    }
+  ]
 }
