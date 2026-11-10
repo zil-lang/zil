@@ -27,6 +27,7 @@ mod cgu;
 mod emit;
 mod machine_cgu;
 mod machine_checked_add_chain;
+mod machine_closure_linkage;
 #[cfg_attr(not(feature = "llvm-api"), allow(dead_code))]
 mod machine_object_patch;
 mod machine_scalar;
