@@ -52,12 +52,13 @@ jobs:
         run: |
           set -euo pipefail
           if ! grep -q 'mod cleanup_tails;' crates/zil-backend-llvm/src/emit.rs; then python3 .task/G10.5.1.6/apply.py; fi
+          if ! grep -q 'fn emit_with_cleanup' crates/zil-backend-llvm/src/emit.rs; then python3 .task/G10.5.1.6/refine.py; fi
           rustfmt --edition 2024 --config skip_children=true crates/zil-backend-llvm/src/emit.rs crates/zil-backend-llvm/src/emit/cleanup_tails.rs
           python3 -m py_compile .task/G10.5.1.6/*.py .task/G10.5.1.6/bench/*.py
           git diff --check
           git diff > "$RUNNER_TEMP/tails-setup/candidate.patch"
           git add -- crates/zil-backend-llvm/src/emit.rs crates/zil-backend-llvm/src/emit/cleanup_tails.rs .task/G10.5.1.6/bench
-          if ! git diff --cached --quiet; then git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Freeze bounded cleanup suffix sharing; verification and runtime acceptance pending'; fi
+          if ! git diff --cached --quiet; then git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Freeze bounded cleanup suffix sharing with original emitter controls; acceptance pending'; fi
           git rev-parse HEAD > "$RUNNER_TEMP/tails-setup/source.txt"
           git fetch --no-tags origin refs/heads/task/G10.5.1.6
           test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
