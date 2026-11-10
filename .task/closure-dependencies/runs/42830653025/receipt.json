@@ -1,0 +1,33 @@
+{
+  "baseline": "947063a63880b375889ff30b3beba6151abf55f3",
+  "source": "1e4ff8229275463f318975b07fa9fabf509728c2",
+  "recipe": "601d7a7ae1b4b5d6e7f41e41fadaa146386672c7",
+  "run": 42830653025,
+  "original_workflow_status": "failure: compressed archive exceeded48MiB; all compilation/control/measurement steps completed successfully",
+  "preservation_run": "42837168144",
+  "performance_rerun": false,
+  "sample_removed": false,
+  "original_full_artifact": 13772492546,
+  "production_pr": 79,
+  "production_head": "9cf0e95d8108c82f0cb3ebf91075a60c6707332e",
+  "production_tree": "65a48d418a7165ef7b15cfa05b6d66388bfadb09",
+  "files": {
+    "controls.json": "03a8c2617f1a733c5b11c9c901309d1d099d21375bdf3425a89b4c1b7e991f76",
+    "failures.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "neighbors.json": "768d911de4178c8fbbdc5c17677b4adc21d6aa154dcf2e0a02290bd5ce6dd206",
+    "manifest.json": "5265f790cd853e9f8fa2c744d4d5c9034bb2715b00ccf2d5724c0124fcc322c3",
+    "quality.json": "5efb407d596af5c657d94e58429fd0d50f67844ad8746e8dabcd8a1a6e044f21",
+    "runtime.jsonl": "b4767c11996362fa8ba0cedd66bc1653e03f826d941ca5093eb065bba702b987",
+    "consumer.json": "0d7b4e6264634e636c4b4ccda5edbde30e90a639c687168d4eeb1daf02419f2c",
+    "equivalence.json": "114139882c8eefb219847eb5aaf99ff1dc5affd0dd5311800351de3d3e30f008",
+    "rows.jsonl": "e930d37e5d9b9f8bf8b5ce05ab79b774735dfc5e1d21c1266114d0164da5966b",
+    "raw.tar.gz": "29f03a69c0ca9b2e0b3f5a0c04a1b5db98f4f17abb38541e802e9ef59e96bb91",
+    "fallible.json": "a4b455b2fe2c9e680af3ea1ab8a78cd3d296d34158902a1e74599519b1eaf62f",
+    "summary.json": "9d60ab759eee7fa5ffbdb946acb85d763738641aecdd5956c2dbd65d64847df5",
+    "cells.json": "df9e8838179fa2687fb239bb91d91db2edfe14232582ce27efe763a6e396cce2",
+    "archive-inventory.json": "f5c160092cac3236128537ab6e0e3c44d9d3e4a2c5d678029cd336abee0ac471"
+  },
+  "main_modified": false,
+  "external_ai_review": false,
+  "acceptance": "Pending direct source and numeric review; quality.json flags are retained without alteration"
+}
