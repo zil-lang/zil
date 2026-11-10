@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-10T17:42:00Z",
-  "read_goal": "9514bba7ff71c7c4c234a4b8a74f167817c253b4",
+  "recorded_utc": "2026-11-10T17:59:51Z",
+  "read_goal": "5c942c2009a6effcc796f680f8bed07fca5fd879",
   "authorization": "User directs one implementation branch where dependencies permit, separate branches only for independent work; compiler-speed work stays with its original conversation; this conversation continues all other unfinished work.",
   "active_language_branch": "task/ordinary-collections",
   "compiler_branches_untouched": [
@@ -4047,6 +4047,34 @@
     {
       "run": "out/runs/map-direct-index-20261110T052225Z",
       "result": "Analyze246/246, Set1/1, callable7/7; complete Map Analyze ResourceLimit resource fact,V0."
+    },
+    {
+      "id": "store-growth-pr82-attempt-1",
+      "recorded_utc": "2026-11-10T17:59:51Z",
+      "candidate_commit": "07eaad81f9dd358eac084e3f6aabbe9af5263c8d",
+      "candidate_tree": "e32d81cf65fdf3a719ab9536013dbbd133fc27f3",
+      "checkout": "fc31317e7ff65837c952e7078339b0c03e32f0c4",
+      "scope": "First actual remote whole-workspace execution of Store.push_growing.",
+      "observations": [
+        {
+          "run": 42867517812,
+          "job": 130009711477,
+          "step": "Complete workspace tests",
+          "conclusion": "failure",
+          "completed_at": "2026-11-10T17:58:42Z"
+        },
+        {
+          "run": 42867517928,
+          "job": 130009711968,
+          "step": "Complete workspace tests",
+          "conclusion": "failure",
+          "completed_at": "2026-11-10T17:56:59Z"
+        }
+      ],
+      "evidence_origin": "Raw GitHub /actions/runs/<run>/jobs step conclusions. The normalized job wrapper incorrectly exposed these failed steps as in_progress; raw values take precedence.",
+      "diagnosis": null,
+      "log_availability": "Both decoded job log endpoints returned 404 BlobNotFound while the jobs continued reference execution.",
+      "disposition": "Preserve this first failure; do not infer a cause or acceptance before actual logs are available."
     }
   ],
   "boundary": "goal is coordination and never merged to main. Raw logs stay in each unique out/runs; only source, lasting language rules and compact exact acceptance are published to main.",
@@ -4151,7 +4179,7 @@
   },
   "next_standard_library_candidate": {
     "capability": "std.store.push_growing",
-    "status": "In implementation on PR82 after accepted Map PR81; first actual remote CI pending.",
+    "status": "First actual whole-workspace CI failed in both Main and Research; reference stages continue, exact diagnostics pending.",
     "after": "Map PR81 is merged as 2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852.",
     "proposal": "Reuse existing collect reserve/ownership transaction: overflow or reserve failure returns the actual incoming owner; success pushes once. Fixed push stays unchanged.",
     "scratch_patch_sha256": "e34e0df9b2223e22bd77c24fdc5aaa47480975c5b297b8c4e64f30f0b12efeec",
@@ -4212,7 +4240,7 @@
     "main_sync_source": "ec40f0050d186f2078c140906da0ccd3b73e9b89"
   },
   "goal_concurrency_preserved": {
-    "read_goal": "9514bba7ff71c7c4c234a4b8a74f167817c253b4",
+    "read_goal": "5c942c2009a6effcc796f680f8bed07fca5fd879",
     "compiler_task_rows": 12,
     "compiler_task_rows_unchanged": true,
     "compiler_records_preserved": [
@@ -4497,6 +4525,95 @@
       ],
       "upstream_removed_ref": "task/anonymous-closure-linkage is absent after its PR79 merged; this language session did not delete it.",
       "noncompiler_redundant_refs": 0
+    },
+    {
+      "recorded_utc": "2026-11-10T17:49:19Z",
+      "heads": [
+        {
+          "ref": "refs/heads/archive/source-history",
+          "sha": "18d6494299365dc98981d4103a5f648dd4a09926"
+        },
+        {
+          "ref": "refs/heads/goal",
+          "sha": "5c942c2009a6effcc796f680f8bed07fca5fd879"
+        },
+        {
+          "ref": "refs/heads/main",
+          "sha": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852"
+        },
+        {
+          "ref": "refs/heads/task/G10.5.1.3",
+          "sha": "83adcaf84b742eb487d1d86c96c7081de969e96c"
+        },
+        {
+          "ref": "refs/heads/task/G10.5.1.4",
+          "sha": "599b1c1978059deff989579fce360925b9082e57"
+        },
+        {
+          "ref": "refs/heads/task/G10.5.1.5",
+          "sha": "68e554e48e88bd69fa1ff4278f9ab9ec1fd2a956"
+        },
+        {
+          "ref": "refs/heads/task/G10.5.1.6",
+          "sha": "1b68492c636978fc4a8679244835faff72224f2b"
+        },
+        {
+          "ref": "refs/heads/task/G10.5.1.7",
+          "sha": "d392db44993f67646e9ec3e4b12991c42fc422fe"
+        },
+        {
+          "ref": "refs/heads/task/G10.5.1.8",
+          "sha": "22f7c59fa593861987176b1c1bd604d84a7bc670"
+        },
+        {
+          "ref": "refs/heads/task/byte-buffer-growth-boundary",
+          "sha": "bb0c8759df3650efb0646978a03daea8a6c687f3"
+        },
+        {
+          "ref": "refs/heads/task/closure-destructor-boundary",
+          "sha": "01d2ee433873b298e7e5982339b16d0b8d667713"
+        },
+        {
+          "ref": "refs/heads/task/closure-helper-partition",
+          "sha": "0105b22c5116f645f4e70fbd6d192ec168aa20f1"
+        },
+        {
+          "ref": "refs/heads/task/compiler-closure-dependencies",
+          "sha": "bf3acbd2b68a507819a5578457422d4b68be44cc"
+        },
+        {
+          "ref": "refs/heads/task/compiler-resident-cli",
+          "sha": "59f1124a6bb684c74d076de3f30594f87fb8e6e3"
+        },
+        {
+          "ref": "refs/heads/task/compiler-resident-session",
+          "sha": "b3393f9c741d1a0dab34577e87a52c2620a18fb6"
+        },
+        {
+          "ref": "refs/heads/task/destructor-runtime-neighbors",
+          "sha": "db8696d23270d35d015d20928e75c355a0092627"
+        },
+        {
+          "ref": "refs/heads/task/helper-public-boundary",
+          "sha": "b0e2ab28f10a5d3b1e67f2ba5ce91bb0685e7f5f"
+        },
+        {
+          "ref": "refs/heads/task/ordinary-collections",
+          "sha": "07eaad81f9dd358eac084e3f6aabbe9af5263c8d"
+        },
+        {
+          "ref": "refs/heads/task/resident-memory-validation",
+          "sha": "07af3468db6828f0c1e4b9276169a35013fde318"
+        },
+        {
+          "ref": "refs/heads/task/resource-helper-codegen",
+          "sha": "41e9f47c28412b0019779a06eb3de69d16174ea2"
+        }
+      ],
+      "compiler_branch_count": 16,
+      "new_compiler_branch": "task/helper-public-boundary",
+      "ordinary_redundant_branches": 0,
+      "deleted_in_this_check": 0
     }
   ],
   "execution_interruption_history": [
@@ -4522,7 +4639,7 @@
     }
   ],
   "store_growth": {
-    "status": "Published; first remote CI in progress, not accepted.",
+    "status": "First actual whole-workspace CI failed in both Main and Research; reference stages continue, exact diagnostics pending.",
     "pr": 82,
     "url": "https://github.com/zil-lang/zil/pull/82",
     "base": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852",
@@ -4606,8 +4723,8 @@
         {
           "id": 42867518732,
           "name": "Repository structure",
-          "status": "in_progress",
-          "conclusion": null,
+          "status": "completed",
+          "conclusion": "success",
           "run_number": 67,
           "jobs_url": "https://api.github.com/repos/zil-lang/zil/actions/runs/42867518732/jobs",
           "logs_url": "https://api.github.com/repos/zil-lang/zil/actions/runs/42867518732/logs",
@@ -4621,7 +4738,8 @@
           "run_number": 259,
           "jobs_url": "https://api.github.com/repos/zil-lang/zil/actions/runs/42867517928/jobs",
           "logs_url": "https://api.github.com/repos/zil-lang/zil/actions/runs/42867517928/logs",
-          "workflow_id": 402816294
+          "workflow_id": 402816294,
+          "workspace_step_conclusion": "failure"
         },
         {
           "id": 42867517812,
@@ -4631,11 +4749,14 @@
           "run_number": 311,
           "jobs_url": "https://api.github.com/repos/zil-lang/zil/actions/runs/42867517812/jobs",
           "logs_url": "https://api.github.com/repos/zil-lang/zil/actions/runs/42867517812/logs",
-          "workflow_id": 397080234
+          "workflow_id": 397080234,
+          "workspace_step_conclusion": "failure"
         }
       ],
-      "candidate_execution_result_not_yet_known": true,
-      "scope_limits": "CI deletes per-process reports. Claim only actual selected tests and their Success/V1/backend/fallback/exit/stdout/stderr assertions, not independently recovered JSON/TXT or untested builder fields."
+      "candidate_execution_result_not_yet_known": false,
+      "scope_limits": "CI deletes per-process reports. Claim only actual selected tests and their Success/V1/backend/fallback/exit/stdout/stderr assertions, not independently recovered JSON/TXT or untested builder fields.",
+      "accepted": false,
+      "first_failure_id": "store-growth-pr82-attempt-1"
     }
   }
 }
