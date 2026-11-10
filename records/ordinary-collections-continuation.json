@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-10T08:24:16.936376+00:00",
-  "read_goal": "61e33e18445243473eef0df9c97ab34eb20c6d39",
+  "recorded_utc": "2026-11-10T08:53:42Z",
+  "read_goal": "7c274015e3a8268bfa258efdbbf697fa04f55e42",
   "authorization": "User directs one implementation branch where dependencies permit, separate branches only for independent work; compiler-speed work stays with its original conversation; this conversation continues all other unfinished work.",
   "active_language_branch": "task/ordinary-collections",
   "compiler_branches_untouched": [
@@ -9,7 +9,9 @@
     "task/G10.5.1.4",
     "task/byte-buffer-growth-boundary",
     "task/G10.5.1.5",
-    "task/resource-order-wordsets"
+    "task/resource-order-wordsets",
+    "task/G10.5.1.6",
+    "task/compiler-resident-session"
   ],
   "store": {
     "task": "G3.4.20",
@@ -168,15 +170,15 @@
     "functional_source": "ede4945d1ed37ca6e89f712fc2258379d84d5e37",
     "functional_paths": 27,
     "functional_scope": "3 library paths, 6 ordinary Input/public capture replacement paths, actual parent/generation, complete original fixtures and consumers; no optional old cost caches or broader ABI/compiler changes.",
-    "latest_measured_source": "a168bff66b9b2b9363b61c3ce9c39556244927ac",
-    "latest_default_result": "Original Map Analyze, all Sum and complete description history passed; first resource records still reaches default Verify limit while copying State, V1",
+    "latest_measured_source": "42c3ab6bf909d4beabb0ca19897b1b287d97def4",
+    "latest_default_result": "Verify571/571 and original non-native group9/10; sole original Map still Verify ResourceLimit V1. Ordered scheduler correctness reviewed, full-program same-fee benefit unmeasured because execution environment became unavailable.",
     "complete_inventory_join_oracles": "3/3; N4667 vs original lookup6454; N-1 and retry pass",
     "source_raw_wire_recent_controls": "7/7 source controls, including Source/raw/Wire negative controls; not seven negative-only tests",
-    "next": "Implement original ordered actual-summary dependency scheduling with complete current metadata and frozen full-scan oracle. Final body validation stays complete; do not claim records second solve is removable. Retirement pages currently cover only a limited part of the remaining inventory and are deferred.",
-    "unaccepted_candidates": "Complete Map remains unaccepted until independent Verify and the original native matrix pass. Actual POD qualification and shared-page no-change mechanisms have current component/library evidence only; initialization, scheduling, templates and checkpoints require separate current evidence.",
-    "published_continuation": "88006c258324cc9b2c577abff6abf0381eefeb2c",
-    "published_tree": "eb12e0de2c833509fbb71d20a7b59d842769c01a",
-    "identical_local_tree": "a168bff66b9b2b9363b61c3ce9c39556244927ac",
+    "next": "Restore execution environment; inspect checkout/clean state and integrate main PR75 with minimal Analyze Order adapter retaining complete old BTreeSet oracle. Preserve exact42c3 gate identity. Run scheduler same-fee diagnostic at unchanged original input/Limits against a168 full Sum4644050; full final bodies and every scheduler charge remain. Only if current complete-scope net benefit is established, consider4dc stable complete-input checkpoint with13 original controls strengthened and actual POD replay hit coverage. Then original16build/64native and current strict gates; never mark Map passed from component tests.",
+    "unaccepted_candidates": "Original Map remains unaccepted. Ordered scheduler has full correctness gate only, not the pending original-Map cost diagnostic. Stable checkpoints, retirement pages, identity/no-change retirement chain and cold-history reuse remain unadopted archive candidates. Adaptive initialization and field/history representations already have their separately recorded current evidence; no candidate-wide or Map-wide acceptance is implied.",
+    "published_continuation": "e965133d052c3db371bc83014bf6591aaa3ca3df",
+    "published_tree": "7500a81cbe5a9935b6781c8ad550696d31e4d634",
+    "identical_local_tree": "7500a81cbe5a9935b6781c8ad550696d31e4d634",
     "complete_analyze_library": "262/262 passed at 4b745813 and 872e5eca; historical complete-library evidence, not rerun on 0acd",
     "unknown_fixedpoint": "4 semantic/reconstruction controls, exact N144 versus old188; N-1/fresh; independent input-isolation correction610746 then1/1 rerun",
     "same_fee_diagnostic": {
@@ -199,7 +201,7 @@
       "final_validation_entered": false,
       "interpretation": "This is an accepted-work prefix histogram, not complete-request net savings."
     },
-    "latest_run": "out/runs/map-verify-field-layout-boundary-20261110T080435Z",
+    "latest_run": "out/runs/map-verify-ordered-summary-20261110T083309Z",
     "set_source": "1/1 Success Verify, verification_runs=1",
     "ssa_pages": {
       "source": "bcfec60ca894eb4c37b380a7f1f626887a7fc3fa",
@@ -288,7 +290,7 @@
       "shared_read_precheck": "d2bc7accd preserved in archive but not adopted: current Map cutoff does not execute that stored-flow tail; main already filters the main read-candidate path.",
       "templates_and_frontier": "Not adopted without current actual construction or scheduling hotspot."
     },
-    "complete_verify_library": "562/562 passed at a168bff6",
+    "complete_verify_library": "571/571 on42c3, all old562 plus9 new",
     "verify_steps": [
       {
         "source": "b071ab2f4467308b78f068eeb9a2a83a3d73550d",
@@ -447,6 +449,45 @@
         },
         "published_same_tree": "88006c258324cc9b2c577abff6abf0381eefeb2c",
         "mechanism": "Actual Slots construct complete immutable Package field coordinates; State clones copy only independent dynamic bytes. Original flattened zip, all empty rows and checked field access preserved."
+      },
+      {
+        "source": "42c3ab6bf909d4beabb0ca19897b1b287d97def4",
+        "tree": "7500a81cbe5a9935b6781c8ad550696d31e4d634",
+        "scope": "Actual ordered summary read dependencies; complete original final validation and full-scan oracle",
+        "run": "out/runs/map-verify-ordered-summary-20261110T083309Z",
+        "verify_library": "571/571; all old562 plus9new",
+        "non_native_group": "9pass/1fail, sole original5008B Map Verify ResourceLimit V1",
+        "status": "Correctness accepted by non-author exact review; original-program same-fee diagnostic not started and adoption benefit not accepted",
+        "changes": {
+          "paths": 6,
+          "other_verify_rs_blobs_unchanged": 146,
+          "complete_old_scan_bytes": 4880,
+          "complete_old_scan_sha256": "acd6ecc65dd8bb1429fb37ab49688809d0921c5f3351c85edc07b772cd417f0a"
+        },
+        "controls": {
+          "reverse_eight_level_chain": {
+            "ordered_solves": 15,
+            "full_scan_solves": 72
+          },
+          "component_request": {
+            "ordered_N": 6930,
+            "full_scan_N": 19624,
+            "new_N_minus_one_then_fresh_explicit": true,
+            "old_N_minus_one_additional_explicit_assertion": false
+          },
+          "registered_actual_pod_nodes": 33,
+          "pod_inventory": "Full actual module/type key set; all false initially; real cold check publishes seed; solver must publish another true and leave unused node false; independent fresh budgets and complete rounds/Proof/metadata/Store history compared",
+          "old_raw_wire_pins": [
+            4730,
+            5125,
+            6679,
+            15518,
+            18249
+          ]
+        },
+        "handoff_sha256": "167efb680a5d3d4f800a4c9c1cf949886b10f48435b1d8c40c76509ff7b2b56f",
+        "review": "Exact static and actual gate review accepted; no claim that both old/new have separately asserted N-1, and no native evidence on this tree",
+        "published_same_tree": "e965133d052c3db371bc83014bf6591aaa3ca3df"
       }
     ],
     "verify_same_fee_diagnostics": [
@@ -684,23 +725,57 @@
     ],
     "same_fee_diagnostic_invariants": "Every diagnostic used original5008 source and default limits, preserved original charges, counted accepted work only, then restored exact source bytes and clean tree.",
     "latest_gate_evidence": {
-      "source": "a168bff66b9b2b9363b61c3ce9c39556244927ac",
-      "tree": "eb12e0de2c833509fbb71d20a7b59d842769c01a",
-      "run": "out/runs/map-verify-field-layout-boundary-20261110T080435Z",
-      "library_log_sha256": "8dcdbca7dc81e17792ece9d32ab8f69bfa6d769d1c533c542067e921206d9cfd",
-      "group_log_sha256": "63cda2d6075b86d0c6b36d4fafda46550a7bfcc36966140aaacf7897759903f2",
+      "source": "42c3ab6bf909d4beabb0ca19897b1b287d97def4",
+      "tree": "7500a81cbe5a9935b6781c8ad550696d31e4d634",
+      "run": "out/runs/map-verify-ordered-summary-20261110T083309Z",
+      "library_log_sha256": "560ab8f1b1226ee87f1dec6ef1f9f8e29789cf33146d1941fdc793c2ee99ea43",
+      "group_log_sha256": "d81c379f1340085ec6649fc7c4bc5cccf2fe11ad767343de92015b2303bed9e9",
       "verify_library": {
-        "passed": 562,
-        "failed": 0
+        "passed": 571,
+        "failed": 0,
+        "old_tests_preserved": 562,
+        "new_tests": 9
       },
       "non_native_group": {
         "passed": 9,
         "failed": 1,
-        "sole_failure": "Original5008B Map Verify ResourceLimit, verification_runs=1"
+        "sole_failure": "Original 5008B Map Verify ResourceLimit, verification_runs=1; no cache hit"
       },
       "strict_last_source": "872e5eca3d5e171c8ebbf01c258fe0ffffd43397",
       "strict_current_pending": true,
       "native_current_pending": true
+    },
+    "scheduler_diagnostic_pending": {
+      "baseline": "a168bff66b9b2b9363b61c3ce9c39556244927ac",
+      "baseline_complete_sum_work": 4644050,
+      "status": "Not started: no diagnostic run created, no source instrumentation and no build at interruption",
+      "all_actual_fees_required": [
+        "setup",
+        "read",
+        "record",
+        "notify",
+        "round",
+        "scan"
+      ],
+      "final_function_count_required": 34,
+      "boundary": "Compare complete same scope. The second records solve depends on changed later callee summary and cannot be assumed removable. No raised Limits, shortened input or fee-only reductions."
+    },
+    "checkpoint_preflight": {
+      "status": "Read-only preflight; not implemented or run",
+      "depends_on": "Actual summary ordered scheduler and stable full-input versions; evaluate only after scheduler same-fee diagnostic",
+      "complete_oracle": "Retain the full old fresh run; no narrowed mirrored implementation",
+      "controls": "Keep all13 original tests and invocation counts. Strengthen fresh full-output comparisons in2,6,8,12,13; preserve all ten mode guard bits.",
+      "pod_replay": "Keep existing registered33-node POD control and two original checks; add test-only drain of actual successful Cache::take hits. Old fullscan must have none; ordered path should contain function0. Static expectation only, not executed.",
+      "final_validation": "Every retained input block must still execute original final flow.block(validate=true,record=true), all captures/returns/bridges and Store history; fresh Plan tag cache; actual module/function/graph/mode/read versions must match.",
+      "retention": "Count full State retention/cleanup, all new strong references, actual COW and deep release; failed/changed dependencies fall back to complete fresh solve. Do not predict records final hit without measurement.",
+      "source": "4dc4c09f1fcba9d25d51bf2b11e3bf1fd97d45a4",
+      "independent_static_review": {
+        "status": "Complete fixed-object read-only review; no production safety blocker identified, no implementation or current performance acceptance",
+        "old_fresh_run": "9539B equals current42c3 full solver after only function-name normalization",
+        "old_ordered_check": "5635B function body equals current42c3 Ordered check after only old-solver call-name normalization",
+        "minimal_paths": 7
+      },
+      "remaining_coverage": "Original13 controls do not independently demonstrate nonempty direct Sum capture during an actual checkpoint hit; most fixtures have one input block. Do not infer such evidence from statically preserved final code. Preserve full validation and choose targeted controls if adopting."
     }
   },
   "first_failures": [
@@ -795,22 +870,92 @@
     "task/ordinary-collections"
   ],
   "compiler_integration_notes": {
-    "observed_utc": "2026-11-10T07:55:35Z",
+    "observed_utc": "2026-11-10T08:41:59Z",
     "new_refs": {
       "task/G10.5.1.5": "ae490fb2ca6e021505615a39a58af4a5f5f96ad2",
-      "task/resource-order-wordsets": "3e4a2a2ae368380e86ea99da32d7f3eef68cf3b4"
+      "task/resource-order-wordsets": "3e4a2a2ae368380e86ea99da32d7f3eef68cf3b4",
+      "task/G10.5.1.6": "77ae21e7f18c3320928e5f8bda5f6cc4d7094d40",
+      "task/compiler-resident-session": "97a8c8f4e098f7508203f044e8bf5611eedcf4d8"
     },
     "open_pull_requests": [
       {
         "number": 72,
         "draft": true
-      },
-      {
-        "number": 75,
-        "draft": true
       }
     ],
-    "pr75_scope": "Analyze resources State.later Order representation only; no Verify, backend or runtime changes. Owned by compiler-speed conversation; not adopted by this continuation.",
-    "future_join": "Both touch Analyze resources.rs. Preserve current complete join_cells inventory checks. Current state_join_tests old lookup_join uses BTreeSet.extend and fixture.insert; future integration with Order requires a minimal adapter retaining the independent complete BTreeSet oracle, not replacing the reference with the new Order implementation."
+    "pr75_scope": "Now merged independently by compiler conversation as main e12b158e; Analyze resources State.later Order only,4paths; no Verify/backend/runtime changes. Source continuation remains on previous main base and has not yet integrated or revalidated this upstream change.",
+    "future_join": "Both touch Analyze resources.rs. Preserve current complete join_cells inventory checks. Current state_join_tests old lookup_join uses BTreeSet.extend and fixture.insert; future integration with Order requires a minimal adapter retaining the independent complete BTreeSet oracle, not replacing the reference with the new Order implementation.",
+    "main": "e12b158e178ddfec783bd4502ac596a1baab9443",
+    "pr75_merge": "e12b158e178ddfec783bd4502ac596a1baab9443",
+    "preservation": "All7 compiler refs left untouched, including merged resource-order-wordsets; cleanup belongs to compiler owner.11remote heads currently:4 shared/language plus7 compiler."
+  },
+  "execution_interruption": {
+    "observed_utc": "2026-11-10T08:42:00Z",
+    "kind": "execution_environment_unavailable",
+    "observed_error": "No usable execution environment is available.",
+    "last_confirmed_clean_source": "42c3ab6bf909d4beabb0ca19897b1b287d97def4",
+    "last_confirmed_tree": "7500a81cbe5a9935b6781c8ad550696d31e4d634",
+    "temporary_instrumentation_at_interruption": false,
+    "latest_diagnostic_started": false,
+    "source_recovery": {
+      "status": "Exact tested tree restored and published to existing task/ordinary-collections",
+      "published_source": "e965133d052c3db371bc83014bf6591aaa3ca3df",
+      "parent": "88006c258324cc9b2c577abff6abf0381eefeb2c",
+      "tree": "7500a81cbe5a9935b6781c8ad550696d31e4d634",
+      "independent_remote_review": "Git Trees recursive4810 entries, truncated=false; exactly6 changed paths versuseb12; all6 blobs and100644 modes equal frozen42c3. All other leaves identical,146 other Verify .rs preserved.",
+      "raw_logs_published": false
+    },
+    "local_evidence_access": "Last gate logs and hashes were read and independently verified before disconnection; original out/runs files are currently inaccessible. No diagnostic12 output exists.",
+    "no_main_merge": true,
+    "no_permission_request_required": true
+  },
+  "next_standard_library_candidate": {
+    "capability": "std.store.push_growing",
+    "status": "Prepared only; not applied, built, committed or accepted",
+    "after": "Complete current Map acceptance on the same task/ordinary-collections branch",
+    "proposal": "Reuse existing collect reserve/ownership transaction: overflow or reserve failure returns the actual incoming owner; success pushes once. Fixed push stays unchanged.",
+    "scratch_patch_sha256": "dd4bebaf16b3b55f94375d435ec454d637bafa9db9d15a706d966e40a887b583",
+    "scratch_patch_currently_accessible": false,
+    "requirements": [
+      "RHS item(...) executed directly inside push_growing; abc/created proves single evaluation",
+      "Keep the existing7547B collected_pipeline inputs and rerun their3 tests",
+      "Main normal plus5 fail/retry cases; capture normal plus failure2 with old prefix/capacity and actual returned20 retry",
+      "Consumed incoming-owner negative controls retain real diagnostics; do not weaken a failed source to phase-only acceptance",
+      "CBA proves explicit reverse pop/drop only, not automatic reverse destruction of a nonempty Store"
+    ],
+    "planned_native_processes": 32,
+    "executed_native_processes": 0
+  },
+  "current_remote_readback": {
+    "observed_utc": "2026-11-10T08:45:52Z",
+    "main": "e12b158e178ddfec783bd4502ac596a1baab9443",
+    "source": "e965133d052c3db371bc83014bf6591aaa3ca3df",
+    "source_tree": "7500a81cbe5a9935b6781c8ad550696d31e4d634",
+    "archive": "18d6494299365dc98981d4103a5f648dd4a09926",
+    "heads_total": 11,
+    "compiler_refs_untouched": [
+      "task/G10.5.1.3",
+      "task/G10.5.1.4",
+      "task/byte-buffer-growth-boundary",
+      "task/G10.5.1.5",
+      "task/resource-order-wordsets",
+      "task/G10.5.1.6",
+      "task/compiler-resident-session"
+    ],
+    "original_retired_refs_still_absent": [
+      "task/G10.3.6",
+      "task/G10.6.3",
+      "task/G3.4.22",
+      "task/G3.4.20",
+      "task/G9.3.11.1"
+    ],
+    "source_readback": true
+  },
+  "goal_concurrency_preserved": {
+    "read_goal": "7c274015e3a8268bfa258efdbbf697fa04f55e42",
+    "compiler_task_rows": 8,
+    "compiler_task_rows_unchanged": true,
+    "new_compiler_receipt_preserved": "records/compiler-resource-order-merge.json",
+    "update": "Reapplied only own four goal lines and own continuation record after detecting concurrent compiler update; no force push."
   }
 }
