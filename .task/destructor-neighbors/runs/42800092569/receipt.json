@@ -1,0 +1,15 @@
+{
+  "baseline": "fc6620a3b975258643eb8f9c3ee77d868ff67a69",
+  "candidate_production": "01d2ee433873b298e7e5982339b16d0b8d667713",
+  "exact_checkout": "dee76cb5e12bf0876129c606227c2aaee83df8a2",
+  "status_before_preservation": "success",
+  "hashes": {
+    "raw.tar.gz": "23c63d3551e718ad384076370585c3d72298da3a164d292bd06326f5b1c41f34",
+    "summary.json": "a5683fb02cde63997828a2d4f739c766b906f0bb282160b45c4f03c16646bfbb",
+    "rows.json": "5b7e334dbdba018aa506a596e0a872913617d49f685e81904dfaff405fe64a48"
+  },
+  "main_modified": false,
+  "external_ai_review": false,
+  "scope": "additional runtime neighbors; original full weighted matrix remains separate",
+  "acceptance": "inspect every performance gate, workflow success is not acceptance"
+}
