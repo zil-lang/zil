@@ -1,0 +1,14 @@
+{
+  "baseline": "fc6620a3b975258643eb8f9c3ee77d868ff67a69",
+  "source": "0061b2985931d6df6cf57c753574dec681384e02",
+  "recipe": "a4364d0a63c01ebcd07bd0537909b24d1d1ad011",
+  "status_before_preservation": "failure",
+  "files": {
+    "quality.json": "179876fcb9396b53e7b1ad9e82b6b0c8562a3103f2fcea45ecaeaf0e9675b8cf",
+    "consumer.json": "92d4586f0f197c2989a0e97c83436ab116244a14f0daf4a65dd4eb8f7d8935cd",
+    "raw.tar.gz": "135c27c40e6e0d0289e72ead96feb80aaacdca5cb6331346231d13eb607ba69f"
+  },
+  "main_modified": false,
+  "external_ai_review": false,
+  "acceptance": "Pending direct source and numerical audit; no automatic integration"
+}
