@@ -1,0 +1,532 @@
+[
+  {
+    "name": "multi/quality/pipeline8/base/base/app",
+    "bytes": 22152,
+    "sha256": "6ea78c2befeca48b51a40c1e2443bf48d08dd3e81da672d1b2a194ada825065a"
+  },
+  {
+    "name": "multi/quality/pipeline8/base/rust/app",
+    "bytes": 4552816,
+    "sha256": "c46b82a71e9334817259ff707945681876ca4db22173f4d867cf0a490ee4ed9b"
+  },
+  {
+    "name": "multi/quality/pipeline8/base/cand/app",
+    "bytes": 34608,
+    "sha256": "4e9b7c006c3203b5ba0ca13f462ddbd840574a61bb5194e922c090a3b1a79af2"
+  },
+  {
+    "name": "multi/quality/pipeline8/private/base/app",
+    "bytes": 22152,
+    "sha256": "d68a75449c969dc551383427365dbce412474364ab816c064d39304d4e27d05d"
+  },
+  {
+    "name": "multi/quality/pipeline8/private/rust/app",
+    "bytes": 4552816,
+    "sha256": "d02196dc1df6f02b188a62f57dba3829b36110efadcc8fa040148ecd36180cec"
+  },
+  {
+    "name": "multi/quality/pipeline8/private/cand/app",
+    "bytes": 34608,
+    "sha256": "4ac4b7684223ec53716f583c997fce75b66c496b3ef5021de25e70be5ba8a7f5"
+  },
+  {
+    "name": "multi/quality/pipeline16/base/base/app",
+    "bytes": 28176,
+    "sha256": "ff21f541bbc3c8785934d7e31dc04d1b52902af4e0b851bc932fdfbfae481a04"
+  },
+  {
+    "name": "multi/quality/pipeline16/base/rust/app",
+    "bytes": 4580664,
+    "sha256": "e577c7a9d3a95f8873e5a236adb4822a539300c5e9d66317975bff8cc5fb12dc"
+  },
+  {
+    "name": "multi/quality/pipeline16/base/cand/app",
+    "bytes": 40632,
+    "sha256": "f2aad6949b7b569496e5ca6313a93442789869e1b92833ef3d6332e1b9fd1639"
+  },
+  {
+    "name": "multi/quality/pipeline16/private/base/app",
+    "bytes": 28176,
+    "sha256": "e19408f15585f347d920b2c257ff283582e6b0beb89e949d1014b77161843886"
+  },
+  {
+    "name": "multi/quality/pipeline16/private/rust/app",
+    "bytes": 4580664,
+    "sha256": "b836361d3e12dc51eaacdb08dcd094ab0000ed0edc965517ea4b0b249bf8e7b0"
+  },
+  {
+    "name": "multi/quality/pipeline16/private/cand/app",
+    "bytes": 40632,
+    "sha256": "23b0b1fa978f23fb04a5e0027ce8ea87da4649e8c3a907136647f89e5833cd74"
+  },
+  {
+    "name": "multi/quality/dispatch16/base/base/app",
+    "bytes": 24080,
+    "sha256": "ee6695fb029926077be6fe2314fe15be903f1d6411157ef6879c03a948a9a5d1"
+  },
+  {
+    "name": "multi/quality/dispatch16/base/rust/app",
+    "bytes": 4578608,
+    "sha256": "6bab6199708681ba1996e1b23c686cb016baa0ff9d6b201521c9af1640288e45"
+  },
+  {
+    "name": "multi/quality/dispatch16/base/cand/app",
+    "bytes": 40632,
+    "sha256": "6acbe0bee77f2fc9f4bdcdbe2f954a72faf9abc8e99031e0bb4003a975ae6671"
+  },
+  {
+    "name": "multi/quality/dispatch16/private/base/app",
+    "bytes": 28176,
+    "sha256": "58c2f78d0c2778e3fc148d10c579622c8b09317b409e65ed5e1c58a5f50c3200"
+  },
+  {
+    "name": "multi/quality/dispatch16/private/rust/app",
+    "bytes": 4578608,
+    "sha256": "d199b2f612556dbb9d534a92f99b1aabce2d73a92af4a2cf1bfd2d0f93cab026"
+  },
+  {
+    "name": "multi/quality/dispatch16/private/cand/app",
+    "bytes": 40632,
+    "sha256": "67d25540c7424ddbd8b647a871901d38ebb0096ba59809798c738faf6c5997b1"
+  },
+  {
+    "name": "multi/quality/dispatch8/base/base/app",
+    "bytes": 22152,
+    "sha256": "ab0ab26b2411543123bd4b2809246dd59cfca74566bcec39e223c7c6e10706af"
+  },
+  {
+    "name": "multi/quality/dispatch8/base/rust/app",
+    "bytes": 4551896,
+    "sha256": "866cdb700351111a7d31683dfba9018175b6ba629f3a1f6fe478dee867c30dc4"
+  },
+  {
+    "name": "multi/quality/dispatch8/base/cand/app",
+    "bytes": 34608,
+    "sha256": "782867a3c7610e40736e0ef4cb80f8656424fa3f1746a08bbaad4809a7ac376c"
+  },
+  {
+    "name": "multi/quality/dispatch8/private/base/app",
+    "bytes": 22152,
+    "sha256": "b18d38679486eb56fcb76410090620437ac9a184a209e0d8d1b9d29824d5470a"
+  },
+  {
+    "name": "multi/quality/dispatch8/private/rust/app",
+    "bytes": 4551896,
+    "sha256": "c756399b0beda23edb8558380962ae5969424385cba9921e499eae7ad9fff164"
+  },
+  {
+    "name": "multi/quality/dispatch8/private/cand/app",
+    "bytes": 34608,
+    "sha256": "326c3e4ae1569e0ef72053428881b82be3f21df4bb4a3593120115ba99260089"
+  },
+  {
+    "name": "controls/probe.o",
+    "bytes": 5032,
+    "sha256": "48febcb3e0f24741df4f3cb6c852d91cd90d00f43f957ed19d5fec2d10297e22"
+  },
+  {
+    "name": "controls/owned32/llvm-api/O0/8/base/app",
+    "bytes": 70136,
+    "sha256": "8b028604544239ecebada90f85ad380ca88a2f9e80fe3fcc46004e2010e29212"
+  },
+  {
+    "name": "controls/owned32/llvm-api/O0/8/cand/app",
+    "bytes": 70136,
+    "sha256": "8b028604544239ecebada90f85ad380ca88a2f9e80fe3fcc46004e2010e29212"
+  },
+  {
+    "name": "controls/owned32/llvm-api/O0/1/base/app",
+    "bytes": 70112,
+    "sha256": "fa109c84de0d6a7d7eff479e5b49f8357426caed684022b5d1a038c321d97652"
+  },
+  {
+    "name": "controls/owned32/llvm-api/O0/1/cand/app",
+    "bytes": 70112,
+    "sha256": "fa109c84de0d6a7d7eff479e5b49f8357426caed684022b5d1a038c321d97652"
+  },
+  {
+    "name": "controls/owned32/llvm-api/O2/8/base/app",
+    "bytes": 46920,
+    "sha256": "721e8efa91762b8e8886afbc35074b09cb81feddf44d721b200802d83e86eeb2"
+  },
+  {
+    "name": "controls/owned32/llvm-api/O2/8/cand/app",
+    "bytes": 46920,
+    "sha256": "721e8efa91762b8e8886afbc35074b09cb81feddf44d721b200802d83e86eeb2"
+  },
+  {
+    "name": "controls/owned32/llvm-api/O2/1/base/app",
+    "bytes": 46896,
+    "sha256": "ef094e7b017818a490059f46b74ddd6b59169accf807cb5fcb583bc4302bae8a"
+  },
+  {
+    "name": "controls/owned32/llvm-api/O2/1/cand/app",
+    "bytes": 46896,
+    "sha256": "ef094e7b017818a490059f46b74ddd6b59169accf807cb5fcb583bc4302bae8a"
+  },
+  {
+    "name": "controls/owned32/clang/O0/8/base/app",
+    "bytes": 74248,
+    "sha256": "9770f57aa6131abce6170f7f376a94b99a87176a2010d6273a2053830fd960d4"
+  },
+  {
+    "name": "controls/owned32/clang/O0/8/cand/app",
+    "bytes": 74248,
+    "sha256": "9770f57aa6131abce6170f7f376a94b99a87176a2010d6273a2053830fd960d4"
+  },
+  {
+    "name": "controls/owned32/clang/O0/1/base/app",
+    "bytes": 74208,
+    "sha256": "2f0361d1a4904e256e06c3914c61f8d0b3bec776fc3f012ef55fb418f3333c6a"
+  },
+  {
+    "name": "controls/owned32/clang/O0/1/cand/app",
+    "bytes": 74208,
+    "sha256": "2f0361d1a4904e256e06c3914c61f8d0b3bec776fc3f012ef55fb418f3333c6a"
+  },
+  {
+    "name": "controls/owned32/clang/O2/8/base/app",
+    "bytes": 46936,
+    "sha256": "95ef078c939f8463a1c526110dd79e89b789ca28b5c4bc438d6b545e176939d5"
+  },
+  {
+    "name": "controls/owned32/clang/O2/8/cand/app",
+    "bytes": 46936,
+    "sha256": "95ef078c939f8463a1c526110dd79e89b789ca28b5c4bc438d6b545e176939d5"
+  },
+  {
+    "name": "controls/owned32/clang/O2/1/base/app",
+    "bytes": 46896,
+    "sha256": "0f672f0882f31a37e82c1ec77e5a3cad4e3697fcb390d3e1bc64d235421736ca"
+  },
+  {
+    "name": "controls/owned32/clang/O2/1/cand/app",
+    "bytes": 46896,
+    "sha256": "0f672f0882f31a37e82c1ec77e5a3cad4e3697fcb390d3e1bc64d235421736ca"
+  },
+  {
+    "name": "controls/owned8/llvm-api/O0/8/base/app",
+    "bytes": 30592,
+    "sha256": "23047d749b73b2f3965242d20056d3b79df12b8c6ef7593ab90c1c10d240d7c7"
+  },
+  {
+    "name": "controls/owned8/llvm-api/O0/8/cand/app",
+    "bytes": 30592,
+    "sha256": "23047d749b73b2f3965242d20056d3b79df12b8c6ef7593ab90c1c10d240d7c7"
+  },
+  {
+    "name": "controls/owned8/llvm-api/O0/1/base/app",
+    "bytes": 30568,
+    "sha256": "68de30cc067f508d8a7f4c8fd882172a5919c0fccf83b87a2f0c9ec7166ed4ed"
+  },
+  {
+    "name": "controls/owned8/llvm-api/O0/1/cand/app",
+    "bytes": 30568,
+    "sha256": "68de30cc067f508d8a7f4c8fd882172a5919c0fccf83b87a2f0c9ec7166ed4ed"
+  },
+  {
+    "name": "controls/owned8/llvm-api/O2/8/base/app",
+    "bytes": 21528,
+    "sha256": "a7c0bb54068fa80735f9ff6a4d881d2483637c9797ba172266c14e1630375ada"
+  },
+  {
+    "name": "controls/owned8/llvm-api/O2/8/cand/app",
+    "bytes": 21528,
+    "sha256": "a7c0bb54068fa80735f9ff6a4d881d2483637c9797ba172266c14e1630375ada"
+  },
+  {
+    "name": "controls/owned8/llvm-api/O2/1/base/app",
+    "bytes": 21504,
+    "sha256": "4860416b27941d715abb06eef1fde0ea93ce631661b707486f58cfbe307a2729"
+  },
+  {
+    "name": "controls/owned8/llvm-api/O2/1/cand/app",
+    "bytes": 21504,
+    "sha256": "4860416b27941d715abb06eef1fde0ea93ce631661b707486f58cfbe307a2729"
+  },
+  {
+    "name": "controls/owned8/clang/O0/8/base/app",
+    "bytes": 30600,
+    "sha256": "902ac28451758bff9f905a897704f82b02298cb938b86c42b037a961f9f747e7"
+  },
+  {
+    "name": "controls/owned8/clang/O0/8/cand/app",
+    "bytes": 30600,
+    "sha256": "902ac28451758bff9f905a897704f82b02298cb938b86c42b037a961f9f747e7"
+  },
+  {
+    "name": "controls/owned8/clang/O0/1/base/app",
+    "bytes": 30568,
+    "sha256": "d485a2a6b04df8032c95da4de0392cffe97c8f9e0ead2e6dfa4e0c4ec13fd1fc"
+  },
+  {
+    "name": "controls/owned8/clang/O0/1/cand/app",
+    "bytes": 30568,
+    "sha256": "d485a2a6b04df8032c95da4de0392cffe97c8f9e0ead2e6dfa4e0c4ec13fd1fc"
+  },
+  {
+    "name": "controls/owned8/clang/O2/8/base/app",
+    "bytes": 21544,
+    "sha256": "621e9d6973e0ca0630549eb0f12faf989f0be710c1a201e640378c046cde2057"
+  },
+  {
+    "name": "controls/owned8/clang/O2/8/cand/app",
+    "bytes": 21544,
+    "sha256": "621e9d6973e0ca0630549eb0f12faf989f0be710c1a201e640378c046cde2057"
+  },
+  {
+    "name": "controls/owned8/clang/O2/1/base/app",
+    "bytes": 21504,
+    "sha256": "3be94dab252343b04caa34547e8367632f401a7f24d8ab1919b84e23c7f15c4a"
+  },
+  {
+    "name": "controls/owned8/clang/O2/1/cand/app",
+    "bytes": 21504,
+    "sha256": "3be94dab252343b04caa34547e8367632f401a7f24d8ab1919b84e23c7f15c4a"
+  },
+  {
+    "name": "controls/owned64/llvm-api/O0/8/base/app",
+    "bytes": 118816,
+    "sha256": "9f2ccd36cf92ea9a4f825faaf9ee88f808e88b97990c763fe4a14232fd7fdc26"
+  },
+  {
+    "name": "controls/owned64/llvm-api/O0/8/cand/app",
+    "bytes": 118816,
+    "sha256": "9f2ccd36cf92ea9a4f825faaf9ee88f808e88b97990c763fe4a14232fd7fdc26"
+  },
+  {
+    "name": "controls/owned64/llvm-api/O0/1/base/app",
+    "bytes": 118792,
+    "sha256": "26bd270fe75e30c9acb5cd993ef6bcf43c37c9b9666aa8e5ee978978a2fef636"
+  },
+  {
+    "name": "controls/owned64/llvm-api/O0/1/cand/app",
+    "bytes": 118792,
+    "sha256": "26bd270fe75e30c9acb5cd993ef6bcf43c37c9b9666aa8e5ee978978a2fef636"
+  },
+  {
+    "name": "controls/owned64/llvm-api/O2/8/base/app",
+    "bytes": 68488,
+    "sha256": "36d66a5563501a43ed762f71462106e008db8d3ccb6b43c2de9a60cc35d32781"
+  },
+  {
+    "name": "controls/owned64/llvm-api/O2/8/cand/app",
+    "bytes": 68488,
+    "sha256": "36d66a5563501a43ed762f71462106e008db8d3ccb6b43c2de9a60cc35d32781"
+  },
+  {
+    "name": "controls/owned64/llvm-api/O2/1/base/app",
+    "bytes": 68464,
+    "sha256": "5a0737d9b4734dea7449eb237d08bd3e8d1baf631ec2fc912f0f0f8385bf17da"
+  },
+  {
+    "name": "controls/owned64/llvm-api/O2/1/cand/app",
+    "bytes": 68464,
+    "sha256": "5a0737d9b4734dea7449eb237d08bd3e8d1baf631ec2fc912f0f0f8385bf17da"
+  },
+  {
+    "name": "controls/owned64/clang/O0/8/base/app",
+    "bytes": 127016,
+    "sha256": "3bad19b1be204292506b9bb9a412a94928fd0607e9eb51dd5d30e64c2e9c49f4"
+  },
+  {
+    "name": "controls/owned64/clang/O0/8/cand/app",
+    "bytes": 127016,
+    "sha256": "3bad19b1be204292506b9bb9a412a94928fd0607e9eb51dd5d30e64c2e9c49f4"
+  },
+  {
+    "name": "controls/owned64/clang/O0/1/base/app",
+    "bytes": 126984,
+    "sha256": "95d6381d4409ece4e5c5eb927c213e878651e8d7583d723cc031c4ec2ef80168"
+  },
+  {
+    "name": "controls/owned64/clang/O0/1/cand/app",
+    "bytes": 126984,
+    "sha256": "95d6381d4409ece4e5c5eb927c213e878651e8d7583d723cc031c4ec2ef80168"
+  },
+  {
+    "name": "controls/owned64/clang/O2/8/base/app",
+    "bytes": 68504,
+    "sha256": "86958d8a339699f6e91dc167cd20da06ec3e5d19db95daeb1959f95ccbeb19d2"
+  },
+  {
+    "name": "controls/owned64/clang/O2/8/cand/app",
+    "bytes": 68504,
+    "sha256": "86958d8a339699f6e91dc167cd20da06ec3e5d19db95daeb1959f95ccbeb19d2"
+  },
+  {
+    "name": "controls/owned64/clang/O2/1/base/app",
+    "bytes": 68464,
+    "sha256": "58cd9927ec7db45a8b62e79cb999bd5e5ddf35ff1b2c171937fda9fd38491afa"
+  },
+  {
+    "name": "controls/owned64/clang/O2/1/cand/app",
+    "bytes": 68464,
+    "sha256": "58cd9927ec7db45a8b62e79cb999bd5e5ddf35ff1b2c171937fda9fd38491afa"
+  },
+  {
+    "name": "multi-controls/probe.o",
+    "bytes": 5032,
+    "sha256": "48febcb3e0f24741df4f3cb6c852d91cd90d00f43f957ed19d5fec2d10297e22"
+  },
+  {
+    "name": "multi-controls/pipeline8/llvm-api/O0/base/app",
+    "bytes": 75008,
+    "sha256": "468621e519edac15feab3c6a329a39ba03e2d666ac4f665d6ee9eab2eb2cf029"
+  },
+  {
+    "name": "multi-controls/pipeline8/llvm-api/O0/cand/app",
+    "bytes": 75008,
+    "sha256": "468621e519edac15feab3c6a329a39ba03e2d666ac4f665d6ee9eab2eb2cf029"
+  },
+  {
+    "name": "multi-controls/pipeline8/llvm-api/O2/base/app",
+    "bytes": 23072,
+    "sha256": "f7e1803dbbac7c3daa70f48448a08b4a10ec30a0baa10b9464ae109d4c55a7d9"
+  },
+  {
+    "name": "multi-controls/pipeline8/llvm-api/O2/cand/app",
+    "bytes": 35528,
+    "sha256": "6c489218d1ff53241064b93a885978677aff77e032244828a53023a251fdaea3"
+  },
+  {
+    "name": "multi-controls/pipeline8/clang/O0/base/app",
+    "bytes": 79128,
+    "sha256": "c9297d7ca34367fa7a547e81c4f6f2eaf00df472007ed4817347bfe914dbb3d4"
+  },
+  {
+    "name": "multi-controls/pipeline8/clang/O0/cand/app",
+    "bytes": 79128,
+    "sha256": "c9297d7ca34367fa7a547e81c4f6f2eaf00df472007ed4817347bfe914dbb3d4"
+  },
+  {
+    "name": "multi-controls/pipeline8/clang/O2/base/app",
+    "bytes": 35360,
+    "sha256": "14aa818e75ece05118b59df9c7bc72222e3e1d7c5ba0bbb154f7dc3baac6c073"
+  },
+  {
+    "name": "multi-controls/pipeline8/clang/O2/cand/app",
+    "bytes": 35600,
+    "sha256": "b611cbbb2d2fde6cc5d67fff7336d88ecaf7bee0409b7466ae066be8dd171ef1"
+  },
+  {
+    "name": "multi-controls/pipeline16/llvm-api/O0/base/app",
+    "bytes": 128640,
+    "sha256": "07dcc9428c27c1b9c2bbd9f592516394e49db2d75e1583809d42c54f3b67a27c"
+  },
+  {
+    "name": "multi-controls/pipeline16/llvm-api/O0/cand/app",
+    "bytes": 128640,
+    "sha256": "07dcc9428c27c1b9c2bbd9f592516394e49db2d75e1583809d42c54f3b67a27c"
+  },
+  {
+    "name": "multi-controls/pipeline16/llvm-api/O2/base/app",
+    "bytes": 29088,
+    "sha256": "9a685e5a7be116506e0b4b87019600d98beee9afdd32bf729435e39ed37af255"
+  },
+  {
+    "name": "multi-controls/pipeline16/llvm-api/O2/cand/app",
+    "bytes": 41544,
+    "sha256": "9bea0da8e77c8df717ea72475572c5101be484ccdfb3c16e46df2ef526d7e2b6"
+  },
+  {
+    "name": "multi-controls/pipeline16/clang/O0/base/app",
+    "bytes": 140952,
+    "sha256": "c899f5f13ec55e3c915e89e28f2290718f559eb45abf81109a5c57466967f4aa"
+  },
+  {
+    "name": "multi-controls/pipeline16/clang/O0/cand/app",
+    "bytes": 140952,
+    "sha256": "c899f5f13ec55e3c915e89e28f2290718f559eb45abf81109a5c57466967f4aa"
+  },
+  {
+    "name": "multi-controls/pipeline16/clang/O2/base/app",
+    "bytes": 57760,
+    "sha256": "d7a721a11698f2a1aadbd414ee6d672e5145fa41767811d89ae162b132c09afb"
+  },
+  {
+    "name": "multi-controls/pipeline16/clang/O2/cand/app",
+    "bytes": 58000,
+    "sha256": "8b6b003b11ac0d228b8a50326d2ad03b3731c52d4a2d28958f376f38dd36183f"
+  },
+  {
+    "name": "multi-controls/dispatch16/llvm-api/O0/base/app",
+    "bytes": 128640,
+    "sha256": "25a4b505a656d7a21432b1e5780beeab24360e45236a729442449232135043e0"
+  },
+  {
+    "name": "multi-controls/dispatch16/llvm-api/O0/cand/app",
+    "bytes": 128640,
+    "sha256": "25a4b505a656d7a21432b1e5780beeab24360e45236a729442449232135043e0"
+  },
+  {
+    "name": "multi-controls/dispatch16/llvm-api/O2/base/app",
+    "bytes": 29088,
+    "sha256": "3f15dba74a670036264553a997abab4af4495127ca9225ae040ec7ea0e7432c6"
+  },
+  {
+    "name": "multi-controls/dispatch16/llvm-api/O2/cand/app",
+    "bytes": 41544,
+    "sha256": "803e85c556e006cd9fe959f7f8d57af608062aee1e2cb81b6ff913e052a44be1"
+  },
+  {
+    "name": "multi-controls/dispatch16/clang/O0/base/app",
+    "bytes": 136856,
+    "sha256": "4e524a3d17f3b10e33beae353d2605784a3e767e8ce10ca3c9b1ab821fbafadc"
+  },
+  {
+    "name": "multi-controls/dispatch16/clang/O0/cand/app",
+    "bytes": 136856,
+    "sha256": "4e524a3d17f3b10e33beae353d2605784a3e767e8ce10ca3c9b1ab821fbafadc"
+  },
+  {
+    "name": "multi-controls/dispatch16/clang/O2/base/app",
+    "bytes": 53664,
+    "sha256": "d85a5993702104d5e8deb72aaf715f9d4507e1457c011b17e40c4d82e8360643"
+  },
+  {
+    "name": "multi-controls/dispatch16/clang/O2/cand/app",
+    "bytes": 53904,
+    "sha256": "2a30bd859aa888bb99f746d2ddb246353678ffe5d5c1a9af3dca0484cd636e19"
+  },
+  {
+    "name": "multi-controls/dispatch8/llvm-api/O0/base/app",
+    "bytes": 70912,
+    "sha256": "14f6dc4f4b78afd1674ec5dd2ccd6155dec818abea4100599db7696f3d56f80c"
+  },
+  {
+    "name": "multi-controls/dispatch8/llvm-api/O0/cand/app",
+    "bytes": 70912,
+    "sha256": "14f6dc4f4b78afd1674ec5dd2ccd6155dec818abea4100599db7696f3d56f80c"
+  },
+  {
+    "name": "multi-controls/dispatch8/llvm-api/O2/base/app",
+    "bytes": 23072,
+    "sha256": "2346ad83bb5d44294f67fc09c201a0de69384a6ae87f1e668296365adce66bd7"
+  },
+  {
+    "name": "multi-controls/dispatch8/llvm-api/O2/cand/app",
+    "bytes": 35528,
+    "sha256": "b5275a57785652d1fcdd9e4bb8d70e92842c2b810056a8e7794113e14ead3e08"
+  },
+  {
+    "name": "multi-controls/dispatch8/clang/O0/base/app",
+    "bytes": 79128,
+    "sha256": "668f85456bff461d912c13434140c93101bbfd25a687aebcdf7ccfc044cb200d"
+  },
+  {
+    "name": "multi-controls/dispatch8/clang/O0/cand/app",
+    "bytes": 79128,
+    "sha256": "668f85456bff461d912c13434140c93101bbfd25a687aebcdf7ccfc044cb200d"
+  },
+  {
+    "name": "multi-controls/dispatch8/clang/O2/base/app",
+    "bytes": 35360,
+    "sha256": "990fe55c82dc157a1774ecf1a95b777b486d211bb80daa79a52dfc11d44ad233"
+  },
+  {
+    "name": "multi-controls/dispatch8/clang/O2/cand/app",
+    "bytes": 35600,
+    "sha256": "b1a0e27bc6c6bc8ce6df6591d3c9239138492c40a1f53aa4c31fbfc3d243d5e4"
+  }
+]

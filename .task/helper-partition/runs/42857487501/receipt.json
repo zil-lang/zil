@@ -1,0 +1,24 @@
+{
+  "baseline": "099d0af969a51260355437603b77d3f9030d83bc",
+  "source": "99a303f8be70c0112548202a849b512194d4b253",
+  "recipe": "55897e54073f91691724924c81a5988d787e7332",
+  "status_before_preservation": "failure",
+  "prior_rejected_run": 42850687888,
+  "source_import_cost_limit": 32,
+  "main_modified": false,
+  "external_ai_review": false,
+  "original_weights_unchanged": true,
+  "multi_cases_are_separate": true,
+  "files": {
+    "omitted-rebuildable-elf.json": "8ddfcbe85f761f2b5e2b0b3be66fbc83936f0cf9f9193d4868939b58bc3a61dd",
+    "raw.tar.gz": "179e54cbe216a5a18a6f876afba6446680c8dfa9a03bb3256e0f74fb9713e70c",
+    "multi/manifest.json": "e5f79fb392b2761c8844e3bf88d0f4a789111a074c6541d45159e6412105c556",
+    "multi/runtime.jsonl": "77e7d0e31ef3596813c5fc4913080fdf7d6bfff1fbb70d11696a667548625f35",
+    "multi/rows.jsonl": "afe8c0493d0f4bcd46556a8ed80cf395c38113a905f28db82f0dd127352f0e1d",
+    "multi/summary.json": "dda0d687f756710db6c664273aef258003dcf0afc9821cb71238ad3763b7285a",
+    "multi-controls/summary.json": "718cb3f09abab7b6d49f859bbe1bba26e69eca5080bae38bc446dea333823aff",
+    "consumer/summary.json": "21a82c52b3b804335bf5d7dd387b5920854f31dbf7ab264e79316991df757f46",
+    "controls/summary.json": "ee57edc0e06e034d87f0f68fc1ae959ac6abc81bd783a82e241c5d6ce2aaf3bb"
+  },
+  "acceptance": "Requires complete source/current-input/quality and absolute-wait review, not workflow status"
+}
