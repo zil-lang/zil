@@ -1,0 +1,91 @@
+name: Record accepted anonymous closure linkage
+on:
+  push:
+    branches: [task/compiler-closure-dependencies]
+    paths: [.github/workflows/compiler-linkage-stage-record.yml]
+permissions:
+  contents: write
+  actions: read
+  pull-requests: read
+jobs:
+  record:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Verify exact production, retain quality failures and update goal without force
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess,json,os,datetime,hashlib,statistics
+          root=Path.cwd();repo='zil-lang/zil'
+          def run(*args,cwd=root,check=True):return subprocess.run(args,cwd=cwd,check=check,text=True,capture_output=True)
+          def api(path):return json.loads(run('gh','api','repos/'+repo+'/'+path).stdout)
+          head='9cf0e95d8108c82f0cb3ebf91075a60c6707332e';merged='099d0af969a51260355437603b77d3f9030d83bc';tree='65a48d418a7165ef7b15cfa05b6d66388bfadb09'
+          pr=api('pulls/79');assert pr['merged'] and pr['head']['sha']==head and pr['merge_commit_sha']==merged
+          assert api('git/commits/'+merged)['tree']['sha']==tree
+          ci=[42831769170,42831769245,42831769525]
+          for rid in ci:
+              r=api('actions/runs/'+str(rid));assert r['head_sha']==head and r['conclusion']=='success',(rid,r['conclusion'])
+          run('git','fetch','--no-tags','origin','refs/heads/main');main=run('git','rev-parse','FETCH_HEAD').stdout.strip();run('git','merge-base','--is-ancestor',merged,main)
+          blobs={'crates/zil-backend-llvm/src/lib.rs':'12ceb2e25f09b066967bd3c14ea4f165055e8614','crates/zil-backend-llvm/src/build.rs':'0d4c4de0e4001eec9bccac9ba160c26a0c6b62a6','crates/zil-backend-llvm/src/machine_closure_linkage.rs':'e4420dfe7e91eb4734b87d81bba17910a949293a','docs/guide/anonymous-closure-linkage.md':'af1d03bd7e97035c98c0455b127822cb7dff484b'}
+          for path,blob in blobs.items():assert run('git','rev-parse',merged+':'+path).stdout.strip()==blob
+          evidence=root/'.task/closure-dependencies/runs/42830653025'
+          load=lambda name:json.loads((evidence/name).read_text())
+          receipt=load('receipt.json')
+          for name,digest in receipt['files'].items():assert hashlib.sha256((evidence/name).read_bytes()).hexdigest()==digest,name
+          summary=load('summary.json');assert summary['compile_requests']==1800 and summary['formal_requests']==1500 and summary['failures']==0
+          assert receipt['source']=='1e4ff8229275463f318975b07fa9fabf509728c2'
+          quality=[]
+          for name in ['quality.json','neighbors.json']:
+              q=load(name);delta=[];baseline_fail=0;new_fail=0
+              for c in q['cells']:
+                  med={arm:statistics.median(v) for arm,v in c['values_ms'].items()}
+                  delta.append(med['cand']/med['base']);baseline_fail+=med['rust']/med['base']<.9
+                  new_fail+=med['rust']/med['base']>=.9 and med['rust']/med['cand']<.9
+              assert max(delta)<=1.1 and new_fail==0
+              assert q['runtime_gate_pass'] is False
+              quality.append({'file':name,'reported_full_gate':False,'baseline_rust90_failures':baseline_fail,'new_rust90_crossings':new_fail,'max_introduced_latency_ratio':max(delta),'cells':len(q['cells'])})
+          now=datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).isoformat()
+          record={'task':'G10.5.1.10','status':'StageAccepted; parent runtime and general closure incremental targets remain open','pr':79,'head':head,'merged_commit':merged,'tested_tree':tree,'production_blobs':blobs,'ci_runs':ci,'ci_each':{'workspace_passed':5896,'reference_passed':5782,'text_passed':70,'failed':0},'experiment':42830653025,'preservation_recovery':42837168144,'original_archive_failure_retained':True,'measured_source':receipt['source'],'compile_requests':1800,'formal_requests':1500,'current_verify':1728,'native_outputs':3672,'paired_cleanup_failure_observations':432,'profiles':summary['profiles'],'owned32_edit_ms':{'base':571.7420402,'candidate':523.7131694,'original_rust':237.740},'owned32_phase_ms':{'base_optimize':260.5088242,'candidate_optimize':257.893838,'base_emit':224.9424566,'candidate_emit':180.33757},'fallible_rust_supplement':{'requests':192,'formal':160,'outputs':576,'owned32_edit_ms':{'base':573.740,'candidate':522.531,'original_rust':238.239,'fallible_rust':302.047},'not_part_of_weighted_aggregate':True,'identical_allocator_claimed':False},'runtime_quality':quality,'remaining':['aggregate/closure Types keys still return None','machine function patch still excludes pointer environments','99 of109 definitions co-located by local helper references','full Rust90 runtime floor not passed','Cranelift and general optimized function-level patching not implemented'],'review':'current Chat source/evidence review under explicit user authorization; mechanical recomputation is not non-author review','report_commit':'c8ef99c52659329f1b16e6db69881cdfc6125d6c','main_read':main,'updated_at':now}
+          rows={
+          'G10.5.1':'| G10.5.1 | 编译效率复核、加权性能与真实覆盖扩展 | 进行中 | P1 | Chat编译专项 | PR65/70/75/76/78/79已合；.10定位闭包Types/函数补丁不准入与helper大组，先修匿名体重复发射。32闭包编辑仍约2.20倍原Rust、约1.73倍可恢复失败Rust；整体Rust90运行门及通用闭包增量未通过，不把阶段进展当父门完成。 |',
+          'G10.5.1.10':'| G10.5.1.10 | 闭包失效范围审计与分区后匿名体内部化 | 已合入·有限阶段 | — | Chat直接复核 · PR79 | main099d0af9/tree65a48d41；两套完整CI各5896/5782/70通过。1800编译/864清理故障观察，32闭包编辑571.742→523.713ms，四频率省0.434%–0.730%；64/空环境既有Rust90失败保持false，无新增越门。见[合入与未关闭范围](records/compiler-closure-linkage-merge.json)。 |',
+          'G10.5.1.11':'| G10.5.1.11 | 资源闭包端到端细粒度增量与后端分区 | 待执行 | P1 | 待派 | .10已确认99/109定义由内部helper强制合组；先区分可共享代码和必须保持身份的地址/全局，建立预算化helper导入与稳定分区，再扩大环境布局/清理/ABI依赖键；不能直接删除标量准入保护。静态Drop分类为后续独立切口，需保持既有反例和运行质量。 |'}
+          for attempt in range(3):
+              run('git','fetch','--no-tags','origin','refs/heads/goal');before=run('git','rev-parse','FETCH_HEAD').stdout.strip()
+              work=Path(os.environ['RUNNER_TEMP'])/('linkage-goal-'+str(attempt));run('git','worktree','add','--detach',str(work),before)
+              f=work/'goal.md';lines=f.read_text().splitlines();seen=set();out=[]
+              for line in lines:
+                  key=next((key for key in rows if line.startswith('| '+key+' |')),None)
+                  if key:assert key not in seen;seen.add(key);line=rows[key]
+                  out.append(line)
+              assert 'G10.5.1' in seen
+              anchor=next(i for i,line in enumerate(out) if line.startswith('| G10.5.1.9 |'))+1
+              for key in ['G10.5.1.10','G10.5.1.11']:
+                  if key not in seen:out.insert(anchor,rows[key]);anchor+=1
+              f.write_text('\n'.join(out)+'\n');(work/'records').mkdir(exist_ok=True)
+              (work/'records/compiler-closure-linkage-merge.json').write_text(json.dumps(record,ensure_ascii=False,indent=2)+'\n')
+              run('git','add','goal.md','records/compiler-closure-linkage-merge.json',cwd=work)
+              run('git','-c','user.name=github-actions[bot]','-c','user.email=41898282+github-actions[bot]@users.noreply.github.com','commit','-m','Record scoped closure linkage improvement and unresolved end-to-end incremental boundaries',cwd=work)
+              result=run('git','push','origin','HEAD:refs/heads/goal',cwd=work,check=False)
+              if result.returncode==0:break
+          else:raise RuntimeError('goal changed repeatedly; no force push')
+          goal=run('git','rev-parse','HEAD',cwd=work).stdout.strip();run('git','fetch','--no-tags','origin','refs/heads/goal');remote=run('git','rev-parse','FETCH_HEAD').stdout.strip();run('git','merge-base','--is-ancestor',goal,remote)
+          actual=run('git','show',remote+':goal.md').stdout;assert all(row in actual for row in rows.values())
+          ref=api('git/ref/heads/task/anonymous-closure-linkage');assert ref['object']['sha']==head
+          run('git','merge-base','--is-ancestor',head,main)
+          deletion=run('git','push','origin',':refs/heads/task/anonymous-closure-linkage',check=False)
+          saved={'merged_commit':merged,'tested_tree':tree,'main_read':main,'goal_before':before,'goal_commit':goal,'goal_readback':remote,'production_branch_deleted':deletion.returncode==0,'branch_delete_stderr':deletion.stderr,'other_branches_modified':False,'updated_at':now}
+          out=root/'.task/closure-dependencies/coordination';out.mkdir(exist_ok=True);(out/'merge.json').write_text(json.dumps(saved,ensure_ascii=False,indent=2)+'\n')
+          run('git','fetch','--no-tags','origin','refs/heads/task/compiler-closure-dependencies');assert run('git','rev-parse','FETCH_HEAD').stdout.strip()==os.environ['GITHUB_SHA']
+          run('git','add','.task/closure-dependencies/coordination/merge.json')
+          run('git','-c','user.name=github-actions[bot]','-c','user.email=41898282+github-actions[bot]@users.noreply.github.com','commit','-m','Save guarded goal readback and completed production branch cleanup')
+          run('git','push','origin','HEAD:refs/heads/task/compiler-closure-dependencies');print(json.dumps(saved,ensure_ascii=False,indent=2))
+          PY
