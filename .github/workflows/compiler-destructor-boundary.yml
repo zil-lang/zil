@@ -1,0 +1,129 @@
+name: Owning closure destructor boundary
+on:
+  push:
+    branches: [task/G10.5.1.7]
+    paths: [.github/workflows/compiler-destructor-boundary.yml]
+permissions:
+  contents: write
+concurrency:
+  group: compiler-destructor-boundary
+  cancel-in-progress: false
+jobs:
+  experiment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Exact baseline and pinned toolchain
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/drop-setup" .task/G10.5.1.7/bench
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          cargo fetch --locked
+          sudo apt-get update -qq
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/drop-llvm" > "$RUNNER_TEMP/drop-setup/llvm.log" 2>&1
+          echo "ZIL_CLANG=$RUNNER_TEMP/drop-llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/drop-llvm/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/drop-llvm/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/drop-llvm/bin" >> "$GITHUB_PATH"
+          git fetch --depth=1 --no-tags origin fc6620a3b975258643eb8f9c3ee77d868ff67a69
+          git worktree add --detach "$RUNNER_TEMP/drop-base" fc6620a3b975258643eb8f9c3ee77d868ff67a69
+          git fetch --depth=1 --no-tags origin 0caf3711441b9744ae1ba1b1699bb09c0ce839de
+          for f in corpus.py measure.py; do git show 0caf3711441b9744ae1ba1b1699bb09c0ce839de:.task/G10.5.1.6/bench/$f > .task/G10.5.1.7/bench/$f; done
+          git show 0caf3711441b9744ae1ba1b1699bb09c0ce839de:.task/G10.5.1.6/controls.py > .task/G10.5.1.7/controls.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('.task/G10.5.1.7/bench/measure.py');s=p.read_text();s=s.replace('3e4a2a2ae368380e86ea99da32d7f3eef68cf3b4','fc6620a3b975258643eb8f9c3ee77d868ff67a69');p.write_text(s)
+          PY
+      - name: Freeze source before validation
+        id: source
+        run: |
+          set -euo pipefail
+          python3 -m py_compile .task/G10.5.1.7/*.py .task/G10.5.1.7/bench/*.py
+          python3 .task/G10.5.1.7/apply.py
+          rustfmt --edition 2024 crates/zil-backend-llvm/src/emit/resource_closures.rs
+          git diff --check
+          git diff > "$RUNNER_TEMP/drop-setup/candidate.patch"
+          git add -- crates/zil-backend-llvm/src/emit/resource_closures.rs crates/zil-backend-llvm/src/emit/resource_closures/destructor_policy_tests.rs .task/G10.5.1.7/bench .task/G10.5.1.7/controls.py
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Freeze bounded owning-destructor policy and exact controls; not accepted yet'
+          git rev-parse HEAD > "$RUNNER_TEMP/drop-setup/source.txt"
+          git fetch --no-tags origin refs/heads/task/G10.5.1.7
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git push origin HEAD:refs/heads/task/G10.5.1.7
+          git archive --format=tar.gz HEAD > "$RUNNER_TEMP/drop-setup/source.tar.gz"
+          rustc -vV > "$RUNNER_TEMP/drop-setup/rustc.txt"
+      - name: Affected libraries and strict controls
+        id: controls
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/drop-tests"
+          cargo test --locked --offline -p zil-backend-llvm --features llvm-api --lib 2>&1 | tee "$RUNNER_TEMP/drop-setup/backend.log"
+          grep 'destructor_boundary_threshold_keeps_every_original_instruction_and_identity .*ok' "$RUNNER_TEMP/drop-setup/backend.log"
+          cargo test --locked --offline -p zil-llvm-api --features native --lib 2>&1 | tee "$RUNNER_TEMP/drop-setup/llvm.log"
+          cargo clippy --locked --offline -p zil-backend-llvm --features llvm-api --lib --tests -- -D warnings 2>&1 | tee "$RUNNER_TEMP/drop-setup/clippy.log"
+          cargo fmt --all -- --check
+      - name: Independent identical-profile release compilers
+        id: build
+        run: |
+          set -euo pipefail
+          CARGO_TARGET_DIR="$RUNNER_TEMP/drop-base-target" cargo build --locked --offline --release --manifest-path "$RUNNER_TEMP/drop-base/Cargo.toml" -p zil-cli > "$RUNNER_TEMP/drop-setup/base-build.log" 2>&1
+          CARGO_TARGET_DIR="$RUNNER_TEMP/drop-candidate-target" cargo build --locked --offline --release -p zil-cli > "$RUNNER_TEMP/drop-setup/candidate-build.log" 2>&1
+      - name: Cross-backend allocation-failure and cleanup-order controls
+        run: |
+          set -euo pipefail
+          python3 .task/G10.5.1.7/controls.py --base "$RUNNER_TEMP/drop-base-target/release/zil" --candidate "$RUNNER_TEMP/drop-candidate-target/release/zil" --out "$RUNNER_TEMP/drop-controls" 2>&1 | tee "$RUNNER_TEMP/drop-setup/controls.log"
+      - name: Complete frozen weighted matrix
+        run: |
+          set -euo pipefail
+          python3 .task/G10.5.1.7/bench/measure.py --base "$RUNNER_TEMP/drop-base-target/release/zil" --candidate "$RUNNER_TEMP/drop-candidate-target/release/zil" --out "$RUNNER_TEMP/drop-data" --rounds 5 2>&1 | tee "$RUNNER_TEMP/drop-setup/measure.log"
+      - name: Extended long-loop runtime guard and Rust oracle
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 .task/G10.5.1.7/quality.py --base "$RUNNER_TEMP/drop-base-target/release/zil" --candidate "$RUNNER_TEMP/drop-candidate-target/release/zil" --out "$RUNNER_TEMP/drop-quality" 2>&1 | tee "$RUNNER_TEMP/drop-setup/quality.log"
+      - name: Existing native consumers
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 tools/research/native-api-validation/validate.py --repo "$GITHUB_WORKSPACE" --cli "$RUNNER_TEMP/drop-candidate-target/release/zil" --clang "$ZIL_CLANG" --out "$RUNNER_TEMP/drop-consumer" 2>&1 | tee "$RUNNER_TEMP/drop-setup/native.log"
+      - name: Preserve source, failures and complete observations
+        if: ${{ always() }}
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib,os,json,hashlib,tarfile,shutil
+          P=pathlib.Path;t=P(os.environ['RUNNER_TEMP']);dst=P('.task/G10.5.1.7/runs')/os.environ['GITHUB_RUN_ID'];dst.mkdir(parents=True);data=t/'drop-data'
+          for n in ('manifest.json','summary.json','rows.jsonl','cells.json','failures.json','equivalence.json','runtime.jsonl'):
+              if (data/n).exists():shutil.copyfile(data/n,dst/n)
+          for folder,name in [('drop-controls','controls.json'),('drop-quality','quality.json'),('drop-consumer','consumer.json')]:
+              if (t/folder/'summary.json').exists():shutil.copyfile(t/folder/'summary.json',dst/name)
+          with tarfile.open(dst/'raw.tar.gz','w:gz') as tar:
+              for path,label in [(t/'drop-setup','setup'),(t/'drop-controls','controls'),(t/'drop-quality','quality'),(data/'logs','logs'),(data/'runtime-logs','runtime-logs'),(data/'corpus','corpus')]:
+                  if path.exists():tar.add(path,arcname=label)
+          assert (dst/'raw.tar.gz').stat().st_size<48*1024*1024
+          f=t/'drop-setup/source.txt';r={'baseline':'fc6620a3b975258643eb8f9c3ee77d868ff67a69','source':f.read_text().strip() if f.exists() else None,'recipe':os.environ['GITHUB_SHA'],'status_before_preservation':os.environ['PRIOR_STATUS'],'files':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in dst.iterdir()},'main_modified':False,'external_ai_review':False,'acceptance':'Pending direct source and numerical audit; no automatic integration'}
+          (dst/'receipt.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r,indent=2))
+          PY
+          git fetch --no-tags origin refs/heads/task/G10.5.1.7
+          expected="$GITHUB_SHA"; if test -f "$RUNNER_TEMP/drop-setup/source.txt"; then expected="$(cat "$RUNNER_TEMP/drop-setup/source.txt")"; fi
+          test "$(git rev-parse FETCH_HEAD)" = "$expected"
+          git add -- ".task/G10.5.1.7/runs/$GITHUB_RUN_ID"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Preserve destructor-boundary experiment $GITHUB_RUN_ID including performance failures"
+          git push origin HEAD:refs/heads/task/G10.5.1.7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: destructor-boundary-${{ github.run_id }}
+          path: .task/G10.5.1.7
+          retention-days: 30
