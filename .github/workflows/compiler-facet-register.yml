@@ -1,0 +1,72 @@
+name: Register signature-facet compiler evidence
+on:
+  push:
+    branches: [task/G10.5.1.3]
+    paths: [.github/workflows/compiler-facet-register.yml]
+permissions:
+  contents: write
+jobs:
+  record:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Record measured scope in goal with a non-forced concurrency guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,datetime,json,pathlib,re,subprocess
+          P=pathlib.Path
+          def api(path, method='GET', payload=None):
+              args=['gh','api','--method',method,'repos/zil-lang/zil/'+path]
+              if payload is not None:args+=['--input','-']
+              p=subprocess.run(args,input=None if payload is None else json.dumps(payload),text=True,capture_output=True)
+              if p.returncode:raise RuntimeError(p.stderr[:1500])
+              return json.loads(p.stdout) if p.stdout.strip() else None
+          root=P('.task/G10.5.1.3'); data=root/'runs/42732688502'
+          receipt=json.loads((data/'receipt.json').read_text());summary=json.loads((data/'summary.json').read_text())
+          assert receipt['measured_source']=='95af0f0c205a0892e6087f5304ad9981461a7fed'
+          assert summary['compile_requests']==2016 and summary['failures']==0 and summary['text_pairs_equal']
+          run=api('actions/runs/42732688502');assert run['status']=='completed' and run['conclusion']=='success'
+          row='| G10.5.1.3 | 标量Types签名依赖分面及主线Rust对照 | 待验收 | P1 | Chat编译专项 | task/G10.5.1.3，基线e69091059/受测95af0f0c。2016编译/1680正式、4320输出、576代码段一致、288运行及195两库通过；签名Check约省11%–12%，四组整体加权仅省0.18%–0.37%，保留未合。owned32编辑899ms/Rust242ms；shared4096运行未达90%Rust。见[记录](records/compiler-signature-facets.json)。 |'
+          record={'task':'G10.5.1.3','status':'Hold: targeted signature-edit benefit; small aggregate improvement; not integrated',
+              'baseline':receipt['baseline'],'measured_source':receipt['measured_source'],'run':'https://github.com/zil-lang/zil/actions/runs/42732688502',
+              'source_branch':'task/G10.5.1.3','results':'https://github.com/zil-lang/zil/blob/task/G10.5.1.3/.task/G10.5.1.3/RESULTS.md',
+              'compile_requests':2016,'formal_requests':1680,'native_output_checks':4320,'current_verify_requests':1728,
+              'machine_code_equal_pairs':576,'runtime_requests':288,'affected_library_tests':195,'focused_tests_subset':10,
+              'native_consumer_builds':16,'native_consumer_observations':128,'profiles':summary['profiles'],
+              'weights':'predeclared usage hypotheses, not telemetry','review':'Current Chat and implementation-authored mechanical audit; not external independent review',
+              'external_ai_review_requested':False,'main_modified':False,
+              'open':['general trait/resource/closure incremental semantics','stable identities across insertion','runtime-quality-aware partitioning','build-level Fresh','historical Stage15 regression bisection','industrial ZIL application ports'],
+              'updated_at':datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).isoformat()}
+          for attempt in range(3):
+              before=api('git/ref/heads/goal')['object']['sha'];base=api('git/commits/'+before)['tree']['sha']
+              obj=api('contents/goal.md?ref='+before);text=base64.b64decode(obj['content']).decode()
+              pattern=r'^\| G10\.5\.1\.3 \|.*$'
+              if re.search(pattern,text,re.M):text=re.sub(pattern,lambda _:row,text,flags=re.M)
+              else:
+                  start=text.index('<summary>G10.5 · 子任务</summary>');end=text.index('\n</details>',start)
+                  text=text[:end].rstrip()+'\n'+row+'\n'+text[end:]
+              record['goal_read_sha']=before
+              tree=api('git/trees','POST',{'base_tree':base,'tree':[{'path':'goal.md','mode':'100644','type':'blob','content':text},{'path':'records/compiler-signature-facets.json','mode':'100644','type':'blob','content':json.dumps(record,ensure_ascii=False,indent=2)+'\n'}]})
+              commit=api('git/commits','POST',{'message':'Record finite signature dependency results and remaining compile bottlenecks','tree':tree['sha'],'parents':[before]})
+              try:api('git/refs/heads/goal','PATCH',{'sha':commit['sha'],'force':False})
+              except RuntimeError:
+                  if api('git/ref/heads/goal')['object']['sha']!=before:continue
+                  raise
+              readback=api('contents/goal.md?ref='+commit['sha']);assert row in base64.b64decode(readback['content']).decode()
+              status={'goal_commit':commit['sha'],'goal_read_before':before,'goal_blob_readback':readback['sha'],'task_row_confirmed':True,'main_modified':False,'measured_source':receipt['measured_source'],'updated_at':record['updated_at']}
+              (root/'goal-update.json').write_text(json.dumps(status,indent=2)+'\n');print(json.dumps(status,indent=2));break
+          else:raise RuntimeError('Goal changed repeatedly; no forced update')
+          PY
+          git fetch --no-tags origin refs/heads/task/G10.5.1.3
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git add -- .task/G10.5.1.3/goal-update.json
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Preserve signature-facet goal readback; no main changes'
+          git push origin HEAD:refs/heads/task/G10.5.1.3
