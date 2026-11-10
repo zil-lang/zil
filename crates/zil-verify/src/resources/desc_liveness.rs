@@ -187,5 +187,129 @@ fn dense(
     Ok(History::Dense(after))
 }
 
+// One immutable actual function/selected graph for this resource-check request.
+// Slots themselves are always rebuilt; only an exactly matching description
+// coordinate inventory can reuse this permission-free after table.
+pub(super) struct Binding<'a> {
+    f: &'a TypedFunction,
+    graph: &'a FunctionGraph,
+    entry: Option<Entry>,
+}
+struct Entry {
+    count: usize,
+    local: Vec<Option<usize>>,
+    value: Vec<Option<usize>>,
+    history: History,
+}
+pub(super) enum After<'a> {
+    Owned(History),
+    Borrowed(&'a History),
+}
+impl After<'_> {
+    fn wrapper_work() -> usize {
+        // Bound both transfers of this actual enum record, its selection,
+        // the later history selector, and eventual wrapper drop. The borrowed
+        // alternative never clones or deep-drops the retained History.
+        std::mem::size_of::<Self>()
+            .div_ceil(std::mem::size_of::<usize>())
+            .saturating_mul(2)
+            .saturating_add(3)
+    }
+    pub(super) fn history(&self) -> &History {
+        match self {
+            Self::Owned(history) => history,
+            Self::Borrowed(history) => history,
+        }
+    }
+}
+impl<'a> Binding<'a> {
+    pub(super) fn new(f: &'a TypedFunction, graph: &'a FunctionGraph) -> Self {
+        Self {
+            f,
+            graph,
+            entry: None,
+        }
+    }
+    pub(super) fn function(&self) -> &'a TypedFunction {
+        self.f
+    }
+    pub(super) fn graph(&self) -> &'a FunctionGraph {
+        self.graph
+    }
+    pub(super) fn after(&mut self, slots: &Slots, b: &mut Budget) -> Check<After<'_>> {
+        b.spend(After::wrapper_work())?;
+        if slots.desc_count <= SMALL {
+            return Ok(After::Owned(liveness(self.f, self.graph, slots, b)?));
+        }
+        b.spend(1)?; // entry presence
+        let matches = if let Some(entry) = &self.entry {
+            b.spend(9)?; // three complete scalar comparisons: two reads and comparison each
+            if entry.count != slots.desc_count
+                || entry.local.len() != slots.desc_local.len()
+                || entry.value.len() != slots.desc_value.len()
+            {
+                false
+            } else {
+                let mut matches = true;
+                for (old, new) in entry
+                    .local
+                    .iter()
+                    .zip(&slots.desc_local)
+                    .chain(entry.value.iter().zip(&slots.desc_value))
+                {
+                    b.spend(3)?; // two Option discriminants and comparison
+                    match (old, new) {
+                        (Some(old), Some(new)) => {
+                            b.spend(3)?; // two actual ordinal reads and comparison
+                            matches &= old == new;
+                        }
+                        (None, None) => {}
+                        _ => matches = false,
+                    }
+                }
+                matches
+            }
+        } else {
+            false
+        };
+        b.spend(1)?; // actual entry/history borrow, before any publication
+        if !matches {
+            // Full original solve/build remains at the original after position.
+            // Publication and all key allocations follow complete success.
+            let history = liveness(self.f, self.graph, slots, b)?;
+            let words = std::mem::size_of::<Option<usize>>().div_ceil(std::mem::size_of::<usize>());
+            let entry_words = std::mem::size_of::<Entry>().div_ceil(std::mem::size_of::<usize>());
+            let slot_words =
+                std::mem::size_of::<Option<Entry>>().div_ceil(std::mem::size_of::<usize>());
+            b.spend(
+                slots
+                    .desc_local
+                    .len()
+                    .saturating_add(slots.desc_value.len())
+                    .saturating_mul(words.saturating_mul(2))
+                    .saturating_add(entry_words)
+                    .saturating_add(slot_words)
+                    .saturating_add(5),
+            )?;
+            // Read/write every actual Option<usize> key word, construct and
+            // publish both complete records, fund both key allocations/releases
+            // and the replaced optional-slot dispatch. Final entry dispatch is
+            // already prepaid by the binding table. History moves
+            // uniquely; its unchanged original build already funds deep release.
+            let entry = Entry {
+                count: slots.desc_count,
+                local: slots.desc_local.clone(),
+                value: slots.desc_value.clone(),
+                history,
+            };
+            self.entry = Some(entry);
+        }
+        Ok(After::Borrowed(&self.entry.as_ref().unwrap().history))
+    }
+}
+
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod reuse_tests;
