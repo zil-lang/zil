@@ -18,7 +18,7 @@ PR73从main21b1最小提取五个生产文件，补重借用与RHS准备失败�
 
 旧三条混合ref的已交付部分由main承载，Store已合PR73，未完Map和一般语言能力由上述入口及本看板承接；共享读预检d2bc7accd等未采用候选保留在固定归档，须有当前完整消费者净收益才采用。本轮用户说明已解决旧“等待明确确认”的接续歧义；实际删除情况以接续记录为准。此前退役13条原ref和PR71临时ref、原自动审批拒绝及首败仍保留在[历史分支核对](records/branch-reconciliation-20261110.json)，不改写历史。
 
-Map原5008B与7583B库保持原字节。发布f3b6e310与执行99e542b同tree69ee1876；默认Analyze及全部68次Sum摘要、34次Sum最终核验完成，Verify全库551/551、非native组9/10，原Map仍Verify ResourceLimit、V1。第9同费账本确认初始化真实表示使完整Sum净省113190，包含小库存及其他函数退化；首资源records已通过冷CFG活跃性固定点，历史快照完成76块后余224拒576，尚未进入Transfer，继续最小历史表示片。Set/refill与7来源控制（含Source/raw/Wire反例）保持；Analyze262全库与strict属较早绑定证据，当前完整门及原16构建/64native待验。源码、完整旧oracle、精确边界及必要证据见[语言接续](records/ordinary-collections-continuation.json)，Map及语言1.0父门仍开放。
+Map原5008B与7583B库保持原字节。最新发布88006c25/执行a168bff6同tree，Verify全库562/562、原Source组9/10，唯一Map仍默认Verify限额。Analyze、全部Sum及资源历史已过；真实字段布局计入全部新增费用后，共同已完前缀净省11330，当前资源已完成72次复制/32个Transfer/2次合流。旧pin6503→6679的净增176已实测独审，所有精确边界保留。下一步按实际摘要读取依赖减少重复求解，全部最终body核验保留；原16build/64native与当前严格门待验，Map及1.0父门仍开放，详[语言接续](records/ordinary-collections-continuation.json)。
 
 ## G1 · 基础类型与模式
 
@@ -424,7 +424,7 @@ Map原5008B与7583B库保持原字节。发布f3b6e310与执行99e542b同tree69e
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | Chat语言接续 · task/ordinary-collections；两核独立复核 | 发布f3b6e310/执行99e542b同tree；原输入/完整旧oracle不变。Analyze与全部Sum完成，Verify551/551、非native9/10；唯一Map仍默认Verify限额。首资源cold CFG已过，历史快照76块后拒576；继续有实际热点依据的最小历史表示，原16build/64native和当前严格门待验，详接续记录。 |
+| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | Chat语言接续 · task/ordinary-collections；两核独立复核 | 发布88006c25/执行a168同tree；原输入、旧oracle与全部精确边界保留。Verify562/562、Source9/10，原Map已过Analyze/Sum/完整历史，在资源State复制仍默认限额。字段布局共同已完前缀净省11330；下一步实际摘要依赖调度，最终body全验保留。原16build/64native和当前严格门待验，详接续记录。 |
 
 </details>
 
