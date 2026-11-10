@@ -1,0 +1,114 @@
+{
+  "task": "G10.5.1.9",
+  "pr": 78,
+  "source": "e19b40dc662fa1c91603acebf5e74bcb5fdce883",
+  "merged_commit": "947063a63880b375889ff30b3beba6151abf55f3",
+  "tested_tree": "53a96a7507fbedb0d00c342e1609693320f03f96",
+  "production_blobs": {
+    "crates/zil-cli/src/main.rs": "edcef8b3bc171929b6efa05aeb6624e40a93434d",
+    "crates/zil-cli/src/resident.rs": "1bd388c12161c45a91f48409a1b7dde415f765ca",
+    "crates/zil-cli/tests/resident_session.rs": "16f15eff626905ead65a9e5bc901e57be37ac1cb",
+    "docs/guide/resident-compilation.md": "caad9c0580168c29ee281b6405713ea250d35a06"
+  },
+  "ci_runs": [
+    42814194622,
+    42814194709,
+    42814194782
+  ],
+  "ci_each": {
+    "workspace": 5893,
+    "reference": 5779,
+    "text": 70,
+    "failed": 0
+  },
+  "paired_run": 42818577639,
+  "paired_scope": "same release CLI directly spawned fresh versus resident; Rust actual incremental O2 only owned8/owned32; no adapter startup or estimated subtraction",
+  "compile_requests": 1800,
+  "current_verify_requests": 1728,
+  "formal_requests": 1500,
+  "native_output_checks": 3672,
+  "equal_machine_pairs": 576,
+  "runtime_measurements": 216,
+  "weighted_reduction_range_percent": [
+    2.3847864983447042,
+    10.636466860066928
+  ],
+  "memory": {
+    "largest_case_observed_current_rss_mib": 922.5,
+    "same_case_fresh_peak_rss_mib": 563.504,
+    "raw_entries": 32,
+    "default_reset_requests": 64,
+    "hard_byte_limit": false
+  },
+  "retention_probe": {
+    "complete": true,
+    "requests": 80,
+    "resets": 5,
+    "fresh_oracle_checks": 10,
+    "rss_mib_by_epoch_end": [
+      55.515625,
+      55.90625,
+      55.87109375,
+      56.11328125,
+      56.17578125
+    ],
+    "max_rss_mib": 57.25,
+    "byte_limit_claimed": false,
+    "stderr": ""
+  },
+  "review": "current Chat direct source review and mechanical evidence audit, explicitly authorized; not external/non-author review",
+  "main_readback": "947063a63880b375889ff30b3beba6151abf55f3",
+  "updated_at": "2026-11-10T21:12:43.657782+08:00",
+  "earlier_adapter_run": 42813461514,
+  "profiles": [
+    {
+      "profile": "interactive/edit",
+      "mean_ms": {
+        "base": 270.32625711715,
+        "cand": 241.57309436482504
+      },
+      "reduction": 0.10636466860066929,
+      "seconds_saved_per_1000": 28.753162752324982
+    },
+    {
+      "profile": "interactive/clean",
+      "mean_ms": {
+        "base": 402.695167879275,
+        "cand": 382.6849518473375
+      },
+      "reduction": 0.04969072794520446,
+      "seconds_saved_per_1000": 20.01021603193749
+    },
+    {
+      "profile": "release/edit",
+      "mean_ms": {
+        "base": 488.062004633025,
+        "cand": 457.338104583225
+      },
+      "reduction": 0.06295081313060091,
+      "seconds_saved_per_1000": 30.723900049800022
+    },
+    {
+      "profile": "release/clean",
+      "mean_ms": {
+        "base": 800.8351924304875,
+        "cand": 781.7369828874124
+      },
+      "reduction": 0.023847864983447042,
+      "seconds_saved_per_1000": 19.098209543075086
+    }
+  ],
+  "rust_resource_O2_body_edit_ms": {
+    "owned8": {
+      "fresh": 107.912,
+      "resident": 96.5,
+      "rust": 96.301
+    },
+    "owned32": {
+      "fresh": 463.327,
+      "resident": 447.199,
+      "rust": 194.49
+    }
+  },
+  "bookkeeping_failure_retained": 42821058227
+}

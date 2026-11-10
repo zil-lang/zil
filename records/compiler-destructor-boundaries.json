@@ -1,0 +1,33 @@
+{
+  "tasks": [
+    "G10.5.1.7",
+    "G10.5.1.8"
+  ],
+  "PR77": "Not accepted: added inactive neighbors run42800092569 show10.6%-35.6% runtime regression",
+  "package_candidate": "9c86678fcff3a0a8b6ffff6c17de487d8aab928c",
+  "package_run": 42814450893,
+  "previous_unactivated_run": 42809768403,
+  "compile_requests": 1800,
+  "formal_requests": 1500,
+  "current_verify_requests": 1728,
+  "outputs": 3672,
+  "active_runtime_measurements": 900,
+  "neighbor_runtime_measurements": 480,
+  "failure_cleanup_observations": 864,
+  "weighted_reduction_range_percent": [
+    0.998,
+    2.838
+  ],
+  "runtime_blocker": {
+    "case": "owned32/base/depth0",
+    "base_ms": 20.625702,
+    "candidate_ms": 24.402913,
+    "rust_ms": 24.085234,
+    "increase_percent": 18.3131
+  },
+  "neighbor_introduced_regression_fixed": true,
+  "limits_or_inputs_weakened": false,
+  "merged": false,
+  "evidence": "https://github.com/zil-lang/zil/blob/04e6b1226e303995583a17ee3e88e9ca76587a01/.task/G10.5.1.8/RESULTS.md",
+  "updated_at": "2026-11-10T21:12:43.657782+08:00"
+}
