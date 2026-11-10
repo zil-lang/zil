@@ -1,0 +1,24 @@
+{
+  "baseline": "fc6620a3b975258643eb8f9c3ee77d868ff67a69",
+  "source": "9c86678fcff3a0a8b6ffff6c17de487d8aab928c",
+  "recipe": "3598448176aea7e50c906bca7656426dc5382510",
+  "prior_unactivated_scope_run": 42809768403,
+  "prior_runtime_counterexample": 42800092569,
+  "status_before_preservation": "success",
+  "files": {
+    "controls.json": "519c90e3a450fe53367ae55070e63d3412073c815ff859dd696c151062c656c3",
+    "failures.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "neighbors.json": "b1d07a0aa273f1e3e80281c6703c8d1d305fd700c1b2e73d721dad1665c11e7e",
+    "manifest.json": "b8bbe1a72fb5be1f40d85ee280d6c2744137c05314cd18c12a197c3bfbe366a1",
+    "quality.json": "c024445af2b031ebf81db1e2030fb9b794154490b79241f21ea47ea43d358aa7",
+    "runtime.jsonl": "cb9aafbd3bb3dcba439c13b3071eb02e9e6bf569cb9f071aa092cce5850556aa",
+    "consumer.json": "e466127a55a062df9c833138adb2d98b1086e1c386069a1dc60b95055c29e07f",
+    "equivalence.json": "7363c50518d78a5c80e800fe7d1740b074c8ff41749665a6fb4a61e665ed4f0e",
+    "rows.jsonl": "e33cef070711f8a74d377f19ddd8dfbb5c3fd84017043e4961b1c3c130756372",
+    "raw.tar.gz": "b8f749b48306b7032703a5bd65d2f30c51f0d13d331275cd3caba607f24a5017",
+    "summary.json": "814e7b5b90725e706df8ae7b197b89a7ea0ad83d5807771c5626865ae9b4ea63",
+    "cells.json": "def04783d690170be8514bcd58da2873fab49db62638e05e0b9f95720f4d411e"
+  },
+  "main_modified": false,
+  "acceptance": "Pending activated-source and complete quality/weighted audit"
+}
