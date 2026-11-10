@@ -1,0 +1,114 @@
+name: Resident CLI complete recheck
+on:
+  push:
+    branches: [task/compiler-resident-cli]
+    paths: [.github/workflows/compiler-resident-cli-recheck.yml]
+permissions:
+  contents: write
+jobs:
+  experiment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Exact unchanged production source and pinned tools
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/resident-cli-setup"
+          test "$(git rev-parse HEAD:crates/zil-cli/src/main.rs)" = edcef8b3bc171929b6efa05aeb6624e40a93434d
+          test "$(git rev-parse HEAD:crates/zil-cli/src/resident.rs)" = 1bd388c12161c45a91f48409a1b7dde415f765ca
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          cargo fetch --locked
+          sudo apt-get update -qq
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/resident-cli-llvm" > "$RUNNER_TEMP/resident-cli-setup/llvm.log" 2>&1
+          echo "ZIL_CLANG=$RUNNER_TEMP/resident-cli-llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/resident-cli-llvm/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/resident-cli-llvm/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/resident-cli-llvm/bin" >> "$GITHUB_PATH"
+      - name: Preserve stress-fixture correction and original failure identity
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('.task/resident-cli/lifetime.py');s=p.read_text();assert 'fn f{i}(' in s and 'return f0(1)' in s
+          s=s.replace('fn f{i}(', 'fn resident_probe_{i}(').replace('return f0(1)', 'return resident_probe_0(1)');p.write_text(s)
+          PY
+          python3 -m py_compile .task/resident-cli/*.py .task/resident-cli/bench/*.py
+          git diff --check
+          git add .task/resident-cli/lifetime.py
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Avoid builtin f32/f64 names in separate retention stress; original failed run retained'
+          git rev-parse HEAD > "$RUNNER_TEMP/resident-cli-setup/source.txt"
+          git fetch --no-tags origin refs/heads/task/compiler-resident-cli
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git push origin HEAD:refs/heads/task/compiler-resident-cli
+          rustc -vV > "$RUNNER_TEMP/resident-cli-setup/rustc.txt"
+      - name: Entire CLI API/reference and driver controls
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/resident-cli-tests"
+          cargo test --locked --offline -p zil-cli 2>&1 | tee "$RUNNER_TEMP/resident-cli-setup/cli.log"
+          grep 'resident_reopens_changed_manifests_and_rejects_stale_dependency_locks .*ok' "$RUNNER_TEMP/resident-cli-setup/cli.log"
+          cargo test --locked --offline -p zil-cli --no-default-features 2>&1 | tee "$RUNNER_TEMP/resident-cli-setup/reference.log"
+          cargo test --locked --offline -p zil-driver --features llvm-api --lib 2>&1 | tee "$RUNNER_TEMP/resident-cli-setup/driver.log"
+          cargo clippy --locked --offline -p zil-cli --all-targets -- -D warnings 2>&1 | tee "$RUNNER_TEMP/resident-cli-setup/clippy.log"
+          cargo fmt --all -- --check
+      - name: Same release CLI for both arms
+        id: build
+        run: |
+          set -euo pipefail
+          CARGO_TARGET_DIR="$RUNNER_TEMP/resident-cli-target" cargo build --locked --offline --release -p zil-cli > "$RUNNER_TEMP/resident-cli-setup/build.log" 2>&1
+          echo "ZIL_RESIDENT_CLI=$RUNNER_TEMP/resident-cli-target/release/zil" >> "$GITHUB_ENV"
+      - name: Repeated edits reset and fresh equivalence
+        run: |
+          set -euo pipefail
+          python3 .task/resident-cli/lifetime.py --cli "$ZIL_RESIDENT_CLI" --out "$RUNNER_TEMP/resident-cli-lifetime" 2>&1 | tee "$RUNNER_TEMP/resident-cli-setup/lifetime.log"
+      - name: Fixed eight-case complete latency memory and code matrix
+        run: |
+          set -euo pipefail
+          python3 .task/resident-cli/bench/measure.py --base "$ZIL_RESIDENT_CLI" --candidate "$GITHUB_WORKSPACE/.task/resident-cli/adapter.py" --out "$RUNNER_TEMP/resident-cli-data" --rounds 5 2>&1 | tee "$RUNNER_TEMP/resident-cli-setup/measure.log"
+      - name: Native resource failure consumers
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 tools/research/native-api-validation/validate.py --repo "$GITHUB_WORKSPACE" --cli "$ZIL_RESIDENT_CLI" --clang "$ZIL_CLANG" --out "$RUNNER_TEMP/resident-cli-consumer" > "$RUNNER_TEMP/resident-cli-setup/consumer.log" 2>&1
+      - name: Preserve full current evidence and prior failure
+        if: ${{ always() }}
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib,os,json,hashlib,tarfile,shutil
+          P=pathlib.Path;t=P(os.environ['RUNNER_TEMP']);d=P('.task/resident-cli/runs')/os.environ['GITHUB_RUN_ID'];d.mkdir(parents=True);data=t/'resident-cli-data'
+          for n in ('manifest.json','summary.json','rows.jsonl','cells.json','failures.json','equivalence.json','runtime.jsonl'):
+              if (data/n).exists():shutil.copyfile(data/n,d/n)
+          for folder,name in [('resident-cli-lifetime','lifetime.json'),('resident-cli-consumer','consumer.json')]:
+              if (t/folder/'summary.json').exists():shutil.copyfile(t/folder/'summary.json',d/name)
+          with tarfile.open(d/'raw.tar.gz','w:gz') as tar:
+              for path,label in [(t/'resident-cli-setup','setup'),(t/'resident-cli-lifetime','lifetime'),(data/'logs','logs'),(data/'runtime-logs','runtime-logs'),(data/'corpus','corpus')]:
+                  if path.exists():tar.add(path,arcname=label)
+          assert (d/'raw.tar.gz').stat().st_size<48*1024*1024
+          f=t/'resident-cli-setup/source.txt';r={'base_production':'fc6620a3b975258643eb8f9c3ee77d868ff67a69','source':f.read_text().strip() if f.exists() else None,'recipe':os.environ['GITHUB_SHA'],'prior_failure':42811932475,'production_unchanged_from':'02dc428f048666260eff0a4b277ef4a82efff60e','status_before_preservation':os.environ['PRIOR_STATUS'],'files':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in d.iterdir()},'main_modified':False,'acceptance':'Pending exact source and full numerical review'}
+          (d/'receipt.json').write_text(json.dumps(r,indent=2)+'\n')
+          PY
+          git fetch --no-tags origin refs/heads/task/compiler-resident-cli
+          expected="$GITHUB_SHA"; if test -f "$RUNNER_TEMP/resident-cli-setup/source.txt"; then expected="$(cat "$RUNNER_TEMP/resident-cli-setup/source.txt")"; fi
+          test "$(git rev-parse FETCH_HEAD)" = "$expected"
+          git add -- ".task/resident-cli/runs/$GITHUB_RUN_ID"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Preserve complete resident CLI recheck $GITHUB_RUN_ID"
+          git push origin HEAD:refs/heads/task/compiler-resident-cli
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: resident-cli-recheck-${{ github.run_id }}
+          path: .task/resident-cli/runs/${{ github.run_id }}
+          retention-days: 30
