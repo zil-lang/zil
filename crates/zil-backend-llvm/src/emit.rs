@@ -665,7 +665,7 @@ fn lower_function_batch(
             abi_plans: copy_plans,
             unsupported_large_copy: false,
         }
-        .emit(cleanup_tails::plan(
+        .emit_with_cleanup(cleanup_tails::plan(
             function,
             verified.limits(),
             task_worker || verified.task_ownership(function.id).is_some(),
@@ -1455,7 +1455,14 @@ struct FunctionEmitter<'a> {
 }
 
 impl FunctionEmitter<'_> {
-    fn emit(mut self, cleanup: Option<cleanup_tails::Plan<'_>>) -> CompileResult<m::Code> {
+    #[cfg(test)]
+    fn emit(self) -> CompileResult<m::Code> {
+        self.emit_with_cleanup(None)
+    }
+    fn emit_with_cleanup(
+        mut self,
+        cleanup: Option<cleanup_tails::Plan<'_>>,
+    ) -> CompileResult<m::Code> {
         let mut parameters = self
             .function
             .parameters

@@ -240,7 +240,11 @@ mod tests {
                             kind: InstructionKind::DropManaged {
                                 local: LocalId(local),
                             },
-                            span: Span::new(zil_base::FileId(id as u32), local, local + 1),
+                            span: Span::new(
+                                zil_base::FileId(id as u32),
+                                local as usize,
+                                local as usize + 1,
+                            ),
                         })
                         .collect(),
                     terminator: Terminator::Return(None),
