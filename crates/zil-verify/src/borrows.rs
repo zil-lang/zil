@@ -156,17 +156,6 @@ fn roots_join(target: &mut Roots, source: &[Root], budget: &mut Budget) -> Check
     }
     Ok(changed)
 }
-fn bits_join(target: &mut [bool], source: &[bool], budget: &mut Budget) -> Check<bool> {
-    budget.spend(target.len())?;
-    let mut changed = false;
-    for (a, b) in target.iter_mut().zip(source) {
-        if *b && !*a {
-            *a = true;
-            changed = true;
-        }
-    }
-    Ok(changed)
-}
 fn local_transfer(
     state: &mut State,
     instruction: &Instruction,
