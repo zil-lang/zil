@@ -5,6 +5,8 @@ use crate::place_replacements::{Inventory, actual};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 mod retirement;
+pub(super) use retirement::Rows as RetirementRows;
+#[cfg(test)]
 pub(super) use retirement::Sources;
 pub(super) struct Plan {
     actual: actual::Program,
