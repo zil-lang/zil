@@ -1,0 +1,31 @@
+{
+  "baseline": "099d0af969a51260355437603b77d3f9030d83bc",
+  "source": "2f72d82ce43fe58b3e2786b4ace5f42d74fc9749",
+  "recipe": "b5fc80371b15c68b72be1054f252ad8d1a2b1f1e",
+  "status_before_preservation": "success",
+  "main_modified": false,
+  "external_ai_review": false,
+  "original_weights_unchanged": true,
+  "multi_cases_are_separate": true,
+  "files": {
+    "omitted-rebuildable-elf.json": "992d144a6bee6b7ea89d083fccbcc0720952287816bfba59df367ec5fe5060e0",
+    "raw.tar.gz": "b04ed09ff657e5a5b2280a28cfa4f936bb9f8d25a985053d59d2f8150fd3f5f8",
+    "multi/manifest.json": "8755847d4df069f87f811f816f0f40fd37e3b132e8f5dd232742d13b5477db67",
+    "multi/runtime.jsonl": "a7c9946bcb1c531915ed9ee35fc38362d18a52cce99ded0f6b0a17a3613d7bef",
+    "multi/rows.jsonl": "9f40b2803817c5dcb4e9893439524138c26848faf30a73d9f9d951ce525a4b98",
+    "multi/summary.json": "c3234d1d90353589a49031107507424e6af8e8f422136c8f20a6b5c6b311b686",
+    "neighbors/summary.json": "1e5cddb2cad64db10217fa676c8fd68cc11d6764f691da0d410a251ec8025473",
+    "multi-controls/summary.json": "6c13f2f8e420400a78905ccadcdd86de9e9d7ae9dda76547c253be7c2e4ee4e6",
+    "primary/failures.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "primary/manifest.json": "5a2e91664fae2ad009dec60ae3d6a6edbeb5258acb288df8d20feb1f31aa659a",
+    "primary/runtime.jsonl": "2068c76996107e2f53e6138d788b9148e91d87724b6085088fe62347832c576f",
+    "primary/equivalence.json": "8993067a3c36761d7a07434566a5370584e2294890a9802ecde89b6fd8063404",
+    "primary/rows.jsonl": "bcaadfa4ddfb9f32380c8737c83b04ca6949bed74d5e3fae135a5c799d00359d",
+    "primary/summary.json": "0d4bf543956d37ae042c1482d779394260035b26c4c5f973d391aae97d6cacd5",
+    "primary/cells.json": "d5d748485b114da00e9059854ea06931b88ac5e5aa50acb012510bf25dfb1757",
+    "consumer/summary.json": "76814eb292c47cd9cd4362a2704de5dbf8746cc4627b695a9a7c9ff034a2e7c1",
+    "controls/summary.json": "a211f553918d40635bae52568c96161c52c64b37a3568acb137a9394057ab087",
+    "quality/summary.json": "bac491828ddcc32107a64304d63acae769b70a840b45ee694f57f9e2bde825ae"
+  },
+  "acceptance": "Requires complete source/current-input/quality and absolute-wait review, not workflow status"
+}
