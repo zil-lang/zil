@@ -172,6 +172,15 @@ fn growing_map_set_native_rehash_and_every_allocation_failure_preserve_owners() 
                         format!("{out:?}"),
                     )
                     .unwrap();
+                    fs::write(
+                        dir.join(format!("failure-{failure}.json")),
+                        format!(
+                            "{{\"schema\":1,\"failure\":{failure},\"exit_code\":{},\"success\":{},\"stdout_bytes\":{:?},\"stderr_bytes\":{:?}}}",
+                            out.status.code().map_or_else(|| "null".into(), |value| value.to_string()),
+                            out.status.success(), out.stdout, out.stderr,
+                        ),
+                    )
+                    .unwrap();
                     assert_eq!(
                         out.status.code(),
                         Some(0),

@@ -944,13 +944,11 @@ fn responsibility_pass_does_not_rescan_unrelated_nominal_resource_definitions() 
 
 #[test]
 fn no_package_scalar_controls_charge_resource_frontier_setup_exactly() {
-    //080 adds the dependency scan/queue;186 also visits each SSA value when
-    // preparing Package provenance. Effect inference and final checking each
-    // perform that scan, adding2*count to the old22/394 controls. These measured
-    // complete responsibility-pass N values include both setup and validation.
-    // The request-local function binding table adds22 for each one-function module.
-    // The fixture still registers a resource but has no owning/Desc locals.
-    for (count, expected_cost) in [(1, 46), (32, 480)] {
+    // These complete requests register a resource but have no owning/Desc slots.
+    // The first call constructs all local/SSA coordinates; the final call pays
+    // the mode guard and borrows the layout before the original empty-state return.
+    // Exact minima include the request table, complete publication and both calls.
+    for (count, expected_cost) in [(1, 337), (32, 616)] {
         let mut b = Body::new(Type::Unit);
         for value in 0..count {
             let local = b.storage(Type::I32);

@@ -165,8 +165,8 @@ fn full_fixture() -> TypedModule {
     module
 }
 
-// Draft test-module helper; needs the two cfg(test) Plan fragments.
-// All sixteen fields of frozen241 Slots are included, not only table lengths.
+// Compare all sixteen slot fields and both complete immutable plans,
+// including every coordinate and interval rather than only table lengths.
 #[derive(Debug, PartialEq, Eq)]
 struct SlotsSnapshot {
     managed_local: Vec<Option<usize>>,
