@@ -18,7 +18,7 @@ PR73从main21b1最小提取五个生产文件，补重借用与RHS准备失败�
 
 旧三条混合ref的已交付部分由main承载，Store已合PR73，未完Map和一般语言能力由上述入口及本看板承接；共享读预检d2bc7accd等未采用候选保留在固定归档，须有当前完整消费者净收益才采用。本轮用户说明已解决旧“等待明确确认”的接续歧义；实际删除情况以接续记录为准。此前退役13条原ref和PR71临时ref、原自动审批拒绝及首败仍保留在[历史分支核对](records/branch-reconciliation-20261110.json)，不改写历史。
 
-Map原5008B与7583B库保持原字节。完整Slots复用使Verify实费9953630/默认10000000成功；0933/发布9fde同tree9f38已过Analyze267、Verify605、原11项及16构建/64原生（48失败注入）。第19/20完整两核费用独审后，仅13数字与2注释更新为c695/发布42cf6ffa同tree d33e，七原预算门7/7及原captured12原生通过。全workspace实际6024/6037，13项额外旧预算锚待统一校准；全workspace严格Clippy、fmt、仓库结构、合同及conformance静态检查全过。当前19分支中15为编译专项全部保留，普通入口不变，仍未合入Map；详[语言接续](records/ordinary-collections-continuation.json)。
+Map原5008B与7583B库保持原字节。完整Slots复用使Verify实费9953630/默认10000000成功；0933/发布9fde同tree9f38已过Analyze267、Verify605、原11项及16构建/64原生（48失败注入），c695七原预算门7/7及原captured12原生通过。全workspace首轮6024/6037的13项旧预算锚，已由第21轮完整main099两核对照闭合：每端89默认请求、47次Analyze/64次Verify，21完整TypedModule及92份源码/Plan/Wire逐字相同。仅按实际费用更新为75379491/发布75830264同tree4051，7个受影响完整target共1019/1019、无忽略/过滤，随后7个严格与结构门均通过。没有把分批复测说成完整workspace一次全绿；[PR81](https://github.com/zil-lang/zil/pull/81)三条远端CI已启动，待通过后合入。当前19分支中15为编译专项全部保留，普通入口不变；详[语言接续](records/ordinary-collections-continuation.json)。
 
 ## G1 · 基础类型与模式
 
@@ -424,7 +424,7 @@ Map原5008B与7583B库保持原字节。完整Slots复用使Verify实费9953630/
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | Chat语言接续 · task/ordinary-collections；两核独立复核 | c695/发布42cf6ffa同tree d33e：Map原默认门与16构建/64进程已过且生产字节保全，七原费用门7/7通过。全workspace6024/6037，额外13个旧费用锚正在完整main099两核对照；严格workspaceClippy、fmt/结构/合同全过。待全部预算控制与远端CI闭合后合入，不关闭一般owning哈希。 |
+| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | Chat语言接续 · task/ordinary-collections；两核独立复核 | 75379491/发布75830264同tree4051：Map原默认门、16构建/64进程及七原费用门已过。第21轮完整旧主线两核配对闭合13项旧费用锚，完整输入/Plan/Wire一致；纯预算更新后7个完整target共1019/1019、7个strict/结构门通过。保留workspace首轮13败，不冒称完整重跑；[PR81](https://github.com/zil-lang/zil/pull/81)的三条CI执行中，待通过后合入，不关闭一般owning哈希。 |
 
 </details>
 
@@ -550,7 +550,7 @@ Map原5008B与7583B库保持原字节。完整Slots复用使Verify实费9953630/
 | --- | --- | --- | --- | --- | --- |
 | G10.6.1 | 语言初稿开发预览：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 已合入 | — | — | [PR51 验收][e-pr51]：精确源码 `a8c7953e7` 默认5190/0、参考5078/0、文本70/0；双严格检查、release、10项工程门及远端源码恢复构建运行通过。有限预览不替代 B0/完整语言。 |
 | G10.6.2 | 通用 Native 库与异步资源联合验收：精确源码、真实消费者、独审和远端恢复 | 已合入 | — | — | `main@e800b39d5`：默认5269/0、参考5157/0、文本70/0；真实联合双后端 O0/O2、3735文件远端恢复/空缓存构建、16次 API 构建/128次运行/56次故障注入均通过。[本批记录][e-native-foundations]。 |
-| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | Chat语言接续 · root集成 | 主线099d0af9含编译专项PR79，普通c695已同步。Map默认门、两核库、完整原生及七费用控制已过；全workspace6024/6037暴露13额外旧预算锚，正在统一因果校准，严格门全过。合入后同一task/ordinary-collections继续Store.push_growing（已静审倍增/失败返owner方案）。编译专项15ref由原对话负责；固定归档和状态见records/ordinary-collections-continuation.json，不关闭1.0或其他父门。 |
+| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | Chat语言接续 · root集成 | 主线099d0af9已同步。Map默认门、两核库、完整原生及七费用控制已过；第21轮完整配对闭合workspace首轮13个旧预算锚，75379491/发布75830264纯预算更新后1019/1019及7个strict/结构门通过，[PR81](https://github.com/zil-lang/zil/pull/81)三条CI执行中，待通过后合入。合入后同一task/ordinary-collections继续Store.push_growing（已静审倍增/失败返owner方案）。编译专项15ref及既有编译rows/records原样保留；固定归档和状态见records/ordinary-collections-continuation.json，不关闭1.0或其他父门。 |
 | G10.6.4 | 全量回归中的旧Store/实际callback Package准入 | 已合入 | — | — | `6c1ac6fdf`已合候选；恢复旧flat callback/Store真实root快路，保留新borrowed Product分类，84项与原CLI/window正反例专项通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.5 | 新共享构造检查的两核实际独占loan发现与旧fee保持 | 已合入 | — | — | `e5c52c936/396c183c`已合：复用付费建表，无额外扫描，原两预算控制恢复原值、28独占构造/slot控制通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.6 | 默认worker深调用与life组合栈溢出 | 已合入 | — | — | 既有递归帧修复由main@222e550af验收；source_life合流回归的子项也已由main@0e770a26e交付。原默认栈/深调用/费用控制保留。 |
