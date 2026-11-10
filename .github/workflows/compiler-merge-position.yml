@@ -1,0 +1,105 @@
+name: Exact equivalence pass placement screen
+on:
+  push:
+    branches: [task/compiler-merge-order]
+    paths: [.github/workflows/compiler-merge-position.yml]
+permissions:
+  contents: write
+jobs:
+  screen:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Pinned default compiler and LLVM pipeline
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/position-setup"
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          cargo fetch --locked
+          sudo apt-get update -qq
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/position-llvm" > "$RUNNER_TEMP/position-setup/llvm.log" 2>&1
+          echo "ZIL_CLANG=$RUNNER_TEMP/position-llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/position-llvm/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/position-llvm/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/position-llvm/bin" >> "$GITHUB_PATH"
+      - name: Generate parse-checked positions with complete cache identities
+        run: |
+          set -euo pipefail
+          python3 .task/merge-order/positions.py 2>&1 | tee "$RUNNER_TEMP/position-setup/generation.log"
+          rustfmt --edition 2024 crates/zil-llvm-api/src/lib.rs
+          python3 -m py_compile .task/merge-order/*.py .task/merge-order/bench/*.py
+          git diff --check
+          git diff > "$RUNNER_TEMP/position-setup/research.patch"
+          git add crates/zil-llvm-api/src/lib.rs crates/zil-llvm-api/src/native.rs crates/zil-llvm-api/src/research_position.rs .task/merge-order
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Freeze research-only pass placements and byte-identical input histories; never merge probe selector'
+          git rev-parse HEAD > "$RUNNER_TEMP/position-setup/source.txt"
+          git fetch --no-tags origin refs/heads/task/compiler-merge-order
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git push origin HEAD:refs/heads/task/compiler-merge-order
+          rustc -vV > "$RUNNER_TEMP/position-setup/rustc.txt"
+      - name: Function-address identity controls for each distinct pipeline
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/position-tests"
+          for pipeline in raw normalize before-inline after-inline after-cleanup default-expanded; do
+            ZIL_RESEARCH_PASS_POSITION="$pipeline" cargo test --locked --offline -p zil-llvm-api --features native,text-reference --test function_merging 2>&1 | tee "$RUNNER_TEMP/position-setup/identity-$pipeline.log"
+            grep 'test result: ok.' "$RUNNER_TEMP/position-setup/identity-$pipeline.log"
+          done
+      - name: Single release compiler for every direct screen arm
+        run: |
+          set -euo pipefail
+          CARGO_TARGET_DIR="$RUNNER_TEMP/position-target" cargo build --locked --offline --release -p zil-cli > "$RUNNER_TEMP/position-setup/build.log" 2>&1
+      - name: Equal and unequal handlers with full requests and long runtime checks
+        run: |
+          set -euo pipefail
+          python3 .task/merge-order/screen_positions.py --cli "$RUNNER_TEMP/position-target/release/zil" --out "$RUNNER_TEMP/position-data" 2>&1 | tee "$RUNNER_TEMP/position-setup/screen.log"
+      - name: Preserve all experimental source and unfavorable observations
+        if: ${{ always() }}
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,json,tarfile,hashlib,shutil
+          t=Path(os.environ['RUNNER_TEMP']);d=Path('.task/merge-order/positions-runs')/os.environ['GITHUB_RUN_ID'];d.mkdir(parents=True)
+          for n in ('summary.json','rows.jsonl','runtime.jsonl','manifest.json'):
+              p=t/'position-data'/n
+              if p.exists():shutil.copyfile(p,d/n)
+          p=Path('.task/merge-order/pipelines.json')
+          if p.exists():shutil.copyfile(p,d/'pipelines.json')
+          omitted=[]
+          with tarfile.open(d/'raw.tar.gz','w:gz') as tar:
+              for path,label in [(t/'position-setup','setup'),(t/'position-data','data')]:
+                  if path.exists():
+                      for p in path.rglob('*'):
+                          if not p.is_file() or any(x in p.parts for x in ('incremental','semantic','objects')):continue
+                          with p.open('rb') as f:is_elf=f.read(4)==b'\x7fELF'
+                          if is_elf:omitted.append({'path':label+'/'+str(p.relative_to(path)),'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'bytes':p.stat().st_size});continue
+                          tar.add(p,arcname=label+'/'+str(p.relative_to(path)))
+          (d/'omitted-elf.json').write_text(json.dumps(omitted,indent=2)+'\n')
+          f=t/'position-setup/source.txt';r={'baseline':'2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852','source':f.read_text().strip() if f.exists() else None,'recipe':os.environ['GITHUB_SHA'],'prior_raw_before_merge_runtime_failure':42924878932,'status_before_preservation':os.environ['PRIOR_STATUS'],'scope':'research-only generated pinned pass strings; focused screen, not production or weighted acceptance','files':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in d.iterdir()},'main_modified':False}
+          (d/'receipt.json').write_text(json.dumps(r,indent=2)+'\n')
+          assert (d/'raw.tar.gz').stat().st_size<48*1024*1024
+          PY
+          git fetch --no-tags origin refs/heads/task/compiler-merge-order
+          expected="$GITHUB_SHA"; if test -f "$RUNNER_TEMP/position-setup/source.txt"; then expected="$(cat "$RUNNER_TEMP/position-setup/source.txt")"; fi
+          test "$(git rev-parse FETCH_HEAD)" = "$expected"
+          git add -- ".task/merge-order/positions-runs/$GITHUB_RUN_ID"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Preserve exact pass-position screen $GITHUB_RUN_ID without main adoption"
+          git push origin HEAD:refs/heads/task/compiler-merge-order
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: merge-position-${{ github.run_id }}
+          path: .task/merge-order/positions-runs/${{ github.run_id }}
+          retention-days: 30
