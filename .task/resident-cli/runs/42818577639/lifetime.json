@@ -1,0 +1,16 @@
+{
+  "complete": true,
+  "requests": 80,
+  "resets": 5,
+  "fresh_oracle_checks": 10,
+  "rss_mib_by_epoch_end": [
+    55.515625,
+    55.90625,
+    55.87109375,
+    56.11328125,
+    56.17578125
+  ],
+  "max_rss_mib": 57.25,
+  "byte_limit_claimed": false,
+  "stderr": ""
+}

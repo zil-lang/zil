@@ -1,0 +1,23 @@
+{
+  "base_production": "fc6620a3b975258643eb8f9c3ee77d868ff67a69",
+  "production_pr": 78,
+  "production_head": "e19b40dc662fa1c91603acebf5e74bcb5fdce883",
+  "source": "82197c4dffae77a78a4387cc04246e2a8a8be583",
+  "recipe": "e6c5f58247e70d20e5ad0ce5a5c01ceba639077a",
+  "earlier_adapter_run": 42813461514,
+  "status_before_preservation": "success",
+  "files": {
+    "failures.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "manifest.json": "cc90d69a1f5fb10261a74cff0b04eb847030b869dabcbea3529ef9301a23d62f",
+    "runtime.jsonl": "df3ec640e8589596bcafe75ead3d945bd5d055562aa49076deb51c821d9fdcde",
+    "equivalence.json": "8993067a3c36761d7a07434566a5370584e2294890a9802ecde89b6fd8063404",
+    "rows.jsonl": "160baa0ed5b4c6749124e54f47d3618c9e86e76333a22ba80234cce83d424444",
+    "raw.tar.gz": "4de7cb33154ca25241c3f26708d4b770aa08dc5ef3700ee02bdc54fa810e7359",
+    "summary.json": "0247f4c2480b64b88880a2863e26c074bdfd7c55101dd135566ff56e5cd0e207",
+    "lifetime.json": "64a5d4427d64aa4bdff04f0ad89b85983f0c80580e133744fba0e1a0768d5d08",
+    "cells.json": "d8b12792e14932b75c508d078d793d8e7429e5ea35922788db0632a690917327"
+  },
+  "main_modified": false,
+  "rust_scope": "owned8/owned32 O2 only",
+  "acceptance": "Pending numerical review; no startup estimate subtracted"
+}
