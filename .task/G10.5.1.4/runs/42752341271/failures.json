@@ -1,0 +1,72 @@
+[
+  {
+    "case": "owned64",
+    "mode": "check",
+    "arm": "base",
+    "request": "cold",
+    "row": {
+      "argv": [
+        "/home/runner/work/_temp/closure-base-target/release/zil",
+        "check",
+        "/home/runner/work/_temp/closure-data/work/owned64/check/-1/base/main.zil",
+        "--json",
+        "--semantic-cache",
+        "/home/runner/work/_temp/closure-data/work/owned64/check/-1/base/semantic"
+      ],
+      "wall_ms": 70.835978,
+      "cpu_ms": 70.407,
+      "rss_kib": 59100,
+      "exit": 4,
+      "timeout": false,
+      "log": "/home/runner/work/_temp/closure-data/logs/1800",
+      "case": "owned64",
+      "group": "resource",
+      "mode": "check",
+      "request": "cold",
+      "snapshot": "base",
+      "block": -1,
+      "warmup": true,
+      "arm": "base",
+      "valid": false,
+      "verification_runs": 0,
+      "native_codegen": null
+    },
+    "stdout": "{\"status\":\"ResourceLimit\",\"phase\":\"analyze\",\"diagnostics\":[{\"phase\":\"analyze\",\"category\":\"ResourceLimit\",\"code\":\"E-RESOURCE-LIMIT\",\"message\":\"analysis budget exceeded during resource order removal\",\"span\":null,\"notes\":[]}],\"artifacts\":{},\"input_fingerprint\":\"04af103787a5fdf0666fe41a0e398416c38bed1375f6be63a8307523a919af32\",\"seconds\":0.060238957,\"cache_hit\":false,\"commands\":[],\"native_codegen\":null,\"disk_cache\":\"missing\",\"query_events\":[{\"phase\":\"parse\",\"disposition\":\"executed\"},{\"phase\":\"expand\",\"disposition\":\"executed\"},{\"phase\":\"ct\",\"disposition\":\"executed\"},{\"phase\":\"types\",\"disposition\":\"executed\"},{\"phase\":\"analyze\",\"disposition\":\"executed\"}],\"verification_runs\":0,\"source_files\":{\"0\":\"/home/runner/work/_temp/closure-data/work/owned64/check/-1/base/main.zil\"},\"scalar_interfaces\":[{\"module\":0,\"signature_fingerprint\":\"f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df\",\"implementation_fingerprint\":\"914036677ab597951b7758c98388c9cdf206be214bf42cfeba21302ca088317b\",\"contract_fingerprint\":null,\"result_origins\":null,\"callable_contracts\":null,\"callable_returns\":null,\"exports\":[]}]}\n",
+    "stderr": ""
+  },
+  {
+    "case": "owned64",
+    "mode": "check",
+    "arm": "cand",
+    "request": "cold",
+    "row": {
+      "argv": [
+        "/home/runner/work/_temp/closure-candidate-target/release/zil",
+        "check",
+        "/home/runner/work/_temp/closure-data/work/owned64/check/-1/cand/main.zil",
+        "--json",
+        "--semantic-cache",
+        "/home/runner/work/_temp/closure-data/work/owned64/check/-1/cand/semantic"
+      ],
+      "wall_ms": 71.748952,
+      "cpu_ms": 71.56400000000001,
+      "rss_kib": 59236,
+      "exit": 4,
+      "timeout": false,
+      "log": "/home/runner/work/_temp/closure-data/logs/1801",
+      "case": "owned64",
+      "group": "resource",
+      "mode": "check",
+      "request": "cold",
+      "snapshot": "base",
+      "block": -1,
+      "warmup": true,
+      "arm": "cand",
+      "valid": false,
+      "verification_runs": 0,
+      "native_codegen": null
+    },
+    "stdout": "{\"status\":\"ResourceLimit\",\"phase\":\"analyze\",\"diagnostics\":[{\"phase\":\"analyze\",\"category\":\"ResourceLimit\",\"code\":\"E-RESOURCE-LIMIT\",\"message\":\"analysis budget exceeded during resource order removal\",\"span\":null,\"notes\":[]}],\"artifacts\":{},\"input_fingerprint\":\"7ce4ae4ad1f8c2445ff9eb5041048abaa196c209070b871fe7e71788da4b8b58\",\"seconds\":0.061153564,\"cache_hit\":false,\"commands\":[],\"native_codegen\":null,\"disk_cache\":\"missing\",\"query_events\":[{\"phase\":\"parse\",\"disposition\":\"executed\"},{\"phase\":\"expand\",\"disposition\":\"executed\"},{\"phase\":\"ct\",\"disposition\":\"executed\"},{\"phase\":\"types\",\"disposition\":\"executed\"},{\"phase\":\"analyze\",\"disposition\":\"executed\"}],\"verification_runs\":0,\"source_files\":{\"0\":\"/home/runner/work/_temp/closure-data/work/owned64/check/-1/cand/main.zil\"},\"scalar_interfaces\":[{\"module\":0,\"signature_fingerprint\":\"f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df\",\"implementation_fingerprint\":\"914036677ab597951b7758c98388c9cdf206be214bf42cfeba21302ca088317b\",\"contract_fingerprint\":null,\"result_origins\":null,\"callable_contracts\":null,\"callable_returns\":null,\"exports\":[]}]}\n",
+    "stderr": ""
+  }
+]

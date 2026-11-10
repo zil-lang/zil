@@ -1,0 +1,13 @@
+{
+  "status": "Incomplete; missing or failed cells not renormalized",
+  "compile_requests": 1802,
+  "formal_requests": 1500,
+  "native_output_checks": 3672,
+  "text_pairs": 576,
+  "text_pairs_equal": false,
+  "runtime_requests": 0,
+  "profiles": [],
+  "failures": 2,
+  "independent_review": "NotRun",
+  "merge_allowed": false
+}

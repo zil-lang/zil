@@ -1,0 +1,47 @@
+{
+  "baseline": "cadc656c0caefa70827f7ec1e608a04291c8ae9f",
+  "recipe": "60f0243c65b0ff86ecd2efa5031b082123bf76f1",
+  "measured_source": "c6020297198ad60c1be06b21322248ff787ab531",
+  "status_before_preservation": "failure",
+  "files": {
+    "failures.json": {
+      "bytes": 4323,
+      "sha256": "6ca62e191803b65c39708b3a9df9d7994e8f0efb4f035e059b248c2560ea3bff"
+    },
+    "manifest.json": {
+      "bytes": 11371,
+      "sha256": "8419a052ca115fde4804179eb9741f66e5b17cf0428729f01bb2876f43222428"
+    },
+    "extra-controls.json": {
+      "bytes": 92869,
+      "sha256": "82838ebe740faf9a6d7296c48f978e52801e24ae6f824bb53768d2f2940c353d"
+    },
+    "consumer.json": {
+      "bytes": 76906,
+      "sha256": "5eb05a9efe6e940cbbee502da0552a121162eb08042f738868cf4b5845593fe9"
+    },
+    "equivalence.json": {
+      "bytes": 66651,
+      "sha256": "d6452de670684db5368123f503128b630cd8a2f2462f7b18c8c17bf1a3a0c410"
+    },
+    "rows.jsonl": {
+      "bytes": 4848702,
+      "sha256": "b171702e2d3fa7bdb775b231cb7da84304931c4d84413b3c2017bec4a6028e89"
+    },
+    "raw.tar.gz": {
+      "bytes": 14385185,
+      "sha256": "51c531f423642a392c97b5bd9329ed85f704d34516b119c97a6560353d41adb9"
+    },
+    "summary.json": {
+      "bytes": 328,
+      "sha256": "023273295a20e04d7c2bab142f09a20ba274fc55e4a3c4200f1f8874042ef7a8"
+    },
+    "cells.json": {
+      "bytes": 78507,
+      "sha256": "3470906b6dbc088ac60a1c5b6e1f76bc06c02232642a8dfc866a7062643cbd98"
+    }
+  },
+  "main_modified": false,
+  "external_ai_review_requested": false,
+  "acceptance": "Pending direct review and runtime/weighted audit"
+}
