@@ -5,6 +5,11 @@ use crate::place_replacements::{Inventory, actual};
 use std::cell::RefCell;
 #[cfg(test)]
 mod helper_result_tests;
+mod ordered;
+#[cfg(test)]
+mod scheduler_tests;
+#[cfg(test)]
+mod trace;
 type Rows = BTreeMap<actual::Target, Content>;
 struct Invocation<'a> {
     entry: usize,
@@ -20,6 +25,7 @@ pub(super) struct Context<'a> {
     whole_must: &'a BTreeSet<usize>,
     written: RefCell<Rows>,
     store_calls: &'a RefCell<BTreeSet<usize>>,
+    observed: Option<RefCell<BTreeSet<usize>>>,
 }
 fn invalid(text: &str) -> Diagnostic {
     bad(None, text)
@@ -813,6 +819,12 @@ impl Context<'_> {
         }
         Ok(())
     }
+    fn observe(&self, entry: usize, b: &mut Budget) -> Check<()> {
+        if let Some(reads) = &self.observed {
+            ordered::record(reads, entry, b)?;
+        }
+        Ok(())
+    }
     fn call(
         &self,
         flow: &Flow<'_>,
@@ -828,6 +840,7 @@ impl Context<'_> {
             may_only,
             ordinary_only,
         } = invocation;
+        self.observe(entry, b)?;
         let rows = &self.summaries[entry];
         b.spend(rows.len())?;
         for (target, payload) in rows {
@@ -868,6 +881,8 @@ impl Context<'_> {
                     let mut needed = self.store_calls.borrow_mut();
                     b.spend(needed.len().saturating_add(1))?;
                     needed.insert(entry);
+                    #[cfg(test)]
+                    trace::store(&needed);
                 }
                 self.apply(flow, state, &target, &incoming, strong, validate, b)?;
             }
@@ -933,6 +948,9 @@ impl Context<'_> {
                 function,
                 arguments,
             } => {
+                // Also covers Flow's later direct-call return-summary read,
+                // including Copy calls and all rejection-only effect reads.
+                self.observe(function.0 as usize, b)?;
                 let callee = &flow.module.functions[function.0 as usize];
                 if let Some(contract) = &callee.callable_contract {
                     b.spend(self.summaries[function.0 as usize].len())?;
@@ -950,6 +968,7 @@ impl Context<'_> {
                     for (entry, value) in
                         resources::public_roles::invoked(flow.module, f, contract, arguments, b)?
                     {
+                        self.observe(entry, b)?;
                         b.spend(self.summaries[entry].len())?;
                         for target in self.summaries[entry].keys() {
                             if !matches!(target.base, actual::Base::Environment(_)) {
@@ -1109,6 +1128,10 @@ pub(super) fn check(
     graphs: &[FunctionGraph],
     b: &mut Budget,
 ) -> Check<Proofs> {
+    #[cfg(test)]
+    if trace::full() {
+        return scheduler_tests::full_scan(module, graphs, b);
+    }
     let actual = actual::Program::reconstruct(module, graphs, b)?;
     b.spend(module.functions.len().saturating_mul(3))?;
     let mut places = Vec::with_capacity(module.functions.len());
@@ -1128,13 +1151,16 @@ pub(super) fn check(
         places.push(inventory);
         result.push(content(&f.return_type, None, &mut Vec::new(), true, b)?);
     }
+    let mut ordered = ordered::Ordered::new(module.functions.len(), b)?;
     loop {
-        let mut changed = false;
-        for (f, graph) in module.functions.iter().zip(graphs) {
+        for (index, (f, graph)) in module.functions.iter().zip(graphs).enumerate() {
             b.spend(1)?;
-            if f.foreign.is_some() {
+            if !ordered.run(index, b)? || f.foreign.is_some() {
                 continue;
             }
+            b.spend(1)?;
+            #[cfg(test)]
+            trace::solve(index);
             let context = Context {
                 actual: &actual,
                 places: &places,
@@ -1142,17 +1168,31 @@ pub(super) fn check(
                 whole_must: &whole_must_rows,
                 written: RefCell::new(Rows::new()),
                 store_calls: &store_calls,
+                observed: Some(RefCell::new(BTreeSet::new())),
             };
             let (found, _, _) =
                 run_with_replacements(module, f, graph, &result, false, b, Some(&context))?;
             let rows = context.written.into_inner();
-            changed |= result[f.id.0 as usize].merge(&found, b)?;
+            ordered.observe(
+                index,
+                context
+                    .observed
+                    .expect("inference observes its actual reads")
+                    .into_inner(),
+                b,
+            )?;
+            let mut changed = result[f.id.0 as usize].merge(&found, b)?;
             b.spend(rows.len())?;
             for (target, payload) in rows {
                 changed |= merge_row(&mut effects[f.id.0 as usize], &target, &payload, b)?;
             }
+            if changed {
+                ordered.changed(index, b)?;
+            }
         }
-        if !changed {
+        #[cfg(test)]
+        trace::round(&result, &effects, &store_calls, b);
+        if !ordered.advance(b)? {
             break;
         }
     }
@@ -1170,6 +1210,7 @@ pub(super) fn check(
             whole_must: &whole_must_rows,
             written: RefCell::new(Rows::new()),
             store_calls: &store_calls,
+            observed: None,
         };
         let (_, bridges, excluded) =
             run_with_replacements(module, f, graph, &result, true, b, Some(&context))?;
@@ -1179,6 +1220,8 @@ pub(super) fn check(
             excluded_edges.insert(f.id.0 as usize, excluded);
         }
     }
+    #[cfg(test)]
+    trace::final_state(&result, &effects, &store_calls, b);
     b.spend(effects.len())?;
     let mut replacement_writes = Vec::with_capacity(effects.len());
     let needed = store_calls.into_inner();

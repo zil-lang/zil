@@ -5,6 +5,12 @@ pub(crate) struct Cache {
     // false is only a bounded actual-node inventory, never a permission.
     entries: BTreeMap<usize, bool>,
 }
+#[cfg(test)]
+impl Cache {
+    pub(crate) fn snapshot(&self) -> (usize, BTreeMap<usize, bool>) {
+        (self.module, self.entries.clone())
+    }
+}
 fn lookup(b: &mut Budget, len: usize) -> Check<()> {
     b.spend(len.checked_ilog2().map_or(1, |n| n as usize + 2))
 }
