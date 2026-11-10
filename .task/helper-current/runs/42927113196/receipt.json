@@ -1,0 +1,16 @@
+{
+  "baseline": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852",
+  "production_candidate": "5679163bc3fefd77221011eab65987935b66fafd",
+  "production_tree": "88d779eeddc2fbd88e71f01a9df58fe883fcb991",
+  "source": "e67eb7d13b29650bddc6d3b4253f0eb68f409a72",
+  "recipe": "31e8a8f40aaea31c466d3fd3018668ff35d2904b",
+  "historical_negative_weights_retained": 42860429989,
+  "status_before_preservation": "failure",
+  "note": "historical scripts retain prior baseline labels; this receipt and exact binaries record actual current-main baseline",
+  "files": {
+    "raw.tar.gz": "5794f0cecc8b298a5c754bfca52440b4100e5806f79b9a876570cd176f4ea104",
+    "omitted-elf.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+  },
+  "main_modified": false,
+  "external_ai_review": false
+}
