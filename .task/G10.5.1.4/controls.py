@@ -36,7 +36,7 @@ fn main()->i32 {
 }
 ''')
  obj=out/'probe.o';r,_=run([clang,'-c','tools/language/composed-store-closures/allocator_probe.c','-o',obj],'probe-build');assert r.returncode==0,r.stderr
- wrap=out/'link.py';wrap.write_text('#!/usr/bin/env python3\nimport os,sys\ncmd='+repr([clang])+'+sys.argv[1:]+'+'( [] if "-c" in sys.argv else '+repr([str(obj),'-Wl,--wrap=realloc','-Wl,--wrap=free'])+')\nos.execv(cmd[0],cmd)\n');wrap.chmod(0o755)
+ wrap=out/'link.py';wrap.write_text('#!/usr/bin/env python3\nimport os,sys\ncmd='+repr([clang])+'+sys.argv[1:]+'+'( [] if "-c" in sys.argv else '+repr(['-x','none',str(obj),'-Wl,--wrap=realloc','-Wl,--wrap=free'])+')\nos.execv(cmd[0],cmd)\n');wrap.chmod(0o755)
  try:
   for arm,cli in [('base',a.base.resolve()),('cand',a.candidate.resolve())]:
    for backend in ['llvm-api','clang']:
