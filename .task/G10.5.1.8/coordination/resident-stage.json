@@ -1,0 +1,13 @@
+{
+  "accepted_main": "947063a63880b375889ff30b3beba6151abf55f3",
+  "main_read": "947063a63880b375889ff30b3beba6151abf55f3",
+  "exact_production_tree": "53a96a7507fbedb0d00c342e1609693320f03f96",
+  "goal_read_before": "60668670baf5a809d0f2735a6b35b8732a4ad5ae",
+  "goal_commit": "89c873c17c4034e4051ca256a360f37a71bb443e",
+  "goal_readback": "89c873c17c4034e4051ca256a360f37a71bb443e",
+  "goal_blob": "3a320e54a47f7d5aa4e3fba7afa9a644907b5ee9",
+  "production_branch_deleted": true,
+  "delete_stderr": "To https://github.com/zil-lang/zil\n - [deleted]             task/resident-compilation\n",
+  "other_branches_touched": false,
+  "updated_at": "2026-11-10T21:12:43.657782+08:00"
+}
