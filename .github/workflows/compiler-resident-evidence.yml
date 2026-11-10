@@ -1,0 +1,52 @@
+name: Recover resident memory observations
+on:
+  push:
+    branches: [task/resident-memory-validation]
+    paths: [.github/workflows/compiler-resident-evidence.yml]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Preserve every observation and manifest of separate cache payloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,subprocess,pathlib,zipfile,tarfile,io,hashlib,datetime
+          P=pathlib.Path;root=P('.task/resident/soak-runs/42788067124-recovery');root.mkdir(parents=True)
+          raw=subprocess.check_output(['gh','api','repos/zil-lang/zil/actions/artifacts/13751102224/zip']);sha=hashlib.sha256(raw).hexdigest();assert sha=='2963655013338ad13df007cfcbf46eaac30661776abab5ef2949fe1ccb5d023d'
+          z=zipfile.ZipFile(io.BytesIO(raw));prefix='42788067124/'
+          for name in ('summary.json','rows.json'): (root/name).write_bytes(z.read(prefix+name))
+          summary=json.loads((root/'summary.json').read_text());rows=json.loads((root/'rows.json').read_text());assert summary['status']=='Pass' and len(rows)==810 and summary['fresh_comparisons']==60 and not summary['failures']
+          manifest=[];omitted_bytes=0;kept_bytes=0
+          with tarfile.open(fileobj=io.BytesIO(z.read(prefix+'raw.tar.gz')),mode='r:gz') as src,tarfile.open(root/'raw-observations.tar.gz','w:gz') as dest:
+              for item in src:
+                  if not item.isfile():continue
+                  data=src.extractfile(item).read();cache='/cache/' in item.name;manifest.append({'path':item.name,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),'location':'original immutable artifact only: generated cache payload' if cache else 'raw-observations.tar.gz'})
+                  if cache:omitted_bytes+=len(data)
+                  else:dest.addfile(item,io.BytesIO(data));kept_bytes+=len(data)
+          (root/'original-file-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
+          receipt={'original_run':42788067124,'original_run_conclusion':'failure: evidence archive exceeded 48MiB guard; observation step succeeded','original_artifact':13751102224,'original_artifact_sha256':sha,'source':'4a9c49dc5f989d1d1243b70bbc5a00103384633f','compiler_source':'f1f4496d3ebb5591e9bdfd3e3c86be5f82eb92d5','recovery_run':os.environ['GITHUB_RUN_ID'],'new_tests_run':0,'request_observations':len(rows),'kept_observation_source_and_setup_bytes':kept_bytes,'generated_cache_payload_bytes_in_original_artifact':omitted_bytes,'main_modified':False,'scope':'finite entry-cap experiment, not production byte-bound memory admission','hashes':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in root.iterdir()},'updated_at':datetime.datetime.now(datetime.timezone.utc).isoformat()}
+          (root/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n');assert sum(p.stat().st_size for p in root.iterdir())<48*1024*1024
+          print(json.dumps(receipt,indent=2))
+          PY
+          git fetch --no-tags origin refs/heads/task/resident-memory-validation
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git add .task/resident/soak-runs/42788067124-recovery
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Preserve resident observations and cache manifest; original archive failure remains recorded'
+          git push origin HEAD:refs/heads/task/resident-memory-validation
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: resident-memory-recovered-${{ github.run_id }}
+          path: .task/resident/soak-runs/42788067124-recovery
+          retention-days: 30
