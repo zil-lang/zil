@@ -1,22 +1,10 @@
 {
   "format": 1,
-  "created_utc": "2026-11-10T03:38:36.726027+00:00",
-  "prior_archive": "746b3e31962cc6cedbb0cb23228679b132d047df",
+  "created_utc": "2026-11-10T04:56:07.462217+00:00",
+  "prior_archive": "3ad41515074aa9c158945dc8dfe7936e9c3380e8",
   "commit_parents": [
-    "746b3e31962cc6cedbb0cb23228679b132d047df",
-    "2293d19b53b4882fac663ac8e669bf7cdade386b",
-    "44e1540eb0922f0058f0bab8f2f16676c5b435fc",
-    "7dd7bb0eb8d1a55429455794fa6a94e80c777739",
-    "b0200a07fb829966c072b4b00dde2ccddcb68529",
-    "f46254b886accba1c39f915a649b5d0ef6fbd788",
-    "6a95603edfe73688ab3b1531f9dec5065119120e",
-    "b731111d7476db1d3a3379f1b5cbf4dca70beeb0",
-    "9f91ccc5ee32b46b2bd68230c786f84ccdd24d5d",
-    "59dfb76dddc4db72b8c920342563cd8d3b9554e3",
-    "da1e94124344c812e348bab131f03868de2dccc9",
-    "e2ffe7033127e006342465611181367995e6115e",
-    "0a8929d4f6126683737d62ab9def1d8e67a784ca",
-    "f942fb506f0a9579e1af69a4a9d7cdde9593ebcd"
+    "3ad41515074aa9c158945dc8dfe7936e9c3380e8",
+    "30d5f9aa7e05b06b44394ad70ca2b7a56f5551d7"
   ],
   "commit_tips": [
     "0a8929d4f6126683737d62ab9def1d8e67a784ca",
@@ -38,7 +26,8 @@
     "e2ffe7033127e006342465611181367995e6115e",
     "f0ee4f8215938c27549a4cc1ff176445d2cb6bfe",
     "f46254b886accba1c39f915a649b5d0ef6fbd788",
-    "f942fb506f0a9579e1af69a4a9d7cdde9593ebcd"
+    "f942fb506f0a9579e1af69a4a9d7cdde9593ebcd",
+    "30d5f9aa7e05b06b44394ad70ca2b7a56f5551d7"
   ],
   "local_refs": {},
   "remote_refs": {
@@ -65,7 +54,7 @@
   },
   "worktrees": [],
   "missing_commit_objects": [],
-  "scope": "Preserve exact observed remote source histories before branch reconciliation. This archive is not source acceptance, a test run, or a snapshot of other sessions uncommitted work. Existing history and prior manifests remain reachable through prior_archive.",
+  "scope": "Complete prior source histories remain reachable through prior_archive. Add the bounded retirement no-change candidate as an independent parent with exact published/executed tree identity. Source preservation only; no language or whole-program acceptance.",
   "retirements": [
     {
       "ref": "refs/heads/task/collected-pipeline-acceptance",
@@ -153,5 +142,17 @@
         "owning_pipeline_raw_and_wire_recover_actual_store_roots"
       ]
     }
+  ],
+  "preserved_candidates": [
+    {
+      "name": "complete-retirement-source-no-change",
+      "base": "b731111d7476db1d3a3379f1b5cbf4dca70beeb0",
+      "executed_commit": "3ce20d48bc2256c6007aa1b6ace882aba7c7dc91",
+      "published_commit": "30d5f9aa7e05b06b44394ad70ca2b7a56f5551d7",
+      "identical_tree": "c8b35bf17026d7b7734b943c92f0a889add71487",
+      "scope": "Four source/test files; paid complete Sources proof before shared page COW; preserve missing capture key and empty row distinction.",
+      "status": "Component controls passed 15/15; original 5008B Map still fails default independent Verify. Not accepted production or whole-program performance evidence."
+    }
   ]
 }
+
