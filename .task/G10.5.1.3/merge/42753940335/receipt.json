@@ -1,0 +1,199 @@
+{
+  "pr": 70,
+  "head": "cadc656c0caefa70827f7ec1e608a04291c8ae9f",
+  "merged_commit": "21b1feefc47e05d5d88a7d4738034831e8bc17f0",
+  "tested_tree": "b9965bfe560203e51d9b8b857162a24944bfb27b",
+  "production_blobs_equal": true,
+  "changed_paths": [
+    "crates/zil-types/src/incremental.rs",
+    "crates/zil-driver/src/function_incremental_tests.rs",
+    "docs/guide/incremental-types.md"
+  ],
+  "ci": [
+    {
+      "run": 42749689391,
+      "artifact": 13733793789,
+      "sha256": "16dcc41cf433aca5df71c0f2bf1e8442370d0ed87bcff512a72ed28ad7e32078",
+      "results": {
+        "commit": "829902692bfd896aeba94778506841b41d87b946",
+        "steps": {
+          "fmt": "success",
+          "workspace": "success",
+          "reference": "success",
+          "consumer": "success",
+          "clippy": "success",
+          "text": "success",
+          "ci_test": "success"
+        },
+        "logs": {
+          "fmt": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "test_summaries": 0,
+            "totals": {
+              "passed": 0,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "workspace": {
+            "sha256": "20cf437f2a306f3071dc3df5646fbb3712af455d775cd5de7a725836d3c7c5a7",
+            "test_summaries": 429,
+            "totals": {
+              "passed": 5864,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "reference": {
+            "sha256": "864d310feeef25aa50d97c625216c215556b9981180e55f3c96a0eff76fec586",
+            "test_summaries": 429,
+            "totals": {
+              "passed": 5750,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "clippy": {
+            "sha256": "ae1ef98936a4e10884cb690e6041f7f9a13d0dbf96afbf6c4b7939c236aea326",
+            "test_summaries": 0,
+            "totals": {
+              "passed": 0,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "text-reference": {
+            "sha256": "9f2cddd8a5f07f931bff003d60574f32917ccbd5e165ac8f92986706b610f29a",
+            "test_summaries": 10,
+            "totals": {
+              "passed": 70,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "migration-runner": {
+            "sha256": "d041de1238c0ff86f970a1ff7932c08b9ea56782fc94936eb6589c72421feaf7",
+            "test_summaries": 0,
+            "totals": {
+              "passed": 0,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          }
+        }
+      },
+      "native_builds": 16,
+      "native_observations": 128
+    },
+    {
+      "run": 42749689454,
+      "artifact": 13734520809,
+      "sha256": "4a99439779bb8e73440bc97049a645f240a2ceb468288dfc24c2192c0d8f6666",
+      "results": {
+        "commit": "829902692bfd896aeba94778506841b41d87b946",
+        "steps": {
+          "fmt": "success",
+          "workspace": "success",
+          "reference": "success",
+          "consumer": "success",
+          "clippy": "success",
+          "text": "success",
+          "ci_test": "success"
+        },
+        "logs": {
+          "fmt": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "test_summaries": 0,
+            "totals": {
+              "passed": 0,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "workspace": {
+            "sha256": "050d2ef9f6494a643f3f55c9a610e1ff90b59929083e863f5444ea9bd17a9602",
+            "test_summaries": 429,
+            "totals": {
+              "passed": 5864,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "reference": {
+            "sha256": "17ee440e090639f9dd20ee9dfafe886cf842c52386ed372a1d3b881dbc86f152",
+            "test_summaries": 429,
+            "totals": {
+              "passed": 5750,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "clippy": {
+            "sha256": "b0318353ed64cd296da0750f0782197c5deb86cbcdb214feb6ba3f9f047edc33",
+            "test_summaries": 0,
+            "totals": {
+              "passed": 0,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "text-reference": {
+            "sha256": "27862e46dd65d7a6b455a57533be0cbf1dd9ff94aeb24fca7bb92193d5edb11f",
+            "test_summaries": 10,
+            "totals": {
+              "passed": 70,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "migration-runner": {
+            "sha256": "e1f6245c7745a47069127da3e1abd791812ad38d09b538c994a09423200d2ddb",
+            "test_summaries": 0,
+            "totals": {
+              "passed": 0,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          }
+        }
+      },
+      "native_builds": 16,
+      "native_observations": 128
+    }
+  ],
+  "review": "current Chat direct review under explicit owner authorization, not external/non-author review",
+  "main_advance": "PR71 changed tests only; retained in merge",
+  "closure_pr": 72,
+  "closure_acceptance": "Pending weighted and runtime evidence",
+  "updated_at": "2026-11-10T12:08:49.694195+08:00",
+  "goal_read_before": "95732c3b81080ea8c5367f2f6526c3e328b5da5a",
+  "goal_commit": "17f44c5a0119fe2d81964a2f3c511bea355e107b",
+  "goal_blob_readback": "ca95ecfc36b42f2e991156b0333b145b899d560a",
+  "merged_branch_delete_exit": 0,
+  "merged_branch_delete_stderr": "",
+  "merged_branch_deleted": true
+}
