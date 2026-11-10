@@ -1,0 +1,27 @@
+{
+  "baseline": "fc6620a3b975258643eb8f9c3ee77d868ff67a69",
+  "source": "63aefac97d5cded7ceb3627337626f0b8edb199e",
+  "recipe": "1a45970610d504928abff447238db0bc6e5b5e82",
+  "prior_failure_run": 42796949377,
+  "production_blobs": [
+    "6cff0dc4f19d994a06198e235763059233c2db13",
+    "b5d3e5b1efbba6f144623277cbca613da786e45a"
+  ],
+  "status_before_preservation": "success",
+  "files": {
+    "controls.json": "804459c5de765db76abd5f0f876d33c9fbe1d79ccf97e08ece81d24e44b8c1ea",
+    "failures.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "manifest.json": "514689f4fdd3c8b6dc7345885f3a8d7a6975ee90e2546b9f240038c6fa0cb261",
+    "quality.json": "3e67be6a663026e69471a5814b8a9547ee57b6bc74e82bbfafeae54dceb65008",
+    "runtime.jsonl": "88385cc50a9f4d6b366e6c9d354baa64f07c220c822d71a24fe9a778451ae0f8",
+    "consumer.json": "fa2a59f97e854d318a1b12d35783b8da80b7813640e991b5b7fd440aeec2a643",
+    "equivalence.json": "e77913e0f82ec1ed93492fc6d829f407d9d3d1f5bdbfc0fdc68e35ee468d5266",
+    "rows.jsonl": "f7596d3942d1b693b1d8bf88daddd22e49052de9e7b10dd1f13311bf494ea66c",
+    "raw.tar.gz": "fa77a37e3845ff6e66bb3d960878dd9017b4a45ddd78fc05398ef067da151ced",
+    "summary.json": "4d29f350d35fcdbcd002fb6eea6ac96e4d6482c1dd8b3ef52de98785a15c9900",
+    "cells.json": "0f2c0b22514d43eff583d5f897e04ca9f39b93065f2143e2ae517f20aab68b95"
+  },
+  "main_modified": false,
+  "external_ai_review": false,
+  "acceptance": "Pending direct source and numerical audit; performance failures do not become accepted on workflow success"
+}
