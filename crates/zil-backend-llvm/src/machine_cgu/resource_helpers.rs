@@ -208,6 +208,71 @@ pub(super) fn prepare(
     if let (Some(&main), Some(&pe)) = (names.get("main"), names.get("zil.pe.entry")) {
         sets.join(main, pe);
     }
+    // Preserve the optimizer neighborhood of a branch-only return dispatch.
+    // Same-argument alternatives may collapse after body merging; separating
+    // those large implementations would turn that into real dispatch overhead.
+    // This is a conservative placement affinity, never a semantic equivalence
+    // assertion and never an input-name or benchmark-specific classification.
+    for &id in &source {
+        let Item::Function(function) = &module.items[defs[id].item] else {
+            continue;
+        };
+        let mut alternatives: Vec<(
+            &[zil_llvm_api::model::Arg],
+            &zil_llvm_api::model::Ty,
+            Vec<usize>,
+        )> = Vec::new();
+        for block in function.blocks.iter().flatten() {
+            let [call, returned] = block.instructions.as_slice() else {
+                continue;
+            };
+            let Op::Call {
+                callee: Val::Global(name),
+                args,
+                result,
+                ..
+            } = &call.op
+            else {
+                continue;
+            };
+            let Op::Return(Some(value)) = &returned.op else {
+                continue;
+            };
+            let Some(local) = &call.result else {
+                continue;
+            };
+            if value.ty != *result || value.value != Val::Local(local.clone()) {
+                continue;
+            }
+            let Some(&target) = names.get(name) else {
+                continue;
+            };
+            if !source.contains(&target) || defs[target].cost <= MAX_IMPORTED_SOURCE_COST {
+                continue;
+            }
+            spend(
+                &mut fuel,
+                alternatives.len().checked_add(args.len())?.checked_add(1)?,
+            )?;
+            if let Some((_, _, targets)) = alternatives
+                .iter_mut()
+                .find(|(prior, ty, _)| *prior == args.as_slice() && *ty == result)
+            {
+                if !targets.contains(&target) {
+                    targets.push(target);
+                }
+            } else {
+                alternatives.push((args, result, vec![target]));
+            }
+        }
+        for (_, _, targets) in alternatives {
+            if targets.len() > 1 {
+                for target in targets {
+                    sets.join(id, target);
+                }
+            }
+        }
+    }
     let mut first = BTreeMap::new();
     for &(file, id) in &source_ids {
         if let Some(&other) = first.get(&file) {
