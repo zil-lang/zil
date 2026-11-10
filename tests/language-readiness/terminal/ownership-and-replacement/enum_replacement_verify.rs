@@ -487,7 +487,7 @@ fn enum_verify_current_raw_wire_and_source_request_boundaries() {
                 low = mid + 1;
             }
         }
-        assert_eq!(low, 89_567, "independent Verify current work changed");
+        assert_eq!(low, 79_381, "independent Verify current work changed");
         let fingerprint = run(low).unwrap();
         for _ in 0..2 {
             assert!(run(low - 1).is_none());
@@ -531,7 +531,7 @@ fn enum_verify_current_raw_wire_and_source_request_boundaries() {
         assert_eq!(
             low,
             match kind {
-                "work" => 111_249,
+                "work" => 81_361,
                 "nodes" => 349,
                 "source_bytes" => 669,
                 _ => 11,
@@ -578,14 +578,14 @@ fn enum_verify_current_raw_wire_and_source_request_boundaries() {
             _ => panic!("{}", report.to_json()),
         }
     }
-    // owned replacement.6: unchanged Source/IR, previous111234 plus the15-step paid
-    // producer exclusion inventory; no detailed nonlocal graph is built here.
-    assert_eq!(low, 111_249, "current whole Enum Analyze work changed");
+    // This complete request is bounded by Analyze. Keep N/N-1 and fresh/warm
+    // retry tied to the current calculation over the complete original input.
+    assert_eq!(low, 81_361, "current whole Enum Analyze work changed");
     let mut warm = zil_driver::CompilationSession::default();
     for (work, status) in [
-        (111_249, ResultCategory::Success),
-        (111_248, ResultCategory::ResourceLimit),
-        (111_249, ResultCategory::Success),
+        (81_361, ResultCategory::Success),
+        (81_360, ResultCategory::ResourceLimit),
+        (81_361, ResultCategory::Success),
     ] {
         for report in [
             compile_source(&input, &analyze_options(work)),

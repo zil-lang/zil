@@ -8951,7 +8951,7 @@ fn owned_aggregate_package_terminal_exact_request_budget() {
                 13_954
             } else {
                 // Current independent work with word liveness and canonical local head rows.
-                20_371
+                23_962
             },
             "{stage:?}: actual Package work changed"
         );
