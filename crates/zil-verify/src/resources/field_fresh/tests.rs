@@ -109,11 +109,7 @@ fn convert(old: &OldState) -> State {
         package_fresh: Fields::from_dense(&old.package_fresh, &mut budget(1_000_000)).unwrap(),
         product_fresh: old.product_fresh.clone(),
         desc: old.desc.clone(),
-        retirement: replacements::RetirementRows::from_vec(
-            old.retirement.clone(),
-            &mut budget(1_000_000),
-        )
-        .unwrap(),
+        retirement: old.retirement.clone(),
         newer: old.newer.clone(),
     }
 }
@@ -124,7 +120,7 @@ fn snapshot(new: &State) -> OldState {
         package_fresh: new.package_fresh.dense(),
         product_fresh: new.product_fresh.clone(),
         desc: new.desc.clone(),
-        retirement: new.retirement.dense(),
+        retirement: new.retirement.clone(),
         newer: new.newer.clone(),
     }
 }

@@ -578,7 +578,7 @@ struct State {
     // rebuilt here. Empty on the historical flat path; never a public proof.
     product_fresh: Vec<u8>,
     desc: Vec<BTreeSet<Root>>,
-    retirement: replacements::RetirementRows,
+    retirement: Vec<replacements::Sources>,
     // An edge a -> b means b may have been initialized later while a remained live.
     newer: Vec<BTreeSet<usize>>,
 }
@@ -933,11 +933,15 @@ impl Slots {
         // An input or unknown producer still starts every actual field INPUT.
         let package_fresh = self.package_fresh_plan.empty(budget)?;
         budget.spend(self.product.width())?;
+        if self.retirement {
+            budget.spend(self.desc_count)?;
+        }
         Ok(State {
-            retirement: replacements::RetirementRows::new(
-                if self.retirement { self.desc_count } else { 0 },
-                budget,
-            )?,
+            retirement: if self.retirement {
+                vec![replacements::Sources::default(); self.desc_count]
+            } else {
+                vec![]
+            },
             debt: vec![EMPTY; self.debt_count],
             fresh: vec![0; self.debt_count],
             package_fresh,
@@ -949,10 +953,12 @@ impl Slots {
 }
 
 fn state_cost(s: &State, budget: &mut Budget) -> Check<()> {
-    s.retirement.full_cost(budget)?;
-    other_state_cost(s, budget)
-}
-fn other_state_cost(s: &State, budget: &mut Budget) -> Check<()> {
+    if !s.retirement.is_empty() {
+        budget.spend(s.retirement.len())?;
+        for sources in &s.retirement {
+            sources.cost(budget)?;
+        }
+    }
     budget.spend(
         s.debt
             .len()
@@ -972,14 +978,16 @@ fn other_state_cost(s: &State, budget: &mut Budget) -> Check<()> {
 }
 
 fn clone_state(s: &State, budget: &mut Budget) -> Check<State> {
-    s.retirement.copy_cost(budget)?;
-    other_state_cost(s, budget)?;
+    state_cost(s, budget)?;
     Ok(s.clone())
 }
 
 fn merge(target: &mut State, source: &State, budget: &mut Budget) -> Check<bool> {
     state_cost(source, budget)?;
-    let mut changed = target.retirement.merge(&source.retirement, budget)?;
+    let mut changed = false;
+    for (a, b) in target.retirement.iter_mut().zip(&source.retirement) {
+        changed |= a.merge(b, budget)?;
+    }
     for (a, b) in target
         .debt
         .iter_mut()
