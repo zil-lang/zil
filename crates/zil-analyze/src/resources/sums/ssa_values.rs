@@ -128,6 +128,23 @@ impl Values {
             if Arc::ptr_eq(left, right) {
                 continue;
             }
+            budget.spend(1, "Sum SSA page sharing classification")?;
+            if Arc::strong_count(left) > 1 {
+                let mut kept = true;
+                for (target, incoming) in left.trees.iter().zip(&right.trees) {
+                    budget.spend(2, "Sum SSA readonly page slot walk")?;
+                    if !target.kept_by_join(incoming, budget)? {
+                        kept = false;
+                        break;
+                    }
+                }
+                if kept {
+                    continue;
+                }
+            }
+            // A unique page retains the original in-place merge. A failed
+            // readonly proof also executes the COMPLETE original path: never
+            // turn a shape error into success or hide its prefix mutations.
             let page = Self::edit_page(left, budget)?;
             budget.product(page.trees.len(), 2, 1, "Sum SSA page slot walk")?;
             for (target, incoming) in page.trees.iter_mut().zip(&right.trees) {

@@ -239,6 +239,73 @@ impl Tree {
         budget.spend(1, "Sum immutable fact share")?;
         Ok(Arc::clone(self))
     }
+    /// A readonly proof that the ORIGINAL merge would keep every fact. A
+    /// false result is inconclusive (new information or a shape error): callers
+    /// must use the complete original merge, including its error mutations.
+    fn kept_by_join(
+        self: &Arc<Self>,
+        other: &Arc<Self>,
+        budget: &mut Budget,
+    ) -> CompileResult<bool> {
+        budget.spend(1, "Sum readonly join identity")?;
+        if Arc::ptr_eq(self, other) {
+            return Ok(true);
+        }
+        budget.spend(1, "Sum readonly join node")?;
+        if !self.missing && other.missing {
+            return Ok(false);
+        }
+        match (&self.node, &other.node) {
+            (Node::Copy, Node::Copy) => Ok(true),
+            (Node::Leaf(old), Node::Leaf(incoming)) => {
+                // Sorted subset uses each iterator at most once. A contains
+                // loop would need logarithmic charges for every incoming atom.
+                budget.spend(
+                    old.len().saturating_add(incoming.len()),
+                    "Sum readonly origin subset",
+                )?;
+                let mut old = old.iter().peekable();
+                for origin in incoming {
+                    while old.peek().is_some_and(|at| *at < origin) {
+                        old.next();
+                    }
+                    if old.next() != Some(origin) {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            (Node::Product(old), Node::Product(incoming)) => {
+                if old.len() != incoming.len() {
+                    return Ok(false);
+                }
+                for (old, incoming) in old.iter().zip(incoming) {
+                    if !old.kept_by_join(incoming, budget)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            (Node::Sum(old), Node::Sum(incoming)) => {
+                for (tag, incoming) in incoming {
+                    budget.lookup(old.len(), "Sum readonly alternative lookup")?;
+                    let Some(old) = old.get(tag) else {
+                        return Ok(false);
+                    };
+                    if old.len() != incoming.len() {
+                        return Ok(false);
+                    }
+                    for (old, incoming) in old.iter().zip(incoming) {
+                        if !old.kept_by_join(incoming, budget)? {
+                            return Ok(false);
+                        }
+                    }
+                }
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
+    }
     fn merge(self: &mut Arc<Self>, other: &Arc<Self>, budget: &mut Budget) -> CompileResult<bool> {
         budget.spend(1, "Sum shared join identity")?;
         if Arc::ptr_eq(self, other) {

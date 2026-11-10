@@ -304,13 +304,16 @@ fn generic_error_union_contexts_have_exact_prepaid_boundaries() {
     // actual generic header: two callable headers cost 2 each (+4); the
     // independent case also checks its unbounded sink header twice (+2).
     // Prior work1452/1551/2160 and all node bounds remain historical.
+    // Borrowed Store field classification also checks the binding's `Choice`
+    // against its actual local inventory: 24 paid comparisons add 168 work and
+    // 24 nodes. Call-argument cases do not use this binding classification.
     // Every current bound is measured below, including fresh/N-1.
     for (name, text, steps, nodes) in [
         (
             "binding",
             include_str!("../../../tests/generic-error-enum/pending/unique-binding-value.zil"),
-            1456,
-            516,
+            1624,
+            540,
         ),
         (
             "argument",

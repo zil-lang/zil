@@ -16,8 +16,8 @@ fn tree(index: usize, incoming: bool) -> Arc<Tree> {
     } else {
         Birth::Incoming
     };
-    if index % 2 == 0 {
-        leaf(index % 3 == 0, birth)
+    if index.is_multiple_of(2) {
+        leaf(index.is_multiple_of(3), birth)
     } else {
         Arc::new(Tree {
             missing: false,
@@ -260,4 +260,276 @@ fn single_side_missing_growth_and_nested_births_match_frozen_lookup() {
     assert!(left.join(&right, &mut budget()).unwrap());
     assert_eq!(left.keyed(), old);
     assert!(!left.join(&right, &mut budget()).unwrap());
+}
+
+// Frozen 147 eager page merge: complete original validation, page COW and
+// every original Tree merge. It never calls the readonly keep predicate.
+fn eager_join(left: &mut Values, right: &Values, budget: &mut Budget) -> CompileResult<bool> {
+    budget.spend(1, "Sum SSA logical inventory comparison")?;
+    if left.len != right.len {
+        return Err(error("Sum joined state inventory differs"));
+    }
+    // Validate ALL pages on both sides before even the identity fast path.
+    left.validate(budget)?;
+    right.validate(budget)?;
+    let mut changed = false;
+    for (left, right) in left.pages.iter_mut().zip(&right.pages) {
+        budget.spend(1, "Sum SSA shared page identity")?;
+        if Arc::ptr_eq(left, right) {
+            continue;
+        }
+        let page = Values::edit_page(left, budget)?;
+        budget.product(page.trees.len(), 2, 1, "Sum SSA page slot walk")?;
+        for (target, incoming) in page.trees.iter_mut().zip(&right.trees) {
+            changed |= target.merge(incoming, budget)?;
+        }
+    }
+    Ok(changed)
+}
+
+fn deep_copy(tree: &Arc<Tree>) -> Arc<Tree> {
+    let node = match &tree.node {
+        Node::Copy => Node::Copy,
+        Node::Leaf(origins) => Node::Leaf(origins.clone()),
+        Node::Product(fields) => Node::Product(fields.iter().map(deep_copy).collect()),
+        Node::Sum(choices) => Node::Sum(
+            choices
+                .iter()
+                .map(|(tag, fields)| (*tag, fields.iter().map(deep_copy).collect()))
+                .collect(),
+        ),
+    };
+    Arc::new(Tree {
+        missing: tree.missing,
+        node,
+    })
+}
+fn subset(tree: &Arc<Tree>) -> Arc<Tree> {
+    let node = match &tree.node {
+        Node::Copy => Node::Copy,
+        Node::Leaf(origins) => Node::Leaf(origins.iter().take(1).copied().collect()),
+        Node::Product(fields) => Node::Product(fields.iter().map(subset).collect()),
+        Node::Sum(choices) => Node::Sum(
+            choices
+                .iter()
+                .take(1)
+                .map(|(tag, fields)| (*tag, fields.iter().map(subset).collect()))
+                .collect(),
+        ),
+    };
+    Arc::new(Tree {
+        missing: false,
+        node,
+    })
+}
+fn mixed_values(len: usize) -> Values {
+    Values::build(len, &mut budget(), |index, _| {
+        Ok(match index % 4 {
+            0 => Arc::new(Tree {
+                missing: true,
+                node: Node::Copy,
+            }),
+            1 => Arc::new(Tree {
+                missing: true,
+                node: Node::Leaf(BTreeSet::from([
+                    Birth::Incoming,
+                    Birth::Created,
+                    Birth::Argument(3),
+                ])),
+            }),
+            2 => Arc::new(Tree {
+                missing: false,
+                node: Node::Product(vec![tree(0, false), tree(1, false)]),
+            }),
+            _ => Arc::new(Tree {
+                missing: true,
+                node: Node::Sum(BTreeMap::from([
+                    (0, vec![tree(0, false)]),
+                    (1, vec![tree(1, false)]),
+                ])),
+            }),
+        })
+    })
+    .unwrap()
+}
+#[test]
+fn shared_readonly_keep_matches_complete_eager_pages_for_all_tree_shapes_and_subsets() {
+    for len in [0, 1, 31, 32, 33, 63, 64, 65] {
+        for narrowed in [false, true] {
+            let seed = mixed_values(len);
+            let frozen = format!("{seed:?}");
+            let right = Values::build(len, &mut budget(), |index, _| {
+                let old = seed.get(&ValueId(index as u32)).unwrap();
+                Ok(if narrowed {
+                    subset(old)
+                } else {
+                    deep_copy(old)
+                })
+            })
+            .unwrap();
+            let mut lazy = seed.clone();
+            let mut eager = seed.clone();
+            assert!(!lazy.join(&right, &mut budget()).unwrap());
+            assert!(!eager_join(&mut eager, &right, &mut budget()).unwrap());
+            assert_eq!(lazy, eager);
+            for (a, b) in lazy.pages.iter().zip(&seed.pages) {
+                assert!(Arc::ptr_eq(a, b));
+            }
+            assert_eq!(format!("{seed:?}"), frozen);
+            assert!(!lazy.join(&right, &mut budget()).unwrap());
+        }
+    }
+}
+#[test]
+fn unique_pages_keep_inplace_and_shared_new_information_matches_old_changes() {
+    for len in [1, 31, 32, 33, 65] {
+        for shared in [false, true] {
+            let mut lazy = values(len, false);
+            let mut eager = values(len, false);
+            let snapshot = shared.then(|| lazy.clone());
+            let old_snapshot = shared.then(|| eager.clone());
+            let frozen = snapshot.as_ref().map(|x| format!("{x:?}"));
+            let right = values(len, true);
+            let a = lazy.join(&right, &mut budget()).unwrap();
+            let b = eager_join(&mut eager, &right, &mut budget()).unwrap();
+            assert_eq!(a, b);
+            assert_eq!(lazy, eager);
+            assert!(!lazy.join(&right, &mut budget()).unwrap());
+            assert!(!eager_join(&mut eager, &right, &mut budget()).unwrap());
+            assert_eq!(lazy, eager);
+            if let Some(snapshot) = snapshot {
+                assert_eq!(Some(format!("{snapshot:?}")), frozen);
+            }
+            drop(old_snapshot);
+        }
+    }
+}
+#[test]
+fn semantic_shape_errors_keep_complete_old_prefix_mutations_and_alias_isolation() {
+    for len in [33, 65] {
+        for at in [1, len - 1] {
+            for shared in [false, true] {
+                let mut lazy = values(len, false);
+                let mut eager = values(len, false);
+                let snapshot = shared.then(|| lazy.clone());
+                let old_snapshot = shared.then(|| eager.clone());
+                let frozen = snapshot.as_ref().map(|x| format!("{x:?}"));
+                let mut right = values(len, true);
+                let malformed = if at % 2 == 0 {
+                    Node::Product(vec![])
+                } else {
+                    Node::Leaf(BTreeSet::new())
+                };
+                right
+                    .set(
+                        ValueId(at as u32),
+                        Arc::new(Tree {
+                            missing: true,
+                            node: malformed,
+                        }),
+                        &mut budget(),
+                    )
+                    .unwrap();
+                let a = lazy.join(&right, &mut budget()).unwrap_err();
+                let b = eager_join(&mut eager, &right, &mut budget()).unwrap_err();
+                assert_eq!(a, b);
+                assert_eq!(
+                    lazy, eager,
+                    "all earlier pages/slots and error-side missing updates must match"
+                );
+                assert!(lazy.get(&ValueId(at as u32)).unwrap().missing);
+                if let Some(snapshot) = snapshot {
+                    assert_eq!(Some(format!("{snapshot:?}")), frozen);
+                }
+                drop(old_snapshot);
+            }
+        }
+    }
+}
+fn copies(len: usize, missing: bool) -> Values {
+    Values::build(len, &mut budget(), |_, _| {
+        Ok(Arc::new(Tree {
+            missing,
+            node: Node::Copy,
+        }))
+    })
+    .unwrap()
+}
+#[test]
+fn shared_keep_has_an_exact_smaller_boundary_and_unique_has_no_hidden_probe() {
+    let seed = copies(65, true);
+    let right = copies(65, false);
+    let run = |lazy, shared, steps| {
+        let mut left = if shared {
+            seed.clone()
+        } else {
+            copies(65, true)
+        };
+        let mut b = Budget::new(&Limits {
+            max_analysis_steps: steps,
+            ..Limits::default()
+        });
+        if lazy {
+            left.join(&right, &mut b)
+        } else {
+            eager_join(&mut left, &right, &mut b)
+        }
+    };
+    let minimum = |lazy, shared| {
+        let (mut lo, mut hi) = (1, Limits::default().max_analysis_steps);
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            if run(lazy, shared, mid).is_ok() {
+                hi = mid
+            } else {
+                lo = mid + 1
+            }
+        }
+        assert!(!run(lazy, shared, lo).unwrap());
+        assert!(
+            run(lazy, shared, lo - 1)
+                .unwrap_err()
+                .iter()
+                .all(|e| e.category == ResultCategory::ResourceLimit)
+        );
+        assert!(!run(lazy, shared, lo).unwrap());
+        lo
+    };
+    let new_shared = minimum(true, true);
+    let old_shared = minimum(false, true);
+    let new_unique = minimum(true, false);
+    let old_unique = minimum(false, false);
+    assert!(new_shared < old_shared);
+    // Only the actually executed page-sharing decision is added for unique
+    // pages; there is no readonly slot/subtree scan on that path.
+    assert_eq!(new_unique, old_unique + seed.page_count());
+    println!(
+        "Shared Sum pages: readonly N={new_shared}, old eager N={old_shared}; unique new={new_unique}/old={old_unique}; N-1/fresh verified"
+    );
+}
+#[test]
+fn readonly_budget_failure_never_mutates_or_publishes_a_partially_checked_page() {
+    let seed = copies(65, true);
+    let right = copies(65, false);
+    let frozen = format!("{seed:?}");
+    for steps in 0..80 {
+        let mut left = seed.clone();
+        let mut b = Budget::new(&Limits {
+            max_analysis_steps: steps,
+            ..Limits::default()
+        });
+        let result = left.join(&right, &mut b);
+        if let Err(errors) = result {
+            assert!(
+                errors
+                    .iter()
+                    .all(|e| e.category == ResultCategory::ResourceLimit)
+            );
+            assert_eq!(left, seed);
+            for (a, b) in left.pages.iter().zip(&seed.pages) {
+                assert!(Arc::ptr_eq(a, b));
+            }
+        }
+        assert_eq!(format!("{seed:?}"), frozen);
+    }
 }

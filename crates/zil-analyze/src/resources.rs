@@ -334,14 +334,25 @@ fn clone_state(state: &State, budget: &mut Budget) -> CompileResult<State> {
     replacements::must_cost(state.whole_commits.as_ref(), budget)?;
     Ok(state.clone())
 }
-fn join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResult<bool> {
+fn join_cells(
+    to: &mut BTreeMap<Place, Fact>,
+    from: &BTreeMap<Place, Fact>,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    budget.spend(1, "resource sorted cell inventory size")?;
+    if to.len() != from.len() {
+        return Err(error(
+            "incompatible resource states: cell inventory differs",
+        ));
+    }
+    budget.spend(to.len(), "resource sorted target cell walk")?;
+    budget.spend(from.len(), "resource sorted incoming cell walk")?;
     let mut changed = false;
-    for (place, source) in &from.cells {
-        budget.lookup(to.cells.len(), "resource join lookup")?;
-        let target = to
-            .cells
-            .get_mut(place)
-            .ok_or_else(|| error("incompatible resource states"))?;
+    for ((place, target), (other_place, source)) in to.iter_mut().zip(from) {
+        budget.spend(1, "resource sorted cell key comparison")?;
+        if place != other_place {
+            return Err(error("incompatible resource states: cell keys differ"));
+        }
         fact_cost(target, budget)?;
         fact_cost(source, budget)?;
         let before = (target.life.len(), target.sources.len(), target.birth.len());
@@ -350,6 +361,13 @@ fn join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResult<bool
         target.birth.extend(&source.birth);
         changed |= before != (target.life.len(), target.sources.len(), target.birth.len());
     }
+    Ok(changed)
+}
+fn join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResult<bool> {
+    // All cells were initialized from this function's complete Shapes. The
+    // only writer replaces an existing key; check that inventory while merging
+    // corresponding entries rather than searching every key again.
+    let mut changed = join_cells(&mut to.cells, &from.cells, budget)?;
     budget.spend(
         to.later.len().saturating_add(from.later.len()),
         "resource initialization order join",
@@ -4452,3 +4470,7 @@ fn analyze_function_eager_reference(
     }
     Ok(effect)
 }
+
+#[cfg(test)]
+#[path = "resources/state_join_tests.rs"]
+mod state_join_tests;
