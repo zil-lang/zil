@@ -55,7 +55,7 @@ fn push_copy(items:Store<i64>,expected:i64)->i32 {
     if length>0 && *store_at(items,0)!=10 {return 25}
     return 0
 }
-fn dispose(give value:Item){}
+fn dispose(value:Item){}
 fn main()->i32 {
     let items:Store<Item>=store.new()
     var created:i32=0
@@ -81,7 +81,7 @@ fn main()->i32 {
             .err(_)=>{return 33},
             .ok(value)=>{
                 if value.id!=expected {return 34}
-                dispose(give value)
+                dispose(value)
                 expected-=1
             }
         }
