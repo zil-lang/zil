@@ -1,0 +1,271 @@
+{
+  "schema_version": 1,
+  "recorded_utc": "2026-11-10T03:51:09.320094+00:00",
+  "scope": "Current branch reconciliation and restoration of omitted regression obligations; not a new full-language acceptance or a copy of run logs.",
+  "observed_initial_main": "2293d19b53b4882fac663ac8e669bf7cdade386b",
+  "observed_initial_goal": "8028689f6b95dbb54b474d5f5ff6ffac92125f85",
+  "accepted_main": "d6fcaeaf9a5ca9d26400b6d7de5e3c82a5c23878",
+  "accepted_tree": "313a3c53a750787d1fedf03b654138d887bcd45a",
+  "conversation_state": {
+    "name": "zil施工10",
+    "last_retrieved_handoff_beijing": "2026-11-10 08:55",
+    "live_process_status": "not directly observable",
+    "former_environment": "last recorded unavailable; no claim of current background execution"
+  },
+  "archive": {
+    "sha": "3ad41515074aa9c158945dc8dfe7936e9c3380e8",
+    "prior": "746b3e31962cc6cedbb0cb23228679b132d047df",
+    "source_ref_tips": 20,
+    "manifest_readback_equal": true,
+    "all_recorded_tips_ancestor_verified": true,
+    "not_acceptance": true
+  },
+  "retired_remote_refs": [
+    {
+      "branch": "task/collected-pipeline-acceptance",
+      "sha": "b3037af95569ecb55b02489d893ada384c8e84b0",
+      "deleted": true
+    },
+    {
+      "branch": "task/owned-pipeline-composition",
+      "sha": "f942fb506f0a9579e1af69a4a9d7cdde9593ebcd",
+      "deleted": true
+    },
+    {
+      "branch": "task/G2.4.11.1",
+      "sha": "6c5162cd9e676c8d4e367e8966b75eb13a029b11",
+      "deleted": true
+    },
+    {
+      "branch": "task/G2.4.12.1",
+      "sha": "44e1540eb0922f0058f0bab8f2f16676c5b435fc",
+      "deleted": true
+    },
+    {
+      "branch": "task/G3.5.1.1",
+      "sha": "f46254b886accba1c39f915a649b5d0ef6fbd788",
+      "deleted": true
+    },
+    {
+      "branch": "task/G3.4.21",
+      "sha": "7dd7bb0eb8d1a55429455794fa6a94e80c777739",
+      "deleted": true
+    },
+    {
+      "branch": "task/G10.3.4",
+      "sha": "5cf970ba56ff26388df5abcf72a8946cc2c20350",
+      "deleted": true
+    },
+    {
+      "branch": "task/G10.3.5",
+      "sha": "9f91ccc5ee32b46b2bd68230c786f84ccdd24d5d",
+      "deleted": true
+    },
+    {
+      "branch": "task/G10.5.1",
+      "sha": "59dfb76dddc4db72b8c920342563cd8d3b9554e3",
+      "deleted": true
+    },
+    {
+      "branch": "task/G10.5.1.1",
+      "sha": "da1e94124344c812e348bab131f03868de2dccc9",
+      "deleted": true
+    },
+    {
+      "branch": "task/G10.5.1.2",
+      "sha": "e2ffe7033127e006342465611181367995e6115e",
+      "deleted": true
+    },
+    {
+      "branch": "task/G3.5.1.2",
+      "sha": "6a95603edfe73688ab3b1531f9dec5065119120e",
+      "deleted": true
+    },
+    {
+      "branch": "task/G10.6.7",
+      "sha": "4095e7431988750809cc223a129741c22641e4fc",
+      "deleted": true
+    },
+    {
+      "branch": "task/stored-callback-regressions",
+      "sha": "abb767b46f80226d309c3a673fa4bcb4a0c4288d",
+      "deleted": true,
+      "reason": "PR71 merged; exact source is ancestor of accepted main"
+    }
+  ],
+  "blocked_retirements": [
+    {
+      "branch": "task/G10.3.6",
+      "sha": "1bd22f6ed801725de554f374af54b9d1b80a956b",
+      "deleted": false,
+      "reason": "Automatic approval rejected retirement of mixed unfinished work branches: complete archive alone does not establish that an active collaboration entry can be retired. Preserve refs pending explicit user confirmation."
+    },
+    {
+      "branch": "task/G10.6.3",
+      "sha": "428eb2c549f5285efc0b7921b380e2eff54f808b",
+      "deleted": false,
+      "reason": "Automatic approval rejected retirement of mixed unfinished work branches: complete archive alone does not establish that an active collaboration entry can be retired. Preserve refs pending explicit user confirmation."
+    },
+    {
+      "branch": "task/G3.4.22",
+      "sha": "b0200a07fb829966c072b4b00dde2ccddcb68529",
+      "deleted": false,
+      "reason": "Automatic approval rejected retirement of mixed unfinished work branches: complete archive alone does not establish that an active collaboration entry can be retired. Preserve refs pending explicit user confirmation."
+    }
+  ],
+  "remaining_work": [
+    {
+      "task": "G3.4.20",
+      "branch": "task/G3.4.20",
+      "sha": "f0ee4f8215938c27549a4cc1ff176445d2cb6bfe",
+      "status": "unmerged",
+      "gap": "generic_store_fields.rs and all six borrowed-store-field-replacement assets absent from current main; extract narrowly and revalidate Source/raw/Wire/native on current main"
+    },
+    {
+      "task": "G9.3.11.1",
+      "branch": "task/G9.3.11.1",
+      "sha": "b731111d7476db1d3a3379f1b5cbf4dca70beeb0",
+      "status": "awaiting continuation",
+      "gap": "original complete 5008B program still fails independent Verify default ResourceLimit/V1; do not replace with shortened input or larger limits",
+      "next_candidate": "complete Sources no-change proof on shared unequal-pointer pages with paid checks and fallback; missing capture key with empty row must remain a counterexample"
+    },
+    {
+      "task": "G10.5.1.3",
+      "branches": [
+        "task/G10.5.1.3",
+        "task/scalar-signature-dependencies"
+      ],
+      "pr": 70,
+      "sha": "cadc656c0caefa70827f7ec1e608a04291c8ae9f",
+      "status": "open at reconciliation; source and regression blobs identical to prior measured candidate; leave current work intact"
+    },
+    {
+      "task": "G10.5.1.4",
+      "branch": "task/G10.5.1.4",
+      "observed_sha": "602279507e8bc0155ee4105b4b672b736149c70b",
+      "status": "active concurrent compile-efficiency work; no mutation"
+    },
+    {
+      "source": "task/G3.4.22",
+      "candidate": "d2bc7accd",
+      "status": "unadopted, preserved",
+      "scope": "8-line Analyze permission_tail shared-read guard plus three exact diagnostic/budget tests; evaluate as a future Map cost candidate, not accepted as part of this cleanup"
+    }
+  ],
+  "regression_restoration": {
+    "pr": 71,
+    "local_source_and_review_commit": "0448610cae60dcb78459ec55e45f198ad492bf41",
+    "published_commit": "abb767b46f80226d309c3a673fa4bcb4a0c4288d",
+    "complete_tree_equal": "313a3c53a750787d1fedf03b654138d887bcd45a",
+    "non_author_review": "accepted exact commit; original blocks and fixture bytes independently compared",
+    "production_or_input_changes": false,
+    "source_mapping": [
+      {
+        "original_commit": "6a95603edfe73688ab3b1531f9dec5065119120e",
+        "original_path": "tests/language-readiness/owning-trait-hosts/owned_results/stored_composition.rs",
+        "destination_path": "tests/language-readiness/owning-trait-hosts/owned_results/stored_composition.rs",
+        "test": "stored_borrowed_callbacks_have_exact_fresh_kernel_work",
+        "original_and_restored_test_block_sha256": "c58db6a9719e0999ca4c6a02d439b178802f52bbd0edadb1166d67e860f1c57e",
+        "exact_original_test_block": true,
+        "line_count": 45,
+        "assertions": "Independent Analyze and Verify success at exact N, ResourceLimit at N-1, fresh repeat success; Analyze plan equality."
+      },
+      {
+        "original_commit": "4095e7431988750809cc223a129741c22641e4fc",
+        "original_path": "tests/language-readiness/owning-trait-hosts/owned_pipeline/consumers.rs",
+        "destination_path": "tests/language-readiness/owning-trait-hosts/owned_pipeline/safety.rs",
+        "test": "owning_pipeline_keeps_the_parent_loan_and_affine_fresh_results",
+        "original_and_restored_test_block_sha256": "83fe0268a702e8040c5856d5c85230b77dade56e3a97b9608f3936c7213c65e4",
+        "exact_original_test_block": true,
+        "line_count": 49,
+        "assertions": "Complete four-module control; reject next/reserve/move with live parent loan and reject repeated owner consumption."
+      },
+      {
+        "original_commit": "4095e7431988750809cc223a129741c22641e4fc",
+        "original_path": "tests/language-readiness/owning-trait-hosts/owned_pipeline/consumers.rs",
+        "destination_path": "tests/language-readiness/owning-trait-hosts/owned_pipeline/safety.rs",
+        "test": "owning_pipeline_raw_and_wire_recover_actual_store_roots",
+        "original_and_restored_test_block_sha256": "bf5bbbf5cb9829c05b8397d25063387be65d14b50b19bd478df5d3545fbcc91b",
+        "exact_original_test_block": true,
+        "line_count": 91,
+        "assertions": "Complete source-derived raw/Wire control; reject substitution of unrelated Store manager and local owner in Analyze, independent Verify and Wire."
+      }
+    ],
+    "fixtures": [
+      {
+        "path": "tests/language-readiness/owning-trait-hosts/owned_pipeline/main.zil",
+        "sha256": "881fba7254f1a2914e41005d97302a3d26344b5f3abe64c5eab63886cf16143e",
+        "unchanged_from_original_and_main": true
+      },
+      {
+        "path": "tests/language-readiness/owning-trait-hosts/owned_pipeline/protocol.zil",
+        "sha256": "13b3484fbd554bd395baefcfeff7342e5cca567ed69579d382a74cc48cc5027c",
+        "unchanged_from_original_and_main": true
+      },
+      {
+        "path": "tests/language-readiness/owning-trait-hosts/owned_pipeline/library.zil",
+        "sha256": "25493ca7ff5bb125b9fe634a34453b6ffefca63e821461de9e6b1a7173356eff",
+        "unchanged_from_original_and_main": true
+      },
+      {
+        "path": "tests/language-readiness/owning-trait-hosts/owned_pipeline/model.zil",
+        "sha256": "8373cffc716f97f84d27420000bee011ce71d330b1d026468f70b685d871ab11",
+        "unchanged_from_original_and_main": true
+      }
+    ],
+    "toolchain": "Rust 1.99.1 (58cf8f9c3 2026-10-13), Cargo 1.99.1, locked dependencies",
+    "runs": [
+      {
+        "command": "cargo test --locked --offline -p zil-driver --test nominal_trait_bounds owning_pipeline_ -- --nocapture",
+        "selected": 2,
+        "passed": 2,
+        "failed": 0,
+        "log": "out/runs/restored-callback-target-20261110T034040Z/0.log"
+      },
+      {
+        "command": "cargo test --locked --offline -p zil-driver --test nominal_trait_bounds stored_borrowed_callbacks_have_exact_fresh_kernel_work -- --nocapture",
+        "selected": 1,
+        "passed": 1,
+        "failed": 0,
+        "analyze_n": 312309,
+        "verify_n": 459670,
+        "n_minus_one_and_fresh": true,
+        "log": "out/runs/restored-callback-target-20261110T034040Z/1.log"
+      },
+      {
+        "command": "cargo fmt --all -- --check",
+        "exit_code": 0
+      },
+      {
+        "command": "cargo clippy --locked --offline -p zil-driver --test nominal_trait_bounds -- -D warnings",
+        "exit_code": 0
+      }
+    ],
+    "non_acceptance_attempts": [
+      {
+        "run": "restored-callback-tests-20261110T033905Z",
+        "result": "missing locked external dependencies in initial offline environment; no tests executed"
+      },
+      {
+        "run": "restored-callback-tests-20261110T033923Z",
+        "result": "wrong --lib target selected zero matching tests in both invocations; explicitly excluded from acceptance"
+      }
+    ],
+    "unmeasured": "No new local full workspace or LLVM native run; only these backend-independent source/raw/Wire regression obligations restored.",
+    "reproduction_worktree": "/workspace/scratch/4a034e35838f/zil-regressions"
+  },
+  "ci": {
+    "baseline_exact_sha": "2293d19b53b4882fac663ac8e669bf7cdade386b",
+    "baseline_success_runs": [
+      42731655318,
+      42731655356,
+      42731655310
+    ],
+    "current_exact_sha": "d6fcaeaf9a5ca9d26400b6d7de5e3c82a5c23878",
+    "structure_success": 42751457977,
+    "source_in_progress": 42751457985,
+    "llvm_in_progress": 42751458036,
+    "not_all_green_claimed": true
+  },
+  "boundary": "goal is coordination only and is not merged to main. Main received three semantic test files only. Historical failures and rejected performance experiments remain in source history, not accepted production."
+}

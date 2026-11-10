@@ -1480,5 +1480,6 @@
       "Restore the exact local worktrees and out evidence; detach before branch -d, without reset/clean.",
       "Resume Map from ea01/b731 on its own branch, one root build window, complete original 5008B input and default limits."
     ]
-  }
+  },
+  "superseded_current_state_by": "branch-reconciliation-20261110.json"
 }
