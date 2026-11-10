@@ -199,6 +199,20 @@ fn origin(
     Ok(out)
 }
 impl Meta {
+    pub(super) fn retained_cleanup(&self, b: &mut Budget) -> Check<()> {
+        pay(
+            b,
+            self.observes
+                .len()
+                .saturating_add(self.tests.len())
+                .saturating_add(2),
+        )?;
+        for (_, path) in self.observes.values() {
+            pay(b, path.len().saturating_add(1))?;
+        }
+        Ok(())
+    }
+
     pub(super) fn new(f: &TypedFunction, b: &mut Budget) -> Check<Self> {
         pay(
             b,

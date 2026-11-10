@@ -1333,7 +1333,7 @@ fn legacy_byte_capture_has_exact_fresh_budget_control() {
     // frontend boundaries remain fixed; Verify now visits only actual nonempty loans.
     let actual = phase_budgets("legacy-byte-capture", source);
     // Schema31 adds one Fresh source tag to each kernel's two metadata scans.
-    assert_eq!(actual, [190, 196, 2230 + 2, 2344]);
+    assert_eq!(actual, [190, 196, 2230 + 2, 3351]);
 }
 
 #[test]

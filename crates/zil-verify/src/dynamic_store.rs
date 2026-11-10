@@ -1,8 +1,10 @@
 //! Independent sealed prefix admission. No frontend facts confer authority.
 use super::*;
 
+mod carrier_cache;
 #[cfg(test)]
 mod tests;
+pub(super) use carrier_cache::{Cache as CarrierCache, register_actual_carrier_root};
 
 pub(super) const PREFIX: &str = "@builtin:OwnedStore<";
 
@@ -992,6 +994,26 @@ pub(super) fn check_definition(
 }
 
 pub(super) fn check_carrier(
+    module: &TypedModule,
+    ty: &Type,
+    span: Option<Span>,
+    budget: &mut Budget,
+) -> Check<()> {
+    let previous = if budget.pod_stores {
+        carrier_cache::query(module, ty, budget)?
+    } else {
+        None
+    };
+    if previous == Some(true) {
+        return Ok(());
+    }
+    check_carrier_uncached(module, ty, span, budget)?;
+    if previous == Some(false) {
+        carrier_cache::complete(module, ty, budget)?;
+    }
+    Ok(())
+}
+fn check_carrier_uncached(
     module: &TypedModule,
     ty: &Type,
     span: Option<Span>,

@@ -293,7 +293,7 @@ fn verify_current_raw_wire_and_source_limits() {
             }
         }
 
-        assert_eq!(low, 17_400, "current Verify work changed");
+        assert_eq!(low, 18_708, "current Verify work changed");
         let fp = run(low).unwrap();
         for _ in 0..2 {
             assert!(run(low - 1).is_none());
@@ -336,7 +336,7 @@ fn verify_current_raw_wire_and_source_limits() {
         assert_eq!(
             low,
             match kind {
-                "work" => 17_400,
+                "work" => 18_708,
                 "nodes" => 173,
                 "bytes" => 348,
                 _ => 10,

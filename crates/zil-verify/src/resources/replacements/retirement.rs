@@ -8,6 +8,23 @@ pub(in crate::resources) struct Sources {
     captures: actual::Captures,
 }
 impl Sources {
+    #[cfg(test)]
+    pub(in crate::resources) fn field_state_fixture(seed: u32) -> Self {
+        let target = actual::Target {
+            base: actual::Base::Input(seed),
+            steps: vec![PlaceProjection::Field(seed % 2)],
+            mutable: true,
+        };
+        let captured = actual::Target {
+            base: actual::Base::InputCapture(seed, 0),
+            steps: vec![PlaceProjection::Field(0)],
+            mutable: false,
+        };
+        Self {
+            direct: BTreeSet::from([target]),
+            captures: BTreeMap::from([(0, BTreeSet::from([captured]))]),
+        }
+    }
     pub(in crate::resources) fn cost(&self, b: &mut Budget) -> Check<()> {
         actual::charge_set(&self.direct, b)?;
         b.spend(self.captures.len())?;
@@ -333,7 +350,12 @@ pub(super) fn observe(
             continue;
         }
         let Some(slot) = *slot else { continue };
-        if Some(slot) == point.output || !transfer.after[point.block][point.position][slot] {
+        if Some(slot) == point.output
+            || !transfer
+                .after
+                .row(point.block, point.position)
+                .get(slot, b)?
+        {
             continue;
         }
         let source = &state.retirement[slot];
@@ -495,8 +517,21 @@ pub(super) fn close(plan: &Plan, module: &TypedModule, b: &mut Budget) -> Check<
     let pairs = plan.pairs.borrow();
     b.spend(module.functions.len())?;
     for f in &module.functions {
-        if !pairs[f.id.0 as usize].is_empty()
-            && (f.callable_contract.is_some() || f.callable_return_contract.is_some())
+        let rows = &pairs[f.id.0 as usize];
+        b.spend(rows.len())?;
+        let input_pairs = f.callable_contract.is_some()
+            && f.call_kind == zil_ir::CallKind::Direct
+            && rows.iter().all(|(a, c)| {
+                [a, c].iter().all(|target| {
+                    matches!(
+                        target.base,
+                        actual::Base::Input(_) | actual::Base::InputCapture(..)
+                    )
+                })
+            });
+        if !rows.is_empty()
+            && (f.callable_return_contract.is_some()
+                || (f.callable_contract.is_some() && !input_pairs))
         {
             return Err(unsupported(
                 "public callable retirement needs a checked separation envelope",

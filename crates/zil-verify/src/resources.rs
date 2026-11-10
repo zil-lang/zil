@@ -9,10 +9,13 @@ pub(super) fn head_address(ty: &Type) -> bool {
 }
 use std::collections::VecDeque;
 pub(crate) mod arrays;
+mod desc_liveness;
+mod field_fresh;
 mod product;
 pub(super) mod public_roles;
 mod replacements;
 pub(super) mod schedule;
+mod slot_layout;
 pub(crate) mod task_frames;
 
 const EMPTY: u8 = 1;
@@ -571,7 +574,7 @@ struct State {
     // Independent SSA Package field provenance. These bytes do not add debt:
     // a complete Package still moves as one value, with local partial fields
     // checked by the existing responsibility slots.
-    package_fresh: Vec<Vec<u8>>,
+    package_fresh: field_fresh::Fields,
     // Actual local/SSA Managed leaves of new Product functions, independently
     // rebuilt here. Empty on the historical flat path; never a public proof.
     product_fresh: Vec<u8>,
@@ -588,7 +591,7 @@ struct Slots {
     // fields do not. Field debts follow all SSA slots and precede captures so
     // they still participate in the ordinary-return conservation check.
     package_fields: Vec<Vec<Option<usize>>>,
-    package_widths: Vec<usize>,
+    package_fresh_plan: field_fresh::Plan,
     product: product::Plan,
     desc_local: Vec<Option<usize>>,
     desc_value: Vec<Option<usize>>,
@@ -886,11 +889,12 @@ impl Slots {
             }
         }
         let product = product::Plan::new(f, budget)?;
+        let package_fresh_plan = field_fresh::Plan::new(package_widths, budget)?;
         Ok(Self {
             managed_local,
             managed_value,
             package_fields,
-            package_widths,
+            package_fresh_plan,
             product,
             desc_local,
             desc_value,
@@ -927,13 +931,8 @@ impl Slots {
                 .saturating_add(self.desc_count)
                 .saturating_add(self.local_count),
         )?;
-        budget.spend(self.package_widths.len())?;
-        let mut package_fresh = Vec::with_capacity(self.package_widths.len());
-        for &width in &self.package_widths {
-            budget.spend(width)?;
-            // An input or unknown Package producer cannot prove new fields.
-            package_fresh.push(vec![INPUT; width]);
-        }
+        // An input or unknown producer still starts every actual field INPUT.
+        let package_fresh = self.package_fresh_plan.empty(budget)?;
         budget.spend(self.product.width())?;
         if self.retirement {
             budget.spend(self.desc_count)?;
@@ -965,14 +964,11 @@ fn state_cost(s: &State, budget: &mut Budget) -> Check<()> {
         s.debt
             .len()
             .saturating_mul(2)
-            .saturating_add(s.package_fresh.len())
             .saturating_add(s.product_fresh.len())
             .saturating_add(s.desc.len())
             .saturating_add(s.newer.len()),
     )?;
-    for row in &s.package_fresh {
-        budget.spend(row.len())?;
-    }
+    s.package_fresh.cost(budget)?;
     for row in &s.desc {
         budget.spend(row.len())?;
     }
@@ -999,18 +995,12 @@ fn merge(target: &mut State, source: &State, budget: &mut Budget) -> Check<bool>
         .zip(&source.debt)
         .chain(target.fresh.iter_mut().zip(&source.fresh))
         .chain(target.product_fresh.iter_mut().zip(&source.product_fresh))
-        .chain(
-            target
-                .package_fresh
-                .iter_mut()
-                .flatten()
-                .zip(source.package_fresh.iter().flatten()),
-        )
     {
         let next = *a | *b;
         changed |= next != *a;
         *a = next;
     }
+    changed |= target.package_fresh.merge(&source.package_fresh, budget)?;
     for (a, b) in target.desc.iter_mut().zip(&source.desc) {
         budget.spend(a.len().saturating_add(b.len()))?;
         let before = a.len();
@@ -1073,7 +1063,7 @@ fn liveness(
     graph: &FunctionGraph,
     slots: &Slots,
     budget: &mut Budget,
-) -> Check<Vec<Vec<Vec<bool>>>> {
+) -> Check<desc_liveness::History> {
     let n = f.blocks.len();
     budget.spend(
         n.checked_mul(slots.desc_count)
@@ -1111,24 +1101,7 @@ fn liveness(
             }
         }
     }
-    let mut after = Vec::with_capacity(n);
-    for (b, block) in f.blocks.iter().enumerate() {
-        budget.spend(
-            block
-                .instructions
-                .len()
-                .checked_mul(slots.desc_count)
-                .ok_or_else(|| limit("resource liveness history overflow"))?,
-        )?;
-        let mut rows = vec![Vec::new(); block.instructions.len()];
-        let mut live = output[b].clone();
-        for (i, instruction) in block.instructions.iter().enumerate().rev() {
-            rows[i] = live.clone();
-            reverse(slots, &mut live, instruction);
-        }
-        after.push(rows);
-    }
-    Ok(after)
+    desc_liveness::history(f, slots, &output, budget)
 }
 
 fn description_live(
@@ -1176,14 +1149,14 @@ fn description_live(
 
 fn no_live_description(
     state: &State,
-    live: &[bool],
+    live: desc_liveness::Row<'_>,
     root: Root,
     span: Span,
     budget: &mut Budget,
 ) -> Check<()> {
-    for (active, roots) in live.iter().zip(&state.desc) {
+    for (index, roots) in state.desc.iter().take(live.len()).enumerate() {
         budget.spend(1)?;
-        if *active {
+        if live.get(index, budget)? {
             budget.spend(roots.len())?;
             if roots.iter().any(|candidate| {
                 candidate.parent() == root.parent()
@@ -1206,7 +1179,7 @@ struct Transfer<'a> {
     module: &'a TypedModule,
     f: &'a TypedFunction,
     slots: &'a Slots,
-    after: &'a [Vec<Vec<bool>>],
+    after: &'a desc_liveness::History,
     effects: &'a [BTreeSet<Root>],
     sum_rows: Option<&'a [Vec<sums::Bridge>]>,
     replacements: Option<&'a replacements::Plan>,
@@ -1468,7 +1441,7 @@ impl Transfer<'_> {
                         }
                         no_live_description(
                             state,
-                            &self.after[b][i],
+                            self.after.row(b, i),
                             Root::Local(*local),
                             span,
                             budget,
@@ -1491,7 +1464,7 @@ impl Transfer<'_> {
                         }
                         no_live_description(
                             state,
-                            &self.after[b][i],
+                            self.after.row(b, i),
                             Root::Local(*local),
                             span,
                             budget,
@@ -1510,7 +1483,7 @@ impl Transfer<'_> {
                                 }
                                 no_live_description(
                                     state,
-                                    &self.after[b][i],
+                                    self.after.row(b, i),
                                     Root::Local(target),
                                     span,
                                     budget,
@@ -1593,7 +1566,7 @@ impl Transfer<'_> {
                     if validate {
                         no_live_description(
                             state,
-                            &self.after[b][i],
+                            self.after.row(b, i),
                             Root::Local(*local),
                             span,
                             budget,
@@ -1655,7 +1628,12 @@ impl Transfer<'_> {
                         if matches!(f.values[value.0 as usize], Type::Managed(_)) {
                             let source = slots.managed_value[value.0 as usize]
                                 .expect("checked Managed field source");
-                            state.package_fresh[output.0 as usize][index] = state.fresh[source];
+                            state.package_fresh.set(
+                                output.0 as usize,
+                                index,
+                                state.fresh[source],
+                                budget,
+                            )?;
                         }
                         self.consume(state, value, span, validate)?;
                     }
@@ -1739,7 +1717,7 @@ impl Transfer<'_> {
                         }
                         no_live_description(
                             state,
-                            &self.after[b][i],
+                            self.after.row(b, i),
                             Root::ArrayElement {
                                 local: *local,
                                 index: *index,
@@ -1786,7 +1764,7 @@ impl Transfer<'_> {
                         }
                         no_live_description(
                             state,
-                            &self.after[b][i],
+                            self.after.row(b, i),
                             Root::ArrayElement {
                                 local: *local,
                                 index: *index,
@@ -1835,7 +1813,7 @@ impl Transfer<'_> {
                         }
                         no_live_description(
                             state,
-                            &self.after[b][i],
+                            self.after.row(b, i),
                             Root::PackageField {
                                 local: *local,
                                 index: *index,
@@ -1884,7 +1862,7 @@ impl Transfer<'_> {
                             }
                             no_live_description(
                                 state,
-                                &self.after[b][i],
+                                self.after.row(b, i),
                                 Root::PackageField {
                                     local: *local,
                                     index: *index,
@@ -2111,7 +2089,7 @@ impl Transfer<'_> {
                         }
                         no_live_description(
                             state,
-                            &self.after[b][i],
+                            self.after.row(b, i),
                             Root::OwnedCapture(*index),
                             span,
                             budget,
@@ -2229,7 +2207,7 @@ impl Transfer<'_> {
                             }
                             no_live_description(
                                 state,
-                                &self.after[b][i],
+                                self.after.row(b, i),
                                 Root::Local(*local),
                                 span,
                                 budget,
@@ -2241,8 +2219,12 @@ impl Transfer<'_> {
                             for (position, (_, ty)) in types.iter().enumerate() {
                                 if matches!(ty, Type::Managed(_)) {
                                     let field = fields[position].expect("checked Managed field");
-                                    state.package_fresh[output.0 as usize][position] =
-                                        state.fresh[field];
+                                    state.package_fresh.set(
+                                        output.0 as usize,
+                                        position,
+                                        state.fresh[field],
+                                        budget,
+                                    )?;
                                 }
                             }
                         }
@@ -2284,7 +2266,7 @@ impl Transfer<'_> {
                             }
                             no_live_description(
                                 state,
-                                &self.after[b][i],
+                                self.after.row(b, i),
                                 Root::Local(*local),
                                 span,
                                 budget,
@@ -2312,14 +2294,17 @@ impl Transfer<'_> {
                         for (position, field) in fields.iter().enumerate() {
                             if let Some(field) = field {
                                 state.debt[*field] = LIVE;
-                                state.fresh[*field] =
-                                    if package_storage(&f.locals[local.0 as usize].ty).is_some_and(
-                                        |types| matches!(types[position].1, Type::Managed(_)),
-                                    ) {
-                                        state.package_fresh[value.0 as usize][position]
-                                    } else {
-                                        INPUT
-                                    };
+                                state.fresh[*field] = if package_storage(
+                                    &f.locals[local.0 as usize].ty,
+                                )
+                                .is_some_and(|types| matches!(types[position].1, Type::Managed(_)))
+                                {
+                                    state
+                                        .package_fresh
+                                        .value(value.0 as usize, position, budget)?
+                                } else {
+                                    INPUT
+                                };
                             }
                         }
                     }
@@ -2363,7 +2348,7 @@ impl Transfer<'_> {
                     if validate {
                         no_live_description(
                             state,
-                            &self.after[b][i],
+                            self.after.row(b, i),
                             Root::Local(*local),
                             span,
                             budget,
@@ -2417,7 +2402,7 @@ impl Transfer<'_> {
                             }
                             no_live_description(
                                 state,
-                                &self.after[b][i],
+                                self.after.row(b, i),
                                 Root::Local(*local),
                                 span,
                                 budget,
@@ -2844,7 +2829,9 @@ impl Transfer<'_> {
                     }
                     budget.spend(bridge.package.len())?;
                     for &(index, fresh) in &bridge.package {
-                        state.package_fresh[output.0 as usize][index] = fresh;
+                        state
+                            .package_fresh
+                            .set(output.0 as usize, index, fresh, budget)?;
                     }
                 }
                 budget.spend(bridge.unpack.len())?;
@@ -2958,19 +2945,29 @@ fn run_function_with_sums(
     sum_rows: Option<&[Vec<sums::Bridge>]>,
     budget: &mut Budget,
 ) -> Check<BTreeSet<Root>> {
-    run_function_data(module, f, graph, effects, validate, sum_rows, budget, None)
+    run_function_data(
+        module,
+        &mut desc_liveness::Binding::new(f, graph),
+        effects,
+        validate,
+        sum_rows,
+        budget,
+        None,
+    )
 }
+#[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 fn run_function_data(
     module: &TypedModule,
-    f: &TypedFunction,
-    graph: &FunctionGraph,
+    binding: &mut desc_liveness::Binding<'_>,
     effects: &[BTreeSet<Root>],
     validate: bool,
     sum_rows: Option<&[Vec<sums::Bridge>]>,
     budget: &mut Budget,
     replacements: Option<&replacements::Plan>,
 ) -> Check<BTreeSet<Root>> {
+    let f = binding.function();
+    let graph = binding.graph();
     if f.foreign.is_some() {
         return Ok(BTreeSet::new());
     }
@@ -2978,6 +2975,31 @@ fn run_function_data(
     if let Some(plan) = replacements {
         plan.extend_slots(f, &mut slots, budget)?;
     }
+    run_with_slots(
+        module,
+        binding,
+        &slots,
+        effects,
+        validate,
+        sum_rows,
+        budget,
+        replacements,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_with_slots(
+    module: &TypedModule,
+    binding: &mut desc_liveness::Binding<'_>,
+    slots: &Slots,
+    effects: &[BTreeSet<Root>],
+    validate: bool,
+    sum_rows: Option<&[Vec<sums::Bridge>]>,
+    budget: &mut Budget,
+    replacements: Option<&replacements::Plan>,
+) -> Check<BTreeSet<Root>> {
+    let f = binding.function();
+    let graph = binding.graph();
     if slots.debt_count == 0 && slots.desc_count == 0 && !slots.retirement {
         return Ok(BTreeSet::new());
     }
@@ -2986,7 +3008,7 @@ fn run_function_data(
     } else {
         BTreeSet::new()
     };
-    let after = liveness(f, graph, &slots, budget)?;
+    let after = binding.after(slots, budget)?;
     let mut initial = slots.empty(budget)?;
     // Charge actual initialization work, including the old Managed-only scan.
     budget.spend(slots.capture_debt.len())?;
@@ -3026,10 +3048,10 @@ fn run_function_data(
         }
     }
     if let Some(plan) = replacements {
-        plan.seed_sources(module, f, &slots, &mut initial, budget)?;
+        plan.seed_sources(module, f, slots, &mut initial, budget)?;
     }
     if validate {
-        task_frames::start(f, &slots, &initial, budget)?;
+        task_frames::start(f, slots, &initial, budget)?;
     }
     budget.spend(f.blocks.len().saturating_mul(2))?;
     let mut inputs = vec![None; f.blocks.len()];
@@ -3045,8 +3067,8 @@ fn run_function_data(
     let transfer = Transfer {
         module,
         f,
-        slots: &slots,
-        after: &after,
+        slots,
+        after: after.history(),
         effects,
         sum_rows,
         replacements,
@@ -3186,67 +3208,13 @@ pub(super) fn effect_closure_target(module: &TypedModule, ty: &Type, span: Span)
     Ok(entry.0 as usize)
 }
 
+#[cfg(test)]
 fn infer_effects(
     module: &TypedModule,
     graphs: &[FunctionGraph],
     budget: &mut Budget,
 ) -> Check<Vec<BTreeSet<Root>>> {
-    infer_effects_data(module, graphs, budget, None, None)
-}
-fn infer_effects_data(
-    module: &TypedModule,
-    graphs: &[FunctionGraph],
-    budget: &mut Budget,
-    replacements: Option<&replacements::Plan>,
-    refined: Option<&BTreeMap<usize, FunctionGraph>>,
-) -> Check<Vec<BTreeSet<Root>>> {
-    budget.spend(module.functions.len())?;
-    let mut effects = vec![BTreeSet::new(); module.functions.len()];
-    let dependents = effect_dependents(module, graphs, budget)?;
-    // Independent verifier scheduling: finish a batch before processing its
-    // notifications. Every function runs initially; growing rows wake consumers.
-    let mut dirty: Vec<usize> = (0..module.functions.len()).rev().collect();
-    let mut next = Vec::new();
-    let mut scheduled = vec![true; module.functions.len()];
-    while !dirty.is_empty() {
-        while let Some(index) = dirty.pop() {
-            budget.spend(1)?;
-            scheduled[index] = false;
-            #[cfg(test)]
-            TEST_EFFECT_SOLVES.with(|value| value.set(value.get() + 1));
-            let graph = if let Some(rows) = refined {
-                budget.spend(rows.len().saturating_add(1))?;
-                rows.get(&index).unwrap_or(&graphs[index])
-            } else {
-                &graphs[index]
-            };
-            let found = run_function_data(
-                module,
-                &module.functions[index],
-                graph,
-                &effects,
-                false,
-                None,
-                budget,
-                replacements,
-            )?;
-            budget.spend(found.len().saturating_add(effects[index].len()))?;
-            let before = effects[index].len();
-            effects[index].extend(found);
-            if effects[index].len() != before {
-                budget.spend(dependents[index].len())?;
-                for &user in &dependents[index] {
-                    if !scheduled[user] {
-                        budget.spend(1)?;
-                        scheduled[user] = true;
-                        next.push(user);
-                    }
-                }
-            }
-        }
-        std::mem::swap(&mut dirty, &mut next);
-    }
-    Ok(effects)
+    slot_layout::Request::new(module, graphs, None, None, budget)?.infer_effects()
 }
 
 #[cfg(test)]
@@ -3407,28 +3375,17 @@ pub(super) fn check_module(
             budget,
         )?)
     };
-    let effects = if replacements.is_some() || refined.is_some() {
-        infer_effects_data(
-            module,
-            graphs,
-            budget,
-            replacements.as_ref(),
-            refined.as_ref(),
-        )?
-    } else {
-        infer_effects(module, graphs, budget)?
-    };
-    for (function, graph) in module.functions.iter().zip(graphs) {
-        let graph = if let Some(rows) = &refined {
-            budget.spend(rows.len().saturating_add(1))?;
-            rows.get(&(function.id.0 as usize)).unwrap_or(graph)
-        } else {
-            graph
-        };
-        run_function_data(
-            module,
-            function,
-            graph,
+    let mut request = slot_layout::Request::new(
+        module,
+        graphs,
+        refined.as_ref(),
+        replacements.as_ref(),
+        budget,
+    )?;
+    let effects = request.infer_effects()?;
+    for (index, function) in module.functions.iter().enumerate() {
+        request.run(
+            index,
             &effects,
             true,
             sum_proofs
@@ -3436,13 +3393,9 @@ pub(super) fn check_module(
                 .get(function.id.0 as usize)
                 .filter(|rows| !rows.is_empty())
                 .map(Vec::as_slice),
-            budget,
-            replacements.as_ref(),
         )?;
     }
-    if let Some(plan) = &replacements {
-        plan.close_pairs(module, budget)?;
-    }
+    request.close_pairs()?;
     Ok(())
 }
 

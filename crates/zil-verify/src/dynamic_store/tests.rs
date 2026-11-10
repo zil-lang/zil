@@ -692,7 +692,7 @@ fn pod_fixture(element: Type) -> (TypedModule, CandidatePlan) {
 // Legal ordinary owning metadata uses the same explicit root lifetime as the
 // existing Store push/pop fixture. The extra owner types below may be unused,
 // but their function still has a real managed local and cleanup obligation.
-fn scoped_pod_fixture(element: Type) -> (TypedModule, CandidatePlan) {
+pub(super) fn scoped_pod_fixture(element: Type) -> (TypedModule, CandidatePlan) {
     let (mut module, plan) = pod_fixture(element);
     let function = &mut module.functions[0];
     let span = function.span;
@@ -742,7 +742,7 @@ fn pod_plan(m: &TypedModule, roots: Vec<Vec<HoldRoot>>) -> CandidatePlan {
     plan
 }
 
-fn pod_both(
+pub(super) fn pod_both(
     m: &TypedModule,
     plan: &CandidatePlan,
     limits: &Limits,
@@ -2095,7 +2095,7 @@ fn pod_store_complete_raw_and_wire_request_has_exact_fresh_boundaries() {
     }
 }
 
-fn pod_protocol_fixture() -> (TypedModule, CandidatePlan) {
+pub(super) fn pod_protocol_fixture() -> (TypedModule, CandidatePlan) {
     let element = pod(vec![("n", Type::I64)]);
     let (mut m, _) = pod_fixture(element.clone());
     let payload = m.resources[0].payload.clone();
