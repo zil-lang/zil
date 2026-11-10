@@ -18,4 +18,4 @@
 
 实现位于 [std.store](../lib/std/store.zil)，[消费者](../tests/language-readiness/owning-trait-hosts/store_push_growing/consumers.rs)覆盖直接 owning 实参、Copy 元素、实际 FnMut 捕获、最后使用点、消费后复用和活借用反例。反例要求与原固定容量 API 的相邻误用具有相同的诊断阶段、类别、错误码和消息。
 
-原生控制应核对完整返回值、准备失败后的旧前缀与容量、实际返回 owner 的重试，以及分配和释放。四次 owning 追加只需要三次容量增长，第四项利用既有空位；构造输出与计数同时约束实参的一次求值。逆序输出来自显式 `pop` 后移交 `dispose`，不作为非空 Store 自动析构顺序的证明。实际执行范围及工具链由随源码提交的精简验收收据绑定。
+原生控制应核对完整返回值、准备失败后的旧前缀与容量、实际返回 owner 的重试，以及分配和释放。四次 owning 追加只需要三次容量增长，第四项利用既有空位；构造输出与计数同时约束实参的一次求值。逆序输出来自显式 `pop` 后移交 `dispose`，不作为非空 Store 自动析构顺序的证明。实际执行范围及工具链由[限定验收收据](../validation/ordinary-store-growth.json)绑定。
