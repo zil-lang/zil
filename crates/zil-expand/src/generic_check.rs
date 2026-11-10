@@ -2271,6 +2271,10 @@ impl Check<'_, '_, '_> {
                         .get(&slot)
                         .cloned()
                         .unwrap_or_else(|| BTreeSet::from([slot])))
+                } else if let Some(slots) =
+                    self.borrowed_store_field_slots(object, member, expression.span, state)?
+                {
+                    self.borrowed_store_origins(&slots, state, expression.span)
                 } else {
                     Ok(BTreeSet::new())
                 }
@@ -6261,6 +6265,10 @@ impl Check<'_, '_, '_> {
                     )?;
                 }
                 StmtKind::Assign { target, op, value } => {
+                    enum StoreSlots {
+                        Local(usize),
+                        Borrowed(BTreeSet<usize>),
+                    }
                     self.factory_place(target, state, true)?;
                     let (ty, writable) = self.assignment_place(target, state)?;
                     let target_aliases = self.alias_result_copy(target.span)?;
@@ -6292,7 +6300,7 @@ impl Check<'_, '_, '_> {
                     let store_target = if stores::element(&ty).is_some() {
                         let slot = match &whole.kind {
                             ExprKind::Name(name) => Some((
-                                state.locals[name].id,
+                                StoreSlots::Local(state.locals[name].id),
                                 state.store_owners.contains(&state.locals[name].id),
                             )),
                             ExprKind::Member {
@@ -6300,11 +6308,26 @@ impl Check<'_, '_, '_> {
                                 member:
                                     MemberName::Name(member)
                                     | MemberName::Constrained { name: member, .. },
-                            } => self
-                                .package_local(object, state)
-                                .map(|owner| self.field_slot(owner, member, target.span))
-                                .transpose()?
-                                .map(|slot| (slot, true)),
+                            } => {
+                                if let Some(owner) = self.package_local(object, state) {
+                                    Some((
+                                        StoreSlots::Local(self.field_slot(
+                                            owner,
+                                            member,
+                                            target.span,
+                                        )?),
+                                        true,
+                                    ))
+                                } else {
+                                    self.borrowed_store_field_slots(
+                                        object,
+                                        member,
+                                        target.span,
+                                        state,
+                                    )?
+                                    .map(|slots| (StoreSlots::Borrowed(slots), true))
+                                }
+                            }
                             _ => None,
                         };
                         let Some((slot, owns)) = slot else {
@@ -6370,16 +6393,25 @@ impl Check<'_, '_, '_> {
                     } else if let Some(slot) = self.existing_field_slot(target, state)? {
                         state.moved.remove(&slot);
                     }
-                    if let Some((slot, owns, origins, fresh)) = store_target {
-                        if owns {
-                            self.replace_store_origin(state, slot, target.span)?;
-                            if fresh {
-                                state.fresh_stores.insert(slot);
-                            } else {
-                                state.fresh_stores.remove(&slot);
+                    if let Some((slots, owns, origins, fresh)) = store_target {
+                        match slots {
+                            StoreSlots::Local(slot) => {
+                                if owns {
+                                    self.replace_store_origin(state, slot, target.span)?;
+                                    if fresh {
+                                        state.fresh_stores.insert(slot);
+                                    } else {
+                                        state.fresh_stores.remove(&slot);
+                                    }
+                                } else {
+                                    state.store_origins.insert(slot, origins);
+                                }
                             }
-                        } else {
-                            state.store_origins.insert(slot, origins);
+                            StoreSlots::Borrowed(slots) => {
+                                for slot in slots {
+                                    self.replace_borrowed_store_origin(state, slot, target.span)?;
+                                }
+                            }
                         }
                     } else if let ExprKind::Name(name) = &whole.kind {
                         let local = state.locals[name].id;
@@ -6604,6 +6636,9 @@ mod loop_control;
 
 #[path = "generic_places.rs"]
 mod places;
+
+#[path = "generic_store_fields.rs"]
+mod store_fields;
 
 #[path = "generic_aliases.rs"]
 mod state_aliases;
