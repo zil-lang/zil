@@ -14,11 +14,11 @@
 
 用户本轮明确：可由一个分支承接的工作只保留一个入口，确有独立实施需要才拆分。编译提速仍由原编译对话实施；其余未完成工作由本对话接续。当前Store、Map依次使用 `task/ordinary-collections`，固定 `archive/source-history` 只保全历史与候选，goal继续作为唯一看板。
 
-PR73从main21b1最小提取五个生产文件，补重借用与RHS准备失败证据后接受。精确执行6c979/tree d3fb5，发布代码597d81同tree；12专项、完整nominal231、Expand77/Types60/Verify511通过，五程序×双后端×O0/O2每轮20原生、两轮均通过；Source N42126、Types2805/3141保留N−1及fresh/warm/retry。严格目标Clippy、fmt与结构门通过，非作者独审接受。远端完整回归仍单独观察，未冒称本轮全工作区或完整产品门通过。见[语言接续](records/ordinary-collections-continuation.json)。
+PR73从main21b1最小提取五个生产文件，补重借用与RHS准备失败证据后接受。精确执行6c979/tree d3fb5，发布代码597d81同tree；12专项、完整nominal231、Expand77/Types60/Verify511通过，五程序×双后端×O0/O2每轮20原生、两轮均通过；Source N42126、Types2805/3141保留N−1及fresh/warm/retry。严格目标Clippy、fmt与结构门通过，非作者独审接受。远端完整回归在Expand generics旧预算pin报错（其余实际边界与严格/native控制通过），正在核清费用并修复；未冒称全工作区或完整产品门通过。见[语言接续](records/ordinary-collections-continuation.json)。
 
 旧三条混合ref的已交付部分由main承载，Store已合PR73，未完Map和一般语言能力由上述入口及本看板承接；共享读预检d2bc7accd等未采用候选保留在固定归档，须有当前完整消费者净收益才采用。本轮用户说明已解决旧“等待明确确认”的接续歧义；实际删除情况以接续记录为准。此前退役13条原ref和PR71临时ref、原自动审批拒绝及首败仍保留在[历史分支核对](records/branch-reconciliation-20261110.json)，不改写历史。
 
-Map原5008B与7583B库输入保持原字节。当前主线先提取必要功能27路径；ede4945的默认Analyze在Sum value join耗尽，dde734的线性完整库存合流3控制和7来源反例通过，原5008B随后完整unknown固定点使Analyze234/234通过（组件N144<旧188），原程序仍在Sum state tables耗尽、V0。接续源码已发布84ee64da；同费用诊断指向SSA整表复制/合流，下一片只改实际页表示与必要控制。旧完整成本树b731及新增shared异页Sources证明候选仍在默认Verify耗尽，不能把组件省费或更长执行前缀当完整请求净收益；后续只按当前基线实际瓶颈选择必要成本改动。Map、一般语言1.0及性能父门继续开放。
+Map原5008B与7583B库输入保持原字节。必要功能、完整unknown固定点、SSA页及真实Locals/Observations索引已接续到6767fbb4（本地精确执行b8089a36同tree）。Analyze246/246、Set1/1及7项Source/raw/Wire来源反例通过；Map仍在默认Analyze的resource fact耗尽、V0。SSA调整使相同完整首轮34函数费用4747221→3363295，并已进入最终检查，但未称整请求验收。当前只依实际瓶颈选择必要成本改动；旧完整成本树及未采用候选均在固定归档。Map、一般语言1.0及性能父门继续开放。
 
 ## G1 · 基础类型与模式
 
@@ -202,7 +202,7 @@ Map原5008B与7583B库输入保持原字节。当前主线先提取必要功能2
 | G3.4.17 | 固定共享地址数组的运行时下标与真实借入来源 | 已合入 | — | root；build_environment 独占抽取 | PR61/main e3ce439c2；执行327927a2/tree df99e8e0，同树发布b3cc0101，收据e9db96c0/tree742bbce0。原任务17路径全部覆盖；54数组、双核664、旧预算23均0失败；新增四配置12成功/8真实SIGILL，另保留旧44native。strict/fmt/完整文档通过；原215B输入/负例/预算未变。原task/G3.4.17归档9ed19a29后删除并API404；完整拥有snapshot和一般混合上界消费者另行验收。 |
 | G3.4.18 | Byte查询与拥有Package地址数组的共同来源/资源验收 | 已合入 | — | — | main@53e3e092d；保主线bounded Array resolver和全部16准入；同一程序Byte len/cap与Array叶读取四native及唯一target写冲突控制通过，97条旧N、3capture阈值及104默认栈保持。 |
 | G3.4.19 | 整共享地址数组读取逐实际根核初始化 | 已合入 | — | — | main@b07b85dd4；精确源码057308f16相关API四目标690/0、snapshot/Byte组92/0、全目标strict/fmt及结构3979通过；含4配置snapshot原生。新增全量/冷恢复未跑，不等于动态下标完成。 |
-| G3.4.20 | 借入泛型Package的Managed Store字段替换 | 已合入 | — | — | [PR73](https://github.com/zil-lang/zil/pull/73)已合main4f3b623ea；五生产文件最小提取，原输入与反例完整保留，新增reborrow真实来源和RHS准备失败后旧值/清理证据。12专项、nominal231、三库648、每轮20原生×两轮通过，N/N−1/fresh/warm保留，非作者精确独审接受。语义spec/ordinary-store-ownership.md，精简收据validation/borrowed-store-field-replacement.json；旧ref拟在固定归档完整读回后清理。 |
+| G3.4.20 | 借入泛型Package的Managed Store字段替换 | 已合入 | — | — | [PR73](https://github.com/zil-lang/zil/pull/73)已合main4f3b623ea；五生产文件最小提取，原输入与反例完整保留，新增reborrow真实来源和RHS准备失败后旧值/清理证据。12专项、nominal231、三库648、每轮20原生×两轮通过，N/N−1/fresh/warm保留，非作者精确独审接受。语义spec/ordinary-store-ownership.md，精简收据validation/borrowed-store-field-replacement.json；旧ref已固定归档并删除；完整远端回归另有Expand旧预算pin待修，见接续记录。 |
 | G3.4.21 | 普通拥有字段Copy观察、共享错误臂及标量入口组合 | 已合入 | — | root · 独立复核 | PR64/main82a698125，受测7dc17/treef89f668b同树发布b20fb414，收据97ef7458/treefab0e036。原四Source/21完整函数/12tests/五硬pin保留；traits197含12、A207/V459/backend182/旧预算23/数组54、strict/fmt/docs全过，8次选定native逐报告核实。独审无blocker，直接共享pure Copy ErrorArm与普通Package成功侧限定明确；完成分支已归档8493b709并删除。pipeline另批。 |
 | G3.4.22 | 存储借入程序中局部拥有ByteBuffer字段的共享字节视图 | 已合入 | — | — | 原6052B四模块由PR68合main，7547B collected由PR69合入，PR71补齐原pipeline安全反例；原精确Source/raw/Wire/native证据保留。旧混合ref由本轮统一接续退役，不代表其中所有优化已采用；d2bc7accd共享读预检及三测试完整保全，归当前Map后续按完整净收益评估。 |
 
@@ -424,7 +424,7 @@ Map原5008B与7583B库输入保持原字节。当前主线先提取必要功能2
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | Chat语言接续 · task/ordinary-collections；两核独立复核 | 当前ede4945为27路径必要功能，未带旧整条成本实验；原5008B在Analyze Sum value join耗尽。dde734仅线性完整库存合流，3旧oracle与7 Source/raw/Wire反例通过，后续完整unknown固定点使全Analyze234/234通过、N144<旧188，原5008仍Sum state tables耗尽、V0。接续源码84ee64da，实际SSA整表复制/合流为下片热点；保完整原始输入与旧oracle。旧b731默认Verify失败及新增Sources no-change候选15控制通过/整程序仍失败均保留，不把组件省费当父门完成；见接续记录。 |
+| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | Chat语言接续 · task/ordinary-collections；两核独立复核 | 6767fbb4（执行b8089a36同tree）保完整原程序与旧oracle；Analyze246/246、Set1/1、来源反例7/7通过。SSA实际页与Locals/Observations直接索引已复测，原5008仍默认Analyze resource fact耗尽、V0，继续定位实际成本；完整native64须待整程序过门后重验。旧b731及Sources no-change候选归档，不作为新树验收；见接续记录。 |
 
 </details>
 

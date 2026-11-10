@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-10T04:59:28.609427+00:00",
-  "read_goal": "17f44c5a0119fe2d81964a2f3c511bea355e107b",
+  "recorded_utc": "2026-11-10T05:25:59.909973+00:00",
+  "read_goal": "d974c773d2ad7edae3dbd913e152f49f0988597f",
   "authorization": "User directs one implementation branch where dependencies permit, separate branches only for independent work; compiler-speed work stays with its original conversation; this conversation continues all other unfinished work.",
   "active_language_branch": "task/ordinary-collections",
   "compiler_branches_untouched": [
@@ -53,37 +53,61 @@
     "independent_review": "Accepted",
     "strict_fmt_structure": "Pass",
     "run": "out/runs/store-field-corrected-20261110T044312Z",
-    "full_remote_regressions": "still separately observed; not claimed complete by this scope"
+    "full_remote_regressions": {
+      "final_head": "01dc188428c78fe7e4deabd9650dd005f4ff3ddb",
+      "main_workflow_run": 42758321310,
+      "job": 129637908815,
+      "conclusion": "failure",
+      "workspace_and_reference_single_failure": "zil-expand --test generics: generic_error_union_contexts_have_exact_prepaid_boundaries",
+      "actual": [
+        1624,
+        540,
+        1555,
+        471,
+        2166,
+        655
+      ],
+      "old_pin": [
+        1456,
+        516,
+        1555,
+        471,
+        2166,
+        655
+      ],
+      "strict_and_native_controls": "Pass",
+      "repair": "Investigating exact newly paid work before restoring the full-suite boundary pin; no limit change."
+    }
   },
   "retirements": [
     {
       "branch": "task/G10.3.6",
       "old_head": "1bd22f6ed801725de554f374af54b9d1b80a956b",
-      "deleted": false,
+      "deleted": true,
       "successor": "Finite ABI delivered in PR63/66; wider ABI remains G10.3 under language continuation."
     },
     {
       "branch": "task/G10.6.3",
       "old_head": "428eb2c549f5285efc0b7921b380e2eff54f808b",
-      "deleted": false,
+      "deleted": true,
       "successor": "Accepted integration is in main; Store PR73 and current Map/remaining goals continue in ordinary-collections."
     },
     {
       "branch": "task/G3.4.22",
       "old_head": "b0200a07fb829966c072b4b00dde2ccddcb68529",
-      "deleted": false,
+      "deleted": true,
       "successor": "PR68/69/71 cover completed consumer; d2bc7accd remains an archived optional Map candidate, not accepted."
     },
     {
       "branch": "task/G3.4.20",
       "old_head": "f0ee4f8215938c27549a4cc1ff176445d2cb6bfe",
-      "deleted": false,
+      "deleted": true,
       "successor": "PR73 accepted exact original production/inputs with current-main revalidation and extra boundary controls."
     },
     {
       "branch": "task/G9.3.11.1",
       "old_head": "b731111d7476db1d3a3379f1b5cbf4dca70beeb0",
-      "deleted": false,
+      "deleted": true,
       "successor": "Current-main minimal functional extraction and original full inputs continue on ordinary-collections; cost candidates remain individually selectable from archive."
     }
   ],
@@ -107,16 +131,16 @@
     "functional_source": "ede4945d1ed37ca6e89f712fc2258379d84d5e37",
     "functional_paths": 27,
     "functional_scope": "3 library paths, 6 ordinary Input/public capture replacement paths, actual parent/generation, complete original fixtures and consumers; no optional old cost caches or broader ABI/compiler changes.",
-    "latest_measured_source": "3bee825c8643c8018b880c4485815a3717553d46",
-    "latest_default_result": "Analyze ResourceLimit: Sum state tables; verification_runs=0",
+    "latest_measured_source": "b8089a369b9f1cdd00368dc140a0102768eed263",
+    "latest_default_result": "Analyze ResourceLimit: resource fact; verification_runs=0",
     "complete_inventory_join_oracles": "3/3; N4667 vs original lookup6454; N-1 and retry pass",
     "source_raw_wire_recent_controls": "7/7",
-    "next": "Actual SSA Values page representation and complete merge/COW charges, with full original BTreeMap oracles; profile identifies whole SSA table copies/scans as dominant.",
+    "next": "Measure remaining actual current-default work after direct inventories; reuse complete successful POD qualification only for actual immutable module and registered Type positions if justified.",
     "unaccepted_candidates": "SSA/direct indexing must include real canonical storage and COW charges; no isolated constant fee. Old Verify caches/checkpoints/pages only after current measured hotspot. No limits increase or shorter consumer.",
-    "published_continuation": "84ee64da9cb7180365dd05c25918beda8f80cc39",
-    "published_tree": "b5f8242a09e7ed685fe0020e96286c54e23cbb7f",
-    "identical_local_tree": "610746af486ce91281bc4f4107d325c512d415cb",
-    "complete_analyze_library": "234/234 passed",
+    "published_continuation": "6767fbb4e24d998e77e8bb5c638388589eaae377",
+    "published_tree": "2bd8b175fac2cf2d030f2faf507039afdb97abee",
+    "identical_local_tree": "b8089a369b9f1cdd00368dc140a0102768eed263",
+    "complete_analyze_library": "246/246 passed",
     "unknown_fixedpoint": "4 semantic/reconstruction controls, exact N144 versus old188; N-1/fresh; independent input-isolation correction610746 then1/1 rerun",
     "same_fee_diagnostic": {
       "source": "3bee825c8643c8018b880c4485815a3717553d46",
@@ -137,6 +161,43 @@
       "last_function_truncated": true,
       "final_validation_entered": false,
       "interpretation": "This is an accepted-work prefix histogram, not complete-request net savings."
+    },
+    "latest_run": "out/runs/map-direct-index-20261110T052225Z",
+    "set_source": "1/1 Success Verify, verification_runs=1",
+    "ssa_pages": {
+      "source": "bcfec60ca894eb4c37b380a7f1f626887a7fc3fa",
+      "run": "out/runs/map-ssa-source-20261110T050912Z",
+      "analyze": "242/242",
+      "set": "1/1",
+      "callable": "7/7",
+      "full_map": "Analyze ResourceLimit at Sum existing unknown tag shape; V0",
+      "sorted_oracle": "4733 vs original lookup6454; previous linear4667, so this one microcase is not a gain over its direct predecessor."
+    },
+    "direct_inventories": {
+      "source": "b8089a369b9f1cdd00368dc140a0102768eed263",
+      "semantic_scope": "Complete canonical Locals and sparse SSA Observations; bounded simple instructions use actual direct lookup reserve; complex, partial-result and managed-success retain prior lookup reserve.",
+      "old_oracle": "Full bcfec apply/edge/helpers, including eager ErrorUnion; independently saved input snapshot",
+      "controls": "4/4 included in Analyze246; simple exact N/N-1/fresh, inventory and complete transfer/edge checks",
+      "review": "Independent exact-source static review accepted; original full Map still not accepted."
+    },
+    "ssa_same_fee_diagnostic": {
+      "source": "bcfec60ca894eb4c37b380a7f1f626887a7fc3fa",
+      "run": "out/runs/map-analyze-ledger-20261110-2-bcfec60c",
+      "accepted_work": 10000000,
+      "remaining": 0,
+      "rejected_charge": 1,
+      "complete_summary_functions": 68,
+      "final_validation_entered": true,
+      "final_records_accepted_prefix": 1614660,
+      "first_complete_records_before": 4152164,
+      "first_complete_records_after": 2853193,
+      "first_complete_34_functions_before": 4747221,
+      "first_complete_34_functions_after": 3363295,
+      "same_scope_saving": 1383926,
+      "top_cost": "Sum instruction index reserve 1400480 from actual Plan::apply eight lookups per instruction, not Plan construction",
+      "input_and_default_limits_unchanged": true,
+      "source_restored_byte_exact_and_clean": true,
+      "interpretation": "Savings refer to the same completed function range; whole request still fails, so no complete-request net gain claimed."
     }
   },
   "first_failures": [
@@ -159,7 +220,30 @@
     {
       "run": "out/runs/map-main-tag-fixedpoint-20261110T045813Z",
       "result": "Analyze234/234; exact tag boundary144<188; complete Map0/1 at Analyze Sum state tables,V0."
+    },
+    {
+      "run": "out/runs/map-ssa-source-20261110T050912Z",
+      "result": "Analyze242/242, Set1/1, callable7/7; complete Map Analyze ResourceLimit Sum existing unknown tag shape,V0."
+    },
+    {
+      "run": "out/runs/map-direct-index-20261110T052225Z",
+      "result": "Analyze246/246, Set1/1, callable7/7; complete Map Analyze ResourceLimit resource fact,V0."
     }
   ],
-  "boundary": "goal is coordination and never merged to main. Raw logs stay in each unique out/runs; only source, lasting language rules and compact exact acceptance are published to main."
+  "boundary": "goal is coordination and never merged to main. Raw logs stay in each unique out/runs; only source, lasting language rules and compact exact acceptance are published to main.",
+  "retirement_readback": {
+    "all_five_refs_absent": true,
+    "remote_head_count": 7,
+    "heads": [
+      "archive/source-history",
+      "goal",
+      "main",
+      "task/G10.5.1.3",
+      "task/G10.5.1.4",
+      "task/byte-buffer-growth-boundary",
+      "task/ordinary-collections"
+    ],
+    "archive_ancestry_rechecked": true,
+    "remote_tracking_pruned": true
+  }
 }
