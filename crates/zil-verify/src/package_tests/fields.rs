@@ -948,8 +948,9 @@ fn no_package_scalar_controls_charge_resource_frontier_setup_exactly() {
     // preparing Package provenance. Effect inference and final checking each
     // perform that scan, adding2*count to the old22/394 controls. These measured
     // complete responsibility-pass N values include both setup and validation.
+    // The request-local function binding table adds22 for each one-function module.
     // The fixture still registers a resource but has no owning/Desc locals.
-    for (count, expected_cost) in [(1, 24), (32, 458)] {
+    for (count, expected_cost) in [(1, 46), (32, 480)] {
         let mut b = Body::new(Type::Unit);
         for value in 0..count {
             let local = b.storage(Type::I32);
