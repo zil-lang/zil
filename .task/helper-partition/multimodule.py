@@ -54,6 +54,12 @@ def main():
     rows=[];runs=[];failures=[]
     inputs=[bytes([i,3,0,1]) for i in range(16)]+[bytes([73,11,0,3]),bytes([0,0,0,2])]
     manifest={'specs':SPECS,'rounds':a.rounds,'modes':['O0','O2'],'history':SNAPS,'inputs':[x.hex() for x in inputs],'tools':{k:m.sha(v) for k,v in tools.items()},'rust':'Vec with explicit fallible reserve and checked doubling; no identical allocator claim','scope':'multi-handler mechanisms, not a complete upstream app port or part of old weighted aggregate','baseline':'099d0af969a51260355437603b77d3f9030d83bc'}
+    for kind,n in SPECS:
+        for snapshot in ['base','private','public']:
+         for lang in ['zil','rust']:
+          folder=out/'corpus'/kind/snapshot/lang;folder.mkdir(parents=True)
+          for name,text in files(kind,n,lang,snapshot).items():(folder/name).write_text(text)
+    manifest['source_hashes']={str(p.relative_to(out)):m.sha(p) for p in (out/'corpus').rglob('*') if p.is_file()}
     m.dump(out/'manifest.json',manifest)
     try:
       for kind,n in SPECS:
