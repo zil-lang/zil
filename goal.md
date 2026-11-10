@@ -18,7 +18,7 @@ PR73从main21b1最小提取五个生产文件，补重借用与RHS准备失败�
 
 旧三条混合ref的已交付部分由main承载，Store已合PR73，未完Map和一般语言能力由上述入口及本看板承接；共享读预检d2bc7accd等未采用候选保留在固定归档，须有当前完整消费者净收益才采用。本轮用户说明已解决旧“等待明确确认”的接续歧义；实际删除情况以接续记录为准。此前退役13条原ref和PR71临时ref、原自动审批拒绝及首败仍保留在[历史分支核对](records/branch-reconciliation-20261110.json)，不改写历史。
 
-Map原5008B与7583B库保持原字节。执行环境和正式工具链已恢复；最新发布7374d3eb/执行5fff3deb同tree4bd59ca0，已接入main的PR75/76，完整Analyze267/267、Verify571/571、原Source组9/10，唯一Map仍默认Verify限额。完整库存检查和独立旧BTreeSet对照保留，新增真实Packed合流控制通过独审。当前继续同一基底的有序摘要调度/完整旧扫描同费比较；原16build/64native与当前严格门待验。远端本轮核到16分支，12个编译专项均保留，非编译无新增可删项；Map及1.0父门仍开放，详[语言接续](records/ordinary-collections-continuation.json)。
+Map原5008B与7583B库保持原字节。执行环境和正式工具链已恢复；最新发布7374d3eb/执行5fff3deb同tree4bd59ca0，已接入main的PR75/76，完整Analyze267/267、Verify571/571、原Source组9/10，唯一Map仍默认Verify限额。完整库存检查和独立旧BTreeSet对照保留，新增真实Packed合流控制通过独审。同基底新旧完整扫描实测确认摘要阶段净省126612，34个最终body逐函数同费；继续稳定输入复用与真实命中控制，原16build/64native及当前严格门待验。远端本轮核到16分支，12个编译专项均保留，非编译无新增可删项；Map及1.0父门仍开放，详[语言接续](records/ordinary-collections-continuation.json)。
 
 ## G1 · 基础类型与模式
 
@@ -424,7 +424,7 @@ Map原5008B与7583B库保持原字节。执行环境和正式工具链已恢复�
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | Chat语言接续 · task/ordinary-collections；两核独立复核 | 发布7374d3eb/执行5fff同tree，已适配main PR75/76且保完整旧oracle；Analyze267/267、Verify571/571、Source9/10，原Map仍Verify默认限额。环境已恢复，继续同基底有序调度/旧完整扫描同费诊断，再验原16build/64native与当前严格门；Map未完成。 |
+| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | Chat语言接续 · task/ordinary-collections；两核独立复核 | 发布7374d3eb/执行5fff同tree，已适配main PR75/76且保完整旧oracle；Analyze267/267、Verify571/571、Source9/10，原Map仍Verify默认限额。同基底完整摘要阶段净省126612、34final全保；继续稳定输入复用及真实命中控制，再验原16build/64native与当前严格门；Map未完成。 |
 
 </details>
 
