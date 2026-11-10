@@ -1,0 +1,77 @@
+name: Closure dependency and codegen profile
+on:
+  push:
+    branches: [task/compiler-closure-dependencies]
+    paths: [.github/workflows/compiler-closure-profile.yml]
+permissions:
+  contents: read
+jobs:
+  profile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Export exact main source before building
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 --no-tags origin 947063a63880b375889ff30b3beba6151abf55f3
+          mkdir -p "$RUNNER_TEMP/closure-source" "$RUNNER_TEMP/closure-profile-setup"
+          git archive --format=tar.gz 947063a63880b375889ff30b3beba6151abf55f3 > "$RUNNER_TEMP/closure-source/source.tar.gz"
+          git rev-parse 947063a63880b375889ff30b3beba6151abf55f3^{tree} > "$RUNNER_TEMP/closure-source/tree.txt"
+          sha256sum "$RUNNER_TEMP/closure-source/source.tar.gz" > "$RUNNER_TEMP/closure-source/sha256.txt"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: exact-main-947063a6-source
+          path: ${{ runner.temp }}/closure-source
+          retention-days: 14
+      - name: Pinned tools and original input model
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          cargo fetch --locked
+          sudo apt-get update -qq
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/closure-llvm" > "$RUNNER_TEMP/closure-profile-setup/llvm-install.log" 2>&1
+          echo "ZIL_CLANG=$RUNNER_TEMP/closure-llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/closure-llvm/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/closure-llvm/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/closure-llvm/bin" >> "$GITHUB_PATH"
+          git fetch --depth=1 --no-tags origin 59f1124a6bb684c74d076de3f30594f87fb8e6e3
+          git show 59f1124a6bb684c74d076de3f30594f87fb8e6e3:.task/resident-cli/bench/corpus.py > .task/closure-dependencies/corpus.py
+          rustc -vV > "$RUNNER_TEMP/closure-profile-setup/rustc.txt"
+          python3 -m py_compile .task/closure-dependencies/*.py
+      - name: Frozen baseline release compiler
+        run: |
+          set -euo pipefail
+          CARGO_TARGET_DIR="$RUNNER_TEMP/closure-profile-target" cargo build --locked --offline --release -p zil-cli > "$RUNNER_TEMP/closure-profile-setup/build.log" 2>&1
+      - name: Current IR and phase diagnosis
+        run: |
+          set -euo pipefail
+          python3 .task/closure-dependencies/profile.py --cli "$RUNNER_TEMP/closure-profile-target/release/zil" --out "$RUNNER_TEMP/closure-profile-data" 2>&1 | tee "$RUNNER_TEMP/closure-profile-setup/profile.log"
+      - name: Preserve diagnostics including failures
+        if: ${{ always() }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,tarfile,json
+          t=Path(os.environ['RUNNER_TEMP']);d=t/'closure-profile-artifact';d.mkdir()
+          with tarfile.open(d/'diagnostics.tar.gz','w:gz') as tar:
+              for source,label in [(t/'closure-profile-setup','setup'),(t/'closure-profile-data','data')]:
+                  if source.exists():
+                      for p in source.rglob('*'):
+                          if p.is_file() and not any(k in p.parts for k in ('semantic','objects','rust-incremental')):tar.add(p,arcname=label+'/'+str(p.relative_to(source)))
+          (d/'receipt.json').write_text(json.dumps({'baseline':'947063a63880b375889ff30b3beba6151abf55f3','recipe':os.environ['GITHUB_SHA'],'scope':'diagnostic; production code unchanged'},indent=2)+'\n')
+          assert (d/'diagnostics.tar.gz').stat().st_size<48*1024*1024
+          PY
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: closure-profile-${{ github.run_id }}
+          path: ${{ runner.temp }}/closure-profile-artifact
+          retention-days: 30
