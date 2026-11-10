@@ -153,8 +153,8 @@ pub(crate) fn partition_view_cached(
     cache_root: Option<&std::path::Path>,
 ) -> (Plan, Option<layout::Pending>) {
     // Shared helper code alone must not force otherwise independent resource
-    // modules into one object. The optional plan retains complete direct-call
-    // visibility, identity-bearing local components and the original copy bound.
+    // modules into one object. Keep full helper visibility, bounded small source
+    // imports, identity-bearing local components and the original copy bound.
     if import_complete_call_closures
         && let Some(recipe) = resource_helpers::prepare(&module, lir, entry, count)
     {
