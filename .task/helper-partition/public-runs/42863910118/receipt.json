@@ -1,0 +1,17 @@
+{
+  "baseline": "099d0af969a51260355437603b77d3f9030d83bc",
+  "candidate_source": "0d18886608738e4de351885c6b1c0e9fae089476",
+  "production_head": "41e9f47c28412b0019779a06eb3de69d16174ea2",
+  "production_tree": "0b3f60b4aa2aaa0409602a78ff4eace4a9069848",
+  "recipe": "e509b70474443346d092e70bc721968ceceb2ef8",
+  "status_before_preservation": "success",
+  "primary_inputs_or_weights_changed": false,
+  "main_modified": false,
+  "files": {
+    "rows.jsonl": "74fc3068963df7d8cd90bf6845ffab6ae3fc82d039ce87e727bbc6f4e01eb790",
+    "raw.tar.gz": "04aa81eb0083279f590ad26448792c2d63c02b6639bcdb0ccc7b91654bdb9d68",
+    "summary.json": "a623acbad1325f56a876f2f990b1c942ac5ea82298dc9ecfc8e2f108f8390fbc",
+    "omitted-elf.json": "76525118e8fb8353291dfc4adc92223951af92f16c6007223052728a4de72071"
+  },
+  "acceptance": "Additional signature/placement boundary; numerical gates must be inspected"
+}

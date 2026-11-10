@@ -1,0 +1,4239 @@
+{
+  "complete": true,
+  "passed": true,
+  "builds": [
+    {
+      "argv": [
+        "/home/runner/work/_temp/public-base-target/release/zil",
+        "build",
+        "/home/runner/work/_temp/public-data/dispatch8/base/main.zil",
+        "--json",
+        "--opt",
+        "O2",
+        "--backend",
+        "llvm-api",
+        "--clang",
+        "/home/runner/work/_temp/public-llvm/bin/clang",
+        "--codegen-units",
+        "8",
+        "--codegen-jobs",
+        "2",
+        "--incremental-o2",
+        "--function-merging",
+        "after",
+        "-o",
+        "/home/runner/work/_temp/public-data/dispatch8/base/app"
+      ],
+      "wall_ms": 201.130723,
+      "cpu_ms": 187.53599999999997,
+      "rss_kib": 73164,
+      "exit": 0,
+      "timeout": false,
+      "log": "/home/runner/work/_temp/public-data/build-logs/0",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/public-data/dispatch8/base/app",
+          "llvm": "/home/runner/work/_temp/public-data/dispatch8/base/app.ll"
+        },
+        "input_fingerprint": "7bf1a7b56c64a93e260d0cfe8216562558734e07f85c7ae727be15637a26d51a",
+        "seconds": 0.191663377,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/public-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/public-data/dispatch8/base/.zil-driver-3230-0/.zil-build-3230-0/unit-0.o",
+            "-o",
+            "/home/runner/work/_temp/public-data/dispatch8/base/.zil-driver-3230-0/.zil-build-3230-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 11664,
+              "input_kind": "builder",
+              "preflight_ns": 2234620,
+              "builder_ns": 3381525,
+              "parse_ns": 0,
+              "optimize_ns": 94680470,
+              "emit_ns": 28511102,
+              "total_ns": 129848552
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": "complete O2 call closure requires a local definition",
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/public-data/dispatch8/base/main.zil",
+          "1": "/home/runner/work/_temp/public-data/dispatch8/base/worker0.zil",
+          "2": "/home/runner/work/_temp/public-data/dispatch8/base/worker1.zil",
+          "3": "/home/runner/work/_temp/public-data/dispatch8/base/worker2.zil",
+          "4": "/home/runner/work/_temp/public-data/dispatch8/base/worker3.zil",
+          "5": "/home/runner/work/_temp/public-data/dispatch8/base/worker4.zil",
+          "6": "/home/runner/work/_temp/public-data/dispatch8/base/worker5.zil",
+          "7": "/home/runner/work/_temp/public-data/dispatch8/base/worker6.zil",
+          "8": "/home/runner/work/_temp/public-data/dispatch8/base/worker7.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "3e7e3c810512a97b243addf6a6695d0017d1db9d08a88ccbac64906b57af2ecb",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          },
+          {
+            "module": 1,
+            "signature_fingerprint": "5473a704b39e4bcc92d11872cdb0fda70c42d2aaff8801c0d3fafcdc6aa92230",
+            "implementation_fingerprint": "fbab5c66e98ecb792b4773bf6439f875104f66554d92496adf8b30219da5b8d1",
+            "contract_fingerprint": "dd6dd09307b1a70242ef59f80ce79388e4537435383a1c963bd07a0f0e7358f4",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 2,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 3,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 4,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 5,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 6,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 7,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 8,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          }
+        ]
+      },
+      "case": "dispatch8",
+      "arm": "base"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/public-candidate-target/release/zil",
+        "build",
+        "/home/runner/work/_temp/public-data/dispatch8/cand/main.zil",
+        "--json",
+        "--opt",
+        "O2",
+        "--backend",
+        "llvm-api",
+        "--clang",
+        "/home/runner/work/_temp/public-llvm/bin/clang",
+        "--codegen-units",
+        "8",
+        "--codegen-jobs",
+        "2",
+        "--incremental-o2",
+        "--function-merging",
+        "after",
+        "-o",
+        "/home/runner/work/_temp/public-data/dispatch8/cand/app"
+      ],
+      "wall_ms": 179.162715,
+      "cpu_ms": 216.69299999999996,
+      "rss_kib": 75032,
+      "exit": 0,
+      "timeout": false,
+      "log": "/home/runner/work/_temp/public-data/build-logs/1",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/public-data/dispatch8/cand/app",
+          "llvm": "/home/runner/work/_temp/public-data/dispatch8/cand/app.ll"
+        },
+        "input_fingerprint": "44b8d2ca292487ef304722a9e402bac4887f2f2bcb03017c1f1e9e5808df2295",
+        "seconds": 0.17061433,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/public-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/public-data/dispatch8/cand/.zil-driver-3236-0/.zil-build-3236-0/unit-0.o",
+            "/home/runner/work/_temp/public-data/dispatch8/cand/.zil-driver-3236-0/.zil-build-3236-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/public-data/dispatch8/cand/.zil-driver-3236-0/.zil-build-3236-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 9280,
+              "input_kind": "builder",
+              "preflight_ns": 2781803,
+              "builder_ns": 4301858,
+              "parse_ns": 0,
+              "optimize_ns": 92481173,
+              "emit_ns": 20361588,
+              "total_ns": 121153237
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 3408,
+              "input_kind": "builder",
+              "preflight_ns": 499371,
+              "builder_ns": 831090,
+              "parse_ns": 0,
+              "optimize_ns": 19105859,
+              "emit_ns": 15937094,
+              "total_ns": 37053146
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/public-data/dispatch8/cand/main.zil",
+          "1": "/home/runner/work/_temp/public-data/dispatch8/cand/worker0.zil",
+          "2": "/home/runner/work/_temp/public-data/dispatch8/cand/worker1.zil",
+          "3": "/home/runner/work/_temp/public-data/dispatch8/cand/worker2.zil",
+          "4": "/home/runner/work/_temp/public-data/dispatch8/cand/worker3.zil",
+          "5": "/home/runner/work/_temp/public-data/dispatch8/cand/worker4.zil",
+          "6": "/home/runner/work/_temp/public-data/dispatch8/cand/worker5.zil",
+          "7": "/home/runner/work/_temp/public-data/dispatch8/cand/worker6.zil",
+          "8": "/home/runner/work/_temp/public-data/dispatch8/cand/worker7.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "3e7e3c810512a97b243addf6a6695d0017d1db9d08a88ccbac64906b57af2ecb",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          },
+          {
+            "module": 1,
+            "signature_fingerprint": "5473a704b39e4bcc92d11872cdb0fda70c42d2aaff8801c0d3fafcdc6aa92230",
+            "implementation_fingerprint": "fbab5c66e98ecb792b4773bf6439f875104f66554d92496adf8b30219da5b8d1",
+            "contract_fingerprint": "dd6dd09307b1a70242ef59f80ce79388e4537435383a1c963bd07a0f0e7358f4",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 2,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 3,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 4,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 5,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 6,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 7,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 8,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          }
+        ]
+      },
+      "case": "dispatch8",
+      "arm": "cand"
+    },
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+        "/home/runner/work/_temp/public-data/dispatch8/rust/main.rs",
+        "--edition=2024",
+        "--crate-name",
+        "signature_boundary",
+        "-A",
+        "warnings",
+        "-C",
+        "opt-level=2",
+        "-C",
+        "debuginfo=0",
+        "-C",
+        "overflow-checks=yes",
+        "-C",
+        "panic=abort",
+        "-C",
+        "embed-bitcode=no",
+        "-C",
+        "incremental=/home/runner/work/_temp/public-data/dispatch8/rust/incremental",
+        "-o",
+        "/home/runner/work/_temp/public-data/dispatch8/rust/app"
+      ],
+      "wall_ms": 279.832385,
+      "cpu_ms": 444.75,
+      "rss_kib": 231064,
+      "exit": 0,
+      "timeout": false,
+      "log": "/home/runner/work/_temp/public-data/build-logs/2",
+      "case": "dispatch8",
+      "arm": "rust"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/public-base-target/release/zil",
+        "build",
+        "/home/runner/work/_temp/public-data/pipeline8/base/main.zil",
+        "--json",
+        "--opt",
+        "O2",
+        "--backend",
+        "llvm-api",
+        "--clang",
+        "/home/runner/work/_temp/public-llvm/bin/clang",
+        "--codegen-units",
+        "8",
+        "--codegen-jobs",
+        "2",
+        "--incremental-o2",
+        "--function-merging",
+        "after",
+        "-o",
+        "/home/runner/work/_temp/public-data/pipeline8/base/app"
+      ],
+      "wall_ms": 188.286855,
+      "cpu_ms": 188.24899999999997,
+      "rss_kib": 74260,
+      "exit": 0,
+      "timeout": false,
+      "log": "/home/runner/work/_temp/public-data/build-logs/3",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/public-data/pipeline8/base/app",
+          "llvm": "/home/runner/work/_temp/public-data/pipeline8/base/app.ll"
+        },
+        "input_fingerprint": "eeb70915e25cdd008ef2a1dc2c66abf92829a6652d2d523c6312a57e998a5b8e",
+        "seconds": 0.17974466,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/public-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/public-data/pipeline8/base/.zil-driver-3344-0/.zil-build-3344-0/unit-0.o",
+            "-o",
+            "/home/runner/work/_temp/public-data/pipeline8/base/.zil-driver-3344-0/.zil-build-3344-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 12008,
+              "input_kind": "builder",
+              "preflight_ns": 2371926,
+              "builder_ns": 3481224,
+              "parse_ns": 0,
+              "optimize_ns": 94593569,
+              "emit_ns": 29932529,
+              "total_ns": 131464141
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": "complete O2 call closure requires a local definition",
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/public-data/pipeline8/base/main.zil",
+          "1": "/home/runner/work/_temp/public-data/pipeline8/base/worker0.zil",
+          "2": "/home/runner/work/_temp/public-data/pipeline8/base/worker1.zil",
+          "3": "/home/runner/work/_temp/public-data/pipeline8/base/worker2.zil",
+          "4": "/home/runner/work/_temp/public-data/pipeline8/base/worker3.zil",
+          "5": "/home/runner/work/_temp/public-data/pipeline8/base/worker4.zil",
+          "6": "/home/runner/work/_temp/public-data/pipeline8/base/worker5.zil",
+          "7": "/home/runner/work/_temp/public-data/pipeline8/base/worker6.zil",
+          "8": "/home/runner/work/_temp/public-data/pipeline8/base/worker7.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "deb018b7b0087843901db1835f9c832b17c9cc11c5198114154ce76fae028b66",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          },
+          {
+            "module": 1,
+            "signature_fingerprint": "5473a704b39e4bcc92d11872cdb0fda70c42d2aaff8801c0d3fafcdc6aa92230",
+            "implementation_fingerprint": "fbab5c66e98ecb792b4773bf6439f875104f66554d92496adf8b30219da5b8d1",
+            "contract_fingerprint": "dd6dd09307b1a70242ef59f80ce79388e4537435383a1c963bd07a0f0e7358f4",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 2,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 3,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 4,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 5,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 6,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 7,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 8,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          }
+        ]
+      },
+      "case": "pipeline8",
+      "arm": "base"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/public-candidate-target/release/zil",
+        "build",
+        "/home/runner/work/_temp/public-data/pipeline8/cand/main.zil",
+        "--json",
+        "--opt",
+        "O2",
+        "--backend",
+        "llvm-api",
+        "--clang",
+        "/home/runner/work/_temp/public-llvm/bin/clang",
+        "--codegen-units",
+        "8",
+        "--codegen-jobs",
+        "2",
+        "--incremental-o2",
+        "--function-merging",
+        "after",
+        "-o",
+        "/home/runner/work/_temp/public-data/pipeline8/cand/app"
+      ],
+      "wall_ms": 194.040836,
+      "cpu_ms": 325.86699999999996,
+      "rss_kib": 74584,
+      "exit": 0,
+      "timeout": false,
+      "log": "/home/runner/work/_temp/public-data/build-logs/4",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/public-data/pipeline8/cand/app",
+          "llvm": "/home/runner/work/_temp/public-data/pipeline8/cand/app.ll"
+        },
+        "input_fingerprint": "c06adc54d9c0bdbe283a92bbbbe1abafd4a1604d2d019ca2e538d09850ea4afc",
+        "seconds": 0.185478371,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/public-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/public-data/pipeline8/cand/.zil-driver-3350-0/.zil-build-3350-0/unit-0.o",
+            "/home/runner/work/_temp/public-data/pipeline8/cand/.zil-driver-3350-0/.zil-build-3350-0/unit-1.o",
+            "/home/runner/work/_temp/public-data/pipeline8/cand/.zil-driver-3350-0/.zil-build-3350-0/unit-2.o",
+            "/home/runner/work/_temp/public-data/pipeline8/cand/.zil-driver-3350-0/.zil-build-3350-0/unit-3.o",
+            "/home/runner/work/_temp/public-data/pipeline8/cand/.zil-driver-3350-0/.zil-build-3350-0/unit-4.o",
+            "/home/runner/work/_temp/public-data/pipeline8/cand/.zil-driver-3350-0/.zil-build-3350-0/unit-5.o",
+            "/home/runner/work/_temp/public-data/pipeline8/cand/.zil-driver-3350-0/.zil-build-3350-0/unit-6.o",
+            "/home/runner/work/_temp/public-data/pipeline8/cand/.zil-driver-3350-0/.zil-build-3350-0/unit-7.o",
+            "-o",
+            "/home/runner/work/_temp/public-data/pipeline8/cand/.zil-driver-3350-0/.zil-build-3350-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 5824,
+              "input_kind": "builder",
+              "preflight_ns": 637738,
+              "builder_ns": 873313,
+              "parse_ns": 0,
+              "optimize_ns": 20849612,
+              "emit_ns": 20271692,
+              "total_ns": 43205027
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 3408,
+              "input_kind": "builder",
+              "preflight_ns": 519492,
+              "builder_ns": 822407,
+              "parse_ns": 0,
+              "optimize_ns": 18478476,
+              "emit_ns": 15147477,
+              "total_ns": 35655915
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 3440,
+              "input_kind": "builder",
+              "preflight_ns": 554954,
+              "builder_ns": 496576,
+              "parse_ns": 0,
+              "optimize_ns": 17498933,
+              "emit_ns": 13081651,
+              "total_ns": 31974189
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 3440,
+              "input_kind": "builder",
+              "preflight_ns": 522626,
+              "builder_ns": 502406,
+              "parse_ns": 0,
+              "optimize_ns": 17384090,
+              "emit_ns": 12521669,
+              "total_ns": 31270250
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 3440,
+              "input_kind": "builder",
+              "preflight_ns": 603518,
+              "builder_ns": 486572,
+              "parse_ns": 0,
+              "optimize_ns": 17200664,
+              "emit_ns": 12979387,
+              "total_ns": 31581218
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 3440,
+              "input_kind": "builder",
+              "preflight_ns": 594754,
+              "builder_ns": 485500,
+              "parse_ns": 0,
+              "optimize_ns": 16973653,
+              "emit_ns": 12481208,
+              "total_ns": 30831761
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 3440,
+              "input_kind": "builder",
+              "preflight_ns": 616327,
+              "builder_ns": 493682,
+              "parse_ns": 0,
+              "optimize_ns": 17258742,
+              "emit_ns": 13070434,
+              "total_ns": 31763573
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 3440,
+              "input_kind": "builder",
+              "preflight_ns": 603478,
+              "builder_ns": 494083,
+              "parse_ns": 0,
+              "optimize_ns": 17016758,
+              "emit_ns": 11128954,
+              "total_ns": 29545356
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 8,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/public-data/pipeline8/cand/main.zil",
+          "1": "/home/runner/work/_temp/public-data/pipeline8/cand/worker0.zil",
+          "2": "/home/runner/work/_temp/public-data/pipeline8/cand/worker1.zil",
+          "3": "/home/runner/work/_temp/public-data/pipeline8/cand/worker2.zil",
+          "4": "/home/runner/work/_temp/public-data/pipeline8/cand/worker3.zil",
+          "5": "/home/runner/work/_temp/public-data/pipeline8/cand/worker4.zil",
+          "6": "/home/runner/work/_temp/public-data/pipeline8/cand/worker5.zil",
+          "7": "/home/runner/work/_temp/public-data/pipeline8/cand/worker6.zil",
+          "8": "/home/runner/work/_temp/public-data/pipeline8/cand/worker7.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "deb018b7b0087843901db1835f9c832b17c9cc11c5198114154ce76fae028b66",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          },
+          {
+            "module": 1,
+            "signature_fingerprint": "5473a704b39e4bcc92d11872cdb0fda70c42d2aaff8801c0d3fafcdc6aa92230",
+            "implementation_fingerprint": "fbab5c66e98ecb792b4773bf6439f875104f66554d92496adf8b30219da5b8d1",
+            "contract_fingerprint": "dd6dd09307b1a70242ef59f80ce79388e4537435383a1c963bd07a0f0e7358f4",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 2,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 3,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 4,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 5,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 6,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 7,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 8,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          }
+        ]
+      },
+      "case": "pipeline8",
+      "arm": "cand"
+    },
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+        "/home/runner/work/_temp/public-data/pipeline8/rust/main.rs",
+        "--edition=2024",
+        "--crate-name",
+        "signature_boundary",
+        "-A",
+        "warnings",
+        "-C",
+        "opt-level=2",
+        "-C",
+        "debuginfo=0",
+        "-C",
+        "overflow-checks=yes",
+        "-C",
+        "panic=abort",
+        "-C",
+        "embed-bitcode=no",
+        "-C",
+        "incremental=/home/runner/work/_temp/public-data/pipeline8/rust/incremental",
+        "-o",
+        "/home/runner/work/_temp/public-data/pipeline8/rust/app"
+      ],
+      "wall_ms": 330.67393,
+      "cpu_ms": 394.921,
+      "rss_kib": 231260,
+      "exit": 0,
+      "timeout": false,
+      "log": "/home/runner/work/_temp/public-data/build-logs/5",
+      "case": "pipeline8",
+      "arm": "rust"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/public-base-target/release/zil",
+        "build",
+        "/home/runner/work/_temp/public-data/dispatch16/base/main.zil",
+        "--json",
+        "--opt",
+        "O2",
+        "--backend",
+        "llvm-api",
+        "--clang",
+        "/home/runner/work/_temp/public-llvm/bin/clang",
+        "--codegen-units",
+        "8",
+        "--codegen-jobs",
+        "2",
+        "--incremental-o2",
+        "--function-merging",
+        "after",
+        "-o",
+        "/home/runner/work/_temp/public-data/dispatch16/base/app"
+      ],
+      "wall_ms": 325.232907,
+      "cpu_ms": 328.898,
+      "rss_kib": 87524,
+      "exit": 0,
+      "timeout": false,
+      "log": "/home/runner/work/_temp/public-data/build-logs/6",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/public-data/dispatch16/base/app",
+          "llvm": "/home/runner/work/_temp/public-data/dispatch16/base/app.ll"
+        },
+        "input_fingerprint": "be187cb189bdfdd2848e691a384b87fd9037bc8a9fde692cbb00c19b13e3368f",
+        "seconds": 0.312927441,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/public-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/public-data/dispatch16/base/.zil-driver-3461-0/.zil-build-3461-0/unit-0.o",
+            "-o",
+            "/home/runner/work/_temp/public-data/dispatch16/base/.zil-driver-3461-0/.zil-build-3461-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 17392,
+              "input_kind": "builder",
+              "preflight_ns": 4646648,
+              "builder_ns": 6821198,
+              "parse_ns": 0,
+              "optimize_ns": 186122451,
+              "emit_ns": 39576665,
+              "total_ns": 238983574
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": "complete O2 call closure requires a local definition",
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/public-data/dispatch16/base/main.zil",
+          "1": "/home/runner/work/_temp/public-data/dispatch16/base/worker0.zil",
+          "2": "/home/runner/work/_temp/public-data/dispatch16/base/worker1.zil",
+          "3": "/home/runner/work/_temp/public-data/dispatch16/base/worker2.zil",
+          "4": "/home/runner/work/_temp/public-data/dispatch16/base/worker3.zil",
+          "5": "/home/runner/work/_temp/public-data/dispatch16/base/worker4.zil",
+          "6": "/home/runner/work/_temp/public-data/dispatch16/base/worker5.zil",
+          "7": "/home/runner/work/_temp/public-data/dispatch16/base/worker6.zil",
+          "8": "/home/runner/work/_temp/public-data/dispatch16/base/worker7.zil",
+          "9": "/home/runner/work/_temp/public-data/dispatch16/base/worker8.zil",
+          "10": "/home/runner/work/_temp/public-data/dispatch16/base/worker9.zil",
+          "11": "/home/runner/work/_temp/public-data/dispatch16/base/worker10.zil",
+          "12": "/home/runner/work/_temp/public-data/dispatch16/base/worker11.zil",
+          "13": "/home/runner/work/_temp/public-data/dispatch16/base/worker12.zil",
+          "14": "/home/runner/work/_temp/public-data/dispatch16/base/worker13.zil",
+          "15": "/home/runner/work/_temp/public-data/dispatch16/base/worker14.zil",
+          "16": "/home/runner/work/_temp/public-data/dispatch16/base/worker15.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "2a112ab2d599df26a5f00cc1f3005fc1467f0c3fe8eabc52ceab963125351ff6",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          },
+          {
+            "module": 1,
+            "signature_fingerprint": "5473a704b39e4bcc92d11872cdb0fda70c42d2aaff8801c0d3fafcdc6aa92230",
+            "implementation_fingerprint": "fbab5c66e98ecb792b4773bf6439f875104f66554d92496adf8b30219da5b8d1",
+            "contract_fingerprint": "dd6dd09307b1a70242ef59f80ce79388e4537435383a1c963bd07a0f0e7358f4",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 2,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 3,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 4,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 5,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 6,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 7,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 8,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 9,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 10,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 11,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 12,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 13,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 14,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 15,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 16,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          }
+        ]
+      },
+      "case": "dispatch16",
+      "arm": "base"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/public-candidate-target/release/zil",
+        "build",
+        "/home/runner/work/_temp/public-data/dispatch16/cand/main.zil",
+        "--json",
+        "--opt",
+        "O2",
+        "--backend",
+        "llvm-api",
+        "--clang",
+        "/home/runner/work/_temp/public-llvm/bin/clang",
+        "--codegen-units",
+        "8",
+        "--codegen-jobs",
+        "2",
+        "--incremental-o2",
+        "--function-merging",
+        "after",
+        "-o",
+        "/home/runner/work/_temp/public-data/dispatch16/cand/app"
+      ],
+      "wall_ms": 317.057622,
+      "cpu_ms": 357.135,
+      "rss_kib": 90032,
+      "exit": 0,
+      "timeout": false,
+      "log": "/home/runner/work/_temp/public-data/build-logs/7",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/public-data/dispatch16/cand/app",
+          "llvm": "/home/runner/work/_temp/public-data/dispatch16/cand/app.ll"
+        },
+        "input_fingerprint": "4b21c00f8aa4e88704da5d5e45c2ad02de7393ed546a066a7cf2cbadb91f449c",
+        "seconds": 0.305520252,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/public-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/public-data/dispatch16/cand/.zil-driver-3469-0/.zil-build-3469-0/unit-0.o",
+            "/home/runner/work/_temp/public-data/dispatch16/cand/.zil-driver-3469-0/.zil-build-3469-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/public-data/dispatch16/cand/.zil-driver-3469-0/.zil-build-3469-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 15024,
+              "input_kind": "builder",
+              "preflight_ns": 5809466,
+              "builder_ns": 9326535,
+              "parse_ns": 0,
+              "optimize_ns": 180596622,
+              "emit_ns": 31304486,
+              "total_ns": 229161984
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 3408,
+              "input_kind": "builder",
+              "preflight_ns": 533512,
+              "builder_ns": 869417,
+              "parse_ns": 0,
+              "optimize_ns": 18788174,
+              "emit_ns": 15255912,
+              "total_ns": 36080267
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/public-data/dispatch16/cand/main.zil",
+          "1": "/home/runner/work/_temp/public-data/dispatch16/cand/worker0.zil",
+          "2": "/home/runner/work/_temp/public-data/dispatch16/cand/worker1.zil",
+          "3": "/home/runner/work/_temp/public-data/dispatch16/cand/worker2.zil",
+          "4": "/home/runner/work/_temp/public-data/dispatch16/cand/worker3.zil",
+          "5": "/home/runner/work/_temp/public-data/dispatch16/cand/worker4.zil",
+          "6": "/home/runner/work/_temp/public-data/dispatch16/cand/worker5.zil",
+          "7": "/home/runner/work/_temp/public-data/dispatch16/cand/worker6.zil",
+          "8": "/home/runner/work/_temp/public-data/dispatch16/cand/worker7.zil",
+          "9": "/home/runner/work/_temp/public-data/dispatch16/cand/worker8.zil",
+          "10": "/home/runner/work/_temp/public-data/dispatch16/cand/worker9.zil",
+          "11": "/home/runner/work/_temp/public-data/dispatch16/cand/worker10.zil",
+          "12": "/home/runner/work/_temp/public-data/dispatch16/cand/worker11.zil",
+          "13": "/home/runner/work/_temp/public-data/dispatch16/cand/worker12.zil",
+          "14": "/home/runner/work/_temp/public-data/dispatch16/cand/worker13.zil",
+          "15": "/home/runner/work/_temp/public-data/dispatch16/cand/worker14.zil",
+          "16": "/home/runner/work/_temp/public-data/dispatch16/cand/worker15.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "2a112ab2d599df26a5f00cc1f3005fc1467f0c3fe8eabc52ceab963125351ff6",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          },
+          {
+            "module": 1,
+            "signature_fingerprint": "5473a704b39e4bcc92d11872cdb0fda70c42d2aaff8801c0d3fafcdc6aa92230",
+            "implementation_fingerprint": "fbab5c66e98ecb792b4773bf6439f875104f66554d92496adf8b30219da5b8d1",
+            "contract_fingerprint": "dd6dd09307b1a70242ef59f80ce79388e4537435383a1c963bd07a0f0e7358f4",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 2,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 3,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 4,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 5,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 6,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 7,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 8,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 9,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 10,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 11,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 12,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 13,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 14,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 15,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 16,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          }
+        ]
+      },
+      "case": "dispatch16",
+      "arm": "cand"
+    },
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+        "/home/runner/work/_temp/public-data/dispatch16/rust/main.rs",
+        "--edition=2024",
+        "--crate-name",
+        "signature_boundary",
+        "-A",
+        "warnings",
+        "-C",
+        "opt-level=2",
+        "-C",
+        "debuginfo=0",
+        "-C",
+        "overflow-checks=yes",
+        "-C",
+        "panic=abort",
+        "-C",
+        "embed-bitcode=no",
+        "-C",
+        "incremental=/home/runner/work/_temp/public-data/dispatch16/rust/incremental",
+        "-o",
+        "/home/runner/work/_temp/public-data/dispatch16/rust/app"
+      ],
+      "wall_ms": 480.636958,
+      "cpu_ms": 773.558,
+      "rss_kib": 235728,
+      "exit": 0,
+      "timeout": false,
+      "log": "/home/runner/work/_temp/public-data/build-logs/8",
+      "case": "dispatch16",
+      "arm": "rust"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/public-base-target/release/zil",
+        "build",
+        "/home/runner/work/_temp/public-data/pipeline16/base/main.zil",
+        "--json",
+        "--opt",
+        "O2",
+        "--backend",
+        "llvm-api",
+        "--clang",
+        "/home/runner/work/_temp/public-llvm/bin/clang",
+        "--codegen-units",
+        "8",
+        "--codegen-jobs",
+        "2",
+        "--incremental-o2",
+        "--function-merging",
+        "after",
+        "-o",
+        "/home/runner/work/_temp/public-data/pipeline16/base/app"
+      ],
+      "wall_ms": 327.347147,
+      "cpu_ms": 331.143,
+      "rss_kib": 89364,
+      "exit": 0,
+      "timeout": false,
+      "log": "/home/runner/work/_temp/public-data/build-logs/9",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/public-data/pipeline16/base/app",
+          "llvm": "/home/runner/work/_temp/public-data/pipeline16/base/app.ll"
+        },
+        "input_fingerprint": "91f82d5ff3ed19ee6f85866a49c096b99af6653c9a46e9048f692fc2186aa38d",
+        "seconds": 0.316047656,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/public-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/public-data/pipeline16/base/.zil-driver-3595-0/.zil-build-3595-0/unit-0.o",
+            "-o",
+            "/home/runner/work/_temp/public-data/pipeline16/base/.zil-driver-3595-0/.zil-build-3595-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 18448,
+              "input_kind": "builder",
+              "preflight_ns": 4371213,
+              "builder_ns": 6826596,
+              "parse_ns": 0,
+              "optimize_ns": 187629877,
+              "emit_ns": 42492978,
+              "total_ns": 242923404
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": "complete O2 call closure requires a local definition",
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/public-data/pipeline16/base/main.zil",
+          "1": "/home/runner/work/_temp/public-data/pipeline16/base/worker0.zil",
+          "2": "/home/runner/work/_temp/public-data/pipeline16/base/worker1.zil",
+          "3": "/home/runner/work/_temp/public-data/pipeline16/base/worker2.zil",
+          "4": "/home/runner/work/_temp/public-data/pipeline16/base/worker3.zil",
+          "5": "/home/runner/work/_temp/public-data/pipeline16/base/worker4.zil",
+          "6": "/home/runner/work/_temp/public-data/pipeline16/base/worker5.zil",
+          "7": "/home/runner/work/_temp/public-data/pipeline16/base/worker6.zil",
+          "8": "/home/runner/work/_temp/public-data/pipeline16/base/worker7.zil",
+          "9": "/home/runner/work/_temp/public-data/pipeline16/base/worker8.zil",
+          "10": "/home/runner/work/_temp/public-data/pipeline16/base/worker9.zil",
+          "11": "/home/runner/work/_temp/public-data/pipeline16/base/worker10.zil",
+          "12": "/home/runner/work/_temp/public-data/pipeline16/base/worker11.zil",
+          "13": "/home/runner/work/_temp/public-data/pipeline16/base/worker12.zil",
+          "14": "/home/runner/work/_temp/public-data/pipeline16/base/worker13.zil",
+          "15": "/home/runner/work/_temp/public-data/pipeline16/base/worker14.zil",
+          "16": "/home/runner/work/_temp/public-data/pipeline16/base/worker15.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "00c17635700b457613948201e948913bf47cfe45750878dec77e1dd3ff62c268",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          },
+          {
+            "module": 1,
+            "signature_fingerprint": "5473a704b39e4bcc92d11872cdb0fda70c42d2aaff8801c0d3fafcdc6aa92230",
+            "implementation_fingerprint": "fbab5c66e98ecb792b4773bf6439f875104f66554d92496adf8b30219da5b8d1",
+            "contract_fingerprint": "dd6dd09307b1a70242ef59f80ce79388e4537435383a1c963bd07a0f0e7358f4",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 2,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 3,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 4,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 5,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 6,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 7,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 8,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 9,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 10,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 11,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 12,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 13,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 14,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 15,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 16,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          }
+        ]
+      },
+      "case": "pipeline16",
+      "arm": "base"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/public-candidate-target/release/zil",
+        "build",
+        "/home/runner/work/_temp/public-data/pipeline16/cand/main.zil",
+        "--json",
+        "--opt",
+        "O2",
+        "--backend",
+        "llvm-api",
+        "--clang",
+        "/home/runner/work/_temp/public-llvm/bin/clang",
+        "--codegen-units",
+        "8",
+        "--codegen-jobs",
+        "2",
+        "--incremental-o2",
+        "--function-merging",
+        "after",
+        "-o",
+        "/home/runner/work/_temp/public-data/pipeline16/cand/app"
+      ],
+      "wall_ms": 299.633294,
+      "cpu_ms": 516.0669999999999,
+      "rss_kib": 86896,
+      "exit": 0,
+      "timeout": false,
+      "log": "/home/runner/work/_temp/public-data/build-logs/10",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/public-data/pipeline16/cand/app",
+          "llvm": "/home/runner/work/_temp/public-data/pipeline16/cand/app.ll"
+        },
+        "input_fingerprint": "62fb1df688db293d0c355c4e5245f678a9058e42559cead934d2d17c00ba545b",
+        "seconds": 0.288408635,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/public-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/public-data/pipeline16/cand/.zil-driver-3603-0/.zil-build-3603-0/unit-0.o",
+            "/home/runner/work/_temp/public-data/pipeline16/cand/.zil-driver-3603-0/.zil-build-3603-0/unit-1.o",
+            "/home/runner/work/_temp/public-data/pipeline16/cand/.zil-driver-3603-0/.zil-build-3603-0/unit-2.o",
+            "/home/runner/work/_temp/public-data/pipeline16/cand/.zil-driver-3603-0/.zil-build-3603-0/unit-3.o",
+            "/home/runner/work/_temp/public-data/pipeline16/cand/.zil-driver-3603-0/.zil-build-3603-0/unit-4.o",
+            "/home/runner/work/_temp/public-data/pipeline16/cand/.zil-driver-3603-0/.zil-build-3603-0/unit-5.o",
+            "/home/runner/work/_temp/public-data/pipeline16/cand/.zil-driver-3603-0/.zil-build-3603-0/unit-6.o",
+            "/home/runner/work/_temp/public-data/pipeline16/cand/.zil-driver-3603-0/.zil-build-3603-0/unit-7.o",
+            "-o",
+            "/home/runner/work/_temp/public-data/pipeline16/cand/.zil-driver-3603-0/.zil-build-3603-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 7736,
+              "input_kind": "builder",
+              "preflight_ns": 1110500,
+              "builder_ns": 1515800,
+              "parse_ns": 0,
+              "optimize_ns": 36749121,
+              "emit_ns": 25502038,
+              "total_ns": 65559163
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 6192,
+              "input_kind": "builder",
+              "preflight_ns": 896478,
+              "builder_ns": 1415118,
+              "parse_ns": 0,
+              "optimize_ns": 33788178,
+              "emit_ns": 26159707,
+              "total_ns": 63071622
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 4128,
+              "input_kind": "builder",
+              "preflight_ns": 1107725,
+              "builder_ns": 917459,
+              "parse_ns": 0,
+              "optimize_ns": 33034955,
+              "emit_ns": 14995139,
+              "total_ns": 50526528
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 4128,
+              "input_kind": "builder",
+              "preflight_ns": 1063970,
+              "builder_ns": 879372,
+              "parse_ns": 0,
+              "optimize_ns": 32533691,
+              "emit_ns": 13927754,
+              "total_ns": 48818339
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 4128,
+              "input_kind": "builder",
+              "preflight_ns": 1098011,
+              "builder_ns": 870028,
+              "parse_ns": 0,
+              "optimize_ns": 32007380,
+              "emit_ns": 14702418,
+              "total_ns": 49103187
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 4128,
+              "input_kind": "builder",
+              "preflight_ns": 1050881,
+              "builder_ns": 835035,
+              "parse_ns": 0,
+              "optimize_ns": 31460007,
+              "emit_ns": 14702368,
+              "total_ns": 48454882
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 4136,
+              "input_kind": "builder",
+              "preflight_ns": 1040926,
+              "builder_ns": 859202,
+              "parse_ns": 0,
+              "optimize_ns": 31996344,
+              "emit_ns": 14610901,
+              "total_ns": 48928645
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 4136,
+              "input_kind": "builder",
+              "preflight_ns": 1058261,
+              "builder_ns": 844160,
+              "parse_ns": 0,
+              "optimize_ns": 31996784,
+              "emit_ns": 14611081,
+              "total_ns": 48928685
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 8,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/public-data/pipeline16/cand/main.zil",
+          "1": "/home/runner/work/_temp/public-data/pipeline16/cand/worker0.zil",
+          "2": "/home/runner/work/_temp/public-data/pipeline16/cand/worker1.zil",
+          "3": "/home/runner/work/_temp/public-data/pipeline16/cand/worker2.zil",
+          "4": "/home/runner/work/_temp/public-data/pipeline16/cand/worker3.zil",
+          "5": "/home/runner/work/_temp/public-data/pipeline16/cand/worker4.zil",
+          "6": "/home/runner/work/_temp/public-data/pipeline16/cand/worker5.zil",
+          "7": "/home/runner/work/_temp/public-data/pipeline16/cand/worker6.zil",
+          "8": "/home/runner/work/_temp/public-data/pipeline16/cand/worker7.zil",
+          "9": "/home/runner/work/_temp/public-data/pipeline16/cand/worker8.zil",
+          "10": "/home/runner/work/_temp/public-data/pipeline16/cand/worker9.zil",
+          "11": "/home/runner/work/_temp/public-data/pipeline16/cand/worker10.zil",
+          "12": "/home/runner/work/_temp/public-data/pipeline16/cand/worker11.zil",
+          "13": "/home/runner/work/_temp/public-data/pipeline16/cand/worker12.zil",
+          "14": "/home/runner/work/_temp/public-data/pipeline16/cand/worker13.zil",
+          "15": "/home/runner/work/_temp/public-data/pipeline16/cand/worker14.zil",
+          "16": "/home/runner/work/_temp/public-data/pipeline16/cand/worker15.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "00c17635700b457613948201e948913bf47cfe45750878dec77e1dd3ff62c268",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          },
+          {
+            "module": 1,
+            "signature_fingerprint": "5473a704b39e4bcc92d11872cdb0fda70c42d2aaff8801c0d3fafcdc6aa92230",
+            "implementation_fingerprint": "fbab5c66e98ecb792b4773bf6439f875104f66554d92496adf8b30219da5b8d1",
+            "contract_fingerprint": "dd6dd09307b1a70242ef59f80ce79388e4537435383a1c963bd07a0f0e7358f4",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 2,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 3,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 4,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 5,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 6,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 7,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 8,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 9,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 10,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 11,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 12,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 13,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 14,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 15,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          },
+          {
+            "module": 16,
+            "signature_fingerprint": "6604494fd7ba1e1d06eada972b3a664e17f2fa1ad2cb997e3aa2febbe22e0fb6",
+            "implementation_fingerprint": "6c152a31dc339c1ffb9bbcc0cf6c63f96f23be84e43bfbd73bf9a2cc7a1a6c05",
+            "contract_fingerprint": "5ea3dd41c308eb2cc528a9c123cd117f4bcee0fb5d6df9575eba539a9c96481a",
+            "result_origins": [
+              {
+                "name": "handle",
+                "parameters": [],
+                "static_storage": false
+              }
+            ],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": [
+              "handle"
+            ]
+          }
+        ]
+      },
+      "case": "pipeline16",
+      "arm": "cand"
+    },
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+        "/home/runner/work/_temp/public-data/pipeline16/rust/main.rs",
+        "--edition=2024",
+        "--crate-name",
+        "signature_boundary",
+        "-A",
+        "warnings",
+        "-C",
+        "opt-level=2",
+        "-C",
+        "debuginfo=0",
+        "-C",
+        "overflow-checks=yes",
+        "-C",
+        "panic=abort",
+        "-C",
+        "embed-bitcode=no",
+        "-C",
+        "incremental=/home/runner/work/_temp/public-data/pipeline16/rust/incremental",
+        "-o",
+        "/home/runner/work/_temp/public-data/pipeline16/rust/app"
+      ],
+      "wall_ms": 483.469777,
+      "cpu_ms": 789.759,
+      "rss_kib": 236316,
+      "exit": 0,
+      "timeout": false,
+      "log": "/home/runner/work/_temp/public-data/build-logs/11",
+      "case": "pipeline16",
+      "arm": "rust"
+    }
+  ],
+  "runtime_requests": 240,
+  "quality": [
+    {
+      "case": "dispatch8",
+      "depth": 0,
+      "median_ms": {
+        "base": 3.903319,
+        "cand": 3.913464,
+        "rust": 5.560962
+      },
+      "values_ms": {
+        "base": [
+          3.958413,
+          3.903319,
+          3.866334,
+          3.918522,
+          3.900195,
+          3.90346,
+          3.88387,
+          3.921787,
+          3.900044
+        ],
+        "cand": [
+          3.909709,
+          3.916009,
+          3.917071,
+          3.965754,
+          3.893995,
+          3.913464,
+          3.902608,
+          3.922588,
+          3.866754
+        ],
+        "rust": [
+          5.685449,
+          5.610676,
+          5.628274,
+          5.556135,
+          5.514252,
+          5.43969,
+          5.489424,
+          5.560962,
+          5.566991
+        ]
+      },
+      "relative_pass": true,
+      "baseline_rust90": true,
+      "candidate_rust90": true
+    },
+    {
+      "case": "dispatch8",
+      "depth": 11,
+      "median_ms": {
+        "base": 15.709162,
+        "cand": 15.690022,
+        "rust": 18.28868
+      },
+      "values_ms": {
+        "base": [
+          15.699357,
+          15.737555,
+          15.70148,
+          15.724084,
+          15.723814,
+          15.820369,
+          15.704745,
+          15.709162,
+          15.668941
+        ],
+        "cand": [
+          15.68796,
+          15.670884,
+          15.724675,
+          15.691315,
+          16.028432,
+          15.675061,
+          15.703132,
+          15.679307,
+          15.690022
+        ],
+        "rust": [
+          18.263493,
+          18.280718,
+          18.199667,
+          18.510304,
+          18.28868,
+          18.342662,
+          18.341951,
+          18.249522,
+          18.329822
+        ]
+      },
+      "relative_pass": true,
+      "baseline_rust90": true,
+      "candidate_rust90": true
+    },
+    {
+      "case": "pipeline8",
+      "depth": 0,
+      "median_ms": {
+        "base": 25.695938,
+        "cand": 25.795218,
+        "rust": 33.85713
+      },
+      "values_ms": {
+        "base": [
+          25.68408,
+          25.724622,
+          25.715128,
+          25.671763,
+          25.714307,
+          25.712343,
+          25.695938,
+          25.657221,
+          25.67049
+        ],
+        "cand": [
+          25.723861,
+          25.752954,
+          25.773235,
+          25.821177,
+          25.831222,
+          25.793145,
+          25.872885,
+          25.795218,
+          25.79619
+        ],
+        "rust": [
+          33.849399,
+          33.845944,
+          34.926429,
+          33.872243,
+          35.005247,
+          33.819814,
+          34.088458,
+          33.85713,
+          33.795558
+        ]
+      },
+      "relative_pass": true,
+      "baseline_rust90": true,
+      "candidate_rust90": true
+    },
+    {
+      "case": "pipeline8",
+      "depth": 11,
+      "median_ms": {
+        "base": 119.6634,
+        "cand": 119.50366,
+        "rust": 131.918269
+      },
+      "values_ms": {
+        "base": [
+          119.673065,
+          119.748538,
+          119.561187,
+          119.542418,
+          119.984443,
+          119.6634,
+          119.794698,
+          119.550881,
+          119.613645
+        ],
+        "cand": [
+          120.239206,
+          119.671883,
+          119.412063,
+          119.45741,
+          120.028119,
+          119.414977,
+          119.50366,
+          119.574507,
+          119.482318
+        ],
+        "rust": [
+          140.057519,
+          131.917679,
+          132.129412,
+          131.870617,
+          131.918269,
+          132.374114,
+          131.890417,
+          131.745579,
+          132.057719
+        ]
+      },
+      "relative_pass": true,
+      "baseline_rust90": true,
+      "candidate_rust90": true
+    },
+    {
+      "case": "dispatch16",
+      "depth": 0,
+      "median_ms": {
+        "base": 3.818112,
+        "cand": 3.806233,
+        "rust": 6.53316
+      },
+      "values_ms": {
+        "base": [
+          3.808578,
+          3.820966,
+          3.83038,
+          3.828728,
+          3.811171,
+          3.795959,
+          3.86312,
+          3.795407,
+          3.818112
+        ],
+        "cand": [
+          3.851182,
+          3.785533,
+          3.806233,
+          3.826044,
+          3.794656,
+          3.83708,
+          3.791121,
+          3.803229,
+          3.814176
+        ],
+        "rust": [
+          6.523801,
+          6.528147,
+          6.53316,
+          6.537331,
+          6.547026,
+          6.446815,
+          6.591402,
+          6.542879,
+          6.524892
+        ]
+      },
+      "relative_pass": true,
+      "baseline_rust90": true,
+      "candidate_rust90": true
+    },
+    {
+      "case": "dispatch16",
+      "depth": 11,
+      "median_ms": {
+        "base": 15.616884,
+        "cand": 15.623155,
+        "rust": 18.964619
+      },
+      "values_ms": {
+        "base": [
+          15.605287,
+          15.589223,
+          15.624436,
+          15.626049,
+          15.931538,
+          15.583424,
+          15.628733,
+          15.607962,
+          15.616884
+        ],
+        "cand": [
+          15.622633,
+          15.630064,
+          15.623064,
+          15.623155,
+          15.758738,
+          15.621382,
+          15.590896,
+          15.627591,
+          15.645708
+        ],
+        "rust": [
+          18.951309,
+          18.953172,
+          19.007744,
+          18.912891,
+          19.089967,
+          18.943398,
+          18.964619,
+          19.007634,
+          18.986371
+        ]
+      },
+      "relative_pass": true,
+      "baseline_rust90": true,
+      "candidate_rust90": true
+    },
+    {
+      "case": "pipeline16",
+      "depth": 0,
+      "median_ms": {
+        "base": 50.511876,
+        "cand": 51.389034,
+        "rust": 91.53334
+      },
+      "values_ms": {
+        "base": [
+          50.704075,
+          50.459787,
+          50.537414,
+          51.815876,
+          50.423272,
+          50.282321,
+          50.653148,
+          50.511876,
+          50.475741
+        ],
+        "cand": [
+          51.270807,
+          51.448263,
+          51.324708,
+          51.389034,
+          51.419841,
+          51.460182,
+          51.329565,
+          51.288464,
+          51.417628
+        ],
+        "rust": [
+          91.53334,
+          91.383605,
+          92.11834,
+          92.212822,
+          92.875488,
+          90.656862,
+          91.459289,
+          90.833889,
+          92.608888
+        ]
+      },
+      "relative_pass": true,
+      "baseline_rust90": true,
+      "candidate_rust90": true
+    },
+    {
+      "case": "pipeline16",
+      "depth": 11,
+      "median_ms": {
+        "base": 239.815045,
+        "cand": 237.184762,
+        "rust": 283.657085
+      },
+      "values_ms": {
+        "base": [
+          239.991893,
+          239.837071,
+          239.706685,
+          239.871192,
+          239.589245,
+          241.076853,
+          239.593903,
+          239.815045,
+          239.716097
+        ],
+        "cand": [
+          237.184762,
+          237.053755,
+          237.131616,
+          237.065751,
+          237.194535,
+          237.161204,
+          238.991547,
+          237.202587,
+          237.430319
+        ],
+        "rust": [
+          283.254422,
+          284.631813,
+          284.648559,
+          283.58044,
+          284.472712,
+          283.4674,
+          284.274804,
+          283.657085,
+          283.005495
+        ]
+      },
+      "relative_pass": true,
+      "baseline_rust90": true,
+      "candidate_rust90": true
+    }
+  ],
+  "errors": [],
+  "scope": "additional public-signature boundary; 65535 iterations; original workloads and weights unchanged; no data substituted"
+}
