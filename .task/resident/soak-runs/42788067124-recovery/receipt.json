@@ -1,0 +1,22 @@
+{
+  "original_run": 42788067124,
+  "original_run_conclusion": "failure: evidence archive exceeded 48MiB guard; observation step succeeded",
+  "original_artifact": 13751102224,
+  "original_artifact_sha256": "2963655013338ad13df007cfcbf46eaac30661776abab5ef2949fe1ccb5d023d",
+  "source": "4a9c49dc5f989d1d1243b70bbc5a00103384633f",
+  "compiler_source": "f1f4496d3ebb5591e9bdfd3e3c86be5f82eb92d5",
+  "recovery_run": "42798184371",
+  "new_tests_run": 0,
+  "request_observations": 810,
+  "kept_observation_source_and_setup_bytes": 1963062,
+  "generated_cache_payload_bytes_in_original_artifact": 963219759,
+  "main_modified": false,
+  "scope": "finite entry-cap experiment, not production byte-bound memory admission",
+  "hashes": {
+    "original-file-manifest.json": "e54b77aa9fe2bf27c4dee0cda82488cb7b4857d2f8f882b8b7154ab3686c4692",
+    "raw-observations.tar.gz": "adca128ae1eaecd480f56cc066125cfbc640e0e32646722583f2d34182472a4b",
+    "summary.json": "87706f9ef10d1a22485c890e3c7fb1dbc5703e50f956611e8bca79ba6db88679",
+    "rows.json": "26767bc128e4fe8d891da012fbb5dab54881ff2fe61d9c17d57a6e84b528d05d"
+  },
+  "updated_at": "2026-11-10T10:19:50.273215+00:00"
+}
