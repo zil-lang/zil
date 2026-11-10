@@ -1,0 +1,69 @@
+name: Record cleanup-sharing integration
+on:
+  push:
+    branches: [task/G10.5.1.6]
+    paths: [.github/workflows/compiler-cleanup-merge.yml]
+permissions:
+  contents: write
+jobs:
+  record:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Verify exact integration and register coordination without touching production
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,pathlib,subprocess,datetime,zipfile,io,hashlib
+          P=pathlib.Path;repo='zil-lang/zil';head='d8418adb5b55d271a423cb94df3e6151c52ed743';merged='fc6620a3b975258643eb8f9c3ee77d868ff67a69';tree='80e7febddf4e2461b08b2ade57ce9b1836bfab46'
+          def cmd(*args,cwd=None):return subprocess.check_output(args,cwd=cwd,text=True).strip()
+          def api(path):return json.loads(cmd('gh','api','repos/'+repo+'/'+path))
+          pr=api('pulls/76');assert pr['merged'] and pr['head']['sha']==head and pr['merge_commit_sha']==merged
+          cmd('git','fetch','--no-tags','origin',head,merged,'refs/heads/main','refs/heads/goal')
+          assert cmd('git','rev-parse',head+'^{tree}')==tree
+          current=api('git/ref/heads/main')['object']['sha'];cmd('git','fetch','--no-tags','origin',current)
+          subprocess.run(['git','merge-base','--is-ancestor',merged,current],check=True)
+          paths=['crates/zil-backend-llvm/src/emit.rs','crates/zil-backend-llvm/src/emit/cleanup_tails.rs','docs/guide/cleanup-code-sharing.md']
+          blobs={p:cmd('git','rev-parse',head+':'+p) for p in paths}
+          assert all(cmd('git','rev-parse',merged+':'+p)==b for p,b in blobs.items())
+          ci=[]
+          for run,artifact in [(42786464340,13750364636),(42786464246,13750148118)]:
+              r=api('actions/runs/'+str(run));assert r['status']=='completed' and r['conclusion']=='success' and r['head_sha']==head
+              raw=subprocess.check_output(['gh','api','repos/'+repo+'/actions/artifacts/'+str(artifact)+'/zip']);z=zipfile.ZipFile(io.BytesIO(raw));data=json.loads(z.read('compact-results.json'))
+              assert z.read('source-tree.txt').decode().strip()==tree
+              assert all(x=='success' for x in data['steps'].values())
+              assert data['logs']['workspace']['totals']['passed']==5887 and data['logs']['workspace']['totals']['failed']==0
+              assert data['logs']['reference']['totals']['passed']==5773 and data['logs']['reference']['totals']['failed']==0
+              ci.append({'run':run,'artifact':artifact,'archive_sha256':hashlib.sha256(raw).hexdigest(),'results':data})
+          receipt={'pr':76,'head':head,'merged_commit':merged,'main_observed':current,'tested_tree':tree,'production_blobs':blobs,'ci':ci,'benchmark_run':42785071418,'benchmark_source':'0caf3711441b9744ae1ba1b1699bb09c0ce839de','owned32_o2_body_ms':{'before':889.216,'accepted':573.937,'rust':240.693},'runtime_boundary':'owned32 about 5% slower than baseline, within predeclared 10%; not zero regression','review':'current Chat direct review under explicit owner authorization, no external AI review','open_work':'resident byte budgets, Cranelift, general resource-aware partitioning and 96/128 closure scale','updated_at':datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).isoformat()}
+          goal_before=api('git/ref/heads/goal')['object']['sha'];cmd('git','fetch','--no-tags','origin',goal_before)
+          work=P(os.environ['RUNNER_TEMP'])/'cleanup-goal';cmd('git','worktree','add','--detach',str(work),goal_before)
+          p=work/'goal.md';text=p.read_text();lines=text.splitlines();old=[l for l in lines if l.startswith('| G10.5.1.6 |')];assert len(old)==1
+          new='| G10.5.1.6 | 函数内清理后缀的内容驻留复用 | 已合入 | — | Chat直接复核 · PR76 | main@fc6620a3，生产d8418adb；官方/研究LLVM同树各5887/5773/70通过，完整1800编译/3672输出及48构建864分配失败/清理顺序观察。owned32编辑889.22→573.94ms，Rust240.69ms；四频率总等待省2.21%–3.76%，运行约慢5%在原10%门内，不宣称零退化。见[收据](records/compiler-cleanup-merge.json)。 |'
+          text=text.replace(old[0],new)
+          row='| G10.5.1.7 | 大量拥有环境的析构实现边界与运行质量 | 进行中 | P1 | Chat编译专项 | task/G10.5.1.7基于已合PR76，冻结原八样本/四频率及8–64闭包独立长循环；只为至少16个拥有环境保留析构helper边界，闭包调用体与扩容不改。实验42796949377待验收，不根据CI绿灯自动发布，不含此前被拒扩容外提。 |'
+          existing=[l for l in text.splitlines() if l.startswith('| G10.5.1.7 |')];assert not existing or existing==[row]
+          if not existing:text=text.replace(new,new+'\n'+row)
+          p.write_text(text);(work/'records/compiler-cleanup-merge.json').write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+'\n')
+          cmd('git','add','goal.md','records/compiler-cleanup-merge.json',cwd=work)
+          cmd('git','-c','user.name=github-actions[bot]','-c','user.email=41898282+github-actions[bot]@users.noreply.github.com','commit','-m','Record accepted cleanup sharing and distinct destructor experiment',cwd=work)
+          goal_after=cmd('git','rev-parse','HEAD',cwd=work);cmd('git','push','origin','HEAD:refs/heads/goal',cwd=work)
+          assert api('git/ref/heads/goal')['object']['sha']==goal_after
+          content=api('contents/goal.md?ref='+goal_after);assert content['sha']==cmd('git','rev-parse','HEAD:goal.md',cwd=work)
+          branch='task/closure-cleanup-sharing';ref=api('git/ref/heads/'+branch);assert ref['object']['sha']==head
+          cmd('gh','api','--method','DELETE','repos/'+repo+'/git/refs/heads/'+branch)
+          receipt.update({'goal_read_before':goal_before,'goal_commit':goal_after,'goal_blob_readback':content['sha'],'completed_production_branch_deleted':branch})
+          out=P('.task/G10.5.1.6/merge')/os.environ['GITHUB_RUN_ID'];out.mkdir(parents=True);(out/'receipt.json').write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps(receipt,ensure_ascii=False,indent=2))
+          PY
+          git fetch --no-tags origin refs/heads/task/G10.5.1.6
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git add -- ".task/G10.5.1.6/merge/$GITHUB_RUN_ID"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Preserve read-back cleanup integration and independent goal receipt'
+          git push origin HEAD:refs/heads/task/G10.5.1.6
