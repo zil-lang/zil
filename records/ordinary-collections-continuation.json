@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-10T14:44:54.522393+00:00",
-  "read_goal": "f56a69a21fe12ca2ec648f0a907c412166564e82",
+  "recorded_utc": "2026-11-10T15:03:47.022412+00:00",
+  "read_goal": "45d71c176bcbc5b9c37f7863f45164c8c9611426",
   "authorization": "User directs one implementation branch where dependencies permit, separate branches only for independent work; compiler-speed work stays with its original conversation; this conversation continues all other unfinished work.",
   "active_language_branch": "task/ordinary-collections",
   "compiler_branches_untouched": [
@@ -176,15 +176,15 @@
     "functional_source": "ede4945d1ed37ca6e89f712fc2258379d84d5e37",
     "functional_paths": 27,
     "functional_scope": "3 library paths, 6 ordinary Input/public capture replacement paths, actual parent/generation, complete original fixtures and consumers; no optional old cost caches or broader ABI/compiler changes.",
-    "latest_measured_source": "f12ac8fa3a6e4ae3da38afd803b13941f6a2b3dd",
-    "latest_default_result": "Standalone retirement pages regresses full36-inference prefix398901 and reaches final0 solve only (0trueTransfers), versus accepted241 final0..6/290trueTransfers. Rejected alone. Original10Source9/1, Verify602tests600/2oldfee assertions. Minimal sameArc combination trial pending.",
+    "latest_measured_source": "fa43a7e554e9311972f6cc392390a5ea4eade568",
+    "latest_default_result": "Latest trial fa43: Verify604/606, originalSource9/10, originalMap default limit remains; combined pages+identity regresses complete36 scope224383. Current production restored byte-identical241 (597/597 plus strictClippy previously executed); native still pending.",
     "complete_inventory_join_oracles": "3/3; N4667 vs original lookup6454; N-1 and retry pass",
     "source_raw_wire_recent_controls": "7/7 source controls, including Source/raw/Wire negative controls; not seven negative-only tests",
-    "next": "Evaluate only the minimal paid same-Arc guard, with complete f12 eager reference and separate tests. It may bypass actual self-union before forcedCOW; true hits and combination net benefit versus241 must be measured. No containment proof or page-size change included. After an actually useful candidate, repair proven old fee anchors, original seven driver budget controls,16build/64native, strict/full main gates and long-term docs/compactreceipt remain. Store push_growing continues afterward on the same branch.",
+    "next": "On the single ordinary branch, evaluate real repeated immutable Slots construction. Full States, current effects/Sum bridges and all true final Transfers must remain. Direct inference-to-final solve reuse is not valid merely from function/CFG identity because actual Sum bridges differ. Continue original Map default and native gates, then prepared Store.push_growing.",
     "unaccepted_candidates": "Original Map remains unaccepted. Ordered scheduler and stable complete-input checkpoints have independently reviewed complete Sum savings126612 and726534 respectively. Retirement pages, retirement identity/no-change, cold-history reuse and other candidates remain unadopted until selected from current evidence.",
-    "published_continuation": "ffb974ad91996c11cbe6ccfc3b5e93c0dd37dc7d",
-    "published_tree": "9f0f22767a8133bcb450e60c0ce0a32bcce7a700",
-    "identical_local_tree": "9f0f22767a8133bcb450e60c0ce0a32bcce7a700",
+    "published_continuation": "5ed48f4e2396061346f70ea7081b294717bf365d",
+    "published_tree": "70d22c1ab0c9baa3b73ee81acad75b5be201d4c4",
+    "identical_local_tree": "70d22c1ab0c9baa3b73ee81acad75b5be201d4c4",
     "complete_analyze_library": "267/267 current full Analyze library on5fff",
     "unknown_fixedpoint": "4 semantic/reconstruction controls, exact N144 versus old188; N-1/fresh; independent input-isolation correction610746 then1/1 rerun",
     "same_fee_diagnostic": {
@@ -1461,6 +1461,97 @@
           "Fields measurements are the original component state_cost at1000, excluding fixture/setup.",
           "All15 temporary source files restored; instrumentation and logs remain under out, not committed."
         ]
+      },
+      {
+        "number": 17,
+        "source": "fa43a7e554e9311972f6cc392390a5ea4eade568",
+        "tree": "23a07d5ff8ebd570a84100c05f3bc095cd80fafa",
+        "reference": "Only complete f12ac8fa retirement/rows.rs; all other production fa43.",
+        "run": "out/runs/map-retirement-identity-ledger17-20261110T144907Z",
+        "status": "Complete independent review: pages plus same-Arc identity rejected; restored prior flat production tree in a new commit.",
+        "summary": {
+          "complete_pre_sum_each": 3957752,
+          "complete_sum_each": 3790904,
+          "complete_resource_prefix": {
+            "flat241": 1541298,
+            "pages_f12": 1940199,
+            "identity_fa43": 1765681
+          },
+          "combination_regression": 224383,
+          "final_actual_transfer_calls": {
+            "flat241": 290,
+            "pages_f12": 0,
+            "identity_fa43": 0
+          },
+          "pins_each": [
+            4817,
+            5250,
+            6967,
+            15735,
+            18582
+          ],
+          "scalar_each": [
+            46,
+            480
+          ],
+          "fields_each": [
+            24,
+            28,
+            29,
+            30,
+            31
+          ]
+        },
+        "actual_identity": {
+          "paid_comparisons": 3965,
+          "hits": 1788,
+          "misses": 2177,
+          "added_comparison_work": 3965
+        },
+        "complete_scope": "All36 complete resource inference calls plus module setup/scheduling; not different failure prefixes.",
+        "round16_bridge": {
+          "directory": "/workspace/scratch/4a034e35838f/zil-collections/out/runs/map-retirement-ledger16-20261110T142932Z",
+          "source": "241fe971e5d5d855051e8156c8372efa14dd6f54",
+          "handoff_sha256": "574f0d46338ed54aeb353b8ecc4d20d90e81dddafed794735c2bfb398bcf56a7",
+          "connection": "All original round16/current actual accounting fields except source/tree/mode/loghash exactly equal round17/old. Inputs/rawmodule, full preSum sites/calls,70 Sum functions and36 complete resource call paths align with flat241."
+        },
+        "restoration": "Both modes restored all15 temporary files byte-exact to fa43, with clean git status in each receipt. The final clean HEAD/tree was separately read back before release. Subsequent authorized parent restoration commits are outside these completed receipts.",
+        "handoff_sha256": "2fba0004796312a6748a5d8dac8036fc7aee796c60b883d6322a5835551a729e",
+        "sha256": {
+          "make_script.py": "e236df0ee201c1c9098b456354079a76dfc093a6f4d205796e56bf43cc6cfe2d",
+          "diagnose.py": "7908595134f0125e1c24058197742365cf093ce047f032ef585a9c424362873f",
+          "pin_account.py": "9cec4c0624db3b271479fdc49da90c695420720a2a988eac943c3bdf71fc0f6a",
+          "source_account.py": "c5e5ffabe2c005aa27732c75d5c3c87d6aa253fa16baecd7b935095e2b50ef1c",
+          "fields_account.py": "5f393c49f15bde6de6511b0912b8a8386aa0ac006b8a9f63cd37dc59a7a113c9",
+          "compare_source.py": "506593222e25e8fa4d7521ececad08952eff517bd4ec630219f7be02b8cce46a",
+          "finish_accounting.py": "3c51cfd8557993e3cff6d85e557ea9865a63426b841e63704cf17226370112b1",
+          "pins-comparison.json": "d96657445fef903484681a5d8ec4cf2323f31f3626d9b006b471212697944960",
+          "scalar-comparison.json": "adc6b495f83ecc940afe0771ca0f2bb0e9cc6fcd006424a03c4757cb16d815b2",
+          "fields-comparison.json": "6e4d3cd314fd683a1394e86f208f6951d5e720b38afdb519c13ebf6c2e3c237e",
+          "comparison.json": "f199760e63275d2d73e578187042bcbab1186072f7558f45daaf643742d0d1dc",
+          "retirement-accounting.json": "880ae3469c428b777fe74b08c583f8d16b0078f5dbe7a1b6a2ae3fae06bb1ae4",
+          "current/manifest.json": "13cbe424578beb3f72979cf19db7df7e8ed1e299e2053a46fa46c13a6c62fe4f",
+          "current/receipt.json": "6d65ac362259015fa36f60d9a23ef37149a25062b6e050dae5c6000080a3b77f",
+          "current/instrumentation.patch": "460b5235a4c28095ce3da861943c3382dd29ed252d6eea922694ccef755a1506",
+          "current/pins.log": "b12cc4f598b2cfd6039106defa040c6c7e9aeee175d131102805592e77d55092",
+          "current/scalar.log": "435837ef848b0c6b7d45060a2724464fa1911afb815b613df29f61b95185ca32",
+          "current/fields.log": "1c3fb0111d975fade9489a7a60228651768a8e3522c98331a81436537e22866f",
+          "current/source.log": "bc7372414dcc704b0d4a2efdd19a36f34c311c8ee57a540deb498c8f9eb1cc79",
+          "current/pins-accounting.json": "e2e02ef5c8678b96919acf7ab85536bf54e6c2b94675682f806dce8d15fddc38",
+          "current/scalar-accounting.json": "a30908a87380e6824c70be1d8c427846ee6dbfa8a0bf1699606134687476c4e1",
+          "current/accounting.json": "f051372432a1c2d4c9159fa2a723acac05b0494ccbe5c998395aeaa03813e7eb",
+          "old/manifest.json": "e4a4c1af20da769daca82d8952f52f8741ad979252098a9f1ce91b1ca0f5bc8d",
+          "old/receipt.json": "2e04220f0cbc96fb8500a8673348cd0da2e74fd7fb902f3038de74d46fbdf2a6",
+          "old/instrumentation.patch": "7bcbfb8a6e0cb1d597d7d509bdeaf0cc1e7523a65db64882b0c81167e25f52ed",
+          "old/pins.log": "09915e6fe3889f3831cdaea31dbd006744011e8fddb2d57520266fcbcf6799ac",
+          "old/scalar.log": "49c0202c4a4d23a79f488d9f0fd19ac6fd5bde341a3425372daa35c6d5d573ee",
+          "old/fields.log": "640c16b83f41ad2146eb42634665ba05bb61359bbf758853f3d12bafc4b566f0",
+          "old/source.log": "09dfd770585adfea1bff16eafd0d80b833bdd1670e95eeb18765c2e0e395e0c2",
+          "old/pins-accounting.json": "115b384395299123e1aefca39d5fb2807544fbc24bc5f545164a64b46376ba47",
+          "old/scalar-accounting.json": "f26628e170c160e3aafd62e9e33112d649618a3afd94f386e87116011e2b068e",
+          "old/accounting.json": "c90cc43c1e754b4b51e491fa0fe3601deeaf4587309fa625ae7d754fb1b16cf0"
+        },
+        "decision": "Reject the combined pages+same-Arc identity candidate for Map. Keep original pins and complete correctness evidence; the full common scope is still224383 worse than241."
       }
     ],
     "same_fee_diagnostic_invariants": "Every diagnostic used original5008 source and default limits, preserved original charges, counted accepted work only, then restored exact source bytes and clean tree.",
@@ -2065,7 +2156,7 @@
       "published_same_tree": "ffb974ad91996c11cbe6ccfc3b5e93c0dd37dc7d",
       "baseline": "241fe971e5d5d855051e8156c8372efa14dd6f54",
       "archive_source": "287859f529b8d4e0c0e60d36a14c04ec9181db72",
-      "status": "Standalone candidate rejected: complete same-scope resource cost increases398901. Preserved only as current unaccepted composition trial; never accepted into main.",
+      "status": "Rejected; no page representation remains in current source. Full candidates and evidence retained by fixed history.",
       "paths": 7,
       "new_tests": 5,
       "original_test_names_retained": 597,
@@ -2134,7 +2225,7 @@
       ],
       "review": "Complete old State/state_cost/clone_state/merge fixed241 bodies retained; full source merge inventory/RHS/error order maintained. Actual sizeof, Arc, COW/deepcopy/drop fees independently accepted, but complete net benefit fails.",
       "same_fee_diagnostic": 16,
-      "next": "Evaluate only the minimal paid same-Arc guard, with complete f12 eager reference and separate tests. It may bypass actual self-union before forcedCOW; true hits and combination net benefit versus241 must be measured. No containment proof or page-size change included.",
+      "next": "Closed for current production. Minimal identity combination was also rejected after round17; see retirement_identity_candidate.",
       "native_current_pending": true,
       "strict_current_pending": true
     },
@@ -2155,6 +2246,59 @@
       "verify_log_sha256": "176e31552bdd8bd14b0d12fa2876e003b23324c9d12c3122839ad8bce1f56e85",
       "verify_library": "597/597",
       "independent_review": "Fixed object and all7approved hunks reversed byte-exact to4a;153otherVerify source blobs untouched; full fixture/oldoracle bodies retained."
+    },
+    "retirement_identity_candidate": {
+      "source": "fa43a7e554e9311972f6cc392390a5ea4eade568",
+      "tree": "23a07d5ff8ebd570a84100c05f3bc095cd80fafa",
+      "published_same_tree": "076dc4d044eaeab04cd1f874b520eb4f00756285",
+      "new_tests": 4,
+      "verify_library": {
+        "passed": 604,
+        "failed": 2,
+        "total": 606,
+        "failures": [
+          "Unchanged four sharedProduct numeric anchors",
+          "Unchanged complete Fields tiny-cost equality"
+        ]
+      },
+      "non_native_group": {
+        "passed": 9,
+        "failed": 1,
+        "failure": "Original Map default Verify ResourceLimit V1/cache false"
+      },
+      "runs": [
+        {
+          "run": "out/runs/map-retirement-page-identity-20261110T144645Z",
+          "index_sha256": "ac684441915d384615e654e1676eaada56340a816a56933ff47a46d59d0999b0",
+          "logs": [
+            {
+              "file": "0.log",
+              "sha256": "a1f6d6fc3e957992cde5c89609355283dbb31d7604e6810f354774c39d57a99f"
+            }
+          ]
+        },
+        {
+          "run": "out/runs/map-retirement-page-identity-source-20261110T144822Z",
+          "index_sha256": "bf6a752047cfab78a06de0aaf8b9b1e582cb53c9a9372c590d6c1cbc8f07600d",
+          "logs": [
+            {
+              "file": "0.log",
+              "sha256": "3d1e62dd6da3e85226155268db95721e6ecf5ddce699b380f21cb7b27a7e811a"
+            }
+          ]
+        }
+      ],
+      "decision": "Rejected in combination with pages: complete resource scope +224383 versus original241. Original fee pins not changed to accept regression.",
+      "diagnostic": 17
+    },
+    "production_restoration": {
+      "local_source": "b3dac65b3ccf77da319c5e6c354fc22ef67043b0",
+      "published_source": "5ed48f4e2396061346f70ea7081b294717bf365d",
+      "tree": "70d22c1ab0c9baa3b73ee81acad75b5be201d4c4",
+      "equal_accepted_source": "241fe971e5d5d855051e8156c8372efa14dd6f54",
+      "method": "Explicit inverse diff committed after both diagnostic modes restored; no reset, clean, force update or history deletion.",
+      "verified": "Local complete tree and remote ref+commit tree read back. No new execution claimed for the identical tree.",
+      "candidate_history_preserved": true
     }
   },
   "first_failures": [
@@ -2319,9 +2463,9 @@
   },
   "current_remote_readback": {
     "observed_utc": "2026-11-10T13:59:07Z",
-    "heads_total": 17,
-    "source": "ffb974ad91996c11cbe6ccfc3b5e93c0dd37dc7d",
-    "source_tree": "9f0f22767a8133bcb450e60c0ce0a32bcce7a700",
+    "heads_total": 18,
+    "source": "5ed48f4e2396061346f70ea7081b294717bf365d",
+    "source_tree": "70d22c1ab0c9baa3b73ee81acad75b5be201d4c4",
     "main": "947063a63880b375889ff30b3beba6151abf55f3",
     "archive": "18d6494299365dc98981d4103a5f648dd4a09926",
     "compiler_refs_untouched": [
@@ -2331,6 +2475,7 @@
       "task/G10.5.1.6",
       "task/G10.5.1.7",
       "task/G10.5.1.8",
+      "task/anonymous-closure-linkage",
       "task/byte-buffer-growth-boundary",
       "task/closure-destructor-boundary",
       "task/compiler-closure-dependencies",
@@ -2341,13 +2486,13 @@
     ],
     "noncompiler_redundant_refs": 0,
     "source_readback": true,
-    "source_observed_utc": "2026-11-10T14:44:54.522393+00:00",
+    "source_observed_utc": "2026-11-10T15:03:47.022412+00:00",
     "latest_main_observed": "947063a63880b375889ff30b3beba6151abf55f3",
     "main_sync_pending": false,
     "main_sync_source": "da9731ecb1956d3959d1e95dde1da72545f8f9d1"
   },
   "goal_concurrency_preserved": {
-    "read_goal": "f56a69a21fe12ca2ec648f0a907c412166564e82",
+    "read_goal": "45d71c176bcbc5b9c37f7863f45164c8c9611426",
     "compiler_task_rows": 11,
     "compiler_task_rows_unchanged": true,
     "compiler_records_preserved": [
@@ -2575,6 +2720,31 @@
       "new_compiler_ref": "task/compiler-closure-dependencies",
       "scope": "All13compiler refs excluded; accepted compiler PR78 is already integrated. No ref deleted this audit.",
       "snapshot_sha256": "90b4826fb4f9dc54b0903a5fd59027a043b3e45730ec99d473dfbaf0323fe614"
+    },
+    {
+      "recorded_utc": "2026-11-10T15:03:47.022412+00:00",
+      "file": "audit-notes/branch-audit-20261110-after17.json",
+      "sha256": "04eb5f0e945ef9217b2a1436a814fed3cf557424e36f48ea9dd50664b535a594",
+      "heads_total": 18,
+      "compiler_heads_preserved": [
+        "task/G10.5.1.3",
+        "task/G10.5.1.4",
+        "task/G10.5.1.5",
+        "task/G10.5.1.6",
+        "task/G10.5.1.7",
+        "task/G10.5.1.8",
+        "task/anonymous-closure-linkage",
+        "task/byte-buffer-growth-boundary",
+        "task/closure-destructor-boundary",
+        "task/compiler-closure-dependencies",
+        "task/compiler-resident-cli",
+        "task/compiler-resident-session",
+        "task/destructor-runtime-neighbors",
+        "task/resident-memory-validation"
+      ],
+      "new_compiler_branch": "task/anonymous-closure-linkage",
+      "new_branch_evidence": "9cf0e95d8108c82f0cb3ebf91075a60c6707332e modifies only LLVM codegen/linkage and its guide; preserved for compiler conversation.",
+      "noncompiler_redundant_refs": 0
     }
   ]
 }

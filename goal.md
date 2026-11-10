@@ -424,7 +424,7 @@ Map原5008B与7583B库保持原字节。已接受的完整移动矩阵净省1168
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | Chat语言接续 · task/ordinary-collections；两核独立复核 | 241完整Verify597/597和严格Clippy通过；当前f12/发布ffb974ad退休页片602项600/2旧收费断言，原Source9/10。第16同36推导净退化398901，拒绝单独分页；最小付费同Arc守卫组合待实测完整对241净账和原Map默认门。原输入、全部旧oracle和最终安全核验保留，Map/native未完成。 |
+| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | Chat语言接续 · task/ordinary-collections；两核独立复核 | 已恢复b3dac65/发布5ed48f4e，完整tree逐字等241（Verify597/597、严格Clippy已验）。第17同36推导分页+同Arc仍净退化224383，已撤下且固定历史保全，未改旧pin放行。原Map默认预算及本树native仍未过；现检查只读Slots重复构造，完整状态、Sum桥与最终安全核验保留。 |
 
 </details>
 
