@@ -368,7 +368,7 @@ fn compile_input(
     unsafe { LLVMSetModuleDataLayout(module.0, layout.0) };
     let pipeline = match (optimized, function_merging) {
         (false, _) => c"default<O0>",
-        (true, FunctionMerging::BeforeAndAfter) => c"mergefunc,default<O2>",
+        (true, FunctionMerging::BeforeAndAfter) => super::research_position::pipeline().0,
         (true, _) => c"default<O2>",
     };
     let opts = PassOptions(unsafe { LLVMCreatePassBuilderOptions() });

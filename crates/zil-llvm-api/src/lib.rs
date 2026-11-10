@@ -5,6 +5,7 @@
 
 pub mod model;
 mod preflight;
+mod research_position;
 
 include!(concat!(env!("OUT_DIR"), "/llvm_version.rs"));
 
@@ -29,7 +30,7 @@ pub enum FunctionMerging {
 }
 
 /// Exact pass policy used by both native receipts and object-cache namespaces.
-pub const fn pipeline_identity(
+pub fn pipeline_identity(
     optimization: Optimization,
     function_merging: FunctionMerging,
 ) -> &'static str {
@@ -40,9 +41,7 @@ pub const fn pipeline_identity(
         (Optimization::O2, FunctionMerging::AfterOptimization) => {
             "default<O2>|merge-functions=after|aliases=false"
         }
-        (Optimization::O2, FunctionMerging::BeforeAndAfter) => {
-            "mergefunc,default<O2>|merge-functions=after|aliases=false"
-        }
+        (Optimization::O2, FunctionMerging::BeforeAndAfter) => research_position::pipeline().1,
     }
 }
 
