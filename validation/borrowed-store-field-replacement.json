@@ -4,9 +4,11 @@
   "status": "Pass within this scope",
   "source": {
     "base_main": "21b1feefc47e05d5d88a7d4738034831e8bc17f0",
-    "tested_code": "597d81af89fac16140c001e8d2865c2b4f9ff50b",
     "tested_tree": "d3fb5a3d8388c8f7b42e2c4fcc0a62d0648cb61a",
-    "following_delta": "This receipt only; production, consumers and source inputs remain identical to the tested tree."
+    "following_delta": "This receipt only; production, consumers and source inputs remain identical to the tested tree.",
+    "code_commit": "597d81af89fac16140c001e8d2865c2b4f9ff50b",
+    "executed_commit": "6c979336e9136777f30a3e66766866895f048d3d",
+    "equivalence": "The published code commit and local executed commit have the exact tested_tree."
   },
   "contract": "spec/ordinary-store-ownership.md",
   "inputs": [
@@ -45,7 +47,7 @@
   "verified_invariants": [
     "Actual exclusive Package referent and declaring-module field privacy",
     "Exact complete canonical Store type and single transfer of incoming responsibility",
-    "Old descriptor and element loans remain invalid after helper replacement in Source, independent raw Verify and Wire",
+    "Source rejects stale descriptors and live element loans; independent raw Verify and Wire reconstruct descriptor retirement and reject reused input/shared parent.",
     "Named and explicit dereference select the same reservation/commit endpoint",
     "RHS runs once; failed preparation aborts the reservation, preserves old value 11 and frees the prepared input once"
   ],
