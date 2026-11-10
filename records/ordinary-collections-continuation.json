@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-10T13:27:34.940547+00:00",
-  "read_goal": "89c873c17c4034e4051ca256a360f37a71bb443e",
+  "recorded_utc": "2026-11-10T14:08:23.203956+00:00",
+  "read_goal": "cba247afa1d60250a4395b8d7d689fbf387bdd36",
   "authorization": "User directs one implementation branch where dependencies permit, separate branches only for independent work; compiler-speed work stays with its original conversation; this conversation continues all other unfinished work.",
   "active_language_branch": "task/ordinary-collections",
   "compiler_branches_untouched": [
@@ -13,6 +13,7 @@
     "task/G10.5.1.8",
     "task/byte-buffer-growth-boundary",
     "task/closure-destructor-boundary",
+    "task/compiler-closure-dependencies",
     "task/compiler-resident-cli",
     "task/compiler-resident-session",
     "task/destructor-runtime-neighbors",
@@ -175,15 +176,15 @@
     "functional_source": "ede4945d1ed37ca6e89f712fc2258379d84d5e37",
     "functional_paths": 27,
     "functional_scope": "3 library paths, 6 ordinary Input/public capture replacement paths, actual parent/generation, complete original fixtures and consumers; no optional old cost caches or broader ABI/compiler changes.",
-    "latest_measured_source": "5b770e304107edff8ceb32a5e7485dc3c07a8b5f",
-    "latest_default_result": "Fee-correct move states: original group9/10, originalMap still VerifyResourceLimit V1/cachefalse;592-unit run591/1 only original five literal work anchors mismatching actual measured work. Paired14 complete cost decision and pin causality pending.",
+    "latest_measured_source": "4a794c8f966417baac81b01b37744cc22506792e",
+    "latest_default_result": "Verify library597/597 after paired15-proven seven literal repairs. Original10 consumer group9/1; original5008BMap remains default VerifyResourceLimit V1/cachefalse. Same production completes final resource0..6 and290trueTransfers before final7 solve/merge cutoff.",
     "complete_inventory_join_oracles": "3/3; N4667 vs original lookup6454; N-1 and retry pass",
     "source_raw_wire_recent_controls": "7/7 source controls, including Source/raw/Wire negative controls; not seven negative-only tests",
-    "next": "Finish paired14 complete original ownership accounting for5raw/Wire fixtures and actual originalMap scope on fixed5b7. Explain all5pin deltas before minimal literal repair; then full Verify and7existing exact-budget driver controls. Sync accepted mainPR78 after diagnosis; choose any further resource work only from actual hotspot. Original16build/64native and currentstrict remain; continue Store push_growing after Map acceptance.",
+    "next": "Prepare minimal archived287 retirement-row sharing against4a, preserving full source inventory in merge and every current field assertion. Existing resource state_cost/retirement fees select this candidate but are not its savings forecast; independent complete old oracle/fee review and actual defaultMap same-scope work decide retention. Original seven driver budget controls,16build/64native and currentstrict still pending; Store push_growing follows Map acceptance on the same branch.",
     "unaccepted_candidates": "Original Map remains unaccepted. Ordered scheduler and stable complete-input checkpoints have independently reviewed complete Sum savings126612 and726534 respectively. Retirement pages, retirement identity/no-change, cold-history reuse and other candidates remain unadopted until selected from current evidence.",
-    "published_continuation": "637d98d3754464b30f7d8cff2261a3ab2562ede2",
-    "published_tree": "3f666f930a930c4efeb5910e08a14676649114df",
-    "identical_local_tree": "3f666f930a930c4efeb5910e08a14676649114df",
+    "published_continuation": "54627dfa05802580ff9eed90132e78f8fa368915",
+    "published_tree": "00d8d58764ba1782535e9b57b6b5f7c6e9f27383",
+    "identical_local_tree": "00d8d58764ba1782535e9b57b6b5f7c6e9f27383",
     "complete_analyze_library": "267/267 current full Analyze library on5fff",
     "unknown_fixedpoint": "4 semantic/reconstruction controls, exact N144 versus old188; N-1/fresh; independent input-isolation correction610746 then1/1 rerun",
     "same_fee_diagnostic": {
@@ -206,7 +207,7 @@
       "final_validation_entered": false,
       "interpretation": "This is an accepted-work prefix histogram, not complete-request net savings."
     },
-    "latest_run": "out/runs/map-verify-move-matrix-source-20261110T131302Z",
+    "latest_run": "out/runs/map-resource-liveness-accepted-20261110T140436Z",
     "set_source": "1/1 Success Verify, verification_runs=1",
     "ssa_pages": {
       "source": "bcfec60ca894eb4c37b380a7f1f626887a7fc3fa",
@@ -295,7 +296,7 @@
       "shared_read_precheck": "d2bc7accd preserved in archive but not adopted: current Map cutoff does not execute that stored-flow tail; main already filters the main read-candidate path.",
       "templates_and_frontier": "Not adopted without current actual construction or scheduling hotspot."
     },
-    "complete_verify_library": "592 executed:591pass/1 final5pin-vector mismatch on5b7; all585original and7new tests retained. Not a full passing library gate.",
+    "complete_verify_library": "597/597 on4a794c8f; all592original plus5new full resource-liveness controls, original raw/Wire N/N-1/fresh and scalar N/N-1 retained.",
     "verify_steps": [
       {
         "source": "b071ab2f4467308b78f068eeb9a2a83a3d73550d",
@@ -543,12 +544,35 @@
         "tree": "3f666f930a930c4efeb5910e08a14676649114df",
         "published_same_tree": "637d98d3754464b30f7d8cff2261a3ab2562ede2",
         "scope": "Complete ownership SSA move-state word representation with all new metadata and dispatch work charged",
-        "status": "Source/test static review and semantic differentials passed; original numeric anchors and actual Map net benefit require pending paired14; not whole Map acceptance",
+        "status": "Mechanism and all actual fees independently accepted; complete pre-Sum saving1168804, full Sum unchanged. Five anchor repair verified592/592 at ae0. Map not accepted.",
         "original_test_names": 585,
         "new_tests": 7,
         "verify_library": "591/1 final5pin vector",
         "non_native_group": "9/1 originalMap VerifyResourceLimit",
-        "detail": "See move_state_candidate for first compile failure, incomplete-fee superseded run, corrected fee run, full old oracle and unmodified actual inputs."
+        "detail": "See move_state_candidate for first compile failure, incomplete-fee superseded run, corrected fee run, full old oracle and unmodified actual inputs.",
+        "same_fee_diagnostic": 14
+      },
+      {
+        "source": "c2009cf83b8ecca7d823bdbe8945668aab7e61c6",
+        "tree": "130fd2a12dcb4e1366f575bd11de926e72419ce5",
+        "published_same_tree": "9219487b8c62555f9497371688a0b23ff260d52d",
+        "scope": "Same-request immutable function/selected graph binding plus complete desc_count/desc_local/desc_value key. Reuse only liveness History; all State, Slots, writes, effects, Transfer and close_pairs reexecute.",
+        "status": "Production/fees, full old oracle and complete same-scope net saving83888 independently accepted. WholeMap remains incomplete.",
+        "new_tests": 5,
+        "old_test_names_retained": 592,
+        "verify_library": {
+          "passed": 595,
+          "failed": 2,
+          "total": 597
+        },
+        "non_native_group": {
+          "passed": 9,
+          "failed": 1,
+          "failure": "Original5008B Map default Verify ResourceLimit V1/cachefalse"
+        },
+        "paired_diagnostic": 15,
+        "same_fee_diagnostic": 15,
+        "pin_fix_source": "4a794c8f966417baac81b01b37744cc22506792e"
       }
     ],
     "verify_same_fee_diagnostics": [
@@ -1011,40 +1035,326 @@
           "fresh/source.log": "3874e397574c174993e6639760990a6d1909b564dbb14765480b8a7541fbc37c",
           "fresh/instrumentation.patch": "cdbde7eaf2fcc5b5f9a3e09661fe28b4498b90267118facf0b6919766e56fa8c"
         }
+      },
+      {
+        "number": 14,
+        "source": "5b770e304107edff8ceb32a5e7485dc3c07a8b5f",
+        "tree": "3f666f930a930c4efeb5910e08a14676649114df",
+        "run": "out/runs/map-move-pin-ledger14-20261110T131347Z",
+        "status": "Completed; non-author production, full old oracle and complete paid-work accounting accepted. Not whole Map acceptance.",
+        "control": "Only complete b327 borrows.rs and loans.rs; all other production equals fee-corrected 5b770.",
+        "original_request_bytes": 5008,
+        "default_verify_work_limit": 10000000,
+        "summary": {
+          "old_pre_sum": 5126556,
+          "new_pre_sum": 3957752,
+          "complete_pre_sum_saved": 1168804,
+          "old_ownership": 1385267,
+          "new_ownership": 216463,
+          "complete_sum_each": 3790904,
+          "complete_sum_difference": 0,
+          "summary_calls_each": 36,
+          "final_calls_each": 34,
+          "old_complete_resource_functions": 35,
+          "new_complete_resource_functions": 36,
+          "resource_validate_true_function_entered": true,
+          "resource_validate_true_function_complete": false,
+          "resource_validate_true_transfer_calls": 0,
+          "old_failure": {
+            "remaining": 55,
+            "rejected_work": 73,
+            "owner": {
+              "sequence": 105,
+              "kind": "resource",
+              "id": 0,
+              "validate": false,
+              "round": null
+            },
+            "path": "crates/zil-verify/src/resources.rs",
+            "diagnostic_line": 1105,
+            "control_line": 1079,
+            "function": "liveness",
+            "source_line": "budget.spend(slots.desc_count.saturating_add(1))?;"
+          },
+          "new_failure": {
+            "remaining": 2,
+            "rejected_work": 10,
+            "owner": {
+              "sequence": 106,
+              "kind": "resource",
+              "id": 0,
+              "validate": true,
+              "round": null
+            },
+            "path": "crates/zil-verify/src/resources/field_fresh.rs",
+            "diagnostic_line": 104,
+            "control_line": 104,
+            "function": "cost",
+            "source_line": "b.spend(data.len().saturating_add(4))?;"
+          }
+        },
+        "outside_ownership_pre_sum_each": 3741289,
+        "outside_ownership_original_site_cost_and_calls_identical": true,
+        "full_five_raw_wire_deltas": [
+          {
+            "label": "mode=0",
+            "old_total": 4730,
+            "new_total": 4778,
+            "change": 48,
+            "old_ownership": 94,
+            "new_ownership": 142,
+            "outside_work_each": 4636
+          },
+          {
+            "label": "mode=1",
+            "old_total": 5125,
+            "new_total": 5173,
+            "change": 48,
+            "old_ownership": 97,
+            "new_ownership": 145,
+            "outside_work_each": 5028
+          },
+          {
+            "label": "mode=2",
+            "old_total": 6679,
+            "new_total": 6890,
+            "change": 211,
+            "old_ownership": 170,
+            "new_ownership": 381,
+            "outside_work_each": 6509
+          },
+          {
+            "label": "Store indirect=false",
+            "old_total": 15518,
+            "new_total": 15603,
+            "change": 85,
+            "old_ownership": 229,
+            "new_ownership": 314,
+            "outside_work_each": 15289
+          },
+          {
+            "label": "Store indirect=true",
+            "old_total": 18249,
+            "new_total": 18357,
+            "change": 108,
+            "old_ownership": 272,
+            "new_ownership": 380,
+            "outside_work_each": 17977
+          }
+        ],
+        "raw_and_wire_all_complete_success": true,
+        "raw_and_wire_fingerprints_identical": true,
+        "pin_causality": "Full request delta equals complete ownership delta for all five fixtures; all original sites/call counts outside ownership unchanged. Dense changes17+2v per function; words10 includes table8/new-1/copy4/copy_from8/same9/set160, plus Dense3=23.",
+        "resource_boundary": "All36 inference runs completed. Outer run_function_data(validate=true) entered but failed inside solve(false); Transfer(validate=true) calls remain0. Different truncated resource totals are not net savings.",
+        "restored_all_12_touched_files": true,
+        "handoff_sha256": "bf32b7d0fa8a1b1abaf1456a294e37f573024efd84353b51300071401f002450",
+        "sha256": {
+          "make_script.py": "3559017cdf5c1b415994e780811fbe95e1f8fde8a08a96e4124e22026b3adfac",
+          "diagnose.py": "b15820d3d053abb4ac717dce0fd53d79b091443885d0280ab7b6d45d1fef68dd",
+          "pin_account.py": "7575f17cc39d9c4e61c52538f511e4c42c84f7e67e98883f0e6239eb77aaf5c3",
+          "pin-comparison.json": "3250c879da64bce5234674df1c70ac0df81b5abd5cedf2787ea8d005fde2ddde",
+          "make_account.py": "4f09c43353c3b0b5bfabd4f584ef565dac04944fa30b1dde2e692e6283629952",
+          "summarize.py": "f98eef7a99cfc9fc83b24bb4c36155bd1af21d022f14aff40dee3c5a6057c5ef",
+          "comparison.json": "75d9a68f14df8461a55610535dc52b928c1deb323d90fe8d3fce8e1ac1996b09",
+          "current/manifest.json": "259f6987a264da43e51c62c0cf0a8afad130d1331ffd39d4254177b35fab4b12",
+          "current/receipt.json": "3eb013ad28e52c8e3a78bfcc8f70a2da9c7e2defaa5fb012c452b747188271bb",
+          "current/accounting.json": "5c9516946d704c9c4f27385721ff31e60c32075a7cb2ac78e171ec4007ca785b",
+          "current/pins-accounting.json": "bdea376c6b7ca231ae33d0277f8c128e74322ce1bcb828eb93f7adb059c7ccfa",
+          "current/source.log": "1bbd853e3ab92d7ca7306a864a03e6f4a5c6ebfc4309fc4672dd5eea28027a0c",
+          "current/pins.log": "becf1280ebb664d81ecb3943afeda27138a7b482795e0a1ce8afc8b5d5a4d3cf",
+          "current/instrumentation.patch": "3be68db532a58e0239ca164133cb904eb919ed557bc8d10056de48566446d453",
+          "old/manifest.json": "cbb7f0faa7d992fd48851e8b64512fc820249bd857621ebe4188b6f653423fa6",
+          "old/receipt.json": "96e1d28380f2e465336117a8667dc20c402ae93fe504e04dd92e4328466b1ed8",
+          "old/accounting.json": "214c7f70293296775f1db5b3f9dedf28a4d9bb111cc45d0061f94f944cec2832",
+          "old/pins-accounting.json": "e51417fea6982fa7babd8ba4f3ffe46281bcd0321bc479ad53890e5d644d6df2",
+          "old/source.log": "854c286e1bde26768b9f7c8217be4bd821161be9e0e5ad5be47f53433b3f83cd",
+          "old/pins.log": "2292555666e77645698ff8cf526e5bf8dc3b25f9facb744b492c334d56879ab8",
+          "old/instrumentation.patch": "7012b54af6617b52924223094819fe369a2061b19bad45da38b4ac98d4c06941"
+        },
+        "limitations": [
+          "Original Map still fails at default Verify; this is measured progress, not acceptance.",
+          "Component/small request costs increase; all five raw/Wire request deltas are recorded separately.",
+          "Different truncated resource totals are not net-savings measurements.",
+          "Method inclusive costs are nested; complete balances and exclusive attribution are used.",
+          "All instrumentation/logs stay in out and none is committed."
+        ]
+      },
+      {
+        "number": 15,
+        "source": "c2009cf83b8ecca7d823bdbe8945668aab7e61c6",
+        "tree": "130fd2a12dcb4e1366f575bd11de926e72419ce5",
+        "reference": "ae0a8f01ac4467b43c61c03b4d85f277bc257f5b complete resources.rs and desc_liveness.rs only",
+        "run": "out/runs/map-liveness-ledger15-20261110T135255Z",
+        "status": "Completed and non-author independently accepted; keep d1. OriginalMap still not accepted.",
+        "summary": {
+          "pre_sum_each": 3957752,
+          "sum_each": 3790904,
+          "complete_resource_prefix_old": 1625186,
+          "complete_resource_prefix_new": 1541298,
+          "complete_resource_prefix_saved": 83888,
+          "shared_product_old": [
+            4778,
+            5173,
+            6890,
+            15603,
+            18357
+          ],
+          "shared_product_new": [
+            4817,
+            5234,
+            6951,
+            15703,
+            18518
+          ],
+          "scalar_old": [
+            24,
+            458
+          ],
+          "scalar_new": [
+            46,
+            480
+          ],
+          "complete_final_resource_functions": 7,
+          "actual_final_transfer_successes": 290,
+          "old_failure": {
+            "remaining": 2,
+            "rejected_work": 10,
+            "owner": {
+              "sequence": 106,
+              "kind": "resource",
+              "id": 0,
+              "validate": true,
+              "round": null
+            },
+            "path": "crates/zil-verify/src/resources/field_fresh.rs",
+            "diagnostic_line": 104,
+            "control_line": 104,
+            "function": "cost",
+            "source_line": "b.spend(data.len().saturating_add(4))?;"
+          },
+          "new_failure": {
+            "remaining": 0,
+            "rejected_work": 1,
+            "owner": {
+              "sequence": 113,
+              "kind": "resource",
+              "id": 7,
+              "validate": true,
+              "round": null
+            },
+            "path": "crates/zil-verify/src/place_replacements/actual.rs",
+            "diagnostic_line": 59,
+            "control_line": 59,
+            "function": "merge",
+            "source_line": "b.spend(from.len())?;"
+          }
+        },
+        "complete_scope": "From complete Sum end through first resource final0 entry; includes all36 inference runs and every module/inter-function fee.",
+        "actual_new_costs": {
+          "cold_history_gross_saved": 94906,
+          "wrapper": 396,
+          "presence": 14,
+          "borrow": 14,
+          "complete_key_guards": 2511,
+          "publication": 7500,
+          "binding_table": 583,
+          "net_saved": 83888
+        },
+        "joint_inference_old_cold_history_calls": 36,
+        "joint_inference_new_cold_history_calls": 34,
+        "joint_inference_hit_functions": [
+          7,
+          0
+        ],
+        "outside_invariants": "All70 Sum records identical;6110 state_cost/clone/merge and2183Transfer sequence, state and paid costs exact in common prefix. New final-only hits excluded from net comparison.",
+        "pin_causality": "All10 raw/Wire inputs and verified fingerprints exact; each original outside site work/call count equal. Binding104B/Vec24B/usize8B means actual table17F+5; After32B wrapper11. Five deltas39/61/61/100/161 equal table plus0/2/2/4/8wrappers. Scalar count1/32 only table22; after never called.",
+        "restoration": "Each mode finally restored all 11 exact c200 source files and observed clean git status. Later root-authorized pin edits are outside this receipt.",
+        "handoff_sha256": "047b1ff01724363efc2ee9557d9851c980437f128f46e88a32e90ff89b683d96",
+        "sha256": {
+          "make_script.py": "6d40408c364a41d199735d02b33d3d7e8cf85945af04ef428292a9c4d1544c52",
+          "diagnose.py": "671a12180771c3fb09d390da6ff053a1e6ec5d12b7854a895a78910cb824d9aa",
+          "pin_account.py": "8f5348ae8fb87bdd557b1ed1ba9e3400e3fc012b0f3a70ef05dc5c5e882a70dd",
+          "source_account.py": "5fee63f6e9e7f4a2f69bf937133d517ab406ac3f3974b151ab61b82f99871484",
+          "compare_source.py": "11cdb0b41ac0e00d162cf6b93801c12baf81127ca296da844c5956b1b23ed07b",
+          "finish_accounting.py": "a8f11c70aa6734dc9b9b85de00381212903c31cc2f28936acf70d9c36631ec79",
+          "pins-comparison.json": "d0a89597f0ff20e7456d4bffd84a2f29d9312a10a6ae736f3ad010f3ba7fdb17",
+          "scalar-comparison.json": "0e8632996b24060cc38020b5f78eb8764fd9f3b6fbb825d62c139fcd748cf87a",
+          "comparison.json": "693b823599b969834b8430569c9b1dfa564d7d995113e711525ff8df7dcaffc6",
+          "liveness-accounting.json": "b7da986bc5c83d9834bcade5d461c43c282d013918a863ca09c6f1933a596147",
+          "current/manifest.json": "a28292ac944e4191b63a85210d7cae28c86916312d1706edcce988504781d086",
+          "current/receipt.json": "968a974d5c800b5328cf67a3ffcb1bc7a6ad4230805953bc8aded2fdaf95d9a0",
+          "current/instrumentation.patch": "3394210bb5636acee7fa0219e3689bd2ccbc9df2c9ed0b36ba41278587f2338a",
+          "current/pins.log": "d47933875c3d5602f605ab53ed58367ff0e6b4ef629ab3b2ae06251ad97026a8",
+          "current/scalar.log": "4d93b725f46529a1bcf984d272bf8d515684130a0c8ece97b31d93c503c6e6f9",
+          "current/source.log": "9e3ebdaa5fced36c8427ea33479f8f190fd03f49d0042b8d72baf60a61fadb23",
+          "current/pins-accounting.json": "831c4dc4a64aadeddf3d0c5285100b498d3824baa9056bda054bfeceab7eaff9",
+          "current/scalar-accounting.json": "03feffbc15a9d47d1b184d8860cd343a0464d9fdbd04a45808275529ea94f421",
+          "current/accounting.json": "3cb7d8b4ff76df8fe2e5e738a78fce6558f55aad96779b7b43848451afecbd3f",
+          "old/manifest.json": "3594c783050c6e2fc6bed139512a16af5273928a4686f2c9b562d7c1b84caa95",
+          "old/receipt.json": "ac55974786895f3d313dd04f599b37fbce903b72ec753acd93fc58a19bae602c",
+          "old/instrumentation.patch": "8ddd4fd11ef1c72b134e4d80585625acfc3cdc59910845ee4e7bbcf3f842d3da",
+          "old/pins.log": "f5eaf0d8a367bd2ec161d6cd6439e287266e998c46f031a90c08710022904d40",
+          "old/scalar.log": "2635c0ca992b3cd1e9619a5f9388853ab7c7d82491eb5384218ef07b98601213",
+          "old/source.log": "6f36fe2d35385b93975fc1b4aeab9c2b0f501ce77b08f084484e80aa8b4992ac",
+          "old/pins-accounting.json": "3fa729d59786e797a707d84606e7bbd2d9fab1ba9c1c96bc176a7800d7476c0e",
+          "old/scalar-accounting.json": "16cd94795891c4f9e16cbccf07d612dbdf1a0da529080f24f24e7b87083a1a5c",
+          "old/accounting.json": "3db86180ef579b39bcb8ebb49cbf6421184290b22e2f4f4391333f742fd88aee"
+        },
+        "actual_hotspots": {
+          "scope": "Current resource cutoff; exclusive direct spend, not net saving estimates",
+          "state_cost": 731662,
+          "actual_charge_set": 291398,
+          "actual_insert": 276026,
+          "retirement_len_subset": 253139,
+          "retirement_len_calls": 4371
+        },
+        "limitations": [
+          "Both unchanged original Map/default requests still fail Verify. This diagnostic establishes net progress, not acceptance.",
+          "All 10 raw/Wire requests and both scalar responsibility passes were measured at the default limit; the original pinned test bodies were not changed.",
+          "Updated scalar N and N-1 assertions await the original test after the parent's test-only pin correction.",
+          "Only complete shared scopes are compared; final resource function 7 stops during solve/merge before its final replay.",
+          "All instrumentation, logs and accounting remain under out; none is committed as source."
+        ]
       }
     ],
     "same_fee_diagnostic_invariants": "Every diagnostic used original5008 source and default limits, preserved original charges, counted accepted work only, then restored exact source bytes and clean tree.",
     "latest_gate_evidence": {
-      "source": "5b770e304107edff8ceb32a5e7485dc3c07a8b5f",
-      "tree": "3f666f930a930c4efeb5910e08a14676649114df",
-      "published_same_tree": "637d98d3754464b30f7d8cff2261a3ab2562ede2",
+      "source": "4a794c8f966417baac81b01b37744cc22506792e",
+      "tree": "00d8d58764ba1782535e9b57b6b5f7c6e9f27383",
+      "published_same_tree": "54627dfa05802580ff9eed90132e78f8fa368915",
+      "run": "out/runs/map-resource-liveness-accepted-20261110T140436Z",
+      "index_sha256": "e5d891558781ed774c3e9702a6cdde75a4c55d2d72e1d5230c91790882e3ad15",
       "verify_library": {
-        "passed": 591,
-        "failed": 1,
-        "sole_failure": "Original final5pin array; actual raw/Wire N/N-1/fresh completed"
+        "passed": 597,
+        "failed": 0
       },
       "non_native_group": {
         "passed": 9,
         "failed": 1,
-        "sole_failure": "Original Map default VerifyResourceLimit V1"
+        "sole_failure": "Original5008B Map defaultVerifyResourceLimit V1/cachefalse"
       },
-      "runs": [
+      "logs": [
         {
-          "source": "5b770e304107edff8ceb32a5e7485dc3c07a8b5f",
-          "run": "out/runs/map-verify-move-matrix-fees-20261110T131117Z",
-          "result": "591pass/1 final five-pin-vector failure; new7 all pass, correct metadata/dispatch/drop fees, original test set intact",
-          "log_sha256": "826e1249e77a16113f5dc1320aa2df5424a31b50218669eb87faae14bb3a7058"
+          "log": "out/runs/map-resource-liveness-accepted-20261110T140436Z/0.log",
+          "sha256": "d9cc0e7b4f4925a55d464793bacc9bdfcdf4fd35bfe75a85ece4e5281f5de945",
+          "exit_code": 0,
+          "summaries": [
+            "test result: ok. 597 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.82s"
+          ]
         },
         {
-          "source": "5b770e304107edff8ceb32a5e7485dc3c07a8b5f",
-          "run": "out/runs/map-verify-move-matrix-source-20261110T131302Z",
-          "result": "Original10 non-native9pass/1 original5008B Map VerifyResourceLimit V1/cachefalse; stdlib7583B and all original inputs unchanged",
-          "log_sha256": "415257209d479e49108b18bdccdcb60c72fff447413821676b2aa6e8c83fdeeb"
+          "log": "out/runs/map-resource-liveness-accepted-20261110T140436Z/1.log",
+          "sha256": "1b6f4e1d52248e526f8ecd150c56d8eb3f869b720a6e85e8ec808aa97456c6f5",
+          "exit_code": 101,
+          "summaries": [
+            "test result: FAILED. 9 passed; 1 failed; 0 ignored; 0 measured; 30 filtered out; finished in 1.89s"
+          ]
         }
       ],
+      "working_tree_clean": true,
       "native_current_pending": true,
       "strict_current_pending": true,
-      "strict_last_source": "872e5eca3d5e171c8ebbf01c258fe0ffffd43397"
+      "runner_preflight": "Two invocation errors (--label instead of positional prefix; mistyped absolute runner path) exited before Cargo. Corrected invocation is this sole actual run; neither error is a source-test failure."
     },
     "scheduler_diagnostic_pending": {
       "baseline": "a168bff66b9b2b9363b61c3ce9c39556244927ac",
@@ -1153,10 +1463,136 @@
         "native_current_pending": true,
         "working_tree_clean": true,
         "preflight_retry": "First runner invocation stopped before Cargo because toolchain env was not loaded; corrected by sourcing the formal env. It is not a source test result."
+      },
+      {
+        "source": "ae0a8f01ac4467b43c61c03b4d85f277bc257f5b",
+        "tree": "b2ce237746bbb38ea8da255342297272bd646a88",
+        "published_same_tree": "690d2cb09b7b1c99c7092b958b77a6d15aa5df97",
+        "scope": "Two lines/five literal numeric anchors only; all fixtures, raw/Wire, N/N-1/fresh assertions and call counts preserved.",
+        "new_N": [
+          4778,
+          5173,
+          6890,
+          15603,
+          18357
+        ],
+        "run": "out/runs/map-move-pin-accepted-20261110T134045Z",
+        "verify_library": {
+          "passed": 592,
+          "failed": 0
+        },
+        "index_sha256": "b81fa159cf4a7d18a34d69b93592eab201fd04d8d52e4c56fa8e43ddd10a24e4",
+        "log_sha256": "0b691619876fcdfbff79fa995404887020cd5741331f135be89b68819cccc778",
+        "working_tree_clean": true,
+        "native_not_run": true
+      },
+      {
+        "source": "c2009cf83b8ecca7d823bdbe8945668aab7e61c6",
+        "tree": "130fd2a12dcb4e1366f575bd11de926e72419ce5",
+        "published_same_tree": "9219487b8c62555f9497371688a0b23ff260d52d",
+        "verify_library": {
+          "passed": 595,
+          "failed": 2,
+          "total": 597
+        },
+        "non_native_group": {
+          "passed": 9,
+          "failed": 1,
+          "failure": "Original5008B Map default Verify ResourceLimit V1/cachefalse"
+        },
+        "runs": [
+          {
+            "run": "out/runs/map-verify-resource-liveness-20261110T134341Z",
+            "index_sha256": "e81bcfa1e8390e7b1440302a78e99c81ae70435738cd96674af30acb4999211b",
+            "log_sha256": "b2419721bccfdad5174099a17aee4fcd1502da2ff9712a55aff4ddeb8674c7a2",
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-verify",
+              "--lib",
+              "--",
+              "--nocapture"
+            ],
+            "exit_code": 101,
+            "summaries": [
+              "test result: FAILED. 595 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.78s"
+            ]
+          },
+          {
+            "run": "out/runs/map-verify-resource-liveness-source-20261110T134702Z",
+            "index_sha256": "e2671d3553ba8c9f117c9541c8b97a1f7061aa3de952347bd6ded686aca75ea9",
+            "log_sha256": "fd7076acf0b0162bbead103cef50ea209f021ab8e117c7386f6dba5f5b76a38d",
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "zui_product_consumer_zui_core",
+              "growing_hash_collections",
+              "--",
+              "--nocapture",
+              "--test-threads=1",
+              "--skip",
+              "growing_map_set_native_rehash_and_every_allocation_failure_preserve_owners"
+            ],
+            "exit_code": 101,
+            "summaries": [
+              "test result: FAILED. 9 passed; 1 failed; 0 ignored; 0 measured; 30 filtered out; finished in 1.88s"
+            ]
+          }
+        ],
+        "native_current_pending": true,
+        "strict_current_pending": true
+      },
+      {
+        "source": "4a794c8f966417baac81b01b37744cc22506792e",
+        "tree": "00d8d58764ba1782535e9b57b6b5f7c6e9f27383",
+        "published_same_tree": "54627dfa05802580ff9eed90132e78f8fa368915",
+        "run": "out/runs/map-resource-liveness-accepted-20261110T140436Z",
+        "index_sha256": "e5d891558781ed774c3e9702a6cdde75a4c55d2d72e1d5230c91790882e3ad15",
+        "verify_library": {
+          "passed": 597,
+          "failed": 0
+        },
+        "non_native_group": {
+          "passed": 9,
+          "failed": 1,
+          "sole_failure": "Original5008B Map defaultVerifyResourceLimit V1/cachefalse"
+        },
+        "logs": [
+          {
+            "log": "out/runs/map-resource-liveness-accepted-20261110T140436Z/0.log",
+            "sha256": "d9cc0e7b4f4925a55d464793bacc9bdfcdf4fd35bfe75a85ece4e5281f5de945",
+            "exit_code": 0,
+            "summaries": [
+              "test result: ok. 597 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.82s"
+            ]
+          },
+          {
+            "log": "out/runs/map-resource-liveness-accepted-20261110T140436Z/1.log",
+            "sha256": "1b6f4e1d52248e526f8ecd150c56d8eb3f869b720a6e85e8ec808aa97456c6f5",
+            "exit_code": 101,
+            "summaries": [
+              "test result: FAILED. 9 passed; 1 failed; 0 ignored; 0 measured; 30 filtered out; finished in 1.89s"
+            ]
+          }
+        ],
+        "working_tree_clean": true,
+        "native_current_pending": true,
+        "strict_current_pending": true,
+        "runner_preflight": "Two invocation errors (--label instead of positional prefix; mistyped absolute runner path) exited before Cargo. Corrected invocation is this sole actual run; neither error is a source-test failure."
       }
     ],
     "move_state_candidate": {
-      "status": "Fee-correct5b7 frozen, semantic controls executed; five numeric pins and full Map remain pending actual paired14 accounting",
+      "status": "Accepted full SSA representation and complete same-scope net saving1168804; five anchor repair passed full592 library. Whole Map still pending.",
       "baseline": "b327bc9b0e56f7f5bc70978f7cc95ef1f428c7c5",
       "scope": "Only loans::ownership complete SSA move-state inputs/outputs/temporaries; preserve affine/view metadata, full SSA domain, consumers, entry/reachability, fixedpoint and final rejection order",
       "evidence": {
@@ -1187,7 +1623,7 @@
         15518,
         18249
       ],
-      "pin_status": "Original literals unchanged pending complete actual ownership delta causality, not accepted from minima alone",
+      "pin_status": "Five literal anchors repaired only after paired14 full old/new work causality.",
       "actual_boundaries": "All5 raw/Wire dynamically found N/N-1/fresh assertions executed successfully before final pin-vector mismatch",
       "representation": "Complete SSA domain; Dense for width<=sizeof(u64), actual u64 words otherwise. Affine/view, all consumers, fixedpoint and final order unchanged.",
       "metadata_fix": "Row32B versus original Vec<bool>24B on formal64-bit host: actual additional Dense header, constructor/copy/dispatch/drop fees added. Words also pays corresponding selection/drop. New empty-domain work is nonzero and tested; no artificial legacy-zero exemption.",
@@ -1218,7 +1654,160 @@
           "result": "Original10 non-native9pass/1 original5008B Map VerifyResourceLimit V1/cachefalse; stdlib7583B and all original inputs unchanged",
           "log_sha256": "415257209d479e49108b18bdccdcb60c72fff447413821676b2aa6e8c83fdeeb"
         }
-      ]
+      ],
+      "same_fee_diagnostic": 14,
+      "pin_fix": {
+        "source": "ae0a8f01ac4467b43c61c03b4d85f277bc257f5b",
+        "tree": "b2ce237746bbb38ea8da255342297272bd646a88",
+        "published_same_tree": "690d2cb09b7b1c99c7092b958b77a6d15aa5df97",
+        "scope": "Two lines/five literal numeric anchors only; all fixtures, raw/Wire, N/N-1/fresh assertions and call counts preserved.",
+        "new_N": [
+          4778,
+          5173,
+          6890,
+          15603,
+          18357
+        ],
+        "run": "out/runs/map-move-pin-accepted-20261110T134045Z",
+        "verify_library": {
+          "passed": 592,
+          "failed": 0
+        },
+        "index_sha256": "b81fa159cf4a7d18a34d69b93592eab201fd04d8d52e4c56fa8e43ddd10a24e4",
+        "log_sha256": "0b691619876fcdfbff79fa995404887020cd5741331f135be89b68819cccc778",
+        "working_tree_clean": true,
+        "native_not_run": true
+      }
+    },
+    "upstream_integrations": [
+      {
+        "upstream_main": "947063a63880b375889ff30b3beba6151abf55f3",
+        "pr": 78,
+        "source": "da9731ecb1956d3959d1e95dde1da72545f8f9d1",
+        "published_same_tree": "89ee5cd3c6d6ad39ffdd8ab5170770b69d9c1476",
+        "scope": "Accepted compiler-owned resident CLI: exactly3CLI files and1long-term guide integrated; all other source and tests byte-identical to5b7. No compiler branch modified.",
+        "tree": "1db2447e0fb849805bdf0d9ca5f4a40b314235b9"
+      }
+    ],
+    "resource_liveness_candidate": {
+      "source": "c2009cf83b8ecca7d823bdbe8945668aab7e61c6",
+      "tree": "130fd2a12dcb4e1366f575bd11de926e72419ce5",
+      "published_same_tree": "9219487b8c62555f9497371688a0b23ff260d52d",
+      "baseline": "ae0a8f01ac4467b43c61c03b4d85f277bc257f5b",
+      "status": "Production/fees, full old oracle and complete same-scope net saving83888 independently accepted. WholeMap remains incomplete.",
+      "paths": 4,
+      "new_tests": 5,
+      "old_test_names_retained": 592,
+      "scope": "Same-request immutable function/selected graph binding plus complete desc_count/desc_local/desc_value key. Reuse only liveness History; all State, Slots, writes, effects, Transfer and close_pairs reexecute.",
+      "fees": "Actual Binding table and After widths, all key comparisons including Option ordinals, publication key copy/alloc/free and replacement/final drops are billed. History moved once and borrowed on hit, no deep clone.",
+      "oracles": "Seven complete prior helper bodies mechanically equal ae0 after names/type qualifications/format normalization. All original5tests/8after call sites retained, full History/key/State matrices, actual identity/CFG/key misses, semantic rejections and cold/warm fail then fresh controls.",
+      "actual_unit_component_costs": {
+        "cold": 1475,
+        "warm": 454,
+        "old_full_build": 1147
+      },
+      "unit_component_boundary": "Cold overhead exists; warm result alone does not establish full request benefit.",
+      "verify_library": {
+        "passed": 595,
+        "failed": 2,
+        "total": 597
+      },
+      "anchor_failures": {
+        "shared_product_old": [
+          4778,
+          5173,
+          6890,
+          15603,
+          18357
+        ],
+        "shared_product_actual": [
+          4817,
+          5234,
+          6951,
+          15703,
+          18518
+        ],
+        "scalar_count1_old": 24,
+        "scalar_count1_actual": 46,
+        "scalar_count32_old": 458,
+        "scalar_count32_actual": 480,
+        "scope": "Historical original c200 first-gate mismatch retained; paired15 subsequently measured both scalar cases and all5raw/Wire, then original full597 gate passed after seven literal repairs."
+      },
+      "non_native_group": {
+        "passed": 9,
+        "failed": 1,
+        "failure": "Original5008B Map default Verify ResourceLimit V1/cachefalse"
+      },
+      "runs": [
+        {
+          "run": "out/runs/map-verify-resource-liveness-20261110T134341Z",
+          "index_sha256": "e81bcfa1e8390e7b1440302a78e99c81ae70435738cd96674af30acb4999211b",
+          "log_sha256": "b2419721bccfdad5174099a17aee4fcd1502da2ff9712a55aff4ddeb8674c7a2",
+          "command": [
+            "cargo",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "zil-verify",
+            "--lib",
+            "--",
+            "--nocapture"
+          ],
+          "exit_code": 101,
+          "summaries": [
+            "test result: FAILED. 595 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.78s"
+          ]
+        },
+        {
+          "run": "out/runs/map-verify-resource-liveness-source-20261110T134702Z",
+          "index_sha256": "e2671d3553ba8c9f117c9541c8b97a1f7061aa3de952347bd6ded686aca75ea9",
+          "log_sha256": "fd7076acf0b0162bbead103cef50ea209f021ab8e117c7386f6dba5f5b76a38d",
+          "command": [
+            "cargo",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "zil-driver",
+            "--features",
+            "llvm-api",
+            "--test",
+            "zui_product_consumer_zui_core",
+            "growing_hash_collections",
+            "--",
+            "--nocapture",
+            "--test-threads=1",
+            "--skip",
+            "growing_map_set_native_rehash_and_every_allocation_failure_preserve_owners"
+          ],
+          "exit_code": 101,
+          "summaries": [
+            "test result: FAILED. 9 passed; 1 failed; 0 ignored; 0 measured; 30 filtered out; finished in 1.88s"
+          ]
+        }
+      ],
+      "paired_diagnostic": 15,
+      "paired_status": "Completed; all11 temporary files byte-exact restored, no instrumentation committed.",
+      "native_current_pending": true,
+      "strict_current_pending": true,
+      "pin_fix": {
+        "source": "4a794c8f966417baac81b01b37744cc22506792e",
+        "tree": "00d8d58764ba1782535e9b57b6b5f7c6e9f27383",
+        "published_same_tree": "54627dfa05802580ff9eed90132e78f8fa368915",
+        "scope": "Two existing test files, seven numeric literals and one exact fee comment only; fixtures/all assertions/calls unchanged. Original scalar1/32 N and N-1 now pass in the full597 run.",
+        "same_fee_diagnostic": 15,
+        "verify_library": "597/597",
+        "run": "out/runs/map-resource-liveness-accepted-20261110T140436Z"
+      },
+      "paired_net_saved": 83888
+    },
+    "retirement_candidate_preparation": {
+      "status": "Scratch only; not applied or built",
+      "archive_prefix": "287859f52",
+      "baseline": "4a794c8f966417baac81b01b37744cc22506792e",
+      "scope": "Retirement page representation only; no b731 pointer identity or30d5 containment shortcut. Copy paths may share immutable pages, merge retains complete source inventory.",
+      "evidence_boundary": "253139 retirement.len work includes both clone and merge; it is not an expected saving. Actual full new metadata, COW and cleanup fees must be measured."
     }
   },
   "first_failures": [
@@ -1332,11 +1921,12 @@
     "pr75_merge": "e12b158e178ddfec783bd4502ac596a1baab9443",
     "preservation": "All7 compiler refs left untouched, including merged resource-order-wordsets; cleanup belongs to compiler owner.11remote heads currently:4 shared/language plus7 compiler.",
     "latest_language_integration": {
-      "main": "fc6620a3b975258643eb8f9c3ee77d868ff67a69",
-      "source": "5fff3debf03f4051db0beda57ecff5dc305ad891",
-      "published_same_tree": "7374d3ebcc0063e313998ad345a3afa7b726c741",
+      "main": "947063a63880b375889ff30b3beba6151abf55f3",
+      "source": "da9731ecb1956d3959d1e95dde1da72545f8f9d1",
+      "published_same_tree": "89ee5cd3c6d6ad39ffdd8ab5170770b69d9c1476",
       "Order_and_cleanup_preserved": true,
-      "complete_independent_old_BTreeSet_oracle_preserved": true
+      "complete_independent_old_BTreeSet_oracle_preserved": true,
+      "resident_cli_preserved": true
     }
   },
   "execution_interruption": {
@@ -1381,11 +1971,11 @@
     "planned_old_native_processes": 56
   },
   "current_remote_readback": {
-    "observed_utc": "2026-11-10 12:06:06 UTC",
-    "heads_total": 16,
-    "source": "637d98d3754464b30f7d8cff2261a3ab2562ede2",
-    "source_tree": "3f666f930a930c4efeb5910e08a14676649114df",
-    "main": "fc6620a3b975258643eb8f9c3ee77d868ff67a69",
+    "observed_utc": "2026-11-10T13:59:07Z",
+    "heads_total": 17,
+    "source": "54627dfa05802580ff9eed90132e78f8fa368915",
+    "source_tree": "00d8d58764ba1782535e9b57b6b5f7c6e9f27383",
+    "main": "947063a63880b375889ff30b3beba6151abf55f3",
     "archive": "18d6494299365dc98981d4103a5f648dd4a09926",
     "compiler_refs_untouched": [
       "task/G10.5.1.3",
@@ -1396,6 +1986,7 @@
       "task/G10.5.1.8",
       "task/byte-buffer-growth-boundary",
       "task/closure-destructor-boundary",
+      "task/compiler-closure-dependencies",
       "task/compiler-resident-cli",
       "task/compiler-resident-session",
       "task/destructor-runtime-neighbors",
@@ -1403,16 +1994,20 @@
     ],
     "noncompiler_redundant_refs": 0,
     "source_readback": true,
-    "source_observed_utc": "2026-11-10T13:27:34.940547+00:00",
+    "source_observed_utc": "2026-11-10T14:08:23.203956+00:00",
     "latest_main_observed": "947063a63880b375889ff30b3beba6151abf55f3",
-    "main_sync_pending": "Accepted PR78 affects only3CLI files and1long-term guide; diagnostic source remains fixed5b7 until both modes finish."
+    "main_sync_pending": false,
+    "main_sync_source": "da9731ecb1956d3959d1e95dde1da72545f8f9d1"
   },
   "goal_concurrency_preserved": {
-    "read_goal": "7c274015e3a8268bfa258efdbbf697fa04f55e42",
-    "compiler_task_rows": 8,
+    "read_goal": "cba247afa1d60250a4395b8d7d689fbf387bdd36",
+    "compiler_task_rows": 11,
     "compiler_task_rows_unchanged": true,
-    "new_compiler_receipt_preserved": "records/compiler-resource-order-merge.json",
-    "update": "Reapplied only own four goal lines and own continuation record after detecting concurrent compiler update; no force push."
+    "compiler_records_preserved": [
+      "records/compiler-resident-merge.json",
+      "records/compiler-destructor-boundaries.json"
+    ],
+    "update": "Normal merge of fetched goal; change only ordinary-language progress and continuation record. No force update."
   },
   "resumption": {
     "environment": "New empty workspace; exact remote source e965/tree7500 restored and source hash checked before edits",
@@ -1528,6 +2123,111 @@
       ],
       "independent_review": "All5 retired source tips remain ancestors of fixed archive18d649. Compiler PR70/75/76 source accepted but research branches actively used; compiler-resident-cli was observed advancing from main to new source during audit. No ref deleted this round.",
       "scope": "Compiler branches retained under explicit user instruction; only ordinary-collections continues language work."
+    },
+    {
+      "observed_utc": "2026-11-10T13:59:07Z",
+      "heads": [
+        {
+          "name": "archive/source-history",
+          "sha": "18d6494299365dc98981d4103a5f648dd4a09926"
+        },
+        {
+          "name": "goal",
+          "sha": "cba247afa1d60250a4395b8d7d689fbf387bdd36"
+        },
+        {
+          "name": "main",
+          "sha": "947063a63880b375889ff30b3beba6151abf55f3"
+        },
+        {
+          "name": "task/G10.5.1.3",
+          "sha": "83adcaf84b742eb487d1d86c96c7081de969e96c"
+        },
+        {
+          "name": "task/G10.5.1.4",
+          "sha": "599b1c1978059deff989579fce360925b9082e57"
+        },
+        {
+          "name": "task/G10.5.1.5",
+          "sha": "68e554e48e88bd69fa1ff4278f9ab9ec1fd2a956"
+        },
+        {
+          "name": "task/G10.5.1.6",
+          "sha": "1b68492c636978fc4a8679244835faff72224f2b"
+        },
+        {
+          "name": "task/G10.5.1.7",
+          "sha": "d392db44993f67646e9ec3e4b12991c42fc422fe"
+        },
+        {
+          "name": "task/G10.5.1.8",
+          "sha": "22f7c59fa593861987176b1c1bd604d84a7bc670"
+        },
+        {
+          "name": "task/byte-buffer-growth-boundary",
+          "sha": "bb0c8759df3650efb0646978a03daea8a6c687f3"
+        },
+        {
+          "name": "task/closure-destructor-boundary",
+          "sha": "01d2ee433873b298e7e5982339b16d0b8d667713"
+        },
+        {
+          "name": "task/compiler-closure-dependencies",
+          "sha": "d2e0615c74bff6c5d6ee46466e310a313728c095"
+        },
+        {
+          "name": "task/compiler-resident-cli",
+          "sha": "59f1124a6bb684c74d076de3f30594f87fb8e6e3"
+        },
+        {
+          "name": "task/compiler-resident-session",
+          "sha": "b3393f9c741d1a0dab34577e87a52c2620a18fb6"
+        },
+        {
+          "name": "task/destructor-runtime-neighbors",
+          "sha": "db8696d23270d35d015d20928e75c355a0092627"
+        },
+        {
+          "name": "task/ordinary-collections",
+          "sha": "9219487b8c62555f9497371688a0b23ff260d52d"
+        },
+        {
+          "name": "task/resident-memory-validation",
+          "sha": "07af3468db6828f0c1e4b9276169a35013fde318"
+        }
+      ],
+      "protected_compiler_refs": [
+        "task/G10.5.1.3",
+        "task/G10.5.1.4",
+        "task/G10.5.1.5",
+        "task/G10.5.1.6",
+        "task/G10.5.1.7",
+        "task/G10.5.1.8",
+        "task/byte-buffer-growth-boundary",
+        "task/closure-destructor-boundary",
+        "task/compiler-closure-dependencies",
+        "task/compiler-resident-cli",
+        "task/compiler-resident-session",
+        "task/destructor-runtime-neighbors",
+        "task/resident-memory-validation"
+      ],
+      "noncompiler_redundant_refs": 0,
+      "open_compiler_drafts": [
+        72,
+        77
+      ],
+      "retired_noncompiler_refs_still_absent": [
+        "task/G10.3.6",
+        "task/G10.6.3",
+        "task/G3.4.22",
+        "task/G3.4.20",
+        "task/G9.3.11.1",
+        "fix/store-budget-boundary"
+      ],
+      "all_five_original_tips_ancestor_of_fixed_archive": true,
+      "new_compiler_ref": "task/compiler-closure-dependencies",
+      "scope": "All13compiler refs excluded; accepted compiler PR78 is already integrated. No ref deleted this audit.",
+      "snapshot_sha256": "90b4826fb4f9dc54b0903a5fd59027a043b3e45730ec99d473dfbaf0323fe614"
     }
   ]
 }
