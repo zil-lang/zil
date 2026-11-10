@@ -1,0 +1,16 @@
+{
+  "baseline": "fc6620a3b975258643eb8f9c3ee77d868ff67a69",
+  "source": "ea2d03af0de912c659993ec5e39626933ed10989",
+  "recipe": "b110730d1be386aaa8cbb93e420d18d1ffbad3da",
+  "prior_rejected_candidate": "01d2ee433873b298e7e5982339b16d0b8d667713",
+  "counterexample_run": 42800092569,
+  "status_before_preservation": "failure",
+  "files": {
+    "neighbors.json": "c62151760cb265f4908b4fc4cd810b42c1eecb61a0936f1d8520ff13cc51f27d",
+    "quality.json": "6c5b4489ba0863abb77f8621c891beab9367856ef9d616ad6a853c1bcc85a4ef",
+    "consumer.json": "8b44bc96d360d6dd68ea12d520d0a3f2f6037060ae81086ed66990368cfc4036",
+    "raw.tar.gz": "ec63a8447647a82d7a63027becd96f3aa88d1ea30442b16b0517dc5253ee94aa"
+  },
+  "main_modified": false,
+  "acceptance": "Pending current-source audit and full numerical quality checks"
+}
