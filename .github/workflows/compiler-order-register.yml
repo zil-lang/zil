@@ -1,0 +1,76 @@
+name: Register exact resource order integration
+on:
+  push:
+    branches: [task/G10.5.1.5]
+    paths: [.github/workflows/compiler-order-register.yml]
+permissions:
+  contents: write
+jobs:
+  record:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Verify merged source and make nonconflicting goal update
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=100 origin refs/heads/main refs/heads/goal 3e4a2a2ae368380e86ea99da32d7f3eef68cf3b4 e12b158e178ddfec783bd4502ac596a1baab9443
+          git fetch --no-tags origin refs/heads/goal
+          GOAL=$(git rev-parse FETCH_HEAD)
+          export GOAL
+          git worktree add --detach "$RUNNER_TEMP/order-goal" "$GOAL"
+          export GOAL_TREE="$RUNNER_TEMP/order-goal"
+          python3 - <<'PY'
+          import os,json,subprocess,pathlib,datetime
+          P=pathlib.Path;root=P(os.environ['GOAL_TREE']);source='3e4a2a2ae368380e86ea99da32d7f3eef68cf3b4';merged='e12b158e178ddfec783bd4502ac596a1baab9443'
+          def git(*args):return subprocess.check_output(['git',*args],text=True).strip()
+          subprocess.run(['git','merge-base','--is-ancestor',source,merged],check=True)
+          paths=['crates/zil-analyze/src/resources.rs','crates/zil-analyze/src/resources/order.rs','crates/zil-analyze/src/resources/order/tests.rs','docs/guide/resource-order-analysis.md']
+          blobs={p:git('rev-parse',source+':'+p) for p in paths}
+          assert all(git('rev-parse',merged+':'+p)==blob for p,blob in blobs.items())
+          row='| G10.5.1.5 | 精确稀疏资源顺序表示与闭包分析规模 | 已合入 | — | Chat直接复核 · PR75 | main@e12b158e，生产3e4a2a2a；官方/研究LLVM各5883/5769/70全过，1800编译/3672输出/576代码段一致。owned64默认限额Check和原生O2通过，96/128仍限额；八样本总体仅0.05%–0.22%，不冒称全局突破。见[收据](records/compiler-resource-order-merge.json)。 |'
+          nextrow='| G10.5.1.6 | 函数内清理后缀的内容驻留复用 | 进行中 | P1 | Chat编译专项 | task/G10.5.1.6按精确动作/LocalId/后继共享退出尾部，保留live标志和内联；首轮测试接口适配错误已保全，修正运行42785071418验证中。未合入、未声称提速；一般常驻会话/Cranelift另属后续架构，参考Blaze v2研究记录。 |'
+          p=root/'goal.md';s=p.read_text();lines=s.splitlines();assert any(x.startswith('| G10.5.1 ') for x in lines)
+          for ident,new in [('G10.5.1.5',row),('G10.5.1.6',nextrow)]:
+              indexes=[i for i,x in enumerate(lines) if x.startswith('| '+ident+' |')];assert len(indexes)<=1
+              if indexes:lines[indexes[0]]=new
+              else:
+                  index=max(i for i,x in enumerate(lines) if x.startswith('| G10.5.1'))+1;lines.insert(index,new)
+          p.write_text('\n'.join(lines)+'\n')
+          receipt={'pr':75,'head':source,'merge':merged,'production_blobs':blobs,'experiment_source':'d7a8d307ff04d9b6f1dc1240de1be203aa244209','experiment_run':42766117593,'ci_runs':[42767461822,42767461700],'source_tree':'e125ec21c4dd70cdd1a9b91b15f44e5aeb7f3200','per_ci':{'workspace':5883,'reference':5769,'text_reference':70,'failures':0},'matrix':{'requests':1800,'formal':1500,'native_outputs':3672,'identical_text_pairs':576,'current_verification_requests':1728},'scale':{'owned64':'Check and native O2 now succeed at unchanged defaults','owned96':'ResourceLimit remains','owned128':'ResourceLimit remains'},'weighted_reduction_percent_range':[0.0525,0.2230],'review':'current Chat direct source/evidence review under explicit owner authorization; no external AI review','goal_read_before':os.environ['GOAL'],'updated_at':datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).isoformat(),'research':'https://github.com/zil-lang/zil/blob/f50aecf885aa1622575e5dca13bb311e6a1536c9/.task/G10.5.1.5/BLAZE-V2.md'}
+          (root/'records/compiler-resource-order-merge.json').write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+'\n')
+          PY
+          cd "$RUNNER_TEMP/order-goal"
+          git add goal.md records/compiler-resource-order-merge.json
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Record merged resource order and current cleanup-sharing work without closing compiler parent'
+          git push origin HEAD:refs/heads/goal
+          git fetch --no-tags origin refs/heads/goal
+          test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"
+          git show FETCH_HEAD:goal.md | grep -F '| G10.5.1.5 |' | grep -F '已合入'
+          git show FETCH_HEAD:goal.md | grep -F '| G10.5.1.6 |'
+          git rev-parse HEAD > "$RUNNER_TEMP/order-goal-sha"
+          git rev-parse HEAD:goal.md > "$RUNNER_TEMP/order-goal-blob"
+      - name: Remove only exact merged production ref and preserve receipt
+        run: |
+          set -euo pipefail
+          SOURCE=3e4a2a2ae368380e86ea99da32d7f3eef68cf3b4
+          REF=refs/heads/task/resource-order-wordsets
+          actual=$(git ls-remote origin "$REF" | cut -f1)
+          if test -n "$actual"; then
+            test "$actual" = "$SOURCE"
+            git push --force-with-lease="$REF:$SOURCE" origin ":$REF"
+          fi
+          test -z "$(git ls-remote origin "$REF")"
+          mkdir -p .task/G10.5.1.5/merge
+          python3 - <<'PY'
+          import json,pathlib,os,datetime
+          P=pathlib.Path;t=P(os.environ['RUNNER_TEMP']);r={'merge':'e12b158e178ddfec783bd4502ac596a1baab9443','goal_commit':(t/'order-goal-sha').read_text().strip(),'goal_blob':(t/'order-goal-blob').read_text().strip(),'source_branch_deleted':True,'unrelated_branches_modified':False,'current_cleanup_task':'task/G10.5.1.6','timestamp':datetime.datetime.now(datetime.timezone.utc).isoformat()};(P('.task/G10.5.1.5/merge')/(os.environ['GITHUB_RUN_ID']+'.json')).write_text(json.dumps(r,indent=2)+'\n')
+          PY
+          git fetch --no-tags origin refs/heads/task/G10.5.1.5
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git add .task/G10.5.1.5/merge
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Preserve resource order integration and exact ref cleanup receipt'
+          git push origin HEAD:refs/heads/task/G10.5.1.5
