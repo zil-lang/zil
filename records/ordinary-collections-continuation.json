@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-10T06:15:36.983724+00:00",
-  "read_goal": "2721353954c06a3e6495ee349f740c4409efc0dd",
+  "recorded_utc": "2026-11-10T06:29:13.432555+00:00",
+  "read_goal": "c80246d1bbe2731cffed9a948fa1e33fb8595dca",
   "authorization": "User directs one implementation branch where dependencies permit, separate branches only for independent work; compiler-speed work stays with its original conversation; this conversation continues all other unfinished work.",
   "active_language_branch": "task/ordinary-collections",
   "compiler_branches_untouched": [
@@ -166,15 +166,15 @@
     "functional_source": "ede4945d1ed37ca6e89f712fc2258379d84d5e37",
     "functional_paths": 27,
     "functional_scope": "3 library paths, 6 ordinary Input/public capture replacement paths, actual parent/generation, complete original fixtures and consumers; no optional old cost caches or broader ABI/compiler changes.",
-    "latest_measured_source": "872e5eca3d5e171c8ebbf01c258fe0ffffd43397",
+    "latest_measured_source": "94e252197460569d51f89d8b881813c7c1da1909",
     "latest_default_result": "Analyze completed; independent Verify ResourceLimit, verification_runs=1",
     "complete_inventory_join_oracles": "3/3; N4667 vs original lookup6454; N-1 and retry pass",
     "source_raw_wire_recent_controls": "7/7",
-    "next": "Verify author applies only the complete shared Copy Sum outer-COW fixed-point step, with original full OldFlow oracle and independent exact-source review; complete original consumer/default budget remains the gate.",
+    "next": "Measure the same-fee full original consumer after positive shape cache; select the next actual remaining Verify hotspot only. Default limits and original inputs stay unchanged.",
     "unaccepted_candidates": "Analyze accepted only for this original default consumer and component controls. Complete Map remains unaccepted until independent Verify and native matrix pass. Old Verify caches/checkpoints/pages require actual current hotspot and full original oracle.",
-    "published_continuation": "edfe9e9d40c4231cc40d7d778f8f2bb95eaa62a1",
-    "published_tree": "ec4ce9f7c64165e9223570e9d5d6f7348df15f4d",
-    "identical_local_tree": "872e5eca3d5e171c8ebbf01c258fe0ffffd43397",
+    "published_continuation": "9af6d2487ac31317aa61109396a0ef3c0bd17819",
+    "published_tree": "2a7147d0f4998f2eecd256f484d67f7a8ad5a619",
+    "identical_local_tree": "94e252197460569d51f89d8b881813c7c1da1909",
     "complete_analyze_library": "262/262 passed",
     "unknown_fixedpoint": "4 semantic/reconstruction controls, exact N144 versus old188; N-1/fresh; independent input-isolation correction610746 then1/1 rerun",
     "same_fee_diagnostic": {
@@ -197,7 +197,7 @@
       "final_validation_entered": false,
       "interpretation": "This is an accepted-work prefix histogram, not complete-request net savings."
     },
-    "latest_run": "out/runs/map-verify-ssa-pages-20261110T060303Z",
+    "latest_run": "out/runs/map-verify-tag-cache-20261110T062358Z",
     "set_source": "1/1 Success Verify, verification_runs=1",
     "ssa_pages": {
       "source": "bcfec60ca894eb4c37b380a7f1f626887a7fc3fa",
@@ -286,7 +286,7 @@
       "shared_read_precheck": "d2bc7accd preserved in archive but not adopted: current Map cutoff does not execute that stored-flow tail; main already filters the main read-candidate path.",
       "templates_and_frontier": "Not adopted without current actual construction or scheduling hotspot."
     },
-    "complete_verify_library": "522/522 passed",
+    "complete_verify_library": "532/532 passed",
     "verify_steps": [
       {
         "source": "b071ab2f4467308b78f068eeb9a2a83a3d73550d",
@@ -327,6 +327,31 @@
         },
         "strict": "all-target clippy for both kernels passed",
         "review": "Independent exact-source and complete output accepted for this mechanism only"
+      },
+      {
+        "source": "800d25fe4b6f555f8b927b14a7d2343347362367",
+        "mechanism": "Complete independently qualified shared Copy Sum fixed point before outer Content COW; otherwise full old transfer",
+        "production_diff_lines": 36,
+        "old_flow_oracle": "Full original OldFlow block27951B; five complete tests",
+        "verify_library": "527/527",
+        "group": "9 pass / original Map Verify ResourceLimit, V1",
+        "fresh_correction": {
+          "source": "d6c9567efd97590d1a3bfeda0f8c18b8742c30dc",
+          "production_unchanged": true,
+          "scope": "Outer fresh Result comparison changed to explicit unwrap; existing tag second full expected unwrap moved after N-1; all assertions/call counts retained",
+          "run": "out/runs/map-verify-fresh-boundaries-20261110T062049Z",
+          "tests": "2 exact commands, each1/1; outer N3234 vs old3369; tag N1708 vs old6508; both N-1 and after-failure fresh passed",
+          "independent_review": "Accepted exact source and full logs"
+        }
+      },
+      {
+        "source": "94e252197460569d51f89d8b881813c7c1da1909",
+        "mechanism": "Per-Flow actual-local Type and strong-root positive shape proof; complete Copy qualification still precedes every lookup",
+        "old_oracle": "Complete previous shared helper, five new controls; all five original outer controls retained",
+        "verify_library": "532/532",
+        "group": "9 pass / original5008 Map Verify ResourceLimit, V1",
+        "component_boundaries": "publication N83 with N-1 unpublished/fresh success; 64 transfers plus actual extra COW N1027 vs old3586, both N-1 and after-failure fresh complete tuples; outer complete blocks N3215 vs old3369, each run fresh Flow/cache",
+        "review": "Independent exact source and all complete output accepted for the mechanism, not full Map acceptance"
       }
     ],
     "verify_same_fee_diagnostics": [
@@ -360,15 +385,36 @@
         "rejected_charge": 2,
         "cutoff": "tags_unknown; second records incomplete; no final/resource entry",
         "interpretation": "18.44% net saving applies only to the same complete first34 Sum summaries, including20 smaller functions increasing by1366. Content traversal1400791 and tags_unknown1152135 are actual cutoff-prefix totals, not entirely removable or whole-request costs."
+      },
+      {
+        "source": "800d25fe4b6f555f8b927b14a7d2343347362367",
+        "run": "out/runs/map-verify-ledger-20261110-4-800d25fe",
+        "handoff_sha256": "f6c8df0c88c183c36b2d15cbbafa1faacb60cbe1e17c9094de046d75b5456a8f",
+        "first_complete_34_sum_cost": 2259582,
+        "same_complete_34_sum_saving": 507919,
+        "first_records_complete_cost": 1962711,
+        "second_records_complete_cost": 2048326,
+        "complete_sum_summaries": 57,
+        "cutoff": "second-round fn23 partial_places; no final/resource entry",
+        "accepted_work": 10000000,
+        "remaining": 0,
+        "rejected_charge": 1,
+        "helper_actual_cost": 2365369,
+        "helper_shape_proof": 1319727,
+        "helper_qualification": 582516,
+        "helper_fallback_copy": 120806,
+        "helper_successful_qualified_same_shape": 87958,
+        "content_total": 581764,
+        "interpretation": "Only120806 Content cost belongs to the helper; incoming merge311942, SSA COW104079 and local COW31367 remain separate. Prefix totals are not whole-request savings or all-removable work."
       }
     ],
     "same_fee_diagnostic_invariants": "Every diagnostic used original5008 source and default limits, preserved original charges, counted accepted work only, then restored exact source bytes and clean tree.",
     "latest_gate_evidence": {
-      "run": "out/runs/map-verify-ssa-pages-20261110T060303Z",
-      "library_log_sha256": "173f876956e0acdcebcb2d7f13ec9587f7e2a5cf5561cdd339cc3274d078b9d9",
-      "group_log_sha256": "06b2d8d905f9816e9750e324369b243bb417959fc88495220c388ea16ebd183f",
-      "strict_run": "out/runs/map-kernels-strict-20261110T060420Z",
-      "strict_log_sha256": "b94a3d5603fba14c06248a5da6ce5f7466ff85e4672180f778edb9a2e2c29f44"
+      "run": "out/runs/map-verify-tag-cache-20261110T062358Z",
+      "library_log_sha256": "f112aef627c046f6167762fbfd93e3f077f98ead60d232980538f9ba230ebccb",
+      "group_log_sha256": "6b3f21ae9bddddf85ec151c3a475078a6cd0705bcc2f7a940eaaac1c36127c90",
+      "strict_last_source": "872e5eca3d5e171c8ebbf01c258fe0ffffd43397",
+      "strict_current_pending": true
     }
   },
   "first_failures": [
@@ -416,5 +462,39 @@
     ],
     "archive_ancestry_rechecked": true,
     "remote_tracking_pruned": true
-  }
+  },
+  "local_retirements": {
+    "recorded_utc": "2026-11-10T06:18:46.564143+00:00",
+    "retirements": [
+      {
+        "ref": "fix/store-budget-boundary",
+        "retained_worktree": "/workspace/scratch/4a034e35838f/zil-store-budget",
+        "detached_head": "37d1f7e81c979605d8febad0eea5dd50fe0f923e",
+        "published_same_tree": "8b5989dd19d9ffa7549ec3de282aafc431c13593",
+        "tree": "253b19140fa275137a749934e4744b3464bdd53c",
+        "sources_and_out_preserved": true
+      },
+      {
+        "ref": "task/stored-callback-regressions",
+        "retained_worktree": "/workspace/scratch/4a034e35838f/zil-regressions",
+        "detached_head": "0448610cae60dcb78459ec55e45f198ad492bf41",
+        "published_same_tree": "d6fcaeaf9a5ca9d26400b6d7de5e3c82a5c23878",
+        "tree": "313a3c53a750787d1fedf03b654138d887bcd45a",
+        "sources_and_out_preserved": true
+      },
+      {
+        "ref": "task/branch-reconciliation",
+        "retained_worktree": "/workspace/scratch/4a034e35838f/zil-goal",
+        "detached_head": "fb630cf2492e118eeae4ca519756b66d6b1f8f60",
+        "published_same_tree": "95732c3b81080ea8c5367f2f6526c3e328b5da5a",
+        "tree": "9338130669dcd2c953f15466f9cbbe5f3691aede",
+        "sources_and_out_preserved": true
+      }
+    ]
+  },
+  "local_active_refs": [
+    "main",
+    "goal",
+    "task/ordinary-collections"
+  ]
 }

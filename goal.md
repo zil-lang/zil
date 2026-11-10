@@ -18,7 +18,7 @@ PR73从main21b1最小提取五个生产文件，补重借用与RHS准备失败�
 
 旧三条混合ref的已交付部分由main承载，Store已合PR73，未完Map和一般语言能力由上述入口及本看板承接；共享读预检d2bc7accd等未采用候选保留在固定归档，须有当前完整消费者净收益才采用。本轮用户说明已解决旧“等待明确确认”的接续歧义；实际删除情况以接续记录为准。此前退役13条原ref和PR71临时ref、原自动审批拒绝及首败仍保留在[历史分支核对](records/branch-reconciliation-20261110.json)，不改写历史。
 
-Map原5008B与7583B库输入保持原字节。edfe9e9d（精确执行872e5eca同tree）已通过默认Analyze并进入独立Verify；Analyze262/262、Verify522/522、双核all-target strict通过，Set、Store field refill及7项Source/raw/Wire来源反例通过。当前原Map仍在Verify默认预算耗尽、V1。真实SSA分页使同一首轮34个完整Sum分析净减少625602（18.44%，含退化小函数），第二轮仍未完成；正在独立实施完整共享Copy Sum固定点后再复制的最小片。原64次双后端/O0/O2/分配失败执行待Verify过门后重验。两旧shared-product预算pin的+2已在优化前4b隔离复现并归因于真实parent join，N/N−1/fresh完整保留。Map及一般语言1.0父门仍开放。
+Map原5008B与7583B库输入保持原字节。9af6d248（精确执行94e25219同tree）已通过默认Analyze并进入独立Verify；Analyze原262项与当前Verify532项全库通过，Set、Store field refill及7项Source/raw/Wire来源反例通过。原Map仍在Verify默认预算耗尽、V1；真实SSA分页与完整共享Copy Sum外层固定点均已按完整old oracle和同范围账本独审，后一片使首轮34个完整Sum再省507919并完成此前卡住的第二records。当前正向shape缓存已独审与专项通过，继续测剩余实际费用；静态资格缓存尚未捆绑。原64次双后端/O0/O2/分配失败执行待Verify过门后重验。两旧shared-product预算pin的+2已在优化前4b隔离复现并归因于真实parent join；N/N−1及失败后fresh完整保留。Map及一般语言1.0父门仍开放。
 
 ## G1 · 基础类型与模式
 
@@ -424,7 +424,7 @@ Map原5008B与7583B库输入保持原字节。edfe9e9d（精确执行872e5eca同
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | Chat语言接续 · task/ordinary-collections；两核独立复核 | edfe9e9d（执行872e5eca同tree）保完整原程序和全部旧oracle；默认Analyze已过，独立Verify仍ResourceLimit、V1。Analyze262/262、Verify522/522及双核strict通过；Set/refill与7来源反例通过。Verify分页首轮完整34个Sum净省18.44%，正在按下一真实热点实施最小片，原64次native矩阵尚待重验。旧候选归档不作为新树验收；见接续记录。 |
+| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | Chat语言接续 · task/ordinary-collections；两核独立复核 | 9af6d248（执行94e25219同tree）保完整原程序和全部旧oracle；默认Analyze已过，独立Verify仍ResourceLimit、V1。Analyze原262项/当前Verify532项全库通过，Set/refill与7来源反例通过。分页、共享Copy Sum固定点和实际根shape缓存逐片独审；第4账本已完成第二records，继续定位剩余费用，原64次native矩阵待重验。旧候选归档不作为新树验收；见接续记录。 |
 
 </details>
 
