@@ -367,6 +367,10 @@ pub fn build_view_with_cancellation_and_stable_names(
             crate::machine_cgu::internalize_closed_executable(&mut plan.units, lir);
         }
     }
+    // Anonymous closure bodies are not named source exports. Decide only after
+    // partition so a cross-unit caller/address retains its canonical symbol.
+    let private_closures =
+        crate::machine_closure_linkage::internalize(&mut plan.units, lir.closures);
     let mut cache_summary = ObjectCacheSummary {
         requested: options.object_cache.is_some(),
         ..ObjectCacheSummary::default()
@@ -474,12 +478,12 @@ pub fn build_view_with_cancellation_and_stable_names(
         .any(|i| matches!(i.kind, zil_ir::InstructionKind::WithScopedThread { .. }));
     let split = plan.units.len() > 1;
     let objects = if !split && options.backend == NativeBackend::Clang {
-        // Keep one clang invocation, but an explicit closed build must consume
-        // the transformed unit rather than the public diagnostic sidecar.
-        let input = if options.closed_executable {
+        // Keep one clang invocation, but linkage-transformed builds must consume
+        // the actual unit rather than the public pre-partition diagnostic text.
+        let input = if options.closed_executable || private_closures != 0 {
             let input = staging.0.join("unit-0.ll");
             fs::write(&input, plan.units[0].to_text())
-                .map_err(|e| io_error("write closed codegen unit", &input, e))?;
+                .map_err(|e| io_error("write transformed codegen unit", &input, e))?;
             input
         } else {
             ir_path.clone()
