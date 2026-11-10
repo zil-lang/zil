@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "recorded_utc": "2026-11-10T23:45:56.625449+00:00",
+  "read_goal": "9a2b12c3e69717a7148464c4bf9879744651b109",
+  "scope": "Resume the ordinary-language work of zil施工11; all compiler research branches excluded.",
+  "branch": "task/ordinary-collections",
+  "pr": 82,
+  "status": "Scoped local acceptance passed; complete workspace and current PR CI running; not merged.",
+  "source": {
+    "base_main": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852",
+    "code": "c8c13db74630c9d47115db38c1472bd82faedcb9",
+    "code_tree": "9247db968b5ac493afa0619f6c239e3576c56a98",
+    "published": "5059c1a669a179be6372ec63c45241543aa15280",
+    "published_tree": "03251642e6e0866edb39449912ff9ffb48e40b29"
+  },
+  "earlier_failures": [
+    {
+      "source": "07eaad81f9dd358eac084e3f6aabbe9af5263c8d",
+      "main_run": 42867517812,
+      "main_job": 130009711477,
+      "research_run": 42867517928,
+      "research_job": 130009711968,
+      "workspace": {
+        "passed": 6037,
+        "failed": 3
+      },
+      "reference": {
+        "passed": 5923,
+        "failed": 3
+      },
+      "cause": "New consumer incorrectly annotated a Package argument with resource give. Types correctly rejected before Verify/native. Repaired ordinary by-value consumption."
+    },
+    {
+      "source": "c32fbbdce585b31f3e8cb9d324ada0d86da5a0b0",
+      "run": "out/runs/store-growth-20261111/local-initial",
+      "passed": 2,
+      "failed": 1,
+      "cause": "Fixed push live-loan control correctly rejected with an actual borrowed resource access conflict; old diagnostic expectation was inaccurate. Repaired by narrowing to exact current code/message and retaining fixed/growing four-field equality."
+    }
+  ],
+  "scoped_acceptance": {
+    "store": {
+      "passed": 3,
+      "failed": 0,
+      "native_builds": 8,
+      "native_processes": 32
+    },
+    "collected": {
+      "passed": 4,
+      "failed": 0,
+      "native_builds": 4,
+      "native_processes": 56,
+      "includes_independent_raw_wire": true
+    },
+    "full_nominal": {
+      "passed": 234,
+      "failed": 0
+    },
+    "independent_review": "Exact source, input hashes, focused native reports and concise receipt accepted.",
+    "receipt": "https://github.com/zil-lang/zil/blob/5059c1a669a179be6372ec63c45241543aa15280/validation/ordinary-store-growth.json"
+  },
+  "local_environment": "Recovered current remote source in /workspace/scratch/bc028477130e/zil; prior construction11 worktree was not found. Rust1.99.1 and LLVM23.1.4 checker pass; actual local tests now running.",
+  "branch_audit": {
+    "heads": 20,
+    "compiler_branches": 16,
+    "noncompiler_redundant": 0,
+    "archive": "18d6494299365dc98981d4103a5f648dd4a09926",
+    "compiler_refs_untouched": [
+      "task/G10.5.1.3",
+      "task/G10.5.1.4",
+      "task/G10.5.1.5",
+      "task/G10.5.1.6",
+      "task/G10.5.1.7",
+      "task/G10.5.1.8",
+      "task/byte-buffer-growth-boundary",
+      "task/closure-destructor-boundary",
+      "task/closure-helper-partition",
+      "task/compiler-closure-dependencies",
+      "task/compiler-resident-cli",
+      "task/compiler-resident-session",
+      "task/destructor-runtime-neighbors",
+      "task/helper-public-boundary",
+      "task/resident-memory-validation",
+      "task/resource-helper-codegen"
+    ]
+  },
+  "next": "After this acceptance, G9.3.10 reusable lending/map/filter/owned collect remains next; general owning K/V hash and language1.0 stay open."
+}
