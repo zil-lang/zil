@@ -1,0 +1,10 @@
+{
+  "complete": false,
+  "requests": 0,
+  "resets": 0,
+  "fresh_oracle_checks": null,
+  "rss_mib_by_epoch_end": [],
+  "max_rss_mib": 0,
+  "byte_limit_claimed": false,
+  "stderr": ""
+}

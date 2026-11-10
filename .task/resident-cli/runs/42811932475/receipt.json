@@ -1,0 +1,15 @@
+{
+  "base_production": "fc6620a3b975258643eb8f9c3ee77d868ff67a69",
+  "source": "02dc428f048666260eff0a4b277ef4a82efff60e",
+  "recipe": "4162f31c550d5126aa2089cdfd91e98a126209ae",
+  "status_before_preservation": "failure",
+  "scope": "same release CLI fresh process vs explicit resident; no changed compiler backend",
+  "files": {
+    "consumer.json": "fef8f326080a6a7d6b67f5ccb2096b4cd3fc8ce3cd56ab799270cd2aec99f23f",
+    "raw.tar.gz": "da6b2213aece4af47ca9cc6b734127ee2db6214ff543dd2efe1857d3959989e3",
+    "lifetime.json": "8164218bed409b0918952c402ebf1898807819761e506eee7bb0bab4c3f7a1d4"
+  },
+  "main_modified": false,
+  "external_ai_review": false,
+  "acceptance": "Pending source and raw numerical review"
+}
