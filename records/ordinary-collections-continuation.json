@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-10T16:00:43.464388+00:00",
-  "read_goal": "dadda6052f7844da2f744c5d22aed45e720496ae",
+  "recorded_utc": "2026-11-10T16:38:01.257253+00:00",
+  "read_goal": "703f24e4de6d76f304bbaf25dafebb7e3f07e84f",
   "authorization": "User directs one implementation branch where dependencies permit, separate branches only for independent work; compiler-speed work stays with its original conversation; this conversation continues all other unfinished work.",
   "active_language_branch": "task/ordinary-collections",
   "compiler_branches_untouched": [
@@ -18,7 +18,8 @@
     "task/compiler-resident-cli",
     "task/compiler-resident-session",
     "task/destructor-runtime-neighbors",
-    "task/resident-memory-validation"
+    "task/resident-memory-validation",
+    "task/resource-helper-codegen"
   ],
   "store": {
     "task": "G3.4.20",
@@ -177,15 +178,15 @@
     "functional_source": "ede4945d1ed37ca6e89f712fc2258379d84d5e37",
     "functional_paths": 27,
     "functional_scope": "3 library paths, 6 ordinary Input/public capture replacement paths, actual parent/generation, complete original fixtures and consumers; no optional old cost caches or broader ABI/compiler changes.",
-    "latest_measured_source": "0933d6ac9a3acb58f1c26465d80d07d96f192867",
-    "latest_default_result": "Original Map Verify1/cachefalse/default10M succeeds. Analyze267, Verify605 and original11 driver including16build/64process native all pass; strict VerifyClippy passes. Legacy exact driver budget anchors require causal repair before final workspace/CI and merge.",
+    "latest_measured_source": "c69576f3422fcbb3348828aecac983fe50b8d971",
+    "latest_default_result": "Original Map/native267/605/11 plus16build/64process remain accepted on0933 with exact production equivalence. c695 repairs7original legacy controls,7/7passed. Complete workspace6024/6037 exposes13more old fee anchors; all strict/static gates pass. Not merged until remaining controls and finalCI close.",
     "complete_inventory_join_oracles": "3/3; N4667 vs original lookup6454; N-1 and retry pass",
     "source_raw_wire_recent_controls": "7/7 source controls, including Source/raw/Wire negative controls; not seven negative-only tests",
-    "next": "Reconcile and repair only causally proved legacy exact budget literals, retain all N/N-1/fresh/warm/retry assertions, then final workspace/CI and Map merge. Continue prepared Store.push_growing on the same branch.",
+    "next": "Complete one paired main099/current two-kernel accounting for all13 remaining full-workspace budget anchors, preserve original controls, then final affected-target/CI checks and Map merge. Continue prepared geometric Store.push_growing on the same branch.",
     "unaccepted_candidates": "Original Map remains unaccepted. Ordered scheduler and stable complete-input checkpoints have independently reviewed complete Sum savings126612 and726534 respectively. Retirement pages, retirement identity/no-change, cold-history reuse and other candidates remain unadopted until selected from current evidence.",
-    "published_continuation": "9fdeebae13736ab910b2d6a5cf9f9b7510410713",
-    "published_tree": "9f38a98df0d4f6d13cd927f9a74ebe2420d69750",
-    "identical_local_tree": "9f38a98df0d4f6d13cd927f9a74ebe2420d69750",
+    "published_continuation": "42cf6ffa4fa6ca8af0a0cd7f46bfdcc3eb71c18b",
+    "published_tree": "d33e01f9a1d4d9866eaea5d912081e44df26eddc",
+    "identical_local_tree": "d33e01f9a1d4d9866eaea5d912081e44df26eddc",
     "complete_analyze_library": "267/267 current full Analyze library on5fff",
     "unknown_fixedpoint": "4 semantic/reconstruction controls, exact N144 versus old188; N-1/fresh; independent input-isolation correction610746 then1/1 rerun",
     "same_fee_diagnostic": {
@@ -1557,102 +1558,133 @@
     ],
     "same_fee_diagnostic_invariants": "Every diagnostic used original5008 source and default limits, preserved original charges, counted accepted work only, then restored exact source bytes and clean tree.",
     "latest_gate_evidence": {
-      "source": "0933d6ac9a3acb58f1c26465d80d07d96f192867",
-      "tree": "9f38a98df0d4f6d13cd927f9a74ebe2420d69750",
-      "published_same_tree": "9fdeebae13736ab910b2d6a5cf9f9b7510410713",
-      "run": "out/runs/map-collections-acceptance-20261110T155645Z",
-      "index_sha256": "34b34869a7486dc6b4d99ebbe58db914f47764d109cb78dbf0013d15f7ba52b1",
-      "libraries": {
-        "analyze": 267,
-        "verify": 605,
-        "failed": 0
+      "source": "c69576f3422fcbb3348828aecac983fe50b8d971",
+      "tree": "d33e01f9a1d4d9866eaea5d912081e44df26eddc",
+      "published_same_tree": "42cf6ffa4fa6ca8af0a0cd7f46bfdcc3eb71c18b",
+      "run": "out/runs/map-final-integration-20261110T162542Z",
+      "index_sha256": "30173b7acdbccf134f989195b6e0ef28064498915728f81c52c0a6c7e4a41a5d",
+      "complete": true,
+      "source_clean_after": true,
+      "workspace": {
+        "passed": 6024,
+        "failed": 13,
+        "ignored": 0,
+        "total": 6037,
+        "failures": [
+          "mixed_holder::borrowed_record::qualified_record_getter_width_and_depth_budgets_are_exact_and_fresh ...",
+          "mixed_holder::shared_address_array::shared_array_snapshot_initialization::whole_snapshot_initialization_costs_grow_with_actual_roots_and_slots ...",
+          "mixed_holder::shared_address_array::package_shared_array::package_array_slots_pointee_and_parent_snapshot_budgets_are_exact_and_fresh ...",
+          "owned_aggregate_owner_replacement_error_arm_alias_budget ...",
+          "optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets ...",
+          "owning_store_call_invalidation_has_exact_prepaid_fresh_and_warm_boundaries ...",
+          "owning_store_replacement_has_exact_prepaid_fresh_and_warm_boundaries ...",
+          "helper_cfg_join_cfg::actual_dag_budget_boundaries_and_old_tail_fees ...",
+          "original_single_module_and_drop_work_budgets_remain_exact ...",
+          "flat_verify_work_boundary_without_product_leaves ...",
+          "owning_trait_hosts::owned_results::stored_composition::ordinary_error_places_have_exact_fresh_independent_resource_work ...",
+          "owning_trait_hosts::owned_results::stored_composition::ordinary_package_fields_have_exact_fresh_analysis_and_verification_work ...",
+          "owning_trait_hosts::owned_results::stored_composition::ordinary_package_fields_complete_project_has_exact_fresh_analysis_work ..."
+        ],
+        "reason": "Additional pre-existing exact budget anchors/matrices and one old fixed Verify budget. Full failure retained; complete two-kernel causal calibration is in preparation, no new production optimization."
       },
-      "driver": {
-        "passed": 11,
-        "failed": 0,
-        "includes_original_source_raw_wire_and_native": true
-      },
-      "native": {
-        "counts": {
-          "compilations": 16,
-          "executions": 64,
-          "injected": 48,
-          "normal": 16,
-          "api_builder_objects": 8
-        },
-        "evidence_sha256": "884f2e14e6cdf0a120194044f7d41f7070e023ad7d1c2d882a1915d176819570",
-        "fault_scope": "Failures 1/2 verify partial construction cleanup; 3/4 growth preparation and 5/6 reserve preparation preserve old contents and permit retry.",
-        "original_inputs_unchanged": true,
-        "all_processes_exit_zero_and_allocator_balanced": true,
-        "non_author_review": "Accepted from all16 original compile reports, all64 lossless process records, actual API objects and unchanged inputs/defaultLimits. Scope is x86_64 Linux, two backends, O0/O2, six allocator fault points; CGU fallback=None does not mean API linking avoids Clang."
-      },
-      "commands": [
+      "gates": [
         {
+          "gate": "format",
+          "command": [
+            "cargo",
+            "fmt",
+            "--all",
+            "--",
+            "--check"
+          ],
+          "exit_code": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "gate": "workspace",
           "command": [
             "cargo",
             "test",
             "--locked",
             "--offline",
-            "-p",
-            "zil-analyze",
-            "--lib",
-            "--",
-            "--nocapture"
+            "--workspace",
+            "--no-fail-fast"
           ],
-          "exit_code": 0,
-          "log_sha256": "3e4134cb23be487d46f3a1c33f143de22d657a35c7b80a09d45e20c7f4d796a5",
-          "summaries": [
-            "test result: ok. 267 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.68s"
-          ]
+          "exit_code": 101,
+          "log_sha256": "a8e6fc7b647a2cb584ac29e7d11193ce840b77690082f7b9711c6944c0c502b6"
         },
         {
+          "gate": "clippy",
           "command": [
             "cargo",
-            "test",
+            "clippy",
             "--locked",
             "--offline",
-            "-p",
-            "zil-verify",
-            "--lib",
+            "--workspace",
+            "--all-targets",
             "--",
-            "--nocapture"
+            "-D",
+            "warnings"
           ],
           "exit_code": 0,
-          "log_sha256": "2b5b3d578b899bc38c5c0e7902b8e220ebf0973ec4da3d6b3e7c79d14739c16a",
-          "summaries": [
-            "test result: ok. 605 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.85s"
-          ]
+          "log_sha256": "6c7beab39c9e277903d296b3130ec84a4eba023df667466cb2334927dc9c55df"
         },
         {
+          "gate": "layout",
           "command": [
-            "cargo",
-            "test",
-            "--locked",
-            "--offline",
-            "-p",
-            "zil-driver",
-            "--features",
-            "llvm-api",
-            "--test",
-            "zui_product_consumer_zui_core",
-            "growing_hash_collections",
-            "--",
-            "--nocapture",
-            "--test-threads=1"
+            "python3",
+            "tools/check-repository-layout.py",
+            "--full",
+            "--delivery"
           ],
           "exit_code": 0,
-          "log_sha256": "2fcf81a46ef972907ce15a21c590cd01f36a5ac13611a6066e1f3f2d3e71b1a1",
-          "summaries": [
-            "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 13.17s"
-          ]
+          "log_sha256": "e0a709d31f90f17fc7e6d1183a3ce15e2addc7eb91014c423812483400075d37"
+        },
+        {
+          "gate": "layout_tests",
+          "command": [
+            "python3",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tools",
+            "-p",
+            "test_check_repository_layout.py"
+          ],
+          "exit_code": 0,
+          "log_sha256": "9a85a0d18127fcd4589be6c8209392f32070f382ffbf2586ab27712d373ddf64"
+        },
+        {
+          "gate": "contracts",
+          "command": [
+            "python3",
+            "tools/check-plan.py",
+            "--self-test"
+          ],
+          "exit_code": 0,
+          "log_sha256": "d1e867749a6c57ec0ea847833bd947ece6cd25cb7a78f774c50b5da02e7bcd76"
+        },
+        {
+          "gate": "conformance",
+          "command": [
+            "python3",
+            "tools/check-conformance.py"
+          ],
+          "exit_code": 0,
+          "log_sha256": "811312af547020caf8a134823faa31ec1d41e89740af6c05400084988e7dfacf"
+        },
+        {
+          "gate": "indexes",
+          "command": [
+            "python3",
+            "tools/update-indexes.py"
+          ],
+          "exit_code": 0,
+          "log_sha256": "2cea2be6cd987a64354dc5dbd20111128538c75a562d9ed220a823fbaf1f79fd"
         }
       ],
-      "strict_verify_clippy": {
-        "exit_code": 0,
-        "log_sha256": "49ccb6fada4c270537d57d810f5ede0d41cb12aa99ec92a2e43c7a2ccf4afe77"
-      },
-      "review": "Fixed seven new budget literals and comments mechanically restored to parent; 9-line lossless process JSON removed restores exact original native harness. Non-author fixed-tree review accepted.",
-      "status": "Original Map default and complete native matrix passed; seven legacy driver budget controls expose old exact anchors and require complete fee reconciliation before merge. Final workspace/CI still pending."
+      "status": "Not accepted for merge:13 additional budget controls remain. All other tests and workspace strictClippy/fmt/layout/contracts/conformance/index checks passed."
     },
     "scheduler_diagnostic_pending": {
       "baseline": "a168bff66b9b2b9363b61c3ce9c39556244927ac",
@@ -2064,6 +2096,135 @@
         },
         "review": "Fixed seven new budget literals and comments mechanically restored to parent; 9-line lossless process JSON removed restores exact original native harness. Non-author fixed-tree review accepted.",
         "status": "Original Map default and complete native matrix passed; seven legacy driver budget controls expose old exact anchors and require complete fee reconciliation before merge. Final workspace/CI still pending."
+      },
+      {
+        "source": "c69576f3422fcbb3348828aecac983fe50b8d971",
+        "tree": "d33e01f9a1d4d9866eaea5d912081e44df26eddc",
+        "published_same_tree": "42cf6ffa4fa6ca8af0a0cd7f46bfdcc3eb71c18b",
+        "run": "out/runs/map-final-integration-20261110T162542Z",
+        "index_sha256": "30173b7acdbccf134f989195b6e0ef28064498915728f81c52c0a6c7e4a41a5d",
+        "complete": true,
+        "source_clean_after": true,
+        "workspace": {
+          "passed": 6024,
+          "failed": 13,
+          "ignored": 0,
+          "total": 6037,
+          "failures": [
+            "mixed_holder::borrowed_record::qualified_record_getter_width_and_depth_budgets_are_exact_and_fresh ...",
+            "mixed_holder::shared_address_array::shared_array_snapshot_initialization::whole_snapshot_initialization_costs_grow_with_actual_roots_and_slots ...",
+            "mixed_holder::shared_address_array::package_shared_array::package_array_slots_pointee_and_parent_snapshot_budgets_are_exact_and_fresh ...",
+            "owned_aggregate_owner_replacement_error_arm_alias_budget ...",
+            "optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets ...",
+            "owning_store_call_invalidation_has_exact_prepaid_fresh_and_warm_boundaries ...",
+            "owning_store_replacement_has_exact_prepaid_fresh_and_warm_boundaries ...",
+            "helper_cfg_join_cfg::actual_dag_budget_boundaries_and_old_tail_fees ...",
+            "original_single_module_and_drop_work_budgets_remain_exact ...",
+            "flat_verify_work_boundary_without_product_leaves ...",
+            "owning_trait_hosts::owned_results::stored_composition::ordinary_error_places_have_exact_fresh_independent_resource_work ...",
+            "owning_trait_hosts::owned_results::stored_composition::ordinary_package_fields_have_exact_fresh_analysis_and_verification_work ...",
+            "owning_trait_hosts::owned_results::stored_composition::ordinary_package_fields_complete_project_has_exact_fresh_analysis_work ..."
+          ],
+          "reason": "Additional pre-existing exact budget anchors/matrices and one old fixed Verify budget. Full failure retained; complete two-kernel causal calibration is in preparation, no new production optimization."
+        },
+        "gates": [
+          {
+            "gate": "format",
+            "command": [
+              "cargo",
+              "fmt",
+              "--all",
+              "--",
+              "--check"
+            ],
+            "exit_code": 0,
+            "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "gate": "workspace",
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "--workspace",
+              "--no-fail-fast"
+            ],
+            "exit_code": 101,
+            "log_sha256": "a8e6fc7b647a2cb584ac29e7d11193ce840b77690082f7b9711c6944c0c502b6"
+          },
+          {
+            "gate": "clippy",
+            "command": [
+              "cargo",
+              "clippy",
+              "--locked",
+              "--offline",
+              "--workspace",
+              "--all-targets",
+              "--",
+              "-D",
+              "warnings"
+            ],
+            "exit_code": 0,
+            "log_sha256": "6c7beab39c9e277903d296b3130ec84a4eba023df667466cb2334927dc9c55df"
+          },
+          {
+            "gate": "layout",
+            "command": [
+              "python3",
+              "tools/check-repository-layout.py",
+              "--full",
+              "--delivery"
+            ],
+            "exit_code": 0,
+            "log_sha256": "e0a709d31f90f17fc7e6d1183a3ce15e2addc7eb91014c423812483400075d37"
+          },
+          {
+            "gate": "layout_tests",
+            "command": [
+              "python3",
+              "-m",
+              "unittest",
+              "discover",
+              "-s",
+              "tools",
+              "-p",
+              "test_check_repository_layout.py"
+            ],
+            "exit_code": 0,
+            "log_sha256": "9a85a0d18127fcd4589be6c8209392f32070f382ffbf2586ab27712d373ddf64"
+          },
+          {
+            "gate": "contracts",
+            "command": [
+              "python3",
+              "tools/check-plan.py",
+              "--self-test"
+            ],
+            "exit_code": 0,
+            "log_sha256": "d1e867749a6c57ec0ea847833bd947ece6cd25cb7a78f774c50b5da02e7bcd76"
+          },
+          {
+            "gate": "conformance",
+            "command": [
+              "python3",
+              "tools/check-conformance.py"
+            ],
+            "exit_code": 0,
+            "log_sha256": "811312af547020caf8a134823faa31ec1d41e89740af6c05400084988e7dfacf"
+          },
+          {
+            "gate": "indexes",
+            "command": [
+              "python3",
+              "tools/update-indexes.py"
+            ],
+            "exit_code": 0,
+            "log_sha256": "2cea2be6cd987a64354dc5dbd20111128538c75a562d9ed220a823fbaf1f79fd"
+          }
+        ],
+        "status": "Not accepted for merge:13 additional budget controls remain. All other tests and workspace strictClippy/fmt/layout/contracts/conformance/index checks passed."
       }
     ],
     "move_state_candidate": {
@@ -2612,187 +2773,383 @@
       }
     },
     "legacy_driver_budget_reconciliation": {
-      "source": "0933d6ac9a3acb58f1c26465d80d07d96f192867",
-      "tree": "9f38a98df0d4f6d13cd927f9a74ebe2420d69750",
-      "run": "out/runs/map-driver-boundaries-20261110T155756Z",
-      "index_sha256": "8a937f0a0bdbc92570b4866cb449cdcba0ad31974c76ab44e8e2c2b27e8ca6db",
-      "selected": 7,
-      "failed": 7,
-      "reason": "Existing exact budget literals; full causal reconciliation pending, not acceptance.",
-      "first_observed": {
-        "defer_verify": [
-          7307,
-          8358
-        ],
-        "byte_capture_verify": [
-          2344,
-          3351
-        ],
-        "package_source_verify": [
-          20371,
-          23962
-        ],
-        "fnonce_source_lower": [
-          30496,
-          31589
-        ],
-        "retirement_verify": [
-          17400,
-          18708
-        ],
-        "enum_raw_verify": [
-          89567,
-          79381
-        ],
-        "borrowed_named_source": [
-          42126,
-          41073
-        ]
+      "source": "c69576f3422fcbb3348828aecac983fe50b8d971",
+      "tree": "d33e01f9a1d4d9866eaea5d912081e44df26eddc",
+      "published_same_tree": "42cf6ffa4fa6ca8af0a0cd7f46bfdcc3eb71c18b",
+      "delta": "Seven test files only; reverse13 numeric positions and two comment lines restores all files byte-for-byte to0933. All1413asserts and all production/input bytes remain unchanged.",
+      "current_anchors": {
+        "defer_verify": 8358,
+        "byte_verify": 3351,
+        "package_source_verify": 23962,
+        "fnonce_source_lower": 31589,
+        "retirement_verify": 18708,
+        "enum_raw_wire_verify": 79381,
+        "enum_source_analyze": 81361,
+        "enum_analyze_short": 81360,
+        "borrowed_source_named_explicit": 41073
       },
-      "unchanged_observed": "Expand/Types/Analyze old controls and captured fn/fnmut Source-to-Lower exact minima remain unchanged.",
-      "commands": [
-        {
-          "command": [
-            "cargo",
-            "test",
-            "--locked",
-            "--offline",
-            "-p",
-            "zil-driver",
-            "--features",
-            "llvm-api",
-            "--test",
-            "generic_defer_obligations_budget",
-            "empty_tables_keep_frontend_cost_and_current_verify_boundary",
-            "--",
-            "--nocapture",
-            "--test-threads=1"
+      "verify_cause": {
+        "run": "out/runs/driver-boundary-ledger19-20261110T160542Z",
+        "handoff_sha256": "bedf56e261782b28273ceb9ec7584998f1d3cf4eb3e4cf77dda162b6d49aaf98",
+        "comparison_sha256": "f1e2a10c627f33a4b1caebc8e4d72a229df8e2bb086f164ef751abd20f61a5be",
+        "accounting_sha256": "a629e0996d76918a2b9233c771becf6dabd49f048ad69f3b6f8eb99879b38c15",
+        "old_complete_verify": "099d0af969a51260355437603b77d3f9030d83bc",
+        "default_requests_per_mode": 30,
+        "input_and_complete_wire_identity": true,
+        "non_author_exact_site_stage_review": "Accepted"
+      },
+      "enum_analyze_cause": {
+        "run": "out/runs/enum-analyze-ledger20-20261110T162103Z",
+        "handoff_sha256": "362f6364123e61321ac61eca32ec95c879896df1e6a6ffc755be64af2090cd53",
+        "comparison_sha256": "490f57e32058c5ccd3b59f86c1aca20bc81d842752dea3cf35057cb53fed5336",
+        "old_complete_analyze": "099d0af969a51260355437603b77d3f9030d83bc",
+        "old": 111249,
+        "current": 81361,
+        "resources_old": 88431,
+        "resources_current": 58543,
+        "outside_resources_194_sites_unchanged": true,
+        "source_bytes": 669,
+        "wire_bytes": 12430,
+        "whole_plan_bytes": 31540,
+        "identical_inputs_and_plans": true,
+        "non_author_review": "Accepted; Source threshold is a stage maximum, never Analyze+Verify savings added."
+      },
+      "acceptance": {
+        "run": "out/runs/map-budget-acceptance-20261110T162503Z",
+        "index_sha256": "eaaf684725e67412440ecc72067bfd606fba93f35a7aebc34b746704b1ebb099",
+        "selected": 7,
+        "passed": 7,
+        "failed": 0,
+        "all_original_boundaries_and_fresh_warm_retry_retained": true,
+        "captured_helper_native_executions": 12,
+        "commands": [
+          {
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "generic_defer_obligations_budget",
+              "empty_tables_keep_frontend_cost_and_current_verify_boundary",
+              "--",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "exit_code": 0,
+            "sha256": "d31cfd10c6a1f6fb0ad04303e23501b13e80af3f0d3eab36144792829187256d"
+          },
+          {
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "owned_store_capture_loan_safety",
+              "legacy_byte_capture_has_exact_fresh_budget_control",
+              "--",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "exit_code": 0,
+            "sha256": "516ea7f3eaed7f8efa6d8f778090de2143a5b4babcab227abbc23b5cc16b845f"
+          },
+          {
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "aggregates",
+              "owned_aggregate_package_terminal_exact_request_budget",
+              "--",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "exit_code": 0,
+            "sha256": "eb36710d59b07f8fb8c4c495abfcc74093f5ce26f39baddebe5cb4f2a3211122"
+          },
+          {
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "generic_regressions",
+              "captured_helper_source_captured_source_native_full_results_and_budget",
+              "--",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "exit_code": 0,
+            "sha256": "e4638247ffa4d83fa01035d043da8494475001d0f4f5c8142b15362920674b9a"
+          },
+          {
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "aggregates",
+              "helper_retirement_verify::verify_current_raw_wire_and_source_limits",
+              "--",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "exit_code": 0,
+            "sha256": "29e9c244d148bce6e93ac609f821803d5972c58ead705eb7e197f23ebe39f1e5"
+          },
+          {
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "aggregates",
+              "enum_replacement_verify::enum_verify_current_raw_wire_and_source_request_boundaries",
+              "--",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "exit_code": 0,
+            "sha256": "dee780750d22d91629402528588f0e025e207cd0df72f25063da24dc262ec859"
+          },
+          {
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "nominal_trait_bounds",
+              "borrowed_store_field_replacement::named_and_explicit_store_field_replacement_have_exact_fresh_and_warm_budgets",
+              "--",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "exit_code": 0,
+            "sha256": "a4e86a204036db8da510a5b4e8c695e08e03a1c838f98f18f61b83761bf198a9"
+          }
+        ]
+      }
+    },
+    "legacy_driver_budget_reconciliation_history": [
+      {
+        "source": "0933d6ac9a3acb58f1c26465d80d07d96f192867",
+        "tree": "9f38a98df0d4f6d13cd927f9a74ebe2420d69750",
+        "run": "out/runs/map-driver-boundaries-20261110T155756Z",
+        "index_sha256": "8a937f0a0bdbc92570b4866cb449cdcba0ad31974c76ab44e8e2c2b27e8ca6db",
+        "selected": 7,
+        "failed": 7,
+        "reason": "Existing exact budget literals; full causal reconciliation pending, not acceptance.",
+        "first_observed": {
+          "defer_verify": [
+            7307,
+            8358
           ],
-          "exit_code": 101,
-          "log_sha256": "cce18fa4f1314313185ba7a6d71e1e8eea4acedbc3c8632ea10a1b190f814def"
+          "byte_capture_verify": [
+            2344,
+            3351
+          ],
+          "package_source_verify": [
+            20371,
+            23962
+          ],
+          "fnonce_source_lower": [
+            30496,
+            31589
+          ],
+          "retirement_verify": [
+            17400,
+            18708
+          ],
+          "enum_raw_verify": [
+            89567,
+            79381
+          ],
+          "borrowed_named_source": [
+            42126,
+            41073
+          ]
         },
-        {
-          "command": [
-            "cargo",
-            "test",
-            "--locked",
-            "--offline",
-            "-p",
-            "zil-driver",
-            "--features",
-            "llvm-api",
-            "--test",
-            "owned_store_capture_loan_safety",
-            "legacy_byte_capture_has_exact_fresh_budget_control",
-            "--",
-            "--nocapture",
-            "--test-threads=1"
-          ],
-          "exit_code": 101,
-          "log_sha256": "632b1d62802afbfc652b19428036d7cfaec93b5fd18bc511f5a0e0a5b12c983f"
-        },
-        {
-          "command": [
-            "cargo",
-            "test",
-            "--locked",
-            "--offline",
-            "-p",
-            "zil-driver",
-            "--features",
-            "llvm-api",
-            "--test",
-            "aggregates",
-            "owned_aggregate_package_terminal_exact_request_budget",
-            "--",
-            "--nocapture",
-            "--test-threads=1"
-          ],
-          "exit_code": 101,
-          "log_sha256": "660992e752f7774c44563791d4f4f515e3ee8e9cc69bb56a069dba9f57b0336b"
-        },
-        {
-          "command": [
-            "cargo",
-            "test",
-            "--locked",
-            "--offline",
-            "-p",
-            "zil-driver",
-            "--features",
-            "llvm-api",
-            "--test",
-            "generic_regressions",
-            "captured_helper_source_captured_source_native_full_results_and_budget",
-            "--",
-            "--nocapture",
-            "--test-threads=1"
-          ],
-          "exit_code": 101,
-          "log_sha256": "fb580be5ceb6c5e5ff05d2f2ac4ed7b6bacf370e007801f06956ff5b08d000ad"
-        },
-        {
-          "command": [
-            "cargo",
-            "test",
-            "--locked",
-            "--offline",
-            "-p",
-            "zil-driver",
-            "--features",
-            "llvm-api",
-            "--test",
-            "aggregates",
-            "helper_retirement_verify::verify_current_raw_wire_and_source_limits",
-            "--",
-            "--nocapture",
-            "--test-threads=1"
-          ],
-          "exit_code": 101,
-          "log_sha256": "2d002f69e799e4ff156015913229066de6ff75458290711a176fe989769961a7"
-        },
-        {
-          "command": [
-            "cargo",
-            "test",
-            "--locked",
-            "--offline",
-            "-p",
-            "zil-driver",
-            "--features",
-            "llvm-api",
-            "--test",
-            "aggregates",
-            "enum_replacement_verify::enum_verify_current_raw_wire_and_source_request_boundaries",
-            "--",
-            "--nocapture",
-            "--test-threads=1"
-          ],
-          "exit_code": 101,
-          "log_sha256": "3b81892a046634ab578c22f06754745bd3ecbdb992528bdba805924523eec2e1"
-        },
-        {
-          "command": [
-            "cargo",
-            "test",
-            "--locked",
-            "--offline",
-            "-p",
-            "zil-driver",
-            "--features",
-            "llvm-api",
-            "--test",
-            "nominal_trait_bounds",
-            "borrowed_store_field_replacement::named_and_explicit_store_field_replacement_have_exact_fresh_and_warm_budgets",
-            "--",
-            "--nocapture",
-            "--test-threads=1"
-          ],
-          "exit_code": 101,
-          "log_sha256": "308b9c6b639e93eb6891a5eec7f86580d1ce564cf4b2f71db6545239020c7ed3"
-        }
-      ]
-    }
+        "unchanged_observed": "Expand/Types/Analyze old controls and captured fn/fnmut Source-to-Lower exact minima remain unchanged.",
+        "commands": [
+          {
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "generic_defer_obligations_budget",
+              "empty_tables_keep_frontend_cost_and_current_verify_boundary",
+              "--",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "exit_code": 101,
+            "log_sha256": "cce18fa4f1314313185ba7a6d71e1e8eea4acedbc3c8632ea10a1b190f814def"
+          },
+          {
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "owned_store_capture_loan_safety",
+              "legacy_byte_capture_has_exact_fresh_budget_control",
+              "--",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "exit_code": 101,
+            "log_sha256": "632b1d62802afbfc652b19428036d7cfaec93b5fd18bc511f5a0e0a5b12c983f"
+          },
+          {
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "aggregates",
+              "owned_aggregate_package_terminal_exact_request_budget",
+              "--",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "exit_code": 101,
+            "log_sha256": "660992e752f7774c44563791d4f4f515e3ee8e9cc69bb56a069dba9f57b0336b"
+          },
+          {
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "generic_regressions",
+              "captured_helper_source_captured_source_native_full_results_and_budget",
+              "--",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "exit_code": 101,
+            "log_sha256": "fb580be5ceb6c5e5ff05d2f2ac4ed7b6bacf370e007801f06956ff5b08d000ad"
+          },
+          {
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "aggregates",
+              "helper_retirement_verify::verify_current_raw_wire_and_source_limits",
+              "--",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "exit_code": 101,
+            "log_sha256": "2d002f69e799e4ff156015913229066de6ff75458290711a176fe989769961a7"
+          },
+          {
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "aggregates",
+              "enum_replacement_verify::enum_verify_current_raw_wire_and_source_request_boundaries",
+              "--",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "exit_code": 101,
+            "log_sha256": "3b81892a046634ab578c22f06754745bd3ecbdb992528bdba805924523eec2e1"
+          },
+          {
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "nominal_trait_bounds",
+              "borrowed_store_field_replacement::named_and_explicit_store_field_replacement_have_exact_fresh_and_warm_budgets",
+              "--",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "exit_code": 101,
+            "log_sha256": "308b9c6b639e93eb6891a5eec7f86580d1ce564cf4b2f71db6545239020c7ed3"
+          }
+        ]
+      }
+    ]
   },
   "first_failures": [
     {
@@ -2952,13 +3309,22 @@
     "scratch_manifest_sha256": "79063256f7c175f924fd55403d266ef1dd4b31058b5e99b36c2930638b4cef47",
     "scratch_handoff_sha256": "f2cc9ae6202fe4442b9a9dd89f3feb7a1b80a5c6bc6e0436181cc5cbce4a2827",
     "old_collected_inputs": "4 files total7547B; library586B. All3 old tests unchanged; old56native planned rerun separately.",
-    "planned_old_native_processes": 56
+    "planned_old_native_processes": 56,
+    "geometric_followup": {
+      "base": "0933d6ac9a3acb58f1c26465d80d07d96f192867",
+      "patch_sha256": "cf7007e70b451ebd26c6fcc0f67b08b3e2066012443abaab890e12b31bb3da38",
+      "status": "Prepared and independent static/code/contract reviewed; not applied or executed.",
+      "scope": "Full only1/2/4 geometric reserve, checked signed-count limit with existing stride guard, actual incoming-owner retry, four owning values prove spare-capacity reuse. No compiler primitive or old collected input changes.",
+      "planned_new_native": 32,
+      "original_collected_native_preserved": 56,
+      "original_collected_bytes": 7547
+    }
   },
   "current_remote_readback": {
-    "observed_utc": "2026-11-10T16:00:43.464388+00:00",
-    "heads_total": 18,
-    "source": "9fdeebae13736ab910b2d6a5cf9f9b7510410713",
-    "source_tree": "9f38a98df0d4f6d13cd927f9a74ebe2420d69750",
+    "observed_utc": "2026-11-10T16:38:01.257253+00:00",
+    "heads_total": 19,
+    "source": "42cf6ffa4fa6ca8af0a0cd7f46bfdcc3eb71c18b",
+    "source_tree": "d33e01f9a1d4d9866eaea5d912081e44df26eddc",
     "main": "099d0af969a51260355437603b77d3f9030d83bc",
     "archive": "18d6494299365dc98981d4103a5f648dd4a09926",
     "compiler_refs_untouched": [
@@ -2975,17 +3341,18 @@
       "task/compiler-resident-cli",
       "task/compiler-resident-session",
       "task/destructor-runtime-neighbors",
-      "task/resident-memory-validation"
+      "task/resident-memory-validation",
+      "task/resource-helper-codegen"
     ],
     "noncompiler_redundant_refs": 0,
     "source_readback": true,
-    "source_observed_utc": "2026-11-10T16:00:43.464388+00:00",
+    "source_observed_utc": "2026-11-10T16:38:01.257253+00:00",
     "latest_main_observed": "099d0af969a51260355437603b77d3f9030d83bc",
     "main_sync_pending": false,
     "main_sync_source": "42a3d9ab5bc4cc704d7e977357c298d694547066"
   },
   "goal_concurrency_preserved": {
-    "read_goal": "dadda6052f7844da2f744c5d22aed45e720496ae",
+    "read_goal": "703f24e4de6d76f304bbaf25dafebb7e3f07e84f",
     "compiler_task_rows": 12,
     "compiler_task_rows_unchanged": true,
     "compiler_records_preserved": [
