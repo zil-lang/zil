@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-10T12:39:52.381549+00:00",
-  "read_goal": "a75c9619b93914a731a46bf0d8eb6a9287db5b9f",
+  "recorded_utc": "2026-11-10T12:51:58.974583+00:00",
+  "read_goal": "844179dcacb2e157c09756c075512f9365ab3a6a",
   "authorization": "User directs one implementation branch where dependencies permit, separate branches only for independent work; compiler-speed work stays with its original conversation; this conversation continues all other unfinished work.",
   "active_language_branch": "task/ordinary-collections",
   "compiler_branches_untouched": [
@@ -176,11 +176,11 @@
     "functional_paths": 27,
     "functional_scope": "3 library paths, 6 ordinary Input/public capture replacement paths, actual parent/generation, complete original fixtures and consumers; no optional old cost caches or broader ABI/compiler changes.",
     "latest_measured_source": "b327bc9b0e56f7f5bc70978f7cc95ef1f428c7c5",
-    "latest_default_result": "Guarded complete-input checkpoint: Verify585/585 and original non-native group9/10; original5008B Map remains Verify ResourceLimit V1/cachefalse. Exact independent review passed; paired cost diagnostic13 pending; Map is not accepted.",
+    "latest_default_result": "Verify585/585; original Source group9/10. Paired13 original Map both VerifyResourceLimit V1/cachefalse at default10M; complete Sum net saving726534 accepted. New resource inference completed35 calls, but no final resource validate=true; Map unaccepted.",
     "complete_inventory_join_oracles": "3/3; N4667 vs original lookup6454; N-1 and retry pass",
     "source_raw_wire_recent_controls": "7/7 source controls, including Source/raw/Wire negative controls; not seven negative-only tests",
-    "next": "Complete paired diagnostic13 on fixed b327 versus complete5fff algorithms, including all retained-input/COW/cleanup fees and full pre-Sum stage/callsite costs. Choose next mechanism only from actual measured hotspot; then original Map default,16build/64native/currentstrict. Continue Store push_growing on the same branch after Map acceptance.",
-    "unaccepted_candidates": "Original Map remains unaccepted. Ordered scheduler has complete actual Sum net saving126612; guarded checkpoints have correctness proof but current cost decision awaits diagnostic13. Retirement pages, identity/no-change retirement chains and cold-history reuse remain unadopted archive candidates.",
+    "next": "Freeze only ownership complete SSA move matrix, then full Verify and original non-native10; decide any pin changes only from actual paid-work evidence. If Map completes, original16build/64native and current strict; otherwise measure common complete scope before selecting any additional mechanism. Continue Store push_growing on the same branch after Map acceptance.",
+    "unaccepted_candidates": "Original Map remains unaccepted. Ordered scheduler and stable complete-input checkpoints have independently reviewed complete Sum savings126612 and726534 respectively. Retirement pages, retirement identity/no-change, cold-history reuse and other candidates remain unadopted until selected from current evidence.",
     "published_continuation": "8209b1e32b71b5cd100665c7713a0e5d074b714d",
     "published_tree": "baf0f43f260e25c8467ab3cc9b2c4908678ab194",
     "identical_local_tree": "baf0f43f260e25c8467ab3cc9b2c4908678ab194",
@@ -505,7 +505,7 @@
         "run": "out/runs/map-verify-checkpoint-20261110T123224Z",
         "verify_library": "585/585",
         "non_native_group": "9pass/1fail: original Map VerifyResourceLimit V1/cachefalse",
-        "status": "Correctness and exact independent source review passed; complete paired cost diagnostic13 pending; no whole Map or native acceptance",
+        "status": "Correctness and complete current Sum-stage same-fee net saving726534 accepted; original Map still over Verify default limit and current native/strict pending",
         "handoff_sha256": "0aa373b5bcc1b7cf05b85d58cdf5352a77a8b12c72ffe40d571bba1c06d520a2",
         "oracles": {
           "old_run_body_bytes": 9292,
@@ -535,7 +535,8 @@
             18249
           ]
         },
-        "review": "Non-author fixed-SHA review accepted complete old algorithms, actual-width retention/cleanup/COW fees, module/function/graph/mode/read-version guards and true final replay; no lowered limits or shortened inputs"
+        "review": "Non-author fixed-SHA review accepted complete old algorithms, actual-width retention/cleanup/COW fees, module/function/graph/mode/read-version guards and true final replay; no lowered limits or shortened inputs",
+        "same_fee_diagnostic": 13
       }
     ],
     "verify_same_fee_diagnostics": [
@@ -873,6 +874,131 @@
         },
         "review": "Independent static instrumentation, accepted-only ledger, full same-scope equation and34 final functions accepted. No full resource-function or whole-request saving inferred from unequal cutoffs.",
         "result": "Both original Map requests still Verify ResourceLimit V1; native and strict pending"
+      },
+      {
+        "number": 13,
+        "source": "b327bc9b0e56f7f5bc70978f7cc95ef1f428c7c5",
+        "tree": "baf0f43f260e25c8467ab3cc9b2c4908678ab194",
+        "reference": "Complete fixed5fff four production blobs; remaining source identical b327",
+        "run": "out/runs/map-verify-ledger13-20261110T123924Z",
+        "status": "Complete and non-author independently accepted; mechanism retained, original Map not yet accepted",
+        "comparison": {
+          "prelude_each": 5126556,
+          "old_complete_sum": 4517438,
+          "new_complete_sum": 3790904,
+          "net_saved": 726534,
+          "summary_solves_each": 36,
+          "final_solves_each": 34,
+          "old_final_work": 1536890,
+          "new_final_work": 459753,
+          "final_work_saved": 1077137,
+          "second_round_extra": 350567,
+          "cache_setup": 36,
+          "hit_functions": [
+            0,
+            1
+          ],
+          "common_complete_resource_operations": 758,
+          "common_complete_transfers": 169,
+          "new_resource_functions_complete": 35,
+          "resource_validate_true_entered": false,
+          "old_failure": {
+            "remaining": 0,
+            "rejected_work": 1,
+            "owner": {
+              "sequence": 70,
+              "kind": "resource",
+              "id": 0,
+              "validate": false,
+              "round": null
+            },
+            "path": "crates/zil-verify/src/resources.rs",
+            "diagnostic_line": 1307,
+            "control_line": 1263,
+            "function": "block",
+            "source_line": "budget.spend("
+          },
+          "new_failure": {
+            "remaining": 55,
+            "rejected_work": 73,
+            "owner": {
+              "sequence": 105,
+              "kind": "resource",
+              "id": 0,
+              "validate": false,
+              "round": null
+            },
+            "path": "crates/zil-verify/src/resources.rs",
+            "diagnostic_line": 1105,
+            "control_line": 1079,
+            "function": "liveness",
+            "source_line": "budget.spend(slots.desc_count.saturating_add(1))?;"
+          }
+        },
+        "original_source_bytes": 5008,
+        "original_stdlib_bytes": 7583,
+        "default_work_limit": 10000000,
+        "prelude_stages": {
+          "stored_flow_and_borrows": 2453168,
+          "signature_local_instruction_preflight": 1075359,
+          "function_cfg_and_types": 772446,
+          "head_access": 531014,
+          "function_raw_shapes": 233625,
+          "helpers": 54344
+        },
+        "sum_costs": {
+          "old_summary": 2919247,
+          "new_summary": 3268480,
+          "old_final": 1536890,
+          "new_final": 459753,
+          "old_other": 61301,
+          "new_other": 62671
+        },
+        "fees": "Complete same-scope balance includes save, retain inputs, Rows, Plan, deep cleanup, actual COW, every guard and fallback; nested inclusive methods are not added again",
+        "complete_final_functions": {
+          "count": 34,
+          "hit0_work": [
+            1281590,
+            287528
+          ],
+          "hit1_work": [
+            117655,
+            34484
+          ],
+          "other32": "Each complete fresh final body unchanged; +3 guard work"
+        },
+        "prelude_same_complete_sites": true,
+        "common_resource_cold_work": 59352,
+        "common_resource_history_work": 33951,
+        "common_resource_setup_work": 57208,
+        "accepted_cutoff_work": {
+          "new": 9999945,
+          "old": 10000000
+        },
+        "limitations": [
+          "Both complete requests still fail at the unchanged default Verify limit.",
+          "The current resource cutoff is a second records inference visit (validate=false), not final resource validation.",
+          "Checkpoint method inclusive work is nested; use exclusive_work or the complete Sum balance for sums.",
+          "The four fresh control blobs are complete committed 5fff production; other source is current b327.",
+          "All eight touched files were restored byte-exact; no instrumentation or logs were committed."
+        ],
+        "handoff_sha256": "c4a9bee4efad1c996cca4256912cdfb6b9a1a62ffe53e9559465c6f8af53c8db",
+        "sha256": {
+          "make_script.py": "fae356f2975130424f51a0b0dcce5e962f480a68e7ff437a82c2c456ff8fbc2e",
+          "diagnose.py": "8b05e1dc62423ab523a5e205c7834b0238145cbe032621bec8bd362d30fade88",
+          "summarize.py": "a889f07129159e4dee6660271ca5e1ffeaaa5c96353c1bd0b6302fc4a07e0dea",
+          "comparison.json": "6d26800f5eb903d392d4134bc1b012d229712f420fa5471004eff4749f1e3fb2",
+          "checkpoint/manifest.json": "db16ac0c65e716f428a05aec12305d146596bad0ed7bfed23ba47fed469af204",
+          "checkpoint/receipt.json": "0d7827432bf93c8853212561cc3d7821048edf7164abd3d5a70c37991aaa6f10",
+          "checkpoint/accounting.json": "f5204b03a445a7f3e3f5db1fc7211f0170646b16792050656e2808cc2c29b3d5",
+          "checkpoint/source.log": "326ddefe7d12c8d4c814eb753684e0cf1357f0d56734bd8a3f48ba16719c9760",
+          "checkpoint/instrumentation.patch": "c27696959d0f64d63c82051f325ade90859266894071f08217b889056258963e",
+          "fresh/manifest.json": "d90b4b7350cd051aa216dc7bb301881e29a7212037ada30db665f264379d0bc9",
+          "fresh/receipt.json": "296b293dfc76ff1cfe134bf49e0fa2859fbcf9f72309d9c107b0060bf42d3545",
+          "fresh/accounting.json": "c898d431ac7511af411b80167b28522efb1b16108b9ff80122c1cd4d58207a72",
+          "fresh/source.log": "3874e397574c174993e6639760990a6d1909b564dbb14765480b8a7541fbc37c",
+          "fresh/instrumentation.patch": "cdbde7eaf2fcc5b5f9a3e09661fe28b4498b90267118facf0b6919766e56fa8c"
+        }
       }
     ],
     "same_fee_diagnostic_invariants": "Every diagnostic used original5008 source and default limits, preserved original charges, counted accepted work only, then restored exact source bytes and clean tree.",
@@ -923,7 +1049,7 @@
       "paired_frozen_full_scan": true
     },
     "checkpoint_preflight": {
-      "status": "Implemented and frozen as b327; complete Verify585 and original group9/1 executed; independently reviewed. Cost benefit still pending diagnostic13.",
+      "status": "Implemented b327, Verify585 and original group9/1 executed, non-author review accepted; paired13 complete Sum4517438->3790904/net726534 supports retention.",
       "depends_on": "Actual summary ordered scheduler and stable full-input versions; evaluate only after scheduler same-fee diagnostic",
       "complete_oracle": "Retain the full old fresh run; no narrowed mirrored implementation",
       "controls": "Keep all13 original tests and invocation counts. Strengthen fresh full-output comparisons in2,6,8,12,13; preserve all ten mode guard bits.",
@@ -937,7 +1063,7 @@
         "old_ordered_check": "5635B function body equals current42c3 Ordered check after only old-solver call-name normalization",
         "minimal_paths": 7
       },
-      "remaining_coverage": "New direct nonempty Sum capture actual hit across3 inputs and exact final missing-refill rejection both passed. Full original Map default remains over Verify limit; paired13/net cost and native/currentstrict remain."
+      "remaining_coverage": "Actual POD and nonempty direct Sum capture three-input hits/final rejection passed. Entire original Map default remains VerifyResourceLimit; resource final validate=true not entered. Native/currentstrict pending."
     },
     "upstream_integration": {
       "source": "5fff3debf03f4051db0beda57ecff5dc305ad891",
@@ -984,7 +1110,20 @@
         "strict_current_pending": true,
         "native_current_pending": true
       }
-    ]
+    ],
+    "move_state_candidate": {
+      "status": "Implementation in progress on same branch; not frozen or run",
+      "baseline": "b327bc9b0e56f7f5bc70978f7cc95ef1f428c7c5",
+      "scope": "Only loans::ownership complete SSA move-state inputs/outputs/temporaries; preserve affine/view metadata, full SSA domain, consumers, entry/reachability, fixedpoint and final rejection order",
+      "evidence": {
+        "bits_join": 470466,
+        "per_block_state_construction": 431940,
+        "final_state_clone": 151458,
+        "three_sites_total": 1053864
+      },
+      "excluded_costs": "Shared reserve433630 not wholly attributable; active362884 unrelated. Existing borrow liveness already uses words; CFG dominators98302 not selected.",
+      "controls": "Complete frozen ownership/bits_join/consumers reference, explicit successful full-output differential controls, semantic rejection order, words/tail boundaries, N/N-1/fresh; preserve every old test and budget pin before actual gate."
+    }
   },
   "first_failures": [
     {
