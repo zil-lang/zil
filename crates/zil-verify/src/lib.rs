@@ -327,6 +327,7 @@ fn limit(message: impl Into<String>) -> Diagnostic {
 struct Budget {
     remaining: usize,
     addressed_copy_sums: BTreeMap<usize, bool>,
+    pod_carriers: Option<dynamic_store::CarrierCache>,
     // Derived from raw instructions; only avoids work in unaffected modules.
     static_utf8: bool,
     pod_stores: bool,
@@ -401,6 +402,7 @@ impl Budget {
         Self {
             remaining: limits.max_analysis_steps,
             addressed_copy_sums: BTreeMap::new(),
+            pod_carriers: None,
             static_utf8: false,
             pod_stores: false,
             inline_store_roots: BTreeSet::new(),
@@ -788,6 +790,9 @@ fn check_module(
             .chain(&function.values)
         {
             check_type_shape(ty, &module.target, limits, &mut budget)?;
+            if budget.pod_stores {
+                dynamic_store::register_actual_carrier_root(module, ty, &mut budget)?;
+            }
         }
         check_reference_return_bound(function, &mut budget)?;
     }
@@ -799,6 +804,9 @@ fn check_module(
             .chain(std::iter::once(&c.result))
     }) {
         check_type_shape(ty, &module.target, limits, &mut budget)?;
+        if budget.pod_stores {
+            dynamic_store::register_actual_carrier_root(module, ty, &mut budget)?;
+        }
     }
     registration::storage(module, &mut budget)?;
     closures::check_definitions(module, limits, &mut budget)?;
