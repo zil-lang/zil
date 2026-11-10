@@ -1,5 +1,6 @@
 mod arrays;
 mod byte_buffer;
+mod cleanup_tails;
 mod constant_divisors;
 mod copy_aggregates;
 mod copy_slots;
@@ -664,7 +665,11 @@ fn lower_function_batch(
             abi_plans: copy_plans,
             unsupported_large_copy: false,
         }
-        .emit()?
+        .emit(cleanup_tails::plan(
+            function,
+            verified.limits(),
+            task_worker || verified.task_ownership(function.id).is_some(),
+        ))?
         .into_items()
         .map_err(machine_error)?;
         for item in emitted {
@@ -1450,7 +1455,7 @@ struct FunctionEmitter<'a> {
 }
 
 impl FunctionEmitter<'_> {
-    fn emit(mut self) -> CompileResult<m::Code> {
+    fn emit(mut self, cleanup: Option<cleanup_tails::Plan<'_>>) -> CompileResult<m::Code> {
         let mut parameters = self
             .function
             .parameters
@@ -1509,6 +1514,9 @@ impl FunctionEmitter<'_> {
             blocks: None,
         }));
         self.event(m::Event::Label("entry".into()));
+        if cleanup.is_some() {
+            self.cleanup_return_slot()?;
+        }
         self.copy_allocations();
         self.owned_dyn_scratch_allocations()?;
         let mut address_taken = BTreeSet::new();
@@ -1665,9 +1673,11 @@ impl FunctionEmitter<'_> {
             None,
             m::Op::Branch(format!("bb.{}", self.function.entry.0)),
         )));
-        for block in &self.function.blocks {
+        for (block_index, block) in self.function.blocks.iter().enumerate() {
             self.event(m::Event::Label(format!("bb.{}", block.id.0)));
-            for (index, instruction) in block.instructions.iter().enumerate() {
+            let shared = cleanup.as_ref().and_then(|p| p.starts[block_index]);
+            let end = shared.map_or(block.instructions.len(), |start| start.at);
+            for (index, instruction) in block.instructions[..end].iter().enumerate() {
                 let pollable_drop = matches!(instruction.kind,InstructionKind::DropManaged{local} if matches!(&self.function.locals[local.0 as usize].ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..})));
                 // The paid whole-CFG may-owner proof must be vacant on every
                 // incoming path. A same-block scan misses moves before a branch.
@@ -1699,7 +1709,17 @@ impl FunctionEmitter<'_> {
                     }
                 }
             }
-            self.terminator(&block.terminator)?;
+            if let Some(start) = shared {
+                let Terminator::Return(value) = block.terminator else {
+                    unreachable!()
+                };
+                self.cleanup_exit(value, start.node)?;
+            } else {
+                self.terminator(&block.terminator)?;
+            }
+        }
+        if let Some(plan) = &cleanup {
+            self.cleanup_nodes(plan)?;
         }
         // Even a statically unreachable source block cannot grant LLVM UB. All
         // explicit failure edges, including checked arithmetic, end in a trap.
