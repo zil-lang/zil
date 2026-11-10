@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-10T15:41:37.924562+00:00",
-  "read_goal": "0f8740f571ad6ee00aa2771a7cb9f300d4be139d",
+  "recorded_utc": "2026-11-10T16:00:43.464388+00:00",
+  "read_goal": "dadda6052f7844da2f744c5d22aed45e720496ae",
   "authorization": "User directs one implementation branch where dependencies permit, separate branches only for independent work; compiler-speed work stays with its original conversation; this conversation continues all other unfinished work.",
   "active_language_branch": "task/ordinary-collections",
   "compiler_branches_untouched": [
@@ -13,6 +13,7 @@
     "task/G10.5.1.8",
     "task/byte-buffer-growth-boundary",
     "task/closure-destructor-boundary",
+    "task/closure-helper-partition",
     "task/compiler-closure-dependencies",
     "task/compiler-resident-cli",
     "task/compiler-resident-session",
@@ -176,15 +177,15 @@
     "functional_source": "ede4945d1ed37ca6e89f712fc2258379d84d5e37",
     "functional_paths": 27,
     "functional_scope": "3 library paths, 6 ordinary Input/public capture replacement paths, actual parent/generation, complete original fixtures and consumers; no optional old cost caches or broader ABI/compiler changes.",
-    "latest_measured_source": "022b55684e638bbce12720db67ebf6f4fa0c2e12",
-    "latest_default_result": "Original Map and all10Source/raw/Wire controls passed on022b, Verify1/cachefalse/disabled. Verify603/605 with all8newtests passed; only old sharedProduct/scalar exact fee literals fail. Await round18 complete fee causality before changing anchors, then complete native/strict and integration gates.",
+    "latest_measured_source": "0933d6ac9a3acb58f1c26465d80d07d96f192867",
+    "latest_default_result": "Original Map Verify1/cachefalse/default10M succeeds. Analyze267, Verify605 and original11 driver including16build/64process native all pass; strict VerifyClippy passes. Legacy exact driver budget anchors require causal repair before final workspace/CI and merge.",
     "complete_inventory_join_oracles": "3/3; N4667 vs original lookup6454; N-1 and retry pass",
     "source_raw_wire_recent_controls": "7/7 source controls, including Source/raw/Wire negative controls; not seven negative-only tests",
-    "next": "Finish paired complete-cost18 and repair only causally proved fee literals; merge already accepted main099d PR79, apply lossless native observation and semantic docs, run all Analyze/Verify/original11native, exact legacy driver boundaries and final strict/CI. Then continue prepared Store.push_growing on this same branch.",
+    "next": "Reconcile and repair only causally proved legacy exact budget literals, retain all N/N-1/fresh/warm/retry assertions, then final workspace/CI and Map merge. Continue prepared Store.push_growing on the same branch.",
     "unaccepted_candidates": "Original Map remains unaccepted. Ordered scheduler and stable complete-input checkpoints have independently reviewed complete Sum savings126612 and726534 respectively. Retirement pages, retirement identity/no-change, cold-history reuse and other candidates remain unadopted until selected from current evidence.",
-    "published_continuation": "8770f5a1592f49002646e5fd925f9531f187a6fc",
-    "published_tree": "be285b6d9b741b006e80b8dc87b640dc335e00fc",
-    "identical_local_tree": "be285b6d9b741b006e80b8dc87b640dc335e00fc",
+    "published_continuation": "9fdeebae13736ab910b2d6a5cf9f9b7510410713",
+    "published_tree": "9f38a98df0d4f6d13cd927f9a74ebe2420d69750",
+    "identical_local_tree": "9f38a98df0d4f6d13cd927f9a74ebe2420d69750",
     "complete_analyze_library": "267/267 current full Analyze library on5fff",
     "unknown_fixedpoint": "4 semantic/reconstruction controls, exact N144 versus old188; N-1/fresh; independent input-isolation correction610746 then1/1 rerun",
     "same_fee_diagnostic": {
@@ -1556,117 +1557,102 @@
     ],
     "same_fee_diagnostic_invariants": "Every diagnostic used original5008 source and default limits, preserved original charges, counted accepted work only, then restored exact source bytes and clean tree.",
     "latest_gate_evidence": {
-      "source": "022b55684e638bbce12720db67ebf6f4fa0c2e12",
-      "tree": "be285b6d9b741b006e80b8dc87b640dc335e00fc",
-      "published_same_tree": "8770f5a1592f49002646e5fd925f9531f187a6fc",
-      "base": "b3dac65b3ccf77da319c5e6c354fc22ef67043b0",
-      "paths": 7,
-      "new_tests": 8,
-      "original_tests_retained": 597,
-      "verify_library": {
-        "passed": 603,
-        "failed": 2,
-        "total": 605,
-        "failures": [
-          "Existing sharedProduct five budget literals",
-          "Existing scalar two budget literals; count1 observed337 versus46, count32 to measure"
-        ]
+      "source": "0933d6ac9a3acb58f1c26465d80d07d96f192867",
+      "tree": "9f38a98df0d4f6d13cd927f9a74ebe2420d69750",
+      "published_same_tree": "9fdeebae13736ab910b2d6a5cf9f9b7510410713",
+      "run": "out/runs/map-collections-acceptance-20261110T155645Z",
+      "index_sha256": "34b34869a7486dc6b4d99ebbe58db914f47764d109cb78dbf0013d15f7ba52b1",
+      "libraries": {
+        "analyze": 267,
+        "verify": 605,
+        "failed": 0
       },
-      "non_native_group": {
-        "passed": 10,
+      "driver": {
+        "passed": 11,
         "failed": 0,
-        "original_map": "Success, Verify1, cachefalse, disk disabled, original5008B/default10M unchanged"
+        "includes_original_source_raw_wire_and_native": true
       },
-      "runs": [
+      "native": {
+        "counts": {
+          "compilations": 16,
+          "executions": 64,
+          "injected": 48,
+          "normal": 16,
+          "api_builder_objects": 8
+        },
+        "evidence_sha256": "884f2e14e6cdf0a120194044f7d41f7070e023ad7d1c2d882a1915d176819570",
+        "fault_scope": "Failures 1/2 verify partial construction cleanup; 3/4 growth preparation and 5/6 reserve preparation preserve old contents and permit retry.",
+        "original_inputs_unchanged": true,
+        "all_processes_exit_zero_and_allocator_balanced": true,
+        "non_author_review": "Accepted from all16 original compile reports, all64 lossless process records, actual API objects and unchanged inputs/defaultLimits. Scope is x86_64 Linux, two backends, O0/O2, six allocator fault points; CGU fallback=None does not mean API linking avoids Clang."
+      },
+      "commands": [
         {
-          "run": "out/runs/map-resource-layout-20261110T153719Z",
-          "index_sha256": "2464355dd4b0812e421c1dc24bbc732c6d3cec4337d227135da400ff92364bd7",
-          "commands": [
-            {
-              "command": [
-                "cargo",
-                "test",
-                "--locked",
-                "--offline",
-                "-p",
-                "zil-verify",
-                "--lib",
-                "--",
-                "--nocapture"
-              ],
-              "exit_code": 101,
-              "log_sha256": "ac2f81a2db210dd117f46de193aeefc14ec3d5ffe48ad8f35bbe3eabafea0585",
-              "summaries": [
-                "test result: FAILED. 603 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.76s"
-              ]
-            }
+          "command": [
+            "cargo",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "zil-analyze",
+            "--lib",
+            "--",
+            "--nocapture"
           ],
-          "source_outcomes": {}
+          "exit_code": 0,
+          "log_sha256": "3e4134cb23be487d46f3a1c33f143de22d657a35c7b80a09d45e20c7f4d796a5",
+          "summaries": [
+            "test result: ok. 267 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.68s"
+          ]
         },
         {
-          "run": "out/runs/map-resource-layout-source-20261110T153750Z",
-          "index_sha256": "65d0ae01025de1a20c71ae2ba0a303dfa4c4b3c33df019c273201325397862f2",
-          "commands": [
-            {
-              "command": [
-                "cargo",
-                "test",
-                "--locked",
-                "--offline",
-                "-p",
-                "zil-driver",
-                "--features",
-                "llvm-api",
-                "--test",
-                "zui_product_consumer_zui_core",
-                "growing_hash_collections",
-                "--",
-                "--nocapture",
-                "--test-threads=1",
-                "--skip",
-                "growing_map_set_native_rehash_and_every_allocation_failure_preserve_owners"
-              ],
-              "exit_code": 0,
-              "log_sha256": "8a3f69aa92911d423a913a0f85d21e2820f8bb06484eed3af96683ea77533d3f",
-              "summaries": [
-                "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 30 filtered out; finished in 2.54s"
-              ]
-            }
+          "command": [
+            "cargo",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "zil-verify",
+            "--lib",
+            "--",
+            "--nocapture"
           ],
-          "source_outcomes": {
-            "library-ui-callable-store-field-refill-source-163": {
-              "status": "Success",
-              "phase": "verify",
-              "verification_runs": 1,
-              "cache_hit": false,
-              "disk_cache": "disabled",
-              "diagnostics": []
-            },
-            "library-ui-growing-generic-copy-key-set-source-163": {
-              "status": "Success",
-              "phase": "verify",
-              "verification_runs": 1,
-              "cache_hit": false,
-              "disk_cache": "disabled",
-              "diagnostics": []
-            },
-            "library-ui-growing-pod-hash-map-source-163": {
-              "status": "Success",
-              "phase": "verify",
-              "verification_runs": 1,
-              "cache_hit": false,
-              "disk_cache": "disabled",
-              "diagnostics": []
-            }
-          }
+          "exit_code": 0,
+          "log_sha256": "2b5b3d578b899bc38c5c0e7902b8e220ebf0973ec4da3d6b3e7c79d14739c16a",
+          "summaries": [
+            "test result: ok. 605 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.85s"
+          ]
+        },
+        {
+          "command": [
+            "cargo",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "zil-driver",
+            "--features",
+            "llvm-api",
+            "--test",
+            "zui_product_consumer_zui_core",
+            "growing_hash_collections",
+            "--",
+            "--nocapture",
+            "--test-threads=1"
+          ],
+          "exit_code": 0,
+          "log_sha256": "2fcf81a46ef972907ce15a21c590cd01f36a5ac13611a6066e1f3f2d3e71b1a1",
+          "summaries": [
+            "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 13.17s"
+          ]
         }
       ],
-      "review": "Exact fixed7blob non-author review accepted complete old constructor/run/bindings/infer, all16Slots fields/twoPlans, unchanged full transfer tail and actual production scheduler test wiring.",
-      "mechanism": "One closed request binds actual module/functions/selected graphs/CaptureViews/Plan and complete immutable raw-Type root inventory. Full Slots::new then extend succeeds before unique publication; paid six-mode guard rebuilds after real mark_sum writes. Every State/current effects/Bridge/final Transfer/close remains real.",
-      "status": "Original Map default blocker resolved on this source. Fee pin causality, all605 library acceptance, current native and strict gates remain pending.",
-      "diagnostic_pending": 18,
-      "native_current_pending": true,
-      "strict_current_pending": true
+      "strict_verify_clippy": {
+        "exit_code": 0,
+        "log_sha256": "49ccb6fada4c270537d57d810f5ede0d41cb12aa99ec92a2e43c7a2ccf4afe77"
+      },
+      "review": "Fixed seven new budget literals and comments mechanically restored to parent; 9-line lossless process JSON removed restores exact original native harness. Non-author fixed-tree review accepted.",
+      "status": "Original Map default and complete native matrix passed; seven legacy driver budget controls expose old exact anchors and require complete fee reconciliation before merge. Final workspace/CI still pending."
     },
     "scheduler_diagnostic_pending": {
       "baseline": "a168bff66b9b2b9363b61c3ce9c39556244927ac",
@@ -1980,6 +1966,104 @@
         "next": "Evaluate only the minimal paid same-Arc guard, with complete f12 eager reference and separate tests. It may bypass actual self-union before forcedCOW; true hits and combination net benefit versus241 must be measured. No containment proof or page-size change included.",
         "native_current_pending": true,
         "strict_current_pending": true
+      },
+      {
+        "source": "0933d6ac9a3acb58f1c26465d80d07d96f192867",
+        "tree": "9f38a98df0d4f6d13cd927f9a74ebe2420d69750",
+        "published_same_tree": "9fdeebae13736ab910b2d6a5cf9f9b7510410713",
+        "run": "out/runs/map-collections-acceptance-20261110T155645Z",
+        "index_sha256": "34b34869a7486dc6b4d99ebbe58db914f47764d109cb78dbf0013d15f7ba52b1",
+        "libraries": {
+          "analyze": 267,
+          "verify": 605,
+          "failed": 0
+        },
+        "driver": {
+          "passed": 11,
+          "failed": 0,
+          "includes_original_source_raw_wire_and_native": true
+        },
+        "native": {
+          "counts": {
+            "compilations": 16,
+            "executions": 64,
+            "injected": 48,
+            "normal": 16,
+            "api_builder_objects": 8
+          },
+          "evidence_sha256": "884f2e14e6cdf0a120194044f7d41f7070e023ad7d1c2d882a1915d176819570",
+          "fault_scope": "Failures 1/2 verify partial construction cleanup; 3/4 growth preparation and 5/6 reserve preparation preserve old contents and permit retry.",
+          "original_inputs_unchanged": true,
+          "all_processes_exit_zero_and_allocator_balanced": true,
+          "non_author_review": "Accepted from all16 original compile reports, all64 lossless process records, actual API objects and unchanged inputs/defaultLimits. Scope is x86_64 Linux, two backends, O0/O2, six allocator fault points; CGU fallback=None does not mean API linking avoids Clang."
+        },
+        "commands": [
+          {
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-analyze",
+              "--lib",
+              "--",
+              "--nocapture"
+            ],
+            "exit_code": 0,
+            "log_sha256": "3e4134cb23be487d46f3a1c33f143de22d657a35c7b80a09d45e20c7f4d796a5",
+            "summaries": [
+              "test result: ok. 267 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.68s"
+            ]
+          },
+          {
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-verify",
+              "--lib",
+              "--",
+              "--nocapture"
+            ],
+            "exit_code": 0,
+            "log_sha256": "2b5b3d578b899bc38c5c0e7902b8e220ebf0973ec4da3d6b3e7c79d14739c16a",
+            "summaries": [
+              "test result: ok. 605 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.85s"
+            ]
+          },
+          {
+            "command": [
+              "cargo",
+              "test",
+              "--locked",
+              "--offline",
+              "-p",
+              "zil-driver",
+              "--features",
+              "llvm-api",
+              "--test",
+              "zui_product_consumer_zui_core",
+              "growing_hash_collections",
+              "--",
+              "--nocapture",
+              "--test-threads=1"
+            ],
+            "exit_code": 0,
+            "log_sha256": "2fcf81a46ef972907ce15a21c590cd01f36a5ac13611a6066e1f3f2d3e71b1a1",
+            "summaries": [
+              "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 13.17s"
+            ]
+          }
+        ],
+        "strict_verify_clippy": {
+          "exit_code": 0,
+          "log_sha256": "49ccb6fada4c270537d57d810f5ede0d41cb12aa99ec92a2e43c7a2ccf4afe77"
+        },
+        "review": "Fixed seven new budget literals and comments mechanically restored to parent; 9-line lossless process JSON removed restores exact original native harness. Non-author fixed-tree review accepted.",
+        "status": "Original Map default and complete native matrix passed; seven legacy driver budget controls expose old exact anchors and require complete fee reconciliation before merge. Final workspace/CI still pending."
       }
     ],
     "move_state_candidate": {
@@ -2082,14 +2166,16 @@
       {
         "main": "099d0af969a51260355437603b77d3f9030d83bc",
         "pr": 79,
-        "status": "Already accepted upstream by compiler conversation; ordinary integration deferred until round18 restores fixed022b.",
+        "status": "Accepted main099d PR79 normally merged into local1b8ba6/remote42a3; exact Verify subtree remains identical to022b.",
         "paths": [
           "crates/zil-backend-llvm/src/build.rs",
           "crates/zil-backend-llvm/src/lib.rs",
           "crates/zil-backend-llvm/src/machine_closure_linkage.rs",
           "docs/guide/anonymous-closure-linkage.md"
         ],
-        "unmerged_compiler_refs_untouched": true
+        "unmerged_compiler_refs_untouched": true,
+        "local_merge": "1b8ba6b8406f300ae88635e23e42f0ee39794d07",
+        "published_same_tree": "42a3d9ab5bc4cc704d7e977357c298d694547066"
       }
     ],
     "resource_liveness_candidate": {
@@ -2463,10 +2549,249 @@
       ],
       "review": "Exact fixed7blob non-author review accepted complete old constructor/run/bindings/infer, all16Slots fields/twoPlans, unchanged full transfer tail and actual production scheduler test wiring.",
       "mechanism": "One closed request binds actual module/functions/selected graphs/CaptureViews/Plan and complete immutable raw-Type root inventory. Full Slots::new then extend succeeds before unique publication; paid six-mode guard rebuilds after real mark_sum writes. Every State/current effects/Bridge/final Transfer/close remains real.",
-      "status": "Original Map default blocker resolved on this source. Fee pin causality, all605 library acceptance, current native and strict gates remain pending.",
-      "diagnostic_pending": 18,
-      "native_current_pending": true,
-      "strict_current_pending": true
+      "status": "Mechanism and exact budget causality accepted; full 0933 libraries and original native matrix passed. Final legacy driver and workspace/CI integration remain pending.",
+      "diagnostic_pending": false,
+      "native_current_pending": false,
+      "strict_current_pending": false,
+      "complete_fee_reconciliation": {
+        "run": "out/runs/map-slot-layout-ledger18-20261110T154244Z",
+        "source": "022b55684e638bbce12720db67ebf6f4fa0c2e12",
+        "old_resource_source": "b3dac65b3ccf77da319c5e6c354fc22ef67043b0",
+        "handoff_sha256": "9766657782e2667d1ef7ad2ba927456a4949e9497744d3350b60209478532cf7",
+        "comparison_sha256": "53830abe9ad936ce2bce5b9b877519a6f2bf9934cc9b4f795c2d303a610219e4",
+        "layout_accounting_sha256": "7ccf2a8a6699ef094f40d4e3c7ee55a2a405aac520c721c08ea122bd6cbb3c5e",
+        "pre_sum": 3957752,
+        "sum": 3790904,
+        "complete_resource_infer_36_including_setup": {
+          "old": 1541298,
+          "current": 1491518,
+          "saved": 49780
+        },
+        "common_completed_resource_final_0_to_6": {
+          "old": 708639,
+          "current": 628102,
+          "saved": 80537
+        },
+        "common_completed_resource_prefix_saved": 130317,
+        "current_complete_verify": {
+          "spent": 9953630,
+          "remaining": 46370,
+          "limit_unchanged": 10000000,
+          "resource_total": 2204974,
+          "infer_functions": 36,
+          "final_functions": 34,
+          "actual_final_transfers": 525,
+          "layout_cold_publications": 34,
+          "layout_hits": 36,
+          "layout_rebuilds": 0,
+          "close_pairs": 5420
+        },
+        "fee_literals": {
+          "old": [
+            4817,
+            5234,
+            6951,
+            15703,
+            18518,
+            46,
+            480
+          ],
+          "new": [
+            5362,
+            5772,
+            7414,
+            16491,
+            19584,
+            337,
+            616
+          ]
+        },
+        "identity_limit": "Harness PIDs 214/213 change source paths and raw/input identity hashes. Source and stdlib bytes, module signatures/implementations/exports, 34 function metadata and all complete pre-Sum/Sum fee trajectories match; raw module byte identity is not claimed.",
+        "non_author_review": "Accepted all complete scope sums and original site/call equality outside the changed layout mechanism; do not subtract differently truncated request totals.",
+        "restoration": "Both modes restored all 12 instrumented files byte-for-byte to 022b and recorded a clean tree; instrumentation and logs are not committed."
+      }
+    },
+    "legacy_driver_budget_reconciliation": {
+      "source": "0933d6ac9a3acb58f1c26465d80d07d96f192867",
+      "tree": "9f38a98df0d4f6d13cd927f9a74ebe2420d69750",
+      "run": "out/runs/map-driver-boundaries-20261110T155756Z",
+      "index_sha256": "8a937f0a0bdbc92570b4866cb449cdcba0ad31974c76ab44e8e2c2b27e8ca6db",
+      "selected": 7,
+      "failed": 7,
+      "reason": "Existing exact budget literals; full causal reconciliation pending, not acceptance.",
+      "first_observed": {
+        "defer_verify": [
+          7307,
+          8358
+        ],
+        "byte_capture_verify": [
+          2344,
+          3351
+        ],
+        "package_source_verify": [
+          20371,
+          23962
+        ],
+        "fnonce_source_lower": [
+          30496,
+          31589
+        ],
+        "retirement_verify": [
+          17400,
+          18708
+        ],
+        "enum_raw_verify": [
+          89567,
+          79381
+        ],
+        "borrowed_named_source": [
+          42126,
+          41073
+        ]
+      },
+      "unchanged_observed": "Expand/Types/Analyze old controls and captured fn/fnmut Source-to-Lower exact minima remain unchanged.",
+      "commands": [
+        {
+          "command": [
+            "cargo",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "zil-driver",
+            "--features",
+            "llvm-api",
+            "--test",
+            "generic_defer_obligations_budget",
+            "empty_tables_keep_frontend_cost_and_current_verify_boundary",
+            "--",
+            "--nocapture",
+            "--test-threads=1"
+          ],
+          "exit_code": 101,
+          "log_sha256": "cce18fa4f1314313185ba7a6d71e1e8eea4acedbc3c8632ea10a1b190f814def"
+        },
+        {
+          "command": [
+            "cargo",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "zil-driver",
+            "--features",
+            "llvm-api",
+            "--test",
+            "owned_store_capture_loan_safety",
+            "legacy_byte_capture_has_exact_fresh_budget_control",
+            "--",
+            "--nocapture",
+            "--test-threads=1"
+          ],
+          "exit_code": 101,
+          "log_sha256": "632b1d62802afbfc652b19428036d7cfaec93b5fd18bc511f5a0e0a5b12c983f"
+        },
+        {
+          "command": [
+            "cargo",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "zil-driver",
+            "--features",
+            "llvm-api",
+            "--test",
+            "aggregates",
+            "owned_aggregate_package_terminal_exact_request_budget",
+            "--",
+            "--nocapture",
+            "--test-threads=1"
+          ],
+          "exit_code": 101,
+          "log_sha256": "660992e752f7774c44563791d4f4f515e3ee8e9cc69bb56a069dba9f57b0336b"
+        },
+        {
+          "command": [
+            "cargo",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "zil-driver",
+            "--features",
+            "llvm-api",
+            "--test",
+            "generic_regressions",
+            "captured_helper_source_captured_source_native_full_results_and_budget",
+            "--",
+            "--nocapture",
+            "--test-threads=1"
+          ],
+          "exit_code": 101,
+          "log_sha256": "fb580be5ceb6c5e5ff05d2f2ac4ed7b6bacf370e007801f06956ff5b08d000ad"
+        },
+        {
+          "command": [
+            "cargo",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "zil-driver",
+            "--features",
+            "llvm-api",
+            "--test",
+            "aggregates",
+            "helper_retirement_verify::verify_current_raw_wire_and_source_limits",
+            "--",
+            "--nocapture",
+            "--test-threads=1"
+          ],
+          "exit_code": 101,
+          "log_sha256": "2d002f69e799e4ff156015913229066de6ff75458290711a176fe989769961a7"
+        },
+        {
+          "command": [
+            "cargo",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "zil-driver",
+            "--features",
+            "llvm-api",
+            "--test",
+            "aggregates",
+            "enum_replacement_verify::enum_verify_current_raw_wire_and_source_request_boundaries",
+            "--",
+            "--nocapture",
+            "--test-threads=1"
+          ],
+          "exit_code": 101,
+          "log_sha256": "3b81892a046634ab578c22f06754745bd3ecbdb992528bdba805924523eec2e1"
+        },
+        {
+          "command": [
+            "cargo",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "zil-driver",
+            "--features",
+            "llvm-api",
+            "--test",
+            "nominal_trait_bounds",
+            "borrowed_store_field_replacement::named_and_explicit_store_field_replacement_have_exact_fresh_and_warm_budgets",
+            "--",
+            "--nocapture",
+            "--test-threads=1"
+          ],
+          "exit_code": 101,
+          "log_sha256": "308b9c6b639e93eb6891a5eec7f86580d1ce564cf4b2f71db6545239020c7ed3"
+        }
+      ]
     }
   },
   "first_failures": [
@@ -2630,10 +2955,10 @@
     "planned_old_native_processes": 56
   },
   "current_remote_readback": {
-    "observed_utc": "2026-11-10T13:59:07Z",
-    "heads_total": 17,
-    "source": "8770f5a1592f49002646e5fd925f9531f187a6fc",
-    "source_tree": "be285b6d9b741b006e80b8dc87b640dc335e00fc",
+    "observed_utc": "2026-11-10T16:00:43.464388+00:00",
+    "heads_total": 18,
+    "source": "9fdeebae13736ab910b2d6a5cf9f9b7510410713",
+    "source_tree": "9f38a98df0d4f6d13cd927f9a74ebe2420d69750",
     "main": "099d0af969a51260355437603b77d3f9030d83bc",
     "archive": "18d6494299365dc98981d4103a5f648dd4a09926",
     "compiler_refs_untouched": [
@@ -2645,6 +2970,7 @@
       "task/G10.5.1.8",
       "task/byte-buffer-growth-boundary",
       "task/closure-destructor-boundary",
+      "task/closure-helper-partition",
       "task/compiler-closure-dependencies",
       "task/compiler-resident-cli",
       "task/compiler-resident-session",
@@ -2653,14 +2979,14 @@
     ],
     "noncompiler_redundant_refs": 0,
     "source_readback": true,
-    "source_observed_utc": "2026-11-10T15:41:37.924562+00:00",
+    "source_observed_utc": "2026-11-10T16:00:43.464388+00:00",
     "latest_main_observed": "099d0af969a51260355437603b77d3f9030d83bc",
-    "main_sync_pending": true,
-    "main_sync_source": "da9731ecb1956d3959d1e95dde1da72545f8f9d1"
+    "main_sync_pending": false,
+    "main_sync_source": "42a3d9ab5bc4cc704d7e977357c298d694547066"
   },
   "goal_concurrency_preserved": {
-    "read_goal": "0f8740f571ad6ee00aa2771a7cb9f300d4be139d",
-    "compiler_task_rows": 13,
+    "read_goal": "dadda6052f7844da2f744c5d22aed45e720496ae",
+    "compiler_task_rows": 12,
     "compiler_task_rows_unchanged": true,
     "compiler_records_preserved": [
       "records/compiler-cleanup-merge.json",
