@@ -1,0 +1,64 @@
+name: Preserve complete closure linkage evidence
+on:
+  push:
+    branches: [task/compiler-closure-dependencies]
+    paths: [.github/workflows/compiler-closure-evidence.yml]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  preserve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Download the original failed-preservation run unchanged
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh run download 42830653025 -R zil-lang/zil -n closure-linkage-42830653025 -D "$RUNNER_TEMP/original"
+          gh api repos/zil-lang/zil/actions/runs/42830653025/jobs > "$RUNNER_TEMP/original-jobs.json"
+      - name: Retain every source and observation, inventory only reproducible ELF omissions
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,json,hashlib,tarfile,io,shutil
+          root=Path(os.environ['RUNNER_TEMP']);old=root/'original';d=Path('.task/closure-dependencies/runs/42830653025');d.mkdir(parents=True)
+          jobs=json.loads((root/'original-jobs.json').read_text())['jobs'];assert len(jobs)==1
+          bad=[s['name'] for s in jobs[0]['steps'] if s['conclusion']=='failure']
+          assert bad==['Preserve every observation and exact source without automatic main acceptance'],bad
+          assert (old/'raw.tar.gz').stat().st_size>48*1024*1024 and not (old/'receipt.json').exists()
+          summary=json.loads((old/'summary.json').read_text());assert summary['compile_requests']==1800 and summary['failures']==0
+          for p in old.iterdir():
+              if p.is_file() and p.name!='raw.tar.gz':shutil.copyfile(p,d/p.name)
+          excluded=[];kept=[];source=None
+          with tarfile.open(old/'raw.tar.gz') as before,tarfile.open(d/'raw.tar.gz','w:gz') as after:
+              for member in before:
+                  if not member.isfile():continue
+                  data=before.extractfile(member).read();digest=hashlib.sha256(data).hexdigest()
+                  record={'path':member.name,'bytes':len(data),'sha256':digest}
+                  if member.name=='setup/source.txt':source=data.decode().strip()
+                  if data.startswith(b'\x7fELF'):excluded.append(record);continue
+                  after.addfile(member,io.BytesIO(data));kept.append(record)
+          assert source=='1e4ff8229275463f318975b07fa9fabf509728c2',source
+          assert (d/'raw.tar.gz').stat().st_size<48*1024*1024
+          (d/'archive-inventory.json').write_text(json.dumps({'original_artifact':13772492546,'original_artifact_sha256':'44a75b11847cdf1951f99bbeb7ca7294cbc59a7c1121a86d6cab4137f8d4ee17','original_raw_sha256':hashlib.sha256((old/'raw.tar.gz').read_bytes()).hexdigest(),'omitted_only_reproducible_ELF_binaries':excluded,'retained_every_non_ELF_member':kept},indent=2)+'\n')
+          r={'baseline':'947063a63880b375889ff30b3beba6151abf55f3','source':source,'recipe':'601d7a7ae1b4b5d6e7f41e41fadaa146386672c7','run':42830653025,'original_workflow_status':'failure: compressed archive exceeded48MiB; all compilation/control/measurement steps completed successfully','preservation_run':os.environ['GITHUB_RUN_ID'],'performance_rerun':False,'sample_removed':False,'original_full_artifact':13772492546,'production_pr':79,'production_head':'9cf0e95d8108c82f0cb3ebf91075a60c6707332e','production_tree':'65a48d418a7165ef7b15cfa05b6d66388bfadb09','files':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in d.iterdir()},'main_modified':False,'external_ai_review':False,'acceptance':'Pending direct source and numeric review; quality.json flags are retained without alteration'}
+          (d/'receipt.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps({k:v for k,v in r.items() if k!='files'},indent=2))
+          PY
+          git fetch --no-tags origin refs/heads/task/compiler-closure-dependencies
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git add .task/closure-dependencies/runs/42830653025
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Preserve all completed linkage observations and original oversize-archive failure without rerun'
+          git push origin HEAD:refs/heads/task/compiler-closure-dependencies
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: closure-linkage-evidence-${{ github.run_id }}
+          path: .task/closure-dependencies/runs/42830653025
+          retention-days: 30
