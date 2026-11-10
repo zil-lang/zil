@@ -1,10 +1,15 @@
-//! Per-Flow positive shape proofs, never Copy or resource authorization.
+//! Per-Flow local indexing of static qualification and positive shape proofs.
 use super::*;
 
+struct Entry {
+    // Only the complete original addressed_copy_sum can produce this bool.
+    copy: bool,
+    unknown: Option<Arc<Content>>,
+}
 pub(super) struct Cache<'f> {
     function: &'f TypedFunction,
-    // No allocation until an actual successful, qualified proof is recorded.
-    slots: Option<Vec<Option<Arc<Content>>>>,
+    // No allocation until a complete qualification/proof is recorded.
+    slots: Option<Vec<Option<Entry>>>,
 }
 impl<'f> Cache<'f> {
     pub(super) fn new(function: &'f TypedFunction) -> Self {
@@ -20,50 +25,103 @@ impl<'f> Cache<'f> {
         actual: &Type,
         budget: &mut Budget,
     ) -> Check<bool> {
-        // Bind even internal callers to this borrowed function's actual local
-        // Type. Equal temporary Types and other locals cannot reuse its proof.
-        budget.spend(2)?; // checked local lookup and actual-Type identity
+        budget.spend(2)?; // checked actual local lookup and Type identity
         let Some(declaration) = self.function.locals.get(local) else {
-            return value.tags_unknown(actual, budget);
+            return qualified_unknown(value, actual, budget);
         };
         if !std::ptr::eq(actual, &declaration.ty) {
-            return value.tags_unknown(actual, budget);
+            return qualified_unknown(value, actual, budget);
         }
         budget.spend(1)?; // optional slot inventory
-        if let Some(slots) = &self.slots {
-            budget.spend(3)?; // direct slot lookup, presence and root identity
-            if slots[local]
-                .as_ref()
-                .is_some_and(|old| Arc::ptr_eq(old, value))
-            {
-                return Ok(true);
+        let previous = if let Some(slots) = &self.slots {
+            budget.spend(2)?; // actual direct slot lookup and entry presence
+            slots[local].as_ref()
+        } else {
+            None
+        };
+        let had_entry = previous.is_some();
+        let copy = if let Some(entry) = previous {
+            budget.spend(1)?; // read this actual local's static qualification
+            entry.copy
+        } else {
+            // Same complete cold admission, metadata and errors as before.
+            // The result is scoped to this Flow's borrowed immutable local Type.
+            budget.addressed_copy_sum(actual)?
+        };
+        if !copy {
+            if !had_entry {
+                self.publish(local, false, None, budget)?;
             }
-        }
-        if !value.tags_unknown(actual, budget)? {
             return Ok(false);
         }
+        if let Some(entry) = previous {
+            budget.spend(1)?; // positive root presence
+            if let Some(old) = &entry.unknown {
+                budget.spend(1)?; // actual immutable root identity
+                if Arc::ptr_eq(old, value) {
+                    return Ok(true);
+                }
+            }
+        }
+        let unknown = value.tags_unknown(actual, budget)?;
+        if unknown {
+            self.publish(local, true, Some(value), budget)?;
+        } else if !had_entry {
+            // A static Copy fact is not a dynamic tag/route proof.
+            self.publish(local, true, None, budget)?;
+        }
+        Ok(unknown)
+    }
+    fn publish(
+        &mut self,
+        local: usize,
+        copy: bool,
+        unknown: Option<&Arc<Content>>,
+        budget: &mut Budget,
+    ) -> Check<()> {
         if self.slots.is_none() {
-            // Pay both initialization and final destruction's slot walk before
-            // allocation. The field cannot publish a partly reserved table.
+            // Pay actual allocation width, initialized slots and the final
+            // slot destruction walk. No table is published before all fees.
+            let words = std::mem::size_of::<Option<Entry>>().div_ceil(std::mem::size_of::<usize>());
             budget.spend(
                 self.function
                     .locals
                     .len()
-                    .saturating_mul(2)
+                    .saturating_mul(words.saturating_add(1))
                     .saturating_add(2),
             )?;
         }
-        // Holding the last reference can delay recursive Content destruction.
-        // Reserve that complete future traversal now, while the proof succeeds;
-        // replacement or Flow drop never hides an uncharged deep destructor.
-        value.cost(budget)?;
-        budget.spend(5)?; // table presence, slot lookup, Arc clone, write and old ref release
-        let slots = self
-            .slots
-            .get_or_insert_with(|| vec![None; self.function.locals.len()]);
-        slots[local] = Some(value.clone());
-        Ok(true)
+        if let Some(value) = unknown {
+            // Strong identities can own the final deep Content destruction.
+            // Reserve it now; replacing or dropping the cache spends no hidden
+            // recursive work, and ordinary writes retain their real COW fees.
+            value.cost(budget)?;
+            budget.spend(2)?; // Arc clone and previous strong-reference release
+        }
+        budget.spend(4)?; // table presence, slot lookup, bool/root field writes
+        let entry = Entry {
+            copy,
+            unknown: unknown.cloned(),
+        };
+        let slots = self.slots.get_or_insert_with(|| {
+            std::iter::repeat_with(|| None)
+                .take(self.function.locals.len())
+                .collect()
+        });
+        slots[local] = Some(entry);
+        Ok(())
     }
 }
+fn qualified_unknown(value: &Content, actual: &Type, budget: &mut Budget) -> Check<bool> {
+    let copy = if indexed_invalidation(budget) {
+        budget.addressed_copy_sum(actual)?
+    } else {
+        resources::charge_payload(actual, budget)?;
+        actual.is_copy_value()
+    };
+    Ok(copy && value.tags_unknown(actual, budget)?)
+}
+#[cfg(test)]
+mod qualification_reference;
 #[cfg(test)]
 mod tests;
