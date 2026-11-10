@@ -1,0 +1,12 @@
+{
+  "baseline": "3e4a2a2ae368380e86ea99da32d7f3eef68cf3b4",
+  "source": "dc418439207b9d6c50ccf2e9b0ec99ffe598f76b",
+  "recipe": "02ee4ef7b2395ea358ce8a0f86212c0c5bb02d13",
+  "status": "failure",
+  "files": {
+    "raw.tar.gz": "fa97eeac91ff876477a78a3e1c551bccf068c7bd456fc8049c2c0a05207a2949"
+  },
+  "main_modified": false,
+  "external_ai_review": false,
+  "acceptance": "Pending explicit performance and safety audit, no automated merge"
+}
