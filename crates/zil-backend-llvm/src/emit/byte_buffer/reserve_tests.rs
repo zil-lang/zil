@@ -32,18 +32,50 @@ fn reserve_fast_path_keeps_checks_without_inline_allocation_or_public_symbols() 
     );
     let fb = front.blocks.as_ref().unwrap();
     let gb = grow.blocks.as_ref().unwrap();
-    assert_eq!(
-        fb[0], gb[0],
-        "negative requests still reject before accessing the header"
+    // The public-facing helper rejects negative input before dereferencing the
+    // header, and reaches the private grow only from the failed capacity test.
+    assert_eq!(fb[0].name, "entry");
+    assert!(matches!(&fb[0].instructions[0].op,
+        m::Op::Compare { predicate, ty:m::Ty::Int(64), left:m::Val::Local(x), right:m::Val::Int(0) }
+        if predicate == "slt" && x == "requested"));
+    assert!(matches!(&fb[0].instructions[1].op,
+        m::Op::CondBranch { condition:m::Val::Local(c), yes, no }
+        if c == "negative" && yes == "failed" && no == "capacity"));
+    let capacity = fb.iter().find(|b| b.name == "capacity").unwrap();
+    assert!(matches!(&capacity.instructions.last().unwrap().op,
+        m::Op::CondBranch { condition:m::Val::Local(c), yes, no }
+        if c == "fits" && yes == "done" && no == "growth"));
+    assert!(capacity.instructions.iter().any(|i| matches!(&i.op,
+        m::Op::Compare { predicate, ty:m::Ty::Int(64), left:m::Val::Local(x), right:m::Val::Local(cap) }
+        if predicate == "ule" && x == "requested" && cap == "cap")));
+    assert_eq!(gb[0].name, "entry");
+    assert!(
+        !gb.iter()
+            .any(|b| b.name == "capacity" || b.name == "prepare")
     );
-    let mut old_capacity = gb[1].clone();
-    if let m::Op::CondBranch { no, .. } = &mut old_capacity.instructions.last_mut().unwrap().op {
-        assert_eq!(no, "prepare");
-        *no = "growth".into();
-    } else {
-        panic!("capacity branch missing")
-    }
-    assert_eq!(fb[1], old_capacity);
+    assert!(!gb.iter().flat_map(|b| &b.instructions).any(|i| matches!(
+        &i.op,
+        m::Op::Compare {
+            ty: m::Ty::Int(64),
+            ..
+        }
+    )));
+    let callers = fs
+        .iter()
+        .filter(|f| {
+            f.blocks
+                .as_ref()
+                .unwrap()
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| {
+                    matches!(&i.op,
+            m::Op::Call { callee:m::Val::Global(name), .. } if name == "zil.bytes.grow")
+                })
+        })
+        .map(|f| f.name.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(callers, vec!["zil.bytes.reserve"]);
     for label in ["done", "failed"] {
         assert_eq!(
             fb.iter().find(|b| b.name == label),

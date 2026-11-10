@@ -431,25 +431,10 @@ fn storage_operations() -> m::Code {
             attrs: vec![m::Attr::NoInline],
             blocks: None,
         }),
+        // The only caller is reserve_front's checked growth branch. Retain the
+        // header address for publication, but do not repeat its negative and
+        // capacity guards. This is private control flow, not an LLVM assumption.
         m::Event::Label("entry".into()),
-        m::Event::Instruction(m::Inst::new(
-            Some("negative".into()),
-            m::Op::Compare {
-                predicate: "slt".into(),
-                ty: m::Ty::Int(64),
-                left: m::local("requested".into()),
-                right: m::Val::Int(0),
-            },
-        )),
-        m::Event::Instruction(m::Inst::new(
-            None,
-            m::Op::CondBranch {
-                condition: m::local("negative".into()),
-                yes: "failed".into(),
-                no: "capacity".into(),
-            },
-        )),
-        m::Event::Label("capacity".into()),
         m::Event::Instruction(m::Inst::new(
             Some("cap.field".into()),
             m::Op::Gep {
@@ -461,32 +446,6 @@ fn storage_operations() -> m::Code {
                 ],
             },
         )),
-        m::Event::Instruction(m::Inst::new(
-            Some("cap".into()),
-            m::Op::Load {
-                ty: m::Ty::Int(64),
-                ptr: m::local("cap.field".into()),
-                align: 8,
-            },
-        )),
-        m::Event::Instruction(m::Inst::new(
-            Some("fits".into()),
-            m::Op::Compare {
-                predicate: "ule".into(),
-                ty: m::Ty::Int(64),
-                left: m::local("requested".into()),
-                right: m::local("cap".into()),
-            },
-        )),
-        m::Event::Instruction(m::Inst::new(
-            None,
-            m::Op::CondBranch {
-                condition: m::local("fits".into()),
-                yes: "done".into(),
-                no: "prepare".into(),
-            },
-        )),
-        m::Event::Label("prepare".into()),
         m::Event::Instruction(m::Inst::new(
             Some("ptr.field".into()),
             m::Op::Gep {
