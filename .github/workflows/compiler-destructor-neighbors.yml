@@ -1,0 +1,78 @@
+name: Destructor inactive-neighbor validation
+on:
+  push:
+    branches: [task/destructor-runtime-neighbors]
+    paths: [.github/workflows/compiler-destructor-neighbors.yml]
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Exact source and tools
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/neighbor-setup"
+          rustup toolchain install 1.99.1 --profile minimal
+          cargo fetch --locked
+          sudo apt-get update -qq
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/neighbor-llvm" > "$RUNNER_TEMP/neighbor-setup/llvm.log" 2>&1
+          echo "ZIL_CLANG=$RUNNER_TEMP/neighbor-llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/neighbor-llvm/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/neighbor-llvm/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/neighbor-llvm/bin" >> "$GITHUB_PATH"
+          git fetch --depth=1 --no-tags origin fc6620a3b975258643eb8f9c3ee77d868ff67a69 0061b2985931d6df6cf57c753574dec681384e02
+          git worktree add --detach "$RUNNER_TEMP/neighbor-base" fc6620a3b975258643eb8f9c3ee77d868ff67a69
+          git show 0061b2985931d6df6cf57c753574dec681384e02:.task/G10.5.1.7/bench/corpus.py > .task/destructor-neighbors/corpus.py
+          test "$(git rev-parse HEAD:crates/zil-backend-llvm/src/emit/resource_closures.rs)" = 6cff0dc4f19d994a06198e235763059233c2db13
+          git rev-parse HEAD > "$RUNNER_TEMP/neighbor-setup/source.txt"
+          rustc -vV > "$RUNNER_TEMP/neighbor-setup/rustc.txt"
+      - name: Independent equal-profile release builds
+        run: |
+          set -euo pipefail
+          CARGO_TARGET_DIR="$RUNNER_TEMP/neighbor-base-target" cargo build --locked --offline --release --manifest-path "$RUNNER_TEMP/neighbor-base/Cargo.toml" -p zil-cli > "$RUNNER_TEMP/neighbor-setup/base.log" 2>&1
+          CARGO_TARGET_DIR="$RUNNER_TEMP/neighbor-candidate-target" cargo build --locked --offline --release -p zil-cli > "$RUNNER_TEMP/neighbor-setup/candidate.log" 2>&1
+      - name: Original semantics with empty and mostly-inactive closures
+        run: |
+          set -euo pipefail
+          python3 .task/destructor-neighbors/check.py --base "$RUNNER_TEMP/neighbor-base-target/release/zil" --candidate "$RUNNER_TEMP/neighbor-candidate-target/release/zil" --out "$RUNNER_TEMP/neighbor-data" 2>&1 | tee "$RUNNER_TEMP/neighbor-setup/measure.log"
+      - name: Preserve every observation without accepting performance
+        if: ${{ always() }}
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib,os,json,shutil,tarfile,hashlib
+          P=pathlib.Path;t=P(os.environ['RUNNER_TEMP']);d=P('.task/destructor-neighbors/runs')/os.environ['GITHUB_RUN_ID'];d.mkdir(parents=True);data=t/'neighbor-data'
+          for n in ('summary.json','rows.json','failure.json'):
+              if (data/n).exists():shutil.copyfile(data/n,d/n)
+          with tarfile.open(d/'raw.tar.gz','w:gz') as a:
+              for path,label in [(t/'neighbor-setup','setup'),(data,'data')]:
+                  if path.exists():
+                      for p in path.rglob('*'):
+                          if p.is_file() and 'incremental' not in p.parts:a.add(p,arcname=label+'/'+str(p.relative_to(path)))
+          assert (d/'raw.tar.gz').stat().st_size<48*1024*1024
+          receipt={'baseline':'fc6620a3b975258643eb8f9c3ee77d868ff67a69','candidate_production':'01d2ee433873b298e7e5982339b16d0b8d667713','exact_checkout':os.environ['GITHUB_SHA'],'status_before_preservation':os.environ['PRIOR_STATUS'],'hashes':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in d.iterdir()},'main_modified':False,'external_ai_review':False,'scope':'additional runtime neighbors; original full weighted matrix remains separate','acceptance':'inspect every performance gate, workflow success is not acceptance'}
+          (d/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
+          PY
+          git fetch --no-tags origin refs/heads/task/destructor-runtime-neighbors
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git add .task/destructor-neighbors
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Preserve empty and inactive closure neighbors $GITHUB_RUN_ID; no automatic main merge"
+          git push origin HEAD:refs/heads/task/destructor-runtime-neighbors
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: destructor-neighbors-${{ github.run_id }}
+          path: .task/destructor-neighbors
+          retention-days: 30
