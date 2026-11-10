@@ -1,0 +1,149 @@
+name: Anonymous closure linkage validation
+on:
+  push:
+    branches: [task/compiler-closure-dependencies]
+    paths: [.github/workflows/compiler-closure-linkage.yml]
+permissions:
+  contents: write
+concurrency:
+  group: compiler-closure-linkage
+  cancel-in-progress: false
+jobs:
+  experiment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Pinned current baseline and unchanged benchmark corpus
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/linkage-setup" .task/closure-dependencies/bench .task/closure-dependencies/neighbors
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          cargo fetch --locked
+          sudo apt-get update -qq
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/linkage-llvm" > "$RUNNER_TEMP/linkage-setup/llvm.log" 2>&1
+          echo "ZIL_CLANG=$RUNNER_TEMP/linkage-llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/linkage-llvm/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/linkage-llvm/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/linkage-llvm/bin" >> "$GITHUB_PATH"
+          git fetch --depth=1 --no-tags origin 947063a63880b375889ff30b3beba6151abf55f3 63aefac97d5cded7ceb3627337626f0b8edb199e db8696d23270d35d015d20928e75c355a0092627
+          git worktree add --detach "$RUNNER_TEMP/linkage-base" 947063a63880b375889ff30b3beba6151abf55f3
+          for f in corpus.py measure.py; do git show 63aefac97d5cded7ceb3627337626f0b8edb199e:.task/G10.5.1.7/bench/$f > .task/closure-dependencies/bench/$f; done
+          for f in quality.py controls.py; do git show 63aefac97d5cded7ceb3627337626f0b8edb199e:.task/G10.5.1.7/$f > .task/closure-dependencies/$f; done
+          for f in check.py corpus.py; do git show db8696d23270d35d015d20928e75c355a0092627:.task/destructor-neighbors/$f > .task/closure-dependencies/neighbors/$f; done
+      - name: Freeze production changes and actual symbol activation controls
+        run: |
+          set -euo pipefail
+          python3 .task/closure-dependencies/apply.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('.task/closure-dependencies/bench/measure.py');s=p.read_text().replace('fc6620a3b975258643eb8f9c3ee77d868ff67a69','947063a63880b375889ff30b3beba6151abf55f3');p.write_text(s)
+          p=Path('.task/closure-dependencies/controls.py');s=p.read_text()
+          old="       outlined=sum('noinline' in line for line in drops)\n       assert outlined==(n if arm=='cand' and n>=16 else 0),(name,'destructor policy did not match frozen threshold',outlined)"
+          new="""       assert all('noinline' not in line for line in drops),(name,'destructor policy changed')
+                 bodies=[line.split('@',1)[1].split('(',1)[0] for line in ir.splitlines() if line.startswith('define ') and '@zil.fn.' in line and '%env' in line]
+                 assert len(bodies)==n,(name,'actual closure definitions',len(bodies),n)
+                 nm=subprocess.check_output(['nm','--defined-only',str(exe)],text=True)
+                 public={line.split()[-1] for line in nm.splitlines() if len(line.split())>=3 and line.split()[-2] in ('T','W')}
+                 if arm=='base':assert all(body in public for body in bodies),(name,'baseline anonymous exports changed')
+                 else:assert all(body not in public for body in bodies),(name,'candidate anonymous exports retained')"""
+          new='\n'.join(line[10:] if line.startswith('                 ') else line for line in new.splitlines())
+          assert s.count(old)==1;s=s.replace(old,new);p.write_text(s)
+          PY
+          rustfmt --edition 2024 crates/zil-backend-llvm/src/lib.rs
+          python3 -m py_compile .task/closure-dependencies/*.py .task/closure-dependencies/bench/*.py .task/closure-dependencies/neighbors/*.py
+          git diff --check
+          git diff > "$RUNNER_TEMP/linkage-setup/production.patch"
+          git add crates/zil-backend-llvm/src/lib.rs crates/zil-backend-llvm/src/build.rs crates/zil-backend-llvm/src/machine_closure_linkage.rs docs/guide/anonymous-closure-linkage.md .task/closure-dependencies
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Freeze reference-aware anonymous linkage and exact unchanged runtime counterexamples'
+          git rev-parse HEAD > "$RUNNER_TEMP/linkage-setup/source.txt"
+          git fetch --no-tags origin refs/heads/task/compiler-closure-dependencies
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git push origin HEAD:refs/heads/task/compiler-closure-dependencies
+          rustc -vV > "$RUNNER_TEMP/linkage-setup/rustc.txt"
+      - name: Complete backend and LLVM tests plus strict checks
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/linkage-tests"
+          cargo test --locked --offline -p zil-backend-llvm --features llvm-api --lib 2>&1 | tee "$RUNNER_TEMP/linkage-setup/backend.log"
+          grep 'anonymous_local_linkage_preserves_bodies_addresses_and_named_exports .*ok' "$RUNNER_TEMP/linkage-setup/backend.log"
+          cargo test --locked --offline -p zil-llvm-api --features native --lib 2>&1 | tee "$RUNNER_TEMP/linkage-setup/llvm-tests.log"
+          cargo clippy --locked --offline -p zil-backend-llvm --features llvm-api --lib --tests -- -D warnings 2>&1 | tee "$RUNNER_TEMP/linkage-setup/clippy.log"
+          cargo fmt --all -- --check
+      - name: Independent identical-profile release compilers
+        id: build
+        run: |
+          set -euo pipefail
+          CARGO_TARGET_DIR="$RUNNER_TEMP/linkage-base-target" cargo build --locked --offline --release --manifest-path "$RUNNER_TEMP/linkage-base/Cargo.toml" -p zil-cli > "$RUNNER_TEMP/linkage-setup/base-build.log" 2>&1
+          CARGO_TARGET_DIR="$RUNNER_TEMP/linkage-candidate-target" cargo build --locked --offline --release -p zil-cli > "$RUNNER_TEMP/linkage-setup/candidate-build.log" 2>&1
+      - name: Real native symbol activation and all allocation-failure cleanup observations
+        run: |
+          set -euo pipefail
+          python3 .task/closure-dependencies/controls.py --base "$RUNNER_TEMP/linkage-base-target/release/zil" --candidate "$RUNNER_TEMP/linkage-candidate-target/release/zil" --out "$RUNNER_TEMP/linkage-controls" 2>&1 | tee "$RUNNER_TEMP/linkage-setup/controls.log"
+      - name: Every original active long-loop runtime case
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 .task/closure-dependencies/quality.py --base "$RUNNER_TEMP/linkage-base-target/release/zil" --candidate "$RUNNER_TEMP/linkage-candidate-target/release/zil" --out "$RUNNER_TEMP/linkage-quality" 2>&1 | tee "$RUNNER_TEMP/linkage-setup/quality.log"
+      - name: Every original empty and mostly-inactive runtime counterexample
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 .task/closure-dependencies/neighbors/check.py --base "$RUNNER_TEMP/linkage-base-target/release/zil" --candidate "$RUNNER_TEMP/linkage-candidate-target/release/zil" --out "$RUNNER_TEMP/linkage-neighbors" 2>&1 | tee "$RUNNER_TEMP/linkage-setup/neighbors.log"
+      - name: Frozen eight-case weighted full compiler matrix
+        run: |
+          set -euo pipefail
+          python3 .task/closure-dependencies/bench/measure.py --base "$RUNNER_TEMP/linkage-base-target/release/zil" --candidate "$RUNNER_TEMP/linkage-candidate-target/release/zil" --out "$RUNNER_TEMP/linkage-data" --rounds 5 2>&1 | tee "$RUNNER_TEMP/linkage-setup/measure.log"
+      - name: Separate fallible Rust growth reference preserving original Rust input
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 .task/closure-dependencies/fallible_rust.py --base "$RUNNER_TEMP/linkage-base-target/release/zil" --candidate "$RUNNER_TEMP/linkage-candidate-target/release/zil" --out "$RUNNER_TEMP/linkage-fallible" 2>&1 | tee "$RUNNER_TEMP/linkage-setup/fallible.log"
+      - name: Existing native resource and allocation consumers
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 tools/research/native-api-validation/validate.py --repo "$GITHUB_WORKSPACE" --cli "$RUNNER_TEMP/linkage-candidate-target/release/zil" --clang "$ZIL_CLANG" --out "$RUNNER_TEMP/linkage-consumer" > "$RUNNER_TEMP/linkage-setup/consumer.log" 2>&1
+      - name: Preserve every observation and exact source without automatic main acceptance
+        if: ${{ always() }}
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib,os,json,hashlib,tarfile,shutil
+          P=pathlib.Path;t=P(os.environ['RUNNER_TEMP']);dst=P('.task/closure-dependencies/runs')/os.environ['GITHUB_RUN_ID'];dst.mkdir(parents=True);data=t/'linkage-data'
+          for n in ('manifest.json','summary.json','rows.jsonl','cells.json','failures.json','equivalence.json','runtime.jsonl'):
+              if (data/n).exists():shutil.copyfile(data/n,dst/n)
+          for folder,name in [('linkage-controls','controls.json'),('linkage-quality','quality.json'),('linkage-neighbors','neighbors.json'),('linkage-fallible','fallible.json'),('linkage-consumer','consumer.json')]:
+              if (t/folder/'summary.json').exists():shutil.copyfile(t/folder/'summary.json',dst/name)
+          with tarfile.open(dst/'raw.tar.gz','w:gz') as tar:
+              for path,label in [(t/'linkage-setup','setup'),(t/'linkage-controls','controls'),(t/'linkage-quality','quality'),(t/'linkage-neighbors','neighbors'),(t/'linkage-fallible','fallible'),(data/'logs','logs'),(data/'runtime-logs','runtime-logs'),(data/'corpus','corpus')]:
+                  if path.exists():
+                      for p in path.rglob('*'):
+                          if p.is_file() and not any(v in p.parts for v in ('incremental','semantic','objects')):tar.add(p,arcname=label+'/'+str(p.relative_to(path)))
+          assert (dst/'raw.tar.gz').stat().st_size<48*1024*1024
+          f=t/'linkage-setup/source.txt';r={'baseline':'947063a63880b375889ff30b3beba6151abf55f3','source':f.read_text().strip() if f.exists() else None,'recipe':os.environ['GITHUB_SHA'],'diagnostic_run':42826582815,'status_before_preservation':os.environ['PRIOR_STATUS'],'files':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in dst.iterdir()},'main_modified':False,'external_ai_review':False,'acceptance':'Pending exact-source and numerical audit; workflow success is not a runtime gate'}
+          (dst/'receipt.json').write_text(json.dumps(r,indent=2)+'\n')
+          PY
+          git fetch --no-tags origin refs/heads/task/compiler-closure-dependencies
+          expected="$GITHUB_SHA"; if test -f "$RUNNER_TEMP/linkage-setup/source.txt"; then expected="$(cat "$RUNNER_TEMP/linkage-setup/source.txt")"; fi
+          test "$(git rev-parse FETCH_HEAD)" = "$expected"
+          git add -- ".task/closure-dependencies/runs/$GITHUB_RUN_ID"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Preserve complete anonymous closure linkage experiment $GITHUB_RUN_ID"
+          git push origin HEAD:refs/heads/task/compiler-closure-dependencies
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: closure-linkage-${{ github.run_id }}
+          path: .task/closure-dependencies/runs/${{ github.run_id }}
+          retention-days: 30
