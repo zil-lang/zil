@@ -1,0 +1,21 @@
+{
+  "baseline": "3e4a2a2ae368380e86ea99da32d7f3eef68cf3b4",
+  "source": "0caf3711441b9744ae1ba1b1699bb09c0ce839de",
+  "recipe": "d4dc15bc018a2e197d13ea08bd4cea230708ac08",
+  "status": "success",
+  "files": {
+    "controls.json": "595f942db49a24049b46807278c9f3b273c605b2d0bdda9a07afc42ed14ef1c8",
+    "failures.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "manifest.json": "18dce6d0611d755a6b284351dc96724ad96c4b72ad522c89c68af36d113e624a",
+    "runtime.jsonl": "2f6d090b5e3315488d8313679cd09b5903e9d176a2fb083444b87618bead8418",
+    "consumer.json": "ca88f3e273d2b4790ea28a78453af84cd043a44211856a453a0f344a9b58f27d",
+    "equivalence.json": "d6452de670684db5368123f503128b630cd8a2f2462f7b18c8c17bf1a3a0c410",
+    "rows.jsonl": "aa40411d10c0ccdf06aab2819218537a4e19d1ca31f9fd0a865109b7da30539a",
+    "raw.tar.gz": "296fa405280348279da069311c0129e2a161b440979f756bee8abe476b489b56",
+    "summary.json": "dd961aca635f5aeca4e0bbd752b7e45ba757b9d474a2379d9294ce99105fd6a0",
+    "cells.json": "c2e5b62beef658fab248d24da6e4b409dbf128aa3638d65e4cc1233a2ce562b6"
+  },
+  "main_modified": false,
+  "external_ai_review": false,
+  "acceptance": "Pending explicit performance and safety audit, no automated merge"
+}
