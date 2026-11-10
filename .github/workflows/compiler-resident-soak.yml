@@ -1,0 +1,73 @@
+name: Resident memory and eviction validation
+on:
+  push:
+    branches: [task/resident-memory-validation]
+    paths: [.github/workflows/compiler-resident-soak.yml]
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Freeze unchanged compiler and pinned runtime
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/resident-soak-setup"
+          git fetch --depth=1 --no-tags origin f1f4496d3ebb5591e9bdfd3e3c86be5f82eb92d5
+          git diff --exit-code f1f4496d3ebb5591e9bdfd3e3c86be5f82eb92d5 -- crates Cargo.toml Cargo.lock
+          rustup toolchain install 1.99.1 --profile minimal
+          cargo fetch --locked
+          sudo apt-get update -qq
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/resident-soak-llvm" > "$RUNNER_TEMP/resident-soak-setup/llvm.log" 2>&1
+          echo "ZIL_CLANG=$RUNNER_TEMP/resident-soak-llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/resident-soak-llvm/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/resident-soak-llvm/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/resident-soak-llvm/bin" >> "$GITHUB_PATH"
+          rustc -vV > "$RUNNER_TEMP/resident-soak-setup/rustc.txt"
+          git rev-parse HEAD > "$RUNNER_TEMP/resident-soak-setup/source.txt"
+      - name: Build original resident research example
+        run: |
+          set -euo pipefail
+          python3 -m py_compile .task/resident/soak.py
+          CARGO_TARGET_DIR="$RUNNER_TEMP/resident-soak-target" cargo build --locked --offline --release -p zil-driver --features llvm-api --example resident_session > "$RUNNER_TEMP/resident-soak-setup/build.log" 2>&1
+      - name: Fixed capacities and unique edits with fresh references
+        run: |
+          set -euo pipefail
+          taskset -c "$(python3 -c 'import os;print(",".join(map(str,sorted(os.sched_getaffinity(0))[:2])))')" python3 .task/resident/soak.py --worker "$RUNNER_TEMP/resident-soak-target/release/examples/resident_session" --out "$RUNNER_TEMP/resident-soak-data" --rounds 120 2>&1 | tee "$RUNNER_TEMP/resident-soak-setup/soak.log"
+      - name: Preserve exact observed memory and all failures
+        if: ${{ always() }}
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,pathlib,shutil,tarfile,hashlib,json
+          P=pathlib.Path;t=P(os.environ['RUNNER_TEMP']);d=P('.task/resident/soak-runs')/os.environ['GITHUB_RUN_ID'];d.mkdir(parents=True)
+          for name in ['summary.json','rows.json']:
+              if (t/'resident-soak-data'/name).exists():shutil.copyfile(t/'resident-soak-data'/name,d/name)
+          with tarfile.open(d/'raw.tar.gz','w:gz') as a:
+              for path,label in [(t/'resident-soak-setup','setup'),(t/'resident-soak-data','data')]:
+                  if path.exists():a.add(path,arcname=label)
+          assert (d/'raw.tar.gz').stat().st_size<48*1024*1024
+          (d/'receipt.json').write_text(json.dumps({'source':os.environ['GITHUB_SHA'],'compiler_source':'f1f4496d3ebb5591e9bdfd3e3c86be5f82eb92d5','status':os.environ['PRIOR_STATUS'],'main_modified':False,'scope':'finite residency/eviction validation, not production byte-bound admission','hashes':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in d.iterdir()}},indent=2)+'\n')
+          PY
+          git fetch --no-tags origin refs/heads/task/resident-memory-validation
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git add ".task/resident/soak-runs/$GITHUB_RUN_ID"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Preserve resident memory validation $GITHUB_RUN_ID without production integration"
+          git push origin HEAD:refs/heads/task/resident-memory-validation
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: resident-soak-${{ github.run_id }}
+          path: .task/resident/soak-runs
+          retention-days: 30
