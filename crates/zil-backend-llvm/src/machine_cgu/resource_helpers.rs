@@ -8,6 +8,12 @@ use zil_base::Fingerprint;
 use zil_ir::LirView;
 use zil_llvm_api::model::{Item, Linkage, Module, Op, Val};
 
+// A policy budget, not a promise about LLVM's eventual inlining decision.
+// Large source bodies keep a canonical cross-unit call; copying all of them
+// would invalidate the caller on every implementation edit and can grow code.
+// Compiler-owned call-only helper closures remain completely available.
+const MAX_IMPORTED_SOURCE_COST: usize = 32;
+
 struct Definition {
     item: usize,
     name: String,
@@ -274,7 +280,10 @@ pub(super) fn prepare(
                     }
                 } else if owners[target] != owner {
                     needed.insert(target);
-                    if defs[id].calls.contains(name) && defs[target].function {
+                    if defs[id].calls.contains(name)
+                        && defs[target].function
+                        && defs[target].cost <= MAX_IMPORTED_SOURCE_COST
+                    {
                         if !source.contains(&target) {
                             return None;
                         }

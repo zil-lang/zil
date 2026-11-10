@@ -419,3 +419,57 @@ int main(void){long x=a(5),y=b(8);printf("%ld %ld %ld\n",x,y,calls);return 0;}
     assert!(run.status.success());
     assert_eq!(run.stdout, b"12 15 2\n");
 }
+
+#[test]
+fn large_source_bodies_keep_canonical_calls_and_independent_object_inputs() {
+    let lir = source(2);
+    let mut input = module(vec![
+        caller(0, "zil.fn.1"),
+        caller(1, "helper"),
+        helper("helper", 7),
+    ]);
+    let Item::Function(function) = &mut input.items[1] else {
+        unreachable!()
+    };
+    let mut index = 0;
+    while function.cost() <= MAX_IMPORTED_SOURCE_COST {
+        function.blocks.as_mut().unwrap()[0].instructions.insert(
+            0,
+            inst(
+                Some(&format!("extra.{index}")),
+                Op::Binary {
+                    opcode: "xor".into(),
+                    ty: Ty::Int(64),
+                    left: local("x"),
+                    right: Val::Int(index),
+                },
+            ),
+        );
+        index += 1;
+    }
+    let before = planned(input.clone(), &lir, 8);
+    assert_eq!(before.units.len(), 2);
+    assert_eq!(
+        symbol_count(&before.units[0], "zil.resource.import.0.zil.fn.1"),
+        0
+    );
+    assert!(before.units[0].items.iter().any(|item| matches!(item,
+        Item::Function(f) if f.name == "zil.fn.1" && f.blocks.is_none())));
+    assert_eq!(symbol_count(&before.units[1], "zil.fn.1"), 1);
+    for unit in &before.units {
+        zil_llvm_api::validate_module(unit).unwrap();
+    }
+
+    // This changes the actual returned result, not merely unreachable padding.
+    // The caller's prototype and instruction stream must remain identical.
+    let Item::Function(function) = &mut input.items[1] else {
+        unreachable!()
+    };
+    *function.blocks.as_mut().unwrap()[0]
+        .instructions
+        .last_mut()
+        .unwrap() = inst(None, Op::Return(Some(Arg::new(Ty::Int(64), Val::Int(99)))));
+    let after = planned(input, &lir, 8);
+    assert_eq!(before.units[0], after.units[0]);
+    assert_ne!(before.units[1], after.units[1]);
+}
