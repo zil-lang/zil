@@ -1,0 +1,22 @@
+{
+  "base_production": "fc6620a3b975258643eb8f9c3ee77d868ff67a69",
+  "source": "2e1b86e502355bf6097e6b82528a92cba40ed8f5",
+  "recipe": "97747a8c6a42a5f5c49ea16e84ca213d80614254",
+  "prior_failure": 42811932475,
+  "production_unchanged_from": "02dc428f048666260eff0a4b277ef4a82efff60e",
+  "status_before_preservation": "success",
+  "files": {
+    "failures.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "manifest.json": "7270cc28713d4185491029917d070152741ea3ed73c175e3879e0276bb9c7ab7",
+    "runtime.jsonl": "2622368b7e44e26941e0ef9724c5c4253fcc4cd4fac3688c4ce581b840b433cc",
+    "consumer.json": "aca1b843f99d19f7a8c8b240b0a11e1c5f70cb7a6f65a58abc8a5d31171feda7",
+    "equivalence.json": "8993067a3c36761d7a07434566a5370584e2294890a9802ecde89b6fd8063404",
+    "rows.jsonl": "56b6c61e0534af0298206e1d0e42cc4ce6ffe72c53ca32c94e46da8c39e86b80",
+    "raw.tar.gz": "932a0a2a139d3c8f29d4b0dabc6e895d038ccbc35da3713197fc99e216c90705",
+    "summary.json": "f855254b53a074b00ee55c3492a634793041c865e4c0aee8a164cc3dbe2fd669",
+    "lifetime.json": "d64d8932a9370e9504e280f7c3bc5084e26a48bde12d0115cd52b7eb6ca6d4c5",
+    "cells.json": "3e5de3c1f51b5dc7948a64bb24762198a121c4decb2ccd84cd1d2d0daf6badc7"
+  },
+  "main_modified": false,
+  "acceptance": "Pending exact source and full numerical review"
+}

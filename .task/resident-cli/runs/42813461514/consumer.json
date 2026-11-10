@@ -1,0 +1,2888 @@
+{
+  "status": "Pass",
+  "source_commit": "2e1b86e502355bf6097e6b82528a92cba40ed8f5",
+  "source_identity_kind": "observed-git",
+  "cli_sha256": "a0f881ae730be98065e073537addd9f231fa2f4b87de8f6b1f5372ef036035ca",
+  "clang_sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67",
+  "source_hashes": {
+    "field_exit.zil": "d5eb6ffa22cac71e19880545a10eb1c017683710a333f03833897668e58eba10",
+    "main.zil": "681c339bfb7cb7728170f9ab68c264846aea1df5013ddd72b6f09bbfa5afd9a9",
+    "state.zil": "60ad97bdd2ba0c8d13bb09c8c1685ac72c2c4ddd412581caa1c4de1be1aad2d7",
+    "collection.zil": "aa853b039a91b3909830a797637dda2ea3ce157918c9cd7ced565e693fbd4d88",
+    "model.zil": "63350d883dc1844d8734d02337a3d3296d6743864545d68c2cb1b5e505a0c42b",
+    "callbacks.zil": "60eca04279644fee58e4b6022b08192d8460df9ed9489792ff472c6285b6ba05"
+  },
+  "oracle": "tools/language/composed-state-store/consumer.py scenarios (preexisting business oracle)",
+  "oracle_sha256": "c8e1952ee1125883b5a20ddab3cfec5d15a5e86ac57099f42de1b0d2688639ae",
+  "builds": [
+    {
+      "name": "u1/main/O0/ordinary",
+      "llvm_sha256": "d4abfe953c6a2f0d6babcfd5b539a95d17621ae8387571f00d8cad420d3adb4b",
+      "executable_sha256": "5cf60b8b4dd50ccdb490d88b42c2fcb0992fdde227c865a654a2cfc974cf0dce",
+      "codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 22968,
+            "input_kind": "builder",
+            "preflight_ns": 1177887,
+            "builder_ns": 1494069,
+            "parse_ns": 0,
+            "optimize_ns": 170709,
+            "emit_ns": 13585150,
+            "total_ns": 17302604
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null,
+        "task_abis": []
+      },
+      "verification_runs": 1
+    },
+    {
+      "name": "u1/main/O0/probe",
+      "llvm_sha256": "d4abfe953c6a2f0d6babcfd5b539a95d17621ae8387571f00d8cad420d3adb4b",
+      "executable_sha256": "b1643b34d29e9c42e497775936629bbf7918212271ec4ae568984c9f327ea263",
+      "codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 22968,
+            "input_kind": "builder",
+            "preflight_ns": 1082007,
+            "builder_ns": 1468010,
+            "parse_ns": 0,
+            "optimize_ns": 181430,
+            "emit_ns": 13790584,
+            "total_ns": 17399676
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null,
+        "task_abis": []
+      },
+      "verification_runs": 1
+    },
+    {
+      "name": "u1/main/O2/ordinary",
+      "llvm_sha256": "d4abfe953c6a2f0d6babcfd5b539a95d17621ae8387571f00d8cad420d3adb4b",
+      "executable_sha256": "55979d4aec43e0cd757ec4fc2c8be4ad8eb0b97cde36bb0363c3b2b4861476b0",
+      "codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 5576,
+            "input_kind": "builder",
+            "preflight_ns": 1162097,
+            "builder_ns": 1509177,
+            "parse_ns": 0,
+            "optimize_ns": 25768272,
+            "emit_ns": 23382523,
+            "total_ns": 52596931
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null,
+        "task_abis": []
+      },
+      "verification_runs": 1
+    },
+    {
+      "name": "u1/main/O2/probe",
+      "llvm_sha256": "d4abfe953c6a2f0d6babcfd5b539a95d17621ae8387571f00d8cad420d3adb4b",
+      "executable_sha256": "96f54aa2c58e1eb75140cd3fea69784088ccdc5a0bd7345859fc55055fb31a34",
+      "codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 5576,
+            "input_kind": "builder",
+            "preflight_ns": 1093739,
+            "builder_ns": 1484391,
+            "parse_ns": 0,
+            "optimize_ns": 25665891,
+            "emit_ns": 23502437,
+            "total_ns": 52521651
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null,
+        "task_abis": []
+      },
+      "verification_runs": 1
+    },
+    {
+      "name": "u1/field_exit/O0/ordinary",
+      "llvm_sha256": "869238a78a538bec50f89dc71926e0fa118f8e9aa08aa488a61dbb89029d7d90",
+      "executable_sha256": "07d48199fbb2d69ffe32cb65175f6d877ebe9968b41b13b287b4bebb9e5491c4",
+      "codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 11312,
+            "input_kind": "builder",
+            "preflight_ns": 605975,
+            "builder_ns": 882123,
+            "parse_ns": 0,
+            "optimize_ns": 157626,
+            "emit_ns": 7892526,
+            "total_ns": 10149584
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null,
+        "task_abis": []
+      },
+      "verification_runs": 1
+    },
+    {
+      "name": "u1/field_exit/O0/probe",
+      "llvm_sha256": "869238a78a538bec50f89dc71926e0fa118f8e9aa08aa488a61dbb89029d7d90",
+      "executable_sha256": "9cebad80e01671987fbd4357d9a779f15535608fadf52a44b98b9940160dbc93",
+      "codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 11312,
+            "input_kind": "builder",
+            "preflight_ns": 563145,
+            "builder_ns": 883666,
+            "parse_ns": 0,
+            "optimize_ns": 192320,
+            "emit_ns": 7901168,
+            "total_ns": 10183486
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null,
+        "task_abis": []
+      },
+      "verification_runs": 1
+    },
+    {
+      "name": "u1/field_exit/O2/ordinary",
+      "llvm_sha256": "869238a78a538bec50f89dc71926e0fa118f8e9aa08aa488a61dbb89029d7d90",
+      "executable_sha256": "026004ee5d9a38374659e5686854ac57aa9b341e39b62e97ac31a31858333c62",
+      "codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 3744,
+            "input_kind": "builder",
+            "preflight_ns": 640660,
+            "builder_ns": 889607,
+            "parse_ns": 0,
+            "optimize_ns": 16608678,
+            "emit_ns": 16251488,
+            "total_ns": 35015216
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null,
+        "task_abis": []
+      },
+      "verification_runs": 1
+    },
+    {
+      "name": "u1/field_exit/O2/probe",
+      "llvm_sha256": "869238a78a538bec50f89dc71926e0fa118f8e9aa08aa488a61dbb89029d7d90",
+      "executable_sha256": "76917c362d1ba70b576cb77902ce99f9af7bb6de9fc8a7f6d8f855c8f38d12b6",
+      "codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 3744,
+            "input_kind": "builder",
+            "preflight_ns": 588743,
+            "builder_ns": 880149,
+            "parse_ns": 0,
+            "optimize_ns": 16575285,
+            "emit_ns": 16210131,
+            "total_ns": 34855876
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null,
+        "task_abis": []
+      },
+      "verification_runs": 1
+    },
+    {
+      "name": "u8/main/O0/ordinary",
+      "llvm_sha256": "d4abfe953c6a2f0d6babcfd5b539a95d17621ae8387571f00d8cad420d3adb4b",
+      "executable_sha256": "dc55485b69246c78e4d506abe878385e2f76547352fc329c80669243b9bb957b",
+      "codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 21968,
+            "input_kind": "builder",
+            "preflight_ns": 1602223,
+            "builder_ns": 1841641,
+            "parse_ns": 0,
+            "optimize_ns": 68509,
+            "emit_ns": 14098583,
+            "total_ns": 18460118
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 944,
+            "input_kind": "builder",
+            "preflight_ns": 48040,
+            "builder_ns": 113282,
+            "parse_ns": 0,
+            "optimize_ns": 187802,
+            "emit_ns": 2479577,
+            "total_ns": 3119236
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1248,
+            "input_kind": "builder",
+            "preflight_ns": 77144,
+            "builder_ns": 144921,
+            "parse_ns": 0,
+            "optimize_ns": 130384,
+            "emit_ns": 2464228,
+            "total_ns": 3206850
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 992,
+            "input_kind": "builder",
+            "preflight_ns": 57458,
+            "builder_ns": 106960,
+            "parse_ns": 0,
+            "optimize_ns": 187061,
+            "emit_ns": 2479497,
+            "total_ns": 3142329
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 8,
+        "actual_units": 4,
+        "jobs": 4,
+        "fallback": null,
+        "task_abis": []
+      },
+      "verification_runs": 1
+    },
+    {
+      "name": "u8/main/O0/probe",
+      "llvm_sha256": "d4abfe953c6a2f0d6babcfd5b539a95d17621ae8387571f00d8cad420d3adb4b",
+      "executable_sha256": "f0054a3e6598d03ada9b8b05590b96f18d573725eb730e9119e5fb400341a03d",
+      "codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 21968,
+            "input_kind": "builder",
+            "preflight_ns": 1602143,
+            "builder_ns": 1901013,
+            "parse_ns": 0,
+            "optimize_ns": 72466,
+            "emit_ns": 12497253,
+            "total_ns": 16931162
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 944,
+            "input_kind": "builder",
+            "preflight_ns": 25287,
+            "builder_ns": 100167,
+            "parse_ns": 0,
+            "optimize_ns": 191679,
+            "emit_ns": 2556561,
+            "total_ns": 3269508
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1248,
+            "input_kind": "builder",
+            "preflight_ns": 55474,
+            "builder_ns": 140243,
+            "parse_ns": 0,
+            "optimize_ns": 141224,
+            "emit_ns": 2540972,
+            "total_ns": 3354705
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 992,
+            "input_kind": "builder",
+            "preflight_ns": 35126,
+            "builder_ns": 89488,
+            "parse_ns": 0,
+            "optimize_ns": 203521,
+            "emit_ns": 2617676,
+            "total_ns": 3364757
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 8,
+        "actual_units": 4,
+        "jobs": 4,
+        "fallback": null,
+        "task_abis": []
+      },
+      "verification_runs": 1
+    },
+    {
+      "name": "u8/main/O2/ordinary",
+      "llvm_sha256": "d4abfe953c6a2f0d6babcfd5b539a95d17621ae8387571f00d8cad420d3adb4b",
+      "executable_sha256": "f0edc536172be87e55c03d6d0c4228e3868c504e733d96d164f5a50cf2f6a8bf",
+      "codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 8208,
+            "input_kind": "builder",
+            "preflight_ns": 1459014,
+            "builder_ns": 1981904,
+            "parse_ns": 0,
+            "optimize_ns": 25546509,
+            "emit_ns": 27444747,
+            "total_ns": 57292046
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 480,
+            "input_kind": "builder",
+            "preflight_ns": 28393,
+            "builder_ns": 102893,
+            "parse_ns": 0,
+            "optimize_ns": 1371631,
+            "emit_ns": 1459816,
+            "total_ns": 3325853
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 608,
+            "input_kind": "builder",
+            "preflight_ns": 63740,
+            "builder_ns": 144120,
+            "parse_ns": 0,
+            "optimize_ns": 2202267,
+            "emit_ns": 2127547,
+            "total_ns": 5002104
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 480,
+            "input_kind": "builder",
+            "preflight_ns": 34976,
+            "builder_ns": 67687,
+            "parse_ns": 0,
+            "optimize_ns": 1363385,
+            "emit_ns": 1465878,
+            "total_ns": 3348863
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 8,
+        "actual_units": 4,
+        "jobs": 4,
+        "fallback": null,
+        "task_abis": []
+      },
+      "verification_runs": 1
+    },
+    {
+      "name": "u8/main/O2/probe",
+      "llvm_sha256": "d4abfe953c6a2f0d6babcfd5b539a95d17621ae8387571f00d8cad420d3adb4b",
+      "executable_sha256": "2692740fb9e978834086dcbc7e0d35e2098ae8f55bc500b737424c9c528aa161",
+      "codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 8208,
+            "input_kind": "builder",
+            "preflight_ns": 1596362,
+            "builder_ns": 1921792,
+            "parse_ns": 0,
+            "optimize_ns": 25378514,
+            "emit_ns": 27736684,
+            "total_ns": 57481312
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 480,
+            "input_kind": "builder",
+            "preflight_ns": 25808,
+            "builder_ns": 120766,
+            "parse_ns": 0,
+            "optimize_ns": 1324082,
+            "emit_ns": 1594518,
+            "total_ns": 3399362
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 608,
+            "input_kind": "builder",
+            "preflight_ns": 56656,
+            "builder_ns": 135724,
+            "parse_ns": 0,
+            "optimize_ns": 2245128,
+            "emit_ns": 2102370,
+            "total_ns": 4961889
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 480,
+            "input_kind": "builder",
+            "preflight_ns": 38081,
+            "builder_ns": 103814,
+            "parse_ns": 0,
+            "optimize_ns": 1318260,
+            "emit_ns": 1603796,
+            "total_ns": 3466868
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 8,
+        "actual_units": 4,
+        "jobs": 4,
+        "fallback": null,
+        "task_abis": []
+      },
+      "verification_runs": 1
+    },
+    {
+      "name": "u8/field_exit/O0/ordinary",
+      "llvm_sha256": "869238a78a538bec50f89dc71926e0fa118f8e9aa08aa488a61dbb89029d7d90",
+      "executable_sha256": "07b2892f38e66eb392267c31f128bafda4a7334ac3bfedbccba3ee3ff7f1030a",
+      "codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 10320,
+            "input_kind": "builder",
+            "preflight_ns": 856866,
+            "builder_ns": 1076488,
+            "parse_ns": 0,
+            "optimize_ns": 93155,
+            "emit_ns": 6825993,
+            "total_ns": 9717873
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 944,
+            "input_kind": "builder",
+            "preflight_ns": 24907,
+            "builder_ns": 118162,
+            "parse_ns": 0,
+            "optimize_ns": 198131,
+            "emit_ns": 2799858,
+            "total_ns": 3450887
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1248,
+            "input_kind": "builder",
+            "preflight_ns": 74720,
+            "builder_ns": 179767,
+            "parse_ns": 0,
+            "optimize_ns": 85230,
+            "emit_ns": 2824674,
+            "total_ns": 3561134
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 992,
+            "input_kind": "builder",
+            "preflight_ns": 32532,
+            "builder_ns": 109946,
+            "parse_ns": 0,
+            "optimize_ns": 190998,
+            "emit_ns": 2780471,
+            "total_ns": 3472738
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 8,
+        "actual_units": 4,
+        "jobs": 4,
+        "fallback": null,
+        "task_abis": []
+      },
+      "verification_runs": 1
+    },
+    {
+      "name": "u8/field_exit/O0/probe",
+      "llvm_sha256": "869238a78a538bec50f89dc71926e0fa118f8e9aa08aa488a61dbb89029d7d90",
+      "executable_sha256": "914a67064cbc8fa04e98ab5bfd714b3acd06fc0e9ec64fc68cb7e87bddf4484d",
+      "codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 10320,
+            "input_kind": "builder",
+            "preflight_ns": 797896,
+            "builder_ns": 1128866,
+            "parse_ns": 0,
+            "optimize_ns": 117880,
+            "emit_ns": 6754589,
+            "total_ns": 9580345
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 944,
+            "input_kind": "builder",
+            "preflight_ns": 24636,
+            "builder_ns": 127519,
+            "parse_ns": 0,
+            "optimize_ns": 221065,
+            "emit_ns": 2664484,
+            "total_ns": 3278104
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1248,
+            "input_kind": "builder",
+            "preflight_ns": 61886,
+            "builder_ns": 141906,
+            "parse_ns": 0,
+            "optimize_ns": 178344,
+            "emit_ns": 2630510,
+            "total_ns": 3374595
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 992,
+            "input_kind": "builder",
+            "preflight_ns": 35657,
+            "builder_ns": 126457,
+            "parse_ns": 0,
+            "optimize_ns": 223299,
+            "emit_ns": 2707033,
+            "total_ns": 3367332
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 8,
+        "actual_units": 4,
+        "jobs": 4,
+        "fallback": null,
+        "task_abis": []
+      },
+      "verification_runs": 1
+    },
+    {
+      "name": "u8/field_exit/O2/ordinary",
+      "llvm_sha256": "869238a78a538bec50f89dc71926e0fa118f8e9aa08aa488a61dbb89029d7d90",
+      "executable_sha256": "e9f684b021d43f6238ddc9739e2d7c3678e66e5f65d0c92b110870148b5286cb",
+      "codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 4400,
+            "input_kind": "builder",
+            "preflight_ns": 770855,
+            "builder_ns": 1055789,
+            "parse_ns": 0,
+            "optimize_ns": 16004936,
+            "emit_ns": 15452942,
+            "total_ns": 34022245
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 480,
+            "input_kind": "builder",
+            "preflight_ns": 25037,
+            "builder_ns": 109345,
+            "parse_ns": 0,
+            "optimize_ns": 1399343,
+            "emit_ns": 1437674,
+            "total_ns": 3307509
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 608,
+            "input_kind": "builder",
+            "preflight_ns": 55665,
+            "builder_ns": 146354,
+            "parse_ns": 0,
+            "optimize_ns": 2273140,
+            "emit_ns": 2293338,
+            "total_ns": 5177804
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 480,
+            "input_kind": "builder",
+            "preflight_ns": 34574,
+            "builder_ns": 98524,
+            "parse_ns": 0,
+            "optimize_ns": 1386909,
+            "emit_ns": 1441422,
+            "total_ns": 3304403
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 8,
+        "actual_units": 4,
+        "jobs": 4,
+        "fallback": null,
+        "task_abis": []
+      },
+      "verification_runs": 1
+    },
+    {
+      "name": "u8/field_exit/O2/probe",
+      "llvm_sha256": "869238a78a538bec50f89dc71926e0fa118f8e9aa08aa488a61dbb89029d7d90",
+      "executable_sha256": "91d12f356f43d575fd6a427a11a25b6cd2de7c139d6dab773d9b26388781cb2d",
+      "codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 4400,
+            "input_kind": "builder",
+            "preflight_ns": 777557,
+            "builder_ns": 1053955,
+            "parse_ns": 0,
+            "optimize_ns": 16112077,
+            "emit_ns": 15441320,
+            "total_ns": 34111652
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 480,
+            "input_kind": "builder",
+            "preflight_ns": 24285,
+            "builder_ns": 102441,
+            "parse_ns": 0,
+            "optimize_ns": 1330653,
+            "emit_ns": 1547139,
+            "total_ns": 3237377
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 608,
+            "input_kind": "builder",
+            "preflight_ns": 56616,
+            "builder_ns": 139211,
+            "parse_ns": 0,
+            "optimize_ns": 2238576,
+            "emit_ns": 2352739,
+            "total_ns": 5129584
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 480,
+            "input_kind": "builder",
+            "preflight_ns": 33533,
+            "builder_ns": 95038,
+            "parse_ns": 0,
+            "optimize_ns": 1326857,
+            "emit_ns": 1551097,
+            "total_ns": 3275700
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 8,
+        "actual_units": 4,
+        "jobs": 4,
+        "fallback": null,
+        "task_abis": []
+      },
+      "verification_runs": 1
+    }
+  ],
+  "observations": [
+    {
+      "case": "u1/main/O0/ordinary/count-0",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "HZMK",
+      "allocation": null
+    },
+    {
+      "case": "u1/main/O0/ordinary/count-1",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DHZMNK",
+      "allocation": null
+    },
+    {
+      "case": "u1/main/O0/ordinary/count-2",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DEHZMNOK",
+      "allocation": null
+    },
+    {
+      "case": "u1/main/O0/ordinary/count-3",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DEFHZMNOPK",
+      "allocation": null
+    },
+    {
+      "case": "u1/main/O0/ordinary/invalid-input",
+      "fail_at": 0,
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "case": "u1/main/O0/probe/count-0",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "HZMK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "case": "u1/main/O0/probe/count-0",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u1/main/O0/probe/count-0",
+      "fail_at": 2,
+      "exit": 0,
+      "stdout": "HZMK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 40
+      }
+    },
+    {
+      "case": "u1/main/O0/probe/count-1",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DHZMNK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 120
+      }
+    },
+    {
+      "case": "u1/main/O0/probe/count-1",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u1/main/O0/probe/count-1",
+      "fail_at": 2,
+      "exit": 1,
+      "stdout": "ZDH",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 40
+      }
+    },
+    {
+      "case": "u1/main/O0/probe/count-1",
+      "fail_at": 3,
+      "exit": 0,
+      "stdout": "DHZMNK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 120
+      }
+    },
+    {
+      "case": "u1/main/O0/probe/count-2",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DEHZMNOK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 200
+      }
+    },
+    {
+      "case": "u1/main/O0/probe/count-2",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u1/main/O0/probe/count-2",
+      "fail_at": 2,
+      "exit": 1,
+      "stdout": "ZDEH",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "case": "u1/main/O0/probe/count-2",
+      "fail_at": 3,
+      "exit": 0,
+      "stdout": "DEHZMNOK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 200
+      }
+    },
+    {
+      "case": "u1/main/O0/probe/count-3",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DEFHZMNOPK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 280
+      }
+    },
+    {
+      "case": "u1/main/O0/probe/count-3",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u1/main/O0/probe/count-3",
+      "fail_at": 2,
+      "exit": 1,
+      "stdout": "ZDEFH",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 120
+      }
+    },
+    {
+      "case": "u1/main/O0/probe/count-3",
+      "fail_at": 3,
+      "exit": 0,
+      "stdout": "DEFHZMNOPK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 280
+      }
+    },
+    {
+      "case": "u1/main/O2/ordinary/count-0",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "HZMK",
+      "allocation": null
+    },
+    {
+      "case": "u1/main/O2/ordinary/count-1",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DHZMNK",
+      "allocation": null
+    },
+    {
+      "case": "u1/main/O2/ordinary/count-2",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DEHZMNOK",
+      "allocation": null
+    },
+    {
+      "case": "u1/main/O2/ordinary/count-3",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DEFHZMNOPK",
+      "allocation": null
+    },
+    {
+      "case": "u1/main/O2/ordinary/invalid-input",
+      "fail_at": 0,
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "case": "u1/main/O2/probe/count-0",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "HZMK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "case": "u1/main/O2/probe/count-0",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u1/main/O2/probe/count-0",
+      "fail_at": 2,
+      "exit": 0,
+      "stdout": "HZMK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 40
+      }
+    },
+    {
+      "case": "u1/main/O2/probe/count-1",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DHZMNK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 120
+      }
+    },
+    {
+      "case": "u1/main/O2/probe/count-1",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u1/main/O2/probe/count-1",
+      "fail_at": 2,
+      "exit": 1,
+      "stdout": "ZDH",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 40
+      }
+    },
+    {
+      "case": "u1/main/O2/probe/count-1",
+      "fail_at": 3,
+      "exit": 0,
+      "stdout": "DHZMNK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 120
+      }
+    },
+    {
+      "case": "u1/main/O2/probe/count-2",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DEHZMNOK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 200
+      }
+    },
+    {
+      "case": "u1/main/O2/probe/count-2",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u1/main/O2/probe/count-2",
+      "fail_at": 2,
+      "exit": 1,
+      "stdout": "ZDEH",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "case": "u1/main/O2/probe/count-2",
+      "fail_at": 3,
+      "exit": 0,
+      "stdout": "DEHZMNOK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 200
+      }
+    },
+    {
+      "case": "u1/main/O2/probe/count-3",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DEFHZMNOPK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 280
+      }
+    },
+    {
+      "case": "u1/main/O2/probe/count-3",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u1/main/O2/probe/count-3",
+      "fail_at": 2,
+      "exit": 1,
+      "stdout": "ZDEFH",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 120
+      }
+    },
+    {
+      "case": "u1/main/O2/probe/count-3",
+      "fail_at": 3,
+      "exit": 0,
+      "stdout": "DEFHZMNOPK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 280
+      }
+    },
+    {
+      "case": "u1/field_exit/O0/ordinary/count-0",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "HZ",
+      "allocation": null
+    },
+    {
+      "case": "u1/field_exit/O0/ordinary/count-1",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DHZ",
+      "allocation": null
+    },
+    {
+      "case": "u1/field_exit/O0/ordinary/count-2",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DEHZ",
+      "allocation": null
+    },
+    {
+      "case": "u1/field_exit/O0/ordinary/count-3",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DEFHZ",
+      "allocation": null
+    },
+    {
+      "case": "u1/field_exit/O0/ordinary/invalid-input",
+      "fail_at": 0,
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "case": "u1/field_exit/O0/probe/count-0",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "HZ",
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u1/field_exit/O0/probe/count-1",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DHZ",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 40
+      }
+    },
+    {
+      "case": "u1/field_exit/O0/probe/count-1",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u1/field_exit/O0/probe/count-2",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DEHZ",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "case": "u1/field_exit/O0/probe/count-2",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u1/field_exit/O0/probe/count-3",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DEFHZ",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 120
+      }
+    },
+    {
+      "case": "u1/field_exit/O0/probe/count-3",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u1/field_exit/O2/ordinary/count-0",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "HZ",
+      "allocation": null
+    },
+    {
+      "case": "u1/field_exit/O2/ordinary/count-1",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DHZ",
+      "allocation": null
+    },
+    {
+      "case": "u1/field_exit/O2/ordinary/count-2",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DEHZ",
+      "allocation": null
+    },
+    {
+      "case": "u1/field_exit/O2/ordinary/count-3",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DEFHZ",
+      "allocation": null
+    },
+    {
+      "case": "u1/field_exit/O2/ordinary/invalid-input",
+      "fail_at": 0,
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "case": "u1/field_exit/O2/probe/count-0",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "HZ",
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u1/field_exit/O2/probe/count-1",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DHZ",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 40
+      }
+    },
+    {
+      "case": "u1/field_exit/O2/probe/count-1",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u1/field_exit/O2/probe/count-2",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DEHZ",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "case": "u1/field_exit/O2/probe/count-2",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u1/field_exit/O2/probe/count-3",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DEFHZ",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 120
+      }
+    },
+    {
+      "case": "u1/field_exit/O2/probe/count-3",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u8/main/O0/ordinary/count-0",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "HZMK",
+      "allocation": null
+    },
+    {
+      "case": "u8/main/O0/ordinary/count-1",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DHZMNK",
+      "allocation": null
+    },
+    {
+      "case": "u8/main/O0/ordinary/count-2",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DEHZMNOK",
+      "allocation": null
+    },
+    {
+      "case": "u8/main/O0/ordinary/count-3",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DEFHZMNOPK",
+      "allocation": null
+    },
+    {
+      "case": "u8/main/O0/ordinary/invalid-input",
+      "fail_at": 0,
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "case": "u8/main/O0/probe/count-0",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "HZMK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "case": "u8/main/O0/probe/count-0",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u8/main/O0/probe/count-0",
+      "fail_at": 2,
+      "exit": 0,
+      "stdout": "HZMK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 40
+      }
+    },
+    {
+      "case": "u8/main/O0/probe/count-1",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DHZMNK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 120
+      }
+    },
+    {
+      "case": "u8/main/O0/probe/count-1",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u8/main/O0/probe/count-1",
+      "fail_at": 2,
+      "exit": 1,
+      "stdout": "ZDH",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 40
+      }
+    },
+    {
+      "case": "u8/main/O0/probe/count-1",
+      "fail_at": 3,
+      "exit": 0,
+      "stdout": "DHZMNK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 120
+      }
+    },
+    {
+      "case": "u8/main/O0/probe/count-2",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DEHZMNOK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 200
+      }
+    },
+    {
+      "case": "u8/main/O0/probe/count-2",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u8/main/O0/probe/count-2",
+      "fail_at": 2,
+      "exit": 1,
+      "stdout": "ZDEH",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "case": "u8/main/O0/probe/count-2",
+      "fail_at": 3,
+      "exit": 0,
+      "stdout": "DEHZMNOK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 200
+      }
+    },
+    {
+      "case": "u8/main/O0/probe/count-3",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DEFHZMNOPK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 280
+      }
+    },
+    {
+      "case": "u8/main/O0/probe/count-3",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u8/main/O0/probe/count-3",
+      "fail_at": 2,
+      "exit": 1,
+      "stdout": "ZDEFH",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 120
+      }
+    },
+    {
+      "case": "u8/main/O0/probe/count-3",
+      "fail_at": 3,
+      "exit": 0,
+      "stdout": "DEFHZMNOPK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 280
+      }
+    },
+    {
+      "case": "u8/main/O2/ordinary/count-0",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "HZMK",
+      "allocation": null
+    },
+    {
+      "case": "u8/main/O2/ordinary/count-1",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DHZMNK",
+      "allocation": null
+    },
+    {
+      "case": "u8/main/O2/ordinary/count-2",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DEHZMNOK",
+      "allocation": null
+    },
+    {
+      "case": "u8/main/O2/ordinary/count-3",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DEFHZMNOPK",
+      "allocation": null
+    },
+    {
+      "case": "u8/main/O2/ordinary/invalid-input",
+      "fail_at": 0,
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "case": "u8/main/O2/probe/count-0",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "HZMK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "case": "u8/main/O2/probe/count-0",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u8/main/O2/probe/count-0",
+      "fail_at": 2,
+      "exit": 0,
+      "stdout": "HZMK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 40
+      }
+    },
+    {
+      "case": "u8/main/O2/probe/count-1",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DHZMNK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 120
+      }
+    },
+    {
+      "case": "u8/main/O2/probe/count-1",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u8/main/O2/probe/count-1",
+      "fail_at": 2,
+      "exit": 1,
+      "stdout": "ZDH",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 40
+      }
+    },
+    {
+      "case": "u8/main/O2/probe/count-1",
+      "fail_at": 3,
+      "exit": 0,
+      "stdout": "DHZMNK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 120
+      }
+    },
+    {
+      "case": "u8/main/O2/probe/count-2",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DEHZMNOK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 200
+      }
+    },
+    {
+      "case": "u8/main/O2/probe/count-2",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u8/main/O2/probe/count-2",
+      "fail_at": 2,
+      "exit": 1,
+      "stdout": "ZDEH",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "case": "u8/main/O2/probe/count-2",
+      "fail_at": 3,
+      "exit": 0,
+      "stdout": "DEHZMNOK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 200
+      }
+    },
+    {
+      "case": "u8/main/O2/probe/count-3",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "DEFHZMNOPK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 280
+      }
+    },
+    {
+      "case": "u8/main/O2/probe/count-3",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u8/main/O2/probe/count-3",
+      "fail_at": 2,
+      "exit": 1,
+      "stdout": "ZDEFH",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 120
+      }
+    },
+    {
+      "case": "u8/main/O2/probe/count-3",
+      "fail_at": 3,
+      "exit": 0,
+      "stdout": "DEFHZMNOPK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 280
+      }
+    },
+    {
+      "case": "u8/field_exit/O0/ordinary/count-0",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "HZ",
+      "allocation": null
+    },
+    {
+      "case": "u8/field_exit/O0/ordinary/count-1",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DHZ",
+      "allocation": null
+    },
+    {
+      "case": "u8/field_exit/O0/ordinary/count-2",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DEHZ",
+      "allocation": null
+    },
+    {
+      "case": "u8/field_exit/O0/ordinary/count-3",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DEFHZ",
+      "allocation": null
+    },
+    {
+      "case": "u8/field_exit/O0/ordinary/invalid-input",
+      "fail_at": 0,
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "case": "u8/field_exit/O0/probe/count-0",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "HZ",
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u8/field_exit/O0/probe/count-1",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DHZ",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 40
+      }
+    },
+    {
+      "case": "u8/field_exit/O0/probe/count-1",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u8/field_exit/O0/probe/count-2",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DEHZ",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "case": "u8/field_exit/O0/probe/count-2",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u8/field_exit/O0/probe/count-3",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DEFHZ",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 120
+      }
+    },
+    {
+      "case": "u8/field_exit/O0/probe/count-3",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u8/field_exit/O2/ordinary/count-0",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "HZ",
+      "allocation": null
+    },
+    {
+      "case": "u8/field_exit/O2/ordinary/count-1",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DHZ",
+      "allocation": null
+    },
+    {
+      "case": "u8/field_exit/O2/ordinary/count-2",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DEHZ",
+      "allocation": null
+    },
+    {
+      "case": "u8/field_exit/O2/ordinary/count-3",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DEFHZ",
+      "allocation": null
+    },
+    {
+      "case": "u8/field_exit/O2/ordinary/invalid-input",
+      "fail_at": 0,
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "case": "u8/field_exit/O2/probe/count-0",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "HZ",
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u8/field_exit/O2/probe/count-1",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DHZ",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 40
+      }
+    },
+    {
+      "case": "u8/field_exit/O2/probe/count-1",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u8/field_exit/O2/probe/count-2",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DEHZ",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "case": "u8/field_exit/O2/probe/count-2",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "u8/field_exit/O2/probe/count-3",
+      "fail_at": 0,
+      "exit": 1,
+      "stdout": "DEFHZ",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 120
+      }
+    },
+    {
+      "case": "u8/field_exit/O2/probe/count-3",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "ZH",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    }
+  ],
+  "probe_sha256": "370576441172be9e2ade20d8c5732a4e1d866fa862c3461e7f7ed785cace7e76",
+  "link_wrapper_sha256": "03e1eccbc2484aa34c60c785ae65ad083425ec5e24469d561ba23ade9cd800c6",
+  "commands": 145
+}
