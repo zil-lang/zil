@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-10T06:29:13.432555+00:00",
-  "read_goal": "c80246d1bbe2731cffed9a948fa1e33fb8595dca",
+  "recorded_utc": "2026-11-10T07:30:14.372606+00:00",
+  "read_goal": "de1e2e88775b8982a3655b3a20c1f5b7529ab1f4",
   "authorization": "User directs one implementation branch where dependencies permit, separate branches only for independent work; compiler-speed work stays with its original conversation; this conversation continues all other unfinished work.",
   "active_language_branch": "task/ordinary-collections",
   "compiler_branches_untouched": [
@@ -166,16 +166,16 @@
     "functional_source": "ede4945d1ed37ca6e89f712fc2258379d84d5e37",
     "functional_paths": 27,
     "functional_scope": "3 library paths, 6 ordinary Input/public capture replacement paths, actual parent/generation, complete original fixtures and consumers; no optional old cost caches or broader ABI/compiler changes.",
-    "latest_measured_source": "94e252197460569d51f89d8b881813c7c1da1909",
-    "latest_default_result": "Analyze completed; independent Verify ResourceLimit, verification_runs=1",
+    "latest_measured_source": "0acd176ba20d065193a5aacfe430f3da93dbdf84",
+    "latest_default_result": "Original Map Analyze completed; all 68 Sum summaries and 34 Sum final validations completed; independent Verify ResourceLimit in first resource records liveness reservation, verification_runs=1",
     "complete_inventory_join_oracles": "3/3; N4667 vs original lookup6454; N-1 and retry pass",
-    "source_raw_wire_recent_controls": "7/7",
-    "next": "Measure the same-fee full original consumer after positive shape cache; select the next actual remaining Verify hotspot only. Default limits and original inputs stay unchanged.",
-    "unaccepted_candidates": "Analyze accepted only for this original default consumer and component controls. Complete Map remains unaccepted until independent Verify and native matrix pass. Old Verify caches/checkpoints/pages require actual current hotspot and full original oracle.",
-    "published_continuation": "9af6d2487ac31317aa61109396a0ef3c0bd17819",
-    "published_tree": "2a7147d0f4998f2eecd256f484d67f7a8ad5a619",
-    "identical_local_tree": "94e252197460569d51f89d8b881813c7c1da1909",
-    "complete_analyze_library": "262/262 passed",
+    "source_raw_wire_recent_controls": "7/7 source controls, including Source/raw/Wire negative controls; not seven negative-only tests",
+    "next": "Frozen initialization candidate99e542b awaits ninth same-fee diagnostic and whole-source net-effect review; no candidate acceptance or publication. Preserve complete first-cold resource preparation, final validation and default limits; native and current strict remain pending.",
+    "unaccepted_candidates": "Complete Map remains unaccepted until independent Verify and the original native matrix pass. Actual POD qualification and shared-page no-change mechanisms have current component/library evidence only; initialization, scheduling, templates and checkpoints require separate current evidence.",
+    "published_continuation": "0d34d9888a90d59a5f02f97192ebd2a1367c39be",
+    "published_tree": "06384ae3add3367542ab2907744243385656c821",
+    "identical_local_tree": "0acd176ba20d065193a5aacfe430f3da93dbdf84",
+    "complete_analyze_library": "262/262 passed at 4b745813 and 872e5eca; historical complete-library evidence, not rerun on 0acd",
     "unknown_fixedpoint": "4 semantic/reconstruction controls, exact N144 versus old188; N-1/fresh; independent input-isolation correction610746 then1/1 rerun",
     "same_fee_diagnostic": {
       "source": "3bee825c8643c8018b880c4485815a3717553d46",
@@ -197,7 +197,7 @@
       "final_validation_entered": false,
       "interpretation": "This is an accepted-work prefix histogram, not complete-request net savings."
     },
-    "latest_run": "out/runs/map-verify-tag-cache-20261110T062358Z",
+    "latest_run": "out/runs/map-verify-shared-ssa-keep-20261110T070022Z",
     "set_source": "1/1 Success Verify, verification_runs=1",
     "ssa_pages": {
       "source": "bcfec60ca894eb4c37b380a7f1f626887a7fc3fa",
@@ -237,9 +237,9 @@
     "non_native_group": {
       "passed": 9,
       "failed": 1,
-      "source_positive_controls": "Set and callable Store field refill complete Verify; Map alone reaches Verify ResourceLimit.",
+      "source_positive_controls": "Set and callable Store field refill complete Verify; original Map alone remains Verify ResourceLimit after completing Analyze and all Sum validation.",
       "callable_source_raw_wire_controls": 7,
-      "native_64": "Not yet rerun on this new tree because complete Map has not passed Verify."
+      "native_64": "Not rerun on the current continuation; 16 builds/64 executions require llvm-api and a completed default Verify. No native acceptance claimed."
     },
     "additional_cost_steps": [
       {
@@ -286,7 +286,7 @@
       "shared_read_precheck": "d2bc7accd preserved in archive but not adopted: current Map cutoff does not execute that stored-flow tail; main already filters the main read-candidate path.",
       "templates_and_frontier": "Not adopted without current actual construction or scheduling hotspot."
     },
-    "complete_verify_library": "532/532 passed",
+    "complete_verify_library": "546/546 passed at 0acd176b",
     "verify_steps": [
       {
         "source": "b071ab2f4467308b78f068eeb9a2a83a3d73550d",
@@ -352,6 +352,40 @@
         "group": "9 pass / original5008 Map Verify ResourceLimit, V1",
         "component_boundaries": "publication N83 with N-1 unpublished/fresh success; 64 transfers plus actual extra COW N1027 vs old3586, both N-1 and after-failure fresh complete tuples; outer complete blocks N3215 vs old3369, each run fresh Flow/cache",
         "review": "Independent exact source and all complete output accepted for the mechanism, not full Map acceptance"
+      },
+      {
+        "source": "c21e1572c5ec9ae45799eb27c34d203da49f02e8",
+        "mechanism": "Actual local slot indexes complete original static Copy qualification, scoped to one immutable Flow and context; dynamic shape/loan/resource permission not cached",
+        "old_oracle": "Full prior OldCache and shared helper119lines plus8 complete controls; prior5 outer/5 tag/6 SSA tests retained",
+        "verify_library": "535/535",
+        "group": "9 pass / original Map Verify ResourceLimit V1",
+        "component_boundaries": "16locals x32 full reference N6589 vs old8556; publication N85 with actual Entry width; 64transfers+actualCOW N1029 vs old3586; outer N3188 vs eager3369; exactN/N-1/after-failurefresh preserved",
+        "review": "Independent exact-source and full output accepted for this mechanism only"
+      },
+      {
+        "source": "81af8fc015e0d95d85a36e923e03bccb0fe37395",
+        "published_same_tree": "3efe04cc6f722e2b7c9b567fd0ef3a8fda3561c3",
+        "tree": "fcebf522899b5af5519239729f05985a81360909",
+        "mechanism": "Request-local POD carrier qualification keyed by current immutable module and actually registered Type nodes; false is candidate inventory only, true requires complete original cold success and prepaid publication. Foreign/equal/temporary nodes remain cold; no dynamic permissions cached.",
+        "old_oracle": "Six complete full-reference controls; all preceding outer/tag/SSA controls retained",
+        "verify_library": "541/541",
+        "group": "9 pass / original Map Verify ResourceLimit V1; native skipped",
+        "component_boundaries": "Actual-root registration+cold publication N484; complete carrier x64 N736 versus uncached14952; N-1 and after-failure fresh preserved",
+        "run": "out/runs/map-verify-pod-carrier-20261110T064541Z",
+        "acceptance_boundary": "Mechanism/library evidence only; complete Map not accepted"
+      },
+      {
+        "source": "0acd176ba20d065193a5aacfe430f3da93dbdf84",
+        "published_same_tree": "0d34d9888a90d59a5f02f97192ebd2a1367c39be",
+        "published_parent": "3efe04cc6f722e2b7c9b567fd0ef3a8fda3561c3",
+        "tree": "06384ae3add3367542ab2907744243385656c821",
+        "mechanism": "Complete read-only no-new-facts proof only for shared distinct SSA pages, after both full metadata inventories; uncertain/new-information cases execute original eager merge with original error prefix and actual COW fees",
+        "old_oracle": "Five complete frozen eager-merge controls; current stronger Fresh set/input-isolation assertions retained; rejected shared probe cost explicitly preserved",
+        "verify_library": "546/546",
+        "group": "9 pass / original Map Verify ResourceLimit V1; native skipped",
+        "component_boundaries": "Shared-page component N287 versus eager352; both N-1/fresh, complete outputs, semantic-error prefixes and aliases checked",
+        "run": "out/runs/map-verify-shared-ssa-keep-20261110T070022Z",
+        "acceptance_boundary": "All current Sum work completed in same-fee diagnostic, but first resource function remains incomplete; no full Map acceptance"
       }
     ],
     "verify_same_fee_diagnostics": [
@@ -406,15 +440,124 @@
         "helper_successful_qualified_same_shape": 87958,
         "content_total": 581764,
         "interpretation": "Only120806 Content cost belongs to the helper; incoming merge311942, SSA COW104079 and local COW31367 remain separate. Prefix totals are not whole-request savings or all-removable work."
+      },
+      {
+        "source": "94e252197460569d51f89d8b881813c7c1da1909",
+        "run": "out/runs/map-verify-ledger-20261110-5-94e25219",
+        "handoff_sha256": "4672bcdd11618ea58078fbbbfd12a544d19f7defdf7b0a92d5c4e0f1353f0f4a",
+        "first_complete_records": 1654727,
+        "second_complete_records": 1740342,
+        "first_complete_34_sum_cost": 1937676,
+        "same_complete_34_saving": 321906,
+        "same_complete_57_before": 4512587,
+        "same_complete_57_after": 3871643,
+        "same_complete_57_saving": 640944,
+        "complete_sum_summaries": 68,
+        "final_records_entry_remaining": 561404,
+        "final_records_prefix": 561381,
+        "remaining": 23,
+        "rejected_charge": 32,
+        "cutoff": "final records right page metadata; resource verification not entered",
+        "cache_calls": 102020,
+        "cache_hits": 99577,
+        "cache_misses": 2443,
+        "cache_published": 2374,
+        "cache_negative": 69,
+        "cache_total_work": 685044,
+        "helper_qualification_work": 680501,
+        "original_complete_addressed_copy_sum_work": 578481,
+        "interpretation": "Net includes all table, deep-release and actual COW cost plus8 small calls increasing654; before-run had only57 complete summaries, so no68-summary net comparison claimed."
+      },
+      {
+        "source": "c21e1572c5ec9ae45799eb27c34d203da49f02e8",
+        "run": "out/runs/map-verify-ledger-20261110-6-c21e1572",
+        "handoff_sha256": "6caef0951eacf235c4e22c3bd21af94f691c85afb56b255b15fe9d0029e7a0e1",
+        "accepted_work": 10000000,
+        "remaining": 0,
+        "rejected_charge": 1,
+        "complete_sum_summaries": 68,
+        "original_inputs_and_limits": true,
+        "source_restored_byte_exact_and_clean": true,
+        "same_complete_68_before": 3973975,
+        "same_complete_68_after": 3662241,
+        "same_complete_68_saving": 311734,
+        "final_records_entry_remaining": 873138,
+        "complete_sum_final_functions": 0,
+        "cutoff": "Final records Content cost; resource verification not entered",
+        "interpretation": "All registration, Entry width/init/drop, strong-Arc deep release and actual COW included. Both final records are incomplete; no whole-final or whole-request savings claimed."
+      },
+      {
+        "source": "81af8fc015e0d95d85a36e923e03bccb0fe37395",
+        "run": "out/runs/map-verify-ledger-20261110-7-81af8fc0",
+        "handoff_sha256": "a7ecdeafc27a9bf36ef451b1da73de00b077cc0fe8e7446c2f400463f699ea87",
+        "accepted_work": 9999980,
+        "remaining": 20,
+        "rejected_charge": 32,
+        "complete_sum_summaries": 68,
+        "original_inputs_and_limits": true,
+        "source_restored_byte_exact_and_clean": true,
+        "same_module_to_final_entry_before": 9126862,
+        "same_module_to_final_entry_after": 8751268,
+        "same_scope_saving": 375594,
+        "raw_preflight_added_cost": 21877,
+        "final_records_entry_remaining": 1248732,
+        "complete_sum_final_functions": 0,
+        "cutoff": "Final records remains incomplete; resource verification not entered",
+        "interpretation": "Net375594 includes actual module registry, cold fallback, probes/publication/release and raw-preflight regression21877; not a complete-request result."
+      },
+      {
+        "source": "0acd176ba20d065193a5aacfe430f3da93dbdf84",
+        "run": "out/runs/map-verify-ledger-20261110-8-0acd176b",
+        "handoff_sha256": "cf4029f5646ab0aa0510f0c2b53e40a2453ff407ceb9b36e2c186705da123110",
+        "accepted_work": 9996518,
+        "remaining": 3482,
+        "rejected_charge": 27648,
+        "complete_sum_summaries": 68,
+        "original_inputs_and_limits": true,
+        "source_restored_byte_exact_and_clean": true,
+        "same_complete_68_before": 3564078,
+        "same_complete_68_after": 3122604,
+        "same_complete_68_saving": 441474,
+        "regressed_completed_functions": 20,
+        "regressed_function_added_cost": 2016,
+        "complete_sum_final_functions": 34,
+        "complete_sum_phase_cost": 4757240,
+        "sum_end_remaining": 116204,
+        "resource_records_entry_remaining": 58996,
+        "resource_records_accepted_prefix": 55514,
+        "completed_resource_functions": 0,
+        "cutoff": "First resource records completed Slots::new/Plan::extend_slots/Plan::writes; first liveness dense inventory requests27648 with3482 remaining; no liveness fixed point or Transfer executed",
+        "interpretation": "Same68 summaries net441474 includes20 regressed solves adding2016 and all successful/rejected probes plus actual COW. Complete current Sum4757240 has no full prior-phase comparison; the first cold liveness rejection does not establish its whole-solve dominance."
       }
     ],
     "same_fee_diagnostic_invariants": "Every diagnostic used original5008 source and default limits, preserved original charges, counted accepted work only, then restored exact source bytes and clean tree.",
     "latest_gate_evidence": {
-      "run": "out/runs/map-verify-tag-cache-20261110T062358Z",
-      "library_log_sha256": "f112aef627c046f6167762fbfd93e3f077f98ead60d232980538f9ba230ebccb",
-      "group_log_sha256": "6b3f21ae9bddddf85ec151c3a475078a6cd0705bcc2f7a940eaaac1c36127c90",
+      "source": "0acd176ba20d065193a5aacfe430f3da93dbdf84",
+      "tree": "06384ae3add3367542ab2907744243385656c821",
+      "run": "out/runs/map-verify-shared-ssa-keep-20261110T070022Z",
+      "library_log_sha256": "19fd535a3f117d3845a548ad6d01210e6d1991785842d2521ee42535d8c12b82",
+      "group_log_sha256": "763b97c9bd4825529626f316357cb34b77f4f5aa685955e33f95feacbba28e2a",
+      "verify_library": {
+        "passed": 546,
+        "failed": 0
+      },
+      "non_native_group": {
+        "passed": 9,
+        "failed": 1,
+        "sole_failure": "Original5008B Map Verify ResourceLimit, verification_runs=1"
+      },
       "strict_last_source": "872e5eca3d5e171c8ebbf01c258fe0ffffd43397",
-      "strict_current_pending": true
+      "strict_current_pending": true,
+      "native_current_pending": true
+    },
+    "current_unaccepted_candidate": {
+      "source": "99e542b98e01b74bc157ddbd2fbfbe65d7bfe333",
+      "tree": "69ee1876f8743b4d6411e80374ea8bfa9b3bdc57",
+      "scope": "Actual initialized-local inventory representation from archived ad4ada448",
+      "run": "out/runs/map-verify-adaptive-initialization-20261110T072657Z",
+      "verify_library": "551/551; all prior546 test names retained as confirmed by root",
+      "non_native_group": "9 pass / original Map Verify ResourceLimit V1; native skipped",
+      "status": "Frozen and tested as a candidate only; ninth same-fee diagnostic and whole-source net effect pending; unpublished and unaccepted"
     }
   },
   "first_failures": [
