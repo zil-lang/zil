@@ -18,7 +18,7 @@ PR73从main21b1最小提取五个生产文件，补重借用与RHS准备失败�
 
 旧三条混合ref的已交付部分由main承载，Store已合PR73，未完Map和一般语言能力由上述入口及本看板承接；共享读预检d2bc7accd等未采用候选保留在固定归档，须有当前完整消费者净收益才采用。本轮用户说明已解决旧“等待明确确认”的接续歧义；实际删除情况以接续记录为准。此前退役13条原ref和PR71临时ref、原自动审批拒绝及首败仍保留在[历史分支核对](records/branch-reconciliation-20261110.json)，不改写历史。
 
-Map原5008B与7583B库保持原字节。最新发布8209b1e3/执行b327bc9b同treebaf0f43f；已接入main PR75/76。Verify585/585及精确独审通过，真实POD命中、非空捕获3输入重放与最终拒绝控制均保；原Source组仍9/10，Map仍默认Verify限额。第13完整同费对照确认稳定输入复用将Sum4517438降至3790904，净省726534；34个Sum最终函数完成，资源目前仅完成35次推导，最终validate=true未入。正按前置费用1053864热点实现完整SSA移动矩阵表示，未叠其他候选。原16build/64native与当前严格门待验；本轮16分支中12编译专项均保留，非编译无新增可删项，Map及1.0父门开放，详[语言接续](records/ordinary-collections-continuation.json)。
+Map原5008B与7583B库保持原字节。最新发布637d98d3/执行5b770e30同tree3f666f93；完整SSA移动矩阵已补实际行头/分派/释放收费。592项实际591过/1个旧五预算pin数组不符，原585测试及7新完整对照保；五组raw/Wire N−1/fresh已过，正做第14完整旧实现因果对照再修数值。原Source仍9/10、Map默认Verify限额；此前checkpoint完整Sum净省726534与34final证据保留。资源最终门、原16build/64native和严格门待验；PR78最新main在当前固定对照后同步。编译专项及其并发goal更新保留，唯一普通施工入口不变；详[语言接续](records/ordinary-collections-continuation.json)。
 
 ## G1 · 基础类型与模式
 
@@ -424,7 +424,7 @@ Map原5008B与7583B库保持原字节。最新发布8209b1e3/执行b327bc9b同tr
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | Chat语言接续 · task/ordinary-collections；两核独立复核 | 发布8209b1e3/执行b327同tree；Verify585/585及真实POD/非空捕获3输入命中和最终拒绝通过。第13完整Sum4517438→3790904净省726534、34final全过；原Source9/10，Map仍Verify限额，资源final未入。下一片只改实际热点的完整SSA移动矩阵，原16build/64native与当前严格门待；Map未完成。 |
+| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | Chat语言接续 · task/ordinary-collections；两核独立复核 | 发布637d98d3/执行5b7同tree。完整移动矩阵7新对照通过且metadata收费已补；全库591/1仅五旧pin数值漂移，第14正核完整旧实现费用因果。原Source9/10、Map仍Verify限额；checkpoint完整净省726534保留。后续实际热点、7原预算门、16build/64native及当前严格门仍待；Map未完成。 |
 
 </details>
 
@@ -548,7 +548,7 @@ Map原5008B与7583B库保持原字节。最新发布8209b1e3/执行b327bc9b同tr
 | --- | --- | --- | --- | --- | --- |
 | G10.6.1 | 语言初稿开发预览：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 已合入 | — | — | [PR51 验收][e-pr51]：精确源码 `a8c7953e7` 默认5190/0、参考5078/0、文本70/0；双严格检查、release、10项工程门及远端源码恢复构建运行通过。有限预览不替代 B0/完整语言。 |
 | G10.6.2 | 通用 Native 库与异步资源联合验收：精确源码、真实消费者、独审和远端恢复 | 已合入 | — | — | `main@e800b39d5`：默认5269/0、参考5157/0、文本70/0；真实联合双后端 O0/O2、3735文件远端恢复/空缓存构建、16次 API 构建/128次运行/56次故障注入均通过。[本批记录][e-native-foundations]。 |
-| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | Chat语言接续 · root集成 | 有限语言范围及PR71、PR73已接受；最新mainfc6620a3（含PR74及编译专项已合PR75/76），Store本片完整证据在主树，Map和一般缺口继续。非编译未完工作由本对话统一承接，当前单一task/ordinary-collections；旧混合ref按固定归档与具体任务接续清理，实际状态见records/ordinary-collections-continuation.json。编译专项由原对话负责，不关闭语言1.0或其他父门。 |
+| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | Chat语言接续 · root集成 | 有限语言范围及PR71、PR73已接受；最新main947063a6（含PR74及编译专项已合PR75/76/78；当前固定费用对照后同步PR78），Store本片完整证据在主树，Map和一般缺口继续。非编译未完工作由本对话统一承接，当前单一task/ordinary-collections；旧混合ref按固定归档与具体任务接续清理，实际状态见records/ordinary-collections-continuation.json。编译专项由原对话负责，不关闭语言1.0或其他父门。 |
 | G10.6.4 | 全量回归中的旧Store/实际callback Package准入 | 已合入 | — | — | `6c1ac6fdf`已合候选；恢复旧flat callback/Store真实root快路，保留新borrowed Product分类，84项与原CLI/window正反例专项通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.5 | 新共享构造检查的两核实际独占loan发现与旧fee保持 | 已合入 | — | — | `e5c52c936/396c183c`已合：复用付费建表，无额外扫描，原两预算控制恢复原值、28独占构造/slot控制通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.6 | 默认worker深调用与life组合栈溢出 | 已合入 | — | — | 既有递归帧修复由main@222e550af验收；source_life合流回归的子项也已由main@0e770a26e交付。原默认栈/深调用/费用控制保留。 |
