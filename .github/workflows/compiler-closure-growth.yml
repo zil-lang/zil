@@ -1,0 +1,151 @@
+name: Closure growth compile-cost experiment
+on:
+  push:
+    branches: [task/G10.5.1.4]
+    paths:
+      - '.task/G10.5.1.4/apply.py'
+      - '.github/workflows/compiler-closure-growth.yml'
+permissions:
+  contents: write
+concurrency:
+  group: compiler-closure-growth
+  cancel-in-progress: false
+jobs:
+  experiment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Prepare pinned toolchain and paired baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/closure-setup" .task/G10.5.1.4/bench
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          cargo fetch --locked
+          sudo apt-get update -qq
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/closure-llvm" > "$RUNNER_TEMP/closure-setup/llvm.log" 2>&1
+          echo "ZIL_CLANG=$RUNNER_TEMP/closure-llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/closure-llvm/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/closure-llvm/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/closure-llvm/bin" >> "$GITHUB_PATH"
+          git fetch --depth=1 --no-tags origin cadc656c0caefa70827f7ec1e608a04291c8ae9f
+          git worktree add --detach "$RUNNER_TEMP/closure-base" cadc656c0caefa70827f7ec1e608a04291c8ae9f
+          git fetch --depth=1 --no-tags origin 95af0f0c205a0892e6087f5304ad9981461a7fed
+          for file in corpus.py measure.py; do
+            git show 95af0f0c205a0892e6087f5304ad9981461a7fed:.task/G10.5.1.3/bench/$file > .task/G10.5.1.4/bench/$file
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('.task/G10.5.1.4/bench/corpus.py');s=p.read_text();s=s.replace("('shared4096','graph',4096)]","('shared4096','graph',4096),('owned64','resource',64)]");assert 'owned64' in s;p.write_text(s)
+          p=Path('.task/G10.5.1.4/bench/measure.py');s=p.read_text().replace('e69091059ed999a5279303cdd07e9f602703f079','cadc656c0caefa70827f7ec1e608a04291c8ae9f')
+          s=s.replace("arms=['base','cand','rust'] if mode=='O2' else ['base','cand']","arms=['base','cand','rust'] if mode=='O2' and case['group']=='resource' else ['base','cand']")
+          s=s.replace("if not eq:raise AssertionError('planner-only optimization changed emitted text')","if not eq and case['group']!='resource':raise AssertionError('unaffected workload changed emitted text')")
+          s=s.replace("arms=['base','cand','rust'];random.Random", "arms=(['base','cand','rust'] if case['group']=='resource' else ['base','cand']);random.Random")
+          s=s.replace("# Code equality is checked for every native pair. Runtime measurement uses", "# Unaffected code equality and resource behavioral equivalence are separate. Runtime uses")
+          p.write_text(s)
+          p=Path('.task/G10.5.1.4/controls.py');s=p.read_text();old='+repr([str(obj),\'-Wl,--wrap=realloc\',\'-Wl,--wrap=free\'])+\'\\nassert "-c" not in sys.argv and "ir" not in sys.argv\\nos.execv(cmd[0],cmd)\\n\''
+          new='+\'( [] if "-c" in sys.argv else \'+repr([str(obj),\'-Wl,--wrap=realloc\',\'-Wl,--wrap=free\'])+\')\\nos.execv(cmd[0],cmd)\\n\''
+          assert old in s;s=s.replace(old,new);p.write_text(s)
+          PY
+      - name: Freeze and immediately preserve candidate source
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile .task/G10.5.1.4/*.py .task/G10.5.1.4/bench/*.py
+          python3 .task/G10.5.1.4/apply.py
+          rustfmt --edition 2024 crates/zil-backend-llvm/src/emit/byte_buffer.rs
+          git diff --check
+          git diff > "$RUNNER_TEMP/closure-setup/candidate.patch"
+          git add -- crates/zil-backend-llvm/src/emit/byte_buffer.rs crates/zil-backend-llvm/src/emit/byte_buffer/reserve_tests.rs .task/G10.5.1.4/controls.py .task/G10.5.1.4/bench/*.py
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Outline byte growth without changing capacity fast-path or failure semantics; pending validation'
+          git rev-parse HEAD > "$RUNNER_TEMP/closure-setup/source.txt"
+          git fetch --no-tags origin refs/heads/task/G10.5.1.4
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git push origin HEAD:refs/heads/task/G10.5.1.4
+          git archive --format=tar.gz HEAD > "$RUNNER_TEMP/closure-setup/source.tar.gz"
+          rustc -vV > "$RUNNER_TEMP/closure-setup/rustc.txt"
+      - name: Full affected backend controls and strict lint
+        id: controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/closure-tests"
+          cargo test --locked --offline -p zil-backend-llvm --features llvm-api --lib 2>&1 | tee "$RUNNER_TEMP/closure-setup/backend-tests.log"
+          grep -E 'reserve_fast_path_keeps_checks_without_inline_allocation_or_public_symbols .*ok' "$RUNNER_TEMP/closure-setup/backend-tests.log"
+          cargo test --locked --offline -p zil-llvm-api --features native --lib 2>&1 | tee "$RUNNER_TEMP/closure-setup/llvm-tests.log"
+          cargo clippy --locked --offline -p zil-backend-llvm --features llvm-api --lib --tests -- -D warnings 2>&1 | tee "$RUNNER_TEMP/closure-setup/clippy.log"
+          cargo fmt --all -- --check
+      - name: Separate release compilers
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+          CARGO_TARGET_DIR="$RUNNER_TEMP/closure-base-target" cargo build --locked --offline --release --manifest-path "$RUNNER_TEMP/closure-base/Cargo.toml" -p zil-cli > "$RUNNER_TEMP/closure-setup/base-build.log" 2>&1
+          CARGO_TARGET_DIR="$RUNNER_TEMP/closure-candidate-target" cargo build --locked --offline --release -p zil-cli > "$RUNNER_TEMP/closure-setup/candidate-build.log" 2>&1
+      - name: Real failure and pre-reserved hot-path controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .task/G10.5.1.4/controls.py --base "$RUNNER_TEMP/closure-base-target/release/zil" --candidate "$RUNNER_TEMP/closure-candidate-target/release/zil" --out "$RUNNER_TEMP/closure-controls" 2>&1 | tee "$RUNNER_TEMP/closure-setup/controls.log"
+      - name: Frozen nine-case paired compile and runtime matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .task/G10.5.1.4/bench/measure.py --base "$RUNNER_TEMP/closure-base-target/release/zil" --candidate "$RUNNER_TEMP/closure-candidate-target/release/zil" --out "$RUNNER_TEMP/closure-data" --rounds 5 2>&1 | tee "$RUNNER_TEMP/closure-setup/paired.log"
+      - name: Existing native allocation-failure consumer
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/research/native-api-validation/validate.py --repo "$GITHUB_WORKSPACE" --cli "$RUNNER_TEMP/closure-candidate-target/release/zil" --clang "$ZIL_CLANG" --out "$RUNNER_TEMP/closure-consumer" 2>&1 | tee "$RUNNER_TEMP/closure-setup/consumer.log"
+      - name: Preserve full observed evidence and failure state
+        if: ${{ always() }}
+        shell: bash
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,pathlib,shutil,tarfile,hashlib
+          P=pathlib.Path;t=P(os.environ['RUNNER_TEMP']);dst=P('.task/G10.5.1.4/runs')/os.environ['GITHUB_RUN_ID'];dst.mkdir(parents=True,exist_ok=False);data=t/'closure-data'
+          for name in ('manifest.json','summary.json','rows.jsonl','cells.json','failures.json','equivalence.json','runtime.jsonl'):
+              if (data/name).exists():shutil.copyfile(data/name,dst/name)
+          for folder,name in [('closure-controls','extra-controls.json'),('closure-consumer','consumer.json')]:
+              if (t/folder/'summary.json').exists():shutil.copyfile(t/folder/'summary.json',dst/name)
+          with tarfile.open(dst/'raw.tar.gz','w:gz') as a:
+              for path,label in [(t/'closure-setup','setup'),(t/'closure-controls','controls'),(data/'logs','logs'),(data/'runtime-logs','runtime-logs'),(data/'corpus','corpus')]:
+                  if path.exists():a.add(path,arcname=label)
+              work=data/'work/owned32/O2/0'
+              if work.exists():
+                  for path in work.rglob('*.ll'):a.add(path,arcname='owned32-ir/'+str(path.relative_to(work)))
+          assert (dst/'raw.tar.gz').stat().st_size<48*1024*1024
+          source=t/'closure-setup/source.txt'
+          receipt={'baseline':'cadc656c0caefa70827f7ec1e608a04291c8ae9f','recipe':os.environ['GITHUB_SHA'],'measured_source':source.read_text().strip() if source.exists() else None,'status_before_preservation':os.environ['PRIOR_STATUS'],'files':{p.name:{'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in dst.iterdir() if p.is_file()},'main_modified':False,'external_ai_review_requested':False,'acceptance':'Pending direct review and runtime/weighted audit'}
+          (dst/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt,indent=2))
+          PY
+          git fetch --no-tags origin refs/heads/task/G10.5.1.4
+          expected="$GITHUB_SHA"
+          if test -f "$RUNNER_TEMP/closure-setup/source.txt"; then expected="$(cat "$RUNNER_TEMP/closure-setup/source.txt")"; fi
+          test "$(git rev-parse FETCH_HEAD)" = "$expected"
+          git add -- ".task/G10.5.1.4/runs/$GITHUB_RUN_ID"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Preserve closure growth experiment $GITHUB_RUN_ID; no unverified merge"
+          git push origin HEAD:refs/heads/task/G10.5.1.4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: closure-growth-${{ github.run_id }}
+          path: |
+            .task/G10.5.1.4
+            ${{ runner.temp }}/closure-setup
+          retention-days: 30
