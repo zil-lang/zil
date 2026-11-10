@@ -1,0 +1,199 @@
+{
+  "pr": 76,
+  "head": "d8418adb5b55d271a423cb94df3e6151c52ed743",
+  "merged_commit": "fc6620a3b975258643eb8f9c3ee77d868ff67a69",
+  "main_observed": "fc6620a3b975258643eb8f9c3ee77d868ff67a69",
+  "tested_tree": "80e7febddf4e2461b08b2ade57ce9b1836bfab46",
+  "production_blobs": {
+    "crates/zil-backend-llvm/src/emit.rs": "039ef4f90630f899f6963f628263a09e1f446fd2",
+    "crates/zil-backend-llvm/src/emit/cleanup_tails.rs": "419a5ab75998227ae048515bbda28f8829c78ff4",
+    "docs/guide/cleanup-code-sharing.md": "0849c77ade4662559c5c2c5fd810fc94f6ae8131"
+  },
+  "ci": [
+    {
+      "run": 42786464340,
+      "artifact": 13750364636,
+      "archive_sha256": "73a9e08c61b7caf8b42f18c602cc20d625c3b078fce6ddd1b63042da663d7cab",
+      "results": {
+        "commit": "298cbf0d2a79c3baebc8b029be3956a242fd4a62",
+        "steps": {
+          "fmt": "success",
+          "workspace": "success",
+          "reference": "success",
+          "consumer": "success",
+          "clippy": "success",
+          "text": "success",
+          "ci_test": "success"
+        },
+        "logs": {
+          "fmt": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "test_summaries": 0,
+            "totals": {
+              "passed": 0,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "workspace": {
+            "sha256": "6001635163ec95c8b28f8bea7421fab22849fdf55298678395c689aed816a484",
+            "test_summaries": 429,
+            "totals": {
+              "passed": 5887,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "reference": {
+            "sha256": "1223a48a4624f25b1a7a8eef2a99996c1f5a6f6a35918053cd9148388eac2cac",
+            "test_summaries": 429,
+            "totals": {
+              "passed": 5773,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "clippy": {
+            "sha256": "d9f89f164ad887e8c3af82d30318f1c9a0362f05ef870a8ee45f2c6d0ff56538",
+            "test_summaries": 0,
+            "totals": {
+              "passed": 0,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "text-reference": {
+            "sha256": "42e592ff17d1a06a99609202e7d3e0dc846e2ccc004bf7fb670304a277ee7afa",
+            "test_summaries": 10,
+            "totals": {
+              "passed": 70,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "migration-runner": {
+            "sha256": "d041de1238c0ff86f970a1ff7932c08b9ea56782fc94936eb6589c72421feaf7",
+            "test_summaries": 0,
+            "totals": {
+              "passed": 0,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          }
+        }
+      }
+    },
+    {
+      "run": 42786464246,
+      "artifact": 13750148118,
+      "archive_sha256": "11fe2ea3daafac82f894c558f012abf1b5f0f9af425015b2769a021bcabd29e6",
+      "results": {
+        "commit": "298cbf0d2a79c3baebc8b029be3956a242fd4a62",
+        "steps": {
+          "fmt": "success",
+          "workspace": "success",
+          "reference": "success",
+          "consumer": "success",
+          "clippy": "success",
+          "text": "success",
+          "ci_test": "success"
+        },
+        "logs": {
+          "fmt": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "test_summaries": 0,
+            "totals": {
+              "passed": 0,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "workspace": {
+            "sha256": "60a72a6ab0df7e30215b802c9cbadae874850f87a249eff729118d14ece7a15d",
+            "test_summaries": 429,
+            "totals": {
+              "passed": 5887,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "reference": {
+            "sha256": "d676890980fbd37940c16a7e3c8b90023a11a84dcc5888720e9840c0a0764d24",
+            "test_summaries": 429,
+            "totals": {
+              "passed": 5773,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "clippy": {
+            "sha256": "d0acee9d39084670c4d1c0a84317115416974cfb2109258ae3c10ae7b6d44d8f",
+            "test_summaries": 0,
+            "totals": {
+              "passed": 0,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "text-reference": {
+            "sha256": "4804e046c277bcb35efa207c2a765c26a8e7cd38d688e4ab9084525fe2c511e8",
+            "test_summaries": 10,
+            "totals": {
+              "passed": 70,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "migration-runner": {
+            "sha256": "e74e963093f9c841efb8f62d12942349e4ddb07a30514838ea63df7feb1c5a53",
+            "test_summaries": 0,
+            "totals": {
+              "passed": 0,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          }
+        }
+      }
+    }
+  ],
+  "benchmark_run": 42785071418,
+  "benchmark_source": "0caf3711441b9744ae1ba1b1699bb09c0ce839de",
+  "owned32_o2_body_ms": {
+    "before": 889.216,
+    "accepted": 573.937,
+    "rust": 240.693
+  },
+  "runtime_boundary": "owned32 about 5% slower than baseline, within predeclared 10%; not zero regression",
+  "review": "current Chat direct review under explicit owner authorization, no external AI review",
+  "open_work": "resident byte budgets, Cranelift, general resource-aware partitioning and 96/128 closure scale",
+  "updated_at": "2026-11-10T18:16:53.874833+08:00",
+  "goal_read_before": "28cccdc4d775b11ff37f0d189f7900c3ba80d6a9",
+  "goal_commit": "1c5be2cab32f28b8f694002180b96131d159eef8",
+  "goal_blob_readback": "7be5d5d859a3d6e80cbf3eb2eae3095cee94cec5",
+  "completed_production_branch_deleted": "task/closure-cleanup-sharing"
+}
