@@ -1,6 +1,7 @@
 //! Inline owning environments. Only independently verified operations enter
 //! these routines; neither a copied LIR nor a flag grants ownership authority.
 use super::*;
+mod destructor_boundary;
 
 pub(super) fn owns(definition: &ClosureDefinition) -> bool {
     definition.captures.iter().any(|ty| {
@@ -51,14 +52,32 @@ pub(super) fn drop_functions(
     resources: &[ResourceDefinition],
 ) -> CompileResult<m::Code> {
     let mut text = m::Code::new();
+    let bounded = closures
+        .iter()
+        .filter(|d| destructor_boundary::capture(d).is_some())
+        .take(16)
+        .count()
+        == 16;
     // Every concrete environment has an addressable field cleanup entry.
     // Resource-free callbacks simply return; this preserves unique field slots
     // without inventing a capture cleanup obligation.
     for definition in closures {
+        let boundary = if bounded {
+            destructor_boundary::capture(definition)
+        } else {
+            None
+        };
+        if let Some(capture) = boundary {
+            text.append(destructor_boundary::entry(definition, capture));
+        }
         let env = environment_type(definition.id);
         text.append(m::Code::from(vec![
             m::Event::Begin(m::Function {
-                name: format!("zil.closure.drop.{}", definition.id.0),
+                name: if boundary.is_some() {
+                    destructor_boundary::worker_name(definition.id)
+                } else {
+                    format!("zil.closure.drop.{}", definition.id.0)
+                },
                 linkage: m::Linkage::Internal,
                 signature: m::Signature {
                     result: m::Ty::Void,
@@ -70,7 +89,11 @@ pub(super) fn drop_functions(
                     }],
                     variadic: false,
                 },
-                attrs: vec![],
+                attrs: if boundary.is_some() {
+                    vec![m::Attr::NoInline]
+                } else {
+                    vec![]
+                },
                 blocks: None,
             }),
             m::Event::Label("entry".into()),
