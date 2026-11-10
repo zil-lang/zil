@@ -1,6 +1,26 @@
 use super::*;
-// Frozen lookup traversal; the Tree lattice and observation merge are unchanged.
-fn lookup_join(left: &mut Facts, right: &Facts, b: &mut Budget) -> CompileResult<bool> {
+// Frozen pre-page representation and lookup traversal. No page operation is
+// shared with this oracle; compare the complete logical contents afterward.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct LookupFacts {
+    locals: BTreeMap<LocalId, Arc<Tree>>,
+    values: BTreeMap<ValueId, Arc<Tree>>,
+    captures: BTreeMap<u32, Arc<Tree>>,
+    valid: BTreeSet<ValueId>,
+    partial: Option<partial_places::State>,
+}
+impl From<&Facts> for LookupFacts {
+    fn from(f: &Facts) -> Self {
+        Self {
+            locals: f.locals.keyed(),
+            values: f.values.keyed(),
+            captures: f.captures.clone(),
+            valid: f.valid.clone(),
+            partial: f.partial.clone(),
+        }
+    }
+}
+fn lookup_join(left: &mut LookupFacts, right: &LookupFacts, b: &mut Budget) -> CompileResult<bool> {
     if left.locals.is_empty() && left.captures.is_empty() {
         return Ok(false);
     }
@@ -60,19 +80,28 @@ fn nested(missing: bool, variant: u32, birth: Birth) -> Arc<Tree> {
 }
 fn facts(count: u32, variant: u32, birth: Birth) -> Facts {
     Facts {
-        locals: BTreeMap::from([(LocalId(0), nested(false, variant, birth))]),
-        values: (0..count)
-            .map(|i| {
-                (
-                    ValueId(i),
-                    if i % 2 == 0 {
-                        leaf(i % 3 == 0, birth)
-                    } else {
-                        nested(false, variant, birth)
-                    },
-                )
-            })
-            .collect(),
+        locals: direct_index::Locals::from_keyed(
+            1,
+            BTreeMap::from([(LocalId(0), nested(false, variant, birth))]),
+        )
+        .unwrap(),
+        values: ssa_values::Values::from_keyed(
+            count as usize,
+            (0..count)
+                .map(|i| {
+                    (
+                        ValueId(i),
+                        if i % 2 == 0 {
+                            leaf(i % 3 == 0, birth)
+                        } else {
+                            nested(false, variant, birth)
+                        },
+                    )
+                })
+                .collect(),
+            &mut Budget::new(&Limits::default()),
+        )
+        .unwrap(),
         captures: BTreeMap::from([(0, nested(false, variant, birth))]),
         valid: BTreeSet::from([ValueId(1), ValueId(variant + 2)]),
         partial: None,
@@ -85,13 +114,18 @@ fn sorted_join_preserves_complete_nested_trees_origins_and_observations() {
             let left = facts(count, 0, Birth::Incoming);
             let right = facts(count, 1, birth);
             let mut sorted = left.clone();
-            let mut lookup = left;
+            let mut lookup = LookupFacts::from(&left);
             let a = sorted
                 .join(&right, &mut Budget::new(&Limits::default()))
                 .unwrap();
-            let c = lookup_join(&mut lookup, &right, &mut Budget::new(&Limits::default())).unwrap();
+            let c = lookup_join(
+                &mut lookup,
+                &LookupFacts::from(&right),
+                &mut Budget::new(&Limits::default()),
+            )
+            .unwrap();
             assert_eq!(a, c);
-            assert_eq!(sorted, lookup);
+            assert_eq!(LookupFacts::from(&sorted), lookup);
             assert_eq!(right, facts(count, 1, birth));
         }
     }
@@ -114,32 +148,54 @@ fn sorted_join_preserves_complete_nested_trees_origins_and_observations() {
 #[test]
 fn sorted_join_rejects_wrong_keys_and_missing_branch_slots() {
     let left = facts(3, 0, Birth::Incoming);
-    let mut wrong = facts(3, 1, Birth::Created);
+    let mut wrong = LookupFacts::from(&facts(3, 1, Birth::Created));
     let tree = wrong.values.remove(&ValueId(1)).unwrap();
     wrong.values.insert(ValueId(9), tree);
-    for sorted in [false, true] {
-        let mut copy = left.clone();
-        let mut b = Budget::new(&Limits::default());
-        let errors = if sorted {
-            copy.join(&wrong, &mut b)
-        } else {
-            lookup_join(&mut copy, &wrong, &mut b)
-        }
-        .unwrap_err();
-        assert!(
-            errors
-                .iter()
-                .all(|e| e.category == zil_base::ResultCategory::SafeReject)
-        );
-    }
+    // Canonical pages cannot represent a same-length wrong-key inventory.
+    // Reject it at the keyed adapter, without silently renumbering the values.
+    assert!(
+        ssa_values::Values::from_keyed(
+            3,
+            wrong.values.clone(),
+            &mut Budget::new(&Limits::default())
+        )
+        .unwrap_err()
+        .iter()
+        .all(|e| e.category == zil_base::ResultCategory::SafeReject)
+    );
+    assert!(
+        lookup_join(
+            &mut LookupFacts::from(&left),
+            &wrong,
+            &mut Budget::new(&Limits::default())
+        )
+        .is_err()
+    );
     for table in [0, 1, 2] {
         let mut missing = left.clone();
         match table {
             0 => {
-                missing.locals.remove(&LocalId(0));
+                missing.locals = direct_index::Locals::default();
             }
             1 => {
-                missing.values.remove(&ValueId(1));
+                let mut keyed = missing.values.keyed();
+                keyed.remove(&ValueId(1));
+                assert!(
+                    ssa_values::Values::from_keyed(
+                        3,
+                        keyed.clone(),
+                        &mut Budget::new(&Limits::default())
+                    )
+                    .is_err()
+                );
+                // A different logical length is representable, but still
+                // rejected by a join against this function's full inventory.
+                missing.values = ssa_values::Values::build(
+                    2,
+                    &mut Budget::new(&Limits::default()),
+                    |index, _| Ok(left.values.get(&ValueId(index as u32)).unwrap().clone()),
+                )
+                .unwrap();
             }
             _ => {
                 missing.captures.remove(&0);
@@ -157,9 +213,21 @@ fn sorted_join_rejects_wrong_keys_and_missing_branch_slots() {
         );
         // The old traversal accepted a broken prefix. It is not a valid
         // same-function state; the complete new key check explicitly rejects it.
+        let mut old_missing = LookupFacts::from(&left);
+        match table {
+            0 => {
+                old_missing.locals.remove(&LocalId(0));
+            }
+            1 => {
+                old_missing.values.remove(&ValueId(1));
+            }
+            _ => {
+                old_missing.captures.remove(&0);
+            }
+        }
         lookup_join(
-            &mut left.clone(),
-            &missing,
+            &mut LookupFacts::from(&left),
+            &old_missing,
             &mut Budget::new(&Limits::default()),
         )
         .unwrap();
@@ -178,7 +246,11 @@ fn sorted_join_has_an_exact_smaller_request_boundary() {
         if sorted {
             state.join(&right, &mut b)
         } else {
-            lookup_join(&mut state, &right, &mut b)
+            lookup_join(
+                &mut LookupFacts::from(&state),
+                &LookupFacts::from(&right),
+                &mut b,
+            )
         }
     };
     let minimum = |sorted| {
