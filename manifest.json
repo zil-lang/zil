@@ -1,10 +1,10 @@
 {
   "format": 1,
-  "created_utc": "2026-11-10T04:56:07.462217+00:00",
-  "prior_archive": "3ad41515074aa9c158945dc8dfe7936e9c3380e8",
+  "created_utc": "2026-11-10T23:53:09.106869+00:00",
+  "prior_archive": "18d6494299365dc98981d4103a5f648dd4a09926",
   "commit_parents": [
-    "3ad41515074aa9c158945dc8dfe7936e9c3380e8",
-    "30d5f9aa7e05b06b44394ad70ca2b7a56f5551d7"
+    "18d6494299365dc98981d4103a5f648dd4a09926",
+    "5059c1a669a179be6372ec63c45241543aa15280"
   ],
   "commit_tips": [
     "0a8929d4f6126683737d62ab9def1d8e67a784ca",
@@ -27,7 +27,8 @@
     "f0ee4f8215938c27549a4cc1ff176445d2cb6bfe",
     "f46254b886accba1c39f915a649b5d0ef6fbd788",
     "f942fb506f0a9579e1af69a4a9d7cdde9593ebcd",
-    "30d5f9aa7e05b06b44394ad70ca2b7a56f5551d7"
+    "30d5f9aa7e05b06b44394ad70ca2b7a56f5551d7",
+    "5059c1a669a179be6372ec63c45241543aa15280"
   ],
   "local_refs": {},
   "remote_refs": {
@@ -50,11 +51,12 @@
     "refs/heads/task/G10.6.3": "428eb2c549f5285efc0b7921b380e2eff54f808b",
     "refs/heads/task/G10.6.7": "4095e7431988750809cc223a129741c22641e4fc",
     "refs/heads/task/collected-pipeline-acceptance": "b3037af95569ecb55b02489d893ada384c8e84b0",
-    "refs/heads/task/owned-pipeline-composition": "f942fb506f0a9579e1af69a4a9d7cdde9593ebcd"
+    "refs/heads/task/owned-pipeline-composition": "f942fb506f0a9579e1af69a4a9d7cdde9593ebcd",
+    "refs/heads/task/ordinary-collections": "5059c1a669a179be6372ec63c45241543aa15280"
   },
   "worktrees": [],
   "missing_commit_objects": [],
-  "scope": "Complete prior source histories remain reachable through prior_archive. Add the bounded retirement no-change candidate as an independent parent with exact published/executed tree identity. Source preservation only; no language or whole-program acceptance.",
+  "scope": "Preserve the complete prior archive plus the ordinary Store growth candidate and its earlier Map/source/failure histories. This is source preservation, not acceptance; compiler task refs and their existing archive entries remain unchanged.",
   "retirements": [
     {
       "ref": "refs/heads/task/collected-pipeline-acceptance",
@@ -152,7 +154,16 @@
       "identical_tree": "c8b35bf17026d7b7734b943c92f0a889add71487",
       "scope": "Four source/test files; paid complete Sources proof before shared page COW; preserve missing capture key and empty row distinction.",
       "status": "Component controls passed 15/15; original 5008B Map still fails default independent Verify. Not accepted production or whole-program performance evidence."
+    },
+    {
+      "name": "ordinary-store-growth",
+      "ref": "refs/heads/task/ordinary-collections",
+      "published_commit": "5059c1a669a179be6372ec63c45241543aa15280",
+      "published_tree": "03251642e6e0866edb39449912ff9ffb48e40b29",
+      "code_commit": "c8c13db74630c9d47115db38c1472bd82faedcb9",
+      "code_tree": "9247db968b5ac493afa0619f6c239e3576c56a98",
+      "scope": "Ordinary geometric Store growth, exact owner return/retry and focused/native/full-workspace acceptance source. Ancestors preserve initial rejected consumers and the subsequent fixes.",
+      "acceptance_and_retirement": "PR82 and goal:records/store-growth-resumption.json track acceptance/deletion separately. No compiler branch mutation is authorized by this entry."
     }
   ]
 }
-
