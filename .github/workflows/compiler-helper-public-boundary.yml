@@ -1,0 +1,84 @@
+name: Helper partition public signature boundary
+on:
+  push:
+    branches: [task/helper-public-boundary]
+    paths: [.github/workflows/compiler-helper-public-boundary.yml]
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Freeze exact source and install pinned tools
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/public-setup"
+          test "$(git rev-parse HEAD:crates/zil-backend-llvm/src/machine_cgu.rs)" = c4b00e66d0ca24949615c84a7e8f64c8a0688d84
+          test "$(git rev-parse HEAD:crates/zil-backend-llvm/src/machine_cgu/resource_helpers.rs)" = 6bb6bb634f07b23cdcfc7dc9750978e9155a4c2c
+          test "$(git rev-parse HEAD:crates/zil-backend-llvm/src/machine_cgu/resource_helpers/tests.rs)" = c71c2595bc221756bfe8e8b84ecc7aa10ed1fce6
+          rustup toolchain install 1.99.1 --profile minimal
+          cargo fetch --locked
+          sudo apt-get update -qq
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/public-llvm" > "$RUNNER_TEMP/public-setup/llvm.log" 2>&1
+          echo "ZIL_CLANG=$RUNNER_TEMP/public-llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/public-llvm/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/public-llvm/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/public-llvm/bin" >> "$GITHUB_PATH"
+          git fetch --depth=1 --no-tags origin 099d0af969a51260355437603b77d3f9030d83bc
+          git worktree add --detach "$RUNNER_TEMP/public-base" 099d0af969a51260355437603b77d3f9030d83bc
+          python3 -m py_compile .task/helper-partition/public_boundary.py
+          rustc -vV > "$RUNNER_TEMP/public-setup/rustc.txt"
+      - name: Separate same-profile native compilers
+        run: |
+          set -euo pipefail
+          CARGO_TARGET_DIR="$RUNNER_TEMP/public-base-target" cargo build --locked --offline --release --manifest-path "$RUNNER_TEMP/public-base/Cargo.toml" -p zil-cli > "$RUNNER_TEMP/public-setup/base-build.log" 2>&1
+          CARGO_TARGET_DIR="$RUNNER_TEMP/public-candidate-target" cargo build --locked --offline --release -p zil-cli > "$RUNNER_TEMP/public-setup/candidate-build.log" 2>&1
+      - name: Unchanged public snapshot with longer fixed runtime loop
+        run: |
+          set -euo pipefail
+          python3 .task/helper-partition/public_boundary.py --base "$RUNNER_TEMP/public-base-target/release/zil" --candidate "$RUNNER_TEMP/public-candidate-target/release/zil" --out "$RUNNER_TEMP/public-data" 2>&1 | tee "$RUNNER_TEMP/public-setup/measure.log"
+      - name: Preserve all observations without changing the primary protocol
+        if: ${{ always() }}
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,json,tarfile,hashlib,shutil,io
+          t=Path(os.environ['RUNNER_TEMP']);d=Path('.task/helper-partition/public-runs')/os.environ['GITHUB_RUN_ID'];d.mkdir(parents=True)
+          for name in ['summary.json','rows.jsonl']:
+              if (t/'public-data'/name).exists():shutil.copyfile(t/'public-data'/name,d/name)
+          omitted=[]
+          with tarfile.open(d/'raw.tar.gz','w:gz') as archive:
+              for root,label in [(t/'public-setup','setup'),(t/'public-data','data')]:
+                  if root.exists():
+                      for p in root.rglob('*'):
+                          if not p.is_file() or 'incremental' in p.parts:continue
+                          data=p.read_bytes();name=label+'/'+str(p.relative_to(root))
+                          if data.startswith(b'\x7fELF'):omitted.append({'path':name,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()});continue
+                          info=tarfile.TarInfo(name);info.size=len(data);archive.addfile(info,io.BytesIO(data))
+          (d/'omitted-elf.json').write_text(json.dumps(omitted,indent=2)+'\n')
+          r={'baseline':'099d0af969a51260355437603b77d3f9030d83bc','candidate_source':'0d18886608738e4de351885c6b1c0e9fae089476','production_head':'41e9f47c28412b0019779a06eb3de69d16174ea2','production_tree':'0b3f60b4aa2aaa0409602a78ff4eace4a9069848','recipe':os.environ['GITHUB_SHA'],'status_before_preservation':os.environ['PRIOR_STATUS'],'primary_inputs_or_weights_changed':False,'main_modified':False,'files':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in d.iterdir()},'acceptance':'Additional signature/placement boundary; numerical gates must be inspected'}
+          (d/'receipt.json').write_text(json.dumps(r,indent=2)+'\n')
+          PY
+          git fetch --no-tags origin refs/heads/task/helper-public-boundary
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git add ".task/helper-partition/public-runs/$GITHUB_RUN_ID"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Preserve public-signature locality boundary $GITHUB_RUN_ID without primary data replacement"
+          git push origin HEAD:refs/heads/task/helper-public-boundary
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: helper-public-boundary-${{ github.run_id }}
+          path: .task/helper-partition/public-runs/${{ github.run_id }}
+          retention-days: 30
