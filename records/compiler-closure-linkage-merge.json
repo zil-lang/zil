@@ -1,0 +1,125 @@
+{
+  "task": "G10.5.1.10",
+  "status": "StageAccepted; parent runtime and general closure incremental targets remain open",
+  "pr": 79,
+  "head": "9cf0e95d8108c82f0cb3ebf91075a60c6707332e",
+  "merged_commit": "099d0af969a51260355437603b77d3f9030d83bc",
+  "tested_tree": "65a48d418a7165ef7b15cfa05b6d66388bfadb09",
+  "production_blobs": {
+    "crates/zil-backend-llvm/src/lib.rs": "12ceb2e25f09b066967bd3c14ea4f165055e8614",
+    "crates/zil-backend-llvm/src/build.rs": "0d4c4de0e4001eec9bccac9ba160c26a0c6b62a6",
+    "crates/zil-backend-llvm/src/machine_closure_linkage.rs": "e4420dfe7e91eb4734b87d81bba17910a949293a",
+    "docs/guide/anonymous-closure-linkage.md": "af1d03bd7e97035c98c0455b127822cb7dff484b"
+  },
+  "ci_runs": [
+    42831769170,
+    42831769245,
+    42831769525
+  ],
+  "ci_each": {
+    "workspace_passed": 5896,
+    "reference_passed": 5782,
+    "text_passed": 70,
+    "failed": 0
+  },
+  "experiment": 42830653025,
+  "preservation_recovery": 42837168144,
+  "original_archive_failure_retained": true,
+  "measured_source": "1e4ff8229275463f318975b07fa9fabf509728c2",
+  "compile_requests": 1800,
+  "formal_requests": 1500,
+  "current_verify": 1728,
+  "native_outputs": 3672,
+  "paired_cleanup_failure_observations": 432,
+  "profiles": [
+    {
+      "profile": "interactive/edit",
+      "mean_ms": {
+        "base": 300.86437903475,
+        "cand": 299.55807416821256
+      },
+      "reduction": 0.0043418395714655,
+      "seconds_saved_per_1000": 1.3063048665374595
+    },
+    {
+      "profile": "interactive/clean",
+      "mean_ms": {
+        "base": 466.212358342375,
+        "cand": 463.7695101497
+      },
+      "reduction": 0.00523977571371248,
+      "seconds_saved_per_1000": 2.442848192675001
+    },
+    {
+      "profile": "release/edit",
+      "mean_ms": {
+        "base": 566.1923134464876,
+        "cand": 562.3898472887
+      },
+      "reduction": 0.006715856198473258,
+      "seconds_saved_per_1000": 3.802466157787535
+    },
+    {
+      "profile": "release/clean",
+      "mean_ms": {
+        "base": 974.5561052839374,
+        "cand": 967.4391411922498
+      },
+      "reduction": 0.007302775133314676,
+      "seconds_saved_per_1000": 7.116964091687578
+    }
+  ],
+  "owned32_edit_ms": {
+    "base": 571.7420402,
+    "candidate": 523.7131694,
+    "original_rust": 237.74
+  },
+  "owned32_phase_ms": {
+    "base_optimize": 260.5088242,
+    "candidate_optimize": 257.893838,
+    "base_emit": 224.9424566,
+    "candidate_emit": 180.33757
+  },
+  "fallible_rust_supplement": {
+    "requests": 192,
+    "formal": 160,
+    "outputs": 576,
+    "owned32_edit_ms": {
+      "base": 573.74,
+      "candidate": 522.531,
+      "original_rust": 238.239,
+      "fallible_rust": 302.047
+    },
+    "not_part_of_weighted_aggregate": true,
+    "identical_allocator_claimed": false
+  },
+  "runtime_quality": [
+    {
+      "file": "quality.json",
+      "reported_full_gate": false,
+      "baseline_rust90_failures": 6,
+      "new_rust90_crossings": 0,
+      "max_introduced_latency_ratio": 1.047762031185427,
+      "cells": 30
+    },
+    {
+      "file": "neighbors.json",
+      "reported_full_gate": false,
+      "baseline_rust90_failures": 10,
+      "new_rust90_crossings": 0,
+      "max_introduced_latency_ratio": 1.0077833861896581,
+      "cells": 16
+    }
+  ],
+  "remaining": [
+    "aggregate/closure Types keys still return None",
+    "machine function patch still excludes pointer environments",
+    "99 of109 definitions co-located by local helper references",
+    "full Rust90 runtime floor not passed",
+    "Cranelift and general optimized function-level patching not implemented"
+  ],
+  "review": "current Chat source/evidence review under explicit user authorization; mechanical recomputation is not non-author review",
+  "report_commit": "c8ef99c52659329f1b16e6db69881cdfc6125d6c",
+  "main_read": "099d0af969a51260355437603b77d3f9030d83bc",
+  "updated_at": "2026-11-10T23:11:21.490760+08:00"
+}
