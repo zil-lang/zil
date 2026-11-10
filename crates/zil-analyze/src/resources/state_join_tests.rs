@@ -1,8 +1,72 @@
 use super::*;
 use zil_base::ResultCategory;
 
+// Keep the complete old state independent of the production Order encoding.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct OldState {
+    cells: BTreeMap<Place, Fact>,
+    later: BTreeSet<(LocalId, LocalId)>,
+    // Complete SSA Packages carry the actual birth of each direct Managed
+    // field. Local Packages already have separate lifecycle cells. Unknown
+    // producers keep Incoming; packaging itself never creates a resource.
+    package_values: PackageValues,
+    product_births: product::Origins,
+    sums: sums::Facts,
+    // Enabled only for the bounded borrowed whole-Package helper proof.
+    whole_commits: Option<replacements::Effects>,
+}
+
+// Representation setup is outside the measured join, as the original State
+// fixture construction was. Packed controls use real paid insertions.
+fn current(state: OldState) -> State {
+    let mut later = order::Order::default();
+    let mut setup = Budget::new(&Limits::default());
+    for edge in state.later {
+        later
+            .insert(edge, &mut setup, false, "state join fixture order")
+            .unwrap();
+    }
+    State {
+        cells: state.cells,
+        later,
+        package_values: state.package_values,
+        product_births: state.product_births,
+        sums: state.sums,
+        whole_commits: state.whole_commits,
+    }
+}
+
+// Compare all logical fields after the operation. Decode actual words here;
+// neither the old merge nor its expected edges call production Order helpers.
+fn snapshot(state: &State) -> OldState {
+    let later = match &state.later {
+        order::Order::Small(edges) => edges.clone(),
+        order::Order::Packed { count, words } => {
+            let mut edges = BTreeSet::new();
+            for (&(before, word), &bits) in words {
+                assert_ne!(bits, 0);
+                for bit in 0..64 {
+                    if bits & (1u64 << bit) != 0 {
+                        edges.insert((before, LocalId((word << 6) + bit)));
+                    }
+                }
+            }
+            assert_eq!(edges.len(), *count);
+            edges
+        }
+    };
+    OldState {
+        cells: state.cells.clone(),
+        later,
+        package_values: state.package_values.clone(),
+        product_births: state.product_births.clone(),
+        sums: state.sums.clone(),
+        whole_commits: state.whole_commits.clone(),
+    }
+}
+
 // Frozen complete pre-zip State merge, including every unchanged sidecar.
-fn lookup_join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResult<bool> {
+fn lookup_join(to: &mut OldState, from: &OldState, budget: &mut Budget) -> CompileResult<bool> {
     let mut changed = false;
     for (place, source) in &from.cells {
         budget.lookup(to.cells.len(), "resource join lookup")?;
@@ -45,13 +109,13 @@ fn lookup_join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResu
     Ok(changed)
 }
 
-fn state(count: u32, incoming: bool) -> State {
+fn state(count: u32, incoming: bool) -> OldState {
     let birth = if incoming {
         Birth::Incoming
     } else {
         Birth::Created
     };
-    let mut state = State::default();
+    let mut state = OldState::default();
     for index in 0..count {
         state.cells.insert(
             Place::Value(ValueId(index)),
@@ -106,12 +170,19 @@ fn sorted_resource_cells_match_complete_state_lookup_merge_and_preserve_life_sou
     for count in [0, 1, 4, 64] {
         let left = state(count, true);
         let right = state(count, false);
-        let mut sorted = left.clone();
+        let mut sorted = current(left.clone());
         let mut old = left;
-        let a = join(&mut sorted, &right, &mut Budget::new(&Limits::default())).unwrap();
+        let actual_right = current(right.clone());
+        let a = join(
+            &mut sorted,
+            &actual_right,
+            &mut Budget::new(&Limits::default()),
+        )
+        .unwrap();
         let b = lookup_join(&mut old, &right, &mut Budget::new(&Limits::default())).unwrap();
         assert_eq!(a, b);
-        assert_eq!(sorted, old);
+        assert_eq!(snapshot(&sorted), old);
+        assert_eq!(snapshot(&actual_right), right);
         assert_eq!(
             right,
             state(count, false),
@@ -155,7 +226,7 @@ fn sorted_resource_cells_reject_wrong_places_and_missing_branch_inventory() {
         let mut copy = left.clone();
         let mut b = Budget::new(&Limits::default());
         let errors = if sorted {
-            join(&mut copy, &wrong, &mut b)
+            join(&mut current(copy), &current(wrong.clone()), &mut b)
         } else {
             lookup_join(&mut copy, &wrong, &mut b)
         }
@@ -174,8 +245,8 @@ fn sorted_resource_cells_reject_wrong_places_and_missing_branch_inventory() {
     let mut missing = left.clone();
     missing.cells.remove(&Place::Value(ValueId(2)));
     let errors = join(
-        &mut left.clone(),
-        &missing,
+        &mut current(left.clone()),
+        &current(missing.clone()),
         &mut Budget::new(&Limits::default()),
     )
     .unwrap_err();
@@ -207,6 +278,7 @@ fn sorted_resource_cells_reject_wrong_places_and_missing_branch_inventory() {
 fn sorted_resource_cells_have_a_repeatable_smaller_full_state_request_boundary() {
     let left = state(256, true);
     let right = state(256, false);
+    let actual_right = current(right.clone());
     let run = |sorted, work| {
         let mut state = left.clone();
         let mut b = Budget::new(&Limits {
@@ -214,7 +286,7 @@ fn sorted_resource_cells_have_a_repeatable_smaller_full_state_request_boundary()
             ..Limits::default()
         });
         if sorted {
-            join(&mut state, &right, &mut b)
+            join(&mut current(state), &actual_right, &mut b)
         } else {
             lookup_join(&mut state, &right, &mut b)
         }
@@ -244,5 +316,38 @@ fn sorted_resource_cells_have_a_repeatable_smaller_full_state_request_boundary()
     assert!(sorted < old, "new={sorted} old={old}");
     println!(
         "Complete resource State join: sorted N={sorted}, lookup N={old}; N-1 reject and fresh N retry pass"
+    );
+}
+
+#[test]
+fn sorted_resource_cells_preserve_complete_state_with_actual_packed_order() {
+    let mut left = state(64, true);
+    let mut right = state(64, false);
+    for before in 0..24 {
+        for later in before + 1..24 {
+            left.later.insert((LocalId(before), LocalId(later)));
+            right
+                .later
+                .insert((LocalId(before + 64), LocalId(later + 64)));
+        }
+    }
+    assert!(left.later.len() > 256 && right.later.len() > 256);
+    let mut actual = current(left.clone());
+    let incoming = current(right.clone());
+    assert!(matches!(actual.later, order::Order::Packed { .. }));
+    assert!(matches!(incoming.later, order::Order::Packed { .. }));
+    let mut old = left;
+    let changed = join(&mut actual, &incoming, &mut Budget::new(&Limits::default())).unwrap();
+    let old_changed = lookup_join(&mut old, &right, &mut Budget::new(&Limits::default())).unwrap();
+    assert_eq!(changed, old_changed);
+    assert_eq!(snapshot(&actual), old);
+    assert_eq!(snapshot(&incoming), right);
+    assert!(
+        !join(
+            &mut actual.clone(),
+            &actual,
+            &mut Budget::new(&Limits::default())
+        )
+        .unwrap()
     );
 }
