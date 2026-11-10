@@ -8,6 +8,23 @@ pub(in crate::resources) struct Sources {
     captures: actual::Captures,
 }
 impl Sources {
+    #[cfg(test)]
+    pub(in crate::resources) fn field_state_fixture(seed: u32) -> Self {
+        let target = actual::Target {
+            base: actual::Base::Input(seed),
+            steps: vec![PlaceProjection::Field(seed % 2)],
+            mutable: true,
+        };
+        let captured = actual::Target {
+            base: actual::Base::InputCapture(seed, 0),
+            steps: vec![PlaceProjection::Field(0)],
+            mutable: false,
+        };
+        Self {
+            direct: BTreeSet::from([target]),
+            captures: BTreeMap::from([(0, BTreeSet::from([captured]))]),
+        }
+    }
     pub(in crate::resources) fn cost(&self, b: &mut Budget) -> Check<()> {
         actual::charge_set(&self.direct, b)?;
         b.spend(self.captures.len())?;

@@ -520,7 +520,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
                 format!("mode={mode}"),
                 module,
                 plan,
-                Some([4730, 5125, 6503][mode as usize]),
+                Some([4730, 5125, 6679][mode as usize]),
             )
         })
         .collect();

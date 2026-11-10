@@ -264,8 +264,12 @@ impl Plan {
             budget.spend(fields.len())?;
             for (index, (_, ty)) in fields.iter().enumerate() {
                 if matches!(ty, Type::Managed(_)) {
-                    state.package_fresh[output.0 as usize][index] =
-                        state.product_fresh[shape.fields[index].start];
+                    state.package_fresh.set(
+                        output.0 as usize,
+                        index,
+                        state.product_fresh[shape.fields[index].start],
+                        budget,
+                    )?;
                 }
             }
         }
