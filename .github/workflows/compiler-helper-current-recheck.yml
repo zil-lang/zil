@@ -1,0 +1,65 @@
+name: Current main helper acceptance recheck
+on:
+  push:
+    branches: [task/helper-current-main-validation]
+    paths: [.github/workflows/compiler-helper-current-recheck.yml]
+permissions:
+  contents: write
+jobs:
+  acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Load exact prior protocol and repair only missing shallow-history object
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re,textwrap,os
+          s=Path('.github/workflows/compiler-helper-current.yml').read_text();marks=list(re.finditer(r'^      - (?:name|uses):',s,re.M));out=Path(os.environ['RUNNER_TEMP'])/'current-commands';out.mkdir()
+          count=0
+          for i,mark in enumerate(marks):
+              chunk=s[mark.start():marks[i+1].start() if i+1<len(marks) else len(s)]
+              if not chunk.startswith('      - name:') or '        run: |\n' not in chunk:continue
+              code=textwrap.dedent(chunk.split('        run: |\n',1)[1])
+              if count==0:
+                  old='git fetch --depth=1 --no-tags origin 2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852 0105b22c5116f645f4e70fbd6d192ec168aa20f1'
+                  assert code.count(old)==1;code=code.replace(old,old+' 5679163bc3fefd77221011eab65987935b66fafd')
+                  old="git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Freeze unchanged original acceptance scripts on current-main composition'"
+                  assert code.count(old)==1;code=code.replace(old,'if ! git diff --cached --quiet; then '+old+'; fi')
+              (out/f'{count}.sh').write_text(code);count+=1
+          assert count==7,count
+          PY
+          bash "$RUNNER_TEMP/current-commands/0.sh"
+      - name: Independent same-profile release compilers
+        id: build
+        run: bash "$RUNNER_TEMP/current-commands/1.sh"
+      - name: Complete original fixed-weight eight-case matrix
+        run: bash "$RUNNER_TEMP/current-commands/2.sh"
+      - name: Unchanged multi-module and real edit histories
+        run: bash "$RUNNER_TEMP/current-commands/3.sh"
+      - name: All original and multi-module cleanup failure controls
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: bash "$RUNNER_TEMP/current-commands/4.sh"
+      - name: All original active and inactive runtime boundaries
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: bash "$RUNNER_TEMP/current-commands/5.sh"
+      - name: Preserve results and the original pre-measurement setup failure
+        if: ${{ always() }}
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: bash "$RUNNER_TEMP/current-commands/6.sh"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: helper-current-recheck-${{ github.run_id }}
+          path: .task/helper-current/runs/${{ github.run_id }}
+          retention-days: 30
