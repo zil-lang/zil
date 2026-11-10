@@ -1,0 +1,19 @@
+{
+  "baseline": "cadc656c0caefa70827f7ec1e608a04291c8ae9f",
+  "recipe": "88d286f2548c56d9a67c5e82b7cab5e8f8d47653",
+  "measured_source": "602279507e8bc0155ee4105b4b672b736149c70b",
+  "status_before_preservation": "failure",
+  "files": {
+    "consumer.json": {
+      "bytes": 76926,
+      "sha256": "44ed01f8cf9e2081eb258b9d9103ebfc617a7ae670b73da3d07384b551cec008"
+    },
+    "raw.tar.gz": {
+      "bytes": 6330246,
+      "sha256": "9c38b2d361b2cf5d17dd6837467909f6aaba3033529ed9dda0cbbe98651d4536"
+    }
+  },
+  "main_modified": false,
+  "external_ai_review_requested": false,
+  "acceptance": "Pending direct review and runtime/weighted audit"
+}
