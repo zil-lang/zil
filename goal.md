@@ -10,7 +10,7 @@
 
 父任务汇总完整范围，子任务记录具体交付，父子不重复计数；子项全完成不自动代表父项完成。需要独立派工、复核或验收的补充工作才新增任务编号，沿用父编号加一段；零散修正记在原任务进展中。编号同时用于分支与实施说明，不再另设勾稽编号。
 
-**当前主线：以通用编程语言 1.0 的功能闭环为下一阶段目标。** 当前 `main@e12b158e1` 已接受本批有限语言范围、PR71原始回归及PR73借入Package的Managed Store字段替换，并由编译专项独立合入PR75的Analyze资源先后关系表示；仍是开发预览，不据有限子项关闭1.0父门。
+**当前主线：以通用编程语言 1.0 的功能闭环为下一阶段目标。** 当前 `main@fc6620a3` 已接受本批有限语言范围、PR71原始回归及PR73借入Package的Managed Store字段替换，并由编译专项独立合入PR75资源顺序表示和PR76清理后缀共享；仍是开发预览，不据有限子项关闭1.0父门。
 
 用户本轮明确：可由一个分支承接的工作只保留一个入口，确有独立实施需要才拆分。编译提速仍由原编译对话实施；其余未完成工作由本对话接续。当前Store、Map依次使用 `task/ordinary-collections`，固定 `archive/source-history` 只保全历史与候选，goal继续作为唯一看板。
 
@@ -18,7 +18,7 @@ PR73从main21b1最小提取五个生产文件，补重借用与RHS准备失败�
 
 旧三条混合ref的已交付部分由main承载，Store已合PR73，未完Map和一般语言能力由上述入口及本看板承接；共享读预检d2bc7accd等未采用候选保留在固定归档，须有当前完整消费者净收益才采用。本轮用户说明已解决旧“等待明确确认”的接续歧义；实际删除情况以接续记录为准。此前退役13条原ref和PR71临时ref、原自动审批拒绝及首败仍保留在[历史分支核对](records/branch-reconciliation-20261110.json)，不改写历史。
 
-Map原5008B与7583B库保持原字节。最新发布e965133d/执行42c3ab6b同tree7500a81c，Verify全库571/571（旧562与新增9项全保）、原Source组9/10，唯一Map仍默认Verify限额。有序实际摘要依赖调度的完整旧扫描、逐轮状态和真实POD登记控制已独审；第12次同费诊断尚未开始，不能声称原程序净益。执行环境中断后已按完整树哈希恢复并发布该源码，无遗留临时插桩。此前a168完整Sum为4644050，字段布局共同已完前缀净省11330；新片须保全部最终body核验并核所有新增收费。恢复时先适配main新合PR75的Analyze表示并保独立完整旧oracle；其后继续成本诊断、原16build/64native及当前严格门。Map及1.0父门仍开放，详[语言接续](records/ordinary-collections-continuation.json)。
+Map原5008B与7583B库保持原字节。执行环境和正式工具链已恢复；最新发布7374d3eb/执行5fff3deb同tree4bd59ca0，已接入main的PR75/76，完整Analyze267/267、Verify571/571、原Source组9/10，唯一Map仍默认Verify限额。完整库存检查和独立旧BTreeSet对照保留，新增真实Packed合流控制通过独审。当前继续同一基底的有序摘要调度/完整旧扫描同费比较；原16build/64native与当前严格门待验。远端本轮核到16分支，12个编译专项均保留，非编译无新增可删项；Map及1.0父门仍开放，详[语言接续](records/ordinary-collections-continuation.json)。
 
 ## G1 · 基础类型与模式
 
@@ -416,7 +416,7 @@ Map原5008B与7583B库保持原字节。最新发布e965133d/执行42c3ab6b同tr
 | G9.3.6 | 基础String查询、排序、文件/流I/O与真正可封装的Map/Set | 进行中 | P0 | sol high · stdlib | `c116bd65f`：UTF8查询/整数转换/排序/文件流、拥有StringMap、固定容量POD回调HashMap、名义i64 Map/Set已合候选；真实私有Key、失败返key/删除故障在四配置通过。完整owning K/V已由G9.3.9交付；自动增长泛型哈希/通用Set与迭代适配仍缺。 |
 | G9.3.9 | 真正按key的owning K/V Map、替换/取出及失败责任 | 已合入 | — | — | 原`b3f3888f2`实际KeyEq/替换/取出/分配失败责任保持，`f3b600238`加入已准入V的Option借入get及helper，actual manager源/强pin/错误key来源已独审； 已由main@222e550af本批有限范围验收。 |
 | G9.3.10 | 拥有/借入迭代消费者及map/filter/collect适配 | 待排期 | P1 | 待派 | 依赖G2.4.11/G2.4.12/G3.5.1；先用真实普通库区分语言门与库实现，不重做已有LendingIterator。 |
-| G9.3.11 | 自动增长泛型HashMap及通用Set | 部分实现 | P1 | Chat语言接续 · task/ordinary-collections | POD自动增长/Copy Set及普通Input replacement已按main8b基线最小提取，新增PR75适配待环境恢复；完整原输入与分配失败消费者不缩减。历史原生结果仅绑定旧树，当前默认成本与原生重新验收由子项继续；owning K/V哈希仍缺，已有线性OwningMap可用。 |
+| G9.3.11 | 自动增长泛型HashMap及通用Set | 部分实现 | P1 | Chat语言接续 · task/ordinary-collections | POD自动增长/Copy Set及普通Input replacement已接入mainfc662基线，PR75完整Order与PR76清理规则保留；完整原输入与分配失败消费者不缩减。历史原生结果仅绑定旧树，当前默认成本与原生重新验收由子项继续；owning K/V哈希仍缺，已有线性OwningMap可用。 |
 | G9.3.12 | 无符号/浮点文本转换与缓冲I/O | 待排期 | P1 | 待派 | 复用已有String、文件流、i64解析/格式化；覆盖范围/舍入/短读写及失败清理。 |
 
 <details>
@@ -424,7 +424,7 @@ Map原5008B与7583B库保持原字节。最新发布e965133d/执行42c3ab6b同tr
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | Chat语言接续 · task/ordinary-collections；两核独立复核 | 发布e965133d/执行42c3同tree；Verify571/571、Source9/10，原Map仍Verify默认限额。有序摘要依赖调度正确性独审通过，整程序同费诊断因环境中断未开始；源码已精确远端保全。恢复先适配PR75且保完整旧oracle，再继续成本诊断与原16build/64native、当前严格门；不标Map完成。 |
+| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | Chat语言接续 · task/ordinary-collections；两核独立复核 | 发布7374d3eb/执行5fff同tree，已适配main PR75/76且保完整旧oracle；Analyze267/267、Verify571/571、Source9/10，原Map仍Verify默认限额。环境已恢复，继续同基底有序调度/旧完整扫描同费诊断，再验原16build/64native与当前严格门；Map未完成。 |
 
 </details>
 
@@ -546,7 +546,7 @@ Map原5008B与7583B库保持原字节。最新发布e965133d/执行42c3ab6b同tr
 | --- | --- | --- | --- | --- | --- |
 | G10.6.1 | 语言初稿开发预览：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 已合入 | — | — | [PR51 验收][e-pr51]：精确源码 `a8c7953e7` 默认5190/0、参考5078/0、文本70/0；双严格检查、release、10项工程门及远端源码恢复构建运行通过。有限预览不替代 B0/完整语言。 |
 | G10.6.2 | 通用 Native 库与异步资源联合验收：精确源码、真实消费者、独审和远端恢复 | 已合入 | — | — | `main@e800b39d5`：默认5269/0、参考5157/0、文本70/0；真实联合双后端 O0/O2、3735文件远端恢复/空缓存构建、16次 API 构建/128次运行/56次故障注入均通过。[本批记录][e-native-foundations]。 |
-| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | Chat语言接续 · root集成 | 有限语言范围及PR71、PR73已接受；最新main8b5989dd1（含PR74已恢复完整回归），Store本片完整证据在主树，Map和一般缺口继续。非编译未完工作由本对话统一承接，当前单一task/ordinary-collections；旧混合ref按固定归档与具体任务接续清理，实际状态见records/ordinary-collections-continuation.json。编译专项由原对话负责，不关闭语言1.0或其他父门。 |
+| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | Chat语言接续 · root集成 | 有限语言范围及PR71、PR73已接受；最新mainfc6620a3（含PR74及编译专项已合PR75/76），Store本片完整证据在主树，Map和一般缺口继续。非编译未完工作由本对话统一承接，当前单一task/ordinary-collections；旧混合ref按固定归档与具体任务接续清理，实际状态见records/ordinary-collections-continuation.json。编译专项由原对话负责，不关闭语言1.0或其他父门。 |
 | G10.6.4 | 全量回归中的旧Store/实际callback Package准入 | 已合入 | — | — | `6c1ac6fdf`已合候选；恢复旧flat callback/Store真实root快路，保留新borrowed Product分类，84项与原CLI/window正反例专项通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.5 | 新共享构造检查的两核实际独占loan发现与旧fee保持 | 已合入 | — | — | `e5c52c936/396c183c`已合：复用付费建表，无额外扫描，原两预算控制恢复原值、28独占构造/slot控制通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.6 | 默认worker深调用与life组合栈溢出 | 已合入 | — | — | 既有递归帧修复由main@222e550af验收；source_life合流回归的子项也已由main@0e770a26e交付。原默认栈/深调用/费用控制保留。 |
