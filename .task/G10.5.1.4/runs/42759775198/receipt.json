@@ -1,0 +1,55 @@
+{
+  "baseline": "cadc656c0caefa70827f7ec1e608a04291c8ae9f",
+  "measured_source": "a933d0343098d8b90b1b7164ea6c0e30ef72d026",
+  "recipe": "853a5774573bc14a9f97b402094220383f55f381",
+  "status_before_preservation": "success",
+  "scope": "second production refinement, targeted resource screen only; no full workspace or full weighted acceptance claimed",
+  "files": {
+    "failures.json": {
+      "bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    "manifest.json": {
+      "bytes": 3584,
+      "sha256": "1bd4add38e447c22f056211911b786868beb40014809dc0a11d94904e9470bb1"
+    },
+    "extra-controls.json": {
+      "bytes": 92695,
+      "sha256": "abd5c41281737d1bdbd01768f21e7653d3e58a5b873f95a8cfecdaaba37e2402"
+    },
+    "quality.json": {
+      "bytes": 2755,
+      "sha256": "5c84384a5449cb38041d16299b2ac8f97ef00258b8e728d4a88b279d2b1c767e"
+    },
+    "runtime.jsonl": {
+      "bytes": 25699,
+      "sha256": "3cc858f476ce7dc557adfa18284e5f59bfe00d3226b55d77ea25a9cef93af033"
+    },
+    "consumer.json": {
+      "bytes": 76879,
+      "sha256": "6ca3ed01d8bc1f789bdd8db509e982b4f42073c92b38ba837f0dbf8b41a1974e"
+    },
+    "equivalence.json": {
+      "bytes": 8271,
+      "sha256": "9a98a99a330e6230401fe837fe0097249e8761c9b49a67bfc1db42c913228a23"
+    },
+    "rows.jsonl": {
+      "bytes": 510886,
+      "sha256": "915c4912e66d6ebf1955285c4e898c3652039d305678fc35a2745d65ea5eab5c"
+    },
+    "raw.tar.gz": {
+      "bytes": 29078211,
+      "sha256": "adf120fa9f35d8d5ee850ae0661ecac7ecbc0eb72cde149d4e5b24677042d1b3"
+    },
+    "summary.json": {
+      "bytes": 302,
+      "sha256": "57233eab7e30b02a626ee4d7a7ba653db5a2d51e47d9b0cf0228db4b3514d14c"
+    },
+    "cells.json": {
+      "bytes": 8758,
+      "sha256": "0ccafaa81bb61ada354037c864a908beb1db47667110adcdd9c27b2a10afa628"
+    }
+  },
+  "main_modified": false,
+  "merge_allowed": false
+}

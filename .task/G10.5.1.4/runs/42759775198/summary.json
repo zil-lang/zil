@@ -1,0 +1,13 @@
+{
+  "status": "Complete finite paired matrix",
+  "compile_requests": 216,
+  "formal_requests": 180,
+  "native_output_checks": 648,
+  "text_pairs": 72,
+  "text_pairs_equal": false,
+  "runtime_requests": 72,
+  "profiles": [],
+  "failures": 0,
+  "independent_review": "NotRun",
+  "merge_allowed": false
+}

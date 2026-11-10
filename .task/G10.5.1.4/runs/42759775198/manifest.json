@@ -1,0 +1,70 @@
+{
+  "baseline": "cadc656c0caefa70827f7ec1e608a04291c8ae9f",
+  "candidate": "a933d0343098d8b90b1b7164ea6c0e30ef72d026",
+  "cases": [
+    {
+      "id": "owned8",
+      "group": "resource",
+      "n": 8,
+      "weight": 0.5,
+      "kind": "mechanism-preserving synthetic workload, not full upstream port",
+      "provenance": "https://github.com/rust-lang/rustc-perf/tree/c0f257113ccc6e6e0742b318006eef2787c3d4c5/collector/compile-benchmarks/serde-1.0.219",
+      "retained": "runtime input, nonlinear calls, all generated definitions directly reachable; trait instantiations or owning mutable closures where labelled",
+      "not_retained": "upstream public API, exact data structures, macro system, dependency graph and source size",
+      "implementation_basis": "zil examples/mainline/byte_buffer_owned at 82a69812582856b012468db3d019930d8e390f64; actual owned buffers, replacement, allocation and cleanup; not serde"
+    },
+    {
+      "id": "owned32",
+      "group": "resource",
+      "n": 32,
+      "weight": 0.5,
+      "kind": "mechanism-preserving synthetic workload, not full upstream port",
+      "provenance": "https://github.com/rust-lang/rustc-perf/tree/c0f257113ccc6e6e0742b318006eef2787c3d4c5/collector/compile-benchmarks/serde-1.0.219",
+      "retained": "runtime input, nonlinear calls, all generated definitions directly reachable; trait instantiations or owning mutable closures where labelled",
+      "not_retained": "upstream public API, exact data structures, macro system, dependency graph and source size",
+      "implementation_basis": "zil examples/mainline/byte_buffer_owned at 82a69812582856b012468db3d019930d8e390f64; actual owned buffers, replacement, allocation and cleanup; not serde"
+    }
+  ],
+  "tools": {
+    "base": "64a601a183fd8aa3b6299ed53e60ec1499636b80c6bae84d9a81ee27dd9455f5",
+    "cand": "a888fb70a0dffa94f48a7f5a3ff0f0aed48f7042e345ea08c8edd87235bf92d5",
+    "rust": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853"
+  },
+  "cpus": [
+    0,
+    1
+  ],
+  "rounds": 5,
+  "request_weights": {
+    "edit": {
+      "cold": 0.1,
+      "warm": 0.15,
+      "private": 0.45,
+      "edit-warm": 0.1,
+      "public": 0.1,
+      "restore": 0.1
+    },
+    "clean": {
+      "cold": 0.7,
+      "warm": 0.05,
+      "private": 0.1,
+      "edit-warm": 0.05,
+      "public": 0.1,
+      "restore": 0
+    }
+  },
+  "mode_weights": {},
+  "weights": "predeclared assumptions, not telemetry",
+  "upstream_original_crates": "separate unpaired lane, excluded from paired aggregate; no substitution claimed",
+  "boundary": "fresh process through link; project caches retained only within one history; OS caches retained; no Cargo Fresh in paired rows",
+  "source_hashes": {
+    "corpus/owned32/base/zil/main.zil": "e29156da0343a117664bfeac9adde3e5e3a2195f9e95c92d464e89bffc83f3ca",
+    "corpus/owned32/base/rust/main.rs": "37a84516c94293b7ed716f360d5f7a30218cdd0840111949e4bfdb968f065e5e",
+    "corpus/owned32/private/zil/main.zil": "faf3ca71b52fbe0204cd6d33ac1e356e1eb0130a39227a7c466503ec19bae3a5",
+    "corpus/owned32/private/rust/main.rs": "c94ac58d6ff67999f4821797854f506de6ac2b086c188776925b80e65fb347ea",
+    "corpus/owned8/base/zil/main.zil": "f11e34aef863a115e8eddd6be1efe6a6d22ef73b3c80a4db06905ca4d0392dc3",
+    "corpus/owned8/base/rust/main.rs": "7086f2e36004d3af870b378e85064ef90c44542e11c477c6f9e5e069724bcfb9",
+    "corpus/owned8/private/zil/main.zil": "1028b5d73c4495a65d770edc5d01912e83ba1150df7c5ddc10a4f9938208bb02",
+    "corpus/owned8/private/rust/main.rs": "fca26c4ecc6670bb06c6ecbbc39157db03d20617ad2dcd6e6e8a09a82e4365f5"
+  }
+}

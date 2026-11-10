@@ -1,0 +1,506 @@
+[
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "cold",
+    "block": -1,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "warm",
+    "block": -1,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "private",
+    "block": -1,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "edit-warm",
+    "block": -1,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "public",
+    "block": -1,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "restore",
+    "block": -1,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "cold",
+    "block": 0,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "warm",
+    "block": 0,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "private",
+    "block": 0,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "edit-warm",
+    "block": 0,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "public",
+    "block": 0,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "restore",
+    "block": 0,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "cold",
+    "block": 1,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "warm",
+    "block": 1,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "private",
+    "block": 1,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "edit-warm",
+    "block": 1,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "public",
+    "block": 1,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "restore",
+    "block": 1,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "cold",
+    "block": 2,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "warm",
+    "block": 2,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "private",
+    "block": 2,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "edit-warm",
+    "block": 2,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "public",
+    "block": 2,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "restore",
+    "block": 2,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "cold",
+    "block": 3,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "warm",
+    "block": 3,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "private",
+    "block": 3,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "edit-warm",
+    "block": 3,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "public",
+    "block": 3,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "restore",
+    "block": 3,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "cold",
+    "block": 4,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "warm",
+    "block": 4,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "private",
+    "block": 4,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "edit-warm",
+    "block": 4,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "public",
+    "block": 4,
+    "text_equal": false
+  },
+  {
+    "case": "owned8",
+    "mode": "O2",
+    "request": "restore",
+    "block": 4,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "cold",
+    "block": -1,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "warm",
+    "block": -1,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "private",
+    "block": -1,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "edit-warm",
+    "block": -1,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "public",
+    "block": -1,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "restore",
+    "block": -1,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "cold",
+    "block": 0,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "warm",
+    "block": 0,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "private",
+    "block": 0,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "edit-warm",
+    "block": 0,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "public",
+    "block": 0,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "restore",
+    "block": 0,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "cold",
+    "block": 1,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "warm",
+    "block": 1,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "private",
+    "block": 1,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "edit-warm",
+    "block": 1,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "public",
+    "block": 1,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "restore",
+    "block": 1,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "cold",
+    "block": 2,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "warm",
+    "block": 2,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "private",
+    "block": 2,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "edit-warm",
+    "block": 2,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "public",
+    "block": 2,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "restore",
+    "block": 2,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "cold",
+    "block": 3,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "warm",
+    "block": 3,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "private",
+    "block": 3,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "edit-warm",
+    "block": 3,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "public",
+    "block": 3,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "restore",
+    "block": 3,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "cold",
+    "block": 4,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "warm",
+    "block": 4,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "private",
+    "block": 4,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "edit-warm",
+    "block": 4,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "public",
+    "block": 4,
+    "text_equal": false
+  },
+  {
+    "case": "owned32",
+    "mode": "O2",
+    "request": "restore",
+    "block": 4,
+    "text_equal": false
+  }
+]
