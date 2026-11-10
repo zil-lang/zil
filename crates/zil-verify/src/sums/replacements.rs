@@ -646,7 +646,7 @@ pub(super) fn refine_actual_error_arm(
     equal: bool,
     b: &mut Budget,
 ) -> Check<()> {
-    if tag > 1 || state.initialized[local.0 as usize] != 2 {
+    if tag > 1 || state.initialized.get(local.0 as usize, b)? != 2 {
         return Ok(());
     }
     let value = &mut state.locals[local.0 as usize];
@@ -762,7 +762,7 @@ impl Context<'_> {
         at_type(flow.module, flow.f, target, b)?;
         match target.base {
             actual::Base::Local(local) => {
-                if validate && state.initialized[local.0 as usize] != 2 {
+                if validate && state.initialized.get(local.0 as usize, b)? != 2 {
                     return Err(invalid("replacement owner shell is not initialized"));
                 }
                 selected(&state.locals[local.0 as usize], &target.steps, validate, b)?;
@@ -895,7 +895,7 @@ impl Context<'_> {
                         return Err(invalid("reservation Type differs from actual endpoint"));
                     }
                     if validate && let actual::Base::Local(local) = target.base {
-                        if state.initialized[local.0 as usize] != 2 {
+                        if state.initialized.get(local.0 as usize, b)? != 2 {
                             return Err(invalid("reservation pins an uninitialized owner"));
                         }
                         selected(&state.locals[local.0 as usize], &target.steps, true, b)?;
