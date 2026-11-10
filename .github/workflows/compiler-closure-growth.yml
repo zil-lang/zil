@@ -53,9 +53,11 @@ jobs:
           s=s.replace("arms=['base','cand','rust'];random.Random", "arms=(['base','cand','rust'] if case['group']=='resource' else ['base','cand']);random.Random")
           s=s.replace("# Code equality is checked for every native pair. Runtime measurement uses", "# Unaffected code equality and resource behavioral equivalence are separate. Runtime uses")
           p.write_text(s)
-          p=Path('.task/G10.5.1.4/controls.py');s=p.read_text();old='+repr([str(obj),\'-Wl,--wrap=realloc\',\'-Wl,--wrap=free\'])+\'\\nassert "-c" not in sys.argv and "ir" not in sys.argv\\nos.execv(cmd[0],cmd)\\n\''
-          new='+\'( [] if "-c" in sys.argv else \'+repr([str(obj),\'-Wl,--wrap=realloc\',\'-Wl,--wrap=free\'])+\')\\nos.execv(cmd[0],cmd)\\n\''
-          assert old in s;s=s.replace(old,new);p.write_text(s)
+          p=Path('.task/G10.5.1.4/controls.py');s=p.read_text()
+          old="[str(obj),'-Wl,--wrap=realloc','-Wl,--wrap=free']"
+          new="['-x','none',str(obj),'-Wl,--wrap=realloc','-Wl,--wrap=free']"
+          if old in s:s=s.replace(old,new)
+          assert new in s;p.write_text(s)
           PY
       - name: Freeze and immediately preserve candidate source
         id: source
@@ -63,12 +65,18 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m py_compile .task/G10.5.1.4/*.py .task/G10.5.1.4/bench/*.py
-          python3 .task/G10.5.1.4/apply.py
+          if grep -q 'fn reserve_front()' crates/zil-backend-llvm/src/emit/byte_buffer.rs; then
+            test "$(git hash-object crates/zil-backend-llvm/src/emit/byte_buffer.rs)" = '8922e0eccded8e5800bac50a2bb29e055f3f0f15'
+          else
+            python3 .task/G10.5.1.4/apply.py
+          fi
           rustfmt --edition 2024 crates/zil-backend-llvm/src/emit/byte_buffer.rs
           git diff --check
           git diff > "$RUNNER_TEMP/closure-setup/candidate.patch"
           git add -- crates/zil-backend-llvm/src/emit/byte_buffer.rs crates/zil-backend-llvm/src/emit/byte_buffer/reserve_tests.rs .task/G10.5.1.4/controls.py .task/G10.5.1.4/bench/*.py
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Outline byte growth without changing capacity fast-path or failure semantics; pending validation'
+          if ! git diff --cached --quiet; then
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Repair reference-backend probe link mode; production candidate unchanged'
+          fi
           git rev-parse HEAD > "$RUNNER_TEMP/closure-setup/source.txt"
           git fetch --no-tags origin refs/heads/task/G10.5.1.4
           test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
