@@ -1,6 +1,7 @@
 //! Exclusive authority is reconstructed from executable CFG operations. The
 //! public Hold candidate describes origins only and cannot manufacture a loan.
 use super::buffer_effects::Apart;
+mod move_state;
 mod replacement_pins;
 use super::*;
 use std::cell::RefCell;
@@ -372,9 +373,16 @@ fn reconstruct(
                                     }
                                 }
                             }
+                            InstructionKind::OwnedStoreBorrow { store, .. }
+                            | InstructionKind::OwnedStoreBorrowMut { store, .. } => {
+                                // The actual descriptor may carry an address
+                                // loan through DescribeAddress. A plain weak
+                                // description has an empty loan row and grants
+                                // no permission through this producer chain.
+                                row.insert(id);
+                                join(&mut parents, &flow.values[store.0 as usize], budget)?;
+                            }
                             InstructionKind::ByteBufferBorrow { buffer, .. }
-                            | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
-                            | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. }
                             | InstructionKind::MutexValue { guard: buffer }
                                 if budget.head_descriptions =>
                             {
@@ -386,8 +394,6 @@ fn reconstruct(
                                 join(&mut parents, &flow.values[mutex.0 as usize], budget)?;
                             }
                             InstructionKind::ByteBufferBorrow { .. }
-                            | InstructionKind::OwnedStoreBorrow { .. }
-                            | InstructionKind::OwnedStoreBorrowMut { .. }
                             | InstructionKind::MutexValue { .. }
                             | InstructionKind::BorrowOwnedArrayElement { .. }
                             | InstructionKind::BorrowPackageField { .. }
@@ -1081,7 +1087,7 @@ fn ownership(
 ) -> Check<Vec<bool>> {
     let n = f.blocks.len();
     let v = f.values.len();
-    reserve(budget, &[n, v, 2])?;
+    let (mut inputs, mut outputs) = move_state::Row::tables(n, v, budget)?;
     budget.spend(v.saturating_mul(2))?;
     // Record eligibility during the existing paid classification and later
     // State/callback marking. With no affine SSA value, the extra aggregate
@@ -1153,24 +1159,21 @@ fn ownership(
             }
         }
     }
-    let mut inputs = vec![vec![false; v]; n];
-    let mut outputs = inputs.clone();
     loop {
         let mut changed = false;
         for (b, block) in f.blocks.iter().enumerate() {
             if !graph.reachable[b] {
                 continue;
             }
-            budget.spend(v)?;
-            let mut state = vec![false; v];
+            let mut state = move_state::Row::new(v, budget)?;
             if b != f.entry.0 as usize {
                 for &p in &graph.predecessors[b] {
                     if graph.reachable[p] {
-                        bits_join(&mut state, &outputs[p], budget)?;
+                        state.join(&outputs[p], budget)?;
                     }
                 }
             }
-            inputs[b].clone_from(&state);
+            inputs[b].copy_from(&state, budget)?;
             for instruction in &block.instructions {
                 budget.spend(
                     consumers(&instruction.kind, affine_values)
@@ -1178,19 +1181,21 @@ fn ownership(
                         .saturating_add(1),
                 )?;
                 if let Some(value) = instruction.result {
-                    state[value.0 as usize] = false;
+                    state.set(value.0 as usize, false, budget)?;
                 }
                 for value in consumers(&instruction.kind, affine_values) {
                     if affine[value.0 as usize] {
-                        state[value.0 as usize] = true;
+                        state.set(value.0 as usize, true, budget)?;
                     }
                 }
             }
-            if state != outputs[b] {
+            if !state.same(&outputs[b], budget)? {
                 outputs[b] = state;
                 changed = true;
             }
         }
+        #[cfg(test)]
+        move_state::record(&inputs, &outputs);
         if !changed {
             break;
         }
@@ -1199,10 +1204,13 @@ fn ownership(
         if !graph.reachable[b] {
             continue;
         }
-        budget.spend(v)?;
-        let mut state = inputs[b].clone();
-        let check_use = |value: ValueId, state: &[bool], span: Span| -> Check<()> {
-            if affine[value.0 as usize] && state[value.0 as usize] {
+        let mut state = inputs[b].copy(budget)?;
+        let check_use = |value: ValueId,
+                         state: &move_state::Row,
+                         span: Span,
+                         budget: &mut Budget|
+         -> Check<()> {
+            if affine[value.0 as usize] && state.get(value.0 as usize, budget)? {
                 return Err(reject(
                     "E-VERIFY-MOVE",
                     Some(span),
@@ -1218,16 +1226,16 @@ fn ownership(
                     .saturating_add(1),
             )?;
             for value in instruction_operands(&instruction.kind) {
-                check_use(value, &state, instruction.span)?;
+                check_use(value, &state, instruction.span, budget)?;
             }
             if let Some(value) = instruction.result {
-                state[value.0 as usize] = false;
+                state.set(value.0 as usize, false, budget)?;
             }
             for value in consumers(&instruction.kind, affine_values) {
                 if !affine[value.0 as usize] {
                     continue;
                 }
-                check_use(*value, &state, instruction.span)?;
+                check_use(*value, &state, instruction.span, budget)?;
                 if view[value.0 as usize] {
                     return Err(reject(
                         "E-VERIFY-MOVE",
@@ -1235,11 +1243,11 @@ fn ownership(
                         "Load/projection is an access view; transfer requires TakeLocal or an explicit child reborrow",
                     ));
                 }
-                state[value.0 as usize] = true;
+                state.set(value.0 as usize, true, budget)?;
             }
         }
         if let Terminator::Return(Some(value)) = block.terminator {
-            check_use(value, &state, f.span)?;
+            check_use(value, &state, f.span, budget)?;
             if affine[value.0 as usize] && view[value.0 as usize] {
                 return Err(reject(
                     "E-VERIFY-MOVE",

@@ -1,0 +1,465 @@
+{
+  "schema_version": 1,
+  "scope": "Growing ordinary POD Map/Set with Copy + StoreElement keys/values, complete callable/Store context controls, and independent verification under unchanged default limits.",
+  "status": "Pass for the frozen source and the explicitly listed semantic, boundary and integration scopes.",
+  "source": {
+    "base_main": "099d0af969a51260355437603b77d3f9030d83bc",
+    "executed_commit": "75379491b26f8cfdcb6f6aafb91cd6e3def9a444",
+    "code_commit": "758302646aed941598a4563e55226bf825ce0862",
+    "tested_tree": "4051b503e4b88c927667932d4290b20194af79d3",
+    "publication": "Published commit and tree independently read back through GitHub.",
+    "production_and_inputs": "Production, default limits, all original inputs and native harnesses are byte-identical to the initial acceptance commit below. Later changes only calibrate existing test pins and related comments.",
+    "initial_acceptance": {
+      "executed_commit": "0933d6ac9a3acb58f1c26465d80d07d96f192867",
+      "code_commit": "9fdeebae13736ab910b2d6a5cf9f9b7510410713",
+      "tested_tree": "9f38a98df0d4f6d13cd927f9a74ebe2420d69750"
+    },
+    "test_only_updates": [
+      {
+        "commit": "c69576f3422fcbb3348828aecac983fe50b8d971",
+        "files": 7,
+        "numeric_tokens": 13,
+        "comment_sites": 2,
+        "preservation": "Inverse mapping restores every complete original file; 1,413 assertion macros retained."
+      },
+      {
+        "commit": "75379491b26f8cfdcb6f6aafb91cd6e3def9a444",
+        "files": 10,
+        "numeric_tokens": 55,
+        "comment_sites": 4,
+        "preservation": "Inverse mapping restores every complete parent file; 1,184 assertion macros, full tuples, inputs, Limits, loops and rejection/fresh controls retained."
+      }
+    ]
+  },
+  "contracts": [
+    "spec/pod-hash-collections.md",
+    "spec/analysis-inventory-sharing.md",
+    "spec/ordinary-store-ownership.md"
+  ],
+  "input_origin": "b731111d7476db1d3a3379f1b5cbf4dca70beeb0",
+  "inputs": [
+    {
+      "path": "tests/language-readiness/terminal/library-and-ui/growing-hash-collections/map-allocation.zil",
+      "bytes": 3351,
+      "sha256": "050e9736e2886d740fa690e30afad20b08e2cc7a344ebbf08514f2af9129ff5d"
+    },
+    {
+      "path": "tests/language-readiness/terminal/library-and-ui/growing-hash-collections/map.zil",
+      "bytes": 5008,
+      "sha256": "7a299339ce1dd660e73963f3ac514fefcb328bb45f3fc25569a0ce833b5b5df7"
+    },
+    {
+      "path": "tests/language-readiness/terminal/library-and-ui/growing-hash-collections/set-allocation.zil",
+      "bytes": 2478,
+      "sha256": "775823c92e72472aed9225e6326bb53277178d62a1a786a0a20a754dfd2e17da"
+    },
+    {
+      "path": "tests/language-readiness/terminal/library-and-ui/growing-hash-collections/set.zil",
+      "bytes": 2976,
+      "sha256": "b726ef0311e5530037e1b07b73202cb9df81ad0aeab403f61a74c27663d8d6c4"
+    },
+    {
+      "path": "lib/std/pod_hash_map.zil",
+      "bytes": 7583,
+      "sha256": "6fbc5ff1cac044f570dd4f1e6421f5b5ba4ac03d99a921b54a96b0e68d463efd"
+    },
+    {
+      "path": "lib/std/pod_hash_set.zil",
+      "bytes": 2480,
+      "sha256": "bf9575886572b50adcb1e11bab6e90dab71ee00740e8840763ecc3edada2031a"
+    }
+  ],
+  "verified_invariants": [
+    "The original Map, generic Copy-key Set and callable Store-field-refill Source consumers finish independent verification with verification_runs=1, cache_hit=false and disk_cache=disabled.",
+    "Fixed-capacity insertion retains its contract. Growth and reserve prepare replacement storage before replacing collection owners; allocation-failure consumers check the expected error, existing length/capacity/content, unchanged Copy arguments and successful retry after an injected failure.",
+    "Source/raw/Wire controls retain complete ordinary-input/public-capture context and actual parent-loan/descriptor-generation distinctions. Stale descriptors and actual alias conflicts remain SafeReject; the existing callback Store-address Unsupported and borrowed-sibling precision boundaries remain explicit.",
+    "Complete independent old algorithms remain available as test oracles for logical state, sidecars, written effects, failure prefixes and budget boundaries. Fresh success after N-1 failure is asserted rather than comparing two possibly failing Results.",
+    "Representation and request-local qualification/layout reuse retain current effects, fresh initial State, bridge inputs, strict final transfers and close_pairs. Stored layout publication follows a complete successful new/extend sequence and preserves the prior entry on failure; real mode changes force reconstruction."
+  ],
+  "budget": {
+    "default_limits_unchanged": true,
+    "default_verify_work_limit": 10000000,
+    "exact_library_boundaries": {
+      "shared_product_modes_0_1_2": [
+        5362,
+        5772,
+        7414
+      ],
+      "owned_store_direct": 16491,
+      "owned_store_indirect": 19584,
+      "scalar_field_counts_1_32": [
+        337,
+        616
+      ],
+      "checks": "N succeeds, N-1 returns ResourceLimit, and a fresh request succeeds; original raw/Wire and state assertions are retained."
+    },
+    "legacy_driver_boundaries": {
+      "defer_verify": 8358,
+      "byte_capture_verify": 3351,
+      "package_verify": 23962,
+      "captured_fn_source_to_lower": 23315,
+      "captured_fnmut_two_calls_source_to_lower": 29019,
+      "captured_fnonce_source_to_lower": 31589,
+      "helper_retirement_verify_and_source": 18708,
+      "enum_verify": 79381,
+      "enum_analyze_and_source": 81361,
+      "borrowed_store_named_and_explicit_source": 41073
+    },
+    "complete_kernel_calibration": {
+      "old_complete_analyze_and_verify": "099d0af969a51260355437603b77d3f9030d83bc",
+      "current_complete_analyze_and_verify": "c69576f3422fcbb3348828aecac983fe50b8d971",
+      "complete_default_requests_per_mode": 89,
+      "request_entries": {
+        "analyze-raw": 21,
+        "verify-raw": 21,
+        "verify-wire": 21,
+        "source-Analyze": 3,
+        "source-Verify": 21,
+        "project-Verify": 1,
+        "project-Analyze": 1
+      },
+      "complete_kernel_calls_per_mode": {
+        "Analyze": 47,
+        "Verify": 64
+      },
+      "typed_modules_per_mode": 21,
+      "identical_complete_artifacts": 92,
+      "identity": "Complete TypedModule, CandidatePlan, wire and Source/project identity were compared; all 21 raw/Wire pairs have equal Verify work. Every stage delta equals its accepted site-work delta.",
+      "current_boundaries": {
+        "record-matrix": [
+          [
+            3220,
+            29573,
+            42832,
+            42832,
+            42832
+          ],
+          [
+            6111,
+            88960,
+            131527,
+            131527,
+            131527
+          ],
+          [
+            19476,
+            151772,
+            185241,
+            185241,
+            185241
+          ],
+          [
+            37767,
+            403057,
+            537325,
+            537325,
+            537325
+          ]
+        ],
+        "snapshot-matrix": [
+          [
+            22763,
+            35826,
+            35826
+          ],
+          [
+            48337,
+            76747,
+            76747
+          ],
+          [
+            33702,
+            56261,
+            56261
+          ],
+          [
+            77410,
+            137924,
+            137924
+          ]
+        ],
+        "ordinary-package-fields-Analyze": 270869,
+        "ordinary-package-fields-Verify": 409697,
+        "ordinary-package-complete-project-Analyze": 3150647,
+        "ordinary-error-places-Analyze": 369332,
+        "ordinary-error-places-Verify": 360355,
+        "package-array-matrix": [
+          [
+            4018,
+            40879,
+            63434,
+            63434,
+            63434
+          ],
+          [
+            5206,
+            85055,
+            132989,
+            132989,
+            132989
+          ],
+          [
+            7021,
+            58776,
+            90759,
+            90759,
+            90759
+          ],
+          [
+            9484,
+            71113,
+            106737,
+            106737,
+            106737
+          ]
+        ],
+        "error-arm-Analyze": 44017,
+        "error-arm-Verify": 73548,
+        "optional-store-0-Analyze": 105947,
+        "optional-store-4-Analyze": 174786,
+        "optional-store-12-Analyze": 342160,
+        "optional-store-Verify-matrix": [
+          221023,
+          401501,
+          806651
+        ],
+        "store-replacement-Analyze": 19825,
+        "store-replacement-Verify": 49919,
+        "store-call-Analyze": 24181,
+        "store-call-Verify": 60546,
+        "DAG-new-transfer-0": 53192,
+        "DAG-new-transfer-1": 56625,
+        "DAG-new-transfer-2": 56625,
+        "DAG-old-tail-0": 42476,
+        "DAG-old-tail-1": 45035,
+        "DAG-old-tail-2": 45035,
+        "original-single-drop-project": [
+          242,
+          2132,
+          1273,
+          1414
+        ],
+        "flat-raw-Verify": 8358
+      },
+      "column_conventions": {
+        "record-matrix": "Types, Analyze, raw Verify, Wire Verify, Source; cases (width,depth)=(1,0),(8,0),(1,2),(8,2).",
+        "snapshot-matrix": "Analyze, raw Verify, Wire Verify; cases (roots,length)=(1,2),(1,8),(2,2),(2,8). No exact Source boundary is inferred.",
+        "package-array-matrix": "Types, Analyze, raw Verify, Wire Verify, Source; cases (length,width,depth)=(2,1,0),(8,1,0),(2,8,0),(2,1,3).",
+        "DAG": "Columns 0,1,2 are Analyze, raw Verify, Wire Verify.",
+        "original-single-drop-project": "Three original single-module Source requests followed by the original two-module Project request."
+      },
+      "limits": "The complete nominal project is Analyze-only (V0). Flat 8358 is raw/Wire Verify; its independent Analyze cost is 8673. Source bounds are the limiting stage, never the sum of independent kernel costs.",
+      "formal_boundary_targets": 13,
+      "formal_boundary_targets_passed": 13,
+      "evidence": {
+        "handoff_sha256": "4301db30a66a38a62d3b7817c0cc6894ac2e55d0404e9ce6398b62fce90016b3",
+        "comparison_sha256": "7fb09960dab10f474da1c26ca55182a5151f775d0be0db06a6d17e231dbcd374",
+        "accounting_sha256": "5fdd54c1f9f289a1e6e5002982272f1ec28b34993740998c78b0005ed8dbe8b3",
+        "causes_sha256": "5090b30db73fc7ca02c5fded9052f0ceba0392d58e87fa80c84a93f54ef82e63"
+      }
+    },
+    "enum_analyze_control": {
+      "old": 111249,
+      "current": 81361,
+      "resource_old": 88431,
+      "resource_current": 58543,
+      "qualification": "Original 669-byte Source and complete module/plan/wire match. All other actual site costs/calls are equal. Verify is independently 79381; its saving is not added to Analyze.",
+      "evidence_sha256": {
+        "verify_handoff_sha256": "bedf56e261782b28273ceb9ec7584998f1d3cf4eb3e4cf77dda162b6d49aaf98",
+        "verify_comparison_sha256": "f1e2a10c627f33a4b1caebc8e4d72a229df8e2bb086f164ef751abd20f61a5be",
+        "verify_accounting_sha256": "a629e0996d76918a2b9233c771becf6dabd49f048ad69f3b6f8eb99879b38c15",
+        "analyze_handoff_sha256": "362f6364123e61321ac61eca32ec95c879896df1e6a6ffc755be64af2090cd53",
+        "analyze_comparison_sha256": "490f57e32058c5ccd3b59f86c1aca20bc81d842752dea3cf35057cb53fed5336",
+        "analyze_accounting_sha256": "aba9ec086d4e24047497830edb3ddfe33d80c188e6276f62d438ee623fa1c946"
+      }
+    },
+    "layout_measurement": {
+      "executed_commit": "022b55684e638bbce12720db67ebf6f4fa0c2e12",
+      "old_resources_commit": "241fe971e5d5d855051e8156c8372efa14dd6f54",
+      "complete_common_36_inference_with_setup": [
+        1541298,
+        1491518
+      ],
+      "complete_common_inference_and_final_0_through_6": [
+        2249937,
+        2119620
+      ],
+      "complete_current_request": {
+        "work": 9953630,
+        "remaining": 46370,
+        "resource_finals": 34,
+        "strict_transfers": 525,
+        "close_pairs_complete": true
+      },
+      "qualification": "Old stops in final function 7; no complete old-request total or whole-request saving is inferred. PID-based report paths differ, while supplied/imported bytes, signatures, function metadata and complete common non-layout site/call inventories match. All new metadata/release costs are included. Work units are not elapsed time.",
+      "evidence": {
+        "handoff_sha256": "9766657782e2667d1ef7ad2ba927456a4949e9497744d3350b60209478532cf7",
+        "comparison_sha256": "53830abe9ad936ce2bce5b9b877519a6f2bf9934cc9b4f795c2d303a610219e4",
+        "layout_accounting_sha256": "7ccf2a8a6699ef094f40d4e3c7ee55a2a405aac520c721c08ea122bd6cbb3c5e"
+      }
+    }
+  },
+  "native": {
+    "toolchain": {
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+      "llvm": "23.1.4",
+      "target": "x86_64-unknown-linux-gnu"
+    },
+    "programs": [
+      "map",
+      "set",
+      "map-allocation",
+      "set-allocation"
+    ],
+    "configurations": [
+      "Clang/O0",
+      "Clang/O2",
+      "LLVM API/O0",
+      "LLVM API/O2"
+    ],
+    "compilations": 16,
+    "executions": 64,
+    "normal_executions": 16,
+    "allocation_failure_executions": 48,
+    "failure_matrix": "Each configuration runs map and set normally, and each allocation consumer normally plus failure points 1 through 6.",
+    "actual_api_builder_objects": 8,
+    "builder_checks": "Each API compilation reports one actual builder object, builder_ns>0, parse_ns=0, verify_before_after=true and object_bytes>0; the O0/O2 pipeline matches the selected configuration.",
+    "object_cache_enabled": false,
+    "fallbacks": 0,
+    "all_exit_codes": 0,
+    "stdout": "empty bytes",
+    "allocator": "Every execution has allocated=frees and live=0; each injected run records exactly one failed allocation and each normal run records none.",
+    "codegen_units": {
+      "requested": 1,
+      "actual": 1,
+      "jobs": 1
+    }
+  },
+  "tests": {
+    "initial_acceptance": {
+      "executed_commit": "0933d6ac9a3acb58f1c26465d80d07d96f192867",
+      "tree": "9f38a98df0d4f6d13cd927f9a74ebe2420d69750",
+      "analyze_library": {
+        "passed": 267,
+        "failed": 0,
+        "filtered": 0
+      },
+      "verify_library": {
+        "passed": 605,
+        "failed": 0,
+        "filtered": 0
+      },
+      "growing_hash_collections_driver": {
+        "passed": 11,
+        "failed": 0,
+        "filtered": 29,
+        "includes_native_matrix_test": true
+      },
+      "evidence": {
+        "acceptance_index_sha256": "34b34869a7486dc6b4d99ebbe58db914f47764d109cb78dbf0013d15f7ba52b1",
+        "native_evidence_sha256": "884f2e14e6cdf0a120194044f7d41f7070e023ad7d1c2d882a1915d176819570",
+        "strict_verify_clippy_output_sha256": "49ccb6fada4c270537d57d810f5ede0d41cb12aa99ec92a2e43c7a2ccf4afe77"
+      }
+    },
+    "legacy_driver_controls": {
+      "executed_commit": "c69576f3422fcbb3348828aecac983fe50b8d971",
+      "passed": 7,
+      "failed": 0,
+      "selected_per_target": 1,
+      "captured_helper_native": {
+        "executions": 12,
+        "stdout": "42\n",
+        "stderr": "empty",
+        "fallbacks": 0
+      },
+      "acceptance_index_sha256": "eaaf684725e67412440ecc72067bfd606fba93f35a7aebc34b746704b1ebb099"
+    },
+    "affected_driver_targets": {
+      "executed_commit": "75379491b26f8cfdcb6f6aafb91cd6e3def9a444",
+      "tree": "4051b503e4b88c927667932d4290b20194af79d3",
+      "passed": 1019,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "targets": {
+        "aggregates": 408,
+        "cross_function_borrows": 119,
+        "exclusive_store_elements_store_mut": 32,
+        "generic_regressions": 214,
+        "imported_nominal_traits_modules": 10,
+        "inline_product_children_verify": 5,
+        "nominal_trait_bounds": 231
+      },
+      "includes_all_13_calibrated_original_boundary_tests": true,
+      "index_sha256": "75cc09bb1e770d594399b75e9177ff2320e563690e3aa6a109ec13f2d76ceee5"
+    },
+    "strict_and_static_gates": {
+      "executed_commit": "75379491b26f8cfdcb6f6aafb91cd6e3def9a444",
+      "tree": "4051b503e4b88c927667932d4290b20194af79d3",
+      "all_exit_codes": 0,
+      "gates": [
+        "format",
+        "clippy",
+        "layout",
+        "layout_tests",
+        "contracts",
+        "conformance",
+        "indexes"
+      ],
+      "clippy_command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "scope": "Conformance and contract checks validate static metadata only; they are not additional compiler executions. Index generation leaves no source changes.",
+      "index_sha256": "9d63d99596387da1575680cf949fc5f4dd66ccfb732abb812eb051a74fbdb7e3"
+    }
+  },
+  "reproduce": [
+    [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "zil-analyze",
+      "--lib",
+      "--",
+      "--nocapture"
+    ],
+    [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "zil-verify",
+      "--lib",
+      "--",
+      "--nocapture"
+    ],
+    [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "zil-driver",
+      "--features",
+      "llvm-api",
+      "--test",
+      "zui_product_consumer_zui_core",
+      "growing_hash_collections",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ]
+  ],
+  "limits": "Evidence covers the listed frozen scopes, not general owning K/V collections, elapsed-time gains, a complete old-request cost or an unlisted whole-workspace acceptance. PR check status is kept with the PR, not in this semantic receipt."
+}

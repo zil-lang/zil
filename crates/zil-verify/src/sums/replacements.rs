@@ -3,14 +3,23 @@
 use super::*;
 use crate::place_replacements::{Inventory, actual};
 use std::cell::RefCell;
+pub(super) mod checkpoint;
 #[cfg(test)]
 mod helper_result_tests;
+mod ordered;
+#[cfg(test)]
+mod scheduler_contexts;
+#[cfg(test)]
+mod scheduler_tests;
+#[cfg(test)]
+mod trace;
 type Rows = BTreeMap<actual::Target, Content>;
 struct Invocation<'a> {
     entry: usize,
     arguments: &'a [ValueId],
     captures: Option<&'a actual::Captures>,
     may_only: bool,
+    ordinary_only: bool,
 }
 pub(super) struct Context<'a> {
     actual: &'a actual::Program,
@@ -19,6 +28,7 @@ pub(super) struct Context<'a> {
     whole_must: &'a BTreeSet<usize>,
     written: RefCell<Rows>,
     store_calls: &'a RefCell<BTreeSet<usize>>,
+    observed: Option<RefCell<BTreeSet<usize>>>,
 }
 fn invalid(text: &str) -> Diagnostic {
     bad(None, text)
@@ -269,7 +279,7 @@ fn package_helper_with_store_input(
     b: &mut Budget,
 ) -> Check<bool> {
     if f.foreign.is_some()
-        || f.callable_contract.is_some()
+        || (f.callable_contract.is_some() && (parameter.is_none() || store_input.is_none()))
         || f.callable_return_contract.is_some()
         || f.reference_return_bound.is_some()
         || f.storage_life.is_some()
@@ -292,6 +302,17 @@ fn package_helper_with_store_input(
             continue;
         }
         let ty = &f.locals[local.0 as usize].ty;
+        if let Some(contract) = &f.callable_contract {
+            b.spend(contract.roles.len())?;
+            if contract
+                .roles
+                .iter()
+                .any(|role| role.parameter as usize == index)
+                || helper_copy_result(ty, b)?
+            {
+                continue;
+            }
+        }
         match ty {
             Type::Unit
             | Type::Bool
@@ -634,7 +655,7 @@ pub(super) fn refine_actual_error_arm(
     equal: bool,
     b: &mut Budget,
 ) -> Check<()> {
-    if tag > 1 || state.initialized[local.0 as usize] != 2 {
+    if tag > 1 || state.initialized.get(local.0 as usize, b)? != 2 {
         return Ok(());
     }
     let value = &mut state.locals[local.0 as usize];
@@ -750,7 +771,7 @@ impl Context<'_> {
         at_type(flow.module, flow.f, target, b)?;
         match target.base {
             actual::Base::Local(local) => {
-                if validate && state.initialized[local.0 as usize] != 2 {
+                if validate && state.initialized.get(local.0 as usize, b)? != 2 {
                     return Err(invalid("replacement owner shell is not initialized"));
                 }
                 selected(&state.locals[local.0 as usize], &target.steps, validate, b)?;
@@ -801,6 +822,12 @@ impl Context<'_> {
         }
         Ok(())
     }
+    fn observe(&self, entry: usize, b: &mut Budget) -> Check<()> {
+        if let Some(reads) = &self.observed {
+            ordered::record(reads, entry, b)?;
+        }
+        Ok(())
+    }
     fn call(
         &self,
         flow: &Flow<'_>,
@@ -814,11 +841,16 @@ impl Context<'_> {
             arguments,
             captures,
             may_only,
+            ordinary_only,
         } = invocation;
+        self.observe(entry, b)?;
         let rows = &self.summaries[entry];
         b.spend(rows.len())?;
         for (target, payload) in rows {
             b.spend(target.steps.len().saturating_add(1))?;
+            if ordinary_only && !matches!(target.base, actual::Base::Input(_)) {
+                continue;
+            }
             let targets = actual::substitute(
                 &BTreeSet::from([target.clone()]),
                 arguments,
@@ -852,6 +884,8 @@ impl Context<'_> {
                     let mut needed = self.store_calls.borrow_mut();
                     b.spend(needed.len().saturating_add(1))?;
                     needed.insert(entry);
+                    #[cfg(test)]
+                    trace::store(&needed);
                 }
                 self.apply(flow, state, &target, &incoming, strong, validate, b)?;
             }
@@ -879,7 +913,7 @@ impl Context<'_> {
                         return Err(invalid("reservation Type differs from actual endpoint"));
                     }
                     if validate && let actual::Base::Local(local) = target.base {
-                        if state.initialized[local.0 as usize] != 2 {
+                        if state.initialized.get(local.0 as usize, b)? != 2 {
                             return Err(invalid("reservation pins an uninitialized owner"));
                         }
                         selected(&state.locals[local.0 as usize], &target.steps, true, b)?;
@@ -888,7 +922,7 @@ impl Context<'_> {
             }
             InstructionKind::CommitPlaceReplace { reservation, value } => {
                 let place = self.places[f.id.0 as usize].get(*reservation, b)?;
-                let incoming = state.values[value.0 as usize].duplicate(b)?;
+                let incoming = state.values.get(value.0 as usize, b)?.duplicate(b)?;
                 if validate
                     && matches!(
                         place.ty,
@@ -903,7 +937,7 @@ impl Context<'_> {
                 }
                 for target in self.actual.selected(f, place, b)? {
                     if f.callable_contract.is_some()
-                        && !matches!(target.base, actual::Base::Local(_))
+                        && !matches!(target.base, actual::Base::Local(_) | actual::Base::Input(_))
                     {
                         return Err(unsupported(
                             "public callable helper cannot publish its own nonlocal Commit",
@@ -917,13 +951,18 @@ impl Context<'_> {
                 function,
                 arguments,
             } => {
+                // Also covers Flow's later direct-call return-summary read,
+                // including Copy calls and all rejection-only effect reads.
+                self.observe(function.0 as usize, b)?;
                 let callee = &flow.module.functions[function.0 as usize];
                 if let Some(contract) = &callee.callable_contract {
                     b.spend(self.summaries[function.0 as usize].len())?;
-                    if self.summaries[function.0 as usize]
-                        .keys()
-                        .any(|target| !matches!(target.base, actual::Base::InputCapture(..)))
-                    {
+                    if self.summaries[function.0 as usize].keys().any(|target| {
+                        !matches!(
+                            target.base,
+                            actual::Base::Input(_) | actual::Base::InputCapture(..)
+                        )
+                    }) {
                         return Err(unsupported(
                             "public callable helper has an unpublished replacement effect",
                             Some(i.span),
@@ -932,6 +971,7 @@ impl Context<'_> {
                     for (entry, value) in
                         resources::public_roles::invoked(flow.module, f, contract, arguments, b)?
                     {
+                        self.observe(entry, b)?;
                         b.spend(self.summaries[entry].len())?;
                         for target in self.summaries[entry].keys() {
                             if !matches!(target.base, actual::Base::Environment(_)) {
@@ -949,19 +989,26 @@ impl Context<'_> {
                                 arguments: &[],
                                 captures: Some(&facts.captures[value.0 as usize]),
                                 may_only: true,
+                                ordinary_only: false,
                             },
                             validate,
                             b,
                         )?;
                     }
+                    self.call(
+                        flow,
+                        state,
+                        Invocation {
+                            entry: function.0 as usize,
+                            arguments,
+                            captures: None,
+                            may_only: true,
+                            ordinary_only: true,
+                        },
+                        validate,
+                        b,
+                    )?;
                     return Ok(None);
-                }
-                if f.callable_contract.is_some() && !self.summaries[function.0 as usize].is_empty()
-                {
-                    return Err(unsupported(
-                        "public callable helper cannot publish an ordinary callee's private replacement effects",
-                        Some(i.span),
-                    ));
                 }
                 if (callee.callable_contract.is_some() || callee.callable_return_contract.is_some())
                     && !self.summaries[function.0 as usize].is_empty()
@@ -979,6 +1026,7 @@ impl Context<'_> {
                         arguments,
                         captures: None,
                         may_only: false,
+                        ordinary_only: false,
                     },
                     validate,
                     b,
@@ -1000,6 +1048,7 @@ impl Context<'_> {
                         arguments,
                         captures: facts.local_captures.get(callee),
                         may_only: false,
+                        ordinary_only: false,
                     },
                     validate,
                     b,
@@ -1023,6 +1072,7 @@ impl Context<'_> {
                         arguments,
                         captures: Some(&facts.captures[callee.0 as usize]),
                         may_only: false,
+                        ordinary_only: false,
                     },
                     validate,
                     b,
@@ -1043,6 +1093,7 @@ impl Context<'_> {
                             arguments: &[],
                             captures: Some(&facts.captures[value.0 as usize]),
                             may_only: false,
+                            ordinary_only: false,
                         },
                         validate,
                         b,
@@ -1064,6 +1115,7 @@ impl Context<'_> {
                         arguments: &[],
                         captures: Some(&facts.captures[body.0 as usize]),
                         may_only: false,
+                        ordinary_only: false,
                     },
                     validate,
                     b,
@@ -1079,6 +1131,10 @@ pub(super) fn check(
     graphs: &[FunctionGraph],
     b: &mut Budget,
 ) -> Check<Proofs> {
+    #[cfg(test)]
+    if trace::full() {
+        return scheduler_tests::full_scan(module, graphs, b);
+    }
     let actual = actual::Program::reconstruct(module, graphs, b)?;
     b.spend(module.functions.len().saturating_mul(3))?;
     let mut places = Vec::with_capacity(module.functions.len());
@@ -1098,13 +1154,19 @@ pub(super) fn check(
         places.push(inventory);
         result.push(content(&f.return_type, None, &mut Vec::new(), true, b)?);
     }
+    let mut ordered = ordered::Ordered::new(module.functions.len(), b)?;
+    // No retention work on the first round. Only a repeated actual solve
+    // can produce a checkpoint; versions start at this request's second round.
+    let mut checkpoints: Option<checkpoint::Cache<'_>> = None;
     loop {
-        let mut changed = false;
-        for (f, graph) in module.functions.iter().zip(graphs) {
+        for (index, (f, graph)) in module.functions.iter().zip(graphs).enumerate() {
             b.spend(1)?;
-            if f.foreign.is_some() {
+            if !ordered.run(index, b)? || f.foreign.is_some() {
                 continue;
             }
+            b.spend(1)?;
+            #[cfg(test)]
+            trace::solve(index);
             let context = Context {
                 actual: &actual,
                 places: &places,
@@ -1112,43 +1174,84 @@ pub(super) fn check(
                 whole_must: &whole_must_rows,
                 written: RefCell::new(Rows::new()),
                 store_calls: &store_calls,
+                observed: Some(RefCell::new(BTreeSet::new())),
             };
-            let (found, _, _) =
-                run_with_replacements(module, f, graph, &result, false, b, Some(&context))?;
+            let retain = if let Some(cache) = &mut checkpoints {
+                cache.begin(index, b)?
+            } else {
+                false
+            };
+            let ((found, _, _), checkpoint) =
+                run_retaining(module, f, graph, &result, false, b, Some(&context), retain)?;
             let rows = context.written.into_inner();
-            changed |= result[f.id.0 as usize].merge(&found, b)?;
+            let reads = context
+                .observed
+                .expect("inference observes its actual reads")
+                .into_inner();
+            if let Some(cache) = &mut checkpoints {
+                cache.publish(index, checkpoint, &reads, b)?;
+            }
+            ordered.observe(index, reads, b)?;
+            let mut changed = result[f.id.0 as usize].merge(&found, b)?;
             b.spend(rows.len())?;
             for (target, payload) in rows {
                 changed |= merge_row(&mut effects[f.id.0 as usize], &target, &payload, b)?;
             }
+            if let Some(cache) = &mut checkpoints {
+                cache.published(index, b)?;
+            }
+            if changed {
+                ordered.changed(index, b)?;
+            }
         }
-        if !changed {
+        #[cfg(test)]
+        trace::round(&result, &effects, &store_calls, b);
+        if !ordered.advance(b)? {
             break;
+        }
+        if checkpoints.is_none() {
+            checkpoints = Some(checkpoint::Cache::new(module.functions.len(), b)?);
         }
     }
     let mut rows = Vec::with_capacity(module.functions.len());
     let mut excluded_edges = BTreeMap::new();
-    for (f, graph) in module.functions.iter().zip(graphs) {
+    for (index, (f, graph)) in module.functions.iter().zip(graphs).enumerate() {
         if f.foreign.is_some() {
             rows.push(Vec::new());
             continue;
         }
+        let mut saved = if let Some(cache) = &mut checkpoints {
+            cache.take(index, module, f, graph, b)?
+        } else {
+            None
+        };
+        let written = if let Some(entry) = &mut saved {
+            entry.written(b)?
+        } else {
+            Rows::new()
+        };
         let context = Context {
             actual: &actual,
             places: &places,
             summaries: &effects,
             whole_must: &whole_must_rows,
-            written: RefCell::new(Rows::new()),
+            written: RefCell::new(written),
             store_calls: &store_calls,
+            observed: None,
         };
-        let (_, bridges, excluded) =
-            run_with_replacements(module, f, graph, &result, true, b, Some(&context))?;
+        let (_, bridges, excluded) = if let Some(entry) = saved {
+            entry.replay(&result, Some(&context), b)?
+        } else {
+            run_with_replacements(module, f, graph, &result, true, b, Some(&context))?
+        };
         rows.push(bridges);
         if !excluded.is_empty() {
             b.spend(excluded_edges.len().saturating_add(1))?;
             excluded_edges.insert(f.id.0 as usize, excluded);
         }
     }
+    #[cfg(test)]
+    trace::final_state(&result, &effects, &store_calls, b);
     b.spend(effects.len())?;
     let mut replacement_writes = Vec::with_capacity(effects.len());
     let needed = store_calls.into_inner();

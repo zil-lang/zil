@@ -312,7 +312,13 @@ fn delegated(
                     continue;
                 }
                 match instruction.kind {
-                    InstructionKind::ReborrowAddress { address, .. }
+                    // A Store element inherits only the actual address used
+                    // to produce its description. Equal Hold roots alone do
+                    // not make an unrelated live pointer an ancestor.
+                    InstructionKind::OwnedStoreBorrow { store, .. }
+                    | InstructionKind::OwnedStoreBorrowMut { store, .. } => pending.push(store),
+                    InstructionKind::DescribeAddress { address }
+                    | InstructionKind::ReborrowAddress { address, .. }
                     | InstructionKind::BorrowVariantAddress { address, .. }
                     | InstructionKind::BorrowPlaceAddress { address, .. }
                     | InstructionKind::AddressField { address, .. }
@@ -1809,7 +1815,9 @@ fn infer_with_private(
         } else {
             None
         };
-        let local_parent_facts = if budget.task_borrowed_results && pattern_windows {
+        let local_parent_facts = if pattern_windows
+            && (budget.task_borrowed_results || budget.pod_stores)
+        {
             local_parents::reconstruct(f, predecessors, reachable, capture_facts.as_ref(), budget)?
         } else {
             None

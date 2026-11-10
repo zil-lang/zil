@@ -2,8 +2,17 @@
 //! Nothing in this module reads producer responsibility/tag annotations.
 use super::*;
 use std::collections::{BTreeMap, VecDeque};
+mod initialization;
+#[cfg(test)]
+mod outer_cow_tests;
 mod partial_places;
 pub(super) mod replacements;
+mod tag_cache;
+#[cfg(test)]
+mod tag_fixed_point_tests;
+mod values;
+#[cfg(test)]
+mod values_tests;
 
 pub(super) fn owned_enum(ty: &Type) -> bool {
     matches!(ty, Type::Enum { .. }) && owned_leaf(ty)
@@ -739,6 +748,92 @@ impl Content {
         }
         Ok(())
     }
+    // Exact fixed point of this kernel's own constructor and missing restore.
+    // This proves no route, tag, source or missing wrapper would change; it
+    // never establishes Copy eligibility or a resource permission.
+    fn tags_unknown(&self, ty: &Type, b: &mut Budget) -> Check<bool> {
+        b.spend(1)?;
+        if let Self::Missing(child) = self {
+            return child.tags_unknown(ty, b);
+        }
+        match (self, ty) {
+            (Self::Copy, ty) => Ok(!matches!(
+                ty,
+                Type::Managed(_)
+                    | Type::Tuple(_)
+                    | Type::Package { .. }
+                    | Type::Enum { .. }
+                    | Type::ErrorUnion { .. }
+                    | Type::BorrowedStorage { .. }
+            )),
+            (Self::Leaf(_), _) => Ok(false),
+            (Self::Product(children), Type::Tuple(types)) => {
+                if children.len() != types.len() {
+                    return Ok(false);
+                }
+                b.spend(children.len())?;
+                for (child, ty) in children.iter().zip(types) {
+                    if !child.tags_unknown(ty, b)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            (Self::Product(children), Type::Package { fields, .. }) => {
+                if children.len() != fields.len() {
+                    return Ok(false);
+                }
+                b.spend(children.len())?;
+                for (child, (_, ty)) in children.iter().zip(fields) {
+                    if !child.tags_unknown(ty, b)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            (Self::Sum(arms, route), Type::Enum { variants, .. }) => {
+                if route.is_some() || arms.len() != variants.len() {
+                    return Ok(false);
+                }
+                b.spend(arms.len())?;
+                for ((tag, children), (index, (_, types))) in
+                    arms.iter().zip(variants.iter().enumerate())
+                {
+                    b.spend(1)?;
+                    if *tag as usize != index || children.len() != types.len() {
+                        return Ok(false);
+                    }
+                    b.spend(children.len())?;
+                    for (child, ty) in children.iter().zip(types) {
+                        if !child.tags_unknown(ty, b)? {
+                            return Ok(false);
+                        }
+                    }
+                }
+                Ok(true)
+            }
+            (Self::Sum(arms, route), Type::ErrorUnion { error, result }) => {
+                if route.is_some() || arms.len() != 2 {
+                    return Ok(false);
+                }
+                b.spend(2)?;
+                // Independent Verify representation: arm zero is error.
+                for ((tag, children), (expected, ty)) in
+                    arms.iter().zip([(0, error.as_ref()), (1, result.as_ref())])
+                {
+                    b.spend(1)?;
+                    if *tag != expected || children.len() != 1 {
+                        return Ok(false);
+                    }
+                    if !children[0].tags_unknown(ty, b)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
+    }
     fn forget_copy_tags(&mut self, ty: &Type, b: &mut Budget) -> Check<()> {
         b.spend(1)?;
         let ty = shared_enum_physical(ty, b)?;
@@ -762,6 +857,9 @@ impl Content {
             }
         };
         if copy_sum {
+            if self.tags_unknown(ty, b)? {
+                return Ok(());
+            }
             let old = self.duplicate(b)?;
             let mut unknown = content(ty, None, &mut Vec::new(), false, b)?;
             unknown.retain_missing(&old, b)?;
@@ -998,6 +1096,45 @@ impl Content {
     }
 }
 
+// Only an independently qualified, exact fixed point can preserve a shared
+// root. All unknown cases execute the complete eager transfer below.
+fn forget_shared_copy_tags(
+    value: &mut Arc<Content>,
+    ty: &Type,
+    budget: &mut Budget,
+    cached: Option<(&std::cell::RefCell<tag_cache::Cache<'_>>, usize)>,
+) -> Check<()> {
+    budget.spend(1)?;
+    if Arc::strong_count(value) > 1
+        && matches!(value.as_ref(), Content::Sum(..))
+        && matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. })
+    {
+        // Keep the original entry and qualification order. In particular,
+        // charge_payload rejects invalid Task contexts before any shape proof.
+        budget.spend(1)?;
+        let actual = shared_enum_physical(ty, budget)?;
+        let unknown = if let Some((cache, local)) = cached
+            && indexed_invalidation(budget)
+        {
+            budget.spend(1)?; // actual RefCell borrow before its slot work
+            cache.borrow_mut().known(local, value, actual, budget)?
+        } else {
+            let copy_sum = if indexed_invalidation(budget) {
+                budget.addressed_copy_sum(actual)?
+            } else {
+                resources::charge_payload(actual, budget)?;
+                actual.is_copy_value()
+            };
+            copy_sum && value.tags_unknown(actual, budget)?
+        };
+        if unknown {
+            return Ok(());
+        }
+    }
+    value.cost(budget)?;
+    Arc::make_mut(value).forget_copy_tags(ty, budget)
+}
+
 fn content(
     ty: &Type,
     parameter: Option<u32>,
@@ -1082,9 +1219,9 @@ type Prefix = Vec<(u32, u32)>;
 type Fact = (LocalId, Prefix, u32);
 #[derive(Clone, PartialEq, Eq)]
 struct State {
-    initialized: Vec<u8>, // 1 vacant, 2 initialized; join is may-union.
+    initialized: initialization::Initialized, // exact 0..3; 1 vacant, 2 initialized; may-union.
     locals: Vec<Arc<Content>>,
-    values: Vec<Arc<Content>>,
+    values: values::Values,
     captures: Vec<Option<Arc<Content>>>,
     facts: BTreeSet<Fact>,
     observations: BTreeSet<ValueId>,
@@ -1095,9 +1232,9 @@ impl State {
     fn cost(&self, budget: &mut Budget) -> Check<()> {
         budget.spend(
             self.initialized
-                .len()
+                .copy_work()
                 .saturating_add(self.locals.len())
-                .saturating_add(self.values.len())
+                .saturating_add(self.values.page_count())
                 .saturating_add(self.captures.len())
                 .saturating_add(self.observations.len())
                 .saturating_add(self.facts.len()),
@@ -1120,17 +1257,8 @@ impl State {
         if let (Some(a), Some(b)) = (&mut self.partial, &other.partial) {
             changed |= a.join(b, budget)?;
         }
-        for (a, b) in self.initialized.iter_mut().zip(&other.initialized) {
-            let old = *a;
-            *a |= *b;
-            changed |= old != *a;
-        }
-        for (a, b) in self
-            .locals
-            .iter_mut()
-            .zip(&other.locals)
-            .chain(self.values.iter_mut().zip(&other.values))
-        {
+        changed |= self.initialized.merge(&other.initialized, budget)?;
+        for (a, b) in self.locals.iter_mut().zip(&other.locals) {
             if !Arc::ptr_eq(a, b) {
                 if Arc::strong_count(a) > 1 {
                     a.cost(budget)?;
@@ -1138,6 +1266,7 @@ impl State {
                 changed |= Arc::make_mut(a).merge(b, budget)?;
             }
         }
+        changed |= self.values.merge(&other.values, budget)?;
         for (a, b) in self.captures.iter_mut().zip(&other.captures) {
             if let (Some(a), Some(b)) = (a, b)
                 && !Arc::ptr_eq(a, b)
@@ -1206,6 +1335,9 @@ struct Flow<'a> {
     // arrays and Managed endpoints carry Copy/Leaf content; Tuple/Package
     // children and every Enum/ErrorUnion can retain a Sum route or tag.
     tagged_locals: Option<Vec<usize>>,
+    // Positive shape proofs only. The function borrow fixes each local Type;
+    // strong references make cached Content identities immutable until eviction.
+    tag_cache: Option<std::cell::RefCell<tag_cache::Cache<'a>>>,
     address_replacement_tags: bool,
     replacements: Option<&'a replacements::Context<'a>>,
 }
@@ -1235,7 +1367,7 @@ impl Flow<'_> {
         let mut current = state.locals[local.0 as usize].as_ref();
         let mut prefix = Vec::new();
         budget.spend(path.len().saturating_mul(path.len().saturating_add(2)))?;
-        if validate && state.initialized[local.0 as usize] != 2 {
+        if validate && state.initialized.get(local.0 as usize, budget)? != 2 {
             return Err(bad(
                 Some(span),
                 "Sum observation/consume requires a complete live current local",
@@ -1309,7 +1441,7 @@ impl Flow<'_> {
             && matches!(self.f.locals[local.0 as usize].ty, Type::ErrorUnion { .. })
         {
             let actual = state.locals[local.0 as usize].as_ref();
-            if state.initialized[local.0 as usize] == 2
+            if state.initialized.get(local.0 as usize, budget)? == 2
                 && let Content::Sum(arms, _) = actual
                 && arms.len() == 1
                 && actual.complete(budget)?
@@ -1392,8 +1524,10 @@ impl Flow<'_> {
                         Source::Input(parameter, path) | Source::ReturnedInput(parameter, path) => {
                             let returned = matches!(source, Source::ReturnedInput(..));
                             budget.spend(path.len().saturating_add(1))?;
-                            let mut source =
-                                state.values[args[*parameter as usize].0 as usize].as_ref();
+                            let mut source = state
+                                .values
+                                .get(args[*parameter as usize].0 as usize, budget)?
+                                .as_ref();
                             let mut cursor = 0;
                             while cursor < path.len() {
                                 match (path[cursor], source) {
@@ -1449,7 +1583,10 @@ impl Flow<'_> {
             ),
             Content::Sum(_, Some((parameter, path))) => {
                 budget.spend(path.len().saturating_add(1))?;
-                let mut actual = state.values[args[*parameter as usize].0 as usize].as_ref();
+                let mut actual = state
+                    .values
+                    .get(args[*parameter as usize].0 as usize, budget)?
+                    .as_ref();
                 let mut cursor = 0;
                 while cursor < path.len() {
                     match (path[cursor], actual) {
@@ -1520,7 +1657,7 @@ impl Flow<'_> {
                 && self.partial
                 && let InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local } = instruction.kind
-                && (state.initialized[local.0 as usize] != 2
+                && (state.initialized.get(local.0 as usize, budget)? != 2
                     || !state.locals[local.0 as usize].complete(budget)?)
             {
                 return Err(bad(
@@ -1536,15 +1673,21 @@ impl Flow<'_> {
                         budget.spend(locals.len())?;
                         for &local in locals {
                             let content = &mut state.locals[local];
-                            content.cost(budget)?;
-                            Arc::make_mut(content)
-                                .forget_copy_tags(&self.f.locals[local].ty, budget)?;
+                            forget_shared_copy_tags(
+                                content,
+                                &self.f.locals[local].ty,
+                                budget,
+                                self.tag_cache.as_ref().map(|cache| (cache, local)),
+                            )?;
                         }
                     } else {
                         for (local, content) in state.locals.iter_mut().enumerate() {
-                            content.cost(budget)?;
-                            Arc::make_mut(content)
-                                .forget_copy_tags(&self.f.locals[local].ty, budget)?;
+                            forget_shared_copy_tags(
+                                content,
+                                &self.f.locals[local].ty,
+                                budget,
+                                self.tag_cache.as_ref().map(|cache| (cache, local)),
+                            )?;
                         }
                     }
                 }
@@ -1608,7 +1751,10 @@ impl Flow<'_> {
                             "direct Sum capture refill would overwrite an active owner",
                         ));
                     }
-                    let incoming = state.values[value.0 as usize].duplicate(budget)?;
+                    let incoming = state
+                        .values
+                        .get(value.0 as usize, budget)?
+                        .duplicate(budget)?;
                     if validate && !incoming.complete(budget)? {
                         return Err(bad(
                             Some(instruction.span),
@@ -1669,7 +1815,7 @@ impl Flow<'_> {
                     result = Some(Content::Product(
                         fields
                             .iter()
-                            .map(|v| state.values[v.0 as usize].duplicate(budget))
+                            .map(|v| state.values.get(v.0 as usize, budget)?.duplicate(budget))
                             .collect::<Check<_>>()?,
                     ));
                 }
@@ -1680,7 +1826,7 @@ impl Flow<'_> {
                             *variant,
                             fields
                                 .iter()
-                                .map(|v| state.values[v.0 as usize].duplicate(budget))
+                                .map(|v| state.values.get(v.0 as usize, budget)?.duplicate(budget))
                                 .collect::<Check<_>>()?,
                         )]),
                         None,
@@ -1690,13 +1836,19 @@ impl Flow<'_> {
                     result = Some(Content::Sum(
                         BTreeMap::from([(
                             if *is_error { 0 } else { 1 },
-                            vec![state.values[value.0 as usize].duplicate(budget)?],
+                            vec![
+                                state
+                                    .values
+                                    .get(value.0 as usize, budget)?
+                                    .duplicate(budget)?,
+                            ],
                         )]),
                         None,
                     ))
                 }
                 InstructionKind::TakeErrorUnion { value, is_error } => {
-                    if let Content::Sum(variants, _) = state.values[value.0 as usize].as_ref()
+                    if let Content::Sum(variants, _) =
+                        state.values.get(value.0 as usize, budget)?.as_ref()
                         && let Some(fields) = variants.get(&(if *is_error { 0 } else { 1 }))
                     {
                         result = Some(fields[0].duplicate(budget)?);
@@ -1705,13 +1857,14 @@ impl Flow<'_> {
                 InstructionKind::Store { local, value } => {
                     self.kill(state, *local, budget)?;
                     budget.spend(1)?;
-                    state.locals[local.0 as usize] = state.values[value.0 as usize].clone();
-                    state.initialized[local.0 as usize] = 2;
+                    state.locals[local.0 as usize] =
+                        state.values.get(value.0 as usize, budget)?.clone();
+                    state.initialized.set(local.0 as usize, 2, budget)?;
                 }
                 InstructionKind::PlaceTagLocal { local, path }
                 | InstructionKind::BorrowPlaceLocal { local, path, .. } => {
                     if validate {
-                        if state.initialized[local.0 as usize] != 2 {
+                        if state.initialized.get(local.0 as usize, budget)? != 2 {
                             return Err(bad(
                                 Some(instruction.span),
                                 "mixed place root is not initialized",
@@ -1758,7 +1911,7 @@ impl Flow<'_> {
                 InstructionKind::TakeTupleField { local, path }
                 | InstructionKind::TakeVariantField { local, path } => {
                     if validate {
-                        if state.initialized[local.0 as usize] != 2 {
+                        if state.initialized.get(local.0 as usize, budget)? != 2 {
                             return Err(bad(
                                 Some(instruction.span),
                                 "selective source storage is not initialized",
@@ -1799,7 +1952,7 @@ impl Flow<'_> {
                     result = Some(state.locals[local.0 as usize].duplicate(budget)?);
                     if matches!(instruction.kind, InstructionKind::TakeLocal { .. }) {
                         self.kill(state, *local, budget)?;
-                        state.initialized[local.0 as usize] = 1;
+                        state.initialized.set(local.0 as usize, 1, budget)?;
                     }
                 }
                 InstructionKind::TakePackageField { local, index }
@@ -1821,8 +1974,10 @@ impl Flow<'_> {
                     if let Content::Product(fields) =
                         Arc::make_mut(&mut state.locals[local.0 as usize])
                     {
-                        fields[*index as usize] =
-                            state.values[value.0 as usize].duplicate(budget)?;
+                        fields[*index as usize] = state
+                            .values
+                            .get(value.0 as usize, budget)?
+                            .duplicate(budget)?;
                     }
                 }
                 InstructionKind::VariantTagLocal { local, path }
@@ -1934,18 +2089,22 @@ impl Flow<'_> {
                             "atomic unpack requires every subtree initialized",
                         ));
                     }
-                    if validate && state.initialized[local.0 as usize] != 2 {
+                    if validate && state.initialized.get(local.0 as usize, budget)? != 2 {
                         return Err(bad(
                             Some(instruction.span),
                             "Unpack source is not initialized",
                         ));
                     }
                     budget.spend(fields.len())?;
-                    if validate && fields.iter().any(|l| state.initialized[l.0 as usize] != 1) {
-                        return Err(bad(
-                            Some(instruction.span),
-                            "every Unpack destination must be vacant on every incoming path before the atomic transfer",
-                        ));
+                    if validate {
+                        for local in fields {
+                            if state.initialized.get(local.0 as usize, budget)? != 1 {
+                                return Err(bad(
+                                    Some(instruction.span),
+                                    "every Unpack destination must be vacant on every incoming path before the atomic transfer",
+                                ));
+                            }
+                        }
                     }
                     let payload = match state.locals[local.0 as usize].as_ref() {
                         Content::Sum(variants, _) if variant.is_some() => {
@@ -1969,7 +2128,7 @@ impl Flow<'_> {
                         });
                     }
                     self.kill(state, *local, budget)?;
-                    state.initialized[local.0 as usize] = 1;
+                    state.initialized.set(local.0 as usize, 1, budget)?;
                     for (&target, value) in fields.iter().zip(prepared) {
                         self.kill(state, target, budget)?;
                         if record {
@@ -1987,7 +2146,7 @@ impl Flow<'_> {
                             ));
                         }
                         state.locals[target.0 as usize] = Arc::new(value);
-                        state.initialized[target.0 as usize] = 2;
+                        state.initialized.set(target.0 as usize, 2, budget)?;
                     }
                 }
                 InstructionKind::DropTuple { local }
@@ -2000,7 +2159,7 @@ impl Flow<'_> {
                 | InstructionKind::StorageLive(local)
                 | InstructionKind::StorageDead(local) => {
                     self.kill(state, *local, budget)?;
-                    state.initialized[local.0 as usize] = 1;
+                    state.initialized.set(local.0 as usize, 1, budget)?;
                 }
                 InstructionKind::Call {
                     function,
@@ -2063,7 +2222,9 @@ impl Flow<'_> {
                         bridge.package = direct_fields(&value, budget)?;
                     }
                 }
-                state.values[output.0 as usize] = Arc::new(value);
+                state
+                    .values
+                    .set(output.0 as usize, Arc::new(value), budget)?;
             }
             if record {
                 bridges.push(bridge);
@@ -2093,12 +2254,39 @@ fn run_with_replacements(
     budget: &mut Budget,
     replacements: Option<&replacements::Context<'_>>,
 ) -> Check<Solved> {
+    run_retaining(
+        module,
+        f,
+        graph,
+        summaries,
+        validate,
+        budget,
+        replacements,
+        false,
+    )
+    .map(|(solved, _)| solved)
+}
+#[allow(clippy::too_many_arguments)]
+fn run_retaining<'m>(
+    module: &'m TypedModule,
+    f: &'m TypedFunction,
+    graph: &'m FunctionGraph,
+    summaries: &[Content],
+    validate: bool,
+    budget: &mut Budget,
+    replacements: Option<&replacements::Context<'_>>,
+    retain: bool,
+) -> Check<(Solved, Option<replacements::checkpoint::Entry<'m>>)> {
+    let checkpoint_start = if retain {
+        Some(replacements::checkpoint::Start::new(budget)?)
+    } else {
+        None
+    };
+
     let mut locals = Vec::new();
-    let mut values = Vec::new();
     budget.spend(
         f.locals
             .len()
-            .saturating_add(f.values.len())
             .saturating_add(f.blocks.len().saturating_mul(3)),
     )?;
     for local in &f.locals {
@@ -2110,9 +2298,15 @@ fn run_with_replacements(
             budget,
         )?));
     }
-    for ty in &f.values {
-        values.push(Arc::new(content(ty, None, &mut Vec::new(), true, budget)?));
-    }
+    let values = values::Values::build(f.values.len(), budget, |index, budget| {
+        Ok(Arc::new(content(
+            &f.values[index],
+            None,
+            &mut Vec::new(),
+            true,
+            budget,
+        )?))
+    })?;
     let mut captures = Vec::new();
     if let Some(environment) = f.environment
         && budget.direct_sum_capture_closures.contains(&environment.0)
@@ -2138,7 +2332,7 @@ fn run_with_replacements(
         }
     }
     let mut state = State {
-        initialized: vec![1; f.locals.len()],
+        initialized: initialization::Initialized::new(f.locals.len(), 1, budget)?,
         locals,
         values,
         captures,
@@ -2147,7 +2341,7 @@ fn run_with_replacements(
         partial: None,
     };
     for (index, local) in f.parameters.iter().enumerate() {
-        state.initialized[local.0 as usize] = 2;
+        state.initialized.set(local.0 as usize, 2, budget)?;
         state.locals[local.0 as usize] = Arc::new(content(
             &f.locals[local.0 as usize].ty,
             Some(index as u32),
@@ -2242,6 +2436,8 @@ fn run_with_replacements(
         replacements,
         address_replacement_tags,
         tagged_locals,
+        tag_cache: (partial && indexed_invalidation(budget))
+            .then(|| std::cell::RefCell::new(tag_cache::Cache::new(f))),
         place_meta: if partial {
             Some(partial_places::Meta::new(f, budget)?)
         } else {
@@ -2295,6 +2491,37 @@ fn run_with_replacements(
             *capture = Some(inputs.clone());
         }
     });
+    let checkpoint = if let Some(start) = checkpoint_start {
+        start.save(
+            module,
+            f,
+            graph,
+            &flow,
+            &inputs,
+            &excluded_edges,
+            replacements,
+            budget,
+        )?
+    } else {
+        None
+    };
+    let (result, rows) = replay_inputs(&flow, inputs, validate, budget)?;
+    let checkpoint = if let Some(checkpoint) = checkpoint {
+        checkpoint.finish(flow, budget)?
+    } else {
+        None
+    };
+    Ok(((result, rows, excluded_edges), checkpoint))
+}
+
+fn replay_inputs(
+    flow: &Flow<'_>,
+    inputs: Vec<Option<State>>,
+    validate: bool,
+    budget: &mut Budget,
+) -> Check<(Content, Vec<Vec<Bridge>>)> {
+    let f = flow.f;
+    let module = flow.module;
     let mut result = content(&f.return_type, None, &mut Vec::new(), true, budget)?;
     let mut rows = vec![Vec::new(); f.blocks.len()];
     for (block, input) in inputs.into_iter().enumerate() {
@@ -2316,11 +2543,11 @@ fn run_with_replacements(
                 }
             }
             if let Terminator::Return(Some(value)) = f.blocks[block].terminator {
-                result.merge(&state.values[value.0 as usize], budget)?;
+                result.merge(state.values.get(value.0 as usize, budget)?, budget)?;
             }
         }
     }
-    Ok((result, rows, excluded_edges))
+    Ok((result, rows))
 }
 
 #[cfg(test)]
