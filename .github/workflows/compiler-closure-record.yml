@@ -1,0 +1,52 @@
+name: Record closure compiler experiment decisions
+on:
+  push:
+    branches: [task/G10.5.1.4]
+    paths: [.github/workflows/compiler-closure-record.yml]
+permissions:
+  contents: write
+jobs:
+  record:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Update only compiler task and compact decision index in goal
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib,subprocess,json,os,datetime,urllib.request,base64
+          P=pathlib.Path;task=P('.task/G10.5.1.4');r=task/'runs';a=json.loads((r/'42756277204/summary.json').read_text());b=json.loads((r/'42759775198/quality.json').read_text());br=json.loads((r/'42759775198/receipt.json').read_text())
+          assert a['compile_requests']==1800 and a['formal_requests']==1500 and b['runtime_screen_pass'] is False
+          def api(path):
+              req=urllib.request.Request('https://api.github.com/repos/zil-lang/zil/'+path,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'})
+              with urllib.request.urlopen(req) as x:return json.load(x)
+          p70=api('pulls/70');p72=api('pulls/72');assert p70['merged'] and p70['merge_commit_sha']=='21b1feefc47e05d5d88a7d4738034831e8bc17f0' and not p72['merged']
+          now=datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).isoformat()
+          record={'task':'G10.5.1.4','status':'Both runtime-gated candidates not accepted; specialization continues as open work','previous_scalar_merge':p70['merge_commit_sha'],'pr72_state':p72['state'],'pr72_draft':p72['draft'],'candidate_A':{'source':'b7ddbe6250adcfd483eabaf45cdc35e7b526c033','complete_legacy_eight_run':42756277204,'original_nine_incomplete_run':42752341271,'weighted_reductions':[x['reduction'] for x in a['profiles']],'owned8_runtime_slowdown_percent':[14.386,14.184],'decision':'NoGo: exceeded predeclared 10% runtime gate','full_ci':[42753415293,42753415817]},'candidate_B':{'source':br['measured_source'],'run':42759775198,'scope':'targeted owned8/32 screen only, not general weighted acceptance','runtime_ratios':[x['ratio'] for x in b['cases']],'decision':'NoGo: runtime gate failed','full_workspace_CI':'NotRun for B'},'open':['owned64 Analyze resource order removal limit','resource-aware partitioning without runtime-quality loss','general closure semantic incrementality'],'report':'https://github.com/zil-lang/zil/blob/b80c2ad4f50983d93bb40861e94659c02387cdc9/.task/G10.5.1.4/RESULTS.md','main_modified':False,'external_AI_review_requested':False,'updated_at':now}
+          row='| G10.5.1.4 | 拥有闭包编译成本与运行质量、资源规模边界 | 两候选未采用·专项继续 | P1 | Chat编译专项 · PR72阻断草稿 | A完整旧八项加权省1.57%–3.17%、owned32编辑900.5→644.0ms，但owned8运行慢14%越过10%门；B/a933d034定向编辑省15.6%–29.25%，运行仍慢20%–23%，均NoGo未合。原九项owned64 Analyze限额失败保持；未提高限额、未用功能CI替代性能门。见[闭包实测与裁决](records/compiler-closure-outlining.json)。 |'
+          def cmd(args,cwd=None,check=True):return subprocess.run(args,cwd=cwd,text=True,capture_output=True,check=check)
+          for attempt in range(3):
+              cmd(['git','fetch','--no-tags','origin','refs/heads/goal']);before=cmd(['git','rev-parse','FETCH_HEAD']).stdout.strip();w=P(os.environ['RUNNER_TEMP'])/('closure-goal-'+str(attempt));cmd(['git','worktree','add','--detach',str(w),before])
+              p=w/'goal.md';s=p.read_text();lines=s.splitlines();hits=[i for i,x in enumerate(lines) if x.startswith('| G10.5.1.4 |')];assert len(hits)==1
+              lines[hits[0]]=row;p.write_text('\n'.join(lines)+'\n');rec=w/'records/compiler-closure-outlining.json';rec.write_text(json.dumps(record,indent=2,ensure_ascii=False)+'\n')
+              cmd(['git','add','goal.md','records/compiler-closure-outlining.json'],cwd=w)
+              cmd(['git','-c','user.name=github-actions[bot]','-c','user.email=41898282+github-actions[bot]@users.noreply.github.com','commit','-m','Record closure compile gains and runtime-gated rejection without main changes'],cwd=w)
+              commit=cmd(['git','rev-parse','HEAD'],cwd=w).stdout.strip();push=cmd(['git','push','origin','HEAD:refs/heads/goal'],cwd=w,check=False)
+              if push.returncode==0:break
+          else:raise RuntimeError('goal changed concurrently; no forced update')
+          readback=api('contents/goal.md?ref=goal');text=base64.b64decode(readback['content']).decode();assert row in text
+          result={'goal_read_before':before,'goal_commit':commit,'goal_blob_readback':readback['sha'],'task_row_confirmed':True,'main_modified':False,'PR70_merged':p70['merge_commit_sha'],'PR72_merged':p72['merged'],'candidate_A':'NoGo runtime','candidate_B':'NoGo runtime','updated_at':now}
+          (task/'goal-update.json').write_text(json.dumps(result,indent=2)+'\n');print(json.dumps(result,indent=2))
+          PY
+          git fetch --no-tags origin refs/heads/task/G10.5.1.4
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git add .task/G10.5.1.4/goal-update.json
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Preserve goal readback for completed closure experiments'
+          git push origin HEAD:refs/heads/task/G10.5.1.4
