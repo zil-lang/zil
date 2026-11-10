@@ -1,0 +1,17 @@
+{
+  "baseline": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852",
+  "source": "a77aa3b1b19b76fa7496f75eacef46b115f541a9",
+  "recipe": "ab992253e1702ef91d4fd45bf60aca2632d08e6a",
+  "scope": "unchanged compiler binary, after vs before-and-after existing explicit O2 policies; no new production change",
+  "status_before_preservation": "success",
+  "files": {
+    "manifest.json": "672d11e7bf81f950e588c956b1dda9db40b85724cd4d19c37aba7b56bd310d72",
+    "runtime.jsonl": "eb4ab34a3fad5b501b102fbf0d489c38ff2f67d72058833598fb8af0f369f1a3",
+    "rows.jsonl": "8209bb42a7810365d10a28800daae5e5710ce96bb8b0a36a3d6c547641c266dd",
+    "raw.tar.gz": "7b0754580453f3a48c16d44a6655478ec428eeda52ea499000af37a0c30068d8",
+    "summary.json": "bc348bc8c0eddcf6a85df21581e57ba44798ddc095d205df80d3891568392c1a",
+    "omitted-elf.json": "f46777d9b5d4a390bf9a8c113656c89ac84c60e007875c240dc9c19947b6c969"
+  },
+  "main_modified": false,
+  "external_ai_review": false
+}
