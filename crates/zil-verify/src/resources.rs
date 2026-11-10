@@ -9,6 +9,7 @@ pub(super) fn head_address(ty: &Type) -> bool {
 }
 use std::collections::VecDeque;
 pub(crate) mod arrays;
+mod desc_liveness;
 mod product;
 pub(super) mod public_roles;
 mod replacements;
@@ -1073,7 +1074,7 @@ fn liveness(
     graph: &FunctionGraph,
     slots: &Slots,
     budget: &mut Budget,
-) -> Check<Vec<Vec<Vec<bool>>>> {
+) -> Check<desc_liveness::History> {
     let n = f.blocks.len();
     budget.spend(
         n.checked_mul(slots.desc_count)
@@ -1111,24 +1112,7 @@ fn liveness(
             }
         }
     }
-    let mut after = Vec::with_capacity(n);
-    for (b, block) in f.blocks.iter().enumerate() {
-        budget.spend(
-            block
-                .instructions
-                .len()
-                .checked_mul(slots.desc_count)
-                .ok_or_else(|| limit("resource liveness history overflow"))?,
-        )?;
-        let mut rows = vec![Vec::new(); block.instructions.len()];
-        let mut live = output[b].clone();
-        for (i, instruction) in block.instructions.iter().enumerate().rev() {
-            rows[i] = live.clone();
-            reverse(slots, &mut live, instruction);
-        }
-        after.push(rows);
-    }
-    Ok(after)
+    desc_liveness::history(f, slots, &output, budget)
 }
 
 fn description_live(
@@ -1176,14 +1160,14 @@ fn description_live(
 
 fn no_live_description(
     state: &State,
-    live: &[bool],
+    live: desc_liveness::Row<'_>,
     root: Root,
     span: Span,
     budget: &mut Budget,
 ) -> Check<()> {
-    for (active, roots) in live.iter().zip(&state.desc) {
+    for (index, roots) in state.desc.iter().take(live.len()).enumerate() {
         budget.spend(1)?;
-        if *active {
+        if live.get(index, budget)? {
             budget.spend(roots.len())?;
             if roots.iter().any(|candidate| {
                 candidate.parent() == root.parent()
@@ -1206,7 +1190,7 @@ struct Transfer<'a> {
     module: &'a TypedModule,
     f: &'a TypedFunction,
     slots: &'a Slots,
-    after: &'a [Vec<Vec<bool>>],
+    after: &'a desc_liveness::History,
     effects: &'a [BTreeSet<Root>],
     sum_rows: Option<&'a [Vec<sums::Bridge>]>,
     replacements: Option<&'a replacements::Plan>,
@@ -1468,7 +1452,7 @@ impl Transfer<'_> {
                         }
                         no_live_description(
                             state,
-                            &self.after[b][i],
+                            self.after.row(b, i),
                             Root::Local(*local),
                             span,
                             budget,
@@ -1491,7 +1475,7 @@ impl Transfer<'_> {
                         }
                         no_live_description(
                             state,
-                            &self.after[b][i],
+                            self.after.row(b, i),
                             Root::Local(*local),
                             span,
                             budget,
@@ -1510,7 +1494,7 @@ impl Transfer<'_> {
                                 }
                                 no_live_description(
                                     state,
-                                    &self.after[b][i],
+                                    self.after.row(b, i),
                                     Root::Local(target),
                                     span,
                                     budget,
@@ -1593,7 +1577,7 @@ impl Transfer<'_> {
                     if validate {
                         no_live_description(
                             state,
-                            &self.after[b][i],
+                            self.after.row(b, i),
                             Root::Local(*local),
                             span,
                             budget,
@@ -1739,7 +1723,7 @@ impl Transfer<'_> {
                         }
                         no_live_description(
                             state,
-                            &self.after[b][i],
+                            self.after.row(b, i),
                             Root::ArrayElement {
                                 local: *local,
                                 index: *index,
@@ -1786,7 +1770,7 @@ impl Transfer<'_> {
                         }
                         no_live_description(
                             state,
-                            &self.after[b][i],
+                            self.after.row(b, i),
                             Root::ArrayElement {
                                 local: *local,
                                 index: *index,
@@ -1835,7 +1819,7 @@ impl Transfer<'_> {
                         }
                         no_live_description(
                             state,
-                            &self.after[b][i],
+                            self.after.row(b, i),
                             Root::PackageField {
                                 local: *local,
                                 index: *index,
@@ -1884,7 +1868,7 @@ impl Transfer<'_> {
                             }
                             no_live_description(
                                 state,
-                                &self.after[b][i],
+                                self.after.row(b, i),
                                 Root::PackageField {
                                     local: *local,
                                     index: *index,
@@ -2111,7 +2095,7 @@ impl Transfer<'_> {
                         }
                         no_live_description(
                             state,
-                            &self.after[b][i],
+                            self.after.row(b, i),
                             Root::OwnedCapture(*index),
                             span,
                             budget,
@@ -2229,7 +2213,7 @@ impl Transfer<'_> {
                             }
                             no_live_description(
                                 state,
-                                &self.after[b][i],
+                                self.after.row(b, i),
                                 Root::Local(*local),
                                 span,
                                 budget,
@@ -2284,7 +2268,7 @@ impl Transfer<'_> {
                             }
                             no_live_description(
                                 state,
-                                &self.after[b][i],
+                                self.after.row(b, i),
                                 Root::Local(*local),
                                 span,
                                 budget,
@@ -2363,7 +2347,7 @@ impl Transfer<'_> {
                     if validate {
                         no_live_description(
                             state,
-                            &self.after[b][i],
+                            self.after.row(b, i),
                             Root::Local(*local),
                             span,
                             budget,
@@ -2417,7 +2401,7 @@ impl Transfer<'_> {
                             }
                             no_live_description(
                                 state,
-                                &self.after[b][i],
+                                self.after.row(b, i),
                                 Root::Local(*local),
                                 span,
                                 budget,
