@@ -1,0 +1,12 @@
+{
+  "merged_commit": "099d0af969a51260355437603b77d3f9030d83bc",
+  "tested_tree": "65a48d418a7165ef7b15cfa05b6d66388bfadb09",
+  "main_read": "099d0af969a51260355437603b77d3f9030d83bc",
+  "goal_before": "22aeea8550cf49a864e4ae0a7765ec330c3e7f02",
+  "goal_commit": "0f8740f571ad6ee00aa2771a7cb9f300d4be139d",
+  "goal_readback": "0f8740f571ad6ee00aa2771a7cb9f300d4be139d",
+  "production_branch_deleted": true,
+  "branch_delete_stderr": "To https://github.com/zil-lang/zil\n - [deleted]             task/anonymous-closure-linkage\n",
+  "other_branches_modified": false,
+  "updated_at": "2026-11-10T23:11:21.490760+08:00"
+}
