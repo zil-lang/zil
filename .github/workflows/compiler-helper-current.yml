@@ -1,0 +1,116 @@
+name: Current main helper partition acceptance
+on:
+  push:
+    branches: [task/helper-current-main-validation]
+    paths: [.github/workflows/compiler-helper-current.yml]
+permissions:
+  contents: write
+jobs:
+  acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Current exact main and unchanged sources
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/current-setup" .task/helper-current/bench .task/helper-current/neighbors
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          cargo fetch --locked
+          sudo apt-get update -qq
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/current-llvm" > "$RUNNER_TEMP/current-setup/llvm.log" 2>&1
+          echo "ZIL_CLANG=$RUNNER_TEMP/current-llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/current-llvm/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/current-llvm/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/current-llvm/bin" >> "$GITHUB_PATH"
+          git fetch --depth=1 --no-tags origin 2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852 0105b22c5116f645f4e70fbd6d192ec168aa20f1
+          git worktree add --detach "$RUNNER_TEMP/current-base" 2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852
+          for f in corpus.py measure.py; do git show 0105b22c5116f645f4e70fbd6d192ec168aa20f1:.task/helper-partition/bench/$f > .task/helper-current/bench/$f; done
+          for f in multimodule.py multi_controls.py controls.py quality.py; do git show 0105b22c5116f645f4e70fbd6d192ec168aa20f1:.task/helper-partition/$f > .task/helper-current/$f; done
+          for f in check.py corpus.py; do git show 0105b22c5116f645f4e70fbd6d192ec168aa20f1:.task/helper-partition/neighbors/$f > .task/helper-current/neighbors/$f; done
+          python3 -m py_compile .task/helper-current/*.py .task/helper-current/bench/*.py .task/helper-current/neighbors/*.py
+          git add .task/helper-current
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Freeze unchanged original acceptance scripts on current-main composition'
+          git rev-parse HEAD > "$RUNNER_TEMP/current-setup/source.txt"
+          git fetch --no-tags origin refs/heads/task/helper-current-main-validation
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git push origin HEAD:refs/heads/task/helper-current-main-validation
+          rustc -vV > "$RUNNER_TEMP/current-setup/rustc.txt"
+          git diff 2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852 5679163bc3fefd77221011eab65987935b66fafd -- crates docs > "$RUNNER_TEMP/current-setup/production.patch"
+      - name: Independent same-profile release compilers
+        id: build
+        run: |
+          set -euo pipefail
+          CARGO_TARGET_DIR="$RUNNER_TEMP/current-base-target" cargo build --locked --offline --release --manifest-path "$RUNNER_TEMP/current-base/Cargo.toml" -p zil-cli > "$RUNNER_TEMP/current-setup/base-build.log" 2>&1
+          CARGO_TARGET_DIR="$RUNNER_TEMP/current-candidate-target" cargo build --locked --offline --release -p zil-cli > "$RUNNER_TEMP/current-setup/candidate-build.log" 2>&1
+      - name: Complete original eight-case fixed weighted matrix
+        run: |
+          set -euo pipefail
+          python3 .task/helper-current/bench/measure.py --base "$RUNNER_TEMP/current-base-target/release/zil" --candidate "$RUNNER_TEMP/current-candidate-target/release/zil" --out "$RUNNER_TEMP/current-primary" --rounds 5 2>&1 | tee "$RUNNER_TEMP/current-setup/primary.log"
+      - name: Complete multi-module input and edit histories
+        run: |
+          set -euo pipefail
+          python3 .task/helper-current/multimodule.py --base "$RUNNER_TEMP/current-base-target/release/zil" --candidate "$RUNNER_TEMP/current-candidate-target/release/zil" --out "$RUNNER_TEMP/current-multi" --rounds 5 2>&1 | tee "$RUNNER_TEMP/current-setup/multi.log"
+      - name: Current original and multi-module allocation-failure cleanup
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 .task/helper-current/multi_controls.py --base "$RUNNER_TEMP/current-base-target/release/zil" --candidate "$RUNNER_TEMP/current-candidate-target/release/zil" --out "$RUNNER_TEMP/current-multi-controls" 2>&1 | tee "$RUNNER_TEMP/current-setup/multi-controls.log"
+          python3 .task/helper-current/controls.py --base "$RUNNER_TEMP/current-base-target/release/zil" --candidate "$RUNNER_TEMP/current-candidate-target/release/zil" --out "$RUNNER_TEMP/current-controls" 2>&1 | tee "$RUNNER_TEMP/current-setup/controls.log"
+      - name: All original active and inactive runtime boundaries
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 .task/helper-current/quality.py --base "$RUNNER_TEMP/current-base-target/release/zil" --candidate "$RUNNER_TEMP/current-candidate-target/release/zil" --out "$RUNNER_TEMP/current-quality" 2>&1 | tee "$RUNNER_TEMP/current-setup/quality.log"
+          python3 .task/helper-current/neighbors/check.py --base "$RUNNER_TEMP/current-base-target/release/zil" --candidate "$RUNNER_TEMP/current-candidate-target/release/zil" --out "$RUNNER_TEMP/current-neighbors" 2>&1 | tee "$RUNNER_TEMP/current-setup/neighbors.log"
+      - name: Preserve original protocols, errors and exact current composition
+        if: ${{ always() }}
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,json,tarfile,hashlib,shutil
+          t=Path(os.environ['RUNNER_TEMP']);d=Path('.task/helper-current/runs')/os.environ['GITHUB_RUN_ID'];d.mkdir(parents=True)
+          labels=['primary','multi','multi-controls','controls','quality','neighbors']
+          for label in labels:
+              path=t/('current-'+label)
+              if path.exists():
+                  dest=d/label;dest.mkdir()
+                  for name in ('summary.json','rows.jsonl','runtime.jsonl','cells.json','manifest.json','failures.json','equivalence.json'):
+                      if (path/name).exists():shutil.copyfile(path/name,dest/name)
+          omitted=[]
+          with tarfile.open(d/'raw.tar.gz','w:gz') as tar:
+              for label in ['setup']+labels:
+                  path=t/('current-'+label)
+                  if path.exists():
+                      for p in path.rglob('*'):
+                          if not p.is_file() or any(x in p.parts for x in ('incremental','semantic','objects')):continue
+                          with p.open('rb') as f:is_elf=f.read(4)==b'\x7fELF'
+                          if is_elf:omitted.append({'path':label+'/'+str(p.relative_to(path)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()});continue
+                          tar.add(p,arcname=label+'/'+str(p.relative_to(path)))
+          (d/'omitted-elf.json').write_text(json.dumps(omitted,indent=2)+'\n')
+          f=t/'current-setup/source.txt';r={'baseline':'2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852','production_candidate':'5679163bc3fefd77221011eab65987935b66fafd','production_tree':'88d779eeddc2fbd88e71f01a9df58fe883fcb991','source':f.read_text().strip() if f.exists() else None,'recipe':os.environ['GITHUB_SHA'],'historical_negative_weights_retained':42860429989,'status_before_preservation':os.environ['PRIOR_STATUS'],'note':'historical scripts retain prior baseline labels; this receipt and exact binaries record actual current-main baseline','files':{str(p.relative_to(d)):hashlib.sha256(p.read_bytes()).hexdigest() for p in d.rglob('*') if p.is_file()},'main_modified':False,'external_ai_review':False}
+          (d/'receipt.json').write_text(json.dumps(r,indent=2)+'\n');assert (d/'raw.tar.gz').stat().st_size<48*1024*1024
+          PY
+          git fetch --no-tags origin refs/heads/task/helper-current-main-validation
+          expected="$GITHUB_SHA"; if test -f "$RUNNER_TEMP/current-setup/source.txt"; then expected="$(cat "$RUNNER_TEMP/current-setup/source.txt")"; fi
+          test "$(git rev-parse FETCH_HEAD)" = "$expected"
+          git add -- ".task/helper-current/runs/$GITHUB_RUN_ID"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Preserve current-main integration matrix $GITHUB_RUN_ID with every prior scenario"
+          git push origin HEAD:refs/heads/task/helper-current-main-validation
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: helper-current-${{ github.run_id }}
+          path: .task/helper-current/runs/${{ github.run_id }}
+          retention-days: 30
