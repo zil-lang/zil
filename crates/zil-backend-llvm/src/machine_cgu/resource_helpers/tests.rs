@@ -473,3 +473,112 @@ fn large_source_bodies_keep_canonical_calls_and_independent_object_inputs() {
     assert_eq!(before.units[0], after.units[0]);
     assert_ne!(before.units[1], after.units[1]);
 }
+
+#[test]
+fn same_argument_return_dispatch_preserves_optimizer_locality_not_function_identity() {
+    let mut dispatch = function("zil.fn.0", Linkage::External, vec![]);
+    let Item::Function(function) = &mut dispatch else {
+        unreachable!()
+    };
+    function.blocks = Some(vec![
+        Block {
+            name: "entry".into(),
+            instructions: vec![
+                inst(
+                    Some("test"),
+                    Op::Compare {
+                        predicate: "eq".into(),
+                        ty: Ty::Int(64),
+                        left: local("x"),
+                        right: Val::Int(0),
+                    },
+                ),
+                inst(
+                    None,
+                    Op::CondBranch {
+                        condition: local("test"),
+                        yes: "left".into(),
+                        no: "right".into(),
+                    },
+                ),
+            ],
+        },
+        Block {
+            name: "left".into(),
+            instructions: vec![
+                inst(Some("a"), call("zil.fn.1")),
+                inst(None, Op::Return(Some(Arg::new(Ty::Int(64), local("a"))))),
+            ],
+        },
+        Block {
+            name: "right".into(),
+            instructions: vec![
+                inst(Some("b"), call("zil.fn.2")),
+                inst(None, Op::Return(Some(Arg::new(Ty::Int(64), local("b"))))),
+            ],
+        },
+    ]);
+    let mut input = module(vec![
+        dispatch,
+        caller(1, "helper"),
+        caller(2, "helper"),
+        caller(3, "helper"),
+        helper("helper", 7),
+    ]);
+    for id in [1, 2] {
+        let Item::Function(function) = &mut input.items[id] else {
+            unreachable!()
+        };
+        let mut index = 0;
+        while function.cost() <= MAX_IMPORTED_SOURCE_COST {
+            function.blocks.as_mut().unwrap()[0].instructions.insert(
+                0,
+                inst(
+                    Some(&format!("extra.{index}")),
+                    Op::Binary {
+                        opcode: "xor".into(),
+                        ty: Ty::Int(64),
+                        left: local("x"),
+                        right: Val::Int(index),
+                    },
+                ),
+            );
+            index += 1;
+        }
+    }
+    let lir = source(4);
+    let plan = planned(input.clone(), &lir, 8);
+    let owner = plan
+        .units
+        .iter()
+        .find(|u| symbol_count(u, "zil.fn.0") == 1)
+        .unwrap();
+    assert_eq!(symbol_count(owner, "zil.fn.1"), 1);
+    assert_eq!(symbol_count(owner, "zil.fn.2"), 1);
+    assert_eq!(symbol_count(owner, "zil.fn.3"), 0);
+    assert_eq!(plan.units.len(), 2);
+    for unit in &plan.units {
+        zil_llvm_api::validate_module(unit).unwrap();
+    }
+    // Different arguments do not receive the same affinity: preserve ordinary
+    // independent units rather than assuming these calls can be collapsed.
+    let Item::Function(function) = &mut input.items[0] else {
+        unreachable!()
+    };
+    let Op::Call { args, .. } = &mut function.blocks.as_mut().unwrap()[2].instructions[0].op else {
+        unreachable!()
+    };
+    args[0].value = Val::Int(4);
+    let plan = planned(input, &lir, 8);
+    let owner = plan
+        .units
+        .iter()
+        .find(|u| symbol_count(u, "zil.fn.0") == 1)
+        .unwrap();
+    assert_eq!(symbol_count(owner, "zil.fn.1"), 0);
+    assert_eq!(symbol_count(owner, "zil.fn.2"), 0);
+    assert_eq!(plan.units.len(), 4);
+    for unit in &plan.units {
+        zil_llvm_api::validate_module(unit).unwrap();
+    }
+}
