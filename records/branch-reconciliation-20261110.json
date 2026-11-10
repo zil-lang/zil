@@ -267,5 +267,6 @@
     "llvm_in_progress": 42751458036,
     "not_all_green_claimed": true
   },
-  "boundary": "goal is coordination only and is not merged to main. Main received three semantic test files only. Historical failures and rejected performance experiments remain in source history, not accepted production."
+  "boundary": "goal is coordination only and is not merged to main. Main received three semantic test files only. Historical failures and rejected performance experiments remain in source history, not accepted production.",
+  "superseded_current_state_by": "records/ordinary-collections-continuation.json"
 }
