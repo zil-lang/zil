@@ -403,9 +403,13 @@ fn windows_allocation() -> m::Code {
 }
 
 fn storage_operations() -> m::Code {
-    m::Code::from(vec![
+    // Keep the common capacity check inline. The unchanged allocation/publish
+    // transaction is a shared out-of-line slow path, not repeated in each
+    // inlined closure. No cold-frequency, alias or success facts are asserted.
+    let mut code = reserve_front();
+    code.append(m::Code::from(vec![
         m::Event::Begin(m::Function {
-            name: "zil.bytes.reserve".into(),
+            name: "zil.bytes.grow".into(),
             linkage: m::Linkage::Internal,
             signature: m::Signature {
                 result: m::Ty::Int(1),
@@ -424,7 +428,7 @@ fn storage_operations() -> m::Code {
                 ],
                 variadic: false,
             },
-            attrs: vec![],
+            attrs: vec![m::Attr::NoInline],
             blocks: None,
         }),
         m::Event::Label("entry".into()),
@@ -848,8 +852,123 @@ fn storage_operations() -> m::Code {
         )),
         m::Event::Instruction(m::Inst::new(None, m::Op::Return(None))),
         m::Event::End,
+    ]));
+    code
+}
+
+fn reserve_front() -> m::Code {
+    let header = m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]);
+    let arg = |ty, name: &str| m::Arg::new(ty, m::local(name.into()));
+    m::Code::from(vec![
+        m::Event::Begin(m::Function {
+            name: "zil.bytes.reserve".into(),
+            linkage: m::Linkage::Internal,
+            signature: m::Signature {
+                result: m::Ty::Int(1),
+                result_attrs: vec![],
+                variadic: false,
+                params: vec![
+                    m::Param {
+                        ty: m::Ty::Ptr,
+                        name: Some("head".into()),
+                        attrs: vec![],
+                    },
+                    m::Param {
+                        ty: m::Ty::Int(64),
+                        name: Some("requested".into()),
+                        attrs: vec![],
+                    },
+                ],
+            },
+            attrs: vec![],
+            blocks: None,
+        }),
+        m::Event::Label("entry".into()),
+        m::Event::Instruction(m::Inst::new(
+            Some("negative".into()),
+            m::Op::Compare {
+                predicate: "slt".into(),
+                ty: m::Ty::Int(64),
+                left: m::local("requested".into()),
+                right: m::Val::Int(0),
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::CondBranch {
+                condition: m::local("negative".into()),
+                yes: "failed".into(),
+                no: "capacity".into(),
+            },
+        )),
+        m::Event::Label("capacity".into()),
+        m::Event::Instruction(m::Inst::new(
+            Some("cap.field".into()),
+            m::Op::Gep {
+                ty: header,
+                ptr: m::local("head".into()),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(2)),
+                ],
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("cap".into()),
+            m::Op::Load {
+                ty: m::Ty::Int(64),
+                ptr: m::local("cap.field".into()),
+                align: 8,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("fits".into()),
+            m::Op::Compare {
+                predicate: "ule".into(),
+                ty: m::Ty::Int(64),
+                left: m::local("requested".into()),
+                right: m::local("cap".into()),
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::CondBranch {
+                condition: m::local("fits".into()),
+                yes: "done".into(),
+                no: "growth".into(),
+            },
+        )),
+        m::Event::Label("growth".into()),
+        m::Event::Instruction(m::Inst::new(
+            Some("result".into()),
+            m::Op::Call {
+                result: m::Ty::Int(1),
+                result_attrs: vec![],
+                callee: m::global("zil.bytes.grow".into()),
+                args: vec![arg(m::Ty::Ptr, "head"), arg(m::Ty::Int(64), "requested")],
+                vararg: None,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Return(Some(arg(m::Ty::Int(1), "result"))),
+        )),
+        m::Event::Label("done".into()),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Return(Some(m::Arg::new(m::Ty::Int(1), m::Val::Bool(true)))),
+        )),
+        m::Event::Label("failed".into()),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Return(Some(m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)))),
+        )),
+        m::Event::End,
     ])
 }
+
+#[cfg(test)]
+mod reserve_tests;
 
 impl FunctionEmitter<'_> {
     pub(super) fn byte_buffer_instruction(
