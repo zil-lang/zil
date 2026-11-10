@@ -403,7 +403,7 @@ fn keys(
         return None;
     }
     let mut context = FingerprintBuilder::new();
-    context.update(b"ZIL-FUNCTION-TYPES-2\0");
+    context.update(b"ZIL-FUNCTION-TYPES-3\0");
     target.hash(&mut context);
     // Limits is an explicit complete struct so adding a field forces review.
     let Limits {
@@ -435,6 +435,10 @@ fn keys(
         .hash(&mut context);
     program.root.hash(&mut context);
     program.modules.len().hash(&mut context);
+    // Keep the complete name/ID/import namespace in the context. Its size and
+    // order affect resolution and accounting, even for a body that uses only
+    // some declarations. Signature contents are a separate observed facet.
+    let mut declarations = BTreeMap::new();
     for module in &program.modules {
         let core = &module.core;
         if core.schema_version != SCHEMA_VERSION
@@ -454,7 +458,9 @@ fn keys(
         }
         core.functions.len().hash(&mut context);
         for f in &core.functions {
-            if !f.type_parameters.is_empty()
+            if f.storage_life.is_some()
+                || f.protocol_contract.is_some()
+                || !f.type_parameters.is_empty()
                 || !f.state_parameters.is_empty()
                 || !f.callable_parameters.is_empty()
                 || f.callable_return.is_some()
@@ -465,33 +471,40 @@ fn keys(
                 return None;
             }
             let signature = tables.get(&core.module_id)?.get(&f.name)?;
+            // Adding, removing or renumbering a declaration still invalidates
+            // the epoch; a signature-only edit need not invalidate non-users.
             signature.id.hash(&mut context);
-            signature.public.hash(&mut context);
             f.name.hash(&mut context);
-            f.call_kind.hash(&mut context);
-            f.life.is_some().hash(&mut context);
+            let mut declaration = FingerprintBuilder::new();
+            signature.id.hash(&mut declaration);
+            signature.public.hash(&mut declaration);
+            f.name.hash(&mut declaration);
+            f.call_kind.hash(&mut declaration);
+            f.life.is_some().hash(&mut declaration);
             if let Some(life) = &f.life {
-                // Ordered lexical binders and their dense actual positions
-                // are semantic declaration input, including unused binders.
-                life.binders.hash(&mut context);
-                life.parameter_lives.hash(&mut context);
-                life.result_life.hash(&mut context);
+                life.binders.hash(&mut declaration);
+                life.parameter_lives.hash(&mut declaration);
+                life.result_life.hash(&mut declaration);
             }
-            f.foreign.is_some().hash(&mut context);
+            f.foreign.is_some().hash(&mut declaration);
             if let Some(foreign) = &f.foreign {
-                foreign.abi.hash(&mut context);
-                foreign.symbol.hash(&mut context);
-                foreign.noescape_parameters.hash(&mut context);
-                foreign.static_callbacks.hash(&mut context);
+                foreign.abi.hash(&mut declaration);
+                foreign.symbol.hash(&mut declaration);
+                foreign.noescape_parameters.hash(&mut declaration);
+                foreign.static_callbacks.hash(&mut declaration);
             }
-            f.return_type.hash(&mut context);
-            f.result_mode.hash(&mut context);
-            f.parameters.len().hash(&mut context);
+            f.return_type.hash(&mut declaration);
+            f.result_mode.hash(&mut declaration);
+            f.parameters.len().hash(&mut declaration);
             for p in &f.parameters {
-                p.name.hash(&mut context);
-                p.ty.hash(&mut context);
-                p.mode.hash(&mut context);
+                p.name.hash(&mut declaration);
+                p.ty.hash(&mut declaration);
+                p.mode.hash(&mut declaration);
             }
+            declarations
+                .entry(core.module_id)
+                .or_insert_with(BTreeMap::new)
+                .insert(f.name.clone(), declaration.digest());
         }
     }
     let context = context.digest();
@@ -508,8 +521,12 @@ fn keys(
                 remaining: limits.max_nodes,
                 module,
                 tables,
+                declarations: &declarations,
             };
             encoder.hash.update(&context.0);
+            encoder
+                .hash
+                .update(&declarations.get(&module.core.module_id)?.get(&f.name)?.0);
             module.core.module_id.hash(&mut encoder.hash);
             f.name.hash(&mut encoder.hash);
             if encoder.span(f.span).is_none()
@@ -534,6 +551,7 @@ struct BodyKey<'a> {
     remaining: usize,
     module: &'a ProgramModule,
     tables: &'a BTreeMap<ModuleId, BTreeMap<String, Signature>>,
+    declarations: &'a BTreeMap<ModuleId, BTreeMap<String, Fingerprint>>,
 }
 impl BodyKey<'_> {
     fn visit(&mut self, depth: usize) -> Option<()> {
@@ -638,18 +656,9 @@ impl BodyKey<'_> {
         }
         Some(())
     }
-    fn call(&self, callee: &CoreExpr) -> Option<()> {
-        match &callee.kind {
-            CoreExprKind::Name(name) => {
-                if self
-                    .tables
-                    .get(&self.module.core.module_id)?
-                    .get(name)?
-                    .foreign
-                {
-                    return None;
-                }
-            }
+    fn call(&mut self, callee: &CoreExpr) -> Option<()> {
+        let (module, name) = match &callee.kind {
+            CoreExprKind::Name(name) => (self.module.core.module_id, name.as_str()),
             CoreExprKind::Member {
                 object,
                 member,
@@ -659,12 +668,19 @@ impl BodyKey<'_> {
                     return None;
                 };
                 let import = self.module.imports.iter().find(|i| &i.alias == alias)?;
-                if self.tables.get(&import.module)?.get(member)?.foreign {
-                    return None;
-                }
+                (import.module, member.as_str())
             }
             _ => return None,
+        };
+        if self.tables.get(&module)?.get(name)?.foreign {
+            return None;
         }
+        // Bind the actual current declaration selected through the current
+        // import/name tables, including visibility, ID, types and life header.
+        // A callee body edit is not a Types dependency of its scalar caller;
+        // Analyze and independent Verify still observe the entire current CFG.
+        self.hash
+            .update(&self.declarations.get(&module)?.get(name)?.0);
         Some(())
     }
     fn expr(&mut self, e: &CoreExpr, depth: usize) -> Option<()> {
