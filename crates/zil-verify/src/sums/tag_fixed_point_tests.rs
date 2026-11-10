@@ -508,10 +508,10 @@ fn exact_unknown_fixed_point_has_a_smaller_complete_request_boundary() {
     let old_n = boundary(true);
     assert!(n < old_n, "{n} >= {old_n}");
     assert_eq!(run(false, n).unwrap(), run(true, old_n).unwrap());
-    assert_eq!(run(false, n).unwrap(), original);
     assert_eq!(
         run(false, n - 1).unwrap_err().category,
         zil_base::ResultCategory::ResourceLimit
     );
+    assert_eq!(run(false, n).unwrap(), original);
     eprintln!("V fixed unknown 64x N={n}, frozen reconstruction N={old_n}; N-1/fresh verified");
 }

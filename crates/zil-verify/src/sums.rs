@@ -2,6 +2,8 @@
 //! Nothing in this module reads producer responsibility/tag annotations.
 use super::*;
 use std::collections::{BTreeMap, VecDeque};
+#[cfg(test)]
+mod outer_cow_tests;
 mod partial_places;
 pub(super) mod replacements;
 #[cfg(test)]
@@ -1092,6 +1094,32 @@ impl Content {
     }
 }
 
+// Only an independently qualified, exact fixed point can preserve a shared
+// root. All unknown cases execute the complete eager transfer below.
+fn forget_shared_copy_tags(value: &mut Arc<Content>, ty: &Type, budget: &mut Budget) -> Check<()> {
+    budget.spend(1)?;
+    if Arc::strong_count(value) > 1
+        && matches!(value.as_ref(), Content::Sum(..))
+        && matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. })
+    {
+        // Keep the original entry and qualification order. In particular,
+        // charge_payload rejects invalid Task contexts before any shape proof.
+        budget.spend(1)?;
+        let actual = shared_enum_physical(ty, budget)?;
+        let copy_sum = if indexed_invalidation(budget) {
+            budget.addressed_copy_sum(actual)?
+        } else {
+            resources::charge_payload(actual, budget)?;
+            actual.is_copy_value()
+        };
+        if copy_sum && value.tags_unknown(actual, budget)? {
+            return Ok(());
+        }
+    }
+    value.cost(budget)?;
+    Arc::make_mut(value).forget_copy_tags(ty, budget)
+}
+
 fn content(
     ty: &Type,
     parameter: Option<u32>,
@@ -1631,15 +1659,11 @@ impl Flow<'_> {
                         budget.spend(locals.len())?;
                         for &local in locals {
                             let content = &mut state.locals[local];
-                            content.cost(budget)?;
-                            Arc::make_mut(content)
-                                .forget_copy_tags(&self.f.locals[local].ty, budget)?;
+                            forget_shared_copy_tags(content, &self.f.locals[local].ty, budget)?;
                         }
                     } else {
                         for (local, content) in state.locals.iter_mut().enumerate() {
-                            content.cost(budget)?;
-                            Arc::make_mut(content)
-                                .forget_copy_tags(&self.f.locals[local].ty, budget)?;
+                            forget_shared_copy_tags(content, &self.f.locals[local].ty, budget)?;
                         }
                     }
                 }
