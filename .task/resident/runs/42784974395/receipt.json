@@ -1,0 +1,21 @@
+{
+  "baseline_production": "3e4a2a2ae368380e86ea99da32d7f3eef68cf3b4",
+  "source": "f1f4496d3ebb5591e9bdfd3e3c86be5f82eb92d5",
+  "recipe": "1cc4b200f9146d198db46ef266ed24976416fc04",
+  "status": "success",
+  "scope": "resident research client over existing raw CompilationSession; no new codegen or safety bypass",
+  "files": {
+    "controls.json": "136a4a2b768b8652c7767a7000e068881901b3ab04bad434e7e80cc3a08407af",
+    "failures.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "manifest.json": "feb4633b01c80e21116e1a23ae9560ad8640a778ec1a3655b36b204b93643797",
+    "runtime.jsonl": "329e983bdd0db042b635e45fbec4c96888c05de8ad97ae7d606f7d931587df61",
+    "equivalence.json": "8993067a3c36761d7a07434566a5370584e2294890a9802ecde89b6fd8063404",
+    "rows.jsonl": "9763a02c6b67bdf1604bf8d29a797c86a75352d1e04a34ad65399fd886c5c30c",
+    "raw.tar.gz": "65fa7e1ad64b44cbf42d4dcb87f76858e9723ec2961eb0934e2ec463acc1e2a1",
+    "summary.json": "ae453354d928ca4c49db4649eaf0c00a4fe76025bbe9a4b1414581875096a422",
+    "cells.json": "4f9b513fc445715dd4900c0689e836df8ef558c1b3c2be8b3b9a8af6b9613ae8"
+  },
+  "main_modified": false,
+  "external_ai_review": false,
+  "acceptance": "Pending full evidence audit; not production daemon"
+}

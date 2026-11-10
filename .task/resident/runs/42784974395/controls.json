@@ -1,0 +1,10 @@
+{
+  "status": "Pass",
+  "same_process_compiles": 7,
+  "fresh_reference_compiles": 6,
+  "invalid_program_requests": 2,
+  "restore_after_failure": true,
+  "clear_confirmed": true,
+  "oversized_protocol_refused": true,
+  "capacity_bound": "raw query entry count only, not a process memory byte bound"
+}
