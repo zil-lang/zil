@@ -25,7 +25,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         clang: Some(std::env::var_os("ZIL_CLANG").ok_or("ZIL_CLANG missing")?.into()),
         optimization: if mode == "O2" { Optimization::O2 } else { Optimization::O0 },
         incremental_o2: mode == "O2",
-        function_merging: if mode == "O2" { FunctionMerging::After } else { FunctionMerging::Disabled },
+        function_merging: if mode == "O2" { FunctionMerging::AfterOptimization } else { FunctionMerging::Disabled },
         codegen: CodegenOptions { units: 8, jobs: 2 },
         ..CompileOptions::default()
     };
