@@ -526,11 +526,13 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
         .collect();
     for indirect in [false, true] {
         let (module, plan) = stores(false, true, indirect);
+        // Actual descriptor-parent reconstruction pays one empty join in each
+        // of the two stabilization rounds for these Store borrow fixtures.
         fixtures.push((
             format!("Store indirect={indirect}"),
             module,
             plan,
-            Some(if indirect { 18247 } else { 15516 }),
+            Some(if indirect { 18249 } else { 15518 }),
         ));
     }
     let mut observed = Vec::new();

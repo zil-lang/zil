@@ -44,10 +44,6 @@ impl Values {
     pub(super) fn page_count(&self) -> usize {
         self.pages.len()
     }
-    #[cfg(test)]
-    pub(super) fn is_empty(&self) -> bool {
-        self.len == 0
-    }
     fn validate(&self, budget: &mut Budget) -> CompileResult<()> {
         budget.spend(1, "Sum SSA page inventory size comparison")?;
         if self.pages.len() != self.len.div_ceil(WIDTH) {

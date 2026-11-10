@@ -121,10 +121,8 @@ fn vary(tree: &mut Arc<Tree>, tags: usize, missing: usize, at: &mut usize) {
                 }
             }
         }
-        Node::Leaf(births) => {
-            if missing & 4 != 0 {
-                births.insert(Birth::Created);
-            }
+        Node::Leaf(births) if missing & 4 != 0 => {
+            births.insert(Birth::Created);
         }
         _ => {}
     }

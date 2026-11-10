@@ -904,7 +904,7 @@ impl Context<'_> {
             }
             InstructionKind::CommitPlaceReplace { reservation, value } => {
                 let place = self.places[f.id.0 as usize].get(*reservation, b)?;
-                let incoming = state.values[value.0 as usize].duplicate(b)?;
+                let incoming = state.values.get(value.0 as usize, b)?.duplicate(b)?;
                 if validate
                     && matches!(
                         place.ty,
