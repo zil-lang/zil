@@ -4,7 +4,7 @@ from pathlib import Path
 p=argparse.ArgumentParser();p.add_argument('--cli',required=True);p.add_argument('--out',type=Path,required=True);a=p.parse_args();a.out.mkdir(parents=True)
 source=a.out/'main.zil'
 def program(n):
-    return '\n'.join(f'fn f{i}(x:i32)->i32{{if x<10{{return x+{n if i==0 else i};}}else{{return x-1;}}}}' for i in range(256))+'\nfn main()->i32{return f0(1);}\n'
+    return '\n'.join(f'fn resident_probe_{i}(x:i32)->i32{{if x<10{{return x+{n if i==0 else i};}}else{{return x-1;}}}}' for i in range(256))+'\nfn main()->i32{return resident_probe_0(1);}\n'
 source.write_text(program(0));argv=[a.cli,'check',str(source),'--resident','--json','--resident-reset-after','16','--resident-capacity','16']
 p=subprocess.Popen(argv,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
 hello=json.loads(p.stdout.readline());assert hello['ready'];rows=[]
