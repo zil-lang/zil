@@ -41,8 +41,11 @@ def main():
        if opt=='O2':argv+=['--incremental-o2','--function-merging','after']
        r,rec=invoke(argv,name+'/build');report=json.loads(r.stdout);assert r.returncode==0 and report['status']=='Success' and report['verification_runs']==1,report
        ir=Path(str(exe)+'.ll').read_text();active='cleanup.tail.' in ir
-       if arm=='cand':assert active,(name,'candidate did not activate actual cleanup interning')
-       else:assert not active
+       assert active,(name,'both compilers must retain accepted PR76 cleanup sharing')
+       drops=[line for line in ir.splitlines() if line.startswith('define internal void @zil.closure.drop.')]
+       assert len(drops)==n,(name,len(drops),n)
+       outlined=sum('noinline' in line for line in drops)
+       assert outlined==(n if arm=='cand' and n>=16 else 0),(name,'destructor policy did not match frozen threshold',outlined)
        activations.append({'name':name,'active':active,'ir_bytes':len(ir.encode()),'cleanup_refs':ir.count('cleanup.tail.'),'closure_drop_calls':sum('call void @zil.closure.drop.' in line for line in ir.splitlines())})
        builds.append({'name':name,'report':report,'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest()})
        for fail in [0,1,2,4,8,16,32,64,128]:
@@ -54,7 +57,7 @@ def main():
          if arm=='base':paired[key]=value
          else:assert paired[key]==value,(key,paired[key],value)
          rows.append({'name':name,'fail_at':fail,'input':data.hex(),'output':r.stdout.hex(),'allocation':allocation})
-  result={'status':'Pass','builds':len(builds),'observations':len(rows),'paired_observations':len(rows)//2,'activated_candidate_builds':sum(v['active'] for v in activations),'activation':activations,'build_reports':builds,'observations_detail':rows}
+  result={'status':'Pass','builds':len(builds),'observations':len(rows),'paired_observations':len(rows)//2,'activated_candidate_builds':sum(v['active'] and v['name'].endswith('/cand') for v in activations),'activation':activations,'build_reports':builds,'observations_detail':rows}
   (out/'summary.json').write_text(json.dumps(result,indent=2));print(json.dumps({k:v for k,v in result.items() if k not in ['activation','build_reports','observations_detail']}))
  except Exception as e:
   (out/'failure.json').write_text(json.dumps({'error':repr(e),'builds':builds,'observations':rows,'activation':activations},indent=2));raise
