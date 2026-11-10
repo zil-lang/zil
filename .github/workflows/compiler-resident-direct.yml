@@ -1,0 +1,117 @@
+name: Direct resident CLI and Rust closure reference
+on:
+  push:
+    branches: [task/compiler-resident-cli]
+    paths: [.github/workflows/compiler-resident-direct.yml]
+permissions:
+  contents: write
+jobs:
+  experiment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Confirm unchanged production and install pinned tools
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/direct-setup"
+          test "$(git rev-parse HEAD:crates/zil-cli/src/main.rs)" = edcef8b3bc171929b6efa05aeb6624e40a93434d
+          test "$(git rev-parse HEAD:crates/zil-cli/src/resident.rs)" = 1bd388c12161c45a91f48409a1b7dde415f765ca
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          cargo fetch --locked
+          sudo apt-get update -qq
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/direct-llvm" > "$RUNNER_TEMP/direct-setup/llvm.log" 2>&1
+          echo "ZIL_CLANG=$RUNNER_TEMP/direct-llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/direct-llvm/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/direct-llvm/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/direct-llvm/bin" >> "$GITHUB_PATH"
+      - name: Freeze direct CLI protocol with unchanged corpus and weights
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('.task/resident-cli/bench/measure.py');s=p.read_text()
+          old="        p=subprocess.Popen([str(argv[0]),mode,source,exe,work,capacity],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=err,start_new_session=True,bufsize=-1)"
+          new="""        cmd=[str(argv[0]),'check' if mode=='check' else 'build',source,'--json','--semantic-cache',str(Path(work)/'semantic'),'--resident','--resident-capacity',capacity,'--resident-reset-after','64']
+                  if mode!='check':
+                      cmd+=['--opt',mode,'--backend','llvm-api','--clang',os.environ['ZIL_CLANG'],'--codegen-units','8','--codegen-jobs','2','--object-cache',str(Path(work)/'objects'),'-o',exe]
+                      if mode=='O2':cmd+=['--incremental-o2','--function-merging','after']
+                  p=subprocess.Popen(cmd,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=err,start_new_session=True,bufsize=-1)"""
+          # Remove only this literal's indentation introduced by YAML display.
+          new='\n'.join(line[10:] if line.startswith('                  ') else line for line in new.splitlines())
+          assert s.count(old)==1;s=s.replace(old,new)
+          old="                arms=['base','cand']\n                for block"
+          new="                arms=['base','cand','rust'] if mode=='O2' and case['group']=='resource' else ['base','cand']\n                for block"
+          assert s.count(old)==1;s=s.replace(old,new)
+          old="arms=['base','cand'];random.Random";assert s.count(old)==1;s=s.replace(old,"arms=(['base','cand','rust'] if case['group']=='resource' else ['base','cand']);random.Random")
+          s=s.replace("'NotRun: this experiment isolates resident memory from process/disk reuse, not compiler backend or language'","'Rust is measured only for resource O2; fresh/resident ZIL use one identical executable directly, without Python worker adapter'")
+          needle="        profiles=[]\n        if complete:"
+          assert s.count(needle)==1;s=s.replace(needle,"        complete=complete and all(len(v.get((c['id'],'O2',r,'rust'),[]))==a.rounds for c in cases if c['group']=='resource' for r,_ in REQUESTS)\n"+needle)
+          p.write_text(s)
+          PY
+          python3 -m py_compile .task/resident-cli/bench/*.py
+          git diff --check
+          git add .task/resident-cli/bench/measure.py
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Freeze direct-spawn resident measurement and real Rust resource arm; production unchanged'
+          git rev-parse HEAD > "$RUNNER_TEMP/direct-setup/source.txt"
+          git fetch --no-tags origin refs/heads/task/compiler-resident-cli
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git push origin HEAD:refs/heads/task/compiler-resident-cli
+          rustc -vV > "$RUNNER_TEMP/direct-setup/rustc.txt"
+      - name: Current request controls and release compiler
+        id: build
+        run: |
+          set -euo pipefail
+          CARGO_TARGET_DIR="$RUNNER_TEMP/direct-tests" cargo test --locked --offline -p zil-cli --test resident_session 2>&1 | tee "$RUNNER_TEMP/direct-setup/tests.log"
+          grep 'test result: ok. 5 passed; 0 failed' "$RUNNER_TEMP/direct-setup/tests.log"
+          CARGO_TARGET_DIR="$RUNNER_TEMP/direct-target" cargo build --locked --offline --release -p zil-cli > "$RUNNER_TEMP/direct-setup/build.log" 2>&1
+          echo "ZIL_RESIDENT_CLI=$RUNNER_TEMP/direct-target/release/zil" >> "$GITHUB_ENV"
+      - name: Full same-executable direct matrix with Rust O2 supplement
+        run: |
+          set -euo pipefail
+          python3 .task/resident-cli/bench/measure.py --base "$ZIL_RESIDENT_CLI" --candidate "$ZIL_RESIDENT_CLI" --out "$RUNNER_TEMP/direct-data" --rounds 5 2>&1 | tee "$RUNNER_TEMP/direct-setup/measure.log"
+      - name: Record reset lifetime and current fresh oracle again
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 .task/resident-cli/lifetime.py --cli "$ZIL_RESIDENT_CLI" --out "$RUNNER_TEMP/direct-lifetime" > "$RUNNER_TEMP/direct-setup/lifetime.log" 2>&1
+      - name: Preserve exact direct and previous adapter evidence separately
+        if: ${{ always() }}
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib,os,json,hashlib,tarfile,shutil
+          P=pathlib.Path;t=P(os.environ['RUNNER_TEMP']);d=P('.task/resident-cli/runs')/os.environ['GITHUB_RUN_ID'];d.mkdir(parents=True);data=t/'direct-data'
+          for n in ('manifest.json','summary.json','rows.jsonl','cells.json','failures.json','equivalence.json','runtime.jsonl'):
+              if (data/n).exists():shutil.copyfile(data/n,d/n)
+          if (t/'direct-lifetime/summary.json').exists():shutil.copyfile(t/'direct-lifetime/summary.json',d/'lifetime.json')
+          with tarfile.open(d/'raw.tar.gz','w:gz') as tar:
+              for path,label in [(t/'direct-setup','setup'),(t/'direct-lifetime','lifetime'),(data/'logs','logs'),(data/'runtime-logs','runtime-logs'),(data/'corpus','corpus')]:
+                  if path.exists():tar.add(path,arcname=label)
+          assert (d/'raw.tar.gz').stat().st_size<48*1024*1024
+          f=t/'direct-setup/source.txt';r={'base_production':'fc6620a3b975258643eb8f9c3ee77d868ff67a69','production_pr':78,'production_head':'e19b40dc662fa1c91603acebf5e74bcb5fdce883','source':f.read_text().strip() if f.exists() else None,'recipe':os.environ['GITHUB_SHA'],'earlier_adapter_run':42813461514,'status_before_preservation':os.environ['PRIOR_STATUS'],'files':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in d.iterdir()},'main_modified':False,'rust_scope':'owned8/owned32 O2 only','acceptance':'Pending numerical review; no startup estimate subtracted'}
+          (d/'receipt.json').write_text(json.dumps(r,indent=2)+'\n')
+          PY
+          git fetch --no-tags origin refs/heads/task/compiler-resident-cli
+          expected="$GITHUB_SHA"; if test -f "$RUNNER_TEMP/direct-setup/source.txt"; then expected="$(cat "$RUNNER_TEMP/direct-setup/source.txt")"; fi
+          test "$(git rev-parse FETCH_HEAD)" = "$expected"
+          git add -- ".task/resident-cli/runs/$GITHUB_RUN_ID"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Preserve direct resident versus Rust closure observations $GITHUB_RUN_ID"
+          git push origin HEAD:refs/heads/task/compiler-resident-cli
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: resident-direct-${{ github.run_id }}
+          path: .task/resident-cli/runs/${{ github.run_id }}
+          retention-days: 30
