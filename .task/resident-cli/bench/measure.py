@@ -70,7 +70,11 @@ def resident_timed(argv,log,timeout):
     started=False
     if key not in WORKERS:
         err=open(str(Path(work)/'resident.stderr'),'wb')
-        p=subprocess.Popen([str(argv[0]),mode,source,exe,work,capacity],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=err,start_new_session=True,bufsize=-1)
+        cmd=[str(argv[0]),'check' if mode=='check' else 'build',source,'--json','--semantic-cache',str(Path(work)/'semantic'),'--resident','--resident-capacity',capacity,'--resident-reset-after','64']
+        if mode!='check':
+            cmd+=['--opt',mode,'--backend','llvm-api','--clang',os.environ['ZIL_CLANG'],'--codegen-units','8','--codegen-jobs','2','--object-cache',str(Path(work)/'objects'),'-o',exe]
+            if mode=='O2':cmd+=['--incremental-o2','--function-merging','after']
+        p=subprocess.Popen(cmd,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=err,start_new_session=True,bufsize=-1)
         WORKERS[key]=(p,err);hello=read_line(p);assert hello['ready'] and hello['protocol']==1;started=True
     p,err=WORKERS[key]
     p.stdin.write(b'compile\n');p.stdin.flush();answer=read_line(p)
@@ -96,7 +100,7 @@ def main():
     a=ap.parse_args();out=a.out.resolve();out.mkdir(parents=True);cpus=sorted(os.sched_getaffinity(0))[:2];assert len(cpus)==2;os.sched_setaffinity(0,cpus)
     tools={'base':a.base.resolve(),'cand':a.candidate.resolve(),'rust':Path(subprocess.check_output(['rustup','which','rustc'],text=True).strip())}
     cases=corpus.generate(out/'corpus');rows=[];runtime=[];failures=[];equivalence=[]
-    manifest={'baseline':'fc6620a3b975258643eb8f9c3ee77d868ff67a69','candidate':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'cases':cases,'tools':{k:sha(v) for k,v in tools.items()},'cpus':cpus,'rounds':a.rounds,'request_weights':PROFILES,'mode_weights':MODE_WEIGHTS,'weights':'predeclared assumptions, not telemetry','rust_reference':'NotRun: this experiment isolates resident memory from process/disk reuse, not compiler backend or language','boundary':'base fresh CLI vs candidate resident protocol including IPC and cold startup; current Verify each request; project caches/history/input bytes held equal; no Cargo Fresh; capacity 32 raw query entries is not a byte budget','source_hashes':{str(p.relative_to(out)):sha(p) for p in (out/'corpus').rglob('*') if p.is_file()}}
+    manifest={'baseline':'fc6620a3b975258643eb8f9c3ee77d868ff67a69','candidate':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'cases':cases,'tools':{k:sha(v) for k,v in tools.items()},'cpus':cpus,'rounds':a.rounds,'request_weights':PROFILES,'mode_weights':MODE_WEIGHTS,'weights':'predeclared assumptions, not telemetry','rust_reference':'Rust is measured only for resource O2; fresh/resident ZIL use one identical executable directly, without Python worker adapter','boundary':'base fresh CLI vs candidate resident protocol including IPC and cold startup; current Verify each request; project caches/history/input bytes held equal; no Cargo Fresh; capacity 32 raw query entries is not a byte budget','source_hashes':{str(p.relative_to(out)):sha(p) for p in (out/'corpus').rglob('*') if p.is_file()}}
     dump(out/'manifest.json',manifest)
     count=0
     def command(arm,mode,work):
@@ -113,7 +117,7 @@ def main():
             case_failed=False
             for mode in MODES:
                 if case_failed:break
-                arms=['base','cand']
+                arms=['base','cand','rust'] if mode=='O2' and case['group']=='resource' else ['base','cand']
                 for block in range(-1,a.rounds):
                     if case_failed:break
                     for request,snapshot in REQUESTS:
@@ -169,7 +173,7 @@ def main():
                     # Separate reference computation is outside every native timer.
                     want=expected(case,snapshot,data)
                     for rep in range(-1,5):
-                        arms=['base','cand'];random.Random(f'{case["id"]}/{snapshot}/{rep}').shuffle(arms)
+                        arms=(['base','cand','rust'] if case['group']=='resource' else ['base','cand']);random.Random(f'{case["id"]}/{snapshot}/{rep}').shuffle(arms)
                         for arm in arms:
                             row,stdout,stderr=timed([root/arm/'app'],out/'runtime-logs'/str(len(runtime)),data,60)
                             row.update(case=case['id'],snapshot=snapshot,arm=arm,repetition=rep,warmup=rep<0,iterations=iterations,valid=row['exit']==0 and stdout==want and not stderr)
@@ -191,6 +195,7 @@ def main():
                     cells.append(cell)
         dump(out/'cells.json',cells)
         complete=not failures and all(len(v.get((c['id'],m,r,arm),[]))==a.rounds for c in cases for m in MODES for r,_ in REQUESTS for arm in ('base','cand'))
+        complete=complete and all(len(v.get((c['id'],'O2',r,'rust'),[]))==a.rounds for c in cases if c['group']=='resource' for r,_ in REQUESTS)
         profiles=[]
         if complete:
             for mn,mw in MODE_WEIGHTS.items():
