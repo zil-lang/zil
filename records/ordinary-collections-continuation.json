@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-10T12:25:48.654568+00:00",
-  "read_goal": "368980d53384c590fe1c69d8f5804c70d4dc0909",
+  "recorded_utc": "2026-11-10T12:39:52.381549+00:00",
+  "read_goal": "a75c9619b93914a731a46bf0d8eb6a9287db5b9f",
   "authorization": "User directs one implementation branch where dependencies permit, separate branches only for independent work; compiler-speed work stays with its original conversation; this conversation continues all other unfinished work.",
   "active_language_branch": "task/ordinary-collections",
   "compiler_branches_untouched": [
@@ -175,15 +175,15 @@
     "functional_source": "ede4945d1ed37ca6e89f712fc2258379d84d5e37",
     "functional_paths": 27,
     "functional_scope": "3 library paths, 6 ordinary Input/public capture replacement paths, actual parent/generation, complete original fixtures and consumers; no optional old cost caches or broader ABI/compiler changes.",
-    "latest_measured_source": "5fff3debf03f4051db0beda57ecff5dc305ad891",
-    "latest_default_result": "After integration of accepted main PR75/76: Analyze267/267, Verify571/571, original non-native group9/10; sole original5008B Map still Verify ResourceLimit V1, no cache hit. Entire Map remains unaccepted.",
+    "latest_measured_source": "b327bc9b0e56f7f5bc70978f7cc95ef1f428c7c5",
+    "latest_default_result": "Guarded complete-input checkpoint: Verify585/585 and original non-native group9/10; original5008B Map remains Verify ResourceLimit V1/cachefalse. Exact independent review passed; paired cost diagnostic13 pending; Map is not accepted.",
     "complete_inventory_join_oracles": "3/3; N4667 vs original lookup6454; N-1 and retry pass",
     "source_raw_wire_recent_controls": "7/7 source controls, including Source/raw/Wire negative controls; not seven negative-only tests",
-    "next": "Implement smallest stable complete-input checkpoint4dc closure after accepted scheduler evidence. Preserve original13 controls and all calls; strengthen complete fresh outputs, actual POD replay hit and nonempty direct Sum capture across branches with final rejection control. Then original full Map default gate and native16build/64run/current strict; continue Store push_growing after Map acceptance.",
-    "unaccepted_candidates": "Original Map remains unaccepted. Ordered scheduler has full correctness gate only, not the pending original-Map cost diagnostic. Stable checkpoints, retirement pages, identity/no-change retirement chain and cold-history reuse remain unadopted archive candidates. Adaptive initialization and field/history representations already have their separately recorded current evidence; no candidate-wide or Map-wide acceptance is implied.",
-    "published_continuation": "7374d3ebcc0063e313998ad345a3afa7b726c741",
-    "published_tree": "4bd59ca0b7482f8abfd1c8e5fbeb4cb939ec8763",
-    "identical_local_tree": "4bd59ca0b7482f8abfd1c8e5fbeb4cb939ec8763",
+    "next": "Complete paired diagnostic13 on fixed b327 versus complete5fff algorithms, including all retained-input/COW/cleanup fees and full pre-Sum stage/callsite costs. Choose next mechanism only from actual measured hotspot; then original Map default,16build/64native/currentstrict. Continue Store push_growing on the same branch after Map acceptance.",
+    "unaccepted_candidates": "Original Map remains unaccepted. Ordered scheduler has complete actual Sum net saving126612; guarded checkpoints have correctness proof but current cost decision awaits diagnostic13. Retirement pages, identity/no-change retirement chains and cold-history reuse remain unadopted archive candidates.",
+    "published_continuation": "8209b1e32b71b5cd100665c7713a0e5d074b714d",
+    "published_tree": "baf0f43f260e25c8467ab3cc9b2c4908678ab194",
+    "identical_local_tree": "baf0f43f260e25c8467ab3cc9b2c4908678ab194",
     "complete_analyze_library": "267/267 current full Analyze library on5fff",
     "unknown_fixedpoint": "4 semantic/reconstruction controls, exact N144 versus old188; N-1/fresh; independent input-isolation correction610746 then1/1 rerun",
     "same_fee_diagnostic": {
@@ -206,7 +206,7 @@
       "final_validation_entered": false,
       "interpretation": "This is an accepted-work prefix histogram, not complete-request net savings."
     },
-    "latest_run": "out/runs/map-main-order-integration-20261110T120200Z",
+    "latest_run": "out/runs/map-verify-checkpoint-20261110T123224Z",
     "set_source": "1/1 Success Verify, verification_runs=1",
     "ssa_pages": {
       "source": "bcfec60ca894eb4c37b380a7f1f626887a7fc3fa",
@@ -295,7 +295,7 @@
       "shared_read_precheck": "d2bc7accd preserved in archive but not adopted: current Map cutoff does not execute that stored-flow tail; main already filters the main read-candidate path.",
       "templates_and_frontier": "Not adopted without current actual construction or scheduling hotspot."
     },
-    "complete_verify_library": "571/571 current full Verify library on5fff",
+    "complete_verify_library": "585/585 current complete Verify library on b327; all571 old plus14 checkpoint controls",
     "verify_steps": [
       {
         "source": "b071ab2f4467308b78f068eeb9a2a83a3d73550d",
@@ -493,6 +493,49 @@
         "handoff_sha256": "167efb680a5d3d4f800a4c9c1cf949886b10f48435b1d8c40c76509ff7b2b56f",
         "review": "Exact static and actual gate review accepted; no claim that both old/new have separately asserted N-1, and no native evidence on this tree",
         "published_same_tree": "e965133d052c3db371bc83014bf6591aaa3ca3df"
+      },
+      {
+        "source": "b327bc9b0e56f7f5bc70978f7cc95ef1f428c7c5",
+        "tree": "baf0f43f260e25c8467ab3cc9b2c4908678ab194",
+        "published_same_tree": "8209b1e32b71b5cd100665c7713a0e5d074b714d",
+        "scope": "Guarded same-request complete stable inputs; final validation runs every retained Some input block",
+        "archive_source": "4dc4c09f1fcba9d25d51bf2b11e3bf1fd97d45a4",
+        "paths": 8,
+        "protected_other_verify_blobs": 156,
+        "run": "out/runs/map-verify-checkpoint-20261110T123224Z",
+        "verify_library": "585/585",
+        "non_native_group": "9pass/1fail: original Map VerifyResourceLimit V1/cachefalse",
+        "status": "Correctness and exact independent source review passed; complete paired cost diagnostic13 pending; no whole Map or native acceptance",
+        "handoff_sha256": "0aa373b5bcc1b7cf05b85d58cdf5352a77a8b12c72ffe40d571bba1c06d520a2",
+        "oracles": {
+          "old_run_body_bytes": 9292,
+          "old_run_body_sha256": "5c92dac6485061eae2fd9c6fc73026053bdeb85bb34df18480efd423136ea3a4",
+          "old_check_body_bytes": 5635,
+          "old_check_body_sha256": "0d97cf563626ec2311ed94a588b68a9690d2fe7edcc96ea2f767c53543e447a3",
+          "complete_bodies_exact_5fff": true
+        },
+        "controls": {
+          "original_checkpoint_tests": 13,
+          "original_algorithm_call_counts_preserved": true,
+          "strengthened_full_fresh_outputs": [
+            2,
+            6,
+            8,
+            12,
+            13
+          ],
+          "actual_registered_pod_hit": "Original two checks retained; old hits empty and new contains function0",
+          "actual_nonempty_capture_hit": "Real closure preflight and later CopyEnum publication; actual solves[0,1,0], dependency1, checkpoint hit with3 complete capture inputs; good refill succeeds and missing branch refill is exact final Sum rejection",
+          "place_meta_comparison": "Presence only: no Eq interface; not described as full Plan equality",
+          "old_raw_wire_pins": [
+            4730,
+            5125,
+            6679,
+            15518,
+            18249
+          ]
+        },
+        "review": "Non-author fixed-SHA review accepted complete old algorithms, actual-width retention/cleanup/COW fees, module/function/graph/mode/read-version guards and true final replay; no lowered limits or shortened inputs"
       }
     ],
     "verify_same_fee_diagnostics": [
@@ -834,19 +877,22 @@
     ],
     "same_fee_diagnostic_invariants": "Every diagnostic used original5008 source and default limits, preserved original charges, counted accepted work only, then restored exact source bytes and clean tree.",
     "latest_gate_evidence": {
-      "source": "5fff3debf03f4051db0beda57ecff5dc305ad891",
-      "tree": "4bd59ca0b7482f8abfd1c8e5fbeb4cb939ec8763",
-      "run": "out/runs/map-main-order-integration-20261110T120200Z",
-      "analyze_log_sha256": "4918309a11d06855fd1614b2e92b4bdb5dcd101a215057b357e4a9eaf4484da7",
-      "library_log_sha256": "54baa48b2ce1cf4f4d35d5ad176b72efa0d4e3a6fbf60d8159c4a5627f51703c",
-      "group_log_sha256": "4ff1cdfa628b515b46f015dda2a0f730c49c58c4ba37bff9bd0ebb4ed3549c86",
-      "analyze_library": {
-        "passed": 267,
+      "source": "b327bc9b0e56f7f5bc70978f7cc95ef1f428c7c5",
+      "tree": "baf0f43f260e25c8467ab3cc9b2c4908678ab194",
+      "published_same_tree": "8209b1e32b71b5cd100665c7713a0e5d074b714d",
+      "run": "out/runs/map-verify-checkpoint-20261110T123224Z",
+      "index_sha256": "3b1af8501fdcbc02fe1973aafa778f117ad2a4349b294a0602607dc700636087",
+      "library_log_sha256": "0a3179a1b22bc9cf87d1ffa404241b60b33e3a9cbb0a21b01fea751e056fdf16",
+      "group_log_sha256": "3e9dba6336f8df5431663521f8123013893df97ad1ee6d17d157921d2bcb6f39",
+      "verify_library": {
+        "passed": 585,
         "failed": 0
       },
-      "verify_library": {
-        "passed": 571,
-        "failed": 0
+      "analyze_library": {
+        "last_source": "5fff3debf03f4051db0beda57ecff5dc305ad891",
+        "passed": 267,
+        "failed": 0,
+        "rerun_on_current": false
       },
       "non_native_group": {
         "passed": 9,
@@ -855,7 +901,9 @@
       },
       "strict_last_source": "872e5eca3d5e171c8ebbf01c258fe0ffffd43397",
       "strict_current_pending": true,
-      "native_current_pending": true
+      "native_current_pending": true,
+      "working_tree_clean": true,
+      "preflight_retry": "First runner invocation stopped before Cargo because toolchain env was not loaded; corrected by sourcing the formal env. It is not a source test result."
     },
     "scheduler_diagnostic_pending": {
       "baseline": "a168bff66b9b2b9363b61c3ce9c39556244927ac",
@@ -875,11 +923,11 @@
       "paired_frozen_full_scan": true
     },
     "checkpoint_preflight": {
-      "status": "Read-only preflight; not implemented or run",
+      "status": "Implemented and frozen as b327; complete Verify585 and original group9/1 executed; independently reviewed. Cost benefit still pending diagnostic13.",
       "depends_on": "Actual summary ordered scheduler and stable full-input versions; evaluate only after scheduler same-fee diagnostic",
       "complete_oracle": "Retain the full old fresh run; no narrowed mirrored implementation",
       "controls": "Keep all13 original tests and invocation counts. Strengthen fresh full-output comparisons in2,6,8,12,13; preserve all ten mode guard bits.",
-      "pod_replay": "Keep existing registered33-node POD control and two original checks; add test-only drain of actual successful Cache::take hits. Old fullscan must have none; ordered path should contain function0. Static expectation only, not executed.",
+      "pod_replay": "Actual585 gate passed original two-check33-node POD test, old take hits empty/new contains function0.",
       "final_validation": "Every retained input block must still execute original final flow.block(validate=true,record=true), all captures/returns/bridges and Store history; fresh Plan tag cache; actual module/function/graph/mode/read versions must match.",
       "retention": "Count full State retention/cleanup, all new strong references, actual COW and deep release; failed/changed dependencies fall back to complete fresh solve. Do not predict records final hit without measurement.",
       "source": "4dc4c09f1fcba9d25d51bf2b11e3bf1fd97d45a4",
@@ -889,7 +937,7 @@
         "old_ordered_check": "5635B function body equals current42c3 Ordered check after only old-solver call-name normalization",
         "minimal_paths": 7
       },
-      "remaining_coverage": "Original13 controls do not independently demonstrate nonempty direct Sum capture during an actual checkpoint hit; most fixtures have one input block. Do not infer such evidence from statically preserved final code. Preserve full validation and choose targeted controls if adopting."
+      "remaining_coverage": "New direct nonempty Sum capture actual hit across3 inputs and exact final missing-refill rejection both passed. Full original Map default remains over Verify limit; paired13/net cost and native/currentstrict remain."
     },
     "upstream_integration": {
       "source": "5fff3debf03f4051db0beda57ecff5dc305ad891",
@@ -910,7 +958,33 @@
       "index_sha256": "43af1d18873b2ee48be08c2cdc255aa1a7cba42f3344d18379972af70a20c99f",
       "handoff_sha256": "febcb577ac771e43a3a50c45ca6a0a5dcf0208db8318f34889707383e38b8063",
       "review": "Non-author exact static and actual run evidence accepted; source clean after gate; Map/native not accepted"
-    }
+    },
+    "gate_history": [
+      {
+        "source": "5fff3debf03f4051db0beda57ecff5dc305ad891",
+        "tree": "4bd59ca0b7482f8abfd1c8e5fbeb4cb939ec8763",
+        "run": "out/runs/map-main-order-integration-20261110T120200Z",
+        "analyze_log_sha256": "4918309a11d06855fd1614b2e92b4bdb5dcd101a215057b357e4a9eaf4484da7",
+        "library_log_sha256": "54baa48b2ce1cf4f4d35d5ad176b72efa0d4e3a6fbf60d8159c4a5627f51703c",
+        "group_log_sha256": "4ff1cdfa628b515b46f015dda2a0f730c49c58c4ba37bff9bd0ebb4ed3549c86",
+        "analyze_library": {
+          "passed": 267,
+          "failed": 0
+        },
+        "verify_library": {
+          "passed": 571,
+          "failed": 0
+        },
+        "non_native_group": {
+          "passed": 9,
+          "failed": 1,
+          "sole_failure": "Original5008B Map Verify ResourceLimit V1; no cache hit"
+        },
+        "strict_last_source": "872e5eca3d5e171c8ebbf01c258fe0ffffd43397",
+        "strict_current_pending": true,
+        "native_current_pending": true
+      }
+    ]
   },
   "first_failures": [
     {
@@ -1055,8 +1129,8 @@
     "status": "Prepared only; not applied, built, committed or accepted",
     "after": "Complete current Map acceptance on the same task/ordinary-collections branch",
     "proposal": "Reuse existing collect reserve/ownership transaction: overflow or reserve failure returns the actual incoming owner; success pushes once. Fixed push stays unchanged.",
-    "scratch_patch_sha256": "dd4bebaf16b3b55f94375d435ec454d637bafa9db9d15a706d966e40a887b583",
-    "scratch_patch_currently_accessible": false,
+    "scratch_patch_sha256": "e34e0df9b2223e22bd77c24fdc5aaa47480975c5b297b8c4e64f30f0b12efeec",
+    "scratch_patch_currently_accessible": true,
     "requirements": [
       "RHS item(...) executed directly inside push_growing; abc/created proves single evaluation",
       "Keep the existing7547B collected_pipeline inputs and rerun their3 tests",
@@ -1065,13 +1139,17 @@
       "CBA proves explicit reverse pop/drop only, not automatic reverse destruction of a nonempty Store"
     ],
     "planned_native_processes": 32,
-    "executed_native_processes": 0
+    "executed_native_processes": 0,
+    "scratch_manifest_sha256": "79063256f7c175f924fd55403d266ef1dd4b31058b5e99b36c2930638b4cef47",
+    "scratch_handoff_sha256": "f2cc9ae6202fe4442b9a9dd89f3feb7a1b80a5c6bc6e0436181cc5cbce4a2827",
+    "old_collected_inputs": "4 files total7547B; library586B. All3 old tests unchanged; old56native planned rerun separately.",
+    "planned_old_native_processes": 56
   },
   "current_remote_readback": {
     "observed_utc": "2026-11-10 12:06:06 UTC",
     "heads_total": 16,
-    "source": "7374d3ebcc0063e313998ad345a3afa7b726c741",
-    "source_tree": "4bd59ca0b7482f8abfd1c8e5fbeb4cb939ec8763",
+    "source": "8209b1e32b71b5cd100665c7713a0e5d074b714d",
+    "source_tree": "baf0f43f260e25c8467ab3cc9b2c4908678ab194",
     "main": "fc6620a3b975258643eb8f9c3ee77d868ff67a69",
     "archive": "18d6494299365dc98981d4103a5f648dd4a09926",
     "compiler_refs_untouched": [
@@ -1089,7 +1167,8 @@
       "task/resident-memory-validation"
     ],
     "noncompiler_redundant_refs": 0,
-    "source_readback": true
+    "source_readback": true,
+    "source_observed_utc": "2026-11-10T12:39:52.381549+00:00"
   },
   "goal_concurrency_preserved": {
     "read_goal": "7c274015e3a8268bfa258efdbbf697fa04f55e42",
