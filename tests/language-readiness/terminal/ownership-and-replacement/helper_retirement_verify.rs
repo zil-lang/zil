@@ -336,7 +336,7 @@ fn verify_current_raw_wire_and_source_limits() {
         assert_eq!(
             low,
             match kind {
-                "work" => 19_952,
+                "work" => 17_400,
                 "nodes" => 173,
                 "bytes" => 348,
                 _ => 10,

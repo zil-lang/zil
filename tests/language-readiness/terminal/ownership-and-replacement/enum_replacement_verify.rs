@@ -531,7 +531,7 @@ fn enum_verify_current_raw_wire_and_source_request_boundaries() {
         assert_eq!(
             low,
             match kind {
-                "work" => 138_595,
+                "work" => 111_249,
                 "nodes" => 349,
                 "source_bytes" => 669,
                 _ => 11,
