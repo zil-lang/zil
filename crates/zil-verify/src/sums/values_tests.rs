@@ -297,7 +297,14 @@ fn paged_ssa_content_cow_accounts_for_external_aliases_independently_of_page_sha
     old.cost(&mut b).unwrap();
     let content_cost = 1_000_000 - b.remaining;
     assert_eq!(run(true, false) - run(false, false), content_cost);
-    assert_eq!(run(false, true) - run(false, false), content_cost + 2); // header + one root ref
+    // Shared-only rejected probe: two root walks, root identity, Content node,
+    // two source iterator entries, then Input's owner/path and Fresh comparison.
+    // The original Content COW and page header/root copy still follow in full.
+    let rejected_probe_cost = 2 + 1 + 1 + 2 + (20 + 1) + 1;
+    assert_eq!(
+        run(false, true) - run(false, false),
+        content_cost + 2 + rejected_probe_cost // header + one root ref + probe
+    );
 }
 
 #[test]
