@@ -1,0 +1,28 @@
+name: Compiler source snapshot
+on:
+  push:
+    branches: [task/G10.5.1.3]
+    paths: [.github/workflows/compiler-source-snapshot.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: e69091059ed999a5279303cdd07e9f602703f079
+          fetch-depth: 1
+      - name: Export exact tracked source without build products
+        run: |
+          mkdir -p "$RUNNER_TEMP/compiler-snapshot"
+          git archive --format=tar.gz HEAD > "$RUNNER_TEMP/compiler-snapshot/source.tar.gz"
+          git rev-parse HEAD > "$RUNNER_TEMP/compiler-snapshot/commit.txt"
+          git rev-parse HEAD^{tree} > "$RUNNER_TEMP/compiler-snapshot/tree.txt"
+          sha256sum "$RUNNER_TEMP/compiler-snapshot/source.tar.gz" > "$RUNNER_TEMP/compiler-snapshot/sha256.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: compiler-main-e690-source
+          path: ${{ runner.temp }}/compiler-snapshot
+          retention-days: 7
