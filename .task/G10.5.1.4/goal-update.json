@@ -1,0 +1,12 @@
+{
+  "goal_read_before": "8de90baab2b4044acac48707be080bdbbe7061cd",
+  "goal_commit": "d974c773d2ad7edae3dbd913e152f49f0988597f",
+  "goal_blob_readback": "bf296d3866de1ec09e0831e80ceafb64b9739704",
+  "task_row_confirmed": true,
+  "main_modified": false,
+  "PR70_merged": "21b1feefc47e05d5d88a7d4738034831e8bc17f0",
+  "PR72_merged": false,
+  "candidate_A": "NoGo runtime",
+  "candidate_B": "NoGo runtime",
+  "updated_at": "2026-11-10T13:20:18.764722+08:00"
+}
