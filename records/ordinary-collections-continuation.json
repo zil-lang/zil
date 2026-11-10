@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-10T05:25:59.909973+00:00",
-  "read_goal": "d974c773d2ad7edae3dbd913e152f49f0988597f",
+  "recorded_utc": "2026-11-10T05:44:58.421710+00:00",
+  "read_goal": "cfb21890569ac15dedb3d37b6a92a523b351b5ad",
   "authorization": "User directs one implementation branch where dependencies permit, separate branches only for independent work; compiler-speed work stays with its original conversation; this conversation continues all other unfinished work.",
   "active_language_branch": "task/ordinary-collections",
   "compiler_branches_untouched": [
@@ -77,6 +77,24 @@
       ],
       "strict_and_native_controls": "Pass",
       "repair": "Investigating exact newly paid work before restoring the full-suite boundary pin; no limit change."
+    },
+    "budget_pin_repair": {
+      "pr": 74,
+      "accepted_main": "8b5989dd19d9ffa7549ec3de282aafc431c13593",
+      "executed": "37d1f7e81c979605d8febad0eea5dd50fe0f923e",
+      "published": "6b0ebecbf864fffa8c923599d2328078c5770d6a",
+      "identical_tree": "253b19140fa275137a749934e4744b3464bdd53c",
+      "production_and_inputs_unchanged": true,
+      "actual_new_work": 168,
+      "actual_new_nodes": 24,
+      "reason": "Borrowed Store candidate classification prepays the actual local inventory search for the binding Choice head; other four boundary pins are unchanged.",
+      "complete_generics": "30/30; all six exact N/N-1/fresh/core controls",
+      "independent_review": "Accepted exact source and complete test log",
+      "run": "zil-store-budget/out/runs/store-budget-pin-20261110T052733Z",
+      "temporary_branch": "fix/store-budget-boundary",
+      "temporary_branch_deleted": true,
+      "remote_readback": "main equals accepted_main; temporary ref absent; seven remote heads retained.",
+      "remote_checks": "Structure success; final main/research workspace workflows still running, not claimed green."
     }
   },
   "retirements": [
@@ -131,16 +149,16 @@
     "functional_source": "ede4945d1ed37ca6e89f712fc2258379d84d5e37",
     "functional_paths": 27,
     "functional_scope": "3 library paths, 6 ordinary Input/public capture replacement paths, actual parent/generation, complete original fixtures and consumers; no optional old cost caches or broader ABI/compiler changes.",
-    "latest_measured_source": "b8089a369b9f1cdd00368dc140a0102768eed263",
-    "latest_default_result": "Analyze ResourceLimit: resource fact; verification_runs=0",
+    "latest_measured_source": "4b74581321b28a1e8597cb9f73f0631494b7b8a7",
+    "latest_default_result": "Analyze completed; independent Verify ResourceLimit, verification_runs=1",
     "complete_inventory_join_oracles": "3/3; N4667 vs original lookup6454; N-1 and retry pass",
     "source_raw_wire_recent_controls": "7/7",
-    "next": "Measure remaining actual current-default work after direct inventories; reuse complete successful POD qualification only for actual immutable module and registered Type positions if justified.",
-    "unaccepted_candidates": "SSA/direct indexing must include real canonical storage and COW charges; no isolated constant fee. Old Verify caches/checkpoints/pages only after current measured hotspot. No limits increase or shorter consumer.",
-    "published_continuation": "6767fbb4e24d998e77e8bb5c638388589eaae377",
-    "published_tree": "2bd8b175fac2cf2d030f2faf507039afdb97abee",
-    "identical_local_tree": "b8089a369b9f1cdd00368dc140a0102768eed263",
-    "complete_analyze_library": "246/246 passed",
+    "next": "Independently diagnose current Verify costs on the complete original program; select minimum required verifier mechanisms before the original 64 native executions.",
+    "unaccepted_candidates": "Analyze accepted only for this original default consumer and component controls. Complete Map remains unaccepted until independent Verify and native matrix pass. Old Verify caches/checkpoints/pages require actual current hotspot and full original oracle.",
+    "published_continuation": "b94c3231c4e2287c9a28ebe775fb77cbc12e0d9a",
+    "published_tree": "396df31e52cc8b74d9b6307b1ad2c620f80058db",
+    "identical_local_tree": "4b74581321b28a1e8597cb9f73f0631494b7b8a7",
+    "complete_analyze_library": "262/262 passed",
     "unknown_fixedpoint": "4 semantic/reconstruction controls, exact N144 versus old188; N-1/fresh; independent input-isolation correction610746 then1/1 rerun",
     "same_fee_diagnostic": {
       "source": "3bee825c8643c8018b880c4485815a3717553d46",
@@ -162,7 +180,7 @@
       "final_validation_entered": false,
       "interpretation": "This is an accepted-work prefix histogram, not complete-request net savings."
     },
-    "latest_run": "out/runs/map-direct-index-20261110T052225Z",
+    "latest_run": "out/runs/map-shared-page-keep-20261110T054015Z",
     "set_source": "1/1 Success Verify, verification_runs=1",
     "ssa_pages": {
       "source": "bcfec60ca894eb4c37b380a7f1f626887a7fc3fa",
@@ -198,6 +216,58 @@
       "input_and_default_limits_unchanged": true,
       "source_restored_byte_exact_and_clean": true,
       "interpretation": "Savings refer to the same completed function range; whole request still fails, so no complete-request net gain claimed."
+    },
+    "non_native_group": {
+      "passed": 9,
+      "failed": 1,
+      "source_positive_controls": "Set and callable Store field refill complete Verify; Map alone reaches Verify ResourceLimit.",
+      "callable_source_raw_wire_controls": 7,
+      "native_64": "Not yet rerun on this new tree because complete Map has not passed Verify."
+    },
+    "additional_cost_steps": [
+      {
+        "source": "81459048e544122877c552301f8e852e04d5b07f",
+        "mechanism": "Complete successful POD qualification for actual immutable module Type nodes only",
+        "run": "out/runs/map-pod-carrier-20261110T052852Z",
+        "analyze_library": "254/254",
+        "group": "9 pass / Map Analyze limit",
+        "same_completed_prefix_saving": 591003,
+        "diagnostic": "out/runs/map-analyze-ledger-20261110-4-81459048"
+      },
+      {
+        "source": "09f5ea5bfcc08e26887f4a7334b69b4eb1ac3c82",
+        "mechanism": "Full canonical resource cell inventories merged in ordered parallel walks",
+        "run": "out/runs/map-resource-cell-join-20261110T053511Z",
+        "analyze_library": "257/257",
+        "group": "9 pass / Map Analyze limit",
+        "same_completed_prefix_saving": 313110,
+        "diagnostic": "out/runs/map-analyze-ledger-20261110-5-09f5ea5b",
+        "final_records_complete_cost": 2904966,
+        "final_scalar_remaining_at_entry": 107163
+      },
+      {
+        "source": "4b74581321b28a1e8597cb9f73f0631494b7b8a7",
+        "mechanism": "Complete read-only no-new-facts proof before copying shared distinct SSA pages; otherwise original eager merge",
+        "run": "out/runs/map-shared-page-keep-20261110T054015Z",
+        "analyze_library": "262/262",
+        "group": "9 pass / Map Verify limit",
+        "full_original_map_analyze_completed": true,
+        "full_old_component_oracles": 35,
+        "independent_exact_source_review": "Accepted"
+      }
+    ],
+    "direct_same_fee_diagnostic": {
+      "run": "out/runs/map-analyze-ledger-20261110-3-b8089a36",
+      "same_completed_68_functions_before": 6785249,
+      "same_completed_68_functions_after": 6291893,
+      "same_scope_saving": 493356,
+      "original_input_and_limits": true,
+      "source_restored_byte_exact": true
+    },
+    "candidate_decisions": {
+      "tagged_locals_expansion": "2eafe9e69 had been reverted for measured regression; not restored.",
+      "shared_read_precheck": "d2bc7accd preserved in archive but not adopted: current Map cutoff does not execute that stored-flow tail; main already filters the main read-candidate path.",
+      "templates_and_frontier": "Not adopted without current actual construction or scheduling hotspot."
     }
   },
   "first_failures": [
