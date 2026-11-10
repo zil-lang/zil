@@ -18,7 +18,7 @@ PR73从main21b1最小提取五个生产文件，补重借用与RHS准备失败�
 
 旧三条混合ref的已交付部分由main承载，Store已合PR73，未完Map和一般语言能力由上述入口及本看板承接；共享读预检d2bc7accd等未采用候选保留在固定归档，须有当前完整消费者净收益才采用。本轮用户说明已解决旧“等待明确确认”的接续歧义；实际删除情况以接续记录为准。此前退役13条原ref和PR71临时ref、原自动审批拒绝及首败仍保留在[历史分支核对](records/branch-reconciliation-20261110.json)，不改写历史。
 
-Map原5008B与7583B库保持原字节。完整SSA移动矩阵完整pre-Sum净省1168804，资源只读liveness在36次完整推导含setup净省83888；新费用均计入，独立旧实现和非作者复核通过。原七个数值锚按实际因果修复后执行4a794c8f/发布54627dfa同tree00d8d5，全Verify597/597。原Source仍9/10，Map已到资源final0..6完成、290次真实最终Transfer通过，fn7合流仍默认Verify限额；未宣称全Map通过。下一只准备最小retirement页共享，完整merge库存保留；7原预算门、16build/64native和严格门待验。最新17分支中13为编译专项全部保留，普通施工仍唯一入口；详[语言接续](records/ordinary-collections-continuation.json)。
+Map原5008B与7583B库保持原字节。已接受的完整移动矩阵净省1168804、只读liveness完整推导净省83888保留；241fe971/发布12b9c08同tree70d22通过全Verify597/597及严格Clippy。当前退休页候选f12/发布ffb974ad同tree9f0f2的602项600过/2旧收费断言不符、原Source9/10；第16完整36推导证实净退化398901，因此不接受单独分页，也未以改pin放行。正准备最小付费同Arc守卫，须以实际组合对241完整净账及原Map默认门裁决；不叠其它候选。原7预算门、16build/64native和最终严格门仍待。17分支中13为编译专项全部保留，普通入口不变；详[语言接续](records/ordinary-collections-continuation.json)。
 
 ## G1 · 基础类型与模式
 
@@ -424,7 +424,7 @@ Map原5008B与7583B库保持原字节。完整SSA移动矩阵完整pre-Sum净省
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | Chat语言接续 · task/ordinary-collections；两核独立复核 | 执行4a794c8f/发布54627dfa同tree00d8d5，全Verify597/597。完整移动矩阵净省1168804；只读liveness完整资源推导净省83888，全部新费/旧算法独审通过。原Source9/10，Map资源final0..6及290次真实最终Transfer已过，fn7合流仍默认限额；准备最小退休行页共享，7原预算门、16build/64native与严格门待验。 |
+| G9.3.11.1 | POD泛型HashMap自动增长/rehash和通用Copy Set | 进行中 | P1 | Chat语言接续 · task/ordinary-collections；两核独立复核 | 241完整Verify597/597和严格Clippy通过；当前f12/发布ffb974ad退休页片602项600/2旧收费断言，原Source9/10。第16同36推导净退化398901，拒绝单独分页；最小付费同Arc守卫组合待实测完整对241净账和原Map默认门。原输入、全部旧oracle和最终安全核验保留，Map/native未完成。 |
 
 </details>
 
