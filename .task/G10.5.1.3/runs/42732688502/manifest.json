@@ -1,0 +1,165 @@
+{
+  "baseline": "e69091059ed999a5279303cdd07e9f602703f079",
+  "candidate": "95af0f0c205a0892e6087f5304ad9981461a7fed",
+  "cases": [
+    {
+      "id": "ring768",
+      "group": "graph",
+      "n": 768,
+      "weight": 0.1125,
+      "kind": "mechanism-preserving synthetic workload, not full upstream port",
+      "provenance": "https://github.com/rust-lang/rustc-perf/tree/c0f257113ccc6e6e0742b318006eef2787c3d4c5/collector/compile-benchmarks/large-workspace",
+      "retained": "runtime input, nonlinear calls, all generated definitions directly reachable; trait instantiations or owning mutable closures where labelled",
+      "not_retained": "upstream public API, exact data structures, macro system, dependency graph and source size"
+    },
+    {
+      "id": "shared1024",
+      "group": "graph",
+      "n": 1024,
+      "weight": 0.1125,
+      "kind": "mechanism-preserving synthetic workload, not full upstream port",
+      "provenance": "https://github.com/rust-lang/rustc-perf/tree/c0f257113ccc6e6e0742b318006eef2787c3d4c5/collector/compile-benchmarks/large-workspace",
+      "retained": "runtime input, nonlinear calls, all generated definitions directly reachable; trait instantiations or owning mutable closures where labelled",
+      "not_retained": "upstream public API, exact data structures, macro system, dependency graph and source size"
+    },
+    {
+      "id": "diamond768",
+      "group": "graph",
+      "n": 768,
+      "weight": 0.1125,
+      "kind": "mechanism-preserving synthetic workload, not full upstream port",
+      "provenance": "https://github.com/rust-lang/rustc-perf/tree/c0f257113ccc6e6e0742b318006eef2787c3d4c5/collector/compile-benchmarks/large-workspace",
+      "retained": "runtime input, nonlinear calls, all generated definitions directly reachable; trait instantiations or owning mutable closures where labelled",
+      "not_retained": "upstream public API, exact data structures, macro system, dependency graph and source size"
+    },
+    {
+      "id": "trait32",
+      "group": "trait",
+      "n": 32,
+      "weight": 0.125,
+      "kind": "mechanism-preserving synthetic workload, not full upstream port",
+      "provenance": "https://github.com/rust-lang/rustc-perf/tree/c0f257113ccc6e6e0742b318006eef2787c3d4c5/collector/compile-benchmarks/bitmaps-3.2.1",
+      "retained": "runtime input, nonlinear calls, all generated definitions directly reachable; trait instantiations or owning mutable closures where labelled",
+      "not_retained": "upstream public API, exact data structures, macro system, dependency graph and source size"
+    },
+    {
+      "id": "trait128",
+      "group": "trait",
+      "n": 128,
+      "weight": 0.125,
+      "kind": "mechanism-preserving synthetic workload, not full upstream port",
+      "provenance": "https://github.com/rust-lang/rustc-perf/tree/c0f257113ccc6e6e0742b318006eef2787c3d4c5/collector/compile-benchmarks/bitmaps-3.2.1",
+      "retained": "runtime input, nonlinear calls, all generated definitions directly reachable; trait instantiations or owning mutable closures where labelled",
+      "not_retained": "upstream public API, exact data structures, macro system, dependency graph and source size"
+    },
+    {
+      "id": "owned8",
+      "group": "resource",
+      "n": 8,
+      "weight": 0.15,
+      "kind": "mechanism-preserving synthetic workload, not full upstream port",
+      "provenance": "https://github.com/rust-lang/rustc-perf/tree/c0f257113ccc6e6e0742b318006eef2787c3d4c5/collector/compile-benchmarks/serde-1.0.219",
+      "retained": "runtime input, nonlinear calls, all generated definitions directly reachable; trait instantiations or owning mutable closures where labelled",
+      "not_retained": "upstream public API, exact data structures, macro system, dependency graph and source size",
+      "implementation_basis": "zil examples/mainline/byte_buffer_owned at 82a69812582856b012468db3d019930d8e390f64; actual owned buffers, replacement, allocation and cleanup; not serde"
+    },
+    {
+      "id": "owned32",
+      "group": "resource",
+      "n": 32,
+      "weight": 0.15,
+      "kind": "mechanism-preserving synthetic workload, not full upstream port",
+      "provenance": "https://github.com/rust-lang/rustc-perf/tree/c0f257113ccc6e6e0742b318006eef2787c3d4c5/collector/compile-benchmarks/serde-1.0.219",
+      "retained": "runtime input, nonlinear calls, all generated definitions directly reachable; trait instantiations or owning mutable closures where labelled",
+      "not_retained": "upstream public API, exact data structures, macro system, dependency graph and source size",
+      "implementation_basis": "zil examples/mainline/byte_buffer_owned at 82a69812582856b012468db3d019930d8e390f64; actual owned buffers, replacement, allocation and cleanup; not serde"
+    },
+    {
+      "id": "shared4096",
+      "group": "graph",
+      "n": 4096,
+      "weight": 0.1125,
+      "kind": "mechanism-preserving synthetic workload, not full upstream port",
+      "provenance": "https://github.com/rust-lang/rustc-perf/tree/c0f257113ccc6e6e0742b318006eef2787c3d4c5/collector/compile-benchmarks/large-workspace",
+      "retained": "runtime input, nonlinear calls, all generated definitions directly reachable; trait instantiations or owning mutable closures where labelled",
+      "not_retained": "upstream public API, exact data structures, macro system, dependency graph and source size"
+    }
+  ],
+  "tools": {
+    "base": "418be342b8eef1c7b881f2417c3e00b7f5bbdbb09f4258aa44cf78ba07fed5d7",
+    "cand": "56f0417d01e9b31ae4123b6a144ce0b42e12ad9da001ea9cad89968339bdd367",
+    "rust": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853"
+  },
+  "cpus": [
+    0,
+    1
+  ],
+  "rounds": 5,
+  "request_weights": {
+    "edit": {
+      "cold": 0.1,
+      "warm": 0.15,
+      "private": 0.45,
+      "edit-warm": 0.1,
+      "public": 0.1,
+      "restore": 0.1
+    },
+    "clean": {
+      "cold": 0.7,
+      "warm": 0.05,
+      "private": 0.1,
+      "edit-warm": 0.05,
+      "public": 0.1,
+      "restore": 0
+    }
+  },
+  "mode_weights": {
+    "interactive": {
+      "check": 0.3,
+      "O0": 0.5,
+      "O2": 0.2
+    },
+    "release": {
+      "check": 0.1,
+      "O0": 0.2,
+      "O2": 0.7
+    }
+  },
+  "weights": "predeclared assumptions, not telemetry",
+  "upstream_original_crates": "separate unpaired lane, excluded from paired aggregate; no substitution claimed",
+  "boundary": "fresh process through link; project caches retained only within one history; OS caches retained; no Cargo Fresh in paired rows",
+  "source_hashes": {
+    "corpus/owned32/base/zil/main.zil": "e29156da0343a117664bfeac9adde3e5e3a2195f9e95c92d464e89bffc83f3ca",
+    "corpus/owned32/base/rust/main.rs": "37a84516c94293b7ed716f360d5f7a30218cdd0840111949e4bfdb968f065e5e",
+    "corpus/owned32/private/zil/main.zil": "faf3ca71b52fbe0204cd6d33ac1e356e1eb0130a39227a7c466503ec19bae3a5",
+    "corpus/owned32/private/rust/main.rs": "c94ac58d6ff67999f4821797854f506de6ac2b086c188776925b80e65fb347ea",
+    "corpus/shared4096/base/zil/main.zil": "616d7c07ed736e8d191e29c2040d308947fe7db69ebdb8e06bb8b391c54d3af6",
+    "corpus/shared4096/base/rust/main.rs": "0dacf3d944322271e118eecc5b28815ac7deda4ea44f1074ce6316a82ce1c2d9",
+    "corpus/shared4096/private/zil/main.zil": "a37c8680a03706adf5be42363cfea0445c1c505b413c0f204f6feda30b9631fe",
+    "corpus/shared4096/private/rust/main.rs": "75dd5972c22ee36b3efa6716c40b32f8a39d130f2753abc092f09762da059460",
+    "corpus/trait128/base/zil/main.zil": "7f0c9d953c3476053500ebc8de29b5c47856328653e835736072deb4d84774b9",
+    "corpus/trait128/base/rust/main.rs": "b36f499cae77b35b69be1d36c51644b8f40220a8364d0d4038d66b122679fb6d",
+    "corpus/trait128/private/zil/main.zil": "96e1250cd23958595dd9e176ff0382e9c7d7c12bd2e79bae2c24b34082e1c2e3",
+    "corpus/trait128/private/rust/main.rs": "20075784088d7b5cac567e999d44ff4ca4890168e514591ba0ae5d3e0d39bad7",
+    "corpus/owned8/base/zil/main.zil": "f11e34aef863a115e8eddd6be1efe6a6d22ef73b3c80a4db06905ca4d0392dc3",
+    "corpus/owned8/base/rust/main.rs": "7086f2e36004d3af870b378e85064ef90c44542e11c477c6f9e5e069724bcfb9",
+    "corpus/owned8/private/zil/main.zil": "1028b5d73c4495a65d770edc5d01912e83ba1150df7c5ddc10a4f9938208bb02",
+    "corpus/owned8/private/rust/main.rs": "fca26c4ecc6670bb06c6ecbbc39157db03d20617ad2dcd6e6e8a09a82e4365f5",
+    "corpus/trait32/base/zil/main.zil": "d63cfdcaff4e4d3fc474a556dd18de0f575ac8805b2958f07662d62b971359bd",
+    "corpus/trait32/base/rust/main.rs": "608b686c8e29059a2bea083784830b182cb8af8bbc2f0a25f810f0a0c0a6e6d6",
+    "corpus/trait32/private/zil/main.zil": "e849c0ef1051927b24c13f7eb0050891c24860331dad0edd9f029a93e563fabb",
+    "corpus/trait32/private/rust/main.rs": "ca3a5316bf364650be2c585e54db58be4ee46e192385f957b9f518efba8af57d",
+    "corpus/ring768/base/zil/main.zil": "e6fd22b205f95ec65d56aa774958168a43237785de94410332f6e9d2904b3f76",
+    "corpus/ring768/base/rust/main.rs": "8b19c34a8286710ae7d79e1e364f4af0ba5c4d74b9a5585eca1ce320a9cb1afd",
+    "corpus/ring768/private/zil/main.zil": "9392a0797264c32b25738aeacf7c3c8174a200f3b74f9e6b3a11f13e8e7949cf",
+    "corpus/ring768/private/rust/main.rs": "74a2776b2d655456b551fc7a90422c56784cff740464806a9fedfec69f3a5db2",
+    "corpus/diamond768/base/zil/main.zil": "238176a965f9120934fcd58350839f637a07cc6e09e46ac486e754f58a3b593b",
+    "corpus/diamond768/base/rust/main.rs": "643bfca9d6412668239da8ba7db20e6bc78f6e0307aff1dd33b3458c7431f8aa",
+    "corpus/diamond768/private/zil/main.zil": "bb5a76bb353fe287cf68d760c5f9550b8d5c7db9a7b0b08f4baf466b0cf147e5",
+    "corpus/diamond768/private/rust/main.rs": "13bec76bbfc757f2cf359a0388042890bde88f4a8924c6cb0a14a612cbd92ac6",
+    "corpus/shared1024/base/zil/main.zil": "65ef7b19c3341f2f8edabede0aa09c3e65aecc9cac7045ca34f2cc8454fd6b94",
+    "corpus/shared1024/base/rust/main.rs": "e4a76b0b81bd2b628393395094481270e87d311739aa323a1c44d7e6937d2d2c",
+    "corpus/shared1024/private/zil/main.zil": "002712543ff730487c1b3ea97a41d06e0de7d7dbb3f9be56536269d65b786ff2",
+    "corpus/shared1024/private/rust/main.rs": "0a4f802055096a53ecddecc59ed56205077d8264c74d80471d22fcdd889f9037"
+  }
+}
