@@ -33,7 +33,7 @@
       "full_acceptance": false
     }
   },
-  "archive": "e75ade949d559bd90914df0d40b860af5f283626",
+  "archive": "c6a629877009a408f7c15f56389d50f6358b5162",
   "retirement": {
     "workflow": 42953004081,
     "success": true,
@@ -53,10 +53,64 @@
   "raw_evidence_library_file_id": "libfile_fde3_f-423835f961488191ba4183d1944bab00_bd147c3485448191a9df16b3c3cea7dd",
   "next_scope": {
     "baseline": "99035931d358add0eaed6d4535035c38413701dd",
-    "worktree": "/workspace/scratch/abf690ce880c/profile",
-    "status": "Building temporary exact-CLI stage instrumentation; not a production optimization",
+    "status": "Exact CLI stage diagnosis completed; first worker-owned candidate rejected and archived. No unmerged production candidate or active benchmark remains.",
     "shared_graph_wait_contribution_pct": 54.28,
-    "diagnostic_only": true
+    "warm_ms": 568.756898,
+    "profile_elf_equal": 3,
+    "profile_native_outputs": 9,
+    "main_thread_post_worker_gap_ms": 69.9756,
+    "priority": "Remove demonstrably redundant current-request machine construction/planning/hash work; private-edit single-object LLVM cost remains a separate bottleneck",
+    "constraints": "Retain independent Verify, current full machine preflight, original runtime gates and frequency-weighted complete request costs; do not reopen prefix permutations or resample rejected candidates without new mechanism evidence"
   },
-  "parent_gates_closed": false
+  "parent_gates_closed": false,
+  "archive_previous": "e75ade949d559bd90914df0d40b860af5f283626",
+  "stage_evidence_commit": "5aa8057f9cc0bff651fc6a44147b4e6e2dd307de",
+  "stage_evidence_path": ".task/compiler-resumption/stage-profile",
+  "request_cost_trial": {
+    "local_source": "9e15ab226b5c0e95f18b1e1a7d1d2517dc646850",
+    "preserved_source": "2222699d7382c6c2d986c256cbc7610329cd421c",
+    "identical_tree": "ba2a08e59c67339b1420e47480d2055ef81d1021",
+    "decision": "Not adopted",
+    "source_review": "Accepted",
+    "release_build": "Passed",
+    "fmt": "Passed",
+    "requests": 84,
+    "elf_equal_pairs": 42,
+    "sidecar_equal_except_verified_fingerprint_pairs": 42,
+    "current_verify_one": 84,
+    "native_outputs": 252,
+    "functional_failures": 0,
+    "warm_4096_jobs2": {
+      "base_ms": 618.646,
+      "candidate_ms": 788.596
+    },
+    "warm_1024_jobs2": {
+      "base_ms": 153.057,
+      "candidate_ms": 201.891
+    },
+    "reason": "Complete fixed screen showed waiting and CPU tails; no acceptable net benefit established. No causal allocator claim and no additional sampling.",
+    "original_weighted_matrix_rerun": false,
+    "workspace_regression_and_remote_ci": "Not run after early failed-benefit decision",
+    "evidence_commit": "5aa8057f9cc0bff651fc6a44147b4e6e2dd307de",
+    "evidence_path": ".task/compiler-resumption/request-cost",
+    "raw_evidence": {
+      "library_file_id": "libfile_fde3_f-07fc3294c7f48191822564a4a82f48ba_bd147c3485448191a9df16b3c3cea7dd",
+      "file_id": "file_000000003b788230a343944d2d62c4dc",
+      "filename": "request-cost-raw-evidence.tar.gz",
+      "version": 0,
+      "bytes": 395661,
+      "sha256": "500e41c04674dcd96792473bfac2125b6d14a0d64c34c56923b0d1dc37fca720",
+      "entries": 1047,
+      "scope": "Original per-request JSON/stdout/stderr/native I/O, pinned corpus and model, profile instrumentation and raw spans, source patch and review. Generated ELF/sidecars, cache directories and host binaries are excluded; hashes and byte equality remain recorded.",
+      "download_url": "https://chatgpt.com/library?file_id=libfile_fde3_f-07fc3294c7f48191822564a4a82f48ba_bd147c3485448191a9df16b3c3cea7dd&account_id=personal"
+    },
+    "local_branch_retired": true,
+    "remote_production_branch_created": false,
+    "retirement_note": "git branch -d refused because the candidate was intentionally not merged into tracked origin/main. After confirming fixed-archive parents and exact source-tree equality, deleted only the local branch ref; detached checkout and source commit remain."
+  },
+  "path_correction": [
+    "Close each hypothesis with adopt/reject evidence before opening the next production candidate",
+    "Profile complete CLI requests before choosing backend transformations, and prioritize absolute waiting contribution",
+    "Use fixed bounded counterexamples and screens before full acceptance; preserve every negative value, and stop failed-benefit candidates rather than expanding samples"
+  ]
 }
