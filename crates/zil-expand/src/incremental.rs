@@ -88,7 +88,28 @@ statistics!(
     production_ns,
     reuse_ns,
     assembly_ns,
-    total_ns
+    total_ns,
+    environment_cold,
+    environment_source_layout_changed,
+    environment_headers_changed,
+    environment_imports_changed,
+    environment_target_changed,
+    environment_context_changed,
+    env_limit_max_source_bytes_changed,
+    env_limit_max_tokens_changed,
+    env_limit_max_nodes_changed,
+    env_limit_max_functions_changed,
+    env_limit_max_blocks_changed,
+    env_limit_max_instructions_changed,
+    env_limit_max_locals_changed,
+    env_limit_max_values_changed,
+    env_limit_max_analysis_steps_changed,
+    env_limit_max_ct_steps_changed,
+    env_limit_max_call_depth_changed,
+    allowance_work_increase,
+    allowance_work_decrease,
+    allowance_nodes_increase,
+    allowance_nodes_decrease
 );
 #[derive(Clone, Debug, PartialEq)]
 struct Environment {
@@ -98,6 +119,55 @@ struct Environment {
     limits: Limits,
     target: TargetProfile,
     context: String,
+}
+impl ProducerStats {
+    fn environment_change(&mut self, previous: Option<&Environment>, current: &Environment) {
+        let Some(previous) = previous else {
+            self.environment_cold += 1;
+            return;
+        };
+        self.environment_source_layout_changed += u64::from(previous.sources != current.sources);
+        self.environment_headers_changed += u64::from(previous.headers != current.headers);
+        self.environment_imports_changed += u64::from(previous.imports != current.imports);
+        self.environment_target_changed += u64::from(previous.target != current.target);
+        self.environment_context_changed += u64::from(previous.context != current.context);
+        macro_rules! limit_change {
+            ($($limit:ident => $counter:ident),* $(,)?) => { $(self.$counter += u64::from(previous.limits.$limit != current.limits.$limit);)* };
+        }
+        limit_change!(
+            max_source_bytes => env_limit_max_source_bytes_changed,
+            max_tokens => env_limit_max_tokens_changed,
+            max_nodes => env_limit_max_nodes_changed,
+            max_functions => env_limit_max_functions_changed,
+            max_blocks => env_limit_max_blocks_changed,
+            max_instructions => env_limit_max_instructions_changed,
+            max_locals => env_limit_max_locals_changed,
+            max_values => env_limit_max_values_changed,
+            max_analysis_steps => env_limit_max_analysis_steps_changed,
+            max_ct_steps => env_limit_max_ct_steps_changed,
+            max_call_depth => env_limit_max_call_depth_changed,
+        );
+        self.allowance_work_increase += current
+            .limits
+            .max_analysis_steps
+            .saturating_sub(previous.limits.max_analysis_steps)
+            as u64;
+        self.allowance_work_decrease += previous
+            .limits
+            .max_analysis_steps
+            .saturating_sub(current.limits.max_analysis_steps)
+            as u64;
+        self.allowance_nodes_increase += current
+            .limits
+            .max_nodes
+            .saturating_sub(previous.limits.max_nodes)
+            as u64;
+        self.allowance_nodes_decrease += previous
+            .limits
+            .max_nodes
+            .saturating_sub(current.limits.max_nodes)
+            as u64;
+    }
 }
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Stage {
@@ -288,6 +358,12 @@ impl ExpandSession {
             target: target.clone(),
             context: context_key,
         };
+        // Detailed invalidation diagnostics are opt-in: normal requests keep
+        // the original single Environment equality check and no second header walk.
+        if self.profiling {
+            self.stats
+                .environment_change(self.environment.as_ref(), &environment);
+        }
         if self.environment.as_ref() != Some(&environment) {
             for entry in entries.values_mut() {
                 entry.receipts.clear();
