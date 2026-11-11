@@ -251,3 +251,81 @@ fn producer_duplicate_file_identity_falls_back_before_any_receipt() {
     assert_eq!(session.last_stats().receipt_hits, 0);
     assert_eq!(session.last_stats().preflight_modules, 0);
 }
+
+#[test]
+fn producer_unavailable_scalar_lineage_keeps_raw_outputs_and_exact_budget_boundary() {
+    let input = [parsed(
+        0,
+        "fn emit(value:i32)->i32=>value+1;fn main()->i32=>emit(1);",
+    )];
+    let aliases = BTreeMap::new();
+    let context = source_context::SourceIdentityContext::ClosedSnapshot {
+        root: ModuleId(0),
+        aliases: &aliases,
+        declarations: source_context::DeclarationPlacement::Unavailable,
+    };
+    let sources = vec![input[0].source().clone()];
+    let syntax = vec![&input[0].parsed().module];
+    let imports = vec![vec![]];
+    let target = TargetProfile::default();
+    let raw = |limits: &Limits| {
+        expand_program_with_limits_target_context(
+            &sources, &syntax, &imports, limits, &target, context,
+        )
+    };
+    let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+    while low < high {
+        let middle = low + (high - low) / 2;
+        let limits = Limits {
+            max_analysis_steps: middle,
+            ..Limits::default()
+        };
+        if raw(&limits).is_ok() {
+            high = middle;
+        } else {
+            low = middle + 1;
+        }
+    }
+    assert!(low > 0);
+    let limits = Limits {
+        max_analysis_steps: low,
+        ..Limits::default()
+    };
+    let expected = raw(&limits).unwrap();
+    let mut session = ExpandSession::default();
+    let produce = |session: &mut ExpandSession, limits: &Limits| {
+        session.expand_parsed(&input, &imports, limits, &target, context)
+    };
+    let cold = produce(&mut session, &limits)
+        .unwrap()
+        .expect("scalar unavailable domain");
+    assert_eq!(cold.modules, expected);
+    let warm = produce(&mut session, &limits).unwrap().unwrap();
+    assert_eq!(warm.modules, expected);
+    assert_eq!(warm.revisions, cold.revisions);
+    assert_eq!(session.last_stats().lower_modules, 0);
+    let below = Limits {
+        max_analysis_steps: low - 1,
+        ..limits.clone()
+    };
+    let actual = produce(&mut session, &below).err().expect("N-1 rejects");
+    assert_eq!(actual, raw(&below).unwrap_err());
+    assert_eq!(actual[0].category, zil_base::ResultCategory::ResourceLimit);
+    let original = expand(&mut session, &input, &limits).unwrap().unwrap();
+    assert_ne!(
+        original.revisions, warm.revisions,
+        "context marker is a validity input"
+    );
+    let rows = [];
+    let aligned = source_context::SourceIdentityContext::ClosedSnapshot {
+        root: ModuleId(0),
+        aliases: &aliases,
+        declarations: source_context::DeclarationPlacement::Aligned(&rows),
+    };
+    assert!(
+        session
+            .expand_parsed(&input, &imports, &limits, &target, aligned)
+            .unwrap()
+            .is_none()
+    );
+}

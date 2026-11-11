@@ -43,6 +43,17 @@ impl Directory {
             ]),
         }
     }
+    fn ordinary_emit(&self, value: &str) -> ProjectSources {
+        let mut project = self.project(value);
+        for source in &mut project.modules {
+            source.text = source
+                .text
+                .replace("fn value", "fn emit")
+                .replace(".value(", ".emit(");
+            fs::write(&source.path, &source.text).unwrap();
+        }
+        project
+    }
 }
 impl Drop for Directory {
     fn drop(&mut self) {
@@ -105,6 +116,7 @@ fn subdivisions(
     types: Option<zil_types::FunctionStats>,
     producer: Option<&zil_expand::ProducerStats>,
     phases: &BTreeMap<Phase, u128>,
+    materialization_ns: u128,
 ) {
     if let Some(work) = types {
         assert!(work.cost_profiled);
@@ -115,12 +127,11 @@ fn subdivisions(
         assert!(type_parts(&work) <= work.total_ns as u128);
         assert!(work.body_key_ns <= work.evaluator_ns);
     }
-    if let Some(work) = producer {
-        assert!(
-            producer_parts(work) <= *phases.get(&Phase::Expand).unwrap_or(&0),
-            "Expand subdivisions exceed phase: {work:?}, {phases:?}"
-        );
-    }
+    let expand_parts = materialization_ns + producer.map_or(0, producer_parts);
+    assert!(
+        expand_parts <= *phases.get(&Phase::Expand).unwrap_or(&0),
+        "materialization plus producer subdivisions exceed Expand: materialization={materialization_ns}, producer={producer:?}, phases={phases:?}"
+    );
 }
 fn profiled(report: &CompileReport) {
     assert!(report.cost_profiled);
@@ -128,14 +139,24 @@ fn profiled(report: &CompileReport) {
         report.function_type_work,
         report.producer_work.as_ref(),
         &report.phase_timings_ns,
+        report.materialization_ns,
     );
     for attempt in &report.attempts {
         subdivisions(
             attempt.function_type_work,
             attempt.producer_work.as_ref(),
             &attempt.phase_timings_ns,
+            attempt.materialization_ns,
         );
     }
+    assert_eq!(
+        report.materialization_ns,
+        report
+            .attempts
+            .iter()
+            .map(|attempt| attempt.materialization_ns)
+            .sum::<u128>()
+    );
     let classified: u128 = report
         .phase_timings_ns
         .values()
@@ -156,10 +177,20 @@ fn profiled(report: &CompileReport) {
     );
     assert!(!exclusive.contains("types_overlap_error"), "{exclusive}");
     assert!(!exclusive.contains("expand_overlap_error"), "{exclusive}");
+    if report.materialization_ns > 0 {
+        assert!(
+            exclusive.contains(&format!(
+                "\"expand_materialization\":{}",
+                report.materialization_ns
+            )),
+            "{exclusive}"
+        );
+    }
 }
 fn unprofiled(report: &CompileReport) {
     assert!(!report.cost_profiled);
     assert!(report.driver_timings_ns.is_empty());
+    assert_eq!(report.materialization_ns, 0);
     assert_eq!(report.exclusive_costs_json(), "null");
     let check = |types: Option<zil_types::FunctionStats>,
                  producer: Option<&zil_expand::ProducerStats>| {
@@ -177,7 +208,79 @@ fn unprofiled(report: &CompileReport) {
     check(report.function_type_work, report.producer_work.as_ref());
     for attempt in &report.attempts {
         assert!(attempt.driver_timings_ns.is_empty());
+        assert_eq!(attempt.materialization_ns, 0);
         check(attempt.function_type_work, attempt.producer_work.as_ref());
+    }
+}
+
+#[test]
+fn materialization_costs_partition_real_ordinary_emit_success_error_fix_and_hits() {
+    let directory = Directory::new();
+    let path = directory.0.join("main.zil");
+    let mut measured: Vec<_> = (0..3).map(|_| CompilationSession::default()).collect();
+    let mut ordinary: Vec<_> = (0..3).map(|_| CompilationSession::default()).collect();
+    for (index, value) in ["1", "5", "missing", "6", "6"].into_iter().enumerate() {
+        directory.ordinary_emit(value);
+        for arm in 0..3 {
+            let report = measured[arm].compile_path(&path, &options(arm as u8, true));
+            let disabled = ordinary[arm].compile_path(&path, &options(arm as u8, false));
+            let fresh = CompilationSession::default().compile_path(&path, &options(0, false));
+            same_behavior(&report, &fresh);
+            same_behavior(&disabled, &fresh);
+            assert_eq!(report.status == ResultCategory::Success, index != 2);
+            assert_eq!(report.verification_runs, usize::from(index != 2));
+            profiled(&report);
+            unprofiled(&disabled);
+            assert_eq!(measured[arm].active_query_count(), 0);
+            assert_eq!(ordinary[arm].active_query_count(), 0);
+            if index == 4 {
+                assert_eq!(
+                    report.materialization_ns, 0,
+                    "whole-query hit performs no materialization"
+                );
+                assert!(report.function_type_work.is_none());
+                assert!(report.producer_work.is_none());
+            } else {
+                assert!(
+                    report.materialization_ns > 0,
+                    "ordinary emit must retain the actual legacy materializer call cost: {}",
+                    report.to_json()
+                );
+                if arm != 0 {
+                    assert!(
+                        report.producer_work.is_some(),
+                        "ordinary-name no-op materialization must still reach the sealed producer"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn failed_materializer_call_keeps_elapsed_cost_and_current_diagnostic() {
+    let directory = Directory::new();
+    let path = directory.0.join("main.zil");
+    fs::write(
+        &path,
+        "fn main()->i32{let value:Type=#(missing());return 0}",
+    )
+    .unwrap();
+    for arm in 0..3 {
+        let report = CompilationSession::default().compile_path(&path, &options(arm, true));
+        let disabled = CompilationSession::default().compile_path(&path, &options(arm, false));
+        let fresh = CompilationSession::default().compile_path(&path, &options(0, false));
+        same_behavior(&report, &fresh);
+        same_behavior(&disabled, &fresh);
+        assert_eq!(report.status, ResultCategory::SafeReject);
+        assert!(report.diagnostics.iter().any(|diagnostic| diagnostic.phase == Phase::Ct && diagnostic.code == "E-CT-SOURCE"));
+        assert_eq!(report.verification_runs, 0);
+        assert!(
+            report.materialization_ns > 0,
+            "failed materialize_scoped still records its elapsed cost"
+        );
+        profiled(&report);
+        unprofiled(&disabled);
     }
 }
 

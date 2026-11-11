@@ -196,11 +196,12 @@ pub struct CompileAttempt {
     pub initialization_work: Option<zil_analyze::AnalysisStats>,
     pub phase_timings_ns: BTreeMap<Phase, u128>,
     pub driver_timings_ns: BTreeMap<&'static str, u128>,
+    pub materialization_ns: u128,
 }
 impl CompileAttempt {
     fn to_json(&self) -> String {
         format!(
-            "{{\"retry_reason\":{},\"input_fingerprint\":{},\"source_files\":{{{}}},\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"verification_runs\":{},\"frontend_stats\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}}}}",
+            "{{\"retry_reason\":{},\"input_fingerprint\":{},\"source_files\":{{{}}},\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"verification_runs\":{},\"frontend_stats\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{}}}",
             self.retry_reason
                 .as_ref()
                 .map_or_else(|| "null".into(), |reason| json_string(reason)),
@@ -229,6 +230,7 @@ impl CompileAttempt {
             ),
             phase_timings_json(&self.phase_timings_ns),
             named_timings_json(&self.driver_timings_ns),
+            self.materialization_ns,
         )
     }
 }
@@ -264,6 +266,8 @@ pub struct CompileReport {
     /// Non-overlapping request work outside phase queries. Detailed timers are
     /// explicitly opt-in; the remaining request time is reported unassigned.
     pub driver_timings_ns: BTreeMap<&'static str, u128>,
+    /// Opt-in subdivision of Expand, never additive to the parent phase.
+    pub materialization_ns: u128,
     pub cost_profiled: bool,
     pub attempts: Vec<CompileAttempt>,
 }
@@ -289,13 +293,14 @@ impl CompileReport {
             initialization_work: None,
             phase_timings_ns: BTreeMap::new(),
             driver_timings_ns: BTreeMap::new(),
+            materialization_ns: 0,
             cost_profiled: false,
             attempts: Vec::new(),
         }
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"exclusive_costs\":{},\"attempts\":[{}]}}",
+            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{},\"exclusive_costs\":{},\"attempts\":[{}]}}",
             json_string(self.status.as_str()),
             json_string(self.phase.as_str()),
             self.diagnostics
@@ -344,6 +349,7 @@ impl CompileReport {
             self.frontend_stats_json(),
             phase_timings_json(&self.phase_timings_ns),
             named_timings_json(&self.driver_timings_ns),
+            self.materialization_ns,
             self.exclusive_costs_json(),
             self.attempts.iter().map(CompileAttempt::to_json).collect::<Vec<_>>().join(","),
         )
@@ -382,6 +388,7 @@ impl CompileReport {
             initialization_work: self.initialization_work,
             phase_timings_ns: self.phase_timings_ns.clone(),
             driver_timings_ns: self.driver_timings_ns.clone(),
+            materialization_ns: self.materialization_ns,
         }
     }
     fn restart_attempt(&mut self, mut next: Self, reason: &str, diagnostics: Vec<Diagnostic>) {
@@ -400,6 +407,7 @@ impl CompileReport {
         next.initialization_work = None;
         next.phase_timings_ns.clear();
         next.driver_timings_ns.clear();
+        next.materialization_ns = 0;
         *self = next;
     }
     fn finish_attempts(&mut self) {
@@ -412,6 +420,7 @@ impl CompileReport {
         self.initialization_work = None;
         self.phase_timings_ns.clear();
         self.driver_timings_ns.clear();
+        self.materialization_ns = 0;
         for attempt in &self.attempts {
             if let Some(work) = attempt.function_type_work {
                 add_function_work(&mut self.function_type_work, work);
@@ -437,6 +446,7 @@ impl CompileReport {
             for (name, nanos) in &attempt.driver_timings_ns {
                 *self.driver_timings_ns.entry(name).or_default() += nanos;
             }
+            self.materialization_ns += attempt.materialization_ns;
         }
         if let Some(total) = &mut self.function_type_work {
             total.graph.retained_nodes = final_types.map_or(0, |work| work.graph.retained_nodes);
@@ -487,17 +497,20 @@ impl CompileReport {
                 overlap_errors.insert("types", measured - phase);
             }
         }
-        if let Some(work) = &self.producer_work {
-            let detail = [
-                ("expand_context", work.context_ns),
-                ("expand_production", work.production_ns),
-                ("expand_reuse", work.reuse_ns),
-                ("expand_assembly", work.assembly_ns),
-            ];
+        if self.producer_work.is_some() || self.materialization_ns > 0 {
+            let mut detail = vec![("expand_materialization", self.materialization_ns)];
+            if let Some(work) = &self.producer_work {
+                detail.extend([
+                    ("expand_context", work.context_ns as u128),
+                    ("expand_production", work.production_ns as u128),
+                    ("expand_reuse", work.reuse_ns as u128),
+                    ("expand_assembly", work.assembly_ns as u128),
+                ]);
+            }
             let phase = costs.remove("expand").unwrap_or(0);
-            let measured: u128 = detail.iter().map(|(_, n)| *n as u128).sum();
+            let measured: u128 = detail.iter().map(|(_, n)| *n).sum();
             for (name, nanos) in detail {
-                costs.insert(name, nanos as u128);
+                costs.insert(name, nanos);
             }
             costs.insert("expand_other", phase.saturating_sub(measured));
             if measured > phase {

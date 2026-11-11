@@ -191,6 +191,14 @@ impl ExpandSession {
                 aliases,
                 declarations: source_context::DeclarationPlacement::Original,
             } => format!("closed:{root:?}:{aliases:?}"),
+            // The sealed scalar domain needs no declaration lineage. A late
+            // materializer route may therefore retain an unavailable marker;
+            // it remains a distinct environment input, never restored origins.
+            source_context::SourceIdentityContext::ClosedSnapshot {
+                root,
+                aliases,
+                declarations: source_context::DeclarationPlacement::Unavailable,
+            } => format!("closed-unavailable:{root:?}:{aliases:?}"),
             source_context::SourceIdentityContext::Explicit {
                 package,
                 modules,

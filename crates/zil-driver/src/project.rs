@@ -743,17 +743,19 @@ impl CompilationSession {
                 .iter()
                 .zip(&parsed)
                 .any(|(source, parsed)| artifact_candidate(source, parsed));
-        let producer_sources = if options.producer_reuse && !selection_needed && !artifact_needed {
-            producer_syntax.and_then(|inputs| inputs.into_iter().collect::<Option<Vec<_>>>())
-        } else {
-            None
-        };
+        let producer_sources =
+            if options.producer_reuse && !selection_needed && options.syntax_lock.is_none() {
+                producer_syntax.and_then(|inputs| inputs.into_iter().collect::<Option<Vec<_>>>())
+            } else {
+                None
+            };
         let mut producer = std::mem::take(&mut self.producer);
         producer.set_cost_profiling(options.profile_compilation);
         let checkpoint_start = cost_start(options.profile_compilation);
         let producer_checkpoint = options.producer_reuse.then(|| producer.checkpoint());
         report.record_driver_cost("producer_checkpoint", checkpoint_start);
         let mut producer_work = None;
+        let mut materialization_ns = 0;
         let expand_query = self.query(
             key(Phase::Expand, selection_needed || artifact_needed),
             &dependencies,
@@ -761,7 +763,7 @@ impl CompilationSession {
             report,
             observer,
             || {
-                if let Some(sources) = &producer_sources {
+                if !artifact_needed && let Some(sources) = &producer_sources {
                     let result = producer.expand_parsed(
                         sources,
                         &imports,
@@ -815,11 +817,16 @@ impl CompilationSession {
                     let mut remaining = selected.as_ref().map_or_else(|| Ok(options.limits.clone()),
                         |selected| selected.receipt.remaining(&options.limits))?;
                     remaining.max_ct_steps = remaining.max_ct_steps.min(options.limits.max_ct_steps);
-                    Some(super::ct_artifact::materialize_scoped(
+                    let start = cost_start(options.profile_compilation);
+                    let result = super::ct_artifact::materialize_scoped(
                         &project.modules, &parsed, selected_syntax, &project.paths, options.scoped_imports.as_deref(), &imports,
                         project.root, fingerprint, &options.target, &remaining, locked.as_ref(),
                         selected.is_none(),
-                    )?)
+                    );
+                    if let Some(start) = start {
+                        materialization_ns += start.elapsed().as_nanos();
+                    }
+                    Some(result?)
                 } else { None };
                 let mut runtime_imports = imports.clone();
                 if let Some(result) = &mut ct_result {
@@ -877,28 +884,68 @@ impl CompilationSession {
                     },
                 };
                 let expand_limits = ct_result.as_ref().and_then(|result| result.lineage_remaining.as_ref()).unwrap_or(&options.limits);
-                let expanded = if let Some(phase) = &runtime_phase {
-                    zil_expand::expand_program_with_runtime_ct(
-                        &project.modules, syntax, &runtime_imports, expand_limits, &options.target, context, phase,
-                    )?
-                } else {
-                    zil_expand::expand_program_with_limits_target_context(
-                        &project.modules, syntax, &runtime_imports, expand_limits, &options.target, context,
-                    )?
-                };
-                for (module, map) in expanded {
-                    modules.push(module);
-                    maps.push(map);
+                // A word such as an ordinary `io.emit` is only a broad CT
+                // candidate. Keep its complete materializer and quota work:
+                // even a semantic no-op can fail an earlier budget boundary.
+                // Only after that succeeds may the sealed scalar classifier
+                // prove no body/type rewrite was possible. The remaining
+                // checks bind actual declaration retention and import pruning;
+                // they do not recursively compare a newly produced Core.
+                let retained_original = producer_sources.is_some()
+                    && runtime_phase.is_none()
+                    && runtime_imports == imports
+                    && ct_result.as_ref().is_some_and(|result| {
+                        result.required_imports.is_empty()
+                            && result.previews.is_empty()
+                            && result.declaration_origins.is_none()
+                            && result.modules.len() == parsed.len()
+                            && result.modules.iter().zip(&parsed).all(|(output, original)| {
+                                output.id == original.module.id
+                                    && output.span == original.module.span
+                                    && output.items.len() == original.module.items.len()
+                                    && output.items.iter().zip(&original.module.items).all(|(a, b)| {
+                                        a.span == b.span && a.public == b.public
+                                            && a.attributes == b.attributes
+                                            && std::mem::discriminant(&a.kind) == std::mem::discriminant(&b.kind)
+                                    })
+                            })
+                    });
+                let mut produced = None;
+                if retained_original && let Some(sources) = &producer_sources {
+                    let result = producer.expand_parsed(
+                        sources, &runtime_imports, expand_limits, &options.target, context,
+                    );
+                    producer_work = Some(producer.last_stats().clone());
+                    if let Some(expanded) = result? {
+                        let (program, source_maps) = expanded.into_program(project.root, fingerprint);
+                        produced = Some(program);
+                        maps = source_maps;
+                    }
+                }
+                if produced.is_none() {
+                    let expanded = if let Some(phase) = &runtime_phase {
+                        zil_expand::expand_program_with_runtime_ct(
+                            &project.modules, syntax, &runtime_imports, expand_limits, &options.target, context, phase,
+                        )?
+                    } else {
+                        zil_expand::expand_program_with_limits_target_context(
+                            &project.modules, syntax, &runtime_imports, expand_limits, &options.target, context,
+                        )?
+                    };
+                    for (module, map) in expanded {
+                        modules.push(module);
+                        maps.push(map);
+                    }
                 }
                 if let Some(phase) = runtime_phase {
                     ct_result.as_mut().expect("runtime phase came from materialization").finish_runtime_phase(phase)?;
                 }
                 Ok(RawSnapshot::Project(Arc::new(ExpandedProject {
-                    core: Arc::new(CoreProgram {
+                    core: produced.as_ref().map(|program| program.program().clone()).unwrap_or_else(|| Arc::new(CoreProgram {
                         root: project.root,
                         source_fingerprint: fingerprint,
                         modules,
-                    }),
+                    })),
                     maps,
                     selection: selected
                         .map_or_else(super::ct_selection::Receipt::default, |selected| {
@@ -914,11 +961,12 @@ impl CompilationSession {
                             .map(|(snapshot, parsed)| (snapshot.key.clone(), parsed.clone()))
                             .collect(),
                     }),
-                    producer: None,
+                    producer: produced,
                 })))
             },
         );
         report.producer_work = producer_work;
+        report.materialization_ns += materialization_ns;
         self.producer = if expand_query.is_ok() {
             producer
         } else {

@@ -120,6 +120,224 @@ fn compare(
     expected
 }
 
+fn compare_path(
+    session: &CompilationSession,
+    report: &CompileReport,
+    path: &Path,
+    options: &CompileOptions,
+) -> CompileReport {
+    let legacy = CompileOptions {
+        producer_reuse: false,
+        reactive_queries: false,
+        semantic_cache: None,
+        cancellation: Default::default(),
+        ..options.clone()
+    };
+    let mut fresh = CompilationSession::default();
+    let expected = fresh.compile_path(path, &legacy);
+    assert_eq!(
+        report.status,
+        expected.status,
+        "{}\n{}",
+        report.to_json(),
+        expected.to_json()
+    );
+    assert_eq!(report.phase, expected.phase);
+    assert_eq!(report.diagnostics, expected.diagnostics);
+    assert_eq!(report.input_fingerprint, expected.input_fingerprint);
+    assert_eq!(report.source_files, expected.source_files);
+    assert_eq!(report.scalar_interfaces, expected.scalar_interfaces);
+    assert_eq!(report.verification_runs, expected.verification_runs);
+    assert_eq!(session.active_query_count(), 0);
+    assert_eq!(fresh.active_query_count(), 0);
+    if report.status == ResultCategory::Success && options.stop_after >= Stage::Types {
+        assert_eq!(typed(session, report), typed(&fresh, &expected));
+    }
+    expected
+}
+
+#[test]
+fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
+    const IO: &str = include_str!("../../../examples/mainline/resource_closures/io.zil");
+    const ENTRY: &str = "import left\nimport io\nfn main()->i32{var x:i32=io.read();if x<0{x=0;}let y=left.value(x);io.emit(y&255);return y%127;}";
+    for graph in [false, true] {
+        let dir = Directory::new();
+        let options = options(graph);
+        dir.project(&[("main", ENTRY), ("left", LEFT), ("io", IO)]);
+        let path = dir.0.join("main.zil");
+        let mut session = CompilationSession::default();
+        let cold = session.compile_path(&path, &options);
+        successful(&cold);
+        compare_path(&session, &cold, &path, &options);
+        assert_eq!(cold.source_files.len(), 3);
+        let work = cold
+            .producer_work
+            .as_ref()
+            .expect("ordinary io.emit must reach the actual producer");
+        assert_eq!(work.normalize_modules, 3);
+        assert_eq!(work.lower_modules, 3);
+        fs::write(dir.0.join("left.zil"), LEFT.replace("x+1", "x+5")).unwrap();
+        let current = session.compile_path(&path, &options);
+        successful(&current);
+        compare_path(&session, &current, &path, &options);
+        let work = current
+            .producer_work
+            .as_ref()
+            .expect("current actual producer work");
+        assert_eq!(work.normalize_modules, 1);
+        assert_eq!(work.lower_modules, 1);
+        assert_eq!(work.reused_lower_modules, 2);
+        let functions = current
+            .function_type_work
+            .expect("actual current Types work");
+        assert_eq!(functions.core_function_eq_comparisons, 0);
+        assert!(functions.producer_version_reuses > 0);
+        if !graph {
+            assert_eq!(functions.graph.executed, 0);
+        }
+    }
+}
+
+#[test]
+fn producer_filesystem_ordinary_materializer_identifier_candidates_match_fresh() {
+    // These identifier spellings hit the old materializer's conservative token
+    // gate. Their declarations/calls are ordinary scalar syntax, not CT syntax.
+    for name in ["emit", "quote", "splice", "Type", "Syntax", "Ident"] {
+        for graph in [false, true] {
+            let dir = Directory::new();
+            let options = options(graph);
+            let main = MAIN.replace("left.value", &format!("left.{name}"));
+            let left = LEFT.replace("pub fn value", &format!("pub fn {name}"));
+            dir.scalar(&main, &left, RIGHT);
+            let path = dir.0.join("main.zil");
+            let mut session = CompilationSession::default();
+            let cold = session.compile_path(&path, &options);
+            successful(&cold);
+            compare_path(&session, &cold, &path, &options);
+            let work = cold
+                .producer_work
+                .as_ref()
+                .expect("ordinary identifier must not suppress the sealed scalar producer");
+            assert_eq!(work.lower_modules, 3, "ordinary {name}");
+            fs::write(dir.0.join("left.zil"), left.replace("x+1", "x+5")).unwrap();
+            let current = session.compile_path(&path, &options);
+            successful(&current);
+            compare_path(&session, &current, &path, &options);
+            let work = current
+                .producer_work
+                .as_ref()
+                .expect("actual producer after ordinary-name edit");
+            assert_eq!(work.lower_modules, 1, "ordinary {name}");
+            assert_eq!(work.reused_lower_modules, 2, "ordinary {name}");
+            let functions = current.function_type_work.expect("actual Types work");
+            assert_eq!(functions.core_function_eq_comparisons, 0);
+            assert!(functions.producer_version_reuses > 0);
+        }
+    }
+}
+
+#[test]
+fn producer_filesystem_ordinary_emit_preserves_materializer_budget_n_n_minus_one() {
+    let dir = Directory::new();
+    dir.project(&[
+        (
+            "main",
+            "import left\nimport io\nfn main()->i32{let x=left.value(1);io.emit(x);return x;}",
+        ),
+        (
+            "left",
+            "pub fn value(x:i32)->i32{if x<3{return x+1;}return x+2;}",
+        ),
+        (
+            "io",
+            include_str!("../../../examples/mainline/resource_closures/io.zil"),
+        ),
+    ]);
+    let path = dir.0.join("main.zil");
+    // Core includes the existing conservative materializer's classification
+    // and Expand costs. The no-op producer bridge must not erase either bill.
+    for nodes in [false, true] {
+        let mut legacy = CompileOptions {
+            stop_after: Stage::Core,
+            ..Default::default()
+        };
+        let mut low = 0;
+        let mut high = if nodes {
+            legacy.limits.max_nodes
+        } else {
+            legacy.limits.max_analysis_steps
+        };
+        let full = CompilationSession::default().compile_path(&path, &legacy);
+        assert_eq!(full.status, ResultCategory::Success, "{}", full.to_json());
+        while high - low > 1 {
+            let middle = low + (high - low) / 2;
+            set_budget(&mut legacy, nodes, middle);
+            let current = CompilationSession::default().compile_path(&path, &legacy);
+            if current.status == ResultCategory::Success {
+                high = middle;
+            } else {
+                assert_eq!(
+                    current.status,
+                    ResultCategory::ResourceLimit,
+                    "{}",
+                    current.to_json()
+                );
+                low = middle;
+            }
+        }
+        assert!(high > 0);
+        for graph in [false, true] {
+            for limit in [high, high - 1, high] {
+                let mut limited = CompileOptions {
+                    stop_after: Stage::Core,
+                    ..options(graph)
+                };
+                set_budget(&mut limited, nodes, limit);
+                // A fresh producer session at each boundary tests the cold
+                // routing cost, without hiding it behind a previous receipt.
+                let mut session = CompilationSession::default();
+                let current = session.compile_path(&path, &limited);
+                let expected = compare_path(&session, &current, &path, &limited);
+                assert_eq!(current.status == ResultCategory::Success, limit == high);
+                assert_eq!(
+                    current.phase, expected.phase,
+                    "retain the original first failing phase"
+                );
+                assert_eq!(current.verification_runs, 0);
+                if limit != high {
+                    assert_eq!(current.status, ResultCategory::ResourceLimit);
+                    assert!(!current.diagnostics.is_empty());
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn producer_ordinary_emit_does_not_restore_unreachable_materializer_pruned_bodies() {
+    for graph in [false, true] {
+        let directory = Directory::new();
+        let options = options(graph);
+        let mut session = CompilationSession::default();
+        for (argument, missing) in [(1, "absent_name"), (2, "still_absent")] {
+            let main = format!(
+                "fn emit(x:i32)->i32{{if x<7{{return x+1;}}return x+2;}}fn main()->i32{{return emit({argument});}}"
+            );
+            let orphan = format!("fn orphan()->i32{{return {missing};}}");
+            // No import reaches orphan. The existing materializer deliberately
+            // prunes its invalid body; original sealed syntax is not a no-op.
+            let project = directory.project(&[("main", &main), ("orphan", &orphan)]);
+            let report = session.compile_project(&project, &options);
+            successful(&report);
+            compare(&session, &report, &project, &options);
+            assert!(
+                report.producer_work.is_none(),
+                "materialized pruning must fall back instead of reviving the invalid orphan"
+            );
+        }
+    }
+}
+
 #[test]
 fn producer_private_atomic_multi_and_restore_match_complete_fresh_types() {
     for graph in [false, true] {

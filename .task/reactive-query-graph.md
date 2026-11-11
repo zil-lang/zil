@@ -12,6 +12,10 @@ A为现有缓存；B为相同生产者模块复用加直接版本memo；C为相�
 
 `1c7b6cd3767e65d86da227095baca801f1c21c4c` 首次测试编译失败：遗漏仅测试使用的lifetimes wrapper，未记通过。同SHA独立公开API probe实际重现重复FileId误replay：raw为ResourceLimit，producer为SafeReject/E-MODULE-ID；原始Source/probe/日志在`out/runs/producer-duplicate-fileid-1c7b6cd`。`2a6b873857ac0e9e1d7175652018508153433a42` 分类前回退修复后，157 driver＋83 expand＋35 syntax＋66 types＝341全部通过，新增预算同限额warm、6个Expand tests、2个真实A/B/C互斥计时tests实际执行；architecture为15crate/40edge通过。严格Clippy发现一处末次Option借用lint，后续提交修正。所有候选仍未性能验收。源树和验证树分别保留；验证树只在旧构建停止后正常ff，目录名不代表当前SHA。
 
+`23b3b24b0e1fb52e6dbbb302078095aa44b750bd` 已实际通过341lib＋CLI resident1、严格workspace/all-targets Clippy；release binary SHA256 `75332c0cf001b27880364326be6c1020d8378be904259f1430f184e0861f763d`。ZUI StoreFields当前check/O2原生输出DEFHZMNOPK通过，仅组合烟测。`d55d27e958ad0e2f3f68756d91dbb28d4ecbfca3`另修A/B/C证据检查：缺raw response/CPU-memory sidecar必须拒绝，独立合成检查3合法/13拒绝通过。
+
+首个20×20×16真实大Source成本运行`out/runs/native-abc-cost-20x20x16-r1`完成21请求（12measured＋9prep），但所有A/B/C均producer=null、version reuse0：普通IO函数名emit触发旧宽泛CT候选筛选，新切片被绕过。保留原结果为接入覆盖失败，不计生产者性能成功。下一WIP修late路由：仍执行全部原materialize_scoped、剪枝及预算；sealed scalar分类结合实际top-level保留/import/runtime phase条件，随后允许Unavailable上下文复用普通模块产物。默认关不扫描新guard；新增同请求materialization_ns是Expand子计时，不能与Expand父计时相加。新增真实文件入口和CT-like普通名称、冷预算N/N−1/失败修复及成本互斥检查，尚待新冻结后实际测试。
+
 以下是前轮交付，保留其源码和证据身份；本节WIP不能计作通过或净收益。
 
 父任务goal G10.5.1.15；分支`research/reactive-query-graph`。本轮实际main基线`99035931d358add0eaed6d4535035c38413701dd`，从`c75c58bf7f564a1ce8049702f9c6ec41c82d1da2`正常续接，无需rebase/main变更。本轮生产实现、真实测试与测量已经执行；完整跨阶段架构未完成，当前切片没有证明大型净等待收益，默认关闭、不合main。不要把此状态写成整条zit路线失败，也不要把BodyKey局部减少写成大项目提速。
