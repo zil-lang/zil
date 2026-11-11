@@ -2,7 +2,7 @@
   "date": "2026-11-11",
   "parent_scope": "G10.5.1",
   "research": "stable-owner reactive query graph",
-  "read_goal_sha": "1434986e0d435c64e46e967a9a5460a1a7fede69",
+  "read_goal_sha": "b1a3d7f99998b05bf758023978a76babd403ced3",
   "source_base": "99035931d358add0eaed6d4535035c38413701dd",
   "source_branch": "research/reactive-query-graph",
   "source_head": "a6e6587dff31e72f5bb26f13dbf53b3162903243",
@@ -475,7 +475,7 @@
   },
   "producer_continuation": {
     "task": "G10.5.1.15",
-    "read_goal_sha": "1434986e0d435c64e46e967a9a5460a1a7fede69",
+    "read_goal_sha": "b1a3d7f99998b05bf758023978a76babd403ced3",
     "source_start": "0a529a6247793f63ccd41ff3f65dc97afcbb666c",
     "main": "99035931d358add0eaed6d4535035c38413701dd",
     "status": "阻塞·执行环境不可用；真实共享工作门通过，最新端到端与原始证据持久化未完成",
@@ -545,7 +545,15 @@
           "multi": -172.726,
           "broad": -429.656
         },
-        "performance_accepted": false
+        "performance_accepted": false,
+        "console_projection_arithmetic_review": {
+          "reviewer": "producer_types",
+          "actual_wall_values": 162,
+          "descriptive_statistics_recomputed": 108,
+          "paired_means_recomputed": 27,
+          "result": "all match using in-tool JavaScript and only already-remote console projection",
+          "not_covered": "No original raw/source/CPU/RSS/oracle review, no CI reconstruction; not complete performance acceptance"
+        }
       }
     },
     "preserved_failures": [
@@ -698,7 +706,30 @@
       "readme": "tools/research/reactive-query-graph/README.md",
       "resume": ".task/reactive-query-graph.md",
       "checkpoint": "tools/research/reactive-query-graph/interruption-checkpoint-20261111.json",
-      "all_four_remote_readback_equal": true
+      "all_four_remote_readback_equal": true,
+      "independent_remote_review": {
+        "reviewer": "producer_types, non-author",
+        "source": "a6e6587dff31e72f5bb26f13dbf53b3162903243",
+        "files": [
+          {
+            "path": ".task/reactive-query-graph.md",
+            "blob": "39540a52cc699701aff0eb3d9e7523bca9c06a33"
+          },
+          {
+            "path": "tools/research/reactive-query-graph/README.md",
+            "blob": "3f36b8cc2b0f9fc4d201c455aaa6a2988ccf2bb0"
+          },
+          {
+            "path": "tools/research/reactive-query-graph/receipt.json",
+            "blob": "4b46b4886fae88b44edf247f06c54b45e50ed811"
+          },
+          {
+            "path": "tools/research/reactive-query-graph/interruption-checkpoint-20261111.json",
+            "blob": "57994f1ca74c75f45624e9e4ee928de47fc94776"
+          }
+        ],
+        "result": "No material factual/scope discrepancy against completed independent reviews; latest native unknown, latest raw review pending and late raw not backed up remain explicit."
+      }
     }
   },
   "latest_production_source": "12e648af1f50ffcb18fc32b8f4dc50a680900182",
