@@ -1,0 +1,24 @@
+{
+  "date": "2026-11-12",
+  "task": "G10.5.1.15",
+  "status": "new branch baseline and cost diagnosis; no new performance claim",
+  "read_goal_sha": "45707c01b7a35cfb78f1b576fa9cd24a324e345b",
+  "base": "ea0ce45741fde0082b6c92173b7480b167c888d4",
+  "branch": "research/incremental-demand-propagation",
+  "worktree": "/workspace/zil-incremental",
+  "authorization": "User requests new branch continuing incremental compilation research from latest research branch and previous ideas. Existing branch remains untouched.",
+  "write_scope": [
+    "crates/zil-expand/src/incremental.rs and module assembly",
+    "crates/zil-driver/src/project.rs/session.rs and ct_artifact producer integration",
+    "crates/zil-types internal prepared and incremental representations",
+    "corresponding budget/source differential tests",
+    "tools/research/reactive-query-graph measurement tools if required"
+  ],
+  "boundaries": [
+    "No independent Verify kernel weakening, budget increases, default enablement, or main merge",
+    "Public shared representation change requires root explicit scope update after cost diagnosis",
+    "One heavy build/measurement window with separate targets",
+    "All failures retained and fresh-current comparison required"
+  ],
+  "exit_gate": "Actual expensive work removal plus complete request paired comparisons against ea0; do not attribute producer/common changes to graph; independent exact source review before delivery."
+}
