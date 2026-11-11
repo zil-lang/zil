@@ -1,6 +1,6 @@
-//! Private exact-input work products. These recipes are not validation evidence:
+//! Private partition-input work products. These recipes are not validation evidence:
 //! current declaration and complete native-unit preflight remain in the caller.
-use super::{CallImportPolicy, distribute_item, rewrite_direct_calls};
+use super::{CallImportPolicy, direct_calls, distribute_item, rewrite_direct_calls};
 use crate::EntryPoint;
 use crate::object_cache::{BufferedHasher, installed_compiler_identity};
 use std::collections::{BTreeMap, BTreeSet};
@@ -13,8 +13,8 @@ use zil_base::Fingerprint;
 use zil_ir::{InstructionKind, LirView};
 use zil_llvm_api::model::{Item, Linkage, Module};
 
-const MAGIC: &[u8; 8] = b"ZILCGU01";
-const DIRECTORY: &str = "partition-layout-v1";
+const MAGIC: &[u8; 8] = b"ZILCGU02";
+const DIRECTORY: &str = "partition-layout-v2";
 const MAX_ITEMS: usize = 262_144;
 const MAX_UNITS: usize = 256;
 const MAX_REFS: usize = 1_048_576;
@@ -446,7 +446,7 @@ fn action_key(
     lir.module_id.hash(&mut state);
     lir.functions.len().hash(&mut state);
     // Exact projection of every LIR field read by the partition planner. The
-    // complete machine model below binds bodies/types/linkage independently.
+    // machine projection below binds the remaining ordinary-planner inputs.
     for function in lir.functions {
         function.id.hash(&mut state);
         function.name.hash(&mut state);
@@ -477,7 +477,67 @@ fn action_key(
         items,
     } = module;
     triple.hash(&mut state);
-    items.hash(&mut state);
+    // Recipes contain item indices, not bodies. The ordinary planner observes
+    // symbol references, direct calls, linkage and block/instruction cost; it
+    // never inspects arithmetic operands or SSA/block names. Keep signatures,
+    // attributes and global/type headers conservatively bound. Replay always
+    // takes those and every body from this request's model. Declaration checks
+    // and full native-unit preflight still run on the current model.
+    // Resource-helper planning runs before this cache; a successful helper
+    // recipe never uses this ordinary-planner key.
+    items.len().hash(&mut state);
+    for item in items {
+        match item {
+            Item::NamedType(name, fields) => {
+                0u8.hash(&mut state);
+                name.hash(&mut state);
+                fields.hash(&mut state);
+            }
+            Item::Function(function) => {
+                1u8.hash(&mut state);
+                let zil_llvm_api::model::Function {
+                    name,
+                    linkage,
+                    signature,
+                    attrs,
+                    blocks,
+                } = function;
+                name.hash(&mut state);
+                linkage.hash(&mut state);
+                signature.hash(&mut state);
+                attrs.hash(&mut state);
+                blocks.is_some().hash(&mut state);
+                blocks.as_ref().map(Vec::len).hash(&mut state);
+                function.cost().hash(&mut state);
+                function.references().hash(&mut state);
+                direct_calls(function).hash(&mut state);
+            }
+            Item::Global(global) => {
+                2u8.hash(&mut state);
+                let zil_llvm_api::model::Global {
+                    name,
+                    linkage,
+                    ty,
+                    initializer,
+                    constant,
+                    unnamed_addr,
+                    alignment,
+                } = global;
+                name.hash(&mut state);
+                linkage.hash(&mut state);
+                ty.hash(&mut state);
+                initializer.is_some().hash(&mut state);
+                constant.hash(&mut state);
+                unnamed_addr.hash(&mut state);
+                alignment.hash(&mut state);
+                let mut references = BTreeSet::new();
+                if let Some(value) = initializer {
+                    value.symbols(&mut references);
+                }
+                references.hash(&mut state);
+            }
+        }
+    }
     Some(state.digest())
 }
 

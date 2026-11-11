@@ -257,6 +257,239 @@ fn layout_key_binds_current_model_planning_projection_and_policy() {
     );
 }
 
+fn projection_key(module: &Module, source: &LirModule, count: usize) -> Fingerprint {
+    action_key(
+        module,
+        &source.as_view(),
+        EntryPoint::None,
+        count,
+        true,
+        CallImportPolicy::Complete,
+        Fingerprint::of(b"projection-test-compiler"),
+    )
+    .unwrap()
+}
+
+#[test]
+fn layout_projection_reuses_multi_body_edits_but_replays_every_current_operand() {
+    let directory = Directory::new();
+    let (mut module, source) = fixture();
+    for item in &mut module.items[3..5] {
+        let Item::Function(function) = item else {
+            unreachable!()
+        };
+        function.blocks.as_mut().unwrap()[0].instructions.insert(
+            0,
+            Inst::new(
+                Some("constant".into()),
+                Op::Freeze(Arg::new(Ty::Int(32), Val::Int(7))),
+            ),
+        );
+    }
+    zil_llvm_api::validate_module(&module).unwrap();
+    let (_, layout) = planned(&module, &source);
+    let key = projection_key(&module, &source, 2);
+    let cache = Cache {
+        root: directory.0.clone(),
+        key,
+    };
+    cache.pending(&layout).unwrap().pin().unwrap().commit();
+    let mut changed = module.clone();
+    for (offset, item) in changed.items[3..5].iter_mut().enumerate() {
+        let Item::Function(function) = item else {
+            unreachable!()
+        };
+        function.blocks.as_mut().unwrap()[0].instructions[0].op =
+            Op::Freeze(Arg::new(Ty::Int(32), Val::Int(100 + offset as i128)));
+    }
+    let Item::Global(global) = &mut changed.items[6] else {
+        unreachable!()
+    };
+    global.initializer = Some(Val::Int(99));
+    zil_llvm_api::validate_module(&changed).unwrap();
+    assert_ne!(changed, module);
+    assert_eq!(projection_key(&changed, &source, 2), key);
+    let loaded = cache.load(&changed, &source.as_view(), 2).unwrap();
+    let current = loaded.replay(changed.clone());
+    let (uncached, _) = planned(&changed, &source);
+    assert_eq!(current, uncached.units);
+    assert_ne!(current, layout.replay(module));
+    for unit in &current {
+        zil_llvm_api::validate_module(unit).unwrap();
+    }
+    // Body types are not placement inputs. Reusing the recipe must still
+    // present a malformed current instruction to the native-unit preflight.
+    let Item::Function(function) = &mut changed.items[3] else {
+        unreachable!()
+    };
+    function.blocks.as_mut().unwrap()[0].instructions[0].op =
+        Op::Freeze(Arg::new(Ty::Int(0), Val::Int(7)));
+    assert_eq!(projection_key(&changed, &source, 2), key);
+    let invalid = cache
+        .load(&changed, &source.as_view(), 2)
+        .unwrap()
+        .replay(changed.clone());
+    let (uncached, _) = planned(&changed, &source);
+    assert_eq!(invalid, uncached.units);
+    assert!(
+        invalid
+            .iter()
+            .any(|unit| zil_llvm_api::validate_module(unit).is_err())
+    );
+}
+
+#[test]
+fn layout_projection_binds_address_direct_call_linkage_and_definition_changes() {
+    let (mut module, source) = fixture();
+    let Item::Function(caller) = &mut module.items[3] else {
+        unreachable!()
+    };
+    caller.blocks.as_mut().unwrap()[0].instructions.insert(
+        0,
+        Inst::new(
+            Some("fp".into()),
+            Op::Freeze(Arg::new(Ty::Ptr, Val::Global("zil.fn.1".into()))),
+        ),
+    );
+    zil_llvm_api::validate_module(&module).unwrap();
+    let key = projection_key(&module, &source, 2);
+    let variants: [fn(&mut Module); 5] = [
+        |m| {
+            let Item::Function(f) = &mut m.items[3] else {
+                unreachable!()
+            };
+            let Op::Call { callee, .. } = &mut f.blocks.as_mut().unwrap()[0].instructions[1].op
+            else {
+                unreachable!()
+            };
+            *callee = Val::Local("fp".into());
+        },
+        |m| {
+            let Item::Function(f) = &mut m.items[3] else {
+                unreachable!()
+            };
+            f.blocks.as_mut().unwrap()[0].instructions[0].op =
+                Op::Freeze(Arg::new(Ty::Ptr, Val::Global("foreign".into())));
+        },
+        |m| {
+            let Item::Function(f) = &mut m.items[4] else {
+                unreachable!()
+            };
+            f.linkage = Linkage::AvailableExternally;
+        },
+        |m| {
+            let Item::Function(f) = &mut m.items[4] else {
+                unreachable!()
+            };
+            *f = f.declaration();
+        },
+        |m| {
+            let Item::Global(g) = &mut m.items[6] else {
+                unreachable!()
+            };
+            g.linkage = Linkage::External;
+        },
+    ];
+    for change in variants {
+        let mut changed = module.clone();
+        change(&mut changed);
+        assert_ne!(projection_key(&changed, &source, 2), key);
+    }
+    let mut addressed = module.clone();
+    addressed.items.push(Item::Global(Global {
+        name: "address".into(),
+        linkage: Linkage::External,
+        ty: Ty::Ptr,
+        initializer: Some(Val::Global("state".into())),
+        constant: false,
+        unnamed_addr: false,
+        alignment: 8,
+    }));
+    let key = projection_key(&addressed, &source, 2);
+    let Item::Global(g) = addressed.items.last_mut().unwrap() else {
+        unreachable!()
+    };
+    g.initializer = Some(Val::Global("zil.fn.1".into()));
+    assert_ne!(projection_key(&addressed, &source, 2), key);
+}
+
+#[test]
+fn layout_projection_binds_complete_import_cost_threshold() {
+    let (mut module, mut source) = fixture();
+    module.items = vec![
+        Item::Function(function("zil.fn.0", Some("zil.fn.2"))),
+        Item::Function(function("zil.fn.1", Some("zil.fn.2"))),
+        Item::Function(function("zil.fn.2", None)),
+    ];
+    for (index, f) in source.functions.iter_mut().enumerate() {
+        f.span.file = FileId(index as u32);
+    }
+    let mut layout = None;
+    let plan = partition_view_recorded(
+        module.clone(),
+        &source.as_view(),
+        EntryPoint::None,
+        3,
+        true,
+        true,
+        &mut layout,
+    );
+    assert_eq!(plan.fallback, None);
+    let layout = layout.unwrap();
+    assert_eq!(
+        layout.units.iter().map(|u| u.imports.len()).sum::<usize>(),
+        2
+    );
+    let key = projection_key(&module, &source, 3);
+    let Item::Function(leaf) = &mut module.items[2] else {
+        unreachable!()
+    };
+    for index in 0..5 {
+        leaf.blocks.as_mut().unwrap()[0].instructions.insert(
+            0,
+            Inst::new(
+                Some(format!("extra{index}")),
+                Op::Freeze(Arg::new(Ty::Int(32), Val::Int(index))),
+            ),
+        );
+    }
+    zil_llvm_api::validate_module(&module).unwrap();
+    assert_ne!(projection_key(&module, &source, 3), key);
+    assert!(!layout.valid(&module, &source.as_view(), 3));
+    let mut rejected = None;
+    let original = super::super::partition_view_once(
+        module.clone(),
+        &source.as_view(),
+        EntryPoint::None,
+        3,
+        true,
+        true,
+        &mut rejected,
+    );
+    assert_eq!(
+        original.fallback,
+        Some("complete O2 call closure exceeds total copy cost")
+    );
+    let ordinary = super::super::partition_view(
+        module.clone(),
+        &source.as_view(),
+        EntryPoint::None,
+        3,
+        true,
+        false,
+    );
+    let current = partition_view_recorded(
+        module,
+        &source.as_view(),
+        EntryPoint::None,
+        3,
+        true,
+        true,
+        &mut rejected,
+    );
+    assert_eq!(current.units, ordinary.units);
+}
+
 #[test]
 fn layout_records_are_bounded_and_require_complete_current_ownership() {
     let (module, source) = fixture();
