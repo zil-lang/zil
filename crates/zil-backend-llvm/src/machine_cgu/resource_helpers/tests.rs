@@ -176,6 +176,75 @@ fn shared_call_only_helpers_do_not_join_independent_source_modules() {
 }
 
 #[test]
+fn early_merging_keeps_complete_visibility_while_late_merging_splits_helpers() {
+    use super::super::{CallImportPolicy, partition_view, partition_view_cached};
+    use crate::FunctionMerging;
+
+    let lir = source(3);
+    let mut input = input();
+    input.items.push(caller(2, "separate"));
+    input.items.push(helper("separate", 3));
+    let original = partition_view(
+        input.clone(),
+        &lir.as_view(),
+        EntryPoint::None,
+        8,
+        true,
+        true,
+    );
+    assert_eq!(original.units.len(), 2);
+    let shared = original
+        .units
+        .iter()
+        .find(|unit| symbol_count(unit, "zil.fn.0") == 1)
+        .unwrap();
+    assert_eq!(symbol_count(shared, "zil.fn.1"), 1);
+
+    for merging in [
+        FunctionMerging::Disabled,
+        FunctionMerging::AfterOptimization,
+        FunctionMerging::BeforeAndAfter,
+    ] {
+        let (plan, _) = partition_view_cached(
+            input.clone(),
+            &lir.as_view(),
+            EntryPoint::None,
+            8,
+            true,
+            CallImportPolicy::for_incremental_o2(true, merging),
+            None,
+        );
+        if merging == FunctionMerging::BeforeAndAfter {
+            assert_eq!(plan.units, original.units);
+            assert_eq!(plan.fallback, original.fallback);
+        } else {
+            assert_eq!(plan.units.len(), 3);
+            let first = plan
+                .units
+                .iter()
+                .find(|unit| symbol_count(unit, "zil.fn.0") == 1)
+                .unwrap();
+            assert_eq!(symbol_count(first, "zil.fn.1"), 0);
+            assert_eq!(symbol_count(first, "helper"), 1);
+        }
+        for unit in &plan.units {
+            zil_llvm_api::validate_module(unit).unwrap();
+        }
+
+        let (disabled, _) = partition_view_cached(
+            input.clone(),
+            &lir.as_view(),
+            EntryPoint::None,
+            8,
+            true,
+            CallImportPolicy::for_incremental_o2(false, merging),
+            None,
+        );
+        assert_eq!(disabled.units, original.units);
+    }
+}
+
+#[test]
 fn address_observation_and_local_mutable_state_prevent_code_duplication() {
     let lir = source(2);
     let mut address = input();

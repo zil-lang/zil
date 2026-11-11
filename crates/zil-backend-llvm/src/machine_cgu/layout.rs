@@ -1,6 +1,6 @@
 //! Private exact-input work products. These recipes are not validation evidence:
 //! current declaration and complete native-unit preflight remain in the caller.
-use super::{distribute_item, rewrite_direct_calls};
+use super::{CallImportPolicy, distribute_item, rewrite_direct_calls};
 use crate::EntryPoint;
 use crate::object_cache::{BufferedHasher, installed_compiler_identity};
 use std::collections::{BTreeMap, BTreeSet};
@@ -348,7 +348,7 @@ impl Cache {
         entry: EntryPoint,
         count: usize,
         split: bool,
-        imports: bool,
+        imports: CallImportPolicy,
     ) -> Option<Self> {
         if ["LD_PRELOAD", "LD_AUDIT"]
             .into_iter()
@@ -416,7 +416,7 @@ fn action_key(
     entry: EntryPoint,
     count: usize,
     split: bool,
-    imports: bool,
+    imports: CallImportPolicy,
     compiler: Fingerprint,
 ) -> Option<Fingerprint> {
     if !(2..=MAX_UNITS).contains(&count) || module.items.len() > MAX_ITEMS {
