@@ -1,9 +1,11 @@
 {
   "format": 1,
-  "created_utc": "2026-11-11T01:08:08.091810+00:00",
-  "prior_archive": "8e0ccb263bed7dabad8afa2c40b68945c18e5c0a",
+  "created_utc": "2026-11-11T01:13:17.340754+00:00",
+  "prior_archive": "25297450db6fd517544e7c9da3e2d67f8c6c1443",
   "commit_parents": [
-    "8e0ccb263bed7dabad8afa2c40b68945c18e5c0a"
+    "25297450db6fd517544e7c9da3e2d67f8c6c1443",
+    "467b5ffd791c6aae80cc524b1c23cf7259182661",
+    "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071"
   ],
   "commit_tips": [
     "0a8929d4f6126683737d62ab9def1d8e67a784ca",
@@ -47,7 +49,9 @@
     "b0e2ab28f10a5d3b1e67f2ba5ce91bb0685e7f5f",
     "af5965c78dc894ee9b6bef9ebafab9fdd5792935",
     "07af3468db6828f0c1e4b9276169a35013fde318",
-    "fbbdc1f6e643858cf181e3c1a67960223e50fd99"
+    "fbbdc1f6e643858cf181e3c1a67960223e50fd99",
+    "467b5ffd791c6aae80cc524b1c23cf7259182661",
+    "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071"
   ],
   "local_refs": {},
   "remote_refs": {
@@ -90,7 +94,9 @@
     "refs/heads/task/helper-public-boundary": "b0e2ab28f10a5d3b1e67f2ba5ce91bb0685e7f5f",
     "refs/heads/task/normalized-merging-consumers": "af5965c78dc894ee9b6bef9ebafab9fdd5792935",
     "refs/heads/task/resident-memory-validation": "07af3468db6828f0c1e4b9276169a35013fde318",
-    "refs/heads/task/static-byte-closure-cleanup": "fbbdc1f6e643858cf181e3c1a67960223e50fd99"
+    "refs/heads/task/static-byte-closure-cleanup": "fbbdc1f6e643858cf181e3c1a67960223e50fd99",
+    "refs/heads/task/helper-current-main-validation": "467b5ffd791c6aae80cc524b1c23cf7259182661",
+    "refs/heads/task/repeatable-closure-drop": "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071"
   },
   "worktrees": [],
   "missing_commit_objects": [],
@@ -382,6 +388,30 @@
       "evidence_refs": [
         "PR83",
         "42930165591"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/helper-current-main-validation",
+      "head_before_retirement": "467b5ffd791c6aae80cc524b1c23cf7259182661",
+      "retirement_completed": false,
+      "reason": "Final immutable report added after first audit; implementation unchanged, candidate continues in PR80/84.",
+      "disposition": "evidence-only",
+      "evidence_refs": [
+        "42927538037",
+        ".task/helper-current/RESULTS.md"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/repeatable-closure-drop",
+      "head_before_retirement": "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071",
+      "retirement_completed": false,
+      "reason": "Final negative-quality report added after first audit; static cleanup remains rejected, PR83 closed.",
+      "disposition": "rejected",
+      "evidence_refs": [
+        "42930165591",
+        "PR83"
       ],
       "archive_is_acceptance": false
     }
