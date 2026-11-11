@@ -93,6 +93,10 @@ LLVM优化及机器码生成，但仍执行Lower、诊断IR与链接。
 该路径依赖可信本机缓存和执行期间不可变的工具安装，不面向不可信/共享网络缓存。
 `--cache-dir`仅为既有未核源候选缓存，不隐式启用对象复用。细节见[冻结机制说明](https://github.com/zil-lang/zil/blob/28b3e37bb4d8a1fe8b146c72cf891fc99de32440/docs/research/native-object-cache/cache.md)。
 
+## 优化采用边界
+
+缓存与分区粒度、生成代码质量、完整请求加权及对照失败合同遵守[编译优化的成本与采用边界](compiler-cost-contract.md)。研究结论不自动改变默认策略或放宽当前验证。
+
 ## 回归和复现
 
 ```sh
