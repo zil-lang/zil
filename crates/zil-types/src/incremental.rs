@@ -8,6 +8,9 @@ use std::time::Instant;
 use zil_base::{FileId, Fingerprint, FingerprintBuilder, ModuleId};
 use zil_db::reactive::{GraphError, ReactiveGraph, ReactiveStats};
 
+type FunctionFingerprints = BTreeMap<(ModuleId, String), Fingerprint>;
+type SignatureObserver<'a> = Option<&'a mut dyn FnMut(ModuleId, &str) -> Option<()>>;
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FunctionStats {
     pub cost_profiled: bool,
@@ -138,7 +141,7 @@ struct MemoEntry {
     revision: zil_expand::ModuleRevision,
     context: Fingerprint,
     signature: Fingerprint,
-    reads: BTreeMap<(ModuleId, String), Fingerprint>,
+    reads: FunctionFingerprints,
     key: Option<Fingerprint>,
 }
 #[derive(Clone, Default)]
@@ -465,7 +468,7 @@ pub(super) struct Reuse<'a> {
     prior: &'a BTreeMap<Fingerprint, Arc<Entry>>,
     next: &'a mut BTreeMap<Fingerprint, Arc<Entry>>,
     stats: &'a mut FunctionStats,
-    keys: Option<BTreeMap<(ModuleId, String), Fingerprint>>,
+    keys: Option<FunctionFingerprints>,
     reactive: Option<ReactiveRequest<'a>>,
     producer: Option<ProducerRequest<'a>>,
 }
@@ -636,7 +639,7 @@ impl ProducerRequest<'_> {
         target: &TargetProfile,
         limits: &Limits,
         stats: &mut FunctionStats,
-    ) -> Option<BTreeMap<(ModuleId, String), Fingerprint>> {
+    ) -> Option<FunctionFingerprints> {
         let context = key_context(program, tables, target, limits, stats)?;
         let inventory_started = start_cost(stats.cost_profiled);
         let mut excluded_ns = 0u64;
@@ -737,7 +740,7 @@ impl ReactiveRequest<'_> {
         target: &TargetProfile,
         limits: &Limits,
         stats: &mut FunctionStats,
-    ) -> Option<BTreeMap<(ModuleId, String), Fingerprint>> {
+    ) -> Option<FunctionFingerprints> {
         match self.try_keys(program, tables, target, limits, stats) {
             Ok(keys) => keys,
             Err(_) => {
@@ -758,7 +761,7 @@ impl ReactiveRequest<'_> {
         target: &TargetProfile,
         limits: &Limits,
         stats: &mut FunctionStats,
-    ) -> Result<Option<BTreeMap<(ModuleId, String), Fingerprint>>, GraphError> {
+    ) -> Result<Option<FunctionFingerprints>, GraphError> {
         let Some(context) = key_context(program, tables, target, limits, stats) else {
             *self.state = Projections::default();
             return Ok(None);
@@ -1084,7 +1087,7 @@ fn keys(
     target: &TargetProfile,
     limits: &Limits,
     stats: &mut FunctionStats,
-) -> Option<BTreeMap<(ModuleId, String), Fingerprint>> {
+) -> Option<FunctionFingerprints> {
     let context = key_context(program, tables, target, limits, stats)?;
     let started = start_cost(stats.cost_profiled);
     let body_key_before = stats.body_key_ns;
@@ -1258,7 +1261,7 @@ fn function_key(
     context: &KeyContext,
     limits: &Limits,
     stats: &mut FunctionStats,
-    observe: Option<&mut dyn FnMut(ModuleId, &str) -> Option<()>>,
+    observe: SignatureObserver<'_>,
 ) -> Option<Fingerprint> {
     let started = start_cost(stats.cost_profiled);
     let result = function_key_inner(module, function, tables, context, limits, stats, observe);
@@ -1275,7 +1278,7 @@ fn function_key_inner(
     context: &KeyContext,
     limits: &Limits,
     stats: &mut FunctionStats,
-    observe: Option<&mut dyn FnMut(ModuleId, &str) -> Option<()>>,
+    observe: SignatureObserver<'_>,
 ) -> Option<Fingerprint> {
     if !worthwhile(function) {
         return None;
@@ -1321,7 +1324,7 @@ struct BodyKey<'a, 'o> {
     module: &'a ProgramModule,
     tables: &'a BTreeMap<ModuleId, BTreeMap<String, Signature>>,
     declarations: &'a BTreeMap<ModuleId, BTreeMap<String, Fingerprint>>,
-    observe: Option<&'o mut dyn FnMut(ModuleId, &str) -> Option<()>>,
+    observe: SignatureObserver<'o>,
 }
 impl BodyKey<'_, '_> {
     fn visit(&mut self, depth: usize) -> Option<()> {

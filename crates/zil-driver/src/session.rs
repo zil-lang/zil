@@ -125,6 +125,8 @@ pub(super) struct ExpandedSource {
     selection: super::ct_selection::Receipt,
 }
 
+type ProducerParseCache = BTreeMap<(ModuleId, FileId, String), zil_syntax::ParsedSource>;
+
 pub struct CompilationSession {
     pub(super) database: Database,
     pub(super) raw: BTreeMap<QueryKey, RawSnapshot>,
@@ -134,8 +136,7 @@ pub struct CompilationSession {
     analysis: zil_analyze::AnalysisSession,
     pub(super) function_types: zil_types::FunctionSession,
     pub(super) producer: zil_expand::ExpandSession,
-    pub(super) producer_syntax:
-        std::cell::RefCell<BTreeMap<(ModuleId, FileId, String), zil_syntax::ParsedSource>>,
+    pub(super) producer_syntax: std::cell::RefCell<ProducerParseCache>,
 }
 impl Default for CompilationSession {
     fn default() -> Self {
