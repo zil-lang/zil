@@ -1,10 +1,10 @@
 {
   "format": 1,
   "created_utc": "2026-11-11T01:13:36.759319+00:00",
-  "prior_archive": "78ce99886e435dd56c0af632240eded1840827c0",
+  "prior_archive": "34ded7a21bed380b71e5bf85f4eb88569404710f",
   "commit_parents": [
-    "78ce99886e435dd56c0af632240eded1840827c0",
-    "087757507562a47bde7e32ba34f19d1986592cde"
+    "34ded7a21bed380b71e5bf85f4eb88569404710f",
+    "19681c97573460252df425cfaefc0e5d3dadb0e0"
   ],
   "commit_tips": [
     "0a8929d4f6126683737d62ab9def1d8e67a784ca",
@@ -64,7 +64,8 @@
     "52284449ea652983b16069c71bc8dc1a40a8b802",
     "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
     "b0da05ec784d632fa88c00d860382d656db712ec",
-    "087757507562a47bde7e32ba34f19d1986592cde"
+    "087757507562a47bde7e32ba34f19d1986592cde",
+    "19681c97573460252df425cfaefc0e5d3dadb0e0"
   ],
   "local_refs": {},
   "remote_refs": {
@@ -115,7 +116,8 @@
     "refs/heads/task/compiler-layout-projection": "52284449ea652983b16069c71bc8dc1a40a8b802",
     "refs/heads/task/compiler-bounded-imports": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
     "refs/heads/task/compiler-structured-emission": "b0da05ec784d632fa88c00d860382d656db712ec",
-    "refs/heads/task/compiler-builder-position": "087757507562a47bde7e32ba34f19d1986592cde"
+    "refs/heads/task/compiler-builder-position": "087757507562a47bde7e32ba34f19d1986592cde",
+    "refs/heads/task/compiler-thinlto-prototype": "19681c97573460252df425cfaefc0e5d3dadb0e0"
   },
   "worktrees": [],
   "missing_commit_objects": [],
@@ -620,7 +622,7 @@
       "decision": "Profile completed; worker-owned candidate not adopted; source, raw records and all negative values preserved"
     }
   },
-  "updated_utc": "2026-11-11T11:43:16.086Z",
+  "updated_utc": "2026-11-11T11:44:31.390Z",
   "compiler_multi_edit_20261111": {
     "directory": "research/compiler-multi-edit-20261111",
     "main": "99035931d358add0eaed6d4535035c38413701dd",
@@ -674,6 +676,13 @@
       "prior_archive": "78ce99886e435dd56c0af632240eded1840827c0",
       "status": "archived recipe; remote retirement planned",
       "recipe_sha256": "4db4405c13b28cfc757ce993590496fe290e45a3f3a665b329897e18cbea8745"
+    },
+    "task/compiler-thinlto-prototype": {
+      "source_head": "eb5b150903b67d8b9011f6adc2d3ac67b1c419a6",
+      "recipe_head": "19681c97573460252df425cfaefc0e5d3dadb0e0",
+      "prior_archive": "34ded7a21bed380b71e5bf85f4eb88569404710f",
+      "status": "archived recipe; remote retirement planned",
+      "recipe_sha256": "3afb23be536dc5b61f0c98f21fc7ce268e30d859bde5b61822fb81b80433363c"
     }
   },
   "next_optimization_evidence": {
