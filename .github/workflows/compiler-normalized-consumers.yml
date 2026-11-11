@@ -1,0 +1,125 @@
+name: Fixed normalized pipeline real consumers
+on:
+  push:
+    branches: [task/normalized-merging-consumers]
+    paths: [.github/workflows/compiler-normalized-consumers.yml]
+permissions:
+  contents: write
+jobs:
+  consumers:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Pin unchanged baseline and fixed production compiler
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/consumer-setup" .task/normalized-consumers
+          rustup toolchain install 1.99.1 --profile minimal
+          cargo fetch --locked
+          sudo apt-get update -qq
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/consumer-llvm" > "$RUNNER_TEMP/consumer-setup/llvm.log" 2>&1
+          echo "ZIL_CLANG=$RUNNER_TEMP/consumer-llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/consumer-llvm/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/consumer-llvm/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/consumer-llvm/bin" >> "$GITHUB_PATH"
+          git fetch --depth=1 --no-tags origin 2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852 50ae8f6de6fdf40bc4f75363f146b9cc1d178d8d
+          git worktree add --detach "$RUNNER_TEMP/consumer-base" 2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852
+          git show 50ae8f6de6fdf40bc4f75363f146b9cc1d178d8d:.task/merge-order/screen_positions.py > .task/normalized-consumers/holdout.py
+      - name: Freeze original holdout source and ordinary consumer with only explicit policy selection
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('.task/normalized-consumers');p=root/'holdout.py';s=p.read_text()
+          substitutions=[
+           ("HERE/'multimodule.py'","HERE.parent/'normalized-merging/multimodule.py'"),
+           ("ARMS=['base','inline-first','minimal-prefix','normalized-prefix','full-prefix']","ARMS=['base','cand']"),
+           ("p.add_argument('--cli',type=Path,required=True);","p.add_argument('--base',type=Path,required=True);p.add_argument('--candidate',type=Path,required=True);"),
+           ('cli=a.cli.resolve();','tools={\"base\":a.base.resolve(),\"cand\":a.candidate.resolve()};'),
+           ("'tools':{'cli_sha256':m.sha(cli)}","'tools':{k:m.sha(v) for k,v in tools.items()}"),
+           ("                        os.environ['ZIL_RESEARCH_PASS_POSITION']=arm if arm!='base' else 'minimal-prefix'\n",''),
+           ("exe=work/'app';argv=[cli,","exe=work/'app';argv=[tools[arm],"),
+           ("env={'ZIL_RESEARCH_PASS_POSITION':os.environ['ZIL_RESEARCH_PASS_POSITION']}",'env={}'),
+           ('len(rows)==160 and len(runtime)==640','len(rows)==64 and len(runtime)==256'),
+          ]
+          for old,new in substitutions:assert s.count(old)==1,(old,s.count(old));s=s.replace(old,new)
+          p.write_text(s)
+          p=root/'state_store.py';s=Path('tools/research/native-api-validation/validate.py').read_text();old="                        result=command(argv,name+'/build');report=json.loads(result.stdout)"
+          new="                        if opt=='O2':argv+=['--function-merging','before-and-after']\n"+old
+          assert s.count(old)==1;s=s.replace(old,new)
+          old="                        cg=report['native_codegen'];assert cg['backend']=='llvm-api' and len(cg['object_reports'])==cg['actual_units']"
+          new=old+"\n                        if opt=='O2':assert all(x['pipeline'].startswith('function(sroa,early-cse),ipsccp,globalopt,') for x in cg['object_reports']),cg"
+          assert s.count(old)==1;p.write_text(s.replace(old,new))
+          PY
+          python3 -m py_compile .task/normalized-consumers/*.py
+          git diff --check
+          git add .task/normalized-consumers
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Freeze unequal-dispatch holdout and actual normalized State Store failure consumers'
+          git rev-parse HEAD > "$RUNNER_TEMP/consumer-setup/source.txt"
+          git fetch --no-tags origin refs/heads/task/normalized-merging-consumers
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git push origin HEAD:refs/heads/task/normalized-merging-consumers
+      - name: Separate same-profile release compilers
+        id: build
+        run: |
+          set -euo pipefail
+          CARGO_TARGET_DIR="$RUNNER_TEMP/consumer-base-target" cargo build --locked --offline --release --manifest-path "$RUNNER_TEMP/consumer-base/Cargo.toml" -p zil-cli > "$RUNNER_TEMP/consumer-setup/base-build.log" 2>&1
+          CARGO_TARGET_DIR="$RUNNER_TEMP/consumer-candidate-target" cargo build --locked --offline --release -p zil-cli > "$RUNNER_TEMP/consumer-setup/candidate-build.log" 2>&1
+      - name: Fixed production pipeline on original unequal handlers and long runtime checks
+        run: |
+          set -euo pipefail
+          python3 .task/normalized-consumers/holdout.py --base "$RUNNER_TEMP/consumer-base-target/release/zil" --candidate "$RUNNER_TEMP/consumer-candidate-target/release/zil" --out "$RUNNER_TEMP/consumer-holdout" 2>&1 | tee "$RUNNER_TEMP/consumer-setup/holdout.log"
+      - name: Actual State Store ownership and allocation failure at the new policy
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 .task/normalized-consumers/state_store.py --repo "$GITHUB_WORKSPACE" --cli "$RUNNER_TEMP/consumer-candidate-target/release/zil" --clang "$ZIL_CLANG" --out "$RUNNER_TEMP/consumer-state" 2>&1 | tee "$RUNNER_TEMP/consumer-setup/state.log"
+      - name: Preserve every observation and exact unchanged production identity
+        if: ${{ always() }}
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,json,tarfile,hashlib,shutil
+          t=Path(os.environ['RUNNER_TEMP']);d=Path('.task/normalized-consumers/runs')/os.environ['GITHUB_RUN_ID'];d.mkdir(parents=True);labels=['holdout','state'];omitted=[]
+          for label in labels:
+              source=t/('consumer-'+label)
+              if source.exists():
+                  dest=d/label;dest.mkdir()
+                  for name in ('summary.json','rows.jsonl','runtime.jsonl','manifest.json'):
+                      if (source/name).exists():shutil.copyfile(source/name,dest/name)
+          with tarfile.open(d/'raw.tar.gz','w:gz') as tar:
+              for label in ['setup']+labels:
+                  source=t/('consumer-'+label)
+                  if source.exists():
+                      for p in source.rglob('*'):
+                          if not p.is_file() or any(x in p.parts for x in ('incremental','semantic','objects')):continue
+                          with p.open('rb') as f:elf=f.read(4)==b'\x7fELF'
+                          if elf:omitted.append({'path':label+'/'+str(p.relative_to(source)),'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'bytes':p.stat().st_size});continue
+                          tar.add(p,arcname=label+'/'+str(p.relative_to(source)))
+          (d/'omitted-elf.json').write_text(json.dumps(omitted,indent=2)+'\n')
+          f=t/'consumer-setup/source.txt';r={'baseline':'2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852','fixed_production_source':'570e57555c1ee82afe3a8af4a0d03aa8e74bdb2c','source':f.read_text().strip() if f.exists() else None,'status_before_preservation':os.environ['PRIOR_STATUS'],'files':{str(p.relative_to(d)):hashlib.sha256(p.read_bytes()).hexdigest() for p in d.rglob('*') if p.is_file()},'main_modified':False}
+          (d/'receipt.json').write_text(json.dumps(r,indent=2)+'\n');assert (d/'raw.tar.gz').stat().st_size<48*1024*1024
+          PY
+          git fetch --no-tags origin refs/heads/task/normalized-merging-consumers
+          expected="$GITHUB_SHA"; if test -f "$RUNNER_TEMP/consumer-setup/source.txt"; then expected="$(cat "$RUNNER_TEMP/consumer-setup/source.txt")"; fi
+          test "$(git rev-parse FETCH_HEAD)" = "$expected"
+          git add -- ".task/normalized-consumers/runs/$GITHUB_RUN_ID"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Preserve exact fixed-pipeline consumer and holdout results $GITHUB_RUN_ID"
+          git push origin HEAD:refs/heads/task/normalized-merging-consumers
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: normalized-consumers-${{ github.run_id }}
+          path: .task/normalized-consumers/runs/${{ github.run_id }}
+          retention-days: 30
