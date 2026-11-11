@@ -168,12 +168,14 @@ fn terminal_stored_core_requires_matching_actual_nominal_inventory() {
     assert_eq!(zil_types::check(&core, &target, &tight).unwrap(), typed);
     eprintln!("stored source Types work N={high}; N-1 ResourceLimit; fresh N stable");
     let mut wrong = core.clone();
-    wrong.aggregates[0].fields[0].ty = zil_ir::Type::I64;
+    std::sync::Arc::make_mut(&mut wrong).aggregates[0].fields[0].ty = zil_ir::Type::I64;
     assert!(zil_types::check(&wrong, &target, &limits).is_err());
     let mut wrong = core.clone();
     let mut duplicate = wrong.life_declarations[0].clone();
     duplicate.id.declaration.0 += 1;
-    wrong.life_declarations.push(duplicate);
+    std::sync::Arc::make_mut(&mut wrong)
+        .life_declarations
+        .push(duplicate);
     assert!(zil_types::check(&wrong, &target, &limits).is_err());
     let program = zil_ir::CoreProgram {
         root: core.module_id,
