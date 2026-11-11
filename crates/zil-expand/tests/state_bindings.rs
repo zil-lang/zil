@@ -26,7 +26,7 @@ fn expand(text: &str) -> CoreModule {
         )
         .unwrap();
     }
-    result.core
+    std::sync::Arc::unwrap_or_clone(result.core)
 }
 
 fn positive(text: &str) {

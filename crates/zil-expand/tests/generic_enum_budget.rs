@@ -27,8 +27,9 @@ fn copy_generic_enum_instance_has_exact_attributed_work_and_node_boundaries() {
         assert_eq!(
             zil_expand::expand_with_map_limits(&source, &syntax, &limits)
                 .unwrap()
-                .core,
-            expected
+                .core
+                .as_ref(),
+            &expected
         );
         let below = if work == work_n {
             Limits {
@@ -51,8 +52,9 @@ fn copy_generic_enum_instance_has_exact_attributed_work_and_node_boundaries() {
         assert_eq!(
             zil_expand::expand_with_map_limits(&source, &fresh, &limits)
                 .unwrap()
-                .core,
-            expected
+                .core
+                .as_ref(),
+            &expected
         );
     }
     assert_eq!((work_n, node_n), (468, 201));

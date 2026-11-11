@@ -2,7 +2,8 @@ use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit};
 fn expand(text: &str, limits: &Limits) -> Result<zil_ir::CoreModule, Vec<zil_base::Diagnostic>> {
     let source = SourceUnit::new(FileId(0), ModuleId(0), "generic-defer.zil", text);
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
-    zil_expand::expand_with_map_limits(&source, &syntax, limits).map(|v| v.core)
+    zil_expand::expand_with_map_limits(&source, &syntax, limits)
+        .map(|v| std::sync::Arc::unwrap_or_clone(v.core))
 }
 const UNUSED: &str = "extern \"C\" fn putchar(n:i32)->i32; fn unused<T:Copy>(value:T){defer{unsafe{putchar(81)}}} fn main(){}";
 #[test]

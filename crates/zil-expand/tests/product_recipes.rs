@@ -3,9 +3,11 @@ use zil_ir::*;
 fn expand(text: &str) -> CoreModule {
     let source = SourceUnit::new(FileId(0), ModuleId(0), "product-recipes.zil", text);
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
-    zil_expand::expand_with_map_limits(&source, &syntax, &Limits::default())
-        .unwrap()
-        .core
+    std::sync::Arc::unwrap_or_clone(
+        zil_expand::expand_with_map_limits(&source, &syntax, &Limits::default())
+            .unwrap()
+            .core,
+    )
 }
 const SOURCE: &str = r#"
 resource Ticket{code:i32}

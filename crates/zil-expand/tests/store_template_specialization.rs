@@ -46,7 +46,7 @@ fn expand(text: &str) -> CoreModule {
         )
         .unwrap();
     }
-    expanded.core
+    std::sync::Arc::unwrap_or_clone(expanded.core)
 }
 fn function<'a>(core: &'a CoreModule, name: &str) -> &'a CoreFunction {
     core.functions

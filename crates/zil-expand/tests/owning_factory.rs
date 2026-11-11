@@ -4,7 +4,8 @@ use zil_ir::{CallableKind, CoreModule};
 fn expand(text: &str) -> Result<CoreModule, Vec<Diagnostic>> {
     let source = SourceUnit::new(FileId(0), ModuleId(0), "factory218.zil", text);
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
-    zil_expand::expand_with_map(&source, &syntax).map(|result| result.core)
+    zil_expand::expand_with_map(&source, &syntax)
+        .map(|result| std::sync::Arc::unwrap_or_clone(result.core))
 }
 
 #[test]

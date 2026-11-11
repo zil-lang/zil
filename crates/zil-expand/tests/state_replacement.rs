@@ -24,7 +24,7 @@ fn run(text: &str) -> Result<CoreModule, Vec<Diagnostic>> {
             .validate(std::slice::from_ref(&source), &Limits::default())
             .unwrap();
         assert!(result.core.unsupported.is_empty());
-        result.core
+        std::sync::Arc::unwrap_or_clone(result.core)
     })
 }
 

@@ -351,8 +351,9 @@ fn generic_error_union_contexts_have_exact_prepaid_boundaries() {
                 assert_eq!(
                     zil_expand::expand_with_map_limits(&source, syntax, &limits)
                         .unwrap()
-                        .core,
-                    expected
+                        .core
+                        .as_ref(),
+                    &expected
                 );
             }
             if work {
@@ -452,8 +453,9 @@ fn generic_enum_error_context_prepays_new_work() {
         assert_eq!(
             zil_expand::expand_with_map_limits(&source, &fresh, &limits)
                 .unwrap()
-                .core,
-            expected
+                .core
+                .as_ref(),
+            &expected
         );
         if work {
             limits.max_analysis_steps -= 1
@@ -727,8 +729,9 @@ fn concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries() 
                 assert_eq!(
                     zil_expand::expand_with_map_limits(&source, &parsed, &limits)
                         .unwrap()
-                        .core,
-                    expected
+                        .core
+                        .as_ref(),
+                    &expected
                 );
             }
             if check_work {
