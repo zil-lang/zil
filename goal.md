@@ -10,15 +10,15 @@
 
 父任务汇总完整范围，子任务记录具体交付，父子不重复计数；子项全完成不自动代表父项完成。需要独立派工、复核或验收的补充工作才新增任务编号，沿用父编号加一段；零散修正记在原任务进展中。编号同时用于分支与实施说明，不再另设勾稽编号。
 
-**当前主线：以通用编程语言 1.0 的功能闭环为下一阶段目标。** 当前 `main@2fbf51ef` 已接受本批有限语言范围、PR71原始回归、PR73借入Package的Managed Store字段替换及PR81 POD Map增长/Copy Set；编译专项已独立合入PR75、PR76、PR78和PR79，普通施工已正常同步。仍是开发预览，不据有限子项关闭1.0父门。
+**当前主线：以通用编程语言 1.0 的功能闭环为下一阶段目标。** 当前 `main@2bb30ce1` 已接受本批有限语言范围、PR71原始回归、PR73借入Package的Managed Store字段替换、PR81 POD Map增长/Copy Set及PR82 Store按需增长追加；编译专项已独立合入PR75、PR76、PR78和PR79，普通施工已正常同步。仍是开发预览，不据有限子项关闭1.0父门。
 
-用户本轮明确：可由一个分支承接的工作只保留一个入口，确有独立实施需要才拆分。编译提速仍由原编译对话实施；其余未完成工作由本对话接续。当前Store、Map依次使用 `task/ordinary-collections`，固定 `archive/source-history` 已保全至4fe6113e，只保全历史与候选，goal继续作为唯一看板。
+用户本轮明确：可由一个分支承接的工作只保留一个入口，确有独立实施需要才拆分。编译提速仍由原编译对话实施；其余未完成工作由本对话接续。Map、Store已由 `task/ordinary-collections` 依次交付并合入，原施工分支已删除；下一步G9.3.10仍待排期，尚未新建施工分支。固定 `archive/source-history` 已保全至4fe6113e，只保全历史与候选，goal继续作为唯一看板。
 
 PR73从main21b1最小提取五个生产文件，补重借用与RHS准备失败证据后接受。精确执行6c979/tree d3fb5，发布代码597d81同tree；12专项、完整nominal231、Expand77/Types60/Verify511通过，五程序×双后端×O0/O2每轮20原生、两轮均通过；Source N42126、Types2805/3141保留N−1及fresh/warm/retry。严格目标Clippy、fmt与结构门通过，非作者独审接受。远端完整回归暴露的Expand旧预算pin已由PR74最小修复：新增实际分类费168 work/24 nodes，完整generics30/30及六N/N−1/fresh通过，非作者接受，临时ref已删。PR74三个远端工作流（仓库结构、正式LLVM完整验证、研究LLVM验证）已全部成功；有限交付不关闭完整产品父门。见[语言接续](records/ordinary-collections-continuation.json)。
 
-旧三条混合ref的已交付部分由main承载，Store字段替换已合PR73，POD Map增长/Copy Set已合PR81，其余语言能力由上述入口及本看板承接；共享读预检d2bc7accd等未采用候选保留在固定归档，须有当前完整消费者净收益才采用。本轮用户说明已解决旧“等待明确确认”的接续歧义；实际删除情况以接续记录为准。此前退役13条原ref和PR71临时ref、原自动审批拒绝及首败仍保留在[历史分支核对](records/branch-reconciliation-20261110.json)，不改写历史。
+旧三条混合ref的已交付部分由main承载，Store字段替换已合PR73，POD Map增长/Copy Set已合PR81，其余语言能力由本看板继续排期；共享读预检d2bc7accd等未采用候选保留在固定归档，须有当前完整消费者净收益才采用。本轮用户说明已解决旧“等待明确确认”的接续歧义；实际删除情况以接续记录为准。此前退役13条原ref和PR71临时ref、原自动审批拒绝及首败仍保留在[历史分支核对](records/branch-reconciliation-20261110.json)，不改写历史。
 
-Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852`，交付tree `e17e0d0a0ad8228329ffdfc2c27721cf4ed10296`。原5008B Map及7583B库保持原字节，默认10M内独立Verify成功，原16构建/64进程和完整费用边界保留。三条PR CI均成功；Main实读workspace6037、reference5923、text-reference70全过，先前13个旧预算首败保留在历史且已闭合。同一 `task/ordinary-collections` 接续Store.push_growing：[PR82](https://github.com/zil-lang/zil/pull/82)，冻结代码c8c13db7/tree9247db96，含限定验收收据发布5059c1a6。已定位首轮三项Types失败为Package错误使用give，并修正一项过时借用诊断预期；保留首败。新Store3/0、原collected及raw/Wire4/0、完整nominal234/0通过；聚焦双后端12编译/88进程完整核验并独审。本地完整workspace6040通过/0失败/0忽略，strict Clippy及text-reference70/0通过；当前发布5059c1a6的两套完整CI仍运行、结构检查已通过，尚未合入。一般owning K/V哈希与1.0父门仍开放；详[本轮语言接续](records/store-growth-resumption.json)及[此前接续](records/ordinary-collections-continuation.json)。
+Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852`，交付tree `e17e0d0a0ad8228329ffdfc2c27721cf4ed10296`。原5008B Map及7583B库保持原字节，默认10M内独立Verify成功，原16构建/64进程和完整费用边界保留。三条PR CI均成功；Main实读workspace6037、reference5923、text-reference70全过，先前13个旧预算首败保留在历史且已闭合。Store.push_growing已由[PR82](https://github.com/zil-lang/zil/pull/82)合入main `2bb30ce1819137d666c073299aa2639da4fd2964`，tree `03251642e6e0866edb39449912ff9ffb48e40b29`与发布5059c1a6及CI checkout f4377108完全相同。Package误用give与过时借用诊断预期的首败保留。新Store3/0、原collected及raw/Wire4/0、完整nominal234/0、聚焦双后端12编译/88进程已独审；本地workspace6040/0/0、strict Clippy及text-reference70/0通过。三条CI均成功，正式/研究LLVM各workspace6040、reference5926、text70全过；独立原生控制各16构建/128执行/56注入失败，范围不与聚焦消费者累计。已删除ordinary分支，固定归档4fe6113e保全；清理后快照25条分支中22条编译专项全部保留。一般owning K/V哈希与1.0父门仍开放；详[本轮语言接续](records/store-growth-resumption.json)及[此前接续](records/ordinary-collections-continuation.json)。
 
 ## G1 · 基础类型与模式
 
@@ -415,8 +415,8 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 | G9.3.5 | POD/标量 Store 的普通拥有数据模型：字段、整值流、替换与自含捕获 | 已合入 | — | — | [PR52 验收][e-pr52]：精确源码 `498f0f5a1` 默认5248/0、参考5136/0、文本70/0；17 Source/68 原生、独审、release/10工程门和远端重建运行通过，远端 main `c2ae6edb9` 已核。仅本表有限拥有组合，首轮5242/6与历史缺件状态保留。 |
 | G9.3.6 | 基础String查询、排序、文件/流I/O与真正可封装的Map/Set | 进行中 | P0 | sol high · stdlib | UTF8查询/i64转换/排序/文件流、拥有StringMap、名义i64 Map/Set已交付；G9.3.9已交付线性owning K/V Map，PR81已交付POD泛型HashMap自动增长与Copy Set。一般owning K/V哈希、owning Set与可复用迭代适配仍由G9.3.11/G9.3.10接续。 |
 | G9.3.9 | 真正按key的owning K/V Map、替换/取出及失败责任 | 已合入 | — | — | 原`b3f3888f2`实际KeyEq/替换/取出/分配失败责任保持，`f3b600238`加入已准入V的Option借入get及helper，actual manager源/强pin/错误key来源已独审； 已由main@222e550af本批有限范围验收。 |
-| G9.3.10 | 拥有/借入迭代消费者及map/filter/collect适配 | 待排期 | P1 | 待派 | 依赖G2.4.11/G2.4.12/G3.5.1；先用真实普通库区分语言门与库实现，不重做已有LendingIterator。 |
-| G9.3.11 | 自动增长泛型HashMap及通用Set | 部分实现 | P1 | Chat语言接续 · task/ordinary-collections | POD自动增长/Copy Set已由PR81合main2fbf51e，默认门、独立两核、原生及三条完整CI均通过。一般owning K/V哈希仍缺，已有线性OwningMap可用；本子项不关闭父任务。 |
+| G9.3.10 | 拥有/借入迭代消费者及map/filter/collect适配 | 待排期 | P1 | 待派 | 作为下一步仍待排期，尚无新施工分支；复用已交付Store.push_growing及G2.4.11/G2.4.12/G3.5.1；先用真实普通库区分语言门与库实现，不重做已有LendingIterator。 |
+| G9.3.11 | 自动增长泛型HashMap及通用Set | 部分实现 | P1 | Chat语言接续 | POD自动增长/Copy Set已由PR81合main2fbf51e，默认门、独立两核、原生及三条完整CI均通过。一般owning K/V哈希仍缺，已有线性OwningMap可用；本子项不关闭父任务。 |
 | G9.3.12 | 无符号/浮点文本转换与缓冲I/O | 待排期 | P1 | 待派 | 复用已有String、文件流、i64解析/格式化；覆盖范围/舍入/短读写及失败清理。 |
 
 <details>
@@ -550,7 +550,7 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 | --- | --- | --- | --- | --- | --- |
 | G10.6.1 | 语言初稿开发预览：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 已合入 | — | — | [PR51 验收][e-pr51]：精确源码 `a8c7953e7` 默认5190/0、参考5078/0、文本70/0；双严格检查、release、10项工程门及远端源码恢复构建运行通过。有限预览不替代 B0/完整语言。 |
 | G10.6.2 | 通用 Native 库与异步资源联合验收：精确源码、真实消费者、独审和远端恢复 | 已合入 | — | — | `main@e800b39d5`：默认5269/0、参考5157/0、文本70/0；真实联合双后端 O0/O2、3735文件远端恢复/空缓存构建、16次 API 构建/128次运行/56次故障注入均通过。[本批记录][e-native-foundations]。 |
-| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | Chat语言接续 · root集成 | Map/Copy Set已由PR81合main2fbf51e；PR82 Store.push_growing的Package消费与诊断首败已修正。发布5059c1a6，Store3/0、collected及raw/Wire4/0、nominal234/0、聚焦12编译88进程已独审通过；本地完整workspace6040/0/0、strict Clippy与text-reference70/0通过；当前两套完整CI仍运行、结构已通过，尚未合入。22条远端分支中的18条编译专项ref及任务/记录保持，不关闭1.0父门。 |
+| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | Chat语言接续 · root集成 | Map/Copy Set已由PR81交付；Store.push_growing已由PR82合main2bb30ce1，候选/CI/main同tree03251642。首败与后续验收分别保留；本地workspace6040/0/0、strict/text通过，三CI全success、两套各6040/5926/70，原生及独审范围见接续记录。ordinary分支已退役，固定archive4fe6113e保全；清理后25条分支含22条编译专项，全部保护。G9.3.10待排期，owning哈希及1.0父门仍开放。 |
 | G10.6.4 | 全量回归中的旧Store/实际callback Package准入 | 已合入 | — | — | `6c1ac6fdf`已合候选；恢复旧flat callback/Store真实root快路，保留新borrowed Product分类，84项与原CLI/window正反例专项通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.5 | 新共享构造检查的两核实际独占loan发现与旧fee保持 | 已合入 | — | — | `e5c52c936/396c183c`已合：复用付费建表，无额外扫描，原两预算控制恢复原值、28独占构造/slot控制通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.6 | 默认worker深调用与life组合栈溢出 | 已合入 | — | — | 既有递归帧修复由main@222e550af验收；source_life合流回归的子项也已由main@0e770a26e交付。原默认栈/深调用/费用控制保留。 |

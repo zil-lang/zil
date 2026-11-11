@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "recorded_utc": "2026-11-11T00:00:42.177211+00:00",
-  "read_goal": "decbe6e8e59dfb4768ecb2d7dfbc01404cd4f59c",
+  "recorded_utc": "2026-11-11T00:27:31.786915+00:00",
+  "read_goal": "63127ece800bcec5abee23204ed63a63fc227a00",
   "scope": "Resume the ordinary-language work of zil施工11; all compiler research branches excluded.",
   "branch": "task/ordinary-collections",
   "pr": 82,
-  "status": "Complete local workspace, strict Clippy and text-reference passed; two complete current-head PR CI runs remain in progress, structure passed; not merged.",
+  "status": "Accepted through PR82 squash merge into main; exact candidate/CI/main trees match; completed ordinary-collections branch deleted; compiler branches preserved.",
   "source": {
     "base_main": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852",
     "code": "c8c13db74630c9d47115db38c1472bd82faedcb9",
@@ -61,8 +61,8 @@
   },
   "local_environment": "Recovered current remote source in /workspace/scratch/bc028477130e/zil; prior construction11 worktree was not found. Rust1.99.1 and LLVM23.1.4 checker passed. Actual local scoped and full workspace tests, strict Clippy and text-reference completed successfully.",
   "branch_audit": {
-    "heads": 22,
-    "compiler_branches": 18,
+    "heads": 25,
+    "compiler_branches": 22,
     "noncompiler_redundant": 0,
     "archive": "4fe6113e8a44d1089cc96fc58fd391e4ae4793e0",
     "compiler_refs_untouched": [
@@ -76,19 +76,24 @@
       "task/closure-destructor-boundary",
       "task/closure-helper-partition",
       "task/compiler-closure-dependencies",
+      "task/compiler-inline-equivalence",
+      "task/compiler-inline-prefix",
       "task/compiler-merge-order",
       "task/compiler-resident-cli",
       "task/compiler-resident-session",
       "task/destructor-runtime-neighbors",
       "task/helper-current-main-validation",
       "task/helper-public-boundary",
+      "task/repeatable-closure-drop",
       "task/resident-memory-validation",
-      "task/resource-helper-codegen"
+      "task/resource-helper-codegen",
+      "task/static-byte-closure-cleanup"
     ],
-    "snapshot": "out/runs/store-growth-20261111/remote-heads-before-merge.tsv",
-    "snapshot_sha256": "d0105e6254b305ba68da45e4e3741bf4b3de041056f1b32d5fafc44ffa62e9a0"
+    "snapshot": "out/runs/store-growth-20261111/remote-heads-after-cleanup.tsv",
+    "snapshot_sha256": "7a340be85371f54697f9b499dbb8a3a9027dee48eb876f4da050fbcd6eed91e6",
+    "scope": "Post-cleanup snapshot; compiler refs may independently advance under the compiler conversation. No compiler ref was merged, moved, or deleted by this language work."
   },
-  "next": "After this acceptance, G9.3.10 reusable lending/map/filter/owned collect remains next; general owning K/V hash and language1.0 stay open.",
+  "next": "G9.3.10 reusable lending/map/filter/owned collect is next and remains awaiting scheduling; no new branch. General owning K/V hash and language1.0 remain open.",
   "local_validation": {
     "workspace": {
       "status": "passed",
@@ -114,29 +119,99 @@
     }
   },
   "remote_validation": {
-    "observed_utc": "2026-11-11T00:00:42.177211+00:00",
+    "observed_utc": "2026-11-11T00:27:31.786915+00:00",
     "candidate": "5059c1a669a179be6372ec63c45241543aa15280",
-    "merged": false,
+    "merged": true,
     "workflow_runs": [
       {
         "id": 42925837944,
         "name": "Research LLVM verification",
-        "status": "in_progress",
-        "conclusion": null
+        "status": "completed",
+        "conclusion": "success",
+        "job": 130212008314,
+        "counts": {
+          "workspace": {
+            "passed": 6040,
+            "failed": 0,
+            "ignored": 0,
+            "filtered": 0
+          },
+          "reference": {
+            "passed": 5926,
+            "failed": 0,
+            "ignored": 0,
+            "filtered": 0
+          },
+          "text-reference": {
+            "passed": 70,
+            "failed": 0,
+            "ignored": 0,
+            "filtered": 0
+          }
+        },
+        "independent_log_count_match": true,
+        "native_controls": {
+          "status": "Pass",
+          "builds": 16,
+          "executions": 128,
+          "injected_failures": 56,
+          "all_v1": true,
+          "all_api_builder_llvm23_parse0_no_fallback": true,
+          "all_observed_live_zero": true
+        },
+        "artifact_zip_sha256": "12860b54ec4eceb94096095d270f281a0d5b5683d1956311b7c32c7ee3bceb57"
       },
       {
         "id": 42925838013,
         "name": "Repository structure",
         "status": "completed",
-        "conclusion": "success"
+        "conclusion": "success",
+        "job": 130211956459
       },
       {
         "id": 42925837961,
         "name": "Main source verification",
-        "status": "in_progress",
-        "conclusion": null
+        "status": "completed",
+        "conclusion": "success",
+        "job": 130212084349,
+        "counts": {
+          "workspace": {
+            "passed": 6040,
+            "failed": 0,
+            "ignored": 0,
+            "filtered": 0
+          },
+          "reference": {
+            "passed": 5926,
+            "failed": 0,
+            "ignored": 0,
+            "filtered": 0
+          },
+          "text-reference": {
+            "passed": 70,
+            "failed": 0,
+            "ignored": 0,
+            "filtered": 0
+          }
+        },
+        "independent_log_count_match": true,
+        "native_controls": {
+          "status": "Pass",
+          "builds": 16,
+          "executions": 128,
+          "injected_failures": 56,
+          "all_v1": true,
+          "all_api_builder_llvm23_parse0_no_fallback": true,
+          "all_observed_live_zero": true
+        },
+        "artifact_zip_sha256": "2865948fca88c1e07404a45e74e88dcd08020a760dd5d3746d6845f2019c95a5"
       }
-    ]
+    ],
+    "tested_checkout": "f43771081d5abaae6ff992fd6c9dcb64de744e72",
+    "tested_tree": "03251642e6e0866edb39449912ff9ffb48e40b29",
+    "independent_review": "out/runs/store-growth-20261111/ci-independent/review.json",
+    "independent_review_sha256": "def9bc1bfa09c29810e59be328a8d549da9bf5be66f36f3c2bc70b6fb629ac6e",
+    "scope_note": "The CI native controls are separate from the scoped Store and original collected consumers; overlapping executions are not added into a new combined acceptance total."
   },
   "branch_audit_history": [
     {
@@ -163,6 +238,67 @@
         "task/resident-memory-validation",
         "task/resource-helper-codegen"
       ]
+    },
+    {
+      "recorded_utc": "2026-11-11T00:00:42.177211+00:00",
+      "heads": 22,
+      "compiler_branches": 18,
+      "noncompiler_redundant": 0,
+      "archive": "4fe6113e8a44d1089cc96fc58fd391e4ae4793e0",
+      "compiler_refs_untouched": [
+        "task/G10.5.1.3",
+        "task/G10.5.1.4",
+        "task/G10.5.1.5",
+        "task/G10.5.1.6",
+        "task/G10.5.1.7",
+        "task/G10.5.1.8",
+        "task/byte-buffer-growth-boundary",
+        "task/closure-destructor-boundary",
+        "task/closure-helper-partition",
+        "task/compiler-closure-dependencies",
+        "task/compiler-merge-order",
+        "task/compiler-resident-cli",
+        "task/compiler-resident-session",
+        "task/destructor-runtime-neighbors",
+        "task/helper-current-main-validation",
+        "task/helper-public-boundary",
+        "task/resident-memory-validation",
+        "task/resource-helper-codegen"
+      ],
+      "snapshot": "out/runs/store-growth-20261111/remote-heads-before-merge.tsv",
+      "snapshot_sha256": "d0105e6254b305ba68da45e4e3741bf4b3de041056f1b32d5fafc44ffa62e9a0"
+    },
+    {
+      "heads": 25,
+      "compiler_branches": 21,
+      "archive": "4fe6113e8a44d1089cc96fc58fd391e4ae4793e0",
+      "snapshot": "out/runs/store-growth-20261111/remote-heads-final-premerge.tsv",
+      "snapshot_sha256": "96897d4dc9fa8876b36a3bdb19aa653f6e3120bb840fb97e753010aed9de8760",
+      "scope": "Pre-merge snapshot; all prior compiler refs plus the three new compiler research refs preserved; ordinary-collections still present."
     }
-  ]
+  ],
+  "branch_status": "retired after accepted merge; no new language branch opened",
+  "integration": {
+    "pr": 82,
+    "method": "squash",
+    "merged_at_utc": "2026-11-11T00:23:35Z",
+    "main": "2bb30ce1819137d666c073299aa2639da4fd2964",
+    "tree": "03251642e6e0866edb39449912ff9ffb48e40b29",
+    "parents": [
+      "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852"
+    ],
+    "candidate_ci_main_tree_equal": true,
+    "remote_main_readback": true
+  },
+  "branch_retirement": {
+    "branch": "task/ordinary-collections",
+    "head_before_delete": "5059c1a669a179be6372ec63c45241543aa15280",
+    "deleted": true,
+    "remote_ref_absent": true,
+    "github_ui_observation": "Integrating root observed Restore branch after GitHub deletion.",
+    "archive": "4fe6113e8a44d1089cc96fc58fd391e4ae4793e0",
+    "readback_snapshot": "out/runs/store-growth-20261111/remote-heads-after-cleanup.tsv",
+    "readback_sha256": "7a340be85371f54697f9b499dbb8a3a9027dee48eb876f4da050fbcd6eed91e6"
+  },
+  "accepted_scope": "Store.push_growing for the existing StoreElement set, geometric growth, actual incoming-owner return on preparation failure, and the original scoped consumer contracts. Does not claim near-i64::MAX runtime execution, general owning hashing, or language1.0 completion."
 }
