@@ -47,18 +47,18 @@ pub(super) fn prepare(
     entry: EntryPoint,
     count: usize,
 ) -> Option<Recipe> {
-    if !(2..=64).contains(&count) || lir.closures.is_empty() || module.items.len() > 65536 {
+    if !(2..=64).contains(&count) || module.items.len() > 65536 {
         return None;
     }
-    let files = lir
+    let mut source_files = lir
         .functions
         .iter()
         .filter(|f| f.foreign.is_none())
-        .map(|f| f.span.file.0)
-        .collect::<BTreeSet<_>>();
+        .map(|f| f.span.file);
+    let first_file = source_files.next()?;
     // A giant single function cannot become incremental merely by duplicating
     // its helpers. Do not pay copying/planning costs for that unchanged case.
-    if files.len() < 2 {
+    if !source_files.any(|file| file != first_file) {
         return None;
     }
     let mut fuel = 1usize << 20;
@@ -185,9 +185,6 @@ pub(super) fn prepare(
                 rejected.push_back(caller);
             }
         }
-    }
-    if !helpers.iter().any(|v| *v) {
-        return None;
     }
     let mut sets = Sets((0..defs.len()).collect());
     for (id, d) in defs.iter().enumerate() {

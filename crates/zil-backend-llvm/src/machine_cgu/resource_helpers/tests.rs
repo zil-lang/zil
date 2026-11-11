@@ -141,6 +141,299 @@ fn symbol_count(unit: &Module, name: &str) -> usize {
         .count()
 }
 
+fn pure_input(large: bool) -> (LirModule, Module) {
+    let mut lir = source(3);
+    lir.closures.clear();
+    let mut input = module(vec![
+        caller(0, "zil.fn.1"),
+        helper("zil.fn.1", 7),
+        helper("zil.fn.2", 9),
+    ]);
+    for item in &mut input.items[1..] {
+        let Item::Function(f) = item else {
+            unreachable!()
+        };
+        f.linkage = Linkage::External;
+    }
+    let Item::Function(f) = &mut input.items[1] else {
+        unreachable!()
+    };
+    if large {
+        let mut index = 0;
+        while f.cost() <= MAX_IMPORTED_SOURCE_COST {
+            f.blocks.as_mut().unwrap()[0].instructions.insert(
+                0,
+                inst(
+                    Some(&format!("extra.{index}")),
+                    Op::Binary {
+                        opcode: "xor".into(),
+                        ty: Ty::Int(64),
+                        left: local("x"),
+                        right: Val::Int(index),
+                    },
+                ),
+            );
+            index += 1;
+        }
+    }
+    (lir, input)
+}
+
+#[test]
+fn pure_multifile_imports_small_bodies_but_large_body_edits_leave_callers_unchanged() {
+    for large in [false, true] {
+        let (lir, mut input) = pure_input(large);
+        let before = planned(input.clone(), &lir, 8);
+        assert_eq!(before.units.len(), 3);
+        let caller_unit = before
+            .units
+            .iter()
+            .find(|u| symbol_count(u, "zil.fn.0") == 1)
+            .unwrap();
+        assert_eq!(
+            symbol_count(caller_unit, "zil.resource.import.0.zil.fn.1"),
+            usize::from(!large)
+        );
+        assert_eq!(
+            before
+                .units
+                .iter()
+                .map(|u| symbol_count(u, "zil.fn.1"))
+                .sum::<usize>(),
+            1
+        );
+        for unit in &before.units {
+            zil_llvm_api::validate_module(unit).unwrap();
+        }
+        let Item::Function(f) = &mut input.items[1] else {
+            unreachable!()
+        };
+        *f.blocks.as_mut().unwrap()[0]
+            .instructions
+            .last_mut()
+            .unwrap() = inst(None, Op::Return(Some(Arg::new(Ty::Int(64), Val::Int(99)))));
+        let after = planned(input, &lir, 8);
+        let changed_caller = after
+            .units
+            .iter()
+            .find(|u| symbol_count(u, "zil.fn.0") == 1)
+            .unwrap();
+        assert_eq!(caller_unit == changed_caller, large);
+        let owner = |plan: &Plan| {
+            plan.units
+                .iter()
+                .find(|u| symbol_count(u, "zil.fn.1") == 1)
+                .unwrap()
+                .clone()
+        };
+        assert_ne!(owner(&before), owner(&after));
+        for unit in &after.units {
+            zil_llvm_api::validate_module(unit).unwrap();
+        }
+    }
+}
+
+#[test]
+fn pure_same_file_visibility_and_single_file_plans_are_preserved() {
+    use super::super::{CallImportPolicy, partition_view, partition_view_cached};
+    let (mut lir, input) = pure_input(true);
+    lir.functions[1].span.file = FileId(0);
+    let plan = planned(input.clone(), &lir, 8);
+    assert_eq!(plan.units.len(), 2);
+    let unit = plan
+        .units
+        .iter()
+        .find(|u| symbol_count(u, "zil.fn.0") == 1)
+        .unwrap();
+    assert_eq!(symbol_count(unit, "zil.fn.1"), 1);
+    assert_eq!(symbol_count(unit, "zil.resource.import.0.zil.fn.1"), 0);
+    for unit in &plan.units {
+        zil_llvm_api::validate_module(unit).unwrap();
+    }
+    for f in &mut lir.functions {
+        f.span.file = FileId(0);
+    }
+    assert!(prepare(&input, &lir.as_view(), EntryPoint::None, 8).is_none());
+    let original = partition_view(
+        input.clone(),
+        &lir.as_view(),
+        EntryPoint::None,
+        8,
+        true,
+        true,
+    );
+    let (current, _) = partition_view_cached(
+        input,
+        &lir.as_view(),
+        EntryPoint::None,
+        8,
+        true,
+        CallImportPolicy::ResourceHelpers,
+        None,
+    );
+    assert_eq!(current.units, original.units);
+    assert_eq!(current.fallback, original.fallback);
+}
+
+#[test]
+fn no_copyable_helper_keeps_address_and_local_global_identity_and_rejects_bad_input() {
+    let (lir, mut input) = pure_input(false);
+    input.items[0] = caller(0, "identity");
+    input.items[1] = caller(1, "identity");
+    let mut identity = helper("identity", 7);
+    let Item::Function(f) = &mut identity else {
+        unreachable!()
+    };
+    f.blocks.as_mut().unwrap()[0].instructions.insert(
+        0,
+        inst(
+            Some("state"),
+            Op::Load {
+                ty: Ty::Int(64),
+                ptr: global("state"),
+                align: 8,
+            },
+        ),
+    );
+    input.items.extend([
+        identity,
+        Item::Global(Global {
+            name: "state".into(),
+            linkage: Linkage::Internal,
+            ty: Ty::Int(64),
+            initializer: Some(Val::Int(0)),
+            constant: false,
+            unnamed_addr: false,
+            alignment: 8,
+        }),
+        Item::Global(Global {
+            name: "callback".into(),
+            linkage: Linkage::External,
+            ty: Ty::Ptr,
+            initializer: Some(global("identity")),
+            constant: true,
+            unnamed_addr: false,
+            alignment: 8,
+        }),
+    ]);
+    let plan = planned(input, &lir, 8);
+    assert_eq!(plan.units.len(), 2);
+    assert_eq!(
+        plan.units
+            .iter()
+            .map(|u| symbol_count(u, "identity"))
+            .sum::<usize>(),
+        1
+    );
+    let unit = plan
+        .units
+        .iter()
+        .find(|u| symbol_count(u, "identity") == 1)
+        .unwrap();
+    assert_eq!(symbol_count(unit, "zil.fn.0"), 1);
+    assert_eq!(symbol_count(unit, "zil.fn.1"), 1);
+    for name in ["state", "callback"] {
+        assert_eq!(
+            plan.units
+                .iter()
+                .flat_map(|u| &u.items)
+                .filter(
+                    |i| matches!(i, Item::Global(g) if g.name == name && g.initializer.is_some())
+                )
+                .count(),
+            1
+        );
+        assert!(
+            unit.items
+                .iter()
+                .any(|i| matches!(i, Item::Global(g) if g.name == name && g.initializer.is_some()))
+        );
+    }
+    for unit in &plan.units {
+        zil_llvm_api::validate_module(unit).unwrap();
+    }
+    let (lir, mut broken) = pure_input(true);
+    let Item::Function(f) = &mut broken.items[2] else {
+        unreachable!()
+    };
+    *f.blocks.as_mut().unwrap()[0]
+        .instructions
+        .last_mut()
+        .unwrap() = inst(
+        None,
+        Op::Return(Some(Arg::new(Ty::Int(64), local("absent")))),
+    );
+    let before = broken.clone();
+    assert!(prepare(&broken, &lir.as_view(), EntryPoint::None, 8).is_none());
+    assert_eq!(broken, before);
+}
+
+#[test]
+fn pure_sources_only_use_bounded_imports_with_explicit_incremental_late_merging() {
+    use super::super::{CallImportPolicy, partition_view, partition_view_cached};
+    use crate::FunctionMerging;
+    let (lir, input) = pure_input(true);
+    let complete = partition_view(
+        input.clone(),
+        &lir.as_view(),
+        EntryPoint::None,
+        8,
+        true,
+        true,
+    );
+    for merging in [FunctionMerging::Disabled, FunctionMerging::BeforeAndAfter] {
+        let (current, _) = partition_view_cached(
+            input.clone(),
+            &lir.as_view(),
+            EntryPoint::None,
+            8,
+            true,
+            CallImportPolicy::for_incremental_o2(true, merging),
+            None,
+        );
+        assert_eq!(current.units, complete.units);
+        assert_eq!(current.fallback, complete.fallback);
+    }
+    let ordinary = partition_view(
+        input.clone(),
+        &lir.as_view(),
+        EntryPoint::None,
+        8,
+        false,
+        false,
+    );
+    for merging in [
+        FunctionMerging::Disabled,
+        FunctionMerging::BeforeAndAfter,
+        FunctionMerging::AfterOptimization,
+    ] {
+        let (current, _) = partition_view_cached(
+            input.clone(),
+            &lir.as_view(),
+            EntryPoint::None,
+            8,
+            false,
+            CallImportPolicy::for_incremental_o2(false, merging),
+            None,
+        );
+        assert_eq!(current.units, ordinary.units);
+        assert_eq!(current.fallback, ordinary.fallback);
+    }
+    let (bounded, _) = partition_view_cached(
+        input,
+        &lir.as_view(),
+        EntryPoint::None,
+        8,
+        true,
+        CallImportPolicy::for_incremental_o2(true, FunctionMerging::AfterOptimization),
+        None,
+    );
+    assert_ne!(bounded.units, complete.units);
+    for unit in &bounded.units {
+        zil_llvm_api::validate_module(unit).unwrap();
+    }
+}
+
 #[test]
 fn shared_call_only_helpers_do_not_join_independent_source_modules() {
     let lir = source(2);
