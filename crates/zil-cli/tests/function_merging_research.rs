@@ -76,7 +76,8 @@ fn cli_policy_reaches_cache_keys_exports_and_failure_cleanup() {
                 match policy {
                     "off" => "default<O2>",
                     "after" => "default<O2>|merge-functions=after|aliases=false",
-                    _ => "mergefunc,default<O2>|merge-functions=after|aliases=false",
+                    _ =>
+                        "function(sroa,early-cse),ipsccp,globalopt,function(mem2reg,instcombine<max-iterations=1;no-verify-fixpoint>,simplifycfg),cgscc(inline),mergefunc,default<O2>|merge-functions=after|aliases=false",
                 }
             );
             assert_eq!(Command::new(&output).status().unwrap().code(), Some(42));

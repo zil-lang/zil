@@ -368,7 +368,7 @@ fn compile_input(
     unsafe { LLVMSetModuleDataLayout(module.0, layout.0) };
     let pipeline = match (optimized, function_merging) {
         (false, _) => c"default<O0>",
-        (true, FunctionMerging::BeforeAndAfter) => c"mergefunc,default<O2>",
+        (true, FunctionMerging::BeforeAndAfter) => c"function(sroa,early-cse),ipsccp,globalopt,function(mem2reg,instcombine<max-iterations=1;no-verify-fixpoint>,simplifycfg),cgscc(inline),mergefunc,default<O2>",
         (true, _) => c"default<O2>",
     };
     let opts = PassOptions(unsafe { LLVMCreatePassBuilderOptions() });
