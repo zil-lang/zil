@@ -1,10 +1,28 @@
 {
   "format": 1,
-  "created_utc": "2026-11-10T23:53:09.106869+00:00",
-  "prior_archive": "18d6494299365dc98981d4103a5f648dd4a09926",
+  "created_utc": "2026-11-11T01:07:50.853607+00:00",
+  "prior_archive": "4fe6113e8a44d1089cc96fc58fd391e4ae4793e0",
   "commit_parents": [
-    "18d6494299365dc98981d4103a5f648dd4a09926",
-    "5059c1a669a179be6372ec63c45241543aa15280"
+    "4fe6113e8a44d1089cc96fc58fd391e4ae4793e0",
+    "83adcaf84b742eb487d1d86c96c7081de969e96c",
+    "599b1c1978059deff989579fce360925b9082e57",
+    "68e554e48e88bd69fa1ff4278f9ab9ec1fd2a956",
+    "1b68492c636978fc4a8679244835faff72224f2b",
+    "d392db44993f67646e9ec3e4b12991c42fc422fe",
+    "22f7c59fa593861987176b1c1bd604d84a7bc670",
+    "bb0c8759df3650efb0646978a03daea8a6c687f3",
+    "0105b22c5116f645f4e70fbd6d192ec168aa20f1",
+    "bf3acbd2b68a507819a5578457422d4b68be44cc",
+    "c815c483f8877005de02d9c9cc40a933dec077f0",
+    "9c53f62ab66f3fc3e801905f2f0740c70c226dd1",
+    "6265198c2a8e84b09b0658c37a1bca49d4aa26e1",
+    "59f1124a6bb684c74d076de3f30594f87fb8e6e3",
+    "b3393f9c741d1a0dab34577e87a52c2620a18fb6",
+    "db8696d23270d35d015d20928e75c355a0092627",
+    "b0e2ab28f10a5d3b1e67f2ba5ce91bb0685e7f5f",
+    "af5965c78dc894ee9b6bef9ebafab9fdd5792935",
+    "07af3468db6828f0c1e4b9276169a35013fde318",
+    "fbbdc1f6e643858cf181e3c1a67960223e50fd99"
   ],
   "commit_tips": [
     "0a8929d4f6126683737d62ab9def1d8e67a784ca",
@@ -28,7 +46,27 @@
     "f46254b886accba1c39f915a649b5d0ef6fbd788",
     "f942fb506f0a9579e1af69a4a9d7cdde9593ebcd",
     "30d5f9aa7e05b06b44394ad70ca2b7a56f5551d7",
-    "5059c1a669a179be6372ec63c45241543aa15280"
+    "5059c1a669a179be6372ec63c45241543aa15280",
+    "83adcaf84b742eb487d1d86c96c7081de969e96c",
+    "599b1c1978059deff989579fce360925b9082e57",
+    "68e554e48e88bd69fa1ff4278f9ab9ec1fd2a956",
+    "1b68492c636978fc4a8679244835faff72224f2b",
+    "d392db44993f67646e9ec3e4b12991c42fc422fe",
+    "22f7c59fa593861987176b1c1bd604d84a7bc670",
+    "bb0c8759df3650efb0646978a03daea8a6c687f3",
+    "01d2ee433873b298e7e5982339b16d0b8d667713",
+    "0105b22c5116f645f4e70fbd6d192ec168aa20f1",
+    "bf3acbd2b68a507819a5578457422d4b68be44cc",
+    "c815c483f8877005de02d9c9cc40a933dec077f0",
+    "9c53f62ab66f3fc3e801905f2f0740c70c226dd1",
+    "6265198c2a8e84b09b0658c37a1bca49d4aa26e1",
+    "59f1124a6bb684c74d076de3f30594f87fb8e6e3",
+    "b3393f9c741d1a0dab34577e87a52c2620a18fb6",
+    "db8696d23270d35d015d20928e75c355a0092627",
+    "b0e2ab28f10a5d3b1e67f2ba5ce91bb0685e7f5f",
+    "af5965c78dc894ee9b6bef9ebafab9fdd5792935",
+    "07af3468db6828f0c1e4b9276169a35013fde318",
+    "fbbdc1f6e643858cf181e3c1a67960223e50fd99"
   ],
   "local_refs": {},
   "remote_refs": {
@@ -47,16 +85,35 @@
     "refs/heads/task/G10.5.1": "59dfb76dddc4db72b8c920342563cd8d3b9554e3",
     "refs/heads/task/G10.5.1.1": "da1e94124344c812e348bab131f03868de2dccc9",
     "refs/heads/task/G10.5.1.2": "e2ffe7033127e006342465611181367995e6115e",
-    "refs/heads/task/G10.5.1.3": "0a8929d4f6126683737d62ab9def1d8e67a784ca",
+    "refs/heads/task/G10.5.1.3": "83adcaf84b742eb487d1d86c96c7081de969e96c",
     "refs/heads/task/G10.6.3": "428eb2c549f5285efc0b7921b380e2eff54f808b",
     "refs/heads/task/G10.6.7": "4095e7431988750809cc223a129741c22641e4fc",
     "refs/heads/task/collected-pipeline-acceptance": "b3037af95569ecb55b02489d893ada384c8e84b0",
     "refs/heads/task/owned-pipeline-composition": "f942fb506f0a9579e1af69a4a9d7cdde9593ebcd",
-    "refs/heads/task/ordinary-collections": "5059c1a669a179be6372ec63c45241543aa15280"
+    "refs/heads/task/ordinary-collections": "5059c1a669a179be6372ec63c45241543aa15280",
+    "refs/heads/task/G10.5.1.4": "599b1c1978059deff989579fce360925b9082e57",
+    "refs/heads/task/G10.5.1.5": "68e554e48e88bd69fa1ff4278f9ab9ec1fd2a956",
+    "refs/heads/task/G10.5.1.6": "1b68492c636978fc4a8679244835faff72224f2b",
+    "refs/heads/task/G10.5.1.7": "d392db44993f67646e9ec3e4b12991c42fc422fe",
+    "refs/heads/task/G10.5.1.8": "22f7c59fa593861987176b1c1bd604d84a7bc670",
+    "refs/heads/task/byte-buffer-growth-boundary": "bb0c8759df3650efb0646978a03daea8a6c687f3",
+    "refs/heads/task/closure-destructor-boundary": "01d2ee433873b298e7e5982339b16d0b8d667713",
+    "refs/heads/task/closure-helper-partition": "0105b22c5116f645f4e70fbd6d192ec168aa20f1",
+    "refs/heads/task/compiler-closure-dependencies": "bf3acbd2b68a507819a5578457422d4b68be44cc",
+    "refs/heads/task/compiler-inline-equivalence": "c815c483f8877005de02d9c9cc40a933dec077f0",
+    "refs/heads/task/compiler-inline-prefix": "9c53f62ab66f3fc3e801905f2f0740c70c226dd1",
+    "refs/heads/task/compiler-merge-order": "6265198c2a8e84b09b0658c37a1bca49d4aa26e1",
+    "refs/heads/task/compiler-resident-cli": "59f1124a6bb684c74d076de3f30594f87fb8e6e3",
+    "refs/heads/task/compiler-resident-session": "b3393f9c741d1a0dab34577e87a52c2620a18fb6",
+    "refs/heads/task/destructor-runtime-neighbors": "db8696d23270d35d015d20928e75c355a0092627",
+    "refs/heads/task/helper-public-boundary": "b0e2ab28f10a5d3b1e67f2ba5ce91bb0685e7f5f",
+    "refs/heads/task/normalized-merging-consumers": "af5965c78dc894ee9b6bef9ebafab9fdd5792935",
+    "refs/heads/task/resident-memory-validation": "07af3468db6828f0c1e4b9276169a35013fde318",
+    "refs/heads/task/static-byte-closure-cleanup": "fbbdc1f6e643858cf181e3c1a67960223e50fd99"
   },
   "worktrees": [],
   "missing_commit_objects": [],
-  "scope": "Preserve the complete prior archive plus the ordinary Store growth candidate and its earlier Map/source/failure histories. This is source preservation, not acceptance; compiler task refs and their existing archive entries remain unchanged.",
+  "scope": "Preserve the existing archive plus exact inactive compiler source and evidence histories. Retired names are not lost commits; rejected experiments are not accepted source.",
   "retirements": [
     {
       "ref": "refs/heads/task/collected-pipeline-acceptance",
@@ -105,6 +162,247 @@
       "head_before_retirement": "9f91ccc5ee32b46b2bd68230c786f84ccdd24d5d",
       "retirement_completed": false,
       "reason": "PR64 includes original 511c32f06 codegen stage and 9f91ccc5 native correction. All 19 original consumer functions remain. Reverse-check of 9f91ccc5 succeeds."
+    },
+    {
+      "ref": "refs/heads/task/G10.5.1.3",
+      "head_before_retirement": "83adcaf84b742eb487d1d86c96c7081de969e96c",
+      "retirement_completed": false,
+      "reason": "Signature dependency facets are already delivered in PR70; this ref retains the experiment and measurements.",
+      "disposition": "delivered",
+      "evidence_refs": [
+        "PR70",
+        ".task/G10.5.1.3/RESULTS.md"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/G10.5.1.4",
+      "head_before_retirement": "599b1c1978059deff989579fce360925b9082e57",
+      "retirement_completed": false,
+      "reason": "Both buffer-growth outlining variants failed the original generated-runtime guard.",
+      "disposition": "rejected",
+      "evidence_refs": [
+        "PR72",
+        ".task/G10.5.1.4/OUTLINING-RESULTS.md"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/G10.5.1.5",
+      "head_before_retirement": "68e554e48e88bd69fa1ff4278f9ab9ec1fd2a956",
+      "retirement_completed": false,
+      "reason": "Exact resource-order representation is delivered by PR75; no ongoing work remains on the experiment ref.",
+      "disposition": "delivered",
+      "evidence_refs": [
+        "PR75",
+        "42766117593"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/G10.5.1.6",
+      "head_before_retirement": "1b68492c636978fc4a8679244835faff72224f2b",
+      "retirement_completed": false,
+      "reason": "Cleanup suffix sharing is delivered by PR76; preserve original failures and successful evidence.",
+      "disposition": "delivered",
+      "evidence_refs": [
+        "PR76",
+        ".task/G10.5.1.6/RESULTS.md"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/G10.5.1.7",
+      "head_before_retirement": "d392db44993f67646e9ec3e4b12991c42fc422fe",
+      "retirement_completed": false,
+      "reason": "Out-of-line destructor boundary regressed inactive/mostly-empty workloads; PR77 is not accepted.",
+      "disposition": "rejected",
+      "evidence_refs": [
+        "PR77",
+        "42800092569"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/G10.5.1.8",
+      "head_before_retirement": "22f7c59fa593861987176b1c1bd604d84a7bc670",
+      "retirement_completed": false,
+      "reason": "Package empty-aware refinement still regressed an original runtime case by18.3%.",
+      "disposition": "rejected",
+      "evidence_refs": [
+        "42814450893",
+        ".task/G10.5.1.8/RESULTS.md"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/byte-buffer-growth-boundary",
+      "head_before_retirement": "bb0c8759df3650efb0646978a03daea8a6c687f3",
+      "retirement_completed": false,
+      "reason": "Production extraction of rejected growth-boundary candidate; no runtime acceptance despite passing functional CI.",
+      "disposition": "rejected",
+      "evidence_refs": [
+        "PR72",
+        "42756277204"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/closure-destructor-boundary",
+      "head_before_retirement": "01d2ee433873b298e7e5982339b16d0b8d667713",
+      "retirement_completed": false,
+      "reason": "Production extraction of rejected destructor boundary, superseded by explicit negative quality conclusion.",
+      "disposition": "rejected",
+      "evidence_refs": [
+        "PR77",
+        "42800092569"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/closure-helper-partition",
+      "head_before_retirement": "0105b22c5116f645f4e70fbd6d192ec168aa20f1",
+      "retirement_completed": false,
+      "reason": "Historical helper-partition source and unsuccessful predecessors are carried by the current production/composition candidate; no separate implementation stream needed.",
+      "disposition": "superseded",
+      "evidence_refs": [
+        "PR80",
+        "PR84",
+        ".task/helper-partition/RESULTS.md"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/compiler-closure-dependencies",
+      "head_before_retirement": "bf3acbd2b68a507819a5578457422d4b68be44cc",
+      "retirement_completed": false,
+      "reason": "Anonymous closure linkage is delivered by PR79; retain the bounded performance findings and outstanding gaps.",
+      "disposition": "delivered",
+      "evidence_refs": [
+        "PR79",
+        ".task/closure-dependencies/RESULTS.md"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/compiler-inline-equivalence",
+      "head_before_retirement": "c815c483f8877005de02d9c9cc40a933dec077f0",
+      "retirement_completed": false,
+      "reason": "Expanded-pipeline screen is superseded by the fixed, maintainable normalized candidate; probe selector must not enter main.",
+      "disposition": "superseded",
+      "evidence_refs": [
+        "42928304327",
+        "PR84"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/compiler-inline-prefix",
+      "head_before_retirement": "9c53f62ab66f3fc3e801905f2f0740c70c226dd1",
+      "retirement_completed": false,
+      "reason": "Short-prefix screening has completed and is absorbed into the normalized fixed-policy candidate; preserve its negative variants.",
+      "disposition": "superseded",
+      "evidence_refs": [
+        "42931006690",
+        "PR84"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/compiler-merge-order",
+      "head_before_retirement": "6265198c2a8e84b09b0658c37a1bca49d4aa26e1",
+      "retirement_completed": false,
+      "reason": "Raw early merge and pass-position probes are finished; rejected runtime outcomes and conclusions are preserved, production continues in PR84.",
+      "disposition": "superseded",
+      "evidence_refs": [
+        "42924878932",
+        "42927870902",
+        "PR84"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/compiler-resident-cli",
+      "head_before_retirement": "59f1124a6bb684c74d076de3f30594f87fb8e6e3",
+      "retirement_completed": false,
+      "reason": "Resident compilation is delivered by PR78; benchmark-only branch is not an active implementation.",
+      "disposition": "delivered",
+      "evidence_refs": [
+        "PR78",
+        ".task/resident-cli/RESULTS.md"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/compiler-resident-session",
+      "head_before_retirement": "b3393f9c741d1a0dab34577e87a52c2620a18fb6",
+      "retirement_completed": false,
+      "reason": "The resident-session prototype is superseded by the delivered resident CLI and explicit memory-lifetime controls.",
+      "disposition": "superseded",
+      "evidence_refs": [
+        "PR78",
+        ".task/resident/RESULTS.md"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/destructor-runtime-neighbors",
+      "head_before_retirement": "db8696d23270d35d015d20928e75c355a0092627",
+      "retirement_completed": false,
+      "reason": "Completed counterexample validation; the evidence remains necessary but does not require a live source branch.",
+      "disposition": "evidence-only",
+      "evidence_refs": [
+        "42800092569"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/helper-public-boundary",
+      "head_before_retirement": "b0e2ab28f10a5d3b1e67f2ba5ce91bb0685e7f5f",
+      "retirement_completed": false,
+      "reason": "Completed public-signature boundary validation; retained as immutable evidence for the continuing candidate.",
+      "disposition": "evidence-only",
+      "evidence_refs": [
+        "42863910118",
+        "PR80"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/normalized-merging-consumers",
+      "head_before_retirement": "af5965c78dc894ee9b6bef9ebafab9fdd5792935",
+      "retirement_completed": false,
+      "reason": "Completed unchanged-source handler and State consumer controls; continue under the combined candidate rather than a separate consumer branch.",
+      "disposition": "evidence-only",
+      "evidence_refs": [
+        "42933848863",
+        "PR84"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/resident-memory-validation",
+      "head_before_retirement": "07af3468db6828f0c1e4b9276169a35013fde318",
+      "retirement_completed": false,
+      "reason": "Completed retention/memory validation supports already delivered explicit resident mode; no unmerged production feature.",
+      "disposition": "evidence-only",
+      "evidence_refs": [
+        "PR78",
+        ".task/resident/MEMORY-RESULTS.md"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/static-byte-closure-cleanup",
+      "head_before_retirement": "fbbdc1f6e643858cf181e3c1a67960223e50fd99",
+      "retirement_completed": false,
+      "reason": "Frozen production extraction of rejected static cleanup; keep exact source and tests in archive, close PR83.",
+      "disposition": "rejected",
+      "evidence_refs": [
+        "PR83",
+        "42930165591"
+      ],
+      "archive_is_acceptance": false
     }
   ],
   "research_sources": [
