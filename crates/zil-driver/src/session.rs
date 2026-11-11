@@ -136,6 +136,7 @@ pub struct CompilationSession {
     analysis: zil_analyze::AnalysisSession,
     pub(super) function_types: zil_types::FunctionSession,
     pub(super) producer: zil_expand::ExpandSession,
+    pub(super) materializer: super::ct_artifact::ScalarMaterializationSession,
     pub(super) producer_syntax: std::cell::RefCell<ProducerParseCache>,
 }
 impl Default for CompilationSession {
@@ -154,6 +155,7 @@ impl CompilationSession {
             analysis: zil_analyze::AnalysisSession::default(),
             function_types: zil_types::FunctionSession::default(),
             producer: zil_expand::ExpandSession::default(),
+            materializer: super::ct_artifact::ScalarMaterializationSession::default(),
             producer_syntax: std::cell::RefCell::new(BTreeMap::new()),
         }
     }
@@ -165,6 +167,7 @@ impl CompilationSession {
         self.analysis.clear();
         self.function_types.clear();
         self.producer = zil_expand::ExpandSession::default();
+        self.materializer = super::ct_artifact::ScalarMaterializationSession::default();
         self.producer_syntax.borrow_mut().clear();
     }
     /// Statistics of the last executed project Types computation. Whole-project

@@ -750,11 +750,14 @@ impl CompilationSession {
                 None
             };
         let mut producer = std::mem::take(&mut self.producer);
+        let mut materializer = std::mem::take(&mut self.materializer);
         producer.set_cost_profiling(options.profile_compilation);
         let checkpoint_start = cost_start(options.profile_compilation);
         let producer_checkpoint = options.producer_reuse.then(|| producer.checkpoint());
+        let materializer_checkpoint = options.producer_reuse.then(|| materializer.checkpoint());
         report.record_driver_cost("producer_checkpoint", checkpoint_start);
         let mut producer_work = None;
+        let mut materialization_work = None;
         let mut materialization_ns = 0;
         let expand_query = self.query(
             key(Phase::Expand, selection_needed || artifact_needed),
@@ -763,6 +766,46 @@ impl CompilationSession {
             report,
             observer,
             || {
+                // The scalar materializer admits the current global environment
+                // and replays only successful unchanged-module walks. It returns
+                // no public AST proof and does not replace current CT or Verify.
+                if artifact_needed && let Some(sources) = &producer_sources {
+                    let start = cost_start(options.profile_compilation);
+                    let admitted = materializer.materialize(
+                        &producer, sources, &project.modules, &parsed, &project.paths,
+                        options.scoped_imports.as_deref(), &imports, project.root,
+                        fingerprint, &options.target, &options.limits,
+                    );
+                    if let Some(start) = start {
+                        materialization_ns += start.elapsed().as_nanos();
+                    }
+                    materialization_work = Some(materializer.last_stats());
+                    if let Some(admitted) = admitted? {
+                        let result = producer.expand_parsed(
+                            sources, &imports, admitted.remaining(), &options.target,
+                            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                                root: project.root,
+                                aliases: &project.paths,
+                                declarations: zil_expand::source_context::DeclarationPlacement::Unavailable,
+                            },
+                        );
+                        producer_work = Some(producer.last_stats().clone());
+                        if let Some(expanded) = result? {
+                            let (produced, maps) = expanded.into_program(project.root, fingerprint);
+                            return Ok(RawSnapshot::Project(Arc::new(ExpandedProject {
+                                core: produced.program().clone(), maps,
+                                selection: super::ct_selection::Receipt::default(),
+                                ct_usage: Some(admitted.usage().clone()), ct_previews: Vec::new(),
+                                syntax: Arc::new(ProjectSyntax {
+                                    root: (root.file_id, root.module_id, root.path.clone()),
+                                    entries: dependencies.iter().zip(&parsed)
+                                        .map(|(snapshot, parsed)| (snapshot.key.clone(), parsed.clone())).collect(),
+                                }),
+                                producer: Some(produced),
+                            })));
+                        }
+                    }
+                }
                 if !artifact_needed && let Some(sources) = &producer_sources {
                     let result = producer.expand_parsed(
                         sources,
@@ -966,11 +1009,17 @@ impl CompilationSession {
             },
         );
         report.producer_work = producer_work;
+        report.materialization_work = materialization_work;
         report.materialization_ns += materialization_ns;
         self.producer = if expand_query.is_ok() {
             producer
         } else {
             producer_checkpoint.unwrap_or_default()
+        };
+        self.materializer = if expand_query.is_ok() {
+            materializer
+        } else {
+            materializer_checkpoint.unwrap_or_default()
         };
         let (raw, expand_snapshot) = expand_query?;
         let RawSnapshot::Project(expanded) = raw else {
@@ -1224,12 +1273,14 @@ impl CompilationSession {
         {
             store.save(&typed, &candidate, options, &artifacts);
         }
+        report.record_driver_cost("semantic_candidate_publication", persistence_start);
+        let persistence_start = cost_start(options.profile_compilation);
         if result.is_ok()
             && let Some(store) = &function_store
         {
             store.save(&self.function_types, options, &artifacts);
         }
-        report.record_driver_cost("semantic_cache_publication", persistence_start);
+        report.record_driver_cost("function_cache_publication", persistence_start);
         result
     }
 }

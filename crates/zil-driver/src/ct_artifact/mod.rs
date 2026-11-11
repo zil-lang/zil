@@ -19,7 +19,9 @@ mod type_ref;
 
 pub use lock::SyntaxLock;
 pub(crate) use materialize::Preview;
+pub use materialize::ScalarMaterializationStats;
 pub(super) use materialize::materialize_scoped;
+pub(crate) use materialize::ScalarMaterializationSession;
 
 #[cfg(test)]
 #[path = "compiler_runtime_type_actual_tests.rs"]

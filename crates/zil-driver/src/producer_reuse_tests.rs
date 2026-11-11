@@ -185,6 +185,10 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
         assert_eq!(work.restored_module_deep_clones, 3);
         assert_eq!(work.retained_normalized_items, 0);
         assert_eq!(work.retained_restored_modules, 0);
+        let materialization = cold.materialization_work.expect("current scalar admission");
+        assert_eq!(materialization.executed_modules, 3);
+        assert_eq!(materialization.cloned_modules, 3);
+        assert_eq!(materialization.reused_modules, 0);
         let mut previous_left = LEFT.to_owned();
         let mut previous_io = IO.to_owned();
         for (label, left, io, changed_modules) in [
@@ -231,6 +235,22 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
             successful(&current);
             compare_path(&session, &current, &path, &options);
             assert_eq!(typed(&session, &current), typed(&legacy_session, &legacy));
+            let materialization = current
+                .materialization_work
+                .expect("current scalar admission");
+            assert_eq!(
+                materialization.executed_modules as u64, changed_modules,
+                "{label}"
+            );
+            assert_eq!(
+                materialization.cloned_modules as u64, changed_modules,
+                "{label}"
+            );
+            assert_eq!(
+                materialization.reused_modules as u64,
+                3 - changed_modules,
+                "{label}"
+            );
             let work = current
                 .producer_work
                 .as_ref()
@@ -248,6 +268,7 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
                 3 - changed_modules,
                 "{label}: keep unchanged module products"
             );
+            assert_eq!(work.cloned_source_map_entries, 0, "{label}: shared maps");
             let changed_declarations = if changed_modules == 1 { 2u64 } else { 6 };
             assert_eq!(
                 work.normalized_item_deep_clones, changed_declarations,

@@ -5,7 +5,7 @@
 mod artifacts;
 mod contracts;
 mod ct_artifact;
-pub use ct_artifact::SyntaxLock;
+pub use ct_artifact::{ScalarMaterializationStats, SyntaxLock};
 mod ct_program;
 mod ct_selection;
 mod project;
@@ -193,6 +193,7 @@ pub struct CompileAttempt {
     pub verification_runs: usize,
     pub function_type_work: Option<zil_types::FunctionStats>,
     pub producer_work: Option<zil_expand::ProducerStats>,
+    pub materialization_work: Option<ScalarMaterializationStats>,
     pub initialization_work: Option<zil_analyze::AnalysisStats>,
     pub phase_timings_ns: BTreeMap<Phase, u128>,
     pub driver_timings_ns: BTreeMap<&'static str, u128>,
@@ -226,7 +227,8 @@ impl CompileAttempt {
             frontend_stats_json(
                 self.function_type_work,
                 self.initialization_work,
-                self.producer_work.as_ref()
+                self.producer_work.as_ref(),
+                self.materialization_work,
             ),
             phase_timings_json(&self.phase_timings_ns),
             named_timings_json(&self.driver_timings_ns),
@@ -258,6 +260,7 @@ pub struct CompileReport {
     /// session work. Per-attempt diagnostics and costs remain in `attempts`.
     pub function_type_work: Option<zil_types::FunctionStats>,
     pub producer_work: Option<zil_expand::ProducerStats>,
+    pub materialization_work: Option<ScalarMaterializationStats>,
     pub initialization_work: Option<zil_analyze::AnalysisStats>,
     /// Wall time of complete phase queries, including digest/publication, and
     /// current Verify/Lower/codegen, summed across all attempts. Input
@@ -290,6 +293,7 @@ impl CompileReport {
             scalar_interfaces: Vec::new(),
             function_type_work: None,
             producer_work: None,
+            materialization_work: None,
             initialization_work: None,
             phase_timings_ns: BTreeMap::new(),
             driver_timings_ns: BTreeMap::new(),
@@ -359,6 +363,7 @@ impl CompileReport {
             self.function_type_work,
             self.initialization_work,
             self.producer_work.as_ref(),
+            self.materialization_work,
         )
     }
     fn capture_attempt(
@@ -385,6 +390,7 @@ impl CompileReport {
             ),
             function_type_work: self.function_type_work,
             producer_work: self.producer_work.clone(),
+            materialization_work: self.materialization_work,
             initialization_work: self.initialization_work,
             phase_timings_ns: self.phase_timings_ns.clone(),
             driver_timings_ns: self.driver_timings_ns.clone(),
@@ -404,6 +410,7 @@ impl CompileReport {
         // That prefix belongs to the rejected attempt and is never billed twice.
         next.function_type_work = None;
         next.producer_work = None;
+        next.materialization_work = None;
         next.initialization_work = None;
         next.phase_timings_ns.clear();
         next.driver_timings_ns.clear();
@@ -417,11 +424,17 @@ impl CompileReport {
         let final_analysis = self.initialization_work;
         self.function_type_work = None;
         self.producer_work = None;
+        self.materialization_work = None;
         self.initialization_work = None;
         self.phase_timings_ns.clear();
         self.driver_timings_ns.clear();
         self.materialization_ns = 0;
         for attempt in &self.attempts {
+            if let Some(work) = attempt.materialization_work {
+                self.materialization_work
+                    .get_or_insert_with(Default::default)
+                    .add(work);
+            }
             if let Some(work) = attempt.function_type_work {
                 add_function_work(&mut self.function_type_work, work);
             }
@@ -558,6 +571,7 @@ fn frontend_stats_json(
     types: Option<zil_types::FunctionStats>,
     analysis: Option<zil_analyze::AnalysisStats>,
     producer: Option<&zil_expand::ProducerStats>,
+    materialization: Option<ScalarMaterializationStats>,
 ) -> String {
     let types = types.map_or_else(|| "null".into(), |stats| stats.to_json());
     let analysis = analysis.map_or_else(
@@ -570,7 +584,10 @@ fn frontend_stats_json(
         },
     );
     let producer = producer.map_or_else(|| "null".into(), |stats| stats.to_json());
-    format!("{{\"function_types\":{types},\"initialization\":{analysis},\"producer\":{producer}}}")
+    let materialization = materialization.map_or_else(|| "null".into(), |stats| stats.to_json());
+    format!(
+        "{{\"function_types\":{types},\"initialization\":{analysis},\"producer\":{producer},\"materialization\":{materialization}}}"
+    )
 }
 fn add_function_work(total: &mut Option<zil_types::FunctionStats>, work: zil_types::FunctionStats) {
     let total = total.get_or_insert_with(Default::default);

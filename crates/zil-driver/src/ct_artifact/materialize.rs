@@ -23,12 +23,16 @@ mod generated_lineage;
 mod member_lineage;
 #[path = "materialize_runtime_phase.rs"]
 mod runtime_phase;
+#[path = "scalar_materialization.rs"]
+mod scalar_materialization;
 #[path = "self_constant_coverage.rs"]
 mod self_constant_coverage;
 #[path = "self_constants.rs"]
 mod self_constants;
 #[path = "materialize_source_sites.rs"]
 mod source_sites;
+pub use scalar_materialization::ScalarMaterializationStats;
+pub(crate) use scalar_materialization::ScalarMaterializationSession;
 
 fn category(message: impl Into<String>, span: Span) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
