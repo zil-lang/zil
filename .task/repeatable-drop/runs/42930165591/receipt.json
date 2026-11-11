@@ -1,0 +1,29 @@
+{
+  "baseline": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852",
+  "source": "11e28d0309b451bf5b04762395c0623084640667",
+  "recipe": "365d0324fb759acb2af555965849d1f36bfc70b2",
+  "scope": "repeatable byte environment final cleanup only; existing independent Verify unchanged",
+  "status_before_preservation": "success",
+  "files": {
+    "raw.tar.gz": "2a7124f46732eb60d9e2c00ae980ae901361ca9b2d3927864ad498ff87fe6ddf",
+    "omitted-elf.json": "7fbe65c617a86d6e575dafe6d2e38e8b7c41052ddd9feabafa73e86611568615",
+    "multi/manifest.json": "725f94b719bac7d4e0588e4fd8d267babea4f98e83d03f4b77b823ae9bcd58a5",
+    "multi/runtime.jsonl": "1e95dd49c23b7a9ab9bf3f385d2037c353075f5ceffc461bda44a5f4f0653e55",
+    "multi/rows.jsonl": "e6f7254beb5f0a72513537fe1799fc86b762eba5fbb4bf589df875d5dc5af787",
+    "multi/summary.json": "11e7bacaa0fdc9be873e8de95940194515245cfbaaa117bada6be7d67000e278",
+    "neighbors/summary.json": "d4a78cc89ddd7ef5c8f9a9d0f1148deacaae87ee0b10ab3bcf0f22f0ef1a8a00",
+    "primary/failures.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "primary/manifest.json": "10eba9e2f60117acfc9259f19e375e484c23142e34535f7a97c1225325025703",
+    "primary/runtime.jsonl": "ee3405f399ce2e592e9a9f7a516228c62df8351ec9014561530cfa716224ec36",
+    "primary/equivalence.json": "d6452de670684db5368123f503128b630cd8a2f2462f7b18c8c17bf1a3a0c410",
+    "primary/rows.jsonl": "e9825dbf1787504dbc7a2adcdbf383a23929da96639b69038d3c6578105b155e",
+    "primary/summary.json": "a9e8035e843d7b8031a24f8b87b2747c2f3d607ec7539ab9182d32e15712d039",
+    "primary/cells.json": "fcd7eaf4ff51ccaf21556ba34451fefa9090d482c8826eb89e526220dde1ef7c",
+    "consumer/summary.json": "3cd53617160a3ff0922fbe0ada6cbd6f0b20efcecc3e4ea14a7c93a91216cfa0",
+    "controls/summary.json": "2ca3f2e5501a3291bdc423d51bd670e4df286bae5e95446d3ea76060bb999a52",
+    "quality/summary.json": "299054e84fd86851b0cb4430a5ec17ee3db410f7d890efcd8222a1103ce2d65f"
+  },
+  "main_modified": false,
+  "external_ai_review": false,
+  "acceptance": "Pending full source/evidence review"
+}
