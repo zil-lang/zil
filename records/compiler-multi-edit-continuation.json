@@ -1,23 +1,23 @@
 {
   "format": 1,
   "task": "G10.5.1.14",
-  "updated_utc": "2026-11-11 06:39:23 UTC",
+  "updated_utc": "2026-11-11 06:57:31 UTC",
   "read_goal": "3c4b6d6a6ec2e56aad9f60fd2018c6ddf30b6b68",
-  "status": "Implementation frozen; independent source review, build and performance acceptance pending",
+  "status": "Streaming-reference revision frozen; original owned-set projection not adopted; new review/build/measurement pending",
   "baseline": {
     "sha": "99035931d358add0eaed6d4535035c38413701dd",
     "tree": "1c16744d838064cb1c687ba56ef3a0d17ed3130c"
   },
   "candidate": {
     "branch": "task/compiler-layout-projection",
-    "sha": "b5dbe03d38ed3c7c9f11547c5d074b2f0f96aec8",
-    "local_author_commit": "8c098a50820976234663c92239c59206d543ae1a",
-    "identical_tree": "08f873e1ff1c49a788723baf852b545186d74232",
+    "sha": "8358d3c33de4a102e60db1acd29573b85be1597f",
+    "local_author_commit": "db44395fd05019fab21cb25b878dd1ab6b2199b8",
+    "identical_tree": "7f07b03f823dcc71ccd4f3b9bb817202462c4d91",
     "write_set": [
       "crates/zil-backend-llvm/src/machine_cgu/layout.rs",
       "crates/zil-backend-llvm/src/machine_cgu/layout/tests.rs"
     ],
-    "mechanism": "Replace whole machine body hashing for partition recipes with ordered actual placement inputs. Replay current bodies; keep current declaration and full per-unit machine validation; isolate protocol v2.",
+    "mechanism": "Stream tagged symbol occurrences and direct-call identities without constructing temporary owned reference/call sets. Ordered occurrences conservatively bind the same complete placement inputs; current bodies and validation are retained.",
     "acceptance": false
   },
   "continuity": {
@@ -58,7 +58,37 @@
       "retain failures, long tails, cold CPU and RSS"
     ],
     "pilot": "64 files, 16 changed files times two function bodies, one baseline full O2 request: current Verify=1, eight builder units, expected native output 860a0000. Functional smoke only, no performance claim.",
-    "status": "Protocol preparation; no candidate measurement yet"
+    "status": "Unchanged fixed sizes, weights, loop and optimization policies; new source revision will be measured. Corrected fixture differs only in main.zil syntax; Rust and all arithmetic oracles unchanged.",
+    "first_multifile_harness_failure": {
+      "status": "Preserved",
+      "candidate_requests_executed": 0,
+      "baseline_oracle_requests": 1,
+      "phase": "Parse",
+      "code": "E-PARSE-IDENTIFIER",
+      "cause": "Fixture emitted a Rust-style unsafe block expression which ZIL does not admit. No production compiler change; generator uses a valid unsafe statement block."
+    },
+    "corrected_pilot": {
+      "files": [
+        64,
+        256
+      ],
+      "full_o2": true,
+      "verification_runs_per_request": 1,
+      "units_per_request": 8,
+      "output_checks": 6,
+      "performance_samples": 0,
+      "status": "Pass"
+    },
+    "frozen_batch_protocols": [
+      {
+        "path": "final-inc-off-v2/protocol.json",
+        "sha256": "2012bf6b317d7f67eb282add88b45e05e06ca3e8d7b20409332d339bb1ceb4f8"
+      },
+      {
+        "path": "final-inc-after-v2/protocol.json",
+        "sha256": "dbab00ff9c04bb8a58eaaf0eeba2109f3aefa0d8c2a79bab3638baa49379dd35"
+      }
+    ]
   },
   "blaze": {
     "commit": "ccd4a6f31f0ad10a97b10941802bc9bd3f91d37a",
@@ -167,5 +197,72 @@
     },
     "conclusion": "Exact archived research branch retired successfully; source history retained; main and goal unchanged. No production acceptance implied."
   },
-  "general_claim": "All-dimensional Rust superiority remains a target, not an established result. Prior negative quality and whole-distribution results remain unchanged."
+  "general_claim": "All-dimensional Rust superiority remains a target, not an established result. Prior negative quality and whole-distribution results remain unchanged.",
+  "previous_candidates": [
+    {
+      "branch": "task/compiler-layout-projection",
+      "sha": "e9d392caa1e19bc722e276977165f2a7e5b33700",
+      "local_author_commit": "0909573c59fe04a1dda90934fa79dfd4e932d772",
+      "identical_tree": "d619545168b7250767ab4a61c765bd46c91b4f36",
+      "write_set": [
+        "crates/zil-backend-llvm/src/machine_cgu/layout.rs",
+        "crates/zil-backend-llvm/src/machine_cgu/layout/tests.rs"
+      ],
+      "mechanism": "Replace whole machine body hashing for partition recipes with ordered actual placement inputs. Replay current bodies; keep current declaration and full per-unit machine validation; isolate protocol v2.",
+      "acceptance": false,
+      "source_review": "Pass for exact tree",
+      "tests": "8 layout tests pass after preserving and fixing initial E0382 test ownership failure",
+      "performance": {
+        "requests": 84,
+        "pairs": 42,
+        "all_elf_equal": true,
+        "all_material_ir_equal": true,
+        "all_object_topology_equal": true,
+        "native_checks": 252,
+        "failures": 0,
+        "adoption": false,
+        "reason": "No demonstrated complete-request net gain. Both favorable and unfavorable observations retained.",
+        "examples": [
+          {
+            "case": "shared4096",
+            "jobs": 2,
+            "request": "warm",
+            "baseline_mean_ms": 573.3336948571429,
+            "candidate_mean_ms": 605.0299988571428
+          },
+          {
+            "case": "shared4096",
+            "jobs": 2,
+            "request": "private",
+            "baseline_ms": 4347.672703,
+            "candidate_ms": 4817.52671
+          },
+          {
+            "case": "shared1024",
+            "jobs": 2,
+            "request": "warm",
+            "baseline_mean_ms": 143.89997142857143,
+            "candidate_mean_ms": 177.97498685714285
+          },
+          {
+            "case": "shared4096",
+            "jobs": 1,
+            "request": "warm",
+            "baseline_mean_ms": 694.514178,
+            "candidate_mean_ms": 575.5197466666667
+          }
+        ]
+      }
+    }
+  ],
+  "raw_checkpoint": {
+    "library_file_id": "libfile_fde3_f-543f5b7d390481918a9a3fc3e4099f2b_bd147c3485448191a9df16b3c3cea7dd",
+    "file_id": "file_000000004dc081f59de23a8d6b9f8438",
+    "filename": "zil-multi-edit-raw-evidence-20261111.tar.gz",
+    "version": 0,
+    "bytes": 685685,
+    "sha256": "9162ca3fb141e6c8fab9f57b7062dfa7b4dc29b94791183f1c7c4c9203845144",
+    "entries": 1045,
+    "scope": "First projection negative screen, first harness parse failure, corrected functional pilots; no generated binaries/IR/caches or repository-backed source."
+  }
 }
