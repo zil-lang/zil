@@ -1,83 +1,43 @@
 {
   "format": 1,
   "task": "G10.5.1.14",
-  "updated_utc": "2026-11-11 07:12:45 UTC",
-  "read_goal": "4594b7ae5be6f24f4fa1d31a8c9867d857ca1f63",
-  "status": "Final streaming source reviewed and built; original 84-request screen mixed; fixed multi-file and concurrent screens in progress; no adoption",
+  "updated_utc": "2026-11-11 07:34:38 UTC",
+  "read_goal": "8ca42ed8f47783e264c57bb040a5f52e06803868",
+  "status": "Independent bounded-source-import candidate under runtime-first validation; prior projection experiments preserved and not adopted",
   "baseline": {
     "sha": "99035931d358add0eaed6d4535035c38413701dd",
     "tree": "1c16744d838064cb1c687ba56ef3a0d17ed3130c"
   },
   "candidate": {
-    "branch": "task/compiler-layout-projection",
-    "sha": "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
-    "local_author_commit": "89cc46c8ef3781a4a1cd723cbcd4bfff478533f9",
-    "identical_tree": "d260d616a23af8f9c716fbe26c38c200e0eeeb5f",
+    "branch": "task/compiler-bounded-imports",
+    "sha": "1679decf177c9a6eda5a64063c525f06e44e56a2",
+    "local_author_commit": "1d29028c637b4af9a880a3db6eb8d678c172f740",
+    "identical_tree": "1e599b1bc2f0f6a0c438088a30faee9ff4018271",
+    "parent": "99035931d358add0eaed6d4535035c38413701dd",
     "write_set": [
-      "crates/zil-backend-llvm/src/machine_cgu/layout.rs",
-      "crates/zil-backend-llvm/src/machine_cgu/layout/tests.rs"
+      "crates/zil-backend-llvm/src/machine_cgu/resource_helpers.rs",
+      "crates/zil-backend-llvm/src/machine_cgu/resource_helpers/tests.rs",
+      "docs/guide/build.md",
+      "docs/guide/resource-helper-partition.md"
     ],
-    "mechanism": "Stream tagged symbol occurrences and direct-call identities without constructing temporary owned reference/call sets. Ordered occurrences conservatively bind the same complete placement inputs; current bodies and validation are retained.",
+    "mechanism": "Broaden existing bounded source import planning to multi-file ordinary programs without closures/copyable helpers, only for explicit incremental-o2 plus after merging. Keep cost32, file/local identity co-location, complete original model validation, current per-unit preflight, and full O2. Single-file detection uses first source FileId plus early any-different scan without an owned set.",
     "acceptance": false,
-    "source_review": "Independent Pass for exact remote commit/tree/blob; Gep child count precedes projected operands",
+    "source_review": "Independent Pass bound to exact remote source/tree/blobs; no layout projection mixed in",
     "validation": {
       "release_build": "Pass",
-      "layout_tests": {
-        "passed": 8,
+      "machine_cgu_tests": {
+        "passed": 34,
         "failed": 0,
-        "ignored": 0
+        "native_feature": false
       },
-      "binary_sha256": "a4d7a26aeb0c47ece2a8b4ddfc15f832b635637871424e3e681fe34ebd5b19a2",
-      "baseline_binary_sha256": "64e1ff43bbaa59f786f1cc899b69e707072219a9c0abf0122ce31cd7b77f981d"
+      "llvm_api_machine_cgu_tests": "Running; do not count before completion",
+      "binary_sha256": "04d8af53887b0a159684eedb03a0763ac45c19ffabacdf1e599de94531086339"
     },
-    "performance": {
-      "protocol_sha256": "145d60d2cd88b1e2e9eab9f520aa8949f2e0eeb3bc4a4bc5f25e6f29939c5c07",
-      "requests": 84,
-      "pairs": 42,
-      "native_checks": 252,
-      "current_verify_events": 84,
-      "current_preflight_receipts": 456,
-      "all_elf_equal": true,
-      "all_material_ir_equal": true,
-      "all_object_topology_equal": true,
-      "raw_sidecar_equal_pairs": 0,
-      "failures": 0,
-      "independent_raw_audit_sha256": "424dcd8b401e8f2d6293f9f0ce2ca5554cb69dce03b9fc8e188c2ca395b741a7",
-      "adoption": false,
-      "classification": "Fixed diagnostic screen, not original weighted matrix; favorable and unfavorable cells retained",
-      "examples": [
-        {
-          "case": "shared4096",
-          "jobs": 2,
-          "request": "cold",
-          "baseline_ms": 5331.2747,
-          "candidate_ms": 7328.718858,
-          "baseline_cpu_ms": 9217.397,
-          "candidate_cpu_ms": 12524.832
-        },
-        {
-          "case": "shared4096",
-          "jobs": 2,
-          "request": "warm",
-          "baseline_ms": 601.0055214285715,
-          "candidate_ms": 630.0666021428572
-        },
-        {
-          "case": "shared1024",
-          "jobs": 2,
-          "request": "warm",
-          "baseline_ms": 184.27547785714285,
-          "candidate_ms": 131.78609257142858
-        },
-        {
-          "case": "shared4096",
-          "jobs": 1,
-          "request": "warm",
-          "baseline_ms": 654.1889793333334,
-          "candidate_ms": 763.9953746666666
-        }
-      ]
-    }
+    "risks": [
+      "Reduced cross-unit inline/IPO/merge visibility can regress generated-code performance; original runtime gates unchanged",
+      "Planner and full original model validation also run on current pure no-helper requests; no persisted bounded-layout recipe",
+      "All-dimensional Rust comparison remains open"
+    ]
   },
   "continuity": {
     "old_cloud_workspace": "Not mounted in this runtime; restored exact remote source and pinned toolchains",
@@ -103,7 +63,51 @@
         "reason": "Matched 840-request/420-pair ablation including 64,512,1024 modules failed to establish net benefit."
       }
     ],
-    "new_mechanism": "Historical layout receipt key hashes all machine body operands; projected keys were not found in prior failed experiments."
+    "new_mechanism": "Historical layout receipt key hashes all machine body operands; projected keys were not found in prior failed experiments.",
+    "joint_invalidation_review": "Changed source Parse keys include full source fingerprints; current multi-edit path publishes new content keys rather than replacing old mutable producers. Union would only merge empty scans already covered more completely by rejected CP084. No new production implementation.",
+    "observed_multifile_amplification": {
+      "files": 64,
+      "edit": "m1 h0/h7 bodies",
+      "entry_unit": {
+        "canonical_definitions": 68,
+        "imported_bodies": 504,
+        "total_definitions": 572,
+        "leaf_files_covered": 63
+      },
+      "changed_units": {
+        "k1": [
+          0,
+          1
+        ],
+        "k4": [
+          0,
+          1
+        ],
+        "k16": [
+          0,
+          1,
+          5
+        ],
+        "k64": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ]
+      },
+      "qualification": "Fixed spread selection aliases file-owner modulo8: k4 shares one owner, k16 two owners. Edited-file count is not invalidated-unit count.",
+      "candidate_k1_warm_means_ms": {
+        "unit0_optimize": 403.849,
+        "unit0_emit": 303.629,
+        "unit0_total": 780.896,
+        "complete_request": 975.956
+      },
+      "source": "Independent decode of actual recipe and reports; not inferred from hit counts"
+    }
   },
   "measurement": {
     "batch_axis": "One snapshot changes 1/4/16/64 files with multiple function bodies in each; once per snapshot full O2 request, no edit-by-edit Rust strawman.",
@@ -117,7 +121,7 @@
       "retain failures, long tails, cold CPU and RSS"
     ],
     "pilot": "64 files, 16 changed files times two function bodies, one baseline full O2 request: current Verify=1, eight builder units, expected native output 860a0000. Functional smoke only, no performance claim.",
-    "status": "Corrected frozen v2 after matrix executing with Rust; off matrix next. Original frequencies/sizes/ABBA blocks unchanged. New screens do not replace original eight-workload matrix.",
+    "status": "Completed and preserved prior a60 after protocol. New bounded candidate requires separately frozen own-arm clean code identity and full native quality before new compilation/concurrency screens; no old protocol relabeling.",
     "first_multifile_harness_failure": {
       "status": "Preserved",
       "candidate_requests_executed": 0,
@@ -183,6 +187,35 @@
       "distinct_candidate_sources": true,
       "isolated_writable_outputs_and_caches": true,
       "rust_lane_separate": true
+    },
+    "runtime_first": {
+      "status": "Draft under non-author review; not executed",
+      "files": [
+        64,
+        256
+      ],
+      "edits": [
+        0,
+        1,
+        16,
+        64
+      ],
+      "iterations": 100000,
+      "seed_period": 251,
+      "acc_modulus": 1000003,
+      "per_arm_warmups": 1,
+      "per_arm_formal": 6,
+      "formal_order": "All six A/B/R permutations",
+      "per_case_regression_max": 1.1,
+      "per_case_rust_efficiency_min": 0.9,
+      "source_body_policy": "All pure functions unchanged from original corpus; only main adds bounded dynamic loop; independent periodic numerical model",
+      "counts": {
+        "clean_compilations": 24,
+        "formal_native": 144,
+        "warmup_native": 24,
+        "extra_functional_native": 48
+      },
+      "decision": "If runtime gate fails, stop expansion; never change cost32 or sample selection after seeing outcomes"
     }
   },
   "blaze": {
@@ -347,6 +380,103 @@
             "candidate_mean_ms": 575.5197466666667
           }
         ]
+      }
+    },
+    {
+      "branch": "task/compiler-layout-projection",
+      "sha": "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
+      "local_author_commit": "89cc46c8ef3781a4a1cd723cbcd4bfff478533f9",
+      "identical_tree": "d260d616a23af8f9c716fbe26c38c200e0eeeb5f",
+      "write_set": [
+        "crates/zil-backend-llvm/src/machine_cgu/layout.rs",
+        "crates/zil-backend-llvm/src/machine_cgu/layout/tests.rs"
+      ],
+      "mechanism": "Stream tagged symbol occurrences and direct-call identities without constructing temporary owned reference/call sets. Ordered occurrences conservatively bind the same complete placement inputs; current bodies and validation are retained.",
+      "acceptance": false,
+      "source_review": "Independent Pass for exact remote commit/tree/blob; Gep child count precedes projected operands",
+      "validation": {
+        "release_build": "Pass",
+        "layout_tests": {
+          "passed": 8,
+          "failed": 0,
+          "ignored": 0
+        },
+        "binary_sha256": "a4d7a26aeb0c47ece2a8b4ddfc15f832b635637871424e3e681fe34ebd5b19a2",
+        "baseline_binary_sha256": "64e1ff43bbaa59f786f1cc899b69e707072219a9c0abf0122ce31cd7b77f981d"
+      },
+      "performance": {
+        "protocol_sha256": "145d60d2cd88b1e2e9eab9f520aa8949f2e0eeb3bc4a4bc5f25e6f29939c5c07",
+        "requests": 84,
+        "pairs": 42,
+        "native_checks": 252,
+        "current_verify_events": 84,
+        "current_preflight_receipts": 456,
+        "all_elf_equal": true,
+        "all_material_ir_equal": true,
+        "all_object_topology_equal": true,
+        "raw_sidecar_equal_pairs": 0,
+        "failures": 0,
+        "independent_raw_audit_sha256": "424dcd8b401e8f2d6293f9f0ce2ca5554cb69dce03b9fc8e188c2ca395b741a7",
+        "adoption": false,
+        "classification": "Fixed diagnostic screen, not original weighted matrix; favorable and unfavorable cells retained",
+        "examples": [
+          {
+            "case": "shared4096",
+            "jobs": 2,
+            "request": "cold",
+            "baseline_ms": 5331.2747,
+            "candidate_ms": 7328.718858,
+            "baseline_cpu_ms": 9217.397,
+            "candidate_cpu_ms": 12524.832
+          },
+          {
+            "case": "shared4096",
+            "jobs": 2,
+            "request": "warm",
+            "baseline_ms": 601.0055214285715,
+            "candidate_ms": 630.0666021428572
+          },
+          {
+            "case": "shared1024",
+            "jobs": 2,
+            "request": "warm",
+            "baseline_ms": 184.27547785714285,
+            "candidate_ms": 131.78609257142858
+          },
+          {
+            "case": "shared4096",
+            "jobs": 1,
+            "request": "warm",
+            "baseline_ms": 654.1889793333334,
+            "candidate_ms": 763.9953746666666
+          }
+        ]
+      },
+      "status": "Not adopted; do not expand remaining prepared off/concurrency screens",
+      "multi_file_after": {
+        "protocol_sha256": "dbab00ff9c04bb8a58eaaf0eeba2109f3aefa0d8c2a79bab3638baa49379dd35",
+        "source": "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
+        "zil_compilations": 330,
+        "rust_compilations": 48,
+        "rows_including_seeds": 368,
+        "clean_oracles": 10,
+        "measured_zil_requests": 192,
+        "measured_rust_requests": 32,
+        "complete": true,
+        "functional_validation": "Independent raw audit Pass: 330 Verify, 2640 current preflight receipts, 1134 native I/O checks; seed artifact identity from preserved records, final artifacts also rehashed",
+        "fixed_hypothetical_frequency_mean_wall_ms": {
+          "A": 2691.3143867484378,
+          "B": 2665.81340244375
+        },
+        "ratio": 0.9905247099966283,
+        "cell_directions": {
+          "faster": 12,
+          "slower": 12
+        },
+        "rust_comparison": "B slower than Rust in all sixteen CLI cells: cold 1.377–1.870x, warm 1.530–6.250x",
+        "runtime_gate_executed": false,
+        "original_eight_workload_matrix_executed": false,
+        "other_prepared_protocols": "off v2 and concurrency 1e542a1a not executed; preserved explicitly as prepared, no zero-execution Pass"
       }
     }
   ],
