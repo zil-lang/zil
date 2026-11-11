@@ -1,0 +1,14 @@
+{
+  "baseline": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852",
+  "source": null,
+  "recipe": "822493161d01fd537fdbcefb0045934d0b1c1610",
+  "prior_raw_before_merge_runtime_failure": 42924878932,
+  "status_before_preservation": "failure",
+  "scope": "research-only generated pinned pass strings; focused screen, not production or weighted acceptance",
+  "files": {
+    "raw.tar.gz": "e2dbbc5e4969da4569c3a6b9918bb85d4b67101bc89b12f119d602663fdd2736",
+    "omitted-elf.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "pipelines.json": "66f280bdea516f86cac7d7fad8eef3cfcca17d8112d43b70b8d8be7869abfee0"
+  },
+  "main_modified": false
+}
