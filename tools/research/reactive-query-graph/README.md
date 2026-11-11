@@ -1,24 +1,125 @@
-# 稳定身份的响应式编译查询图研究
+# 稳定语义节点的真实响应式编译接入
 
-本研究借鉴的是 **zit 的点对点增量计算机制**，不是 UI 渲染模型：稳定节点、多对多依赖、按拓扑高度传播、队列去重、结果等值截止、动态边复用与批量输入。
+**状态：已接入生产消费者并完成本轮真实源码、原生执行和重复配对；当前有限切片未证明大项目净收益，默认关闭，留在专项分支。完整跨阶段响应式架构未完成。** 不以此结果否定zit式通用增量计算，也不将第一轮JS模型时间当作编译成绩。
 
-基线：`main@99035931d358add0eaed6d4535035c38413701dd`。源码提交：`1735a305ccfff2c95ac2658b6c2ca427dc9eb392`。第一轮仅新增研究工具和任务说明；下文模型记录保留原身份。
+## 冻结身份
 
-**当前状态：已有真实生产接入和实际 Source/native 测试，仍为默认关闭的未验收切片；尚无重复配对证据证明大项目净收益。第一轮 JS 时间不是 ZIL 编译时间。**
+| 项目 | 身份 |
+|---|---|
+| 远端main基线 | `99035931d358add0eaed6d4535035c38413701dd` |
+| 首次生产接入 | `71bed1fc8d5f184549b2f08ab7af724a9952fc9a` |
+| 本轮受测生产实现 | `21746adedf6eac6aee6f3c31e7b7ec4907027428` |
+| 完整234个库测试、CLI1测试 | `a655cd12d685818732ce7d9ab96e2676735f26f3` |
+| 最新测量器修正检查点 | `be6dcf9fd82566b5874298327e8c19b30ee87ec3` |
+| 受测release binary SHA256 | `0a0aa4049c9cae9f9c872186e8b00d76066903e0c76728a106627da410c0a1bc` |
+| 工具链 | Rust1.99.1；独立LLVM/Clang/LLD23.1.4，仓库checker Pass |
 
-## 真实生产接续（WIP，默认关闭）
+217之后的crates差异只有`cfg(test)`差分测试；测量器修正有各自源码及生成器hash，没有在运行中替换受测binary。工具链、命令、逐文件Source身份、raw行及独审索引见[receipt.json](receipt.json)对应证据包。唯一实时状态在goal分支G10.5.1.15；实现恢复入口在`.task/reactive-query-graph.md`。
 
-本轮从远端 `c75c58bf7f564a1ce8049702f9c6ec41c82d1da2` 接续，真实生产初稿已提交为 `71bed1fc8d5f184549b2f08ab7af724a9952fc9a`。`--reactive-queries` 已由 CLI/driver 调用 Types 的稳定函数 BodyKey 查询图，复用既有 CFG、cost 和 span-rebase work products；独立 Verify、预算及后端选项保持。实际图输入为完整绑定上下文、当前 Core 正文版本和被读取的函数签名，批量安装后点对点通知、等值截止，旧内容缓存保留。Core Eq、header/context 构造仍遍历当前输入；此切片尚未把所有 Types/Analyze/CT/SCC 查询接入多层图。
+## 实际生产路径与边界
 
-实读原始 zit.ts SHA256 `8ac65b2ce90c32d1bee9aebe480e2f51bfa560b6f7e9d2633a91fa2732ab6bfb` 与前轮 ZIP `1ca89da7c6535d6026697866fedae7403e8de2195f040f81f5026e22f29e6ce5`，22 个 manifest 文件和三份冻结模型结果匹配；私人源码未提交。
+- `zil-db::reactive`提供稳定owner、双向bond、直接消费者通知、结果等值截止、实际拓扑高度队列、入队去重、动态读取/高度修正、真实环检测、批量输入和失败清空。旧边物理复用，读取后裁去失效边；没有固定高度阈值，也不先递归删除所有下游结果。
+- `zil-types::FunctionSession`真实调用该图。owner按项目根/模块来源路径/函数名/分面标识；当前源码、完整绑定上下文、compact IDs、target及全部Limits作为有效性证据。输入为Context、Signature、RawBody版本，查询为BodyKey。正文版本由当前不可变CoreFunction完整Eq确认，不能靠raw source_fingerprint授权。
+- `zil-driver`一次安装当前项目全部输入，再按图求值，接回已有raw CFG/cost/span-rebase内容缓存；旧内容缓存和恢复旧源码能力保留。CLI `--reactive-queries`真实控制该路径，默认false。Analyze沿用原实现及原初始化缓存；当前独立Verify、Lower与后端没有被缩减。
+- driver按请求报告真实Types/初始化工作、完整query计时和失败重试attempt。Whole-project命中时函数工作为null，不能沿用上次统计。失败attempt的输入/来源/诊断/时间/成本保留，累计Verify次数不丢失；checkpoint共享原raw entries但不深克隆加速图。
 
-本环境实际 Rust 1.99.1 / LLVM、Clang、LLD 23.1.4 检查通过。main 基线 release 与 ZUI StoreFields check/build/native 已跑通；初稿 db/types/driver 226 个 lib tests 通过、release 成功。独审发现首次 attempt 计量丢失及 query 计时边界问题，当前修复增加逐 attempt 身份/诊断/成本并累计请求工作。图内核补强嵌套读取的当前拓扑检查；不将尚未证明可达的原版风险冒称已复现编译错误。
+当前图主要是输入→BodyKey这一层；它不是完整Types/Analyze/CT/SCC图。普通递归通过实际签名依赖保持合法，尚未把通用分析固定点抽成真实SCC。缺失名称、可见性、ID/候选变化由完整上下文守卫保守覆盖，并未实现逐名称槽的最窄负向依赖。rich mixed、trait、layout、资源闭包多走完整回退；简单泛型例展开为scalar Core后实际执行4个graph查询，不能一概称泛型都回退，也不能据此宣称稳定实例化查询已经完成。
 
-`native_workloads.py` 生成真实 ZIL Source；`native_measure.py` 用同一当前文件快照、独立常驻/磁盘/对象缓存、交替顺序、具名 parent→target 转换测量。每次成功要求当前 Verify1、原生返回值/输出/清理 oracle，错误要求当前 E-UNKNOWN-NAME；缺字段、缺计量、失联不 Pass。新正文恢复与恢复旧源码分开，纯位置变动不混入别的回滚。raw 中保留 preparation，统计只使用 measured 行。对象命中不会伪装成新 LLVM 优化。
+Core Eq、全体header/context构造和图输入inventory仍遍历当前输入；Expand继续重建整个项目。稳定identity与有效性已分离，但生产者尚无密封的Source→模块Core来源链，因此没有冒险删除这些检查。
 
-秒级筛选已执行生成 scalar 20×20×16（约50万源码字节）的完整 O2：冷约6秒、私有编辑约5秒，程序实际执行通过。这只是单 block 选择负载，不是净提速接受；主要机器码生成耗时约4–5秒，当前 BodyKey 投影减少不等于后端重编译减少。复杂 mixed/trait/CT/resource 程序目前是回退组合控制，不宣称得到相同细粒度复用。精确源码、验收进度和下一命令见 `.task/reactive-query-graph.md`；原始样本持久化索引将在完成测量后补入 `receipt.json`。
+## 同源码真实验证
 
-以下章节为第一轮同步 JS 模型的历史记录，数字不用于本轮编译器成绩。
+最终限定测试为db25、Types63、driver146，共234个lib tests全部通过；CLI resident协议1个通过。7个真实driver差分测试覆盖私有/同批多文件、签名与名称增删、可见性/import变化、位置及compact ID重绑定、共享/互递归、调用依赖删边换向、预算N/N−1、取消重试、80次编辑、驱逐、磁盘恢复/损坏、trait候选、泛型集合、CT真实callee变化及拥有闭包拒绝/修复。每次用当前Source新建fresh legacy session，成功时比较完整TypedProgram并要求当前Verify；不是只改QueryEvent标签。
+
+实际原生窗口如下，均核对exit/stdout/stderr及清理顺序；所有成功配对的ELF和LLVM文本相同：
+
+| 范围 | 请求行数 | measured / preparation | 原生执行 | 用途 |
+|---|---:|---:|---:|---|
+| 大scalar O2，6blocks | 204 | 108 / 96 | 1080 | 主要等待验证 |
+| 同大scalar check，6blocks | 204 | 108 / 96 | 0 | 前端完整反馈，不能替代native |
+| 大mixed O2，2blocks | 100 | 52 / 48 | 552 | trait/泛型/递归/CT/资源组合回退控制 |
+| 小scalar O2，6blocks | 204 | 108 / 96 | 1080 | 小项目绝对开销 |
+| 5个已有消费者×O0/O2 | 220 | 120 / 100 | 1368 | 原有语言组合兼容，含实际析构顺序 |
+
+大scalar是生成的22文件、498620字节、20模块×20函数×16个动态分支步骤；大mixed是19文件、246565字节、14×14×16，使用真实stdin、跨模块共享函数、trait/泛型、递归、CT及拥有闭包。全部helper贡献可观察输出，未通过常量消除、延时、空循环、降低优化或放宽预算制造规模。已有消费者为resource_closures、where-traits、trait-modules、ct-selection、generics；CT消费者此窗口只覆盖compact普通分配，不声称wide或allocator故障矩阵。另有main上的真实ZUI StoreFields check/build/native烟测，不代表完整ZUI应用已覆盖。
+
+超出当前默认CT/词法预算的更大样本作为ResourceLimit保留，不进入成功分母。正式全workspace/产品运行质量门未完整执行；本专项不证明ZIL整体达到Rust安全或运行性能目标。
+
+## 大项目绝对等待
+
+主要比较同一个21746 release binary的默认路径与`--reactive-queries`，同工具链/target/O2/预算/缓存/常驻模式，1CGU、1job。每轮有独立磁盘/对象缓存，两臂AB/BA交替；每个编辑先编译具名parent，准备行保留但不混进measured。错误后恢复使用未见的新正文，恢复旧源码另列。冷指新应用缓存，不清OS页缓存。
+
+下表单位ms。节省=legacy−reactive，负值表示增加等待；节省和比例使用配对均值，左右绝对值是各臂中位数，三者不是同一个统计量。
+
+### 完整O2 build
+
+| 场景 | legacy中位ms | reactive中位ms | 配对平均节省ms | 均值节省比例 |
+|---|---:|---:|---:|---:|
+| 冷构建 | 5780.414 | 6266.446 | -308.117 | -5.25% |
+| 无修改 | 459.225 | 456.700 | -0.590 | -0.12% |
+| 私有正文 | 5160.713 | 5169.342 | -71.526 | -1.37% |
+| 三模块同批 | 5214.765 | 5095.267 | +43.137 | +0.82% |
+| 广泛正文 | 5701.555 | 5456.457 | +101.370 | +1.78% |
+| 纯位置变化 | 1391.435 | 1440.604 | -182.677 | -14.10% |
+| 错误请求 | 349.656 | 361.076 | -11.419 | -3.25% |
+| 错误后新正文恢复 | 5248.582 | 5480.149 | -299.541 | -5.68% |
+| 恢复旧源码 | 465.265 | 441.846 | +55.032 | +10.97% |
+
+### check
+
+| 场景 | legacy中位ms | reactive中位ms | 配对平均节省ms | 均值节省比例 |
+|---|---:|---:|---:|---:|
+| 冷构建 | 664.464 | 961.214 | -242.947 | -32.20% |
+| 无修改 | 90.474 | 89.889 | +0.461 | +0.50% |
+| 私有正文 | 547.462 | 732.712 | -159.811 | -27.55% |
+| 三模块同批 | 483.471 | 618.020 | -98.269 | -19.04% |
+| 广泛正文 | 740.347 | 850.086 | -114.500 | -15.00% |
+| 纯位置变化 | 728.686 | 843.799 | -110.871 | -14.64% |
+| 错误请求 | 519.489 | 509.100 | -20.343 | -3.96% |
+| 错误后新正文恢复 | 637.128 | 657.753 | -35.451 | -5.52% |
+| 恢复旧源码 | 82.390 | 87.555 | -2.883 | -3.39% |
+
+O2私有编辑原始范围为legacy4.910–5.786s、reactive4.970–5.947s；配对平均节省的探索性95%bootstrap区间为−291.122至+119.945ms。multi区间为−144.38至+228.65ms；恢复区间为−537.02至−59.89ms。保留所有block，包括最后一个后端明显偏慢的block；六个样本不足以报告稳定p95。完整样本、范围及固定seed20000次bootstrap均在证据包，不按最快一次判断。
+
+## 工作量与关键路径
+
+| 场景 | BodyKey执行 legacy/reactive | reactive全Core函数Eq | 实际CFG执行 legacy/reactive |
+|---|---:|---:|---:|
+| cold | 421 / 421 | 0 | 425 / 425 |
+| private | 421 / 21 | 421 | 5 / 5 |
+| multi | 421 / 42 | 421 | 6 / 6 |
+| broad | 421 / 417 | 421 | 401 / 401 |
+| recovery | 421 / 421 | 0 | 5 / 5 |
+
+private的BodyKey编码节点159558→7965，图读取83条bond、20个结果相等截断，真正CFG执行没有减少。h0数字宽度变化移动同模块后续函数位置，因而21个RawBody输入变化；旧内容键能让其中20个结果相等。multi只有42次是因为之前private图状态被保留，whole-project父快照命中不会回退加速图历史，另外两模块需更新；两臂真实CFG工作仍一致。
+
+这些BodyKey节点计数不含421次递归Core Eq，不能说整个AST访问减少95%。Types、Expand、Analyze和Verify仍有整图工作，语义阶段整体未稳定变快。O2 private CPU均值5.193→5.267s，与墙钟方向一致，不是并行加速。
+
+已测Expand通常约250–500ms，1CGU机器码阶段约4–5s。没有停在“后端占比高”：增加同配置8CGU/1job的诊断，两臂private均实际命中7对象/重编1对象，等待约1.838/1.645s；这是既有对象分区的效果，只有1block，不能记作响应式净收益。另以相同capacity256关闭磁盘缓存跑3blocks check，以及main与instrumented-default跑3blocks；结果仍有波动和回退，不能将未计时墙钟差直接归因于缓存写入，也未接受默认路径与main性能等价。缓存编码/写入、发现和清理仍未全纳入阶段时钟，总墙钟优先。
+
+## 内存、频率与本轮判断
+
+主O2窗口采样树峰值legacy1193.15MiB、reactive1196.13MiB，session容量256；树RSS可能重复共享页、10ms采样可漏峰，HWM是整个session累计值。50次唯一私有编辑的cache-none/capacity32长会话为102个请求，graph一直1268节点/1685边，5次额外fresh legacy对拍、零reset。编辑总等待27.819391→28.043637s，增加224.246ms（0.806%）。最终resident RSS441.961→446.426MiB，多4.465MiB；两臂从冷到尾都增长约213MiB，后半段只再增20/328KiB，HWM不再上升。这仅是本次有限窗口观察，不是一般无泄漏证明，且native执行为0。
+
+预声明的人工单点、LLM多文件、冷/广泛构建三组假设频率，以每100请求的均值加总；没有实际使用频率，不称用户实测：
+
+| 假设 | O2 legacy总等待 | O2 reactive总等待 | O2额外等待 | check额外等待 |
+|---|---:|---:|---:|---:|
+| manual | 481.011s | 489.480s | +8.469s | +13.016s |
+| LLM | 509.466s | 511.692s | +2.226s | +10.514s |
+| broad-build | 541.408s | 551.612s | +10.204s | +15.682s |
+
+小scalar约50ms的build，private配对平均多0.844ms、multi少0.237ms；这些微小波动不与大项目等权平均，更不能冲淡大型check/恢复退化。
+
+**本轮仅证明了真实、可恢复的图接入及局部BodyKey工作减少，没有证明大型痛点的净等待下降。当前不合main、不默认启用，也不能据一个输入层切片的负结果否定完整点对点增量架构。** 下一片应以密封Source生产者、分段预算/首诊断receipt，复用普通scalar模块真实Normalize/Lower产物并传递函数版本；仅把旧CFG Entry改挂图不会再减少当前5次CFG重算。新写集需在goal协调，具体边界和恢复命令在.task；本轮未实施该下一片。
+
+## 首次失败、独审与可恢复性
+
+保留：首次宽Cargo测试耗尽本任务磁盘、876新增闭包测试错误预期、resource消费者U分支oracle写成BA、CT源清单误含未导入wide替代fixture，以及更大输入ResourceLimit。分别修复/限定后以新SHA和run重跑，不删除失败、不把零执行/缺summary当通过。resource修正依据已有README/spec/原生固定测试的AB；CT修正依据已有三模块runner，严格source map检查没有放宽。
+
+非作者`/root/workload_harness`按217复核生产代码并闭合两项计量缺陷，后按a055复核测试修正及实际长会话；`/root/measurement_review`直接复核主测408行、补充524行、输入、产物、原始native与加权算术。后者编写统计器，root审公式，不冒称其独审了自己的工具。当前无已知未修正确性失败；净收益、完整跨阶段覆盖和main集成门仍未满足。
+
+原始zit.ts已实读，SHA256 `8ac65b2ce90c32d1bee9aebe480e2f51bfa560b6f7e9d2633a91fa2732ab6bfb`；前轮ZIP SHA256 `1ca89da7c6535d6026697866fedae7403e8de2195f040f81f5026e22f29e6ce5`，22个manifest文件及三份冻结结果hash匹配。私人完整参考源码未公开。当前原始证据的持久化ID、包hash和获取链接在receipt；下文原模型保留为历史，不能覆盖本节实际状态。
 
 ## 历史核查：不是第一次尝试
 

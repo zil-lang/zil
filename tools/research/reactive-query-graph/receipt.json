@@ -1,65 +1,1122 @@
 {
+  "schema": 2,
   "date": "2026-11-11",
-  "base_commit": "99035931d358add0eaed6d4535035c38413701dd",
-  "source_commit": "1735a305ccfff2c95ac2658b6c2ca427dc9eb392",
-  "source_sha256": "a657bfe2c05b16be3dea346ec6afee2f9470ce14a820f1606b876b97fae94c57",
-  "source_git_blob": "98762b26506c0e35ec11072b8d397c845b407eff",
-  "zit_reference_sha256": "8ac65b2ce90c32d1bee9aebe480e2f51bfa560b6f7e9d2633a91fa2732ab6bfb",
-  "runtime": "Node v22.16.0",
-  "scope": "Synthetic synchronous scalar query graph; NOT ZIL compiler performance",
-  "controls_per_process": {"passed": true, "differential_comparisons": 2730, "input_batches": 1310, "deep_chain": 1200, "dynamic_reversals": 600, "random_dynamic_dags": 200},
-  "sampling": {"fresh_processes": 3, "warmup_requests_per_cell": 2, "measured_requests_per_cell": 9, "sizes_functions": [512,4096,16384], "summary": "median of three process medians; order alternates within each process"},
-  "raw_results": [
-    {"file": "frozen-1.json", "sha256": "26aa5d1c87fc92a672a7ba1b3f4e5bdedf714d16ea2fcc4325f801dac32fdd76"},
-    {"file": "frozen-2.json", "sha256": "79a0fa34c67ba8319ece2a1ffd9c58187ad039648c1cae44c2cd508925964d57"},
-    {"file": "frozen-3-retry.json", "sha256": "c3859b59e68a377f77d3a9321cb769e69585cdf2010eae6112fea2d9b09974e4"}
-  ],
-  "raw_result_delivery": "Full JSON samples, preliminary excluded runs and source are in the conversation delivery bundle; source and this receipt are persisted on the research branch.",
-  "large_model": [
-    {"scenario":"unchanged","nodes":114948,"edges":180480,"median_ms":{"height":0.000251,"pull":0.000241,"invalidate":0.000261},"executed":{"height":0,"pull":0,"invalidate":0},"pull_dependency_checks":0},
-    {"scenario":"private-one","nodes":114948,"edges":180480,"median_ms":{"height":0.052147,"pull":11.440182,"invalidate":0.111345},"executed":{"height":8,"pull":8,"invalidate":12},"pull_dependency_checks":180158},
-    {"scenario":"private-64","nodes":114948,"edges":180480,"median_ms":{"height":0.303901,"pull":7.661241,"invalidate":0.351672},"executed":{"height":386,"pull":386,"invalidate":390},"pull_dependency_checks":179906},
-    {"scenario":"comment-only","nodes":114948,"edges":180480,"median_ms":{"height":0.004757,"pull":10.505534,"invalidate":0.131115},"executed":{"height":1,"pull":1,"invalidate":12},"pull_dependency_checks":180480},
-    {"scenario":"namespace-fanout","nodes":114948,"edges":180480,"median_ms":{"height":46.384470,"pull":47.007906,"invalidate":52.621259},"executed":{"height":49409,"pull":49409,"invalidate":49409},"pull_dependency_checks":131329},
-    {"scenario":"all-bodies","nodes":114948,"edges":180480,"median_ms":{"height":130.655978,"pull":100.605484,"invalidate":151.636540},"executed":{"height":98561,"pull":98561,"invalidate":98561},"pull_dependency_checks":98561},
-    {"scenario":"dynamic-switch","nodes":114948,"edges":196864,"median_ms":{"height":26.385225,"pull":32.764564,"invalidate":28.272266},"executed":{"height":16641,"pull":16641,"invalidate":16641},"pull_dependency_checks":164097}
-  ],
-  "excluded_runs": {
-    "first-run.json": "initial invalidate comparator redundantly validated clean ancestors; not used",
-    "large-run.json": "same superseded comparator; not used",
-    "strengthened-baselines.json": "earlier source without extra topology tests",
-    "final-run.json": "earlier source with rank traversal on every evaluation",
-    "structural-rank-only.json": "preliminary run; not used in frozen summary",
-    "frozen-3.json": "60-second outer multi-process timeout; empty output, not counted; independently rerun as frozen-3-retry.json"
-  },
-  "not_run": ["production Source/Types/Analyze/Verify integration", "LLVM/linker and native correctness", "Rust comparison", "compiler RSS", "representative workload weighting", "independent review"],
-  "limitations": ["fixed node inventory and roots", "no automatic SCC extraction", "no concurrency or asynchronous publication", "no persistent cache or eviction", "SCC control is an explicit local monotone solver", "failure restores source inputs and cold-rebuilds instead of fine-grained rollback", "JIT/GC and within-process shared state remain timing limitations"],
-  "acceptance": "Research model only; production default unchanged",
+  "scope": "Real ZIL compiler production slice plus separately labelled prior JS model history",
   "production_continuation": {
-    "status": "WIP, default off; no accepted speedup",
+    "status": "WIP: actual production integration and real validation complete for this slice; no accepted end-to-end gain; full goal not complete; default off; not merged into main",
     "base_commit": "99035931d358add0eaed6d4535035c38413701dd",
     "first_production_commit": "71bed1fc8d5f184549b2f08ab7af724a9952fc9a",
-    "scope": "Actual Types BodyKey projection graph; raw CFG content cache retained; all independent Verify unchanged. Rich mixed programs fallback; not complete cross-stage SCC graph.",
-    "first_tests": {
-      "zil-db": 23,
-      "zil-driver": 140,
-      "zil-types": 63,
-      "release_build": "Pass"
+    "production_commit": "21746adedf6eac6aee6f3c31e7b7ec4907027428",
+    "full_lib_test_commit": "a655cd12d685818732ce7d9ab96e2676735f26f3",
+    "latest_harness_commit": "be6dcf9fd82566b5874298327e8c19b30ee87ec3",
+    "branch": "research/reactive-query-graph",
+    "binary_sha256": "0a0aa4049c9cae9f9c872186e8b00d76066903e0c76728a106627da410c0a1bc",
+    "baseline_binary_sha256": "64e1ff43bbaa59f786f1cc899b69e707072219a9c0abf0122ce31cd7b77f981d",
+    "toolchain": {
+      "rust": "1.99.1",
+      "rust_commit": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+      "LLVM_Clang_LLD": "23.1.4",
+      "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+      "llvm_dso_sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250",
+      "clang_sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67",
+      "repository_checker": "Pass"
     },
-    "review_findings": [
-      "RQ-REVIEW-01: failed-attempt work/time discarded, corrected next checkpoint pending validation",
-      "RQ-REVIEW-02: query timing omitted digest/publication, corrected next checkpoint pending validation"
+    "production_paths": [
+      "crates/zil-db/src/reactive.rs and lib.rs wiring",
+      "crates/zil-types/src/incremental.rs",
+      "crates/zil-driver/src/lib.rs, project.rs, session.rs",
+      "crates/zil-cli/src/main.rs",
+      "root-coordinated crates/zil-types/Cargo.toml, Cargo.lock and policy/dependencies.json single internal edge"
     ],
-    "native_scale_screen": {
-      "run": "native-scalar-screen-71bed1f-r1",
-      "modules": 20,
-      "functions_per_module": 20,
-      "steps": 16,
-      "requests": 14,
-      "native_executions": 84,
-      "paired_blocks": 1,
-      "timing_acceptance": "screen only; no gain conclusion"
+    "scope": "Stable project/module/function/facet owners and independent input validity; Context/Signature/RawBody inputs batch into real BodyKey queries feeding existing CFG/cost/span-rebase content products. Whole current Core Eq and context walks remain. Mainly height1 production topology; not full cross-stage/SCC architecture.",
+    "semantics_boundaries": [
+      "Current independent Verify, budgets and first-diagnostic behavior remain. Raw cached products never carry Verified authority.",
+      "Mixed rich programs and four existing consumer families use full fallback. Simple expanded generics exercise four real graph queries, without a general stable-instantiation claim.",
+      "Legal scalar recursion reads signatures. Full analysis SCC solver is not newly integrated.",
+      "Negative names/candidates/visibility/compact-ID changes conservatively invalidate via full context, not per-negative-name sparse nodes.",
+      "Failure discards incomplete acceleration graph; content products survive through original complete keys. Resident requests are synchronous; overlapping external file writes/async publication not covered."
+    ],
+    "tests": {
+      "db_lib": 25,
+      "types_lib": 63,
+      "driver_lib": 146,
+      "cli_resident": 1,
+      "source": "a655cd12d685818732ce7d9ab96e2676735f26f3",
+      "manifest": "validation-71bed1f/out/runs/reactive-a655cd1-final-validation-r1/manifest.json",
+      "architecture": {
+        "status": "Pass",
+        "source": "a05526bfbeb31e90962f53692468ad05f48c1620",
+        "crates": 15,
+        "edges": 39
+      }
     },
-    "raw_evidence": "Local only pending durable bundle; do not treat local paths as backup"
+    "primary": {
+      "O2": {
+        "run": "native-scalar-large-o2-21746ad-r1",
+        "blocks": 6,
+        "counts": {
+          "rows": 204,
+          "measured_rows": 108,
+          "invalid_rows": 0,
+          "native_executions": 1080,
+          "preparation_rows": 96,
+          "expected_blocks": 6
+        },
+        "configuration": "resident,large generated scalar20x20x16,22files498620bytes,allcache,capacity256; same217binary off/on; O2 uses LLVMAPI1CGU1job",
+        "scenarios": {
+          "cold": {
+            "baseline_median_ms": 5780.413741,
+            "candidate_median_ms": 6266.4461135,
+            "baseline_mean_ms": 5863.460607333333,
+            "candidate_mean_ms": 6171.577520166667,
+            "paired_mean_saved_ms": -308.1169128333334,
+            "paired_median_saved_ms": -448.40244399999983,
+            "candidate_mean_over_baseline_mean": 1.0525486454957975,
+            "baseline_range_ms": [
+              5613.53662,
+              6451.257054
+            ],
+            "candidate_range_ms": [
+              5272.751005,
+              6523.948809
+            ],
+            "exploratory_paired_mean_saved_ci_ms": [
+              -564.3831345958337,
+              6.7065173333333705
+            ],
+            "cpu_rss": {
+              "baseline": {
+                "cpu_mean_seconds": 5.828333333333333,
+                "rss_median_kib": 497508.0,
+                "sampled_tree_peak_max_kib": 528588.0,
+                "session_hwm_max_kib": 528588
+              },
+              "candidate": {
+                "cpu_mean_seconds": 6.128333333333334,
+                "rss_median_kib": 501748.0,
+                "sampled_tree_peak_max_kib": 533276.0,
+                "session_hwm_max_kib": 533404
+              }
+            }
+          },
+          "unchanged": {
+            "baseline_median_ms": 459.2250145,
+            "candidate_median_ms": 456.7004685,
+            "baseline_mean_ms": 494.395076,
+            "candidate_mean_ms": 494.9848068333333,
+            "paired_mean_saved_ms": -0.5897308333333436,
+            "paired_median_saved_ms": 2.5245459999999866,
+            "candidate_mean_over_baseline_mean": 1.0011928331449105,
+            "baseline_range_ms": [
+              426.711866,
+              686.205236
+            ],
+            "candidate_range_ms": [
+              427.885534,
+              700.664709
+            ],
+            "exploratory_paired_mean_saved_ci_ms": [
+              -128.5408525,
+              125.2627725
+            ],
+            "cpu_rss": {
+              "baseline": {
+                "cpu_mean_seconds": 0.4883333333333333,
+                "rss_median_kib": 515598.0,
+                "sampled_tree_peak_max_kib": 515920.0,
+                "session_hwm_max_kib": 528588
+              },
+              "candidate": {
+                "cpu_mean_seconds": 0.4883333333333333,
+                "rss_median_kib": 519762.0,
+                "sampled_tree_peak_max_kib": 520340.0,
+                "session_hwm_max_kib": 533404
+              }
+            }
+          },
+          "private": {
+            "baseline_median_ms": 5160.7133535,
+            "candidate_median_ms": 5169.341634,
+            "baseline_mean_ms": 5218.629730000001,
+            "candidate_mean_ms": 5290.155894,
+            "paired_mean_saved_ms": -71.52616400000004,
+            "paired_median_saved_ms": -23.567223000000013,
+            "candidate_mean_over_baseline_mean": 1.0137059281268457,
+            "baseline_range_ms": [
+              4909.910745,
+              5785.940748
+            ],
+            "candidate_range_ms": [
+              4969.778646,
+              5947.000318
+            ],
+            "exploratory_paired_mean_saved_ci_ms": [
+              -291.1219499999999,
+              119.94482549999991
+            ],
+            "cpu_rss": {
+              "baseline": {
+                "cpu_mean_seconds": 5.193333333333333,
+                "rss_median_kib": 602140.0,
+                "sampled_tree_peak_max_kib": 628688.0,
+                "session_hwm_max_kib": 628688
+              },
+              "candidate": {
+                "cpu_mean_seconds": 5.266666666666667,
+                "rss_median_kib": 606274.0,
+                "sampled_tree_peak_max_kib": 632540.0,
+                "session_hwm_max_kib": 632540
+              }
+            }
+          },
+          "multi": {
+            "baseline_median_ms": 5214.764919499999,
+            "candidate_median_ms": 5095.266502,
+            "baseline_mean_ms": 5267.863566166667,
+            "candidate_mean_ms": 5224.7263305,
+            "paired_mean_saved_ms": 43.13723566666689,
+            "paired_median_saved_ms": 27.697400000000016,
+            "candidate_mean_over_baseline_mean": 0.9918112466040845,
+            "baseline_range_ms": [
+              5100.019543,
+              5639.871882
+            ],
+            "candidate_range_ms": [
+              4872.638581,
+              5942.892233
+            ],
+            "exploratory_paired_mean_saved_ci_ms": [
+              -144.38006683333288,
+              228.65155466666693
+            ],
+            "cpu_rss": {
+              "baseline": {
+                "cpu_mean_seconds": 5.25,
+                "rss_median_kib": 697448.0,
+                "sampled_tree_peak_max_kib": 724132.0,
+                "session_hwm_max_kib": 724132
+              },
+              "candidate": {
+                "cpu_mean_seconds": 5.210000000000001,
+                "rss_median_kib": 701566.0,
+                "sampled_tree_peak_max_kib": 727464.0,
+                "session_hwm_max_kib": 727464
+              }
+            }
+          },
+          "broad": {
+            "baseline_median_ms": 5701.5545905,
+            "candidate_median_ms": 5456.4567565,
+            "baseline_mean_ms": 5693.112764,
+            "candidate_mean_ms": 5591.742623,
+            "paired_mean_saved_ms": 101.37014100000017,
+            "paired_median_saved_ms": 160.88890850000007,
+            "candidate_mean_over_baseline_mean": 0.9821942502806185,
+            "baseline_range_ms": [
+              5419.725154,
+              5891.236334
+            ],
+            "candidate_range_ms": [
+              5107.609122,
+              6554.705024
+            ],
+            "exploratory_paired_mean_saved_ci_ms": [
+              -269.753809,
+              448.0352276666669
+            ],
+            "cpu_rss": {
+              "baseline": {
+                "cpu_mean_seconds": 5.67,
+                "rss_median_kib": 906568.0,
+                "sampled_tree_peak_max_kib": 931668.0,
+                "session_hwm_max_kib": 931668
+              },
+              "candidate": {
+                "cpu_mean_seconds": 5.578333333333334,
+                "rss_median_kib": 910730.0,
+                "sampled_tree_peak_max_kib": 936216.0,
+                "session_hwm_max_kib": 936216
+              }
+            }
+          },
+          "positions": {
+            "baseline_median_ms": 1391.43542,
+            "candidate_median_ms": 1440.603857,
+            "baseline_mean_ms": 1295.2022845000001,
+            "candidate_mean_ms": 1477.8789276666666,
+            "paired_mean_saved_ms": -182.67664316666665,
+            "paired_median_saved_ms": -112.9776885,
+            "candidate_mean_over_baseline_mean": 1.1410410137109872,
+            "baseline_range_ms": [
+              1013.134274,
+              1454.604104
+            ],
+            "candidate_range_ms": [
+              1097.057565,
+              1884.040616
+            ],
+            "exploratory_paired_mean_saved_ci_ms": [
+              -437.01225616666665,
+              20.359042500000026
+            ],
+            "cpu_rss": {
+              "baseline": {
+                "cpu_mean_seconds": 1.2850000000000008,
+                "rss_median_kib": 1084354.0,
+                "sampled_tree_peak_max_kib": 1084880.0,
+                "session_hwm_max_kib": 1085024
+              },
+              "candidate": {
+                "cpu_mean_seconds": 1.468333333333333,
+                "rss_median_kib": 1087708.0,
+                "sampled_tree_peak_max_kib": 1088160.0,
+                "session_hwm_max_kib": 1088280
+              }
+            }
+          },
+          "error": {
+            "baseline_median_ms": 349.6559135,
+            "candidate_median_ms": 361.0760655,
+            "baseline_mean_ms": 351.4775266666667,
+            "candidate_mean_ms": 362.8968541666667,
+            "paired_mean_saved_ms": -11.419327500000009,
+            "paired_median_saved_ms": -5.023555500000015,
+            "candidate_mean_over_baseline_mean": 1.032489495440287,
+            "baseline_range_ms": [
+              325.233426,
+              376.377642
+            ],
+            "candidate_range_ms": [
+              331.419377,
+              396.220389
+            ],
+            "exploratory_paired_mean_saved_ci_ms": [
+              -37.869701666666664,
+              11.637489833333328
+            ],
+            "cpu_rss": {
+              "baseline": {
+                "cpu_mean_seconds": 0.3533333333333341,
+                "rss_median_kib": 1084534.0,
+                "sampled_tree_peak_max_kib": 1084952.0,
+                "session_hwm_max_kib": 1085264
+              },
+              "candidate": {
+                "cpu_mean_seconds": 0.36166666666666636,
+                "rss_median_kib": 1088030.0,
+                "sampled_tree_peak_max_kib": 1088544.0,
+                "session_hwm_max_kib": 1088696
+              }
+            }
+          },
+          "recovery": {
+            "baseline_median_ms": 5248.582463,
+            "candidate_median_ms": 5480.14941,
+            "baseline_mean_ms": 5273.3961765,
+            "candidate_mean_ms": 5572.936950166666,
+            "paired_mean_saved_ms": -299.5407736666666,
+            "paired_median_saved_ms": -488.98234349999984,
+            "candidate_mean_over_baseline_mean": 1.0568022510809103,
+            "baseline_range_ms": [
+              4871.820554,
+              5952.551878
+            ],
+            "candidate_range_ms": [
+              5182.501216,
+              6439.767912
+            ],
+            "exploratory_paired_mean_saved_ci_ms": [
+              -537.0233226666666,
+              -59.89121050000009
+            ],
+            "cpu_rss": {
+              "baseline": {
+                "cpu_mean_seconds": 5.253333333333333,
+                "rss_median_kib": 1196776.0,
+                "sampled_tree_peak_max_kib": 1221784.0,
+                "session_hwm_max_kib": 1221784
+              },
+              "candidate": {
+                "cpu_mean_seconds": 5.558333333333334,
+                "rss_median_kib": 1199920.0,
+                "sampled_tree_peak_max_kib": 1224836.0,
+                "session_hwm_max_kib": 1224836
+              }
+            }
+          },
+          "restore": {
+            "baseline_median_ms": 465.2650175,
+            "candidate_median_ms": 441.845517,
+            "baseline_mean_ms": 501.853402,
+            "candidate_mean_ms": 446.82100983333333,
+            "paired_mean_saved_ms": 55.032392166666675,
+            "paired_median_saved_ms": 23.626259999999974,
+            "candidate_mean_over_baseline_mean": 0.8903416975010031,
+            "baseline_range_ms": [
+              440.763596,
+              649.260307
+            ],
+            "candidate_range_ms": [
+              422.516512,
+              485.412225
+            ],
+            "exploratory_paired_mean_saved_ci_ms": [
+              2.6914043333333573,
+              116.67387266666667
+            ],
+            "cpu_rss": {
+              "baseline": {
+                "cpu_mean_seconds": 0.49666666666666615,
+                "rss_median_kib": 1202728.0,
+                "sampled_tree_peak_max_kib": 1202972.0,
+                "session_hwm_max_kib": 1221784
+              },
+              "candidate": {
+                "cpu_mean_seconds": 0.44833333333333175,
+                "rss_median_kib": 1205884.0,
+                "sampled_tree_peak_max_kib": 1206148.0,
+                "session_hwm_max_kib": 1224836
+              }
+            }
+          }
+        }
+      },
+      "check": {
+        "run": "native-scalar-large-check-21746ad-r1",
+        "blocks": 6,
+        "counts": {
+          "rows": 204,
+          "measured_rows": 108,
+          "invalid_rows": 0,
+          "native_executions": 0,
+          "preparation_rows": 96,
+          "expected_blocks": 6
+        },
+        "configuration": "resident,large generated scalar20x20x16,22files498620bytes,allcache,capacity256; same217binary off/on; O2 uses LLVMAPI1CGU1job",
+        "scenarios": {
+          "cold": {
+            "baseline_median_ms": 664.4642855,
+            "candidate_median_ms": 961.2143995000001,
+            "baseline_mean_ms": 754.5519566666667,
+            "candidate_mean_ms": 997.4992030000001,
+            "paired_mean_saved_ms": -242.94724633333337,
+            "paired_median_saved_ms": -216.97240800000003,
+            "candidate_mean_over_baseline_mean": 1.3219755037235408,
+            "baseline_range_ms": [
+              617.998159,
+              1229.2841
+            ],
+            "candidate_range_ms": [
+              841.303067,
+              1227.928883
+            ],
+            "exploratory_paired_mean_saved_ci_ms": [
+              -359.77768116666675,
+              -128.36699766666666
+            ],
+            "cpu_rss": {
+              "baseline": {
+                "cpu_mean_seconds": 0.735,
+                "rss_median_kib": 231874.0,
+                "sampled_tree_peak_max_kib": 272408.0,
+                "session_hwm_max_kib": 272408
+              },
+              "candidate": {
+                "cpu_mean_seconds": 0.9833333333333334,
+                "rss_median_kib": 235666.0,
+                "sampled_tree_peak_max_kib": 276112.0,
+                "session_hwm_max_kib": 276112
+              }
+            }
+          },
+          "unchanged": {
+            "baseline_median_ms": 90.4738935,
+            "candidate_median_ms": 89.8891445,
+            "baseline_mean_ms": 91.4246105,
+            "candidate_mean_ms": 90.9636065,
+            "paired_mean_saved_ms": 0.46100400000000025,
+            "paired_median_saved_ms": 0.2076254999999989,
+            "candidate_mean_over_baseline_mean": 0.9949575502976848,
+            "baseline_range_ms": [
+              87.360071,
+              97.981888
+            ],
+            "candidate_range_ms": [
+              84.725668,
+              97.741817
+            ],
+            "exploratory_paired_mean_saved_ci_ms": [
+              -5.022244666666663,
+              5.849204999999998
+            ],
+            "cpu_rss": {
+              "baseline": {
+                "cpu_mean_seconds": 0.09333333333333332,
+                "rss_median_kib": 240214.0,
+                "sampled_tree_peak_max_kib": 274488.0,
+                "session_hwm_max_kib": 274488
+              },
+              "candidate": {
+                "cpu_mean_seconds": 0.09000000000000001,
+                "rss_median_kib": 244014.0,
+                "sampled_tree_peak_max_kib": 278064.0,
+                "session_hwm_max_kib": 278064
+              }
+            }
+          },
+          "private": {
+            "baseline_median_ms": 547.4622704999999,
+            "candidate_median_ms": 732.7121870000001,
+            "baseline_mean_ms": 579.9911155,
+            "candidate_mean_ms": 739.802047,
+            "paired_mean_saved_ms": -159.8109315,
+            "paired_median_saved_ms": -207.77455450000002,
+            "candidate_mean_over_baseline_mean": 1.2755403095480693,
+            "baseline_range_ms": [
+              468.772844,
+              763.604181
+            ],
+            "candidate_range_ms": [
+              517.502235,
+              996.551313
+            ],
+            "exploratory_paired_mean_saved_ci_ms": [
+              -245.63448583333334,
+              -69.39255716666666
+            ],
+            "cpu_rss": {
+              "baseline": {
+                "cpu_mean_seconds": 0.5733333333333334,
+                "rss_median_kib": 366022.0,
+                "sampled_tree_peak_max_kib": 366276.0,
+                "session_hwm_max_kib": 366388
+              },
+              "candidate": {
+                "cpu_mean_seconds": 0.73,
+                "rss_median_kib": 376266.0,
+                "sampled_tree_peak_max_kib": 376396.0,
+                "session_hwm_max_kib": 376416
+              }
+            }
+          },
+          "multi": {
+            "baseline_median_ms": 483.4714525,
+            "candidate_median_ms": 618.0201294999999,
+            "baseline_mean_ms": 516.2121181666666,
+            "candidate_mean_ms": 614.4814695,
+            "paired_mean_saved_ms": -98.26935133333332,
+            "paired_median_saved_ms": -86.57828299999997,
+            "candidate_mean_over_baseline_mean": 1.190366223253995,
+            "baseline_range_ms": [
+              452.876389,
+              710.021292
+            ],
+            "candidate_range_ms": [
+              459.001572,
+              789.558039
+            ],
+            "exploratory_paired_mean_saved_ci_ms": [
+              -175.761605,
+              -24.703236333333326
+            ],
+            "cpu_rss": {
+              "baseline": {
+                "cpu_mean_seconds": 0.51,
+                "rss_median_kib": 466226.0,
+                "sampled_tree_peak_max_kib": 466500.0,
+                "session_hwm_max_kib": 466592
+              },
+              "candidate": {
+                "cpu_mean_seconds": 0.6066666666666666,
+                "rss_median_kib": 468626.0,
+                "sampled_tree_peak_max_kib": 468684.0,
+                "session_hwm_max_kib": 468776
+              }
+            }
+          },
+          "broad": {
+            "baseline_median_ms": 740.3474505,
+            "candidate_median_ms": 850.0860215,
+            "baseline_mean_ms": 763.1094485,
+            "candidate_mean_ms": 877.6093798333334,
+            "paired_mean_saved_ms": -114.4999313333333,
+            "paired_median_saved_ms": -105.31253049999998,
+            "candidate_mean_over_baseline_mean": 1.150043917760944,
+            "baseline_range_ms": [
+              617.435048,
+              1077.519323
+            ],
+            "candidate_range_ms": [
+              726.129056,
+              1186.66277
+            ],
+            "exploratory_paired_mean_saved_ci_ms": [
+              -170.29008216666662,
+              -58.04737983333329
+            ],
+            "cpu_rss": {
+              "baseline": {
+                "cpu_mean_seconds": 0.7566666666666667,
+                "rss_median_kib": 621874.0,
+                "sampled_tree_peak_max_kib": 662376.0,
+                "session_hwm_max_kib": 662376
+              },
+              "candidate": {
+                "cpu_mean_seconds": 0.87,
+                "rss_median_kib": 625362.0,
+                "sampled_tree_peak_max_kib": 665972.0,
+                "session_hwm_max_kib": 665972
+              }
+            }
+          },
+          "positions": {
+            "baseline_median_ms": 728.68589,
+            "candidate_median_ms": 843.798646,
+            "baseline_mean_ms": 757.0590981666667,
+            "candidate_mean_ms": 867.9302455000001,
+            "paired_mean_saved_ms": -110.87114733333338,
+            "paired_median_saved_ms": -154.92972350000002,
+            "candidate_mean_over_baseline_mean": 1.1464497918350425,
+            "baseline_range_ms": [
+              612.771756,
+              980.947147
+            ],
+            "candidate_range_ms": [
+              622.397811,
+              1236.507057
+            ],
+            "exploratory_paired_mean_saved_ci_ms": [
+              -256.20602450000007,
+              44.63173383333327
+            ],
+            "cpu_rss": {
+              "baseline": {
+                "cpu_mean_seconds": 0.745,
+                "rss_median_kib": 795362.0,
+                "sampled_tree_peak_max_kib": 835836.0,
+                "session_hwm_max_kib": 835836
+              },
+              "candidate": {
+                "cpu_mean_seconds": 0.8566666666666668,
+                "rss_median_kib": 798892.0,
+                "sampled_tree_peak_max_kib": 839472.0,
+                "session_hwm_max_kib": 839472
+              }
+            }
+          },
+          "error": {
+            "baseline_median_ms": 519.4891964999999,
+            "candidate_median_ms": 509.100133,
+            "baseline_mean_ms": 513.2184093333333,
+            "candidate_mean_ms": 533.5618483333334,
+            "paired_mean_saved_ms": -20.343439000000007,
+            "paired_median_saved_ms": -9.8359375,
+            "candidate_mean_over_baseline_mean": 1.0396389502598438,
+            "baseline_range_ms": [
+              451.489813,
+              572.110473
+            ],
+            "candidate_range_ms": [
+              472.965393,
+              679.619859
+            ],
+            "exploratory_paired_mean_saved_ci_ms": [
+              -84.34707850000002,
+              35.89209766666665
+            ],
+            "cpu_rss": {
+              "baseline": {
+                "cpu_mean_seconds": 0.5149999999999998,
+                "rss_median_kib": 896780.0,
+                "sampled_tree_peak_max_kib": 897012.0,
+                "session_hwm_max_kib": 897076
+              },
+              "candidate": {
+                "cpu_mean_seconds": 0.5316666666666664,
+                "rss_median_kib": 900268.0,
+                "sampled_tree_peak_max_kib": 900392.0,
+                "session_hwm_max_kib": 900400
+              }
+            }
+          },
+          "recovery": {
+            "baseline_median_ms": 637.1275595,
+            "candidate_median_ms": 657.7533465,
+            "baseline_mean_ms": 642.0883758333333,
+            "candidate_mean_ms": 677.539828,
+            "paired_mean_saved_ms": -35.451452166666684,
+            "paired_median_saved_ms": -12.669947000000036,
+            "candidate_mean_over_baseline_mean": 1.05521273005551,
+            "baseline_range_ms": [
+              598.614013,
+              707.023401
+            ],
+            "candidate_range_ms": [
+              635.548802,
+              793.920797
+            ],
+            "exploratory_paired_mean_saved_ci_ms": [
+              -90.80173216666667,
+              4.410423666666645
+            ],
+            "cpu_rss": {
+              "baseline": {
+                "cpu_mean_seconds": 0.6333333333333336,
+                "rss_median_kib": 955066.0,
+                "sampled_tree_peak_max_kib": 955252.0,
+                "session_hwm_max_kib": 955452
+              },
+              "candidate": {
+                "cpu_mean_seconds": 0.6700000000000003,
+                "rss_median_kib": 954714.0,
+                "sampled_tree_peak_max_kib": 954792.0,
+                "session_hwm_max_kib": 954832
+              }
+            }
+          },
+          "restore": {
+            "baseline_median_ms": 82.390479,
+            "candidate_median_ms": 87.55544699999999,
+            "baseline_mean_ms": 85.1333985,
+            "candidate_mean_ms": 88.0160515,
+            "paired_mean_saved_ms": -2.8826529999999977,
+            "paired_median_saved_ms": -2.751848999999993,
+            "candidate_mean_over_baseline_mean": 1.0338604243550784,
+            "baseline_range_ms": [
+              80.73593,
+              96.837161
+            ],
+            "candidate_range_ms": [
+              81.163326,
+              100.4259
+            ],
+            "exploratory_paired_mean_saved_ci_ms": [
+              -11.247573833333332,
+              5.833839833333333
+            ],
+            "cpu_rss": {
+              "baseline": {
+                "cpu_mean_seconds": 0.08500000000000026,
+                "rss_median_kib": 955068.0,
+                "sampled_tree_peak_max_kib": 955252.0,
+                "session_hwm_max_kib": 955452
+              },
+              "candidate": {
+                "cpu_mean_seconds": 0.08833333333333322,
+                "rss_median_kib": 954714.0,
+                "sampled_tree_peak_max_kib": 954792.0,
+                "session_hwm_max_kib": 954832
+              }
+            }
+          }
+        }
+      }
+    },
+    "hypothetical_frequency_weights": {
+      "manual": {
+        "hypothetical_only": true,
+        "weights": {
+          "unchanged": 0.1,
+          "private": 0.65,
+          "multi": 0.05,
+          "broad": 0.05,
+          "recovery": 0.1,
+          "cold": 0.05
+        },
+        "O2": {
+          "baseline_mean_wait_seconds_per_100": 481.0110296625,
+          "candidate_mean_wait_seconds_per_100": 489.4795830483334,
+          "mean_saved_seconds_per_100": -8.468553385833356,
+          "exploratory95_saved_ci_seconds": [
+            -21.894630599166664,
+            5.975572939166702
+          ]
+        },
+        "check": {
+          "baseline_mean_wait_seconds_per_100": 55.2039199875,
+          "candidate_mean_wait_seconds_per_100": 68.22011766166668,
+          "mean_saved_seconds_per_100": -13.016197674166673,
+          "exploratory95_saved_ci_seconds": [
+            -18.268279075000006,
+            -7.391215650000008
+          ]
+        }
+      },
+      "LLM": {
+        "hypothetical_only": true,
+        "weights": {
+          "cold": 0.05,
+          "unchanged": 0.05,
+          "private": 0.15,
+          "multi": 0.55,
+          "broad": 0.1,
+          "recovery": 0.1
+        },
+        "O2": {
+          "baseline_mean_wait_seconds_per_100": 509.4663099108334,
+          "candidate_mean_wait_seconds_per_100": 511.6918939541667,
+          "mean_saved_seconds_per_100": -2.2255840433333263,
+          "exploratory95_saved_ci_seconds": [
+            -16.985548035833304,
+            9.42643624500001
+          ]
+        },
+        "check": {
+          "baseline_mean_wait_seconds_per_100": 55.37339431083333,
+          "candidate_mean_wait_seconds_per_100": 65.88731765333333,
+          "mean_saved_seconds_per_100": -10.5139233425,
+          "exploratory95_saved_ci_seconds": [
+            -15.265571857500003,
+            -5.798965908333332
+          ]
+        }
+      },
+      "broad-build": {
+        "hypothetical_only": true,
+        "weights": {
+          "cold": 0.4,
+          "unchanged": 0.05,
+          "private": 0.05,
+          "multi": 0.1,
+          "broad": 0.35,
+          "recovery": 0.05
+        },
+        "O2": {
+          "baseline_mean_wait_seconds_per_100": 541.4081116075,
+          "candidate_mean_wait_seconds_per_100": 551.6117441716667,
+          "mean_saved_seconds_per_100": -10.203632564166657,
+          "exploratory95_saved_ci_seconds": [
+            -30.452080667499935,
+            7.43446965833342
+          ]
+        },
+        "check": {
+          "baseline_mean_wait_seconds_per_100": 68.620550655,
+          "candidate_mean_wait_seconds_per_100": 84.30263851666666,
+          "mean_saved_seconds_per_100": -15.68208786166666,
+          "exploratory95_saved_ci_seconds": [
+            -19.28223186916666,
+            -11.165336380833331
+          ]
+        }
+      }
+    },
+    "supplemental": [
+      {
+        "run": "native-mixed-large-o2-21746ad-r1",
+        "configuration": "generated14x14x16,19files246565bytes,O2,1CGU/1job,allcache,2blocks",
+        "rows": 100,
+        "measured": 52,
+        "preparation": 48,
+        "native": 552,
+        "invalid": 0,
+        "coverage": "graph0: real rich fallback composition; not graph performance"
+      },
+      {
+        "run": "native-scalar-small-o2-21746ad-r1",
+        "configuration": "generated2x2x4,O2,6blocks",
+        "rows": 204,
+        "measured": 108,
+        "preparation": 96,
+        "native": 1080,
+        "invalid": 0,
+        "coverage": "small overhead only; not averaged with large projects"
+      },
+      {
+        "runs": "5 existing consumers x O0/O2; exact names/rows hashes in archive index",
+        "rows": 220,
+        "measured": 120,
+        "preparation": 100,
+        "native": 1368,
+        "invalid": 0,
+        "coverage": "resource/where-traits/trait-modules/CT compact fallback; simple generics real4-query graph. No CT wide or allocator-fault coverage"
+      },
+      {
+        "run": "native-scalar-cgu8-screen-21746ad-r1",
+        "configuration": "same large scalar,O2,8CGU/1job,allcache,1block",
+        "rows": 10,
+        "native": 60,
+        "private_wall_ms": {
+          "baseline": 1837.748943,
+          "candidate": 1644.667792
+        },
+        "private_object_hits_misses_each_arm": [
+          7,
+          1
+        ],
+        "coverage": "diagnostic existing object partition control; not accepted graph speedup"
+      },
+      {
+        "run": "native-main-vs-instrumented-check-21746ad-r1",
+        "configuration": "main990 vs217default,large scalar,check,allcache,3blocks",
+        "rows": 102,
+        "native": 0,
+        "coverage": "variable default-path overhead; equivalence not accepted"
+      },
+      {
+        "run": "native-scalar-large-check-no-disk-21746ad-r1",
+        "configuration": "same217off/on,large scalar,check,cache-none,capacity256,3blocks",
+        "rows": 102,
+        "native": 0,
+        "coverage": "diagnostic cache control; insufficient to attribute all unattributed wall to serialization"
+      }
+    ],
+    "long_session": {
+      "run": "native-scalar-long-check-21746ad-r1",
+      "mode": "check",
+      "unique_snapshots_per_arm": 51,
+      "edits": 50,
+      "rows": 102,
+      "fresh_legacy_checks": 5,
+      "native": 0,
+      "capacity": 32,
+      "disk_cache": false,
+      "resets": 0,
+      "graph_nodes": 1268,
+      "graph_edges": 1685,
+      "edit_wall_seconds": {
+        "baseline": 27.819391,
+        "candidate": 28.043637
+      },
+      "edit_cpu_seconds": {
+        "baseline": 27.73,
+        "candidate": 28.0
+      },
+      "final_rss_kib": {
+        "baseline": 452568,
+        "candidate": 457140
+      },
+      "initial_rss_kib": {
+        "baseline": 234496,
+        "candidate": 238136
+      },
+      "second_half_rss_growth_kib": {
+        "baseline": 20,
+        "candidate": 328
+      },
+      "second_half_hwm_growth_kib": {
+        "baseline": 0,
+        "candidate": 0
+      },
+      "limits": "Public JSON comparisons plus5fresh; full TypedProgram from Rust tests. Both arms warm/grow~213MiB;50edits is not a general leak proof."
+    },
+    "review": {
+      "production": "/root/workload_harness non-author exact217 source review; RQ-REVIEW-01/02 closed; latera055 diagnostic test and actual long evidence reviewed",
+      "measurement": "/root/measurement_review raw408primary+524supplemental rows independently checked; source/native/ELF/LLVM/currentVerify/weighted arithmetic consistent. No gain accepted.",
+      "statistics": "native_summarize.py authored by measurement reviewer; root reviewed formulas/code; not falsely called author-independent tool review",
+      "full_review_file": "reactive/out/runs/reactive-final-index-20261111/review.json"
+    },
+    "failures_index": "reactive/out/runs/reactive-final-index-20261111/failures.json",
+    "durable_evidence": {
+      "name": "zil-reactive-compiler-evidence-20261111.zip",
+      "library_file_id": "libfile_fde3_f-2b7913d388a0819192209665af814d06_bd147c3485448191a9df16b3c3cea7dd",
+      "version": 1,
+      "url": "https://chatgpt.com/library?file_id=libfile_fde3_f-2b7913d388a0819192209665af814d06_bd147c3485448191a9df16b3c3cea7dd&account_id=personal",
+      "bytes": 50430867,
+      "sha256": "2bb15c5a045abcf493f8e789512653ac416bebfe86229fb8b56c9bd53c51dc42",
+      "manifest_sha256": "2567a515b7ef8207a7d8fb9bb4160880eece34681d2c7506397356cc57e1530d",
+      "files": 6490,
+      "verified_every_entry": true,
+      "start_here": "reactive/out/runs/reactive-final-index-20261111/README.md",
+      "scope": "All completed raw runs and first failures in this round; excludes reproducible Rust targets/application caches and private original zit. Source separately persisted in git."
+    },
+    "not_completed": [
+      "Only the eligible scalar Core BodyKey projection is graph-backed; Expand and real CFG execution are not reduced by this slice.",
+      "Simple expanded generics exercise four graph queries; rich mixed/trait/CT/resource cases largely fall back. No general stable instantiation/SCC graph.",
+      "Current input evidence still compares all eligible CoreFunction values; BodyKey visits exclude that recursive work.",
+      "Public JSON comparisons are not full TypedProgram equivalence; seven Rust driver tests also compare current fresh TypedProgram.",
+      "Current Verify is independent and runs on each successful request; no VerifiedModule reuse authority.",
+      "O2 primary is resident, one CGU/job, all caches; check separate; six blocks cannot establish stable p95.",
+      "No full application, minute-scale consumer or all repository product/runtime acceptance gates were run.",
+      "Main-vs-instrumented legacy three-block check has variable regressions; instrumentation/default-path performance equivalence is not accepted.",
+      "Phases do not cover all input discovery, cache serialization/publication and housekeeping; end-to-end wall is primary.",
+      "50-edit check observes finite memory warming/history; not general leak proof."
+    ],
+    "next_implementation": "Coordinate sealed Source/parser provenance and ordinary scalar module Normalize/Lower work products with stage-ordered budget/first-diagnostic receipts; pass producer-minted function versions through unchanged inference/CT/preparation, avoiding whole CoreEq safely. Changed modules remain fully recomputed; full namespace/ID guard and rich fallback retained. Measure actual Expand visits and assembly clones before repeating performance matrix.",
+    "main_integration": "Not attempted: performance and complete architecture gates unmet; other compiler branches unchanged by this task."
+  },
+  "historical_model_record": {
+    "date": "2026-11-11",
+    "base_commit": "99035931d358add0eaed6d4535035c38413701dd",
+    "source_commit": "1735a305ccfff2c95ac2658b6c2ca427dc9eb392",
+    "source_sha256": "a657bfe2c05b16be3dea346ec6afee2f9470ce14a820f1606b876b97fae94c57",
+    "source_git_blob": "98762b26506c0e35ec11072b8d397c845b407eff",
+    "zit_reference_sha256": "8ac65b2ce90c32d1bee9aebe480e2f51bfa560b6f7e9d2633a91fa2732ab6bfb",
+    "runtime": "Node v22.16.0",
+    "scope": "Synthetic synchronous scalar query graph; NOT ZIL compiler performance",
+    "controls_per_process": {
+      "passed": true,
+      "differential_comparisons": 2730,
+      "input_batches": 1310,
+      "deep_chain": 1200,
+      "dynamic_reversals": 600,
+      "random_dynamic_dags": 200
+    },
+    "sampling": {
+      "fresh_processes": 3,
+      "warmup_requests_per_cell": 2,
+      "measured_requests_per_cell": 9,
+      "sizes_functions": [
+        512,
+        4096,
+        16384
+      ],
+      "summary": "median of three process medians; order alternates within each process"
+    },
+    "raw_results": [
+      {
+        "file": "frozen-1.json",
+        "sha256": "26aa5d1c87fc92a672a7ba1b3f4e5bdedf714d16ea2fcc4325f801dac32fdd76"
+      },
+      {
+        "file": "frozen-2.json",
+        "sha256": "79a0fa34c67ba8319ece2a1ffd9c58187ad039648c1cae44c2cd508925964d57"
+      },
+      {
+        "file": "frozen-3-retry.json",
+        "sha256": "c3859b59e68a377f77d3a9321cb769e69585cdf2010eae6112fea2d9b09974e4"
+      }
+    ],
+    "raw_result_delivery": "Full JSON samples, preliminary excluded runs and source are in the conversation delivery bundle; source and this receipt are persisted on the research branch.",
+    "large_model": [
+      {
+        "scenario": "unchanged",
+        "nodes": 114948,
+        "edges": 180480,
+        "median_ms": {
+          "height": 0.000251,
+          "pull": 0.000241,
+          "invalidate": 0.000261
+        },
+        "executed": {
+          "height": 0,
+          "pull": 0,
+          "invalidate": 0
+        },
+        "pull_dependency_checks": 0
+      },
+      {
+        "scenario": "private-one",
+        "nodes": 114948,
+        "edges": 180480,
+        "median_ms": {
+          "height": 0.052147,
+          "pull": 11.440182,
+          "invalidate": 0.111345
+        },
+        "executed": {
+          "height": 8,
+          "pull": 8,
+          "invalidate": 12
+        },
+        "pull_dependency_checks": 180158
+      },
+      {
+        "scenario": "private-64",
+        "nodes": 114948,
+        "edges": 180480,
+        "median_ms": {
+          "height": 0.303901,
+          "pull": 7.661241,
+          "invalidate": 0.351672
+        },
+        "executed": {
+          "height": 386,
+          "pull": 386,
+          "invalidate": 390
+        },
+        "pull_dependency_checks": 179906
+      },
+      {
+        "scenario": "comment-only",
+        "nodes": 114948,
+        "edges": 180480,
+        "median_ms": {
+          "height": 0.004757,
+          "pull": 10.505534,
+          "invalidate": 0.131115
+        },
+        "executed": {
+          "height": 1,
+          "pull": 1,
+          "invalidate": 12
+        },
+        "pull_dependency_checks": 180480
+      },
+      {
+        "scenario": "namespace-fanout",
+        "nodes": 114948,
+        "edges": 180480,
+        "median_ms": {
+          "height": 46.38447,
+          "pull": 47.007906,
+          "invalidate": 52.621259
+        },
+        "executed": {
+          "height": 49409,
+          "pull": 49409,
+          "invalidate": 49409
+        },
+        "pull_dependency_checks": 131329
+      },
+      {
+        "scenario": "all-bodies",
+        "nodes": 114948,
+        "edges": 180480,
+        "median_ms": {
+          "height": 130.655978,
+          "pull": 100.605484,
+          "invalidate": 151.63654
+        },
+        "executed": {
+          "height": 98561,
+          "pull": 98561,
+          "invalidate": 98561
+        },
+        "pull_dependency_checks": 98561
+      },
+      {
+        "scenario": "dynamic-switch",
+        "nodes": 114948,
+        "edges": 196864,
+        "median_ms": {
+          "height": 26.385225,
+          "pull": 32.764564,
+          "invalidate": 28.272266
+        },
+        "executed": {
+          "height": 16641,
+          "pull": 16641,
+          "invalidate": 16641
+        },
+        "pull_dependency_checks": 164097
+      }
+    ],
+    "excluded_runs": {
+      "first-run.json": "initial invalidate comparator redundantly validated clean ancestors; not used",
+      "large-run.json": "same superseded comparator; not used",
+      "strengthened-baselines.json": "earlier source without extra topology tests",
+      "final-run.json": "earlier source with rank traversal on every evaluation",
+      "structural-rank-only.json": "preliminary run; not used in frozen summary",
+      "frozen-3.json": "60-second outer multi-process timeout; empty output, not counted; independently rerun as frozen-3-retry.json"
+    },
+    "not_run": [
+      "production Source/Types/Analyze/Verify integration",
+      "LLVM/linker and native correctness",
+      "Rust comparison",
+      "compiler RSS",
+      "representative workload weighting",
+      "independent review"
+    ],
+    "limitations": [
+      "fixed node inventory and roots",
+      "no automatic SCC extraction",
+      "no concurrency or asynchronous publication",
+      "no persistent cache or eviction",
+      "SCC control is an explicit local monotone solver",
+      "failure restores source inputs and cold-rebuilds instead of fine-grained rollback",
+      "JIT/GC and within-process shared state remain timing limitations"
+    ],
+    "acceptance": "Research model only; production default unchanged"
   }
 }
