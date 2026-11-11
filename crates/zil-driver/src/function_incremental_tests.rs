@@ -275,6 +275,40 @@ fn function_types_decodable_rejected_work_product_rebuilds_current_source() {
     assert_eq!(r.status, ResultCategory::Success, "{}", r.to_json());
     assert!(r.verification_runs >= 1);
     assert_eq!(s.function_type_stats().reused_functions, 0);
+    assert_eq!(r.attempts.len(), 2, "{}", r.to_json());
+    let rejected = &r.attempts[0];
+    let accepted = &r.attempts[1];
+    assert_eq!(
+        rejected.retry_reason.as_deref(),
+        Some("rejected_function_work_product")
+    );
+    assert!(!rejected.diagnostics.is_empty());
+    assert!(accepted.diagnostics.is_empty());
+    assert!(rejected.function_type_work.unwrap().reused_functions > 0);
+    assert_eq!(accepted.function_type_work.unwrap().reused_functions, 0);
+    let work = r.function_type_work.unwrap();
+    assert_eq!(
+        work.executed_functions,
+        rejected.function_type_work.unwrap().executed_functions
+            + accepted.function_type_work.unwrap().executed_functions
+    );
+    assert_eq!(
+        work.reused_functions,
+        rejected.function_type_work.unwrap().reused_functions
+    );
+    assert_eq!(
+        work.body_key_executions,
+        rejected.function_type_work.unwrap().body_key_executions
+            + accepted.function_type_work.unwrap().body_key_executions
+    );
+    assert_eq!(
+        r.phase_timings_ns[&Phase::Types],
+        rejected.phase_timings_ns[&Phase::Types] + accepted.phase_timings_ns[&Phase::Types]
+    );
+    assert_eq!(
+        r.phase_timings_ns[&Phase::Analyze],
+        rejected.phase_timings_ns[&Phase::Analyze] + accepted.phase_timings_ns[&Phase::Analyze]
+    );
     compare_fresh(&s, &r, &p, &options);
 }
 
@@ -374,4 +408,31 @@ fn function_types_signature_facets_survive_a_new_disk_cache_session() {
     assert_eq!(session.function_type_stats().reused_functions, 3);
     assert_eq!(session.function_type_stats().executed_functions, 1);
     compare_fresh(&session, &report, &project, &options);
+}
+
+#[test]
+fn early_request_failure_does_not_rebill_previous_function_reuse() {
+    let dir = Directory::new();
+    let options = CompileOptions::default();
+    let mut session = CompilationSession::default();
+    success(&session.compile_project(&dir.project(MAIN, LIBRARY), &options));
+    let edited = LIBRARY.replace("x+1", "x+5");
+    let warm = session.compile_project(&dir.project(MAIN, &edited), &options);
+    success(&warm);
+    assert!(warm.function_type_work.unwrap().reused_functions > 0);
+    let bad_parse = dir.project("fn (", &edited);
+    let parsed = session.compile_project(&bad_parse, &options);
+    assert_ne!(parsed.status, ResultCategory::Success);
+    assert!(parsed.function_type_work.is_none());
+    assert!(parsed.initialization_work.is_none());
+    assert_eq!(parsed.attempts.len(), 1);
+    let bad_types = dir.project(
+        &MAIN.replace("return library.answer();", "return true;"),
+        &edited,
+    );
+    let checked = session.compile_project(&bad_types, &options);
+    assert_ne!(checked.status, ResultCategory::Success);
+    assert_eq!(checked.function_type_work.unwrap().reused_functions, 0);
+    assert_eq!(checked.attempts.len(), 1);
+    compare_fresh(&session, &checked, &bad_types, &options);
 }

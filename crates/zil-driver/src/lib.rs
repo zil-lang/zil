@@ -172,6 +172,52 @@ impl DiskCacheStatus {
         }
     }
 }
+/// One actual pipeline attempt. Rejected raw candidates retain their own
+/// diagnostics and costs; they do not replace the final source result.
+#[derive(Clone, Debug)]
+pub struct CompileAttempt {
+    pub retry_reason: Option<String>,
+    pub input_fingerprint: Fingerprint,
+    pub source_files: BTreeMap<FileId, String>,
+    pub status: ResultCategory,
+    pub phase: Phase,
+    pub diagnostics: Vec<Diagnostic>,
+    pub verification_runs: usize,
+    pub function_type_work: Option<zil_types::FunctionStats>,
+    pub initialization_work: Option<zil_analyze::AnalysisStats>,
+    pub phase_timings_ns: BTreeMap<Phase, u128>,
+}
+impl CompileAttempt {
+    fn to_json(&self) -> String {
+        format!(
+            "{{\"retry_reason\":{},\"input_fingerprint\":{},\"source_files\":{{{}}},\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"verification_runs\":{},\"frontend_stats\":{},\"phase_timings_ns\":{{{}}}}}",
+            self.retry_reason
+                .as_ref()
+                .map_or_else(|| "null".into(), |reason| json_string(reason)),
+            json_string(&self.input_fingerprint.to_hex()),
+            self.source_files
+                .iter()
+                .map(|(id, path)| format!(
+                    "{}:{}",
+                    json_string(&id.0.to_string()),
+                    json_string(path)
+                ))
+                .collect::<Vec<_>>()
+                .join(","),
+            json_string(self.status.as_str()),
+            json_string(self.phase.as_str()),
+            self.diagnostics
+                .iter()
+                .map(Diagnostic::to_json)
+                .collect::<Vec<_>>()
+                .join(","),
+            self.verification_runs,
+            frontend_stats_json(self.function_type_work, self.initialization_work),
+            phase_timings_json(&self.phase_timings_ns),
+        )
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct CompileReport {
     pub status: ResultCategory,
@@ -190,13 +236,16 @@ pub struct CompileReport {
     pub verification_runs: usize,
     pub source_files: BTreeMap<FileId, String>,
     pub scalar_interfaces: Vec<zil_ir::ScalarInterface>,
-    /// Actual work in this request. A whole-project cache hit reports None,
-    /// rather than copying counters from an earlier request.
+    /// Execution counters sum all attempts in this request; retained gauges
+    /// describe the final attempt. A whole-project hit reports None, never old
+    /// session work. Per-attempt diagnostics and costs remain in `attempts`.
     pub function_type_work: Option<zil_types::FunctionStats>,
     pub initialization_work: Option<zil_analyze::AnalysisStats>,
-    /// Wall time inside phase queries and current Verify/Lower/codegen. Input
+    /// Wall time of complete phase queries, including digest/publication, and
+    /// current Verify/Lower/codegen, summed across all attempts. Input
     /// discovery and final report serialization remain in complete request time.
     pub phase_timings_ns: BTreeMap<Phase, u128>,
+    pub attempts: Vec<CompileAttempt>,
 }
 impl CompileReport {
     fn new(source: &SourceUnit) -> Self {
@@ -218,11 +267,12 @@ impl CompileReport {
             function_type_work: None,
             initialization_work: None,
             phase_timings_ns: BTreeMap::new(),
+            attempts: Vec::new(),
         }
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"phase_timings_ns\":{{{}}}}}",
+            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"phase_timings_ns\":{{{}}},\"attempts\":[{}]}}",
             json_string(self.status.as_str()),
             json_string(self.phase.as_str()),
             self.diagnostics
@@ -269,23 +319,88 @@ impl CompileReport {
             self.source_files.iter().map(|(id, path)| format!("{}:{}", json_string(&id.0.to_string()), json_string(path))).collect::<Vec<_>>().join(","),
             self.scalar_interfaces.iter().map(|interface| format!("{{\"module\":{},\"signature_fingerprint\":{},\"implementation_fingerprint\":{},\"contract_fingerprint\":{},\"result_origins\":{},\"callable_contracts\":{},\"callable_returns\":{},\"exports\":[{}]}}", interface.module.0, json_string(&interface.signature_fingerprint.to_hex()), json_string(&interface.implementation_fingerprint.to_hex()), interface.contract_fingerprint.map_or_else(|| "null".into(), |hash| json_string(&hash.to_hex())), interface.result_origins.as_ref().map_or_else(|| "null".into(), |origins| format!("[{}]", origins.iter().map(|origin| format!("{{\"name\":{},\"parameters\":{:?},\"static_storage\":{}}}", json_string(&origin.name), origin.parameters, origin.static_storage)).collect::<Vec<_>>().join(","))), contracts::callable_json(interface), contracts::callable_return_json(interface), interface.exports.iter().map(|f| json_string(&f.name)).collect::<Vec<_>>().join(","))).collect::<Vec<_>>().join(","),
             self.frontend_stats_json(),
-            self.phase_timings_ns.iter().map(|(phase, ns)| format!("{}:{}", json_string(phase.as_str()), ns)).collect::<Vec<_>>().join(","),
+            phase_timings_json(&self.phase_timings_ns),
+            self.attempts.iter().map(CompileAttempt::to_json).collect::<Vec<_>>().join(","),
         )
     }
     fn frontend_stats_json(&self) -> String {
-        let types = self
-            .function_type_work
-            .map_or_else(|| "null".into(), |stats| stats.to_json());
-        let analysis = self.initialization_work.map_or_else(
-            || "null".into(),
-            |stats| {
-                format!(
-                    "{{\"executed_functions\":{},\"reused_functions\":{},\"retained_queries\":{}}}",
-                    stats.executed_functions, stats.reused_functions, stats.retained_queries
-                )
-            },
-        );
-        format!("{{\"function_types\":{types},\"initialization\":{analysis}}}")
+        frontend_stats_json(self.function_type_work, self.initialization_work)
+    }
+    fn capture_attempt(
+        &self,
+        retry_reason: Option<&str>,
+        diagnostics: Vec<Diagnostic>,
+    ) -> CompileAttempt {
+        CompileAttempt {
+            retry_reason: retry_reason.map(str::to_owned),
+            input_fingerprint: self.input_fingerprint,
+            source_files: self.source_files.clone(),
+            status: diagnostics
+                .first()
+                .map_or(self.status, |diagnostic| diagnostic.category),
+            phase: diagnostics
+                .first()
+                .map_or(self.phase, |diagnostic| diagnostic.phase),
+            diagnostics,
+            verification_runs: self.verification_runs.saturating_sub(
+                self.attempts
+                    .iter()
+                    .map(|attempt| attempt.verification_runs)
+                    .sum(),
+            ),
+            function_type_work: self.function_type_work,
+            initialization_work: self.initialization_work,
+            phase_timings_ns: self.phase_timings_ns.clone(),
+        }
+    }
+    fn restart_attempt(&mut self, mut next: Self, reason: &str, diagnostics: Vec<Diagnostic>) {
+        let rejected = self.capture_attempt(Some(reason), diagnostics);
+        let mut attempts = std::mem::take(&mut self.attempts);
+        attempts.push(rejected);
+        next.attempts = attempts;
+        next.query_events = std::mem::take(&mut self.query_events);
+        next.verification_runs = self.verification_runs;
+        next.seconds = self.seconds;
+        // A checkpoint may contain work done before importing the candidate.
+        // That prefix belongs to the rejected attempt and is never billed twice.
+        next.function_type_work = None;
+        next.initialization_work = None;
+        next.phase_timings_ns.clear();
+        *self = next;
+    }
+    fn finish_attempts(&mut self) {
+        let final_attempt = self.capture_attempt(None, self.diagnostics.clone());
+        self.attempts.push(final_attempt);
+        let final_types = self.function_type_work;
+        let final_analysis = self.initialization_work;
+        self.function_type_work = None;
+        self.initialization_work = None;
+        self.phase_timings_ns.clear();
+        for attempt in &self.attempts {
+            if let Some(work) = attempt.function_type_work {
+                add_function_work(&mut self.function_type_work, work);
+            }
+            if let Some(work) = attempt.initialization_work {
+                let total = self
+                    .initialization_work
+                    .get_or_insert_with(Default::default);
+                total.executed_functions = total
+                    .executed_functions
+                    .saturating_add(work.executed_functions);
+                total.reused_functions =
+                    total.reused_functions.saturating_add(work.reused_functions);
+            }
+            for (phase, nanos) in &attempt.phase_timings_ns {
+                *self.phase_timings_ns.entry(*phase).or_default() += nanos;
+            }
+        }
+        if let Some(total) = &mut self.function_type_work {
+            total.graph.retained_nodes = final_types.map_or(0, |work| work.graph.retained_nodes);
+            total.graph.retained_edges = final_types.map_or(0, |work| work.graph.retained_edges);
+        }
+        if let Some(total) = &mut self.initialization_work {
+            total.retained_queries = final_analysis.map_or(0, |work| work.retained_queries);
+        }
     }
     fn record_phase_time(&mut self, phase: Phase, start: std::time::Instant) {
         *self.phase_timings_ns.entry(phase).or_default() += start.elapsed().as_nanos();
@@ -300,6 +415,69 @@ impl CompileReport {
         self.diagnostics = diagnostics;
     }
 }
+fn phase_timings_json(timings: &BTreeMap<Phase, u128>) -> String {
+    timings
+        .iter()
+        .map(|(phase, nanos)| format!("{}:{}", json_string(phase.as_str()), nanos))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+fn frontend_stats_json(
+    types: Option<zil_types::FunctionStats>,
+    analysis: Option<zil_analyze::AnalysisStats>,
+) -> String {
+    let types = types.map_or_else(|| "null".into(), |stats| stats.to_json());
+    let analysis = analysis.map_or_else(
+        || "null".into(),
+        |stats| {
+            format!(
+                "{{\"executed_functions\":{},\"reused_functions\":{},\"retained_queries\":{}}}",
+                stats.executed_functions, stats.reused_functions, stats.retained_queries,
+            )
+        },
+    );
+    format!("{{\"function_types\":{types},\"initialization\":{analysis}}}")
+}
+fn add_function_work(total: &mut Option<zil_types::FunctionStats>, work: zil_types::FunctionStats) {
+    let total = total.get_or_insert_with(Default::default);
+    macro_rules! add {
+        ($($field:ident),+ $(,)?) => { $(total.$field = total.$field.saturating_add(work.$field);)+ };
+    }
+    add!(
+        reused_functions,
+        executed_functions,
+        body_key_executions,
+        body_key_reuses,
+        core_function_eq_comparisons,
+        body_key_visited_nodes,
+        graph_edges,
+        context_modules_visited,
+        context_declarations_hashed,
+        context_imports_hashed
+    );
+    macro_rules! graph_add {
+        ($($field:ident),+ $(,)?) => { $(total.graph.$field = total.graph.$field.saturating_add(work.graph.$field);)+ };
+    }
+    graph_add!(
+        executed,
+        edge_reads,
+        notifications,
+        enqueues,
+        deduplicated,
+        reused_bonds,
+        new_bonds,
+        removed_bonds,
+        rank_visits,
+        input_updates,
+        inventory_visits,
+        equal_results,
+        changed_results,
+        cycle_check_edges,
+        validation_edge_reads,
+        rank_edge_reads
+    );
+}
+
 fn infra(code: &str, message: impl Into<String>) -> Vec<Diagnostic> {
     vec![Diagnostic::new(
         Phase::Driver,
@@ -366,3 +544,128 @@ fn read_source(path: &Path, options: &CompileOptions) -> CompileResult<SourceUni
 }
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod report_attempt_tests {
+    use super::*;
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn attempt_totals_add_execution_costs_and_keep_only_final_retained_gauges() {
+        let source = SourceUnit::new(
+            FileId(3),
+            ModuleId(7),
+            "attempt-source.zil",
+            "fn value()->i32=>1",
+        );
+        let mut report = CompileReport::new(&source);
+        let mut first = zil_types::FunctionStats {
+            executed_functions: 3,
+            body_key_executions: 4,
+            ..Default::default()
+        };
+        first.graph.executed = 4;
+        first.graph.retained_nodes = 100;
+        first.graph.retained_edges = 80;
+        report.function_type_work = Some(first);
+        report.initialization_work = Some(zil_analyze::AnalysisStats {
+            executed_functions: 3,
+            reused_functions: 2,
+            retained_queries: 50,
+        });
+        report.phase_timings_ns.insert(Phase::Types, 11);
+        report.verification_runs = 1;
+        let diagnostic = Diagnostic::unsupported(
+            Phase::Analyze,
+            "rejected raw candidate",
+            Some(zil_base::Span::new(FileId(3), 0, 1)),
+        );
+        report.restart_attempt(
+            CompileReport::new(&source),
+            "rejected_function_work_product",
+            vec![diagnostic.clone()],
+        );
+        let mut final_work = zil_types::FunctionStats {
+            executed_functions: 5,
+            body_key_executions: 6,
+            ..Default::default()
+        };
+        final_work.graph.executed = 6;
+        final_work.graph.retained_nodes = 7;
+        final_work.graph.retained_edges = 8;
+        report.function_type_work = Some(final_work);
+        report.initialization_work = Some(zil_analyze::AnalysisStats {
+            executed_functions: 5,
+            reused_functions: 1,
+            retained_queries: 4,
+        });
+        report.phase_timings_ns.insert(Phase::Types, 13);
+        report.verification_runs += 1;
+        report.finish_attempts();
+        let work = report.function_type_work.unwrap();
+        assert_eq!(work.executed_functions, 8);
+        assert_eq!(work.body_key_executions, 10);
+        assert_eq!(work.graph.executed, 10);
+        assert_eq!(
+            (work.graph.retained_nodes, work.graph.retained_edges),
+            (7, 8)
+        );
+        assert_eq!(
+            report.initialization_work.unwrap(),
+            zil_analyze::AnalysisStats {
+                executed_functions: 8,
+                reused_functions: 3,
+                retained_queries: 4
+            }
+        );
+        assert_eq!(report.phase_timings_ns[&Phase::Types], 24);
+        assert_eq!(report.verification_runs, 2);
+        assert_eq!(report.attempts[0].diagnostics, vec![diagnostic]);
+        assert_eq!(report.attempts[0].source_files[&FileId(3)], source.path);
+        assert_eq!(report.attempts[0].input_fingerprint, source.fingerprint());
+        assert_eq!(report.attempts[0].verification_runs, 1);
+        assert_eq!(report.attempts[1].verification_runs, 1);
+        assert!(report.diagnostics.is_empty());
+        assert_eq!(report.status, ResultCategory::Success);
+        assert!(report.to_json().contains("\"attempts\":[{"));
+    }
+
+    #[test]
+    fn query_timing_includes_post_compute_observer_and_publication_boundary() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "timing-query.zil",
+            "fn value()->i32=>1",
+        );
+        let options = CompileOptions::default();
+        let mut session = CompilationSession::default();
+        let mut report = CompileReport::new(&source);
+        let key = session::query_key(&source, &options, Phase::Parse, false);
+        let raw = session::RawSnapshot::Parse(Arc::new(zil_syntax::parse(&source)));
+        let mut observer_nanos = 0;
+        let result = session.query(
+            key.clone(),
+            &[],
+            &options,
+            &mut report,
+            &mut |_| {
+                let start = Instant::now();
+                std::thread::sleep(Duration::from_millis(2));
+                observer_nanos = start.elapsed().as_nanos();
+            },
+            || Ok(raw),
+        );
+        assert!(result.is_ok());
+        assert!(report.phase_timings_ns[&Phase::Parse] >= observer_nanos);
+        assert!(session.database.read(&key).unwrap().is_some());
+        assert_eq!(
+            report.query_events,
+            vec![QueryEvent {
+                phase: Phase::Parse,
+                disposition: QueryDisposition::Executed
+            }]
+        );
+    }
+}

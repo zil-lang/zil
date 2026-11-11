@@ -17,11 +17,24 @@ INPUTS = [b'', b'\x00', b'1', b'A', b'\x80', b'\xff']
 EXISTING = ['resource_closures', 'where-traits', 'trait-modules', 'ct-selection', 'generics']
 
 
+def requests(case):
+    if case == 'mixed':
+        return REQUESTS
+    if case == 'scalar':
+        return [x for x in REQUESTS if x not in ['signature', 'layout', 'trait', 'ct']]
+    if case in EXISTING:
+        return ['cold', 'unchanged', 'positions', 'error', 'recovery', 'restore']
+    raise ValueError(f'unknown case: {case}')
+
+
 def sha_bytes(value):
     return hashlib.sha256(value).hexdigest()
 
 
 def delta(label, module, function, modules, functions):
+    if label == 'recovery':
+        # A repaired, previously unseen body, not restoration of the cold cache.
+        return 2 * int(module == 0 and function == 0)
     if label == 'private':
         return int(module == 0 and function == 0)
     if label == 'multi':
@@ -113,7 +126,9 @@ def existing(case, label='cold'):
         files = {name: '// Source position edit.\n\n' + value for name, value in files.items()}
     elif label == 'error':
         files['main.zil'] += '\nfn injected_error() -> i32 { return absent_name }\n'
-    elif label not in ['cold', 'unchanged', 'recovery', 'restore']:
+    elif label == 'recovery':
+        files['main.zil'] += '\nfn repaired_marker() -> i32 { return 2 }\n'
+    elif label not in ['cold', 'unchanged', 'restore']:
         raise ValueError(f'{case} does not define request {label}')
     return files
 
@@ -140,7 +155,7 @@ def expected_existing(case, data):
             ord('2'): (3, b'CBA'), ord('3'): (0, b'CBA'),
         }.get(c, (8, b''))
     elif case == 'ct-selection':
-        if c not in b'0123':
+        if c not in (48, 49, 50, 51):
             status, output = 9, b''
         else:
             status = 2 if c == ord('2') else 0
@@ -152,6 +167,10 @@ def expected_existing(case, data):
 
 
 def snapshot(case, label, modules, functions, steps):
+    if label not in requests(case):
+        raise ValueError(f'{case} does not define request {label}')
+    if label == 'multi' and modules < 2:
+        raise ValueError('multi requires at least two actually changed source modules')
     return generated(modules, functions, steps, label, case == 'mixed') if case in ['mixed', 'scalar'] else existing(case, label)
 
 

@@ -20,14 +20,16 @@
 - 独立baseline worktree `/workspace/scratch/e28839ace920/baseline`，target `/workspace/scratch/e28839ace920/targets/baseline`；release成功，binary SHA256 `64e1ff43bbaa59f786f1cc899b69e707072219a9c0abf0122ce31cd7b77f981d`。
 - baseline真实ZUI语言StoreFields check18.823ms，O2单CGU build115.237ms，输入ASCII3输出DEFHZMNOPK/exit0，两次Verify1。属于环境烟测。
 - 原始zit.ts已取得，SHA256 `8ac65b2ce90c32d1bee9aebe480e2f51bfa560b6f7e9d2633a91fa2732ab6bfb`；原ZIP SHA256 `1ca89da7c6535d6026697866fedae7403e8de2195f040f81f5026e22f29e6ce5`。22个manifest文件及三份冻结结果hash全匹配。私人原始源码没有放入仓库。
-- 最小mixed生成Source全13变体：同baseline双臂26请求（24success+2正确SafeReject）、144native oracle通过。仅测量器正控制，不是性能证据。
+- 旧最小mixed正控制26请求/144native通过，但multi与restore曾未改文件，保留旧运行并不计多编辑覆盖。修后3模块正控制50请求（26 measured+24 preparation）、276native通过，逐变体parent/target变化集合独审相符。两次均同baseline双臂，只是工具正控制。
 - default预算规模筛选：mixed14×14×16 check888.50ms；scalar20×20×16 check936.16ms，均Verify1。mixed16×16×16、scalar32×32两规模原CT/词法预算失败保留，不进入成功速度分母、不放宽限额。
 
 ## 本轮验收状态
 
-当前是WIP生产接入，候选尚待精确编译、真实差分、配对性能、非作者独审。旧JS模型与旧模型数字保留于README/receipt，不是当前编译成绩。尚未证明大项目用户等待下降，不合入main、不删除其他分支。
+当前是WIP生产接入。初稿71bed1fc已实际通过db23/driver140/types63共226个lib tests，release成功。非作者独审发现首次attempt丢计量和query发布未纳入计时，已形成修复待下一精确SHA验证；正式重复配对未完成。旧JS模型与旧模型数字保留于README/receipt，不是当前编译成绩。尚未证明大项目用户等待下降，不合入main、不删除其他分支。
 
 真实原始日志暂位于baseline的 `out/runs/reactive-baseline-{build,smoke}-20261111` 及本树 `out/runs/native-workload-{probe,scale}-20261111-r*`；结束前必须补持久化索引，目前不冒称这些临时路径已备份。
+
+大型O2筛选：精确71bed1fc，同binary默认/响应式双臂，scalar20×20×16的cold/private/multi/broad共14请求、84native通过；约6s冷构建和5s编辑。单block不用于统计接受。Types正文键实际执行421→21、访问159558→7965（private），但真正CFG执行仍5，两臂一致；codegen4–5s，未证明用户等待净收益。最新只读remote检查另一个thinlto专项为2458defcaf8be51c87b80c0dadf391bb585735e8，未改动该分支。
 
 ## 下一条恢复命令
 

@@ -263,6 +263,7 @@ impl CompilationSession {
             Err(errors) => {
                 report.fail(errors);
                 self.trim_history();
+                report.finish_attempts();
                 report.seconds = start.elapsed().as_secs_f64();
                 return report;
             }
@@ -285,6 +286,7 @@ impl CompilationSession {
             report.fail(errors);
         }
         self.trim_history();
+        report.finish_attempts();
         report.seconds = start.elapsed().as_secs_f64();
         report
     }
@@ -383,72 +385,75 @@ impl CompilationSession {
         disposition: QueryDisposition,
     ) -> CompileResult<(RawSnapshot, Arc<QuerySnapshot>)> {
         let query_start = Instant::now();
-        options
-            .cancellation
-            .check(key.phase)
-            .map_err(|error| vec![error])?;
-        if let Some(snapshot) = self.database.read(&key).map_err(|error| vec![error])?
-            && let Some(raw) = self.raw.get(&key).cloned()
-        {
-            event(key.phase, QueryDisposition::Reused, report, observer);
+        let phase = key.phase;
+        let result = (|| {
             options
                 .cancellation
                 .check(key.phase)
                 .map_err(|error| vec![error])?;
-            report.cache_hit = true;
-            self.touch(&key);
-            report.record_phase_time(key.phase, query_start);
-            return Ok((raw, snapshot));
-        }
-        self.database
-            .begin(key.clone())
-            .map_err(|error| vec![error])?;
-        let result = execute();
-        report.record_phase_time(key.phase, query_start);
-        event(key.phase, disposition, report, observer);
-        let raw = match result {
-            Ok(raw) => raw,
-            Err(errors) => {
-                self.database.abort(&key);
-                return Err(errors);
+            if let Some(snapshot) = self.database.read(&key).map_err(|error| vec![error])?
+                && let Some(raw) = self.raw.get(&key).cloned()
+            {
+                event(key.phase, QueryDisposition::Reused, report, observer);
+                options
+                    .cancellation
+                    .check(key.phase)
+                    .map_err(|error| vec![error])?;
+                report.cache_hit = true;
+                self.touch(&key);
+                return Ok((raw, snapshot));
             }
-        };
-        if let Err(error) = options.cancellation.check(key.phase) {
-            self.database.abort(&key);
-            return Err(vec![error]);
-        }
-        let digest = raw.digest(&key, dependencies);
-        // The current whole-module raw queries conservatively observe complete
-        // implementation identity. Kind-selective graph support is separate;
-        // this does not claim cross-module private-body incremental checking.
-        let fingerprints = ResultFingerprints {
-            semantic: digest,
-            abi: key.target,
-            private_implementation: digest,
-            source_positions: key.input,
-            build_inputs: options.build_inputs,
-        };
-        let dependencies = dependencies
-            .iter()
-            .map(|input| Dependency {
-                key: input.key.clone(),
-                kind: FingerprintKind::PrivateImplementation,
-                observed: input.fingerprints.private_implementation,
-            })
-            .collect();
-        let snapshot = self
-            .database
-            .publish(
-                key.clone(),
-                ResultCategory::Success,
-                fingerprints,
-                dependencies,
-                digest.0.to_vec(),
-            )
-            .map_err(|error| vec![error])?;
-        self.touch(&key);
-        self.raw.insert(key, raw.clone());
-        Ok((raw, snapshot))
+            self.database
+                .begin(key.clone())
+                .map_err(|error| vec![error])?;
+            let result = execute();
+            event(key.phase, disposition, report, observer);
+            let raw = match result {
+                Ok(raw) => raw,
+                Err(errors) => {
+                    self.database.abort(&key);
+                    return Err(errors);
+                }
+            };
+            if let Err(error) = options.cancellation.check(key.phase) {
+                self.database.abort(&key);
+                return Err(vec![error]);
+            }
+            let digest = raw.digest(&key, dependencies);
+            // The current whole-module raw queries conservatively observe complete
+            // implementation identity. Kind-selective graph support is separate;
+            // this does not claim cross-module private-body incremental checking.
+            let fingerprints = ResultFingerprints {
+                semantic: digest,
+                abi: key.target,
+                private_implementation: digest,
+                source_positions: key.input,
+                build_inputs: options.build_inputs,
+            };
+            let dependencies = dependencies
+                .iter()
+                .map(|input| Dependency {
+                    key: input.key.clone(),
+                    kind: FingerprintKind::PrivateImplementation,
+                    observed: input.fingerprints.private_implementation,
+                })
+                .collect();
+            let snapshot = self
+                .database
+                .publish(
+                    key.clone(),
+                    ResultCategory::Success,
+                    fingerprints,
+                    dependencies,
+                    digest.0.to_vec(),
+                )
+                .map_err(|error| vec![error])?;
+            self.touch(&key);
+            self.raw.insert(key, raw.clone());
+            Ok((raw, snapshot))
+        })();
+        report.record_phase_time(phase, query_start);
+        result
     }
 
     /// Reuse an exact, successfully constructed project frontend without

@@ -34,5 +34,32 @@
   },
   "not_run": ["production Source/Types/Analyze/Verify integration", "LLVM/linker and native correctness", "Rust comparison", "compiler RSS", "representative workload weighting", "independent review"],
   "limitations": ["fixed node inventory and roots", "no automatic SCC extraction", "no concurrency or asynchronous publication", "no persistent cache or eviction", "SCC control is an explicit local monotone solver", "failure restores source inputs and cold-rebuilds instead of fine-grained rollback", "JIT/GC and within-process shared state remain timing limitations"],
-  "acceptance": "Research model only; production default unchanged"
+  "acceptance": "Research model only; production default unchanged",
+  "production_continuation": {
+    "status": "WIP, default off; no accepted speedup",
+    "base_commit": "99035931d358add0eaed6d4535035c38413701dd",
+    "first_production_commit": "71bed1fc8d5f184549b2f08ab7af724a9952fc9a",
+    "scope": "Actual Types BodyKey projection graph; raw CFG content cache retained; all independent Verify unchanged. Rich mixed programs fallback; not complete cross-stage SCC graph.",
+    "first_tests": {
+      "zil-db": 23,
+      "zil-driver": 140,
+      "zil-types": 63,
+      "release_build": "Pass"
+    },
+    "review_findings": [
+      "RQ-REVIEW-01: failed-attempt work/time discarded, corrected next checkpoint pending validation",
+      "RQ-REVIEW-02: query timing omitted digest/publication, corrected next checkpoint pending validation"
+    ],
+    "native_scale_screen": {
+      "run": "native-scalar-screen-71bed1f-r1",
+      "modules": 20,
+      "functions_per_module": 20,
+      "steps": 16,
+      "requests": 14,
+      "native_executions": 84,
+      "paired_blocks": 1,
+      "timing_acceptance": "screen only; no gain conclusion"
+    },
+    "raw_evidence": "Local only pending durable bundle; do not treat local paths as backup"
+  }
 }

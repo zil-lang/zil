@@ -2,9 +2,23 @@
 
 本研究借鉴的是 **zit 的点对点增量计算机制**，不是 UI 渲染模型：稳定节点、多对多依赖、按拓扑高度传播、队列去重、结果等值截止、动态边复用与批量输入。
 
-基线：`main@99035931d358add0eaed6d4535035c38413701dd`。源码提交：`1735a305ccfff2c95ac2658b6c2ca427dc9eb392`。本分支仅新增研究工具和任务说明，不修改生产编译器、独立 Verify 或其他在用编译专项分支。
+基线：`main@99035931d358add0eaed6d4535035c38413701dd`。源码提交：`1735a305ccfff2c95ac2658b6c2ca427dc9eb392`。第一轮仅新增研究工具和任务说明；下文模型记录保留原身份。
 
-**状态：整体同步查询图模型已实现并执行；生产编译接入、真实端到端收益和独立复核尚未完成。以下时间不是 ZIL 编译时间。**
+**当前状态：已有真实生产接入和实际 Source/native 测试，仍为默认关闭的未验收切片；尚无重复配对证据证明大项目净收益。第一轮 JS 时间不是 ZIL 编译时间。**
+
+## 真实生产接续（WIP，默认关闭）
+
+本轮从远端 `c75c58bf7f564a1ce8049702f9c6ec41c82d1da2` 接续，真实生产初稿已提交为 `71bed1fc8d5f184549b2f08ab7af724a9952fc9a`。`--reactive-queries` 已由 CLI/driver 调用 Types 的稳定函数 BodyKey 查询图，复用既有 CFG、cost 和 span-rebase work products；独立 Verify、预算及后端选项保持。实际图输入为完整绑定上下文、当前 Core 正文版本和被读取的函数签名，批量安装后点对点通知、等值截止，旧内容缓存保留。Core Eq、header/context 构造仍遍历当前输入；此切片尚未把所有 Types/Analyze/CT/SCC 查询接入多层图。
+
+实读原始 zit.ts SHA256 `8ac65b2ce90c32d1bee9aebe480e2f51bfa560b6f7e9d2633a91fa2732ab6bfb` 与前轮 ZIP `1ca89da7c6535d6026697866fedae7403e8de2195f040f81f5026e22f29e6ce5`，22 个 manifest 文件和三份冻结模型结果匹配；私人源码未提交。
+
+本环境实际 Rust 1.99.1 / LLVM、Clang、LLD 23.1.4 检查通过。main 基线 release 与 ZUI StoreFields check/build/native 已跑通；初稿 db/types/driver 226 个 lib tests 通过、release 成功。独审发现首次 attempt 计量丢失及 query 计时边界问题，当前修复增加逐 attempt 身份/诊断/成本并累计请求工作。图内核补强嵌套读取的当前拓扑检查；不将尚未证明可达的原版风险冒称已复现编译错误。
+
+`native_workloads.py` 生成真实 ZIL Source；`native_measure.py` 用同一当前文件快照、独立常驻/磁盘/对象缓存、交替顺序、具名 parent→target 转换测量。每次成功要求当前 Verify1、原生返回值/输出/清理 oracle，错误要求当前 E-UNKNOWN-NAME；缺字段、缺计量、失联不 Pass。新正文恢复与恢复旧源码分开，纯位置变动不混入别的回滚。raw 中保留 preparation，统计只使用 measured 行。对象命中不会伪装成新 LLVM 优化。
+
+秒级筛选已执行生成 scalar 20×20×16（约50万源码字节）的完整 O2：冷约6秒、私有编辑约5秒，程序实际执行通过。这只是单 block 选择负载，不是净提速接受；主要机器码生成耗时约4–5秒，当前 BodyKey 投影减少不等于后端重编译减少。复杂 mixed/trait/CT/resource 程序目前是回退组合控制，不宣称得到相同细粒度复用。精确源码、验收进度和下一命令见 `.task/reactive-query-graph.md`；原始样本持久化索引将在完成测量后补入 `receipt.json`。
+
+以下章节为第一轮同步 JS 模型的历史记录，数字不用于本轮编译器成绩。
 
 ## 历史核查：不是第一次尝试
 
@@ -90,4 +104,4 @@ node tools/research/reactive-query-graph/probe.js --large > reactive-query-resul
 
 浏览器加载脚本后可调用 `ZilReactiveProbe.controls()` 与 `ZilReactiveProbe.bench()`。原始 zit 文件未复制入公开仓库，仅记录此次用户提供版本的 SHA-256：`8ac65b2ce90c32d1bee9aebe480e2f51bfa560b6f7e9d2633a91fa2732ab6bfb`。
 
-冻结 probe SHA-256：`a657bfe2c05b16be3dea346ec6afee2f9470ce14a820f1606b876b97fae94c57`；Git blob：`98762b26506c0e35ec11072b8d397c845b407eff`。本次环境不能克隆 GitHub 且没有可用 Rust/LLVM 工具链；仓库核查/推送通过 GitHub 连接器完成，实际执行仅 Node 模型。生产接入与独立审核均为 NotRun。
+冻结 probe SHA-256：`a657bfe2c05b16be3dea346ec6afee2f9470ce14a820f1606b876b97fae94c57`；Git blob：`98762b26506c0e35ec11072b8d397c845b407eff`。第一轮当时环境不能克隆 GitHub 且没有可用 Rust/LLVM 工具链；仓库核查/推送通过 GitHub 连接器完成，实际执行仅 Node 模型。第一轮当时生产接入与独立审核均为 NotRun；本轮实际状态见本文开头及接续收据。

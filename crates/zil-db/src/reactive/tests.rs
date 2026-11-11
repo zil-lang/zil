@@ -285,3 +285,70 @@ fn adding_an_edge_to_a_clean_receiver_still_detects_a_real_cycle() {
     assert_eq!(graph.get_current(&1), None);
     assert_eq!(graph.get_current(&2), None);
 }
+
+#[test]
+fn nested_new_reads_cannot_close_a_cycle_through_an_unreturned_read() {
+    let mut graph = ReactiveGraph::<u8, i32>::new();
+    graph.set_inputs([(0, 0)]).unwrap();
+    for key in 1..=4 {
+        graph.ensure_query(key).unwrap();
+    }
+    let evaluate = |key: &u8, read: &mut dyn FnMut(&u8) -> Result<i32, GraphError>| match key {
+        1 => {
+            if read(&0)? == 0 {
+                Ok(10)
+            } else {
+                read(&2)
+            }
+        }
+        2 => {
+            if read(&0)? == 0 {
+                read(&4)
+            } else {
+                read(&3)
+            }
+        }
+        3 => read(&1),
+        4 => Ok(20),
+        _ => unreachable!(),
+    };
+    graph.flush(&evaluate).unwrap();
+    graph.set_inputs([(0, 1)]).unwrap();
+    assert_eq!(graph.flush(&evaluate), Err(GraphError::Cycle));
+    assert_eq!(graph.get_current(&1), None);
+}
+
+#[test]
+fn reused_bond_revalidates_after_its_dependency_changes_height() {
+    let mut graph = ReactiveGraph::<u8, i32>::new();
+    graph.set_inputs([(0, 0)]).unwrap();
+    for key in 1..=4 {
+        graph.ensure_query(key).unwrap();
+    }
+    let evaluate = |key: &u8, read: &mut dyn FnMut(&u8) -> Result<i32, GraphError>| match key {
+        1 => Ok(10),
+        2 => {
+            if read(&0)? == 0 {
+                read(&1)
+            } else {
+                read(&4)
+            }
+        }
+        3 => read(&2),
+        4 => read(&1),
+        _ => unreachable!(),
+    };
+    graph.flush(&evaluate).unwrap();
+    let bond_address = graph.nodes[&3].dependencies.get(&2).unwrap() as *const u8;
+    graph.take_stats();
+    graph.set_inputs([(0, 1)]).unwrap();
+    graph.flush(&evaluate).unwrap();
+    assert_eq!(graph.nodes[&2].height, 3);
+    assert_eq!(graph.nodes[&3].height, 4);
+    assert_eq!(
+        graph.nodes[&3].dependencies.get(&2).unwrap() as *const u8,
+        bond_address
+    );
+    assert_eq!(graph.get_current(&3), Some(&10));
+    check_bonds(&graph);
+}

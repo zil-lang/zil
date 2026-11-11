@@ -41,6 +41,7 @@ pub struct ReactiveStats {
     pub equal_results: u64,
     pub changed_results: u64,
     pub cycle_check_edges: u64,
+    /// Edges inspected to pull a clean query or trim its obsolete read set.
     pub validation_edge_reads: u64,
     pub rank_edge_reads: u64,
     pub edge_reads: u64,
@@ -87,6 +88,7 @@ struct Node<K, V> {
     dependencies: BTreeSet<K>,
     receivers: BTreeSet<K>,
     active_reads: BTreeSet<K>,
+    pending_read: Option<K>,
     height: u64,
     dirty: bool,
     active: bool,
@@ -100,6 +102,7 @@ impl<K, V> Node<K, V> {
             dependencies: BTreeSet::new(),
             receivers: BTreeSet::new(),
             active_reads: BTreeSet::new(),
+            pending_read: None,
             height: u64::from(!input),
             dirty: !input,
             active: false,
@@ -115,6 +118,8 @@ pub struct ReactiveGraph<K, V> {
     queue: BTreeSet<(u64, K)>,
     poisoned: bool,
     edges: u64,
+    topology_revision: u64,
+    active_count: u64,
     stats: ReactiveStats,
 }
 impl<K, V> Default for ReactiveGraph<K, V> {
@@ -124,6 +129,8 @@ impl<K, V> Default for ReactiveGraph<K, V> {
             queue: BTreeSet::new(),
             poisoned: false,
             edges: 0,
+            topology_revision: 0,
+            active_count: 0,
             stats: ReactiveStats::default(),
         }
     }
@@ -215,7 +222,9 @@ impl<K: Ord + Clone, V: Clone + Eq> ReactiveGraph<K, V> {
             // An old bond not yet read by an active evaluator is provisional.
             // Its later read pulls the current value; it needs no extra run.
             let node = &self.nodes[&receiver];
-            if !node.active || node.active_reads.contains(key) {
+            if !node.active
+                || (node.active_reads.contains(key) && node.pending_read.as_ref() != Some(key))
+            {
                 self.enqueue(&receiver);
             }
         }
@@ -306,17 +315,50 @@ impl<K: Ord + Clone, V: Clone + Eq> ReactiveGraph<K, V> {
         node.dirty = false;
         node.active = true;
         node.active_reads.clear();
+        self.active_count += 1;
         self.stats.executed += 1;
         let mut read_error = None;
         let mut structural_change = false;
         let result = evaluator.evaluate(owner, &mut |dependency| {
             self.stats.edge_reads += 1;
             let result = (|| {
+                // Record the read intent before pulling: nested queries must
+                // see this in-progress edge when checking their actual graph.
+                let first_read = self
+                    .nodes
+                    .get_mut(owner)
+                    .expect("query exists")
+                    .active_reads
+                    .insert(dependency.clone());
+                if first_read {
+                    self.nodes
+                        .get_mut(owner)
+                        .expect("query exists")
+                        .pending_read = Some(dependency.clone());
+                }
+                let topology_before = self.topology_revision;
                 let value = self.ensure_current(dependency, evaluator)?;
-                if self.nodes[owner].active_reads.contains(dependency) {
+                self.nodes
+                    .get_mut(owner)
+                    .expect("query exists")
+                    .pending_read = None;
+                if !first_read {
                     return Ok(value);
                 }
                 if self.nodes[owner].dependencies.contains(dependency) {
+                    // An unchanged, strictly ordered bond needs no closure
+                    // walk. Nested topology changes or postponed rank updates
+                    // invalidate that proof, even though the bond is reused.
+                    let source = &self.nodes[dependency];
+                    let receiver = &self.nodes[owner];
+                    if (topology_before != self.topology_revision
+                        || source.rank_pending
+                        || receiver.rank_pending
+                        || source.height >= receiver.height)
+                        && self.reaches(dependency, owner)
+                    {
+                        return Err(GraphError::Cycle);
+                    }
                     // Reuse the actual existing bond and its reverse link.
                     self.stats.reused_bonds += 1;
                 } else {
@@ -337,14 +379,10 @@ impl<K: Ord + Clone, V: Clone + Eq> ReactiveGraph<K, V> {
                         .receivers
                         .insert(owner.clone());
                     self.edges += 1;
+                    self.topology_revision += 1;
                     self.stats.new_bonds += 1;
                     structural_change = true;
                 }
-                self.nodes
-                    .get_mut(owner)
-                    .expect("query exists")
-                    .active_reads
-                    .insert(dependency.clone());
                 Ok(value)
             })();
             if let Err(error) = &result {
@@ -356,6 +394,7 @@ impl<K: Ord + Clone, V: Clone + Eq> ReactiveGraph<K, V> {
             return Err(error);
         }
         let value = result?;
+        self.stats.validation_edge_reads += self.nodes[owner].dependencies.len() as u64;
         let obsolete = self.nodes[owner]
             .dependencies
             .difference(&self.nodes[owner].active_reads)
@@ -375,7 +414,9 @@ impl<K: Ord + Clone, V: Clone + Eq> ReactiveGraph<K, V> {
                 .remove(owner);
             self.edges -= 1;
             self.stats.removed_bonds += 1;
+            self.topology_revision += 1;
         }
+        self.active_count -= 1;
         let node = self.nodes.get_mut(owner).expect("query exists");
         node.active = false;
         node.active_reads.clear();
@@ -396,7 +437,7 @@ impl<K: Ord + Clone, V: Clone + Eq> ReactiveGraph<K, V> {
 
     // Cycle detection follows actual bonds, with no arbitrary depth threshold.
     fn reaches(&mut self, from: &K, target: &K) -> bool {
-        if self.nodes[target].receivers.is_empty() {
+        if self.nodes[target].receivers.is_empty() && self.active_count <= 1 {
             return false;
         }
         let mut pending = vec![from.clone()];
@@ -504,12 +545,14 @@ impl<K: Ord + Clone, V: Clone + Eq> ReactiveGraph<K, V> {
                 }
                 self.edges -= 1;
                 self.stats.removed_bonds += 1;
+                self.topology_revision += 1;
             }
             for receiver in node.receivers {
                 if let Some(receiver_node) = self.nodes.get_mut(&receiver) {
                     receiver_node.dependencies.remove(&key);
                     self.edges -= 1;
                     self.stats.removed_bonds += 1;
+                    self.topology_revision += 1;
                     affected.insert(receiver);
                 }
             }
@@ -533,6 +576,8 @@ impl<K: Ord + Clone, V: Clone + Eq> ReactiveGraph<K, V> {
         self.queue.clear();
         self.poisoned = false;
         self.edges = 0;
+        self.active_count = 0;
+        self.topology_revision = 0;
     }
 
     pub fn stats(&self) -> ReactiveStats {

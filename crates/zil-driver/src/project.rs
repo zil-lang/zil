@@ -264,7 +264,9 @@ impl CompilationSession {
             // fallback as whole-project semantic candidates. Reuse the immutable
             // current source graph; never reread files or retry cancellation/IO.
             let retry = !options.cancellation.is_cancelled()
-                && self.function_types.last_stats().reused_functions > 0
+                && report
+                    .function_type_work
+                    .is_some_and(|work| work.reused_functions > 0)
                 && matches!(report.phase, Phase::Types | Phase::Analyze)
                 && errors.iter().all(|e| {
                     matches!(
@@ -273,12 +275,12 @@ impl CompilationSession {
                     )
                 });
             if retry {
-                let events = std::mem::take(&mut report.query_events);
-                let verification_runs = report.verification_runs;
                 self.clear();
-                report = CompileReport::new(root);
-                report.query_events = events;
-                report.verification_runs = verification_runs;
+                report.restart_attempt(
+                    CompileReport::new(root),
+                    "rejected_function_work_product",
+                    errors,
+                );
                 report.disk_cache = DiskCacheStatus::Rebuilt;
                 let mut fresh_options = options.clone();
                 fresh_options.semantic_cache = None;
@@ -299,6 +301,7 @@ impl CompilationSession {
             }
         }
         self.trim_history();
+        report.finish_attempts();
         report.seconds += start.elapsed().as_secs_f64();
         report
     }
@@ -498,11 +501,7 @@ impl CompilationSession {
                         {
                             return Err(errors);
                         }
-                        let events = std::mem::take(&mut report.query_events);
-                        let verification_runs = report.verification_runs;
-                        *report = before;
-                        report.query_events = events;
-                        report.verification_runs = verification_runs;
+                        report.restart_attempt(before, "rejected_semantic_candidate", errors);
                         report.disk_cache = DiskCacheStatus::Rebuilt;
                     }
                 }
@@ -2208,5 +2207,108 @@ pub fn main()->i32=>0",
         assert!(discover(&session, &path, &CompileOptions::default()).is_err());
         session.database.abort(&key);
         assert!(discover(&session, &path, &CompileOptions::default()).is_ok());
+    }
+}
+
+#[cfg(test)]
+mod attempt_accounting_tests {
+    use super::*;
+
+    #[test]
+    fn rejected_semantic_candidate_keeps_verify_cost_and_diagnostic_provenance() {
+        let directory =
+            std::env::temp_dir().join(format!("zil-semantic-attempt-cost-{}", std::process::id()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("main.zil");
+        let text = "pub fn main()->i32=>0";
+        fs::write(&path, text).unwrap();
+        let project = ProjectSources {
+            root: ModuleId(0),
+            modules: vec![SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                path.to_string_lossy(),
+                text,
+            )],
+            paths: BTreeMap::new(),
+        };
+        let options = CompileOptions {
+            semantic_cache: Some(directory.join("cache")),
+            ..Default::default()
+        };
+        let mut producer = CompilationSession::default();
+        let original = producer.compile_project(&project, &options);
+        assert_eq!(
+            original.status,
+            ResultCategory::Success,
+            "{}",
+            original.to_json()
+        );
+        let mut typed = producer
+            .raw
+            .values()
+            .find_map(|raw| match raw {
+                RawSnapshot::ProjectTyped(typed) => Some((**typed).clone()),
+                _ => None,
+            })
+            .unwrap();
+        let mut candidate = producer
+            .raw
+            .values()
+            .find_map(|raw| match raw {
+                RawSnapshot::Candidate(candidate) => Some((**candidate).clone()),
+                _ => None,
+            })
+            .unwrap();
+        typed.module.functions[0].values[0] = zil_ir::Type::Bool;
+        candidate.module_fingerprint = typed.module.fingerprint();
+        let mut session = CompilationSession::default();
+        let report = session.compile_project_request(
+            &project,
+            &options,
+            &mut |_| {},
+            Some(LoadedProject::Semantic(Box::new((typed, candidate)))),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert!(report.diagnostics.is_empty());
+        assert_eq!(report.verification_runs, 2);
+        assert_eq!(report.attempts.len(), 2);
+        let rejected = &report.attempts[0];
+        let accepted = &report.attempts[1];
+        assert_eq!(
+            rejected.retry_reason.as_deref(),
+            Some("rejected_semantic_candidate")
+        );
+        assert_eq!(rejected.phase, Phase::Verify);
+        assert!(!rejected.diagnostics.is_empty());
+        assert!(rejected.function_type_work.is_none());
+        assert!(rejected.initialization_work.is_none());
+        assert_eq!(rejected.verification_runs, 1);
+        assert_eq!(accepted.verification_runs, 1);
+        assert_eq!(report.function_type_work, accepted.function_type_work);
+        assert_eq!(report.initialization_work, accepted.initialization_work);
+        assert!(rejected.phase_timings_ns[&Phase::Types] > 0);
+        assert!(rejected.phase_timings_ns[&Phase::Analyze] > 0);
+        assert!(rejected.phase_timings_ns[&Phase::Verify] > 0);
+        assert_eq!(
+            report.phase_timings_ns[&Phase::Verify],
+            rejected.phase_timings_ns[&Phase::Verify] + accepted.phase_timings_ns[&Phase::Verify]
+        );
+        assert_eq!(
+            report.phase_timings_ns[&Phase::Types],
+            rejected.phase_timings_ns[&Phase::Types] + accepted.phase_timings_ns[&Phase::Types]
+        );
+        let full =
+            CompilationSession::default().compile_project(&project, &CompileOptions::default());
+        assert_eq!(report.status, full.status);
+        assert_eq!(report.phase, full.phase);
+        assert_eq!(report.diagnostics, full.diagnostics);
+        assert_eq!(report.scalar_interfaces, full.scalar_interfaces);
+        fs::remove_dir_all(directory).unwrap();
     }
 }
