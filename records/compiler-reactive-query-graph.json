@@ -475,5 +475,43 @@
       "compiler memory and workload-weighted acceptance",
       "independent review"
     ]
+  },
+  "producer_continuation": {
+    "task": "G10.5.1.15",
+    "read_goal_sha": "0d265386fe441be5155d7f8935493ffe8e9d1515",
+    "source_start": "0a529a6247793f63ccd41ff3f65dc97afcbb666c",
+    "main": "99035931d358add0eaed6d4535035c38413701dd",
+    "status": "实施中·未验收；A/B/C隔离归因与密封前端生产者复用",
+    "updated_utc": "2026-11-11T14:57:58.836524+00:00",
+    "write_set": [
+      "crates/zil-syntax/src/**: parser-owned immutable Source provenance and tests",
+      "crates/zil-expand/src/**: scalar module Normalize/Restore/Lower products, ordered budget receipts and tests",
+      "crates/zil-types/src/preparation.rs",
+      "crates/zil-types/src/incremental.rs and corresponding tests",
+      "crates/zil-driver/src/{project.rs,session.rs,lib.rs,producer_reuse_tests.rs}: real consumer, exclusive request costs and differential tests",
+      "crates/zil-cli/src/main.rs: producer experiment flag",
+      "tools/research/reactive-query-graph/**",
+      ".task/reactive-query-graph.md"
+    ],
+    "root_only_coordination": [
+      "Only if necessary: narrow internal crate dependency edges in crate Cargo.toml, Cargo.lock and policy/dependencies.json; root exclusively reviews/writes. No root Cargo.toml, public IR/schema, Verify or backend edits."
+    ],
+    "protected": [
+      "task/compiler-thinlto-private-imports@8072f23187a77f2e63686696111a8e0e71e8be7b",
+      "main",
+      "public IR/schema",
+      "independent Verify",
+      "backend and LLVM pipeline/optimization budgets"
+    ],
+    "worktree": "/workspace/scratch/e28839ace920/reactive",
+    "target": "/workspace/scratch/e28839ace920/targets/reactive-producer",
+    "comparison": {
+      "A": "existing caches, producer reuse off, graph off",
+      "B": "same producer module/version reuse with simple direct cache, graph off",
+      "C": "same producer reuse and validity as B, graph on",
+      "requirements": "B must use versions fairly; separate production/Eq/context/inventory/graph/evaluation/backend within same request; preserve current Verify/source binding/first diagnostics/budgets and real native behavior. Freeze source before performance."
+    },
+    "success_gate": "Unchanged modules actually skip Normalize/Lower, unchanged Core deep comparison drops, CFG execution does not increase, complete fresh-current differential passes; only then extend graph or performance matrix.",
+    "remaining": "No new production code or measurements yet at claim; previous no-net-gain evidence remains valid."
   }
 }
