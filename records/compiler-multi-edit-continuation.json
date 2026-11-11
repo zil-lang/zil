@@ -1,24 +1,83 @@
 {
   "format": 1,
   "task": "G10.5.1.14",
-  "updated_utc": "2026-11-11 06:57:31 UTC",
-  "read_goal": "3c4b6d6a6ec2e56aad9f60fd2018c6ddf30b6b68",
-  "status": "Streaming-reference revision frozen; original owned-set projection not adopted; new review/build/measurement pending",
+  "updated_utc": "2026-11-11 07:12:45 UTC",
+  "read_goal": "4594b7ae5be6f24f4fa1d31a8c9867d857ca1f63",
+  "status": "Final streaming source reviewed and built; original 84-request screen mixed; fixed multi-file and concurrent screens in progress; no adoption",
   "baseline": {
     "sha": "99035931d358add0eaed6d4535035c38413701dd",
     "tree": "1c16744d838064cb1c687ba56ef3a0d17ed3130c"
   },
   "candidate": {
     "branch": "task/compiler-layout-projection",
-    "sha": "8358d3c33de4a102e60db1acd29573b85be1597f",
-    "local_author_commit": "db44395fd05019fab21cb25b878dd1ab6b2199b8",
-    "identical_tree": "7f07b03f823dcc71ccd4f3b9bb817202462c4d91",
+    "sha": "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
+    "local_author_commit": "89cc46c8ef3781a4a1cd723cbcd4bfff478533f9",
+    "identical_tree": "d260d616a23af8f9c716fbe26c38c200e0eeeb5f",
     "write_set": [
       "crates/zil-backend-llvm/src/machine_cgu/layout.rs",
       "crates/zil-backend-llvm/src/machine_cgu/layout/tests.rs"
     ],
     "mechanism": "Stream tagged symbol occurrences and direct-call identities without constructing temporary owned reference/call sets. Ordered occurrences conservatively bind the same complete placement inputs; current bodies and validation are retained.",
-    "acceptance": false
+    "acceptance": false,
+    "source_review": "Independent Pass for exact remote commit/tree/blob; Gep child count precedes projected operands",
+    "validation": {
+      "release_build": "Pass",
+      "layout_tests": {
+        "passed": 8,
+        "failed": 0,
+        "ignored": 0
+      },
+      "binary_sha256": "a4d7a26aeb0c47ece2a8b4ddfc15f832b635637871424e3e681fe34ebd5b19a2",
+      "baseline_binary_sha256": "64e1ff43bbaa59f786f1cc899b69e707072219a9c0abf0122ce31cd7b77f981d"
+    },
+    "performance": {
+      "protocol_sha256": "145d60d2cd88b1e2e9eab9f520aa8949f2e0eeb3bc4a4bc5f25e6f29939c5c07",
+      "requests": 84,
+      "pairs": 42,
+      "native_checks": 252,
+      "current_verify_events": 84,
+      "current_preflight_receipts": 456,
+      "all_elf_equal": true,
+      "all_material_ir_equal": true,
+      "all_object_topology_equal": true,
+      "raw_sidecar_equal_pairs": 0,
+      "failures": 0,
+      "independent_raw_audit_sha256": "424dcd8b401e8f2d6293f9f0ce2ca5554cb69dce03b9fc8e188c2ca395b741a7",
+      "adoption": false,
+      "classification": "Fixed diagnostic screen, not original weighted matrix; favorable and unfavorable cells retained",
+      "examples": [
+        {
+          "case": "shared4096",
+          "jobs": 2,
+          "request": "cold",
+          "baseline_ms": 5331.2747,
+          "candidate_ms": 7328.718858,
+          "baseline_cpu_ms": 9217.397,
+          "candidate_cpu_ms": 12524.832
+        },
+        {
+          "case": "shared4096",
+          "jobs": 2,
+          "request": "warm",
+          "baseline_ms": 601.0055214285715,
+          "candidate_ms": 630.0666021428572
+        },
+        {
+          "case": "shared1024",
+          "jobs": 2,
+          "request": "warm",
+          "baseline_ms": 184.27547785714285,
+          "candidate_ms": 131.78609257142858
+        },
+        {
+          "case": "shared4096",
+          "jobs": 1,
+          "request": "warm",
+          "baseline_ms": 654.1889793333334,
+          "candidate_ms": 763.9953746666666
+        }
+      ]
+    }
   },
   "continuity": {
     "old_cloud_workspace": "Not mounted in this runtime; restored exact remote source and pinned toolchains",
@@ -58,7 +117,7 @@
       "retain failures, long tails, cold CPU and RSS"
     ],
     "pilot": "64 files, 16 changed files times two function bodies, one baseline full O2 request: current Verify=1, eight builder units, expected native output 860a0000. Functional smoke only, no performance claim.",
-    "status": "Unchanged fixed sizes, weights, loop and optimization policies; new source revision will be measured. Corrected fixture differs only in main.zil syntax; Rust and all arithmetic oracles unchanged.",
+    "status": "Corrected frozen v2 after matrix executing with Rust; off matrix next. Original frequencies/sizes/ABBA blocks unchanged. New screens do not replace original eight-workload matrix.",
     "first_multifile_harness_failure": {
       "status": "Preserved",
       "candidate_requests_executed": 0,
@@ -88,7 +147,43 @@
         "path": "final-inc-after-v2/protocol.json",
         "sha256": "dbab00ff9c04bb8a58eaaf0eeba2109f3aefa0d8c2a79bab3638baa49379dd35"
       }
-    ]
+    ],
+    "concurrent_protocol": {
+      "sha256": "1e542a1a9a68ff09647795afb0deb69cce2aecb4ecea624605ef517bf1455ccd",
+      "script_sha256": "79f9befbbca74b88383547ce352794bc8b79ea5f9dc391ce78a22942b4129919",
+      "status": "Prepared and independently reviewed, not run",
+      "files": 256,
+      "edited_files": [
+        16,
+        64
+      ],
+      "concurrency": [
+        1,
+        2,
+        4
+      ],
+      "cpus": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "blocks": 1,
+      "order": [
+        "A",
+        "R",
+        "B",
+        "B",
+        "R",
+        "A"
+      ],
+      "final_batches": 36,
+      "final_children": 84,
+      "total_compile_requests_including_oracle_and_seed": 252,
+      "distinct_candidate_sources": true,
+      "isolated_writable_outputs_and_caches": true,
+      "rust_lane_separate": true
+    }
   },
   "blaze": {
     "commit": "ccd4a6f31f0ad10a97b10941802bc9bd3f91d37a",
