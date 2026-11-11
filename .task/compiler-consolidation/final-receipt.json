@@ -1,0 +1,400 @@
+{
+  "audit_run": 42936007346,
+  "requested_at": "2026-11-11T01:07:42.528919+00:00",
+  "retired": [
+    {
+      "branch": "task/G10.5.1.3",
+      "sha": "83adcaf84b742eb487d1d86c96c7081de969e96c",
+      "category": "delivered",
+      "reason": "Signature dependency facets are already delivered in PR70; this ref retains the experiment and measurements.",
+      "evidence": [
+        "PR70",
+        ".task/G10.5.1.3/RESULTS.md"
+      ],
+      "open_prs": []
+    },
+    {
+      "branch": "task/G10.5.1.4",
+      "sha": "599b1c1978059deff989579fce360925b9082e57",
+      "category": "rejected",
+      "reason": "Both buffer-growth outlining variants failed the original generated-runtime guard.",
+      "evidence": [
+        "PR72",
+        ".task/G10.5.1.4/OUTLINING-RESULTS.md"
+      ],
+      "open_prs": []
+    },
+    {
+      "branch": "task/G10.5.1.5",
+      "sha": "68e554e48e88bd69fa1ff4278f9ab9ec1fd2a956",
+      "category": "delivered",
+      "reason": "Exact resource-order representation is delivered by PR75; no ongoing work remains on the experiment ref.",
+      "evidence": [
+        "PR75",
+        "42766117593"
+      ],
+      "open_prs": []
+    },
+    {
+      "branch": "task/G10.5.1.6",
+      "sha": "1b68492c636978fc4a8679244835faff72224f2b",
+      "category": "delivered",
+      "reason": "Cleanup suffix sharing is delivered by PR76; preserve original failures and successful evidence.",
+      "evidence": [
+        "PR76",
+        ".task/G10.5.1.6/RESULTS.md"
+      ],
+      "open_prs": []
+    },
+    {
+      "branch": "task/G10.5.1.7",
+      "sha": "d392db44993f67646e9ec3e4b12991c42fc422fe",
+      "category": "rejected",
+      "reason": "Out-of-line destructor boundary regressed inactive/mostly-empty workloads; PR77 is not accepted.",
+      "evidence": [
+        "PR77",
+        "42800092569"
+      ],
+      "open_prs": []
+    },
+    {
+      "branch": "task/G10.5.1.8",
+      "sha": "22f7c59fa593861987176b1c1bd604d84a7bc670",
+      "category": "rejected",
+      "reason": "Package empty-aware refinement still regressed an original runtime case by18.3%.",
+      "evidence": [
+        "42814450893",
+        ".task/G10.5.1.8/RESULTS.md"
+      ],
+      "open_prs": []
+    },
+    {
+      "branch": "task/byte-buffer-growth-boundary",
+      "sha": "bb0c8759df3650efb0646978a03daea8a6c687f3",
+      "category": "rejected",
+      "reason": "Production extraction of rejected growth-boundary candidate; no runtime acceptance despite passing functional CI.",
+      "evidence": [
+        "PR72",
+        "42756277204"
+      ],
+      "open_prs": [
+        72
+      ]
+    },
+    {
+      "branch": "task/closure-destructor-boundary",
+      "sha": "01d2ee433873b298e7e5982339b16d0b8d667713",
+      "category": "rejected",
+      "reason": "Production extraction of rejected destructor boundary, superseded by explicit negative quality conclusion.",
+      "evidence": [
+        "PR77",
+        "42800092569"
+      ],
+      "open_prs": [
+        77
+      ]
+    },
+    {
+      "branch": "task/closure-helper-partition",
+      "sha": "0105b22c5116f645f4e70fbd6d192ec168aa20f1",
+      "category": "superseded",
+      "reason": "Historical helper-partition source and unsuccessful predecessors are carried by the current production/composition candidate; no separate implementation stream needed.",
+      "evidence": [
+        "PR80",
+        "PR84",
+        ".task/helper-partition/RESULTS.md"
+      ],
+      "open_prs": []
+    },
+    {
+      "branch": "task/compiler-closure-dependencies",
+      "sha": "bf3acbd2b68a507819a5578457422d4b68be44cc",
+      "category": "delivered",
+      "reason": "Anonymous closure linkage is delivered by PR79; retain the bounded performance findings and outstanding gaps.",
+      "evidence": [
+        "PR79",
+        ".task/closure-dependencies/RESULTS.md"
+      ],
+      "open_prs": []
+    },
+    {
+      "branch": "task/compiler-inline-equivalence",
+      "sha": "c815c483f8877005de02d9c9cc40a933dec077f0",
+      "category": "superseded",
+      "reason": "Expanded-pipeline screen is superseded by the fixed, maintainable normalized candidate; probe selector must not enter main.",
+      "evidence": [
+        "42928304327",
+        "PR84"
+      ],
+      "open_prs": []
+    },
+    {
+      "branch": "task/compiler-inline-prefix",
+      "sha": "9c53f62ab66f3fc3e801905f2f0740c70c226dd1",
+      "category": "superseded",
+      "reason": "Short-prefix screening has completed and is absorbed into the normalized fixed-policy candidate; preserve its negative variants.",
+      "evidence": [
+        "42931006690",
+        "PR84"
+      ],
+      "open_prs": []
+    },
+    {
+      "branch": "task/compiler-merge-order",
+      "sha": "6265198c2a8e84b09b0658c37a1bca49d4aa26e1",
+      "category": "superseded",
+      "reason": "Raw early merge and pass-position probes are finished; rejected runtime outcomes and conclusions are preserved, production continues in PR84.",
+      "evidence": [
+        "42924878932",
+        "42927870902",
+        "PR84"
+      ],
+      "open_prs": []
+    },
+    {
+      "branch": "task/compiler-resident-cli",
+      "sha": "59f1124a6bb684c74d076de3f30594f87fb8e6e3",
+      "category": "delivered",
+      "reason": "Resident compilation is delivered by PR78; benchmark-only branch is not an active implementation.",
+      "evidence": [
+        "PR78",
+        ".task/resident-cli/RESULTS.md"
+      ],
+      "open_prs": []
+    },
+    {
+      "branch": "task/compiler-resident-session",
+      "sha": "b3393f9c741d1a0dab34577e87a52c2620a18fb6",
+      "category": "superseded",
+      "reason": "The resident-session prototype is superseded by the delivered resident CLI and explicit memory-lifetime controls.",
+      "evidence": [
+        "PR78",
+        ".task/resident/RESULTS.md"
+      ],
+      "open_prs": []
+    },
+    {
+      "branch": "task/destructor-runtime-neighbors",
+      "sha": "db8696d23270d35d015d20928e75c355a0092627",
+      "category": "evidence-only",
+      "reason": "Completed counterexample validation; the evidence remains necessary but does not require a live source branch.",
+      "evidence": [
+        "42800092569"
+      ],
+      "open_prs": []
+    },
+    {
+      "branch": "task/helper-public-boundary",
+      "sha": "b0e2ab28f10a5d3b1e67f2ba5ce91bb0685e7f5f",
+      "category": "evidence-only",
+      "reason": "Completed public-signature boundary validation; retained as immutable evidence for the continuing candidate.",
+      "evidence": [
+        "42863910118",
+        "PR80"
+      ],
+      "open_prs": []
+    },
+    {
+      "branch": "task/normalized-merging-consumers",
+      "sha": "af5965c78dc894ee9b6bef9ebafab9fdd5792935",
+      "category": "evidence-only",
+      "reason": "Completed unchanged-source handler and State consumer controls; continue under the combined candidate rather than a separate consumer branch.",
+      "evidence": [
+        "42933848863",
+        "PR84"
+      ],
+      "open_prs": []
+    },
+    {
+      "branch": "task/resident-memory-validation",
+      "sha": "07af3468db6828f0c1e4b9276169a35013fde318",
+      "category": "evidence-only",
+      "reason": "Completed retention/memory validation supports already delivered explicit resident mode; no unmerged production feature.",
+      "evidence": [
+        "PR78",
+        ".task/resident/MEMORY-RESULTS.md"
+      ],
+      "open_prs": []
+    },
+    {
+      "branch": "task/static-byte-closure-cleanup",
+      "sha": "fbbdc1f6e643858cf181e3c1a67960223e50fd99",
+      "category": "rejected",
+      "reason": "Frozen production extraction of rejected static cleanup; keep exact source and tests in archive, close PR83.",
+      "evidence": [
+        "PR83",
+        "42930165591"
+      ],
+      "open_prs": [
+        83
+      ]
+    },
+    {
+      "branch": "task/helper-current-main-validation",
+      "sha": "467b5ffd791c6aae80cc524b1c23cf7259182661",
+      "category": "evidence-only",
+      "reason": "Final immutable report added after first audit; implementation unchanged, candidate continues in PR80/84.",
+      "evidence": [
+        "42927538037",
+        ".task/helper-current/RESULTS.md"
+      ],
+      "open_prs": []
+    },
+    {
+      "branch": "task/repeatable-closure-drop",
+      "sha": "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071",
+      "category": "rejected",
+      "reason": "Final negative-quality report added after first audit; static cleanup remains rejected, PR83 closed.",
+      "evidence": [
+        "42930165591",
+        "PR83"
+      ],
+      "open_prs": []
+    }
+  ],
+  "skipped": [],
+  "main_modified": false,
+  "goal_updated": true,
+  "refs_before": {
+    "archive/source-history": "4fe6113e8a44d1089cc96fc58fd391e4ae4793e0",
+    "goal": "add5db2057180f35bbef710b11b008cd73aecefe",
+    "main": "2bb30ce1819137d666c073299aa2639da4fd2964",
+    "task/G10.5.1.3": "83adcaf84b742eb487d1d86c96c7081de969e96c",
+    "task/G10.5.1.4": "599b1c1978059deff989579fce360925b9082e57",
+    "task/G10.5.1.5": "68e554e48e88bd69fa1ff4278f9ab9ec1fd2a956",
+    "task/G10.5.1.6": "1b68492c636978fc4a8679244835faff72224f2b",
+    "task/G10.5.1.7": "d392db44993f67646e9ec3e4b12991c42fc422fe",
+    "task/G10.5.1.8": "22f7c59fa593861987176b1c1bd604d84a7bc670",
+    "task/byte-buffer-growth-boundary": "bb0c8759df3650efb0646978a03daea8a6c687f3",
+    "task/closure-destructor-boundary": "01d2ee433873b298e7e5982339b16d0b8d667713",
+    "task/closure-helper-partition": "0105b22c5116f645f4e70fbd6d192ec168aa20f1",
+    "task/compiler-closure-dependencies": "bf3acbd2b68a507819a5578457422d4b68be44cc",
+    "task/compiler-composition-validation": "a15cc71988eeabc6d63b92232c1817b1ee098b92",
+    "task/compiler-consolidation": "51532997e2c5294f145f9956919ba1aeaa9f4181",
+    "task/compiler-inline-equivalence": "c815c483f8877005de02d9c9cc40a933dec077f0",
+    "task/compiler-inline-prefix": "9c53f62ab66f3fc3e801905f2f0740c70c226dd1",
+    "task/compiler-merge-order": "6265198c2a8e84b09b0658c37a1bca49d4aa26e1",
+    "task/compiler-normalized-merging": "4f29707db7f73689f377624024b9ff991c94a164",
+    "task/compiler-resident-cli": "59f1124a6bb684c74d076de3f30594f87fb8e6e3",
+    "task/compiler-resident-session": "b3393f9c741d1a0dab34577e87a52c2620a18fb6",
+    "task/destructor-runtime-neighbors": "db8696d23270d35d015d20928e75c355a0092627",
+    "task/helper-current-main-validation": "467b5ffd791c6aae80cc524b1c23cf7259182661",
+    "task/helper-public-boundary": "b0e2ab28f10a5d3b1e67f2ba5ce91bb0685e7f5f",
+    "task/normalized-function-equivalence": "e19e35a9177b491b595f085fc77836a963856382",
+    "task/normalized-merging-consumers": "af5965c78dc894ee9b6bef9ebafab9fdd5792935",
+    "task/repeatable-closure-drop": "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071",
+    "task/resident-memory-validation": "07af3468db6828f0c1e4b9276169a35013fde318",
+    "task/resource-helper-codegen": "13c53cf315d0eaa0512424707bcb0ed60c6f8e33",
+    "task/static-byte-closure-cleanup": "fbbdc1f6e643858cf181e3c1a67960223e50fd99"
+  },
+  "active_before": [
+    {
+      "id": 42936614807,
+      "head_branch": "task/compiler-consolidation",
+      "head_sha": "51532997e2c5294f145f9956919ba1aeaa9f4181",
+      "status": "in_progress",
+      "name": "Retire audited inactive compiler branches"
+    },
+    {
+      "id": 42935614289,
+      "head_branch": "task/compiler-composition-validation",
+      "head_sha": "186cbaf783347959e3cab112cb1daa98093b6325",
+      "status": "in_progress",
+      "name": "Combined closure compiler acceptance"
+    },
+    {
+      "id": 42935467555,
+      "head_branch": "task/normalized-function-equivalence",
+      "head_sha": "e19e35a9177b491b595f085fc77836a963856382",
+      "status": "in_progress",
+      "name": "Research LLVM verification"
+    },
+    {
+      "id": 42935467558,
+      "head_branch": "task/normalized-function-equivalence",
+      "head_sha": "e19e35a9177b491b595f085fc77836a963856382",
+      "status": "in_progress",
+      "name": "Main source verification"
+    },
+    {
+      "id": 42932930076,
+      "head_branch": "task/resource-helper-codegen",
+      "head_sha": "13c53cf315d0eaa0512424707bcb0ed60c6f8e33",
+      "status": "in_progress",
+      "name": "Main source verification"
+    },
+    {
+      "id": 42932930148,
+      "head_branch": "task/resource-helper-codegen",
+      "head_sha": "13c53cf315d0eaa0512424707bcb0ed60c6f8e33",
+      "status": "in_progress",
+      "name": "Research LLVM verification"
+    }
+  ],
+  "archive_before": "4fe6113e8a44d1089cc96fc58fd391e4ae4793e0",
+  "archive_preservation": "8e0ccb263bed7dabad8afa2c40b68945c18e5c0a",
+  "refs_after": {
+    "archive/source-history": "8e0ccb263bed7dabad8afa2c40b68945c18e5c0a",
+    "goal": "add5db2057180f35bbef710b11b008cd73aecefe",
+    "main": "2bb30ce1819137d666c073299aa2639da4fd2964",
+    "task/compiler-composition-validation": "a15cc71988eeabc6d63b92232c1817b1ee098b92",
+    "task/compiler-consolidation": "51532997e2c5294f145f9956919ba1aeaa9f4181",
+    "task/compiler-normalized-merging": "4f29707db7f73689f377624024b9ff991c94a164",
+    "task/helper-current-main-validation": "467b5ffd791c6aae80cc524b1c23cf7259182661",
+    "task/normalized-function-equivalence": "e19e35a9177b491b595f085fc77836a963856382",
+    "task/repeatable-closure-drop": "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071",
+    "task/resource-helper-codegen": "13c53cf315d0eaa0512424707bcb0ed60c6f8e33"
+  },
+  "archive_final": "cc82e27f9367805a1a0c9c7fe095d4241491efa7",
+  "completed_at": "2026-11-11T01:08:11.072145+00:00",
+  "goal_before": "add5db2057180f35bbef710b11b008cd73aecefe",
+  "goal_commit": "6ea0ebb5c8c4f12598cf514a8100f4409911730c",
+  "goal_readback": "6ea0ebb5c8c4f12598cf514a8100f4409911730c",
+  "refs_final": {
+    "archive/source-history": "25297450db6fd517544e7c9da3e2d67f8c6c1443",
+    "goal": "6ea0ebb5c8c4f12598cf514a8100f4409911730c",
+    "main": "2bb30ce1819137d666c073299aa2639da4fd2964",
+    "task/compiler-composition-validation": "a15cc71988eeabc6d63b92232c1817b1ee098b92",
+    "task/compiler-consolidation": "51532997e2c5294f145f9956919ba1aeaa9f4181",
+    "task/compiler-normalized-merging": "4f29707db7f73689f377624024b9ff991c94a164",
+    "task/helper-current-main-validation": "467b5ffd791c6aae80cc524b1c23cf7259182661",
+    "task/normalized-function-equivalence": "e19e35a9177b491b595f085fc77836a963856382",
+    "task/repeatable-closure-drop": "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071",
+    "task/resource-helper-codegen": "13c53cf315d0eaa0512424707bcb0ed60c6f8e33"
+  },
+  "late_evidence_review": [
+    {
+      "branch": "task/helper-current-main-validation",
+      "old": "835364edf2a7741587829543177d9b25dffc7a81",
+      "head": "467b5ffd791c6aae80cc524b1c23cf7259182661",
+      "changed_paths": [
+        ".task/helper-current/RESULTS.md"
+      ],
+      "production_unchanged": true
+    },
+    {
+      "branch": "task/repeatable-closure-drop",
+      "old": "a5d1f1d57dacbe14ead435be0d39f17609c4a79e",
+      "head": "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071",
+      "changed_paths": [
+        ".task/repeatable-drop/RESULTS.md"
+      ],
+      "production_unchanged": true
+    }
+  ],
+  "decision_base": "2bb30ce1819137d666c073299aa2639da4fd2964",
+  "decision_commit": "4ec5e78cfe1f2d0188ddc2502e6b15358f062b71",
+  "decision_tree": "9d2f726798917e44e2ec927b8461b97ad68e2328",
+  "decision_changed_paths": [
+    "docs/guide/build.md",
+    "docs/guide/compiler-cost-contract.md"
+  ],
+  "decision_checks": [
+    "exact documentation-only diff",
+    "all source/test/toolchain files unchanged",
+    "git diff --check",
+    "all relative documentation links resolve"
+  ],
+  "retired_compiler_count": 22,
+  "finalized_at": "2026-11-11T01:13:28.875908+00:00"
+}
