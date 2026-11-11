@@ -1,11 +1,9 @@
 {
   "format": 1,
-  "created_utc": "2026-11-11T01:13:17.340754+00:00",
-  "prior_archive": "25297450db6fd517544e7c9da3e2d67f8c6c1443",
+  "created_utc": "2026-11-11T01:13:23.940148+00:00",
+  "prior_archive": "a4850392c17a6673dfc9538ae5341c7baacf57d8",
   "commit_parents": [
-    "25297450db6fd517544e7c9da3e2d67f8c6c1443",
-    "467b5ffd791c6aae80cc524b1c23cf7259182661",
-    "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071"
+    "a4850392c17a6673dfc9538ae5341c7baacf57d8"
   ],
   "commit_tips": [
     "0a8929d4f6126683737d62ab9def1d8e67a784ca",
@@ -394,7 +392,7 @@
     {
       "ref": "refs/heads/task/helper-current-main-validation",
       "head_before_retirement": "467b5ffd791c6aae80cc524b1c23cf7259182661",
-      "retirement_completed": false,
+      "retirement_completed": true,
       "reason": "Final immutable report added after first audit; implementation unchanged, candidate continues in PR80/84.",
       "disposition": "evidence-only",
       "evidence_refs": [
@@ -406,7 +404,7 @@
     {
       "ref": "refs/heads/task/repeatable-closure-drop",
       "head_before_retirement": "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071",
-      "retirement_completed": false,
+      "retirement_completed": true,
       "reason": "Final negative-quality report added after first audit; static cleanup remains rejected, PR83 closed.",
       "disposition": "rejected",
       "evidence_refs": [
