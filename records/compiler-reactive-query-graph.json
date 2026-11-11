@@ -9,10 +9,68 @@
   "probe_commit": "1735a305ccfff2c95ac2658b6c2ca427dc9eb392",
   "probe_blob": "98762b26506c0e35ec11072b8d397c845b407eff",
   "probe_sha256": "a657bfe2c05b16be3dea346ec6afee2f9470ce14a820f1606b876b97fae94c57",
-  "delivered": ["historical reverse-index implementation and withdrawal verified", "prior CP25-C and height-adaptation scope verified", "synchronous stable-owner/bidirectional-bond/height-dedup/equality-barrier model", "three fresh Node processes each passing the same 2730 differential comparisons", "512/4096/16384-function-shaped model windows against strengthened pull and indexed-invalidation baselines", "positive, adverse, superseded and timed-out measurement identities retained"],
-  "not_run": ["production compiler integration", "Source/Types/Analyze/independent Verify equivalence", "LLVM/linker/native behavior", "Rust comparison", "compiler memory and workload-weighted acceptance", "independent review"],
+  "delivered": [
+    "historical reverse-index implementation and withdrawal verified",
+    "prior CP25-C and height-adaptation scope verified",
+    "synchronous stable-owner/bidirectional-bond/height-dedup/equality-barrier model",
+    "three fresh Node processes each passing the same 2730 differential comparisons",
+    "512/4096/16384-function-shaped model windows against strengthened pull and indexed-invalidation baselines",
+    "positive, adverse, superseded and timed-out measurement identities retained"
+  ],
+  "not_run": [
+    "production compiler integration",
+    "Source/Types/Analyze/independent Verify equivalence",
+    "LLVM/linker/native behavior",
+    "Rust comparison",
+    "compiler memory and workload-weighted acceptance",
+    "independent review"
+  ],
   "scope_state": "model delivered; production integration not executed; no background work",
-  "evidence": {"readme": "tools/research/reactive-query-graph/README.md", "receipt": "tools/research/reactive-query-graph/receipt.json", "handoff": ".task/reactive-query-graph.md", "full_raw_samples": "conversation delivery bundle; hashes retained in source receipt"},
-  "historical_candidates": {"reverse_index": "ee786e7fd7162cfd76d5f532fe5c80d9e175ad57", "withdrawal": "bc66c2eaee5ae68644a7f057e84499b365c3d218", "height_adaptation": "fbf8cb4979fa2fb655fbdf73f72a7037d64a39cd", "cp25_c": "3e5657a312c80188dbaa81451e88f651d586b265"},
-  "coordination": "New research branch and this record only. main, archive and existing compiler task refs unchanged. goal.md main task table was not rewritten; this is a delivery record, not a second task board. Production write sets must be coordinated before further integration."
+  "evidence": {
+    "readme": "tools/research/reactive-query-graph/README.md",
+    "receipt": "tools/research/reactive-query-graph/receipt.json",
+    "handoff": ".task/reactive-query-graph.md",
+    "full_raw_samples": "conversation delivery bundle; hashes retained in source receipt"
+  },
+  "historical_candidates": {
+    "reverse_index": "ee786e7fd7162cfd76d5f532fe5c80d9e175ad57",
+    "withdrawal": "bc66c2eaee5ae68644a7f057e84499b365c3d218",
+    "height_adaptation": "fbf8cb4979fa2fb655fbdf73f72a7037d64a39cd",
+    "cp25_c": "3e5657a312c80188dbaa81451e88f651d586b265"
+  },
+  "coordination": "New research branch and this record only. main, archive and existing compiler task refs unchanged. goal.md main task table was not rewritten; this is a delivery record, not a second task board. Production write sets must be coordinated before further integration.",
+  "continuation": {
+    "task": "G10.5.1.15",
+    "read_goal_sha": "4b388a9a1ea5922edfb804dc9c5026c4025f64ed",
+    "source_start": "c75c58bf7f564a1ce8049702f9c6ec41c82d1da2",
+    "main": "99035931d358add0eaed6d4535035c38413701dd",
+    "status": "Executing real compiler baseline and production integration; not accepted",
+    "updated_utc": "2026-11-11T12:21:54.643793+00:00",
+    "write_set": [
+      "crates/zil-driver/src/session.rs",
+      "crates/zil-driver/src/project.rs",
+      "crates/zil-driver/src/semantic_cache.rs",
+      "crates/zil-driver/src/reactive*.rs",
+      "crates/zil-driver/src/lib.rs (module wiring only)",
+      "crates/zil-db/src/**",
+      "crates/zil-types/src/incremental.rs",
+      "crates/zil-analyze/src/incremental.rs",
+      "crates/zil-cli/src/resident.rs",
+      "crates/zil-cli/src/main.rs (research mode/stats wiring if required)",
+      "corresponding frontend tests",
+      "tools/research/reactive-query-graph/**",
+      ".task/reactive-query-graph.md"
+    ],
+    "protected": [
+      "public IR/schema",
+      "root Cargo and lock",
+      "independent Verify kernel",
+      "machine backends",
+      "other task branches"
+    ],
+    "worktree": "/workspace/scratch/e28839ace920/reactive",
+    "target": "/workspace/scratch/e28839ace920/targets/reactive",
+    "toolchain": "existing pinned Rust1.99.1 / LLVM23.1.4; checker Pass",
+    "next": "Build frozen main baseline, run Source check and native output, then wire stable owners and real semantic consumers"
+  }
 }
