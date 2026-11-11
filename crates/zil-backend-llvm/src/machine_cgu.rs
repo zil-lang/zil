@@ -1,6 +1,6 @@
 //! Partition the owned machine IR by semantic symbol references, never by parsing
 //! LLVM assembly. Local-linkage definitions and all users remain co-located.
-use crate::EntryPoint;
+use crate::{EntryPoint, FunctionMerging};
 
 pub(crate) mod layout;
 mod resource_helpers;
@@ -10,6 +10,26 @@ use zil_base::{FileId, Fingerprint};
 use zil_ir::LirModule;
 use zil_ir::LirView;
 use zil_llvm_api::model::{Function, Item, Module, Op, Val};
+
+/// Early function merging needs the original complete-call visibility. Helper
+/// splitting is available when merging is disabled or runs after optimization.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum CallImportPolicy {
+    Disabled,
+    Complete,
+    ResourceHelpers,
+}
+impl CallImportPolicy {
+    pub(crate) fn for_incremental_o2(enabled: bool, merging: FunctionMerging) -> Self {
+        if !enabled {
+            Self::Disabled
+        } else if merging == FunctionMerging::BeforeAndAfter {
+            Self::Complete
+        } else {
+            Self::ResourceHelpers
+        }
+    }
+}
 
 pub(crate) struct Plan {
     pub units: Vec<Module>,
@@ -149,27 +169,19 @@ pub(crate) fn partition_view_cached(
     entry: EntryPoint,
     count: usize,
     split_large_files: bool,
-    import_complete_call_closures: bool,
+    imports: CallImportPolicy,
     cache_root: Option<&std::path::Path>,
 ) -> (Plan, Option<layout::Pending>) {
     // Shared helper code alone must not force otherwise independent resource
     // modules into one object. Keep full helper visibility, bounded small source
     // imports, identity-bearing local components and the original copy bound.
-    if import_complete_call_closures
+    if imports == CallImportPolicy::ResourceHelpers
         && let Some(recipe) = resource_helpers::prepare(&module, lir, entry, count)
     {
         return (recipe.replay(module), None);
     }
     let cache = cache_root.and_then(|root| {
-        layout::Cache::new(
-            root,
-            &module,
-            lir,
-            entry,
-            count,
-            split_large_files,
-            import_complete_call_closures,
-        )
+        layout::Cache::new(root, &module, lir, entry, count, split_large_files, imports)
     });
     if let Some(cached) = cache
         .as_ref()
@@ -191,7 +203,7 @@ pub(crate) fn partition_view_cached(
         entry,
         count,
         split_large_files,
-        import_complete_call_closures,
+        imports != CallImportPolicy::Disabled,
         &mut recorded,
     );
     let pending = cache
