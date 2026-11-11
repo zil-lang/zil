@@ -63,11 +63,9 @@ struct LoadedSyntax {
 
 /// An exact import-free source may restore its already decoded raw frontend.
 /// Ordinary discovery still owns syntax; neither variant carries Verify authority.
-// Move the request's existing report once without another per-request heap allocation.
-#[allow(clippy::large_enum_variant)]
 enum LoadedProject {
     Parsed(Vec<LoadedSyntax>),
-    Prepared(Vec<LoadedSyntax>, CompileReport),
+    Prepared(Vec<LoadedSyntax>, Box<CompileReport>),
     Semantic(Box<(TypedProgram, CandidatePlan)>),
 }
 
@@ -228,7 +226,7 @@ impl CompilationSession {
                     snapshot: Some(snapshot),
                     stable_module_key: None,
                 }],
-                report,
+                Box::new(report),
             )),
         )
     }
@@ -277,13 +275,13 @@ impl CompilationSession {
         let (loaded_syntax, preloaded_semantic, prepared_report) = match loaded {
             Some(LoadedProject::Parsed(syntax)) => (Some(syntax), None, None),
             Some(LoadedProject::Prepared(syntax, report)) => (Some(syntax), None, Some(report)),
-            Some(LoadedProject::Semantic(pair)) => (None, Some(*pair), None),
+            Some(LoadedProject::Semantic(pair)) => (None, Some(pair), None),
             None => (None, None, None),
         };
-        let mut report = prepared_report.unwrap_or_else(|| CompileReport::new(root));
+        let mut report = prepared_report.unwrap_or_else(|| Box::new(CompileReport::new(root)));
         report.cost_profiled = options.profile_compilation;
         let checkpoint_start = cost_start(options.profile_compilation);
-        let function_checkpoint = self.function_types.checkpoint();
+        let function_checkpoint = super::session::function_checkpoint(&self.function_types);
         report.record_driver_cost("function_checkpoint", checkpoint_start);
         if let Err(errors) = self.project_pipeline(
             project,
@@ -337,7 +335,7 @@ impl CompilationSession {
         self.trim_history();
         report.finish_attempts();
         report.seconds += start.elapsed().as_secs_f64();
-        report
+        *report
     }
 
     pub(super) fn compile_project_path(
@@ -440,7 +438,7 @@ impl CompilationSession {
         report: &mut CompileReport,
         observer: &mut dyn FnMut(&QueryEvent),
         loaded_syntax: Option<&[LoadedSyntax]>,
-        preloaded_semantic: Option<(TypedProgram, CandidatePlan)>,
+        preloaded_semantic: Option<Box<(TypedProgram, CandidatePlan)>>,
     ) -> CompileResult<()> {
         let setup_start = cost_start(options.profile_compilation);
         options
@@ -501,14 +499,15 @@ impl CompilationSession {
                 DiskCacheStatus::Missing
             };
             let cache_start = cost_start(options.profile_compilation);
-            let restored = preloaded_semantic.or_else(|| store.load(options));
+            let restored = preloaded_semantic.or_else(|| store.load(options).map(Box::new));
             report.record_driver_cost("semantic_cache_read", cache_start);
-            if let Some((typed, candidate)) = restored
-                && typed.module.source_fingerprint == fingerprint
-                && typed.module.module_id == project.root
-                && typed.module.target == options.target
+            if let Some(pair) = restored
+                && pair.0.module.source_fingerprint == fingerprint
+                && pair.0.module.module_id == project.root
+                && pair.0.module.target == options.target
             {
-                let before = report.clone();
+                let (typed, candidate) = *pair;
+                let before = Box::new(report.clone());
                 let imported = self.query_with_disposition(
                     key(Phase::Types, true),
                     &[],
@@ -551,7 +550,7 @@ impl CompilationSession {
                         {
                             return Err(errors);
                         }
-                        report.restart_attempt(before, "rejected_semantic_candidate", errors);
+                        report.restart_attempt(*before, "rejected_semantic_candidate", errors);
                         report.disk_cache = DiskCacheStatus::Rebuilt;
                     }
                 }
@@ -754,7 +753,9 @@ impl CompilationSession {
         let mut materializer = std::mem::take(&mut self.materializer);
         producer.set_cost_profiling(options.profile_compilation);
         let checkpoint_start = cost_start(options.profile_compilation);
-        let producer_checkpoint = options.producer_reuse.then(|| producer.checkpoint());
+        let producer_checkpoint = options
+            .producer_reuse
+            .then(|| super::session::producer_checkpoint(&producer));
         let materializer_checkpoint = options.producer_reuse.then(|| materializer.checkpoint());
         report.record_driver_cost("producer_checkpoint", checkpoint_start);
         let mut producer_work = None;
@@ -790,7 +791,7 @@ impl CompilationSession {
                                 declarations: zil_expand::source_context::DeclarationPlacement::Unavailable,
                             },
                         );
-                        producer_work = Some(Box::new(producer.last_stats().clone()));
+                        producer_work = Some(super::session::producer_work(&producer));
                         if let Some(expanded) = result? {
                             let (produced, maps) = expanded.into_program(project.root, fingerprint);
                             return Ok(RawSnapshot::Project(Arc::new(ExpandedProject {
@@ -819,7 +820,7 @@ impl CompilationSession {
                             declarations: zil_expand::source_context::DeclarationPlacement::Original,
                         },
                     );
-                    producer_work = Some(Box::new(producer.last_stats().clone()));
+                    producer_work = Some(super::session::producer_work(&producer));
                     if let Some(expanded) = result? {
                         let (produced, maps) = expanded.into_program(project.root, fingerprint);
                         return Ok(RawSnapshot::Project(Arc::new(ExpandedProject {
@@ -959,7 +960,7 @@ impl CompilationSession {
                     let result = producer.expand_parsed(
                         sources, &runtime_imports, expand_limits, &options.target, context,
                     );
-                    producer_work = Some(Box::new(producer.last_stats().clone()));
+                    producer_work = Some(super::session::producer_work(&producer));
                     if let Some(expanded) = result? {
                         let (program, source_maps) = expanded.into_program(project.root, fingerprint);
                         produced = Some(program);
@@ -1182,7 +1183,7 @@ impl CompilationSession {
         }
         report.record_driver_cost("function_cache_read", function_restore_start);
         let checkpoint_start = cost_start(options.profile_compilation);
-        let checkpoint = function_types.checkpoint();
+        let checkpoint = super::session::function_checkpoint(&function_types);
         report.record_driver_cost("function_checkpoint", checkpoint_start);
         // Paths identify owners; current immutable Core, binding IDs, complete
         // limits/target and observed declarations still prove validity inside
@@ -1229,7 +1230,7 @@ impl CompilationSession {
                         &options.limits,
                     )
                 };
-                function_work = Some(Box::new(function_types.last_stats()));
+                function_work = Some(super::session::function_work(&function_types));
                 checked.map(|typed| RawSnapshot::ProjectTyped(Arc::new(typed)))
             },
         );

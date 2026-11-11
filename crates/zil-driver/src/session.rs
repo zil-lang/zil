@@ -127,6 +127,34 @@ pub(super) struct ExpandedSource {
 
 type ProducerParseCache = BTreeMap<(ModuleId, FileId, String), zil_syntax::ParsedSource>;
 
+// These optional research owners contain large statistics and graph envelopes.
+// Heap checkpoints keep their construction/moves out of the active parent
+// frames while ordinary source expansion descends through the default stack.
+#[inline(never)]
+pub(super) fn function_checkpoint(
+    functions: &zil_types::FunctionSession,
+) -> Box<zil_types::FunctionSession> {
+    Box::new(functions.checkpoint())
+}
+#[inline(never)]
+pub(super) fn producer_checkpoint(
+    producer: &zil_expand::ExpandSession,
+) -> Box<zil_expand::ExpandSession> {
+    Box::new(producer.checkpoint())
+}
+#[inline(never)]
+pub(super) fn function_work(
+    functions: &zil_types::FunctionSession,
+) -> Box<zil_types::FunctionStats> {
+    Box::new(functions.last_stats())
+}
+#[inline(never)]
+pub(super) fn producer_work(
+    producer: &zil_expand::ExpandSession,
+) -> Box<zil_expand::ProducerStats> {
+    Box::new(producer.last_stats().clone())
+}
+
 pub struct CompilationSession {
     pub(super) database: Database,
     pub(super) raw: BTreeMap<QueryKey, RawSnapshot>,
@@ -134,8 +162,8 @@ pub struct CompilationSession {
     recency: BTreeMap<QueryKey, u64>,
     clock: u64,
     analysis: zil_analyze::AnalysisSession,
-    pub(super) function_types: zil_types::FunctionSession,
-    pub(super) producer: zil_expand::ExpandSession,
+    pub(super) function_types: Box<zil_types::FunctionSession>,
+    pub(super) producer: Box<zil_expand::ExpandSession>,
     pub(super) materializer: super::ct_artifact::ScalarMaterializationSession,
     pub(super) producer_syntax: std::cell::RefCell<ProducerParseCache>,
 }
@@ -153,8 +181,8 @@ impl CompilationSession {
             recency: BTreeMap::new(),
             clock: 0,
             analysis: zil_analyze::AnalysisSession::default(),
-            function_types: zil_types::FunctionSession::default(),
-            producer: zil_expand::ExpandSession::default(),
+            function_types: Box::default(),
+            producer: Box::default(),
             materializer: super::ct_artifact::ScalarMaterializationSession::default(),
             producer_syntax: std::cell::RefCell::new(BTreeMap::new()),
         }
@@ -166,7 +194,7 @@ impl CompilationSession {
         self.clock = 0;
         self.analysis.clear();
         self.function_types.clear();
-        self.producer = zil_expand::ExpandSession::default();
+        self.producer = Box::default();
         self.materializer = super::ct_artifact::ScalarMaterializationSession::default();
         self.producer_syntax.borrow_mut().clear();
     }
