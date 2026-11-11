@@ -429,8 +429,8 @@ fn hash_symbols(value: &Val, state: &mut BufferedHasher) {
         }
         Val::Gep { ptr, indices, .. } => {
             3u8.hash(state);
-            hash_symbols(ptr, state);
             indices.len().hash(state);
+            hash_symbols(ptr, state);
             for arg in indices {
                 hash_symbols(&arg.value, state);
             }
