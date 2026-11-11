@@ -41,11 +41,11 @@
   "coordination": "New research branch and this record only. main, archive and existing compiler task refs unchanged. goal.md main task table was not rewritten; this is a delivery record, not a second task board. Production write sets must be coordinated before further integration.",
   "continuation": {
     "task": "G10.5.1.15",
-    "read_goal_sha": "4b388a9a1ea5922edfb804dc9c5026c4025f64ed",
+    "read_goal_sha": "92b0ad66b9e24b4d3c6b0bc3ad1be7271be0eb2d",
     "source_start": "c75c58bf7f564a1ce8049702f9c6ec41c82d1da2",
     "main": "99035931d358add0eaed6d4535035c38413701dd",
     "status": "Executing real compiler baseline and production integration; not accepted",
-    "updated_utc": "2026-11-11T12:21:54.643793+00:00",
+    "updated_utc": "2026-11-11T12:28:26.384041+00:00",
     "write_set": [
       "crates/zil-driver/src/session.rs",
       "crates/zil-driver/src/project.rs",
@@ -59,18 +59,35 @@
       "crates/zil-cli/src/main.rs (research mode/stats wiring if required)",
       "corresponding frontend tests",
       "tools/research/reactive-query-graph/**",
-      ".task/reactive-query-graph.md"
+      ".task/reactive-query-graph.md",
+      "crates/zil-types/Cargo.toml: zil-db workspace edge",
+      "Cargo.lock: zil-types dependency list",
+      "policy/dependencies.json: crates.zil-types allowed edge"
     ],
     "protected": [
       "public IR/schema",
-      "root Cargo and lock",
       "independent Verify kernel",
       "machine backends",
-      "other task branches"
+      "other task branches",
+      "root Cargo.toml; all other dependency and unsafe boundary entries"
     ],
     "worktree": "/workspace/scratch/e28839ace920/reactive",
     "target": "/workspace/scratch/e28839ace920/targets/reactive",
     "toolchain": "existing pinned Rust1.99.1 / LLVM23.1.4; checker Pass",
-    "next": "Build frozen main baseline, run Source check and native output, then wire stable owners and real semantic consumers"
+    "next": "Build frozen main baseline, run Source check and native output, then wire stable owners and real semantic consumers",
+    "root_only_coordination": {
+      "reason": "Real Types consumer must call the common zil-db reactive graph; no dependency cycle and no external dependency. Root alone adds this narrow edge, outside the active ThinLTO backend/LLVM edits.",
+      "paths": [
+        "crates/zil-types/Cargo.toml: zil-db workspace edge",
+        "Cargo.lock: zil-types dependency list",
+        "policy/dependencies.json: crates.zil-types allowed edge"
+      ],
+      "no_changes": [
+        "public IR/schema",
+        "Verify implementation",
+        "LLVM unsafe boundary",
+        "other compiler branches"
+      ]
+    }
   }
 }
