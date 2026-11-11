@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "scope": "Ordinary Store.push_growing with actual input-owner return on failed preparation, qualified Copy and owning elements, FnMut captures and last-use borrow checks.",
+  "status": "Pass for the listed frozen-source semantic, native and nominal regression scopes.",
+  "source": {
+    "base_main": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852",
+    "code_commit": "c8c13db74630c9d47115db38c1472bd82faedcb9",
+    "code_tree": "9247db968b5ac493afa0619f6c239e3576c56a98",
+    "publication": "Later changes only add this receipt and its specification link; executable source and test inputs remain identical."
+  },
+  "contracts": [
+    "spec/store-growth.md",
+    "spec/ordinary-store-ownership.md",
+    "spec/store-element-field-borrow.md"
+  ],
+  "inputs": [
+    {
+      "path": "lib/std/store.zil",
+      "bytes": 3120,
+      "sha256": "695451f8dc8b996b748016ba8d094de446291bb849101dd79d18eb9846cc6d09"
+    },
+    {
+      "path": "tests/language-readiness/owning-trait-hosts/consumers.rs",
+      "bytes": 42974,
+      "sha256": "632acebe5d15028f20f7fb413add05972118a1e8d8c4ab3176443b34438ba19f"
+    },
+    {
+      "path": "tests/language-readiness/owning-trait-hosts/store_push_growing/main.zil",
+      "bytes": 3167,
+      "sha256": "cb722c54a99309b265c245c1a71a430e1d2e10954f6815e402a47c4bd14284e8"
+    },
+    {
+      "path": "tests/language-readiness/owning-trait-hosts/store_push_growing/capture.zil",
+      "bytes": 1185,
+      "sha256": "6c7577f068165255b7627274abbe33ffb58b575dd6918a00b478167bcbc9a635"
+    },
+    {
+      "path": "tests/language-readiness/owning-trait-hosts/store_push_growing/borrow.zil",
+      "bytes": 467,
+      "sha256": "0f6241b1804b40d6ae0f14b9943a5a1a39612356877f3c348aa300f0edb0a70d"
+    },
+    {
+      "path": "tests/language-readiness/owning-trait-hosts/store_push_growing/consumers.rs",
+      "bytes": 4861,
+      "sha256": "e80f524f0f772091d11af083228c6820b7a042e0358489f35724beb882dd8f0c"
+    }
+  ],
+  "toolchain": {
+    "host": "Linux x86_64",
+    "rust": "1.99.1",
+    "llvm_clang_lld": "23.1.4",
+    "checker": "tools/llvm/check_toolchain.py: Pass",
+    "default_limits_unchanged": true,
+    "thread_stack_not_increased": true
+  },
+  "checks": [
+    {
+      "scope": "store_push_growing",
+      "command": "cargo test --locked --offline -p zil-driver --features llvm-api --test nominal_trait_bounds store_push_growing -- --nocapture",
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "log": "out/runs/store-growth-20261111/diagnostic-repair/store.log",
+      "sha256": "3664f8fd298254b5a5cb77effb81cfa5605ee046514daed98a805eefcd61ab7e",
+      "native": {
+        "builds": 8,
+        "processes": 32
+      }
+    },
+    {
+      "scope": "collected_pipeline",
+      "command": "cargo test --locked --offline -p zil-driver --features llvm-api --test nominal_trait_bounds collected_pipeline -- --nocapture",
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0,
+      "log": "out/runs/store-growth-20261111/accepted-source/collected.log",
+      "sha256": "5692fb923dddf734b7a2228a703616de0593589f41ab4bad73206e2ab34cbd72",
+      "native": {
+        "builds": 4,
+        "processes": 56
+      }
+    },
+    {
+      "scope": "nominal_trait_bounds",
+      "command": "cargo test --locked --offline -p zil-driver --features llvm-api --test nominal_trait_bounds -- --nocapture",
+      "passed": 234,
+      "failed": 0,
+      "ignored": 0,
+      "log": "out/runs/store-growth-20261111/accepted-source/nominal.log",
+      "sha256": "8bbd80112c2cee81d7427893e5525681e582e2231ad354940da36c029cd7ba32"
+    }
+  ],
+  "verified_invariants": [
+    "Source positives independently reach Verify once; consumed-owner and live-borrow negatives retain Analyze/SafeReject, zero Verify runs and no executable. Fixed push and growing push diagnostics agree in phase, category, code and full message.",
+    "The direct owning RHS is evaluated once. Failed reservation returns the same live input for retry and preserves prior length, capacity and initialized prefix. Successful spare-capacity insertion does not allocate.",
+    "Clang and LLVM API, each at O0/O2, retain actual backend, no fallback, complete exit/stdout/stderr checks and allocation-failure controls. All 12 focused builds report Success and verification_runs=1; all 88 processes match their expected results.",
+    "The six focused LLVM API reports record LLVM 23.1.4, builder input, parse_ns=0 and structural verification before and after optimization.",
+    "The unchanged four-file collected consumer retains all 7547 input bytes, the three original controls and the selected independent raw/Wire complete-project control. Full nominal regression retains all 234 tests."
+  ],
+  "boundaries": [
+    "Receipt native counts describe the two focused runs only; repeated coverage inside the full nominal run is not added to them.",
+    "The growth observer counts allocation attempts, new allocations and frees; it does not maintain a live count or per-pointer identity set.",
+    "DCBA proves explicit reverse pop followed by value consumption, not automatic nonempty-Store destruction order.",
+    "Captured-Store allocation failure point 1 and near-i64::MAX Store construction are not executed by this matrix. Guarded multiplication is checked statically; existing reserve controls cover stride/negative/MAX rejection.",
+    "This ordinary library API does not add element qualification, compiler primitives, borrowing permissions, owning hash collections or a complete-language release claim."
+  ],
+  "independent_review": "Frozen implementation, the two consumer repairs and complete focused execution evidence reviewed separately from the author."
+}
