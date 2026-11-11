@@ -656,6 +656,7 @@ impl<'a> Construction<'a> {
             }
             self.locals.insert(name, value);
         }
+        let mut block_handles = Vec::with_capacity(blocks.len());
         for block in blocks {
             let name = cstring(&block.name)?;
             let raw =
@@ -664,6 +665,7 @@ impl<'a> Construction<'a> {
                 return Err(error(ErrorKind::Emit, "LLVM block creation failed"));
             }
             self.blocks.insert(block.name.as_str(), raw);
+            block_handles.push(raw);
         }
         let mut phis = vec![];
         for block in blocks {
@@ -679,12 +681,19 @@ impl<'a> Construction<'a> {
                 }
             }
         }
+        // emit() never changes the insertion point. Keep the exact schedule,
+        // which may return to an earlier block, and position only on a switch.
+        // Phi construction above leaves an unrelated insertion point.
+        let mut current_block = None;
         for (step, &(b, j)) in schedule.iter().enumerate() {
             if step % 256 == 0 {
                 check(cancelled)?;
             }
-            unsafe {
-                LLVMPositionBuilderAtEnd(self.builder.0, self.blocks[blocks[b].name.as_str()]);
+            if current_block != Some(b) {
+                unsafe {
+                    LLVMPositionBuilderAtEnd(self.builder.0, block_handles[b]);
+                }
+                current_block = Some(b);
             }
             self.emit(&blocks[b].instructions[j])?;
         }

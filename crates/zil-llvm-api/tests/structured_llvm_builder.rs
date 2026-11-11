@@ -70,6 +70,96 @@ fn direct_loop_forward_block_phi_executes_o0_o2() {
         assert_eq!(execute(&loop_module(), opt), 42);
     }
 }
+
+#[test]
+fn interleaved_block_schedule_and_constant_folding_execute_o0_o2() {
+    let add = |name, left, right| {
+        i(
+            name,
+            Op::Binary {
+                opcode: "add".into(),
+                ty: Ty::Int(32),
+                left,
+                right,
+            },
+        )
+    };
+    // The right block's first expression is initially ready and folds to a
+    // constant. Other ready instructions subsequently alternate between blocks;
+    // their per-block chains still have to append in the original order.
+    let program = m(vec![Item::Function(f(
+        "main",
+        vec![],
+        Ty::Int(32),
+        vec![
+            b(
+                "entry",
+                vec![
+                    i(
+                        "slot",
+                        Op::Alloca {
+                            ty: Ty::Int(32),
+                            align: 4,
+                        },
+                    ),
+                    i(
+                        "",
+                        Op::Store {
+                            arg: a(Ty::Int(32), 41),
+                            ptr: "%slot".into(),
+                            align: 4,
+                        },
+                    ),
+                    i(
+                        "n",
+                        Op::Load {
+                            ty: Ty::Int(32),
+                            ptr: "%slot".into(),
+                            align: 4,
+                        },
+                    ),
+                    i(
+                        "yes",
+                        Op::Compare {
+                            predicate: "slt".into(),
+                            ty: Ty::Int(32),
+                            left: "%n".into(),
+                            right: 42.into(),
+                        },
+                    ),
+                    i(
+                        "",
+                        Op::CondBranch {
+                            condition: "%yes".into(),
+                            yes: "left".into(),
+                            no: "right".into(),
+                        },
+                    ),
+                ],
+            ),
+            b(
+                "left",
+                vec![
+                    add("left.one", "%n".into(), 1.into()),
+                    add("left.two", "%left.one".into(), 0.into()),
+                    i("", Op::Return(Some(a(Ty::Int(32), "%left.two")))),
+                ],
+            ),
+            b(
+                "right",
+                vec![
+                    add("folded", 1.into(), 2.into()),
+                    add("right.one", "%n".into(), "%folded".into()),
+                    i("", Op::Return(Some(a(Ty::Int(32), "%right.one")))),
+                ],
+            ),
+        ],
+    ))]);
+    for opt in [Optimization::O0, Optimization::O2] {
+        assert_eq!(execute(&program, opt), 42);
+    }
+}
+
 #[test]
 fn direct_aggregates_global_function_table_and_indirect_call_execute() {
     for opt in [Optimization::O0, Optimization::O2] {
