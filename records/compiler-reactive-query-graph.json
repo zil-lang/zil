@@ -1,0 +1,18 @@
+{
+  "date": "2026-11-11",
+  "parent_scope": "G10.5.1",
+  "research": "stable-owner reactive query graph",
+  "read_goal_sha": "32fe4e123b5c75fc943f8f0fe346964dac1c1102",
+  "source_base": "99035931d358add0eaed6d4535035c38413701dd",
+  "source_branch": "research/reactive-query-graph",
+  "source_head": "e31e7eceee15f4e703eb81731c88d8a8578fe68f",
+  "probe_commit": "1735a305ccfff2c95ac2658b6c2ca427dc9eb392",
+  "probe_blob": "98762b26506c0e35ec11072b8d397c845b407eff",
+  "probe_sha256": "a657bfe2c05b16be3dea346ec6afee2f9470ce14a820f1606b876b97fae94c57",
+  "delivered": ["historical reverse-index implementation and withdrawal verified", "prior CP25-C and height-adaptation scope verified", "synchronous stable-owner/bidirectional-bond/height-dedup/equality-barrier model", "three fresh Node processes each passing the same 2730 differential comparisons", "512/4096/16384-function-shaped model windows against strengthened pull and indexed-invalidation baselines", "positive, adverse, superseded and timed-out measurement identities retained"],
+  "not_run": ["production compiler integration", "Source/Types/Analyze/independent Verify equivalence", "LLVM/linker/native behavior", "Rust comparison", "compiler memory and workload-weighted acceptance", "independent review"],
+  "scope_state": "model delivered; production integration not executed; no background work",
+  "evidence": {"readme": "tools/research/reactive-query-graph/README.md", "receipt": "tools/research/reactive-query-graph/receipt.json", "handoff": ".task/reactive-query-graph.md", "full_raw_samples": "conversation delivery bundle; hashes retained in source receipt"},
+  "historical_candidates": {"reverse_index": "ee786e7fd7162cfd76d5f532fe5c80d9e175ad57", "withdrawal": "bc66c2eaee5ae68644a7f057e84499b365c3d218", "height_adaptation": "fbf8cb4979fa2fb655fbdf73f72a7037d64a39cd", "cp25_c": "3e5657a312c80188dbaa81451e88f651d586b265"},
+  "coordination": "New research branch and this record only. main, archive and existing compiler task refs unchanged. goal.md main task table was not rewritten; this is a delivery record, not a second task board. Production write sets must be coordinated before further integration."
+}
