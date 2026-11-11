@@ -1,6 +1,6 @@
 {
-  "baseline": "ea0ce45741fde0082b6c92173b7480b167c888d4",
-  "purpose": "Test whether retaining complete producer products and per-module materializer receipts removes real edit latency.",
+  "baseline": "99035931d358add0eaed6d4535035c38413701dd",
+  "purpose": "Measure the new research branch against actual main and a semantically equivalent Rust workload; identify remaining incremental compilation latency.",
   "primary": {
     "case": "scalar",
     "modules": 20,
@@ -13,14 +13,38 @@
     "codegen_units": 1,
     "codegen_jobs": 1
   },
-  "requests": ["cold", "unchanged", "private", "multi", "broad", "restore", "error", "recovery"],
+  "requests": [
+    "cold",
+    "unchanged",
+    "private",
+    "multi",
+    "broad",
+    "restore",
+    "error",
+    "recovery"
+  ],
   "contrasts": {
-    "old_B_new_B": "Same producer flag, no graph, frozen old and new binaries; isolate this continuation.",
-    "new_A_B_C": "A existing caches, B shared producer plus materializer receipts, C B plus reactive graph; do not count B gains as graph gains."
+    "main_new_B": "Actual main binary with existing caches vs candidate --producer-reuse, graph disabled. This is the total branch effect, not attribution solely to the current continuation.",
+    "new_A_B_C": "A candidate existing caches, B shared producer plus materializer receipts, C B plus reactive graph; internal feature attribution only.",
+    "Rust": "Same arithmetic and call graph, edits and binary output oracle. Cargo check and opt-level2 build with incremental=true/codegen-units1/jobs1. Resident Zil request vs fresh Cargo process is explicitly a workflow comparison, not identical compiler phases."
   },
   "weights": {
-    "hypothetical_manual": {"unchanged": 0.10, "private": 0.65, "multi": 0.05, "broad": 0.05, "recovery": 0.10, "cold": 0.05},
-    "hypothetical_multi_edit": {"unchanged": 0.05, "private": 0.15, "multi": 0.55, "broad": 0.10, "recovery": 0.10, "cold": 0.05}
+    "hypothetical_manual": {
+      "unchanged": 0.1,
+      "private": 0.65,
+      "multi": 0.05,
+      "broad": 0.05,
+      "recovery": 0.1,
+      "cold": 0.05
+    },
+    "hypothetical_multi_edit": {
+      "unchanged": 0.05,
+      "private": 0.15,
+      "multi": 0.55,
+      "broad": 0.1,
+      "recovery": 0.1,
+      "cold": 0.05
+    }
   },
   "rules": [
     "Hypothetical weights are sensitivity calculations, not measured user request frequencies.",
@@ -30,6 +54,12 @@
     "No increased limits, changed cache policy, reduced optimization or source replacement.",
     "Single-block and cross-window cost differences diagnose mechanisms, not accepted speedup.",
     "Retain failed runs; report cold/broad/error/fallback separately from incremental edits.",
-    "Require actual shared Core/maps, sparse materializer walks and unchanged CFG recomputation before performance claims."
-  ]
+    "Require actual shared Core/maps, sparse materializer walks and unchanged CFG recomputation before performance claims.",
+    "Revised before formal measurements per explicit user steering: compare main and Rust, not another active research branch.",
+    "main already has resident, function, analysis, semantic and object caches; do not describe it as an uncached baseline.",
+    "main lacks optional research counters/profile fields; validate its actual public report and current Verify without inventing work data.",
+    "Rust language checks are not equivalent to Zil independent Verify. Cross-language ratios do not prove equivalent assurance or code quality.",
+    "Rust and Zil measurements from separate windows are descriptive distributions, not matched-block causal confidence intervals."
+  ],
+  "candidate_source": "60cd8f20e3b6ceedccfc460c7c261f1aa5136f18"
 }
