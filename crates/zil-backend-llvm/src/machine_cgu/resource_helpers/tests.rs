@@ -176,7 +176,7 @@ fn shared_call_only_helpers_do_not_join_independent_source_modules() {
 }
 
 #[test]
-fn early_merging_keeps_complete_visibility_while_late_merging_splits_helpers() {
+fn only_explicit_late_merging_splits_helpers_while_other_policies_keep_complete_visibility() {
     use super::super::{CallImportPolicy, partition_view, partition_view_cached};
     use crate::FunctionMerging;
 
@@ -214,7 +214,7 @@ fn early_merging_keeps_complete_visibility_while_late_merging_splits_helpers() {
             CallImportPolicy::for_incremental_o2(true, merging),
             None,
         );
-        if merging == FunctionMerging::BeforeAndAfter {
+        if merging != FunctionMerging::AfterOptimization {
             assert_eq!(plan.units, original.units);
             assert_eq!(plan.fallback, original.fallback);
         } else {
