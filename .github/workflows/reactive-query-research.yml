@@ -1,0 +1,72 @@
+name: Reactive query native research
+on:
+  push:
+    branches: [research/reactive-query-graph]
+    paths:
+      - '.github/workflows/reactive-query-research.yml'
+      - 'crates/**'
+      - 'tools/research/reactive-query-graph/native/**'
+permissions:
+  contents: read
+concurrency:
+  group: reactive-query-native-research
+  cancel-in-progress: false
+jobs:
+  frontend:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Freeze current source for isolated local inspection
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/reactive-source" "$RUNNER_TEMP/reactive-results"
+          git rev-parse HEAD > "$RUNNER_TEMP/reactive-source/commit.txt"
+          git rev-parse 'HEAD^{tree}' > "$RUNNER_TEMP/reactive-source/tree.txt"
+          git archive --format=tar.gz HEAD > "$RUNNER_TEMP/reactive-source/source.tar.gz"
+          sha256sum "$RUNNER_TEMP/reactive-source/source.tar.gz" > "$RUNNER_TEMP/reactive-source/source.sha256"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: reactive-source-${{ github.sha }}
+          path: ${{ runner.temp }}/reactive-source/
+          retention-days: 14
+          if-no-files-found: error
+      - name: Build actual compiler frontend without an LLVM installation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt
+          rustc -vV | tee "$RUNNER_TEMP/reactive-results/toolchain.txt"
+          cargo build --locked --release --no-default-features -p zil-cli 2>&1 | tee "$RUNNER_TEMP/reactive-results/build.log"
+          cp target/release/zil "$RUNNER_TEMP/reactive-results/zil"
+          sha256sum target/release/zil | tee "$RUNNER_TEMP/reactive-results/binary.sha256"
+          git rev-parse HEAD > "$RUNNER_TEMP/reactive-results/commit.txt"
+          git rev-parse 'HEAD^{tree}' > "$RUNNER_TEMP/reactive-results/tree.txt"
+      - name: Scoped real frontend tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --locked --no-default-features -p zil-driver --lib function_incremental_tests 2>&1 | tee "$RUNNER_TEMP/reactive-results/function-tests.log"
+          cargo test --locked --no-default-features -p zil-db 2>&1 | tee "$RUNNER_TEMP/reactive-results/db-tests.log"
+      - name: Execute source-driven benchmark when present
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f tools/research/reactive-query-graph/native/run.py ]; then
+            python3 tools/research/reactive-query-graph/native/run.py --cli target/release/zil --out "$RUNNER_TEMP/reactive-results/native"
+          fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: reactive-native-${{ github.sha }}
+          path: ${{ runner.temp }}/reactive-results/
+          retention-days: 14
+          if-no-files-found: error
