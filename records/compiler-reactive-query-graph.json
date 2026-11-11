@@ -478,11 +478,11 @@
   },
   "producer_continuation": {
     "task": "G10.5.1.15",
-    "read_goal_sha": "0d265386fe441be5155d7f8935493ffe8e9d1515",
+    "read_goal_sha": "5b5547e5e623ccd30f428e41a3e0ff2811a6b14c",
     "source_start": "0a529a6247793f63ccd41ff3f65dc97afcbb666c",
     "main": "99035931d358add0eaed6d4535035c38413701dd",
-    "status": "实施中·未验收；A/B/C隔离归因与密封前端生产者复用",
-    "updated_utc": "2026-11-11T14:57:58.836524+00:00",
+    "status": "实施中·真实生产者接入与正确性门通过；正在准备A/B/C真实测量",
+    "updated_utc": "2026-11-11T15:26:09.357779+00:00",
     "write_set": [
       "crates/zil-syntax/src/**: parser-owned immutable Source provenance and tests",
       "crates/zil-expand/src/**: scalar module Normalize/Restore/Lower products, ordered budget receipts and tests",
@@ -512,6 +512,36 @@
       "requirements": "B must use versions fairly; separate production/Eq/context/inventory/graph/evaluation/backend within same request; preserve current Verify/source binding/first diagnostics/budgets and real native behavior. Freeze source before performance."
     },
     "success_gate": "Unchanged modules actually skip Normalize/Lower, unchanged Core deep comparison drops, CFG execution does not increase, complete fresh-current differential passes; only then extend graph or performance matrix.",
-    "remaining": "No new production code or measurements yet at claim; previous no-net-gain evidence remains valid."
+    "remaining": "尚无本片端到端净收益结论；默认关闭，不合main。下一步同binary成本诊断通过后扩配对规模/O2。",
+    "source_head": "23b3b24b0e1fb52e6dbbb302078095aa44b750bd",
+    "validation": {
+      "source": "23b3b24b0e1fb52e6dbbb302078095aa44b750bd",
+      "lib_tests": 341,
+      "cli_tests": 1,
+      "strict_clippy": "workspace/all-targets -D warnings passed",
+      "architecture": {
+        "crates": 15,
+        "edges": 40,
+        "status": "Pass at2a6; following source only type aliases/counter names"
+      },
+      "actual_work_gate": "3module equal-width edit: Normalize/Lower3→1,2reused,CoreEq0,B/C both reuse body keys; not a time result",
+      "raw_local": "out/runs/producer-validation-23b3b24; evidence packaging pending",
+      "review_source": "23b3b24b0e1fb52e6dbbb302078095aa44b750bd",
+      "review": "non-author production read review; no semantic blockers, no performance acceptance"
+    },
+    "preserved_failures": [
+      {
+        "source": "1c7b6cd3767e65d86da227095baca801f1c21c4c",
+        "issue": "test-only lifetimes wrapper omitted; compile failure repaired2a6"
+      },
+      {
+        "source": "1c7b6cd3767e65d86da227095baca801f1c21c4c",
+        "issue": "actual sealed duplicateFileId probe: raw ResourceLimit vs producerSafeReject after erroneous receipt; repaired2a6 with domainfallback"
+      },
+      {
+        "source": "2a6b873857ac0e9e1d7175652018508153433a42",
+        "issue": "strictClippy needlessOptionborrow; then881 typecomplexity; resolved23b"
+      }
+    ]
   }
 }
