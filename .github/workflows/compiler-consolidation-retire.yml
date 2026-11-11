@@ -1,0 +1,35 @@
+name: Retire audited inactive compiler branches
+on:
+  push:
+    branches: [task/compiler-consolidation]
+    paths: [.github/workflows/compiler-consolidation-retire.yml]
+permissions:
+  contents: write
+  actions: read
+  pull-requests: write
+  issues: write
+concurrency:
+  group: compiler-branch-retirement
+  cancel-in-progress: false
+jobs:
+  retire:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Guard exact heads and active work before archive and deletion
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -m py_compile .task/compiler-consolidation/retire.py
+          python3 .task/compiler-consolidation/retire.py
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: compiler-branch-retirement-${{ github.run_id }}
+          path: ${{ runner.temp }}/retirement
+          retention-days: 30
