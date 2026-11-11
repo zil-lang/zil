@@ -44,6 +44,24 @@ fn flag_index(definition: &ClosureDefinition, capture: u32) -> usize {
             .sum::<usize>()
 }
 
+// Current independent Verify requires every owned capture/direct Package field
+// to be LIVE at the return of Fn/FnMut entries. Whole capture construction also
+// requires complete owned values. Therefore their final cleanup need not test
+// each capture again after the caller has tested/surrendered the environment.
+// Keep this first specialization to byte storage and direct Package fields;
+// FnOnce, lending, nested ownership and user teardown retain dynamic guards.
+fn complete_byte_environment(definition: &ClosureDefinition) -> bool {
+    fn field(ty: &Type) -> bool {
+        flag_count(ty) == 0 || matches!(ty, Type::Managed(payload) if **payload == Type::ByteBuffer)
+    }
+    definition.kind != CallableKind::FnOnce
+        && definition.lending_captures.is_empty()
+        && definition.captures.iter().all(|ty| match ty {
+            Type::Package { fields, .. } => fields.iter().all(|(_, ty)| field(ty)),
+            ty => field(ty),
+        })
+}
+
 /// Field cleanup follows the fixed source capture order. The local containing
 /// this environment has already surrendered its responsibility before entry.
 pub(super) fn drop_functions(
@@ -56,6 +74,7 @@ pub(super) fn drop_functions(
     // without inventing a capture cleanup obligation.
     for definition in closures {
         let env = environment_type(definition.id);
+        let complete = complete_byte_environment(definition);
         text.append(m::Code::from(vec![
             m::Event::Begin(m::Function {
                 name: format!("zil.closure.drop.{}", definition.id.0),
@@ -80,44 +99,46 @@ pub(super) fn drop_functions(
                 continue;
             }
             let flag = flag_index(definition, index as u32);
-            text.append(m::Code::from(vec![
-                m::Event::Instruction(m::Inst::new(
-                    Some(format!("flag.ptr.{}", index)),
-                    m::Op::Gep {
-                        ty: (env).clone(),
-                        ptr: m::local("env".into()),
-                        indices: vec![
-                            m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
-                            m::Arg::new(m::Ty::Int(32), m::val(flag)),
-                        ],
-                    },
-                )),
-                m::Event::Instruction(m::Inst::new(
-                    Some(format!("live.{}", index)),
-                    m::Op::Load {
-                        ty: m::Ty::Int(1),
-                        ptr: m::local(format!("flag.ptr.{}", index)),
-                        align: 1,
-                    },
-                )),
-                m::Event::Instruction(m::Inst::new(
-                    None,
-                    m::Op::CondBranch {
-                        condition: m::local(format!("live.{}", index)),
-                        yes: format!("drop.{}", index),
-                        no: format!("done.{}", index),
-                    },
-                )),
-                m::Event::Label(format!("drop.{}", index)),
-                m::Event::Instruction(m::Inst::new(
-                    None,
-                    m::Op::Store {
-                        arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
-                        ptr: m::local(format!("flag.ptr.{}", index)),
-                        align: 1,
-                    },
-                )),
-            ]));
+            text.append(m::Code::from(vec![m::Event::Instruction(m::Inst::new(
+                Some(format!("flag.ptr.{}", index)),
+                m::Op::Gep {
+                    ty: (env).clone(),
+                    ptr: m::local("env".into()),
+                    indices: vec![
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                        m::Arg::new(m::Ty::Int(32), m::val(flag)),
+                    ],
+                },
+            ))]));
+            if !complete {
+                text.append(m::Code::from(vec![
+                    m::Event::Instruction(m::Inst::new(
+                        Some(format!("live.{}", index)),
+                        m::Op::Load {
+                            ty: m::Ty::Int(1),
+                            ptr: m::local(format!("flag.ptr.{}", index)),
+                            align: 1,
+                        },
+                    )),
+                    m::Event::Instruction(m::Inst::new(
+                        None,
+                        m::Op::CondBranch {
+                            condition: m::local(format!("live.{}", index)),
+                            yes: format!("drop.{}", index),
+                            no: format!("done.{}", index),
+                        },
+                    )),
+                    m::Event::Label(format!("drop.{}", index)),
+                ]));
+            }
+            text.append(m::Code::from(vec![m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Store {
+                    arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
+                    ptr: m::local(format!("flag.ptr.{}", index)),
+                    align: 1,
+                },
+            ))]));
             match ty {
                 Type::Managed(payload) => {
                     let teardown = if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
@@ -234,44 +255,49 @@ pub(super) fn drop_functions(
                         }
                         let field_flag = flag + offset;
                         offset += 1;
-                        text.append(m::Code::from(vec![
-                            m::Event::Instruction(m::Inst::new(
-                                Some(format!("field.flag.{}.{}", index, field)),
-                                m::Op::Gep {
-                                    ty: (env).clone(),
-                                    ptr: m::local("env".into()),
-                                    indices: vec![
-                                        m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
-                                        m::Arg::new(m::Ty::Int(32), m::val(field_flag)),
-                                    ],
-                                },
-                            )),
-                            m::Event::Instruction(m::Inst::new(
-                                Some(format!("field.live.{}.{}", index, field)),
-                                m::Op::Load {
-                                    ty: m::Ty::Int(1),
-                                    ptr: m::local(format!("field.flag.{}.{}", index, field)),
-                                    align: 1,
-                                },
-                            )),
-                            m::Event::Instruction(m::Inst::new(
-                                None,
-                                m::Op::CondBranch {
-                                    condition: m::local(format!("field.live.{}.{}", index, field)),
-                                    yes: format!("field.drop.{}.{}", index, field),
-                                    no: format!("field.done.{}.{}", index, field),
-                                },
-                            )),
-                            m::Event::Label(format!("field.drop.{}.{}", index, field)),
-                            m::Event::Instruction(m::Inst::new(
-                                None,
-                                m::Op::Store {
-                                    arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
-                                    ptr: m::local(format!("field.flag.{}.{}", index, field)),
-                                    align: 1,
-                                },
-                            )),
-                        ]));
+                        text.append(m::Code::from(vec![m::Event::Instruction(m::Inst::new(
+                            Some(format!("field.flag.{}.{}", index, field)),
+                            m::Op::Gep {
+                                ty: (env).clone(),
+                                ptr: m::local("env".into()),
+                                indices: vec![
+                                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                                    m::Arg::new(m::Ty::Int(32), m::val(field_flag)),
+                                ],
+                            },
+                        ))]));
+                        if !complete {
+                            text.append(m::Code::from(vec![
+                                m::Event::Instruction(m::Inst::new(
+                                    Some(format!("field.live.{}.{}", index, field)),
+                                    m::Op::Load {
+                                        ty: m::Ty::Int(1),
+                                        ptr: m::local(format!("field.flag.{}.{}", index, field)),
+                                        align: 1,
+                                    },
+                                )),
+                                m::Event::Instruction(m::Inst::new(
+                                    None,
+                                    m::Op::CondBranch {
+                                        condition: m::local(format!(
+                                            "field.live.{}.{}",
+                                            index, field
+                                        )),
+                                        yes: format!("field.drop.{}.{}", index, field),
+                                        no: format!("field.done.{}.{}", index, field),
+                                    },
+                                )),
+                                m::Event::Label(format!("field.drop.{}.{}", index, field)),
+                            ]));
+                        }
+                        text.append(m::Code::from(vec![m::Event::Instruction(m::Inst::new(
+                            None,
+                            m::Op::Store {
+                                arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
+                                ptr: m::local(format!("field.flag.{}.{}", index, field)),
+                                align: 1,
+                            },
+                        ))]));
                         // Discharge the direct child flag before traversing its
                         // complete inline leaves in declaration order. Machine
                         // events serve both direct Builder and text reference.
@@ -312,21 +338,28 @@ pub(super) fn drop_functions(
                                 )),
                             ]));
                         }
-                        text.append(m::Code::from(vec![
-                            m::Event::Instruction(m::Inst::new(
-                                None,
-                                m::Op::Branch(format!("field.done.{}.{}", index, field)),
-                            )),
-                            m::Event::Label(format!("field.done.{}.{}", index, field)),
-                        ]));
+                        if !complete {
+                            text.append(m::Code::from(vec![
+                                m::Event::Instruction(m::Inst::new(
+                                    None,
+                                    m::Op::Branch(format!("field.done.{}.{}", index, field)),
+                                )),
+                                m::Event::Label(format!("field.done.{}.{}", index, field)),
+                            ]));
+                        }
                     }
                 }
                 _ => unreachable!("verified owned capture"),
             }
-            text.append(m::Code::from(vec![
-                m::Event::Instruction(m::Inst::new(None, m::Op::Branch(format!("done.{}", index)))),
-                m::Event::Label(format!("done.{}", index)),
-            ]));
+            if !complete {
+                text.append(m::Code::from(vec![
+                    m::Event::Instruction(m::Inst::new(
+                        None,
+                        m::Op::Branch(format!("done.{}", index)),
+                    )),
+                    m::Event::Label(format!("done.{}", index)),
+                ]));
+            }
         }
         text.append(m::Code::from(vec![
             m::Event::Instruction(m::Inst::new(None, m::Op::Return(None))),
@@ -808,3 +841,6 @@ impl FunctionEmitter<'_> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod complete_drop_tests;
