@@ -10,6 +10,7 @@ pub struct InferredProgram<'a> {
     core: Cow<'a, CoreProgram>,
     limits: Limits,
     shared: Option<&'a Arc<CoreProgram>>,
+    producer: Option<&'a zil_expand::ProducedProgram>,
 }
 impl InferredProgram<'_> {
     pub fn program(&self) -> &CoreProgram {
@@ -29,6 +30,7 @@ impl InferredProgram<'_> {
         PreparedProgram {
             core,
             unchanged_limits: unchanged.then_some(self.limits),
+            producer: unchanged.then(|| self.producer.cloned()).flatten(),
         }
     }
     /// CT still executes its complete ordered traversal and charges all current
@@ -39,6 +41,8 @@ impl InferredProgram<'_> {
         PreparedProgram {
             core: Arc::new(current),
             unchanged_limits: unchanged.then_some(self.limits),
+            // A materialized evaluation result has no producer identity proof.
+            producer: None,
         }
     }
 }
@@ -49,6 +53,7 @@ impl InferredProgram<'_> {
 pub struct PreparedProgram {
     core: Arc<CoreProgram>,
     unchanged_limits: Option<Limits>,
+    producer: Option<zil_expand::ProducedProgram>,
 }
 impl PreparedProgram {
     pub(super) fn identity_inference(&self, limits: &Limits) -> bool {
@@ -56,6 +61,12 @@ impl PreparedProgram {
     }
     pub fn program(&self) -> &CoreProgram {
         &self.core
+    }
+    pub(super) fn module_revision(
+        &self,
+        module: zil_base::ModuleId,
+    ) -> Option<&zil_expand::ModuleRevision> {
+        self.producer.as_ref()?.module_revision(module)
     }
 }
 
@@ -67,6 +78,7 @@ pub fn infer_program_for_ct<'a>(
         core: inference::infer_program_closures_borrowed(program, limits)?,
         limits: limits.clone(),
         shared: None,
+        producer: None,
     })
 }
 
@@ -76,6 +88,18 @@ pub fn infer_shared_program_for_ct<'a>(
 ) -> CompileResult<InferredProgram<'a>> {
     let mut inferred = infer_program_for_ct(program, limits)?;
     inferred.shared = Some(program);
+    Ok(inferred)
+}
+
+/// Accept only a program assembled inside the successful Expand producer.
+/// Versions survive solely when inference borrows this exact immutable Core;
+/// CT materialization and shape resolution retain their ordinary checks.
+pub fn infer_produced_program_for_ct<'a>(
+    program: &'a zil_expand::ProducedProgram,
+    limits: &Limits,
+) -> CompileResult<InferredProgram<'a>> {
+    let mut inferred = infer_shared_program_for_ct(program.program(), limits)?;
+    inferred.producer = Some(program);
     Ok(inferred)
 }
 

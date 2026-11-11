@@ -71,14 +71,14 @@ pub enum CustomAttributeKind {
     Generate,
     Metadata,
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CustomAttribute {
     pub path: Vec<String>,
     pub kind: CustomAttributeKind,
     pub targets: Vec<AttributeTarget>,
     pub repeat: RepeatRule,
 }
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AttributeContext {
     /// Frozen values explicitly supplied by the build/configuration driver.
     pub configuration: BTreeMap<String, ConfigValue>,

@@ -202,12 +202,30 @@ pub(super) fn prepare(
     module: &Module,
     limits: &Limits,
 ) -> CompileResult<(Option<Prepared>, Limits)> {
+    prepare_cached(module, limits, None)
+}
+pub(super) fn prepare_cached(
+    module: &Module,
+    limits: &Limits,
+    mut reuse: Option<&mut crate::incremental::Reuse<'_>>,
+) -> CompileResult<(Option<Prepared>, Limits)> {
     let mut probe = Probe {
         budget: Budget::new(limits),
         present: false,
         tasks: false,
     };
     for item in &module.items {
+        if reuse.as_deref_mut().is_some_and(|reuse| {
+            reuse.replay(
+                crate::incremental::Stage::Prepare,
+                item.span,
+                &mut probe.budget,
+            )
+        }) {
+            continue;
+        }
+        let before = probe.budget.remaining_limits();
+        let clock = reuse.as_deref().and_then(|reuse| reuse.clock());
         let reserved = match &item.kind {
             ItemKind::Aggregate(a) => a.name == "Option",
             ItemKind::Enum(e) => e.name == "Option",
@@ -222,6 +240,15 @@ pub(super) fn prepare(
             )]);
         }
         crate::ct_selection::Visitor::item(&mut probe, item, 0)?;
+        if let Some(reuse) = reuse.as_deref_mut() {
+            reuse.production(clock);
+            reuse.record(
+                crate::incremental::Stage::Prepare,
+                item.span,
+                before,
+                &probe.budget,
+            );
+        }
     }
     let remaining = probe.budget.remaining_limits();
     if !probe.present && !probe.tasks {

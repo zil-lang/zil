@@ -12,7 +12,11 @@ mod generics;
 mod lifetimes;
 mod record_enums;
 pub use generated_spans::{remap_generated_spans, remap_generated_spans_metered};
+mod incremental;
 mod mapping;
+pub use incremental::{
+    ExpandSession, ExpandedProgram, ModuleRevision, ProducedProgram, ProducerStats,
+};
 mod modules;
 mod project_traits;
 mod receivers;
@@ -634,9 +638,55 @@ fn expand_program_with_limits_target_impl(
     context: Option<source_context::SourceIdentityContext<'_>>,
     runtime_ct: Option<&dyn runtime_ct::RuntimeCt>,
 ) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
+    expand_program_impl(
+        sources, syntax, imports, limits, target, context, runtime_ct, None,
+    )
+}
+#[allow(clippy::too_many_arguments)]
+fn expand_program_cached(
+    sources: &[SourceUnit],
+    syntax: &[&s::Module],
+    imports: &[Vec<CoreImport>],
+    limits: &Limits,
+    target: &zil_base::TargetProfile,
+    context: source_context::SourceIdentityContext<'_>,
+    reuse: &mut incremental::Reuse<'_>,
+) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
+    expand_program_impl(
+        sources,
+        syntax,
+        imports,
+        limits,
+        target,
+        Some(context),
+        None,
+        Some(reuse),
+    )
+}
+#[allow(clippy::too_many_arguments)]
+fn expand_program_impl(
+    sources: &[SourceUnit],
+    syntax: &[&s::Module],
+    imports: &[Vec<CoreImport>],
+    limits: &Limits,
+    target: &zil_base::TargetProfile,
+    context: Option<source_context::SourceIdentityContext<'_>>,
+    runtime_ct: Option<&dyn runtime_ct::RuntimeCt>,
+    mut reuse: Option<&mut incremental::Reuse<'_>>,
+) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
     let mut products = generics::products::Products::default();
     products.target_pointer_width = Some(target.pointer_width);
-    let specialized = if let Some(runtime_ct) = runtime_ct {
+    let specialized = if let Some(reuse) = reuse.as_deref_mut() {
+        modules::specialize_cached(
+            sources,
+            syntax,
+            imports,
+            limits,
+            &mut products,
+            context,
+            reuse,
+        )?
+    } else if let Some(runtime_ct) = runtime_ct {
         modules::specialize_with_runtime(
             sources,
             syntax,
@@ -693,25 +743,38 @@ fn expand_program_with_limits_target_impl(
     for ((source, (module, module_imports)), source_imports) in
         sources.iter().zip(&specialized).zip(imports)
     {
-        let mut expanded = expand_inner_project(
-            source,
-            module,
-            true,
-            sources,
-            (
-                &declarations,
-                &project_modules,
-                source_imports,
-                &products.trait_signatures,
-                products.metered(),
-                &products.member_patterns,
-                &products.dynamic,
-                &products.storage,
-                &products.method_providers,
-            ),
-            (&remaining, &remaining),
-            Some(&defaults),
-        )?;
+        let cached = reuse
+            .as_deref_mut()
+            .and_then(|reuse| reuse.lower(module.span.file, &remaining));
+        let mut expanded = if let Some(cached) = cached {
+            cached
+        } else {
+            let clock = reuse.as_deref().and_then(|reuse| reuse.clock());
+            let expanded = expand_inner_project(
+                source,
+                module,
+                true,
+                sources,
+                (
+                    &declarations,
+                    &project_modules,
+                    source_imports,
+                    &products.trait_signatures,
+                    products.metered(),
+                    &products.member_patterns,
+                    &products.dynamic,
+                    &products.storage,
+                    &products.method_providers,
+                ),
+                (&remaining, &remaining),
+                Some(&defaults),
+            )?;
+            if let Some(reuse) = reuse.as_deref_mut() {
+                reuse.production(clock);
+                reuse.save_lower(module.span.file, &remaining, &expanded);
+            }
+            expanded
+        };
         // New member constraints share the project's actual remaining allowance.
         remaining.max_analysis_steps = remaining
             .max_analysis_steps

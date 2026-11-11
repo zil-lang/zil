@@ -4,6 +4,13 @@ use super::*;
 /// Walk every type position, including unused definitions, before generic
 /// removal. Header node identities are request-local traversal context only.
 pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) -> CompileResult<()> {
+    validate_cached(module, budget, None)
+}
+pub(super) fn validate_cached(
+    module: &s::Module,
+    budget: &mut generics::Budget<'_>,
+    mut reuse: Option<&mut crate::incremental::Reuse<'_>>,
+) -> CompileResult<()> {
     struct Walk<'a, 'l> {
         budget: &'a mut generics::Budget<'l>,
         binders: Vec<String>,
@@ -351,7 +358,23 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
         ordinary_type_argument: false,
     };
     for item in &module.items {
+        if reuse.as_deref_mut().is_some_and(|reuse| {
+            reuse.replay(crate::incremental::Stage::Lifetimes, item.span, walk.budget)
+        }) {
+            continue;
+        }
+        let before = walk.budget.remaining_limits();
+        let clock = reuse.as_deref().and_then(|reuse| reuse.clock());
         ct_selection::Visitor::item(&mut walk, item, 0)?;
+        if let Some(reuse) = reuse.as_deref_mut() {
+            reuse.production(clock);
+            reuse.record(
+                crate::incremental::Stage::Lifetimes,
+                item.span,
+                before,
+                walk.budget,
+            );
+        }
     }
     Ok(())
 }

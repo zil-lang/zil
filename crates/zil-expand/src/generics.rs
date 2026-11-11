@@ -185,7 +185,21 @@ pub(super) fn specialize_products_with_runtime<'a>(
     )>,
     runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
 ) -> CompileResult<Cow<'a, Module>> {
-    let (prepared, remaining) = options::prepare(module, limits)?;
+    specialize_products_with_runtime_cached(module, limits, products, context, runtime_ct, None)
+}
+#[allow(clippy::too_many_arguments)]
+pub(super) fn specialize_products_with_runtime_cached<'a>(
+    module: &'a Module,
+    limits: &Limits,
+    products: &mut products::Products,
+    context: Option<(
+        &[zil_base::SourceUnit],
+        super::source_context::SourceIdentityContext<'_>,
+    )>,
+    runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
+    mut reuse: Option<&mut crate::incremental::Reuse<'_>>,
+) -> CompileResult<Cow<'a, Module>> {
+    let (prepared, remaining) = options::prepare_cached(module, limits, reuse.as_deref_mut())?;
     match prepared {
         Some(prepared) => specialize_products_prepared(
             &prepared.module,
@@ -194,6 +208,7 @@ pub(super) fn specialize_products_with_runtime<'a>(
             prepared.prelude,
             context,
             runtime_ct,
+            reuse.as_deref_mut(),
         )
         .map(|module| Cow::Owned(module.into_owned())),
         None => specialize_products_prepared(
@@ -203,6 +218,7 @@ pub(super) fn specialize_products_with_runtime<'a>(
             origins::CompilerPrelude::default(),
             context,
             runtime_ct,
+            reuse.as_deref_mut(),
         ),
     }
 }
@@ -217,13 +233,14 @@ fn specialize_products_prepared<'a>(
         super::source_context::SourceIdentityContext<'_>,
     )>,
     runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
+    reuse: Option<&mut crate::incremental::Reuse<'_>>,
 ) -> CompileResult<Cow<'a, Module>> {
     let mut names_budget = Budget::new(limits);
     if runtime_ct.is_some() {
         names_budget.note_source_identity();
     }
     names_budget.target_pointer_width = products.target_pointer_width.unwrap_or(64);
-    super::lifetimes::validate(module, &mut names_budget)?;
+    super::lifetimes::validate_cached(module, &mut names_budget, reuse)?;
     let mut has_where = false;
     let mut has_defaults = false;
     let mut has_associated = false;

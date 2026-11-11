@@ -4,11 +4,28 @@ use std::cell::RefCell;
 use std::collections::BTreeSet;
 use std::hash::Hash;
 use std::sync::Arc;
+use std::time::Instant;
 use zil_base::{FileId, Fingerprint, FingerprintBuilder, ModuleId};
 use zil_db::reactive::{GraphError, ReactiveGraph, ReactiveStats};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FunctionStats {
+    pub cost_profiled: bool,
+    pub total_ns: u64,
+    pub shape_resolution_ns: u64,
+    pub context_construction_ns: u64,
+    pub projection_context_ns: u64,
+    pub core_validation_ns: u64,
+    pub inventory_ns: u64,
+    pub graph_maintenance_ns: u64,
+    /// Graph evaluator time excluding graph reads; body_key_ns is a subset.
+    pub evaluator_ns: u64,
+    pub body_key_ns: u64,
+    pub cfg_reuse_ns: u64,
+    pub cfg_execute_ns: u64,
+    pub cfg_store_ns: u64,
+    pub producer_version_reuses: usize,
+    pub inventory_functions_visited: usize,
     pub reused_functions: usize,
     pub executed_functions: usize,
     pub body_key_executions: usize,
@@ -25,8 +42,27 @@ pub struct FunctionStats {
 impl FunctionStats {
     pub fn to_json(&self) -> String {
         let graph = self.graph;
+        let timings = format!(
+            "\"cost_profiled\":{},\"total_ns\":{},\"shape_resolution_ns\":{},\"context_construction_ns\":{},\"projection_context_ns\":{},\"core_validation_ns\":{},\"inventory_ns\":{},\"graph_maintenance_ns\":{},\"evaluator_ns\":{},\"body_key_ns\":{},\"cfg_reuse_ns\":{},\"cfg_execute_ns\":{},\"cfg_store_ns\":{},\"producer_version_reuses\":{},\"inventory_functions_visited\":{}",
+            self.cost_profiled,
+            self.total_ns,
+            self.shape_resolution_ns,
+            self.context_construction_ns,
+            self.projection_context_ns,
+            self.core_validation_ns,
+            self.inventory_ns,
+            self.graph_maintenance_ns,
+            self.evaluator_ns,
+            self.body_key_ns,
+            self.cfg_reuse_ns,
+            self.cfg_execute_ns,
+            self.cfg_store_ns,
+            self.producer_version_reuses,
+            self.inventory_functions_visited,
+        );
         format!(
-            "{{\"reused_functions\":{},\"executed_functions\":{},\"body_key_executions\":{},\"body_key_reuses\":{},\"core_function_eq_comparisons\":{},\"body_key_visited_nodes\":{},\"context_modules_visited\":{},\"context_declarations_hashed\":{},\"context_imports_hashed\":{},\"graph_edges\":{},\"graph\":{{\"executed\":{},\"edge_reads\":{},\"notifications\":{},\"enqueues\":{},\"deduplicated\":{},\"reused_bonds\":{},\"new_bonds\":{},\"removed_bonds\":{},\"rank_visits\":{},\"input_updates\":{},\"retained_nodes\":{},\"retained_edges\":{},\"inventory_visits\":{},\"equal_results\":{},\"changed_results\":{},\"cycle_check_edges\":{},\"validation_edge_reads\":{},\"rank_edge_reads\":{}}}}}",
+            "{{{},\"reused_functions\":{},\"executed_functions\":{},\"body_key_executions\":{},\"body_key_reuses\":{},\"core_function_eq_comparisons\":{},\"body_key_visited_nodes\":{},\"context_modules_visited\":{},\"context_declarations_hashed\":{},\"context_imports_hashed\":{},\"graph_edges\":{},\"graph\":{{\"executed\":{},\"edge_reads\":{},\"notifications\":{},\"enqueues\":{},\"deduplicated\":{},\"reused_bonds\":{},\"new_bonds\":{},\"removed_bonds\":{},\"rank_visits\":{},\"input_updates\":{},\"retained_nodes\":{},\"retained_edges\":{},\"inventory_visits\":{},\"equal_results\":{},\"changed_results\":{},\"cycle_check_edges\":{},\"validation_edge_reads\":{},\"rank_edge_reads\":{}}}}}",
+            timings,
             self.reused_functions,
             self.executed_functions,
             self.body_key_executions,
@@ -79,6 +115,7 @@ struct SourceBinding {
     module: ModuleId,
     index: usize,
     version: Fingerprint,
+    producer: Option<zil_expand::ModuleRevision>,
 }
 #[derive(Clone, Default)]
 struct Projections {
@@ -93,6 +130,34 @@ struct Projections {
 struct ReactiveRequest<'a> {
     state: &'a mut Projections,
     owners: &'a BTreeMap<ModuleId, (String, String)>,
+    prepared: &'a PreparedProgram,
+}
+
+#[derive(Clone)]
+struct MemoEntry {
+    revision: zil_expand::ModuleRevision,
+    context: Fingerprint,
+    signature: Fingerprint,
+    reads: BTreeMap<(ModuleId, String), Fingerprint>,
+    key: Option<Fingerprint>,
+}
+#[derive(Clone, Default)]
+struct ProducerMemo {
+    entries: BTreeMap<FunctionOwner, MemoEntry>,
+}
+struct ProducerRequest<'a> {
+    state: &'a mut ProducerMemo,
+    owners: &'a BTreeMap<ModuleId, (String, String)>,
+    prepared: &'a PreparedProgram,
+}
+
+fn start_cost(profile: bool) -> Option<Instant> {
+    profile.then(Instant::now)
+}
+fn elapsed_cost(start: Option<Instant>) -> u64 {
+    start.map_or(0, |start| {
+        start.elapsed().as_nanos().min(u64::MAX as u128) as u64
+    })
 }
 
 #[derive(Clone)]
@@ -109,10 +174,17 @@ pub struct FunctionSession {
     entries: Arc<BTreeMap<Fingerprint, Arc<Entry>>>,
     stats: FunctionStats,
     projections: Projections,
+    producer_memo: ProducerMemo,
+    cost_profiling: bool,
 }
 impl FunctionSession {
+    pub fn set_cost_profiling(&mut self, enabled: bool) {
+        self.cost_profiling = enabled;
+    }
     pub fn clear(&mut self) {
+        let cost_profiling = self.cost_profiling;
         *self = Self::default();
+        self.cost_profiling = cost_profiling;
     }
     /// Transaction rollback needs the prior raw content epoch, not a deep copy
     /// of the acceleration graph. Rebuilding that graph after failure is safe.
@@ -121,6 +193,8 @@ impl FunctionSession {
             entries: self.entries.clone(),
             stats: self.stats,
             projections: Projections::default(),
+            producer_memo: ProducerMemo::default(),
+            cost_profiling: self.cost_profiling,
         }
     }
     pub fn last_stats(&self) -> FunctionStats {
@@ -135,7 +209,7 @@ impl FunctionSession {
         target: &TargetProfile,
         limits: &Limits,
     ) -> CompileResult<TypedProgram> {
-        self.check_prepared_program_inner(prepared, target, limits, None)
+        self.check_prepared_program_inner(prepared, target, limits, None, false)
     }
 
     /// Opt-in semantic owners. These strings only identify nodes: the current
@@ -148,7 +222,19 @@ impl FunctionSession {
         limits: &Limits,
         owners: &BTreeMap<ModuleId, (String, String)>,
     ) -> CompileResult<TypedProgram> {
-        self.check_prepared_program_inner(prepared, target, limits, Some(owners))
+        self.check_prepared_program_inner(prepared, target, limits, Some(owners), true)
+    }
+
+    /// Simple owner/version memoization uses the same producer evidence and
+    /// observed signatures as the graph path, without graph maintenance.
+    pub fn check_prepared_program_with_producer_owners(
+        &mut self,
+        prepared: &PreparedProgram,
+        target: &TargetProfile,
+        limits: &Limits,
+        owners: &BTreeMap<ModuleId, (String, String)>,
+    ) -> CompileResult<TypedProgram> {
+        self.check_prepared_program_inner(prepared, target, limits, Some(owners), false)
     }
 
     fn check_prepared_program_inner(
@@ -157,8 +243,14 @@ impl FunctionSession {
         target: &TargetProfile,
         limits: &Limits,
         owners: Option<&BTreeMap<ModuleId, (String, String)>>,
+        graph: bool,
     ) -> CompileResult<TypedProgram> {
-        self.stats = FunctionStats::default();
+        self.stats = FunctionStats {
+            cost_profiled: self.cost_profiling,
+            ..FunctionStats::default()
+        };
+        let total_started = start_cost(self.cost_profiling);
+        let shape_started = start_cost(self.cost_profiling);
         // Preserve the existing inference/shape path, including all raw limits.
         let inferred;
         let resolved;
@@ -168,6 +260,9 @@ impl FunctionSession {
                 Ok(resolved) => resolved,
                 Err(error) => {
                     self.projections = Projections::default();
+                    self.producer_memo = ProducerMemo::default();
+                    self.stats.shape_resolution_ns = elapsed_cost(shape_started);
+                    self.stats.total_ns = elapsed_cost(total_started);
                     return Err(error);
                 }
             };
@@ -179,39 +274,58 @@ impl FunctionSession {
                 Ok(inferred) => inferred,
                 Err(error) => {
                     self.projections = Projections::default();
+                    self.producer_memo = ProducerMemo::default();
+                    self.stats.shape_resolution_ns = elapsed_cost(shape_started);
+                    self.stats.total_ns = elapsed_cost(total_started);
                     return Err(error);
                 }
             };
             &inferred
         };
+        let shape_resolution_ns = elapsed_cost(shape_started);
         let owners = owners.filter(|_| graph_eligible);
-        if owners.is_none() {
+        if owners.is_none() || !graph {
             self.projections = Projections::default();
         }
+        if owners.is_none() || graph {
+            self.producer_memo = ProducerMemo::default();
+        }
         let mut next = BTreeMap::new();
-        let mut stats = FunctionStats::default();
+        let mut stats = FunctionStats {
+            cost_profiled: self.cost_profiling,
+            shape_resolution_ns,
+            ..FunctionStats::default()
+        };
         let mut reuse = Reuse {
             prior: &self.entries,
             next: &mut next,
             stats: &mut stats,
             keys: None,
-            reactive: owners.map(|owners| ReactiveRequest {
+            reactive: owners.filter(|_| graph).map(|owners| ReactiveRequest {
                 state: &mut self.projections,
                 owners,
+                prepared,
+            }),
+            producer: owners.filter(|_| !graph).map(|owners| ProducerRequest {
+                state: &mut self.producer_memo,
+                owners,
+                prepared,
             }),
         };
         let result =
             program::check_resolved_program_with_reuse(program, target, limits, Some(&mut reuse));
         if result.is_ok() {
             self.entries = Arc::new(next);
-            if owners.is_some() {
+            if owners.is_some() && graph {
                 self.projections.source = Some(prepared.clone());
             }
         } else {
             // A failed request cannot publish a partial graph epoch. The last
             // successful raw CFGs remain available through their full keys.
             self.projections = Projections::default();
+            self.producer_memo = ProducerMemo::default();
         }
+        stats.total_ns = elapsed_cost(total_started);
         self.stats = stats;
         result
     }
@@ -353,8 +467,18 @@ pub(super) struct Reuse<'a> {
     stats: &'a mut FunctionStats,
     keys: Option<BTreeMap<(ModuleId, String), Fingerprint>>,
     reactive: Option<ReactiveRequest<'a>>,
+    producer: Option<ProducerRequest<'a>>,
 }
 impl Reuse<'_> {
+    pub(super) fn start_cost(&self) -> Option<Instant> {
+        start_cost(self.stats.cost_profiled)
+    }
+    pub(super) fn context_constructed(&mut self, started: Option<Instant>) {
+        self.stats.context_construction_ns += elapsed_cost(started);
+    }
+    pub(super) fn cfg_executed(&mut self, started: Option<Instant>) {
+        self.stats.cfg_execute_ns += elapsed_cost(started);
+    }
     pub(super) fn prepare(
         &mut self,
         program: &CoreProgram,
@@ -362,12 +486,28 @@ impl Reuse<'_> {
         target: &TargetProfile,
         limits: &Limits,
     ) {
+        if let Some(request) = &mut self.producer {
+            self.keys = request.keys(program, tables, target, limits, self.stats);
+            return;
+        }
         self.keys = match &mut self.reactive {
             Some(request) => request.keys(program, tables, target, limits, self.stats),
             None => keys(program, tables, target, limits, self.stats),
         };
     }
     pub(super) fn get(
+        &mut self,
+        module: ModuleId,
+        function: &CoreFunction,
+        state: &mut closures::State,
+        limits: &Limits,
+    ) -> R<Option<TypedFunction>> {
+        let started = self.start_cost();
+        let result = self.get_inner(module, function, state, limits);
+        self.stats.cfg_reuse_ns += elapsed_cost(started);
+        result
+    }
+    fn get_inner(
         &mut self,
         module: ModuleId,
         function: &CoreFunction,
@@ -443,6 +583,19 @@ impl Reuse<'_> {
         after: [usize; 6],
         array_billing: bool,
     ) {
+        let started = self.start_cost();
+        self.save_inner(module, source, function, before, after, array_billing);
+        self.stats.cfg_store_ns += elapsed_cost(started);
+    }
+    fn save_inner(
+        &mut self,
+        module: ModuleId,
+        source: &CoreFunction,
+        function: &TypedFunction,
+        before: [usize; 6],
+        after: [usize; 6],
+        array_billing: bool,
+    ) {
         self.stats.executed_functions += 1;
         if array_billing {
             return;
@@ -472,6 +625,107 @@ impl Reuse<'_> {
             cost[i] = delta;
         }
         self.next.insert(*key, Arc::new(Entry { function, cost }));
+    }
+}
+
+impl ProducerRequest<'_> {
+    fn keys(
+        &mut self,
+        program: &CoreProgram,
+        tables: &BTreeMap<ModuleId, BTreeMap<String, Signature>>,
+        target: &TargetProfile,
+        limits: &Limits,
+        stats: &mut FunctionStats,
+    ) -> Option<BTreeMap<(ModuleId, String), Fingerprint>> {
+        let context = key_context(program, tables, target, limits, stats)?;
+        let inventory_started = start_cost(stats.cost_profiled);
+        let mut excluded_ns = 0u64;
+        let mut identities = BTreeSet::new();
+        let mut project = None;
+        for module in &program.modules {
+            let identity = self.owners.get(&module.core.module_id)?;
+            if !identities.insert(identity.clone())
+                || project.as_ref().is_some_and(|prior| prior != &identity.0)
+            {
+                self.state.entries.clear();
+                return keys(program, tables, target, limits, stats);
+            }
+            project = Some(identity.0.clone());
+        }
+        let mut next = BTreeMap::new();
+        let mut result = BTreeMap::new();
+        for module in &program.modules {
+            for function in &module.core.functions {
+                stats.inventory_functions_visited += 1;
+                if !worthwhile(function) {
+                    continue;
+                }
+                let (project, path) = self.owners.get(&module.core.module_id)?;
+                let owner = FunctionOwner {
+                    project: project.clone(),
+                    module: path.clone(),
+                    function: function.name.clone(),
+                };
+                let revision = self.prepared.module_revision(module.core.module_id);
+                let signature = *context
+                    .declarations
+                    .get(&module.core.module_id)?
+                    .get(&function.name)?;
+                let previous = self.state.entries.get(&owner).filter(|entry| {
+                    revision == Some(&entry.revision)
+                        && entry.context == context.fingerprint
+                        && entry.signature == signature
+                        && entry.reads.iter().all(|((module, name), previous)| {
+                            context
+                                .declarations
+                                .get(module)
+                                .and_then(|row| row.get(name))
+                                == Some(previous)
+                        })
+                });
+                let entry = if let Some(entry) = previous {
+                    stats.producer_version_reuses += 1;
+                    stats.body_key_reuses += 1;
+                    entry.clone()
+                } else {
+                    let mut reads = BTreeMap::new();
+                    let mut observe = |module, name: &str| {
+                        let value = *context.declarations.get(&module)?.get(name)?;
+                        reads.insert((module, name.to_owned()), value);
+                        Some(())
+                    };
+                    let before = stats.body_key_ns;
+                    let key = function_key(
+                        module,
+                        function,
+                        tables,
+                        &context,
+                        limits,
+                        stats,
+                        Some(&mut observe),
+                    );
+                    excluded_ns += stats.body_key_ns - before;
+                    if let Some(key) = key {
+                        result.insert((module.core.module_id, function.name.clone()), key);
+                    }
+                    let Some(revision) = revision else { continue };
+                    MemoEntry {
+                        revision: revision.clone(),
+                        context: context.fingerprint,
+                        signature,
+                        reads,
+                        key,
+                    }
+                };
+                if let Some(key) = entry.key {
+                    result.insert((module.core.module_id, function.name.clone()), key);
+                }
+                next.insert(owner, entry);
+            }
+        }
+        stats.inventory_ns += elapsed_cost(inventory_started).saturating_sub(excluded_ns);
+        self.state.entries = next;
+        Some(result)
     }
 }
 
@@ -509,6 +763,8 @@ impl ReactiveRequest<'_> {
             *self.state = Projections::default();
             return Ok(None);
         };
+        let inventory_started = start_cost(stats.cost_profiled);
+        let mut validation_ns = 0;
         let mut identities = BTreeSet::new();
         let mut project = None;
         for module in &program.modules {
@@ -533,7 +789,10 @@ impl ReactiveRequest<'_> {
             })
         };
         let context_owner = ProjectionOwner::Context(project);
-        let mut inputs = vec![(context_owner.clone(), Some(context.fingerprint))];
+        let mut inputs = Vec::new();
+        if self.state.graph.get_current(&context_owner) != Some(&Some(context.fingerprint)) {
+            inputs.push((context_owner.clone(), Some(context.fingerprint)));
+        }
         let mut live = BTreeSet::from([context_owner.clone()]);
         let mut bindings = BTreeMap::new();
         let mut metadata = BTreeMap::new();
@@ -552,6 +811,7 @@ impl ReactiveRequest<'_> {
             .unwrap_or_default();
         for module in &program.modules {
             for (index, function) in module.core.functions.iter().enumerate() {
+                stats.inventory_functions_visited += 1;
                 let owner = owner_for(module.core.module_id, &function.name)?;
                 let signature_owner = ProjectionOwner::Signature(owner.clone());
                 let signature = *context
@@ -559,19 +819,34 @@ impl ReactiveRequest<'_> {
                     .get(&module.core.module_id)
                     .and_then(|declarations| declarations.get(&function.name))
                     .ok_or(GraphError::MissingOwner)?;
-                inputs.push((signature_owner.clone(), Some(signature)));
+                if self.state.graph.get_current(&signature_owner) != Some(&Some(signature)) {
+                    inputs.push((signature_owner.clone(), Some(signature)));
+                }
                 live.insert(signature_owner);
                 if !worthwhile(function) {
                     continue;
                 }
+                let producer = self.prepared.module_revision(module.core.module_id);
                 let prior = self.state.bindings.get(&owner).and_then(|binding| {
+                    if producer.is_some() && producer == binding.producer.as_ref() {
+                        stats.producer_version_reuses += 1;
+                        return Some(binding.version);
+                    }
+                    // A new producer revision proves that this module needs a
+                    // new body projection; do not walk its old Core for equality.
+                    if producer.is_some() {
+                        return None;
+                    }
                     let previous = prior_modules
                         .get(&binding.module)?
                         .core
                         .functions
                         .get(binding.index)?;
+                    let started = start_cost(stats.cost_profiled);
                     stats.core_function_eq_comparisons += 1;
-                    (previous == function).then_some(binding.version)
+                    let same = previous == function;
+                    validation_ns += elapsed_cost(started);
+                    same.then_some(binding.version)
                 });
                 let version = match prior {
                     Some(version) => version,
@@ -584,7 +859,9 @@ impl ReactiveRequest<'_> {
                     }
                 };
                 let body_owner = ProjectionOwner::RawBody(owner.clone());
-                inputs.push((body_owner.clone(), Some(version)));
+                if prior != Some(version) {
+                    inputs.push((body_owner.clone(), Some(version)));
+                }
                 live.insert(body_owner);
                 live.insert(ProjectionOwner::BodyKey(owner.clone()));
                 bindings.insert(
@@ -593,87 +870,117 @@ impl ReactiveRequest<'_> {
                         module: module.core.module_id,
                         index,
                         version,
+                        producer: producer.cloned(),
                     },
                 );
                 metadata.insert(owner, (module, function));
             }
         }
+        stats.core_validation_ns += validation_ns;
+        stats.inventory_ns += elapsed_cost(inventory_started).saturating_sub(validation_ns);
+        let graph_started = start_cost(stats.cost_profiled);
         self.state.graph.take_stats();
         // Install the entire request's inputs before publishing any notification.
         self.state.graph.set_inputs(inputs)?;
         for owner in metadata.keys() {
-            self.state
-                .graph
-                .ensure_query(ProjectionOwner::BodyKey(owner.clone()))?;
+            let query = ProjectionOwner::BodyKey(owner.clone());
+            if !self.state.owners.contains(&query) {
+                self.state.graph.ensure_query(query)?;
+            }
         }
         if live != self.state.owners {
             self.state.graph.retain(&live)?;
         }
-        let executed = RefCell::new(FunctionStats::default());
+        let executed = RefCell::new(FunctionStats {
+            cost_profiled: stats.cost_profiled,
+            ..FunctionStats::default()
+        });
+        let evaluator_ns = RefCell::new(0u64);
+        let graph_read_ns = RefCell::new(0u64);
         let evaluate =
             |owner: &ProjectionOwner,
              read: &mut dyn FnMut(&ProjectionOwner) -> Result<Option<Fingerprint>, GraphError>|
              -> Result<Option<Fingerprint>, GraphError> {
-                let ProjectionOwner::BodyKey(owner) = owner else {
-                    return Err(GraphError::InputQueryConflict);
+                let started = start_cost(stats.cost_profiled);
+                let mut metered_read = |key: &ProjectionOwner| {
+                    let started = start_cost(stats.cost_profiled);
+                    let result = read(key);
+                    *graph_read_ns.borrow_mut() += elapsed_cost(started);
+                    result
                 };
-                let (module, function) = metadata.get(owner).ok_or(GraphError::MissingOwner)?;
-                if read(&context_owner)? != Some(context.fingerprint)
-                    || read(&ProjectionOwner::RawBody(owner.clone()))?
-                        != Some(bindings[owner].version)
-                    || read(&ProjectionOwner::Signature(owner.clone()))?
-                        != context
-                            .declarations
-                            .get(&module.core.module_id)
-                            .and_then(|row| row.get(&function.name))
-                            .copied()
-                {
-                    return Err(GraphError::Evaluation(
-                        "projection input differs from current Core".into(),
-                    ));
-                }
-                let mut read_error = None;
-                let mut observe = |module, name: &str| -> Option<()> {
-                    let result = owner_for(module, name)
-                        .and_then(|owner| read(&ProjectionOwner::Signature(owner)));
-                    match result {
-                        Ok(Some(observed))
-                            if Some(&observed)
-                                == context
-                                    .declarations
-                                    .get(&module)
-                                    .and_then(|row| row.get(name)) =>
-                        {
-                            Some(())
-                        }
-                        Ok(_) => {
-                            read_error = Some(GraphError::Evaluation(
-                                "signature differs from current declaration".into(),
-                            ));
-                            None
-                        }
-                        Err(error) => {
-                            read_error = Some(error);
-                            None
-                        }
+                let result = (|| {
+                    let ProjectionOwner::BodyKey(owner) = owner else {
+                        return Err(GraphError::InputQueryConflict);
+                    };
+                    let (module, function) = metadata.get(owner).ok_or(GraphError::MissingOwner)?;
+                    if metered_read(&context_owner)? != Some(context.fingerprint)
+                        || metered_read(&ProjectionOwner::RawBody(owner.clone()))?
+                            != Some(bindings[owner].version)
+                        || metered_read(&ProjectionOwner::Signature(owner.clone()))?
+                            != context
+                                .declarations
+                                .get(&module.core.module_id)
+                                .and_then(|row| row.get(&function.name))
+                                .copied()
+                    {
+                        return Err(GraphError::Evaluation(
+                            "projection input differs from current Core".into(),
+                        ));
                     }
-                };
-                let key = function_key(
-                    module,
-                    function,
-                    tables,
-                    &context,
-                    limits,
-                    &mut executed.borrow_mut(),
-                    Some(&mut observe),
-                );
-                if let Some(error) = read_error {
-                    return Err(error);
-                }
-                Ok(key)
+                    let mut read_error = None;
+                    let mut observe = |module, name: &str| -> Option<()> {
+                        let result = owner_for(module, name)
+                            .and_then(|owner| metered_read(&ProjectionOwner::Signature(owner)));
+                        match result {
+                            Ok(Some(observed))
+                                if Some(&observed)
+                                    == context
+                                        .declarations
+                                        .get(&module)
+                                        .and_then(|row| row.get(name)) =>
+                            {
+                                Some(())
+                            }
+                            Ok(_) => {
+                                read_error = Some(GraphError::Evaluation(
+                                    "signature differs from current declaration".into(),
+                                ));
+                                None
+                            }
+                            Err(error) => {
+                                read_error = Some(error);
+                                None
+                            }
+                        }
+                    };
+                    let body_reads_before = *graph_read_ns.borrow();
+                    let key = function_key(
+                        module,
+                        function,
+                        tables,
+                        &context,
+                        limits,
+                        &mut executed.borrow_mut(),
+                        Some(&mut observe),
+                    );
+                    let body_reads = *graph_read_ns.borrow() - body_reads_before;
+                    let mut work = executed.borrow_mut();
+                    work.body_key_ns = work.body_key_ns.saturating_sub(body_reads);
+                    drop(work);
+                    if let Some(error) = read_error {
+                        return Err(error);
+                    }
+                    Ok(key)
+                })();
+                *evaluator_ns.borrow_mut() += elapsed_cost(started);
+                result
             };
         let flushed = self.state.graph.flush(&evaluate);
+        let evaluator_ns = evaluator_ns.into_inner();
+        let graph_read_ns = graph_read_ns.into_inner();
         let executed = executed.into_inner();
+        stats.evaluator_ns += evaluator_ns.saturating_sub(graph_read_ns);
+        stats.body_key_ns += executed.body_key_ns;
         stats.body_key_executions += executed.body_key_executions;
         stats.body_key_visited_nodes += executed.body_key_visited_nodes;
         if flushed.is_ok() {
@@ -681,6 +988,10 @@ impl ReactiveRequest<'_> {
         }
         stats.graph = self.state.graph.stats();
         stats.graph_edges = stats.graph.edge_reads as usize;
+        if flushed.is_err() {
+            stats.graph_maintenance_ns +=
+                elapsed_cost(graph_started).saturating_sub(evaluator_ns) + graph_read_ns;
+        }
         flushed?;
         let mut keys = BTreeMap::new();
         for (owner, (module, function)) in metadata {
@@ -694,6 +1005,8 @@ impl ReactiveRequest<'_> {
         }
         self.state.bindings = bindings;
         self.state.owners = live;
+        stats.graph_maintenance_ns +=
+            elapsed_cost(graph_started).saturating_sub(evaluator_ns) + graph_read_ns;
         Ok(Some(keys))
     }
 }
@@ -773,15 +1086,19 @@ fn keys(
     stats: &mut FunctionStats,
 ) -> Option<BTreeMap<(ModuleId, String), Fingerprint>> {
     let context = key_context(program, tables, target, limits, stats)?;
+    let started = start_cost(stats.cost_profiled);
+    let body_key_before = stats.body_key_ns;
     let mut keys = BTreeMap::new();
     for module in &program.modules {
         for function in &module.core.functions {
+            stats.inventory_functions_visited += 1;
             if let Some(key) = function_key(module, function, tables, &context, limits, stats, None)
             {
                 keys.insert((module.core.module_id, function.name.clone()), key);
             }
         }
     }
+    stats.inventory_ns += elapsed_cost(started).saturating_sub(stats.body_key_ns - body_key_before);
     Some(keys)
 }
 
@@ -791,6 +1108,19 @@ struct KeyContext {
 }
 
 fn key_context(
+    program: &CoreProgram,
+    tables: &BTreeMap<ModuleId, BTreeMap<String, Signature>>,
+    target: &TargetProfile,
+    limits: &Limits,
+    stats: &mut FunctionStats,
+) -> Option<KeyContext> {
+    let started = start_cost(stats.cost_profiled);
+    let result = key_context_inner(program, tables, target, limits, stats);
+    stats.projection_context_ns += elapsed_cost(started);
+    result
+}
+
+fn key_context_inner(
     program: &CoreProgram,
     tables: &BTreeMap<ModuleId, BTreeMap<String, Signature>>,
     target: &TargetProfile,
@@ -922,6 +1252,23 @@ fn key_context(
 // Keep the historical byte stream intact. The graph controls whether this
 // projection executes; persistent raw work-product keys retain their meaning.
 fn function_key(
+    module: &ProgramModule,
+    function: &CoreFunction,
+    tables: &BTreeMap<ModuleId, BTreeMap<String, Signature>>,
+    context: &KeyContext,
+    limits: &Limits,
+    stats: &mut FunctionStats,
+    observe: Option<&mut dyn FnMut(ModuleId, &str) -> Option<()>>,
+) -> Option<Fingerprint> {
+    let started = start_cost(stats.cost_profiled);
+    let result = function_key_inner(module, function, tables, context, limits, stats, observe);
+    let elapsed = elapsed_cost(started);
+    stats.body_key_ns += elapsed;
+    stats.evaluator_ns += elapsed;
+    result
+}
+
+fn function_key_inner(
     module: &ProgramModule,
     function: &CoreFunction,
     tables: &BTreeMap<ModuleId, BTreeMap<String, Signature>>,
@@ -1196,6 +1543,10 @@ impl BodyKey<'_, '_> {
         Some(())
     }
 }
+
+#[cfg(test)]
+#[path = "incremental_producer_tests.rs"]
+mod producer_tests;
 
 #[cfg(test)]
 mod reactive_tests {

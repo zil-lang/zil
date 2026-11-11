@@ -17,6 +17,7 @@
     "zil-types": [
       "zil-base",
       "zil-db",
+      "zil-expand",
       "zil-syntax",
       "zil-ir"
     ],

@@ -1,5 +1,15 @@
 # 响应式编译查询图专项：本轮真实阶段交付与恢复
 
+## 正在接续：生产者复用与 A/B/C 隔离（WIP，尚未验收）
+
+从0a529a6247793f63ccd41ff3f65dc97afcbb666c正常续接；goal认领5b5547e5e623ccd30f428e41a3e0ff2811a6b14c，main仍99035931。写集扩大到Syntax真实parser密封Source、Expand普通scalar模块实际Normalize/Restore/Lower及原顺序预算receipt、Types preparation/incremental/program计量、driver消费者/报告与CLI显式开关、ABC测试器。root单写新增Types→Expand内部依赖及锁/policy；不改公共IR/schema、Verify、后端或其他编译专项。
+
+A为现有缓存；B为相同生产者模块复用加直接版本memo；C为相同生产者复用加响应图。B也使用稳定版本和实际签名依赖，不故意保留全BodyKey扫描。`--producer-reuse`与`--reactive-queries`独立；`--profile-compilation`只用于成本诊断，正式wall关闭。当前Source→check及O2原生环境烟测已重新实际通过（main990，ZUI StoreFields，输出DEFHZMNOPK）；新实现的测试和性能必须等冻结新SHA后执行，不能沿用前轮234个通过。
+
+本轮构建目录 `/workspace/scratch/e28839ace920/targets/reactive-producer`；一重窗口，源码快照另树验证，构建中不编辑。原始新运行使用唯一 `out/runs/producer-*` 或 `native-abc-*`。重点门：未变模块真实Normalize/Lower执行下降；完整Core递归Eq减少；CFG重算不增加；fresh-current完整Typed/首诊断/span/预算N/N−1/取消与恢复正确。复杂域整体回退不计图收益。普通源码位置/ID等宽与变宽场景单列，不以匹配优化的编辑替换旧失败样本。
+
+以下是前轮交付，保留其源码和证据身份；本节WIP不能计作通过或净收益。
+
 父任务goal G10.5.1.15；分支`research/reactive-query-graph`。本轮实际main基线`99035931d358add0eaed6d4535035c38413701dd`，从`c75c58bf7f564a1ce8049702f9c6ec41c82d1da2`正常续接，无需rebase/main变更。本轮生产实现、真实测试与测量已经执行；完整跨阶段架构未完成，当前切片没有证明大型净等待收益，默认关闭、不合main。不要把此状态写成整条zit路线失败，也不要把BodyKey局部减少写成大项目提速。
 
 ## 远端冻结身份

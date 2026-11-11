@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use zil_backend_llvm::{BuildOptions, EmitOptions, EntryPoint};
 use zil_base::{
-    CompileResult, Diagnostic, Fingerprint, Limits, Phase, RULE_VERSION, ResultCategory,
+    CompileResult, Diagnostic, Fingerprint, Limits, ModuleId, Phase, RULE_VERSION, ResultCategory,
     SCHEMA_VERSION, SourceUnit,
 };
 use zil_db::{
@@ -133,6 +133,9 @@ pub struct CompilationSession {
     clock: u64,
     analysis: zil_analyze::AnalysisSession,
     pub(super) function_types: zil_types::FunctionSession,
+    pub(super) producer: zil_expand::ExpandSession,
+    pub(super) producer_syntax:
+        std::cell::RefCell<BTreeMap<(ModuleId, FileId, String), zil_syntax::ParsedSource>>,
 }
 impl Default for CompilationSession {
     fn default() -> Self {
@@ -149,6 +152,8 @@ impl CompilationSession {
             clock: 0,
             analysis: zil_analyze::AnalysisSession::default(),
             function_types: zil_types::FunctionSession::default(),
+            producer: zil_expand::ExpandSession::default(),
+            producer_syntax: std::cell::RefCell::new(BTreeMap::new()),
         }
     }
     pub fn clear(&mut self) {
@@ -158,6 +163,8 @@ impl CompilationSession {
         self.clock = 0;
         self.analysis.clear();
         self.function_types.clear();
+        self.producer = zil_expand::ExpandSession::default();
+        self.producer_syntax.borrow_mut().clear();
     }
     /// Statistics of the last executed project Types computation. Whole-project
     /// query hits do not execute the function cache and leave these unchanged.
@@ -255,6 +262,7 @@ impl CompilationSession {
     ) -> CompileReport {
         let start = Instant::now();
         let mut report = CompileReport::new(source);
+        report.cost_profiled = options.profile_compilation;
         // Every source request already needs Parse. Make the domain decision
         // from that published syntax, so whitespace and comments around a
         // type-level # cannot change which pipeline owns the request.
@@ -1659,3 +1667,7 @@ mod function_incremental_tests;
 #[cfg(test)]
 #[path = "reactive_query_tests.rs"]
 mod reactive_query_tests;
+
+#[cfg(test)]
+#[path = "producer_reuse_tests.rs"]
+mod producer_reuse_tests;

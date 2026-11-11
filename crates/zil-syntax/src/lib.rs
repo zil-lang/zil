@@ -6,9 +6,11 @@ pub mod ast;
 pub mod attributes;
 pub mod format;
 pub mod lexer;
+mod parsed_source;
 mod parser;
 pub mod token;
 pub mod unicode;
+pub use parsed_source::ParsedSource;
 
 use zil_base::{CompileResult, Diagnostic, Limits, SourceUnit, Span};
 

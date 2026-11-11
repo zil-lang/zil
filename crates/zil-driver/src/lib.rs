@@ -84,6 +84,12 @@ pub struct CompileOptions {
     /// Research opt-in: stable semantic query owners and batched propagation.
     /// This changes raw computation scheduling only, never Verify authority.
     pub reactive_queries: bool,
+    /// Research opt-in: reuse sealed source-produced frontend work products.
+    /// Independent from reactive scheduling for A/B/C attribution.
+    pub producer_reuse: bool,
+    /// Opt-in detailed cost accounting. Disabled requests perform no added
+    /// per-function clock reads; performance comparisons keep this disabled.
+    pub profile_compilation: bool,
     /// Trusted local machine-object cache; independent of source-candidate cache.
     pub object_cache: Option<PathBuf>,
     pub clang: Option<PathBuf>,
@@ -119,6 +125,8 @@ impl Default for CompileOptions {
             cache_dir: None,
             semantic_cache: None,
             reactive_queries: false,
+            producer_reuse: false,
+            profile_compilation: false,
             object_cache: None,
             clang: None,
             optimization: zil_backend_llvm::Optimization::O0,
@@ -184,13 +192,15 @@ pub struct CompileAttempt {
     pub diagnostics: Vec<Diagnostic>,
     pub verification_runs: usize,
     pub function_type_work: Option<zil_types::FunctionStats>,
+    pub producer_work: Option<zil_expand::ProducerStats>,
     pub initialization_work: Option<zil_analyze::AnalysisStats>,
     pub phase_timings_ns: BTreeMap<Phase, u128>,
+    pub driver_timings_ns: BTreeMap<&'static str, u128>,
 }
 impl CompileAttempt {
     fn to_json(&self) -> String {
         format!(
-            "{{\"retry_reason\":{},\"input_fingerprint\":{},\"source_files\":{{{}}},\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"verification_runs\":{},\"frontend_stats\":{},\"phase_timings_ns\":{{{}}}}}",
+            "{{\"retry_reason\":{},\"input_fingerprint\":{},\"source_files\":{{{}}},\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"verification_runs\":{},\"frontend_stats\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}}}}",
             self.retry_reason
                 .as_ref()
                 .map_or_else(|| "null".into(), |reason| json_string(reason)),
@@ -212,8 +222,13 @@ impl CompileAttempt {
                 .collect::<Vec<_>>()
                 .join(","),
             self.verification_runs,
-            frontend_stats_json(self.function_type_work, self.initialization_work),
+            frontend_stats_json(
+                self.function_type_work,
+                self.initialization_work,
+                self.producer_work.as_ref()
+            ),
             phase_timings_json(&self.phase_timings_ns),
+            named_timings_json(&self.driver_timings_ns),
         )
     }
 }
@@ -240,11 +255,16 @@ pub struct CompileReport {
     /// describe the final attempt. A whole-project hit reports None, never old
     /// session work. Per-attempt diagnostics and costs remain in `attempts`.
     pub function_type_work: Option<zil_types::FunctionStats>,
+    pub producer_work: Option<zil_expand::ProducerStats>,
     pub initialization_work: Option<zil_analyze::AnalysisStats>,
     /// Wall time of complete phase queries, including digest/publication, and
     /// current Verify/Lower/codegen, summed across all attempts. Input
     /// discovery and final report serialization remain in complete request time.
     pub phase_timings_ns: BTreeMap<Phase, u128>,
+    /// Non-overlapping request work outside phase queries. Detailed timers are
+    /// explicitly opt-in; the remaining request time is reported unassigned.
+    pub driver_timings_ns: BTreeMap<&'static str, u128>,
+    pub cost_profiled: bool,
     pub attempts: Vec<CompileAttempt>,
 }
 impl CompileReport {
@@ -265,14 +285,17 @@ impl CompileReport {
             source_files: BTreeMap::from([(source.file_id, source.path.clone())]),
             scalar_interfaces: Vec::new(),
             function_type_work: None,
+            producer_work: None,
             initialization_work: None,
             phase_timings_ns: BTreeMap::new(),
+            driver_timings_ns: BTreeMap::new(),
+            cost_profiled: false,
             attempts: Vec::new(),
         }
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"phase_timings_ns\":{{{}}},\"attempts\":[{}]}}",
+            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"exclusive_costs\":{},\"attempts\":[{}]}}",
             json_string(self.status.as_str()),
             json_string(self.phase.as_str()),
             self.diagnostics
@@ -320,11 +343,17 @@ impl CompileReport {
             self.scalar_interfaces.iter().map(|interface| format!("{{\"module\":{},\"signature_fingerprint\":{},\"implementation_fingerprint\":{},\"contract_fingerprint\":{},\"result_origins\":{},\"callable_contracts\":{},\"callable_returns\":{},\"exports\":[{}]}}", interface.module.0, json_string(&interface.signature_fingerprint.to_hex()), json_string(&interface.implementation_fingerprint.to_hex()), interface.contract_fingerprint.map_or_else(|| "null".into(), |hash| json_string(&hash.to_hex())), interface.result_origins.as_ref().map_or_else(|| "null".into(), |origins| format!("[{}]", origins.iter().map(|origin| format!("{{\"name\":{},\"parameters\":{:?},\"static_storage\":{}}}", json_string(&origin.name), origin.parameters, origin.static_storage)).collect::<Vec<_>>().join(","))), contracts::callable_json(interface), contracts::callable_return_json(interface), interface.exports.iter().map(|f| json_string(&f.name)).collect::<Vec<_>>().join(","))).collect::<Vec<_>>().join(","),
             self.frontend_stats_json(),
             phase_timings_json(&self.phase_timings_ns),
+            named_timings_json(&self.driver_timings_ns),
+            self.exclusive_costs_json(),
             self.attempts.iter().map(CompileAttempt::to_json).collect::<Vec<_>>().join(","),
         )
     }
     fn frontend_stats_json(&self) -> String {
-        frontend_stats_json(self.function_type_work, self.initialization_work)
+        frontend_stats_json(
+            self.function_type_work,
+            self.initialization_work,
+            self.producer_work.as_ref(),
+        )
     }
     fn capture_attempt(
         &self,
@@ -349,8 +378,10 @@ impl CompileReport {
                     .sum(),
             ),
             function_type_work: self.function_type_work,
+            producer_work: self.producer_work.clone(),
             initialization_work: self.initialization_work,
             phase_timings_ns: self.phase_timings_ns.clone(),
+            driver_timings_ns: self.driver_timings_ns.clone(),
         }
     }
     fn restart_attempt(&mut self, mut next: Self, reason: &str, diagnostics: Vec<Diagnostic>) {
@@ -361,11 +392,14 @@ impl CompileReport {
         next.query_events = std::mem::take(&mut self.query_events);
         next.verification_runs = self.verification_runs;
         next.seconds = self.seconds;
+        next.cost_profiled = self.cost_profiled;
         // A checkpoint may contain work done before importing the candidate.
         // That prefix belongs to the rejected attempt and is never billed twice.
         next.function_type_work = None;
+        next.producer_work = None;
         next.initialization_work = None;
         next.phase_timings_ns.clear();
+        next.driver_timings_ns.clear();
         *self = next;
     }
     fn finish_attempts(&mut self) {
@@ -374,11 +408,18 @@ impl CompileReport {
         let final_types = self.function_type_work;
         let final_analysis = self.initialization_work;
         self.function_type_work = None;
+        self.producer_work = None;
         self.initialization_work = None;
         self.phase_timings_ns.clear();
+        self.driver_timings_ns.clear();
         for attempt in &self.attempts {
             if let Some(work) = attempt.function_type_work {
                 add_function_work(&mut self.function_type_work, work);
+            }
+            if let Some(work) = &attempt.producer_work {
+                self.producer_work
+                    .get_or_insert_with(Default::default)
+                    .add(work);
             }
             if let Some(work) = attempt.initialization_work {
                 let total = self
@@ -393,6 +434,9 @@ impl CompileReport {
             for (phase, nanos) in &attempt.phase_timings_ns {
                 *self.phase_timings_ns.entry(*phase).or_default() += nanos;
             }
+            for (name, nanos) in &attempt.driver_timings_ns {
+                *self.driver_timings_ns.entry(name).or_default() += nanos;
+            }
         }
         if let Some(total) = &mut self.function_type_work {
             total.graph.retained_nodes = final_types.map_or(0, |work| work.graph.retained_nodes);
@@ -404,6 +448,69 @@ impl CompileReport {
     }
     fn record_phase_time(&mut self, phase: Phase, start: std::time::Instant) {
         *self.phase_timings_ns.entry(phase).or_default() += start.elapsed().as_nanos();
+    }
+    fn record_driver_cost(&mut self, name: &'static str, start: Option<std::time::Instant>) {
+        if let Some(start) = start {
+            *self.driver_timings_ns.entry(name).or_default() += start.elapsed().as_nanos();
+        }
+    }
+    fn exclusive_costs_json(&self) -> String {
+        if !self.cost_profiled {
+            return "null".into();
+        }
+        let mut costs = self.driver_timings_ns.clone();
+        for (phase, nanos) in &self.phase_timings_ns {
+            costs.insert(phase.as_str(), *nanos);
+        }
+        if let Some(work) = self.function_type_work.filter(|work| work.cost_profiled) {
+            let detail = [
+                ("types_shape", work.shape_resolution_ns),
+                ("types_context", work.context_construction_ns),
+                ("types_projection_context", work.projection_context_ns),
+                ("types_core_comparison", work.core_validation_ns),
+                ("types_input_inventory", work.inventory_ns),
+                ("types_graph_maintenance", work.graph_maintenance_ns),
+                ("types_query_evaluation", work.evaluator_ns),
+                ("types_cfg_reuse", work.cfg_reuse_ns),
+                ("types_cfg_execute", work.cfg_execute_ns),
+                ("types_cfg_store", work.cfg_store_ns),
+            ];
+            let phase = costs.remove("types").unwrap_or(0);
+            let measured: u128 = detail.iter().map(|(_, n)| *n as u128).sum();
+            for (name, nanos) in detail {
+                costs.insert(name, nanos as u128);
+            }
+            costs.insert("types_other", phase.saturating_sub(measured));
+            // Expose inconsistent instrumentation instead of silently accepting it.
+            if measured > phase {
+                costs.insert("types_overlap_error", measured - phase);
+            }
+        }
+        if let Some(work) = &self.producer_work {
+            let detail = [
+                ("expand_context", work.context_ns),
+                ("expand_production", work.production_ns),
+                ("expand_reuse", work.reuse_ns),
+                ("expand_assembly", work.assembly_ns),
+            ];
+            let phase = costs.remove("expand").unwrap_or(0);
+            let measured: u128 = detail.iter().map(|(_, n)| *n as u128).sum();
+            for (name, nanos) in detail {
+                costs.insert(name, nanos as u128);
+            }
+            costs.insert("expand_other", phase.saturating_sub(measured));
+            if measured > phase {
+                costs.insert("expand_overlap_error", measured - phase);
+            }
+        }
+        let total = (self.seconds * 1_000_000_000.0) as u128;
+        let classified: u128 = costs.values().copied().sum();
+        let remainder = total.saturating_sub(classified);
+        format!(
+            "{{\"total_ns\":{total},\"classified_ns\":{classified},\"unassigned_ns\":{remainder},\"overlap_ns\":{},\"segments_ns\":{{{}}}}}",
+            classified.saturating_sub(total),
+            named_timings_json(&costs)
+        )
     }
     fn fail(&mut self, diagnostics: Vec<Diagnostic>) {
         self.status = diagnostics
@@ -422,9 +529,20 @@ fn phase_timings_json(timings: &BTreeMap<Phase, u128>) -> String {
         .collect::<Vec<_>>()
         .join(",")
 }
+fn cost_start(enabled: bool) -> Option<std::time::Instant> {
+    enabled.then(std::time::Instant::now)
+}
+fn named_timings_json(timings: &BTreeMap<&'static str, u128>) -> String {
+    timings
+        .iter()
+        .map(|(name, nanos)| format!("{}:{}", json_string(name), nanos))
+        .collect::<Vec<_>>()
+        .join(",")
+}
 fn frontend_stats_json(
     types: Option<zil_types::FunctionStats>,
     analysis: Option<zil_analyze::AnalysisStats>,
+    producer: Option<&zil_expand::ProducerStats>,
 ) -> String {
     let types = types.map_or_else(|| "null".into(), |stats| stats.to_json());
     let analysis = analysis.map_or_else(
@@ -436,14 +554,30 @@ fn frontend_stats_json(
             )
         },
     );
-    format!("{{\"function_types\":{types},\"initialization\":{analysis}}}")
+    let producer = producer.map_or_else(|| "null".into(), |stats| stats.to_json());
+    format!("{{\"function_types\":{types},\"initialization\":{analysis},\"producer\":{producer}}}")
 }
 fn add_function_work(total: &mut Option<zil_types::FunctionStats>, work: zil_types::FunctionStats) {
     let total = total.get_or_insert_with(Default::default);
+    total.cost_profiled |= work.cost_profiled;
     macro_rules! add {
         ($($field:ident),+ $(,)?) => { $(total.$field = total.$field.saturating_add(work.$field);)+ };
     }
     add!(
+        total_ns,
+        shape_resolution_ns,
+        context_construction_ns,
+        projection_context_ns,
+        core_validation_ns,
+        inventory_ns,
+        graph_maintenance_ns,
+        evaluator_ns,
+        body_key_ns,
+        cfg_reuse_ns,
+        cfg_execute_ns,
+        cfg_store_ns,
+        producer_version_reuses,
+        inventory_functions_visited,
         reused_functions,
         executed_functions,
         body_key_executions,

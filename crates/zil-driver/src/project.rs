@@ -36,6 +36,7 @@ pub(super) struct ExpandedProject {
     ct_usage: Option<zil_ir::ct_artifact::CtUsageReceipt>,
     ct_previews: Vec<super::ct_artifact::Preview>,
     pub(super) syntax: Arc<ProjectSyntax>,
+    producer: Option<zil_expand::ProducedProgram>,
 }
 
 /// Syntax belongs to an existing whole-project raw owner, not an independent
@@ -52,6 +53,7 @@ pub(super) struct ProjectSyntax {
 #[derive(Debug)]
 struct LoadedSyntax {
     parsed: Arc<ParseResult>,
+    producer: Option<zil_syntax::ParsedSource>,
     reused: bool,
     snapshot: Option<Arc<QuerySnapshot>>,
     // Present only when filesystem discovery supplied a lossless canonical
@@ -173,6 +175,33 @@ pub(super) fn artifact_candidate(source: &SourceUnit, parsed: &ParseResult) -> b
 }
 
 impl CompilationSession {
+    /// This cache can only contain real parser constructions. A current read
+    /// still compares all source bytes and the complete parsing envelope.
+    /// Public ParseResult/Core values cannot be paired with these revisions.
+    fn producer_parse(
+        &self,
+        source: &SourceUnit,
+        limits: &Limits,
+    ) -> (zil_syntax::ParsedSource, bool) {
+        let context = zil_syntax::attributes::AttributeContext::default();
+        let owner = (source.module_id, source.file_id, source.path.clone());
+        let mut cache = self.producer_syntax.borrow_mut();
+        if let Some(parsed) = cache.get(&owner)
+            && parsed.matches_current(source, limits, &context)
+        {
+            return (parsed.clone(), true);
+        }
+        let parsed = zil_syntax::ParsedSource::parse(Arc::new(source.clone()), limits, &context);
+        if parsed.parsed().diagnostics.is_empty() {
+            cache.insert(owner, parsed.clone());
+            // A failed discovery cannot accumulate unbounded source owners.
+            while cache.len() > self.capacity {
+                cache.pop_first();
+            }
+        }
+        (parsed, false)
+    }
+
     pub(super) fn compile_source_artifact_project(
         &mut self,
         source: &SourceUnit,
@@ -194,6 +223,7 @@ impl CompilationSession {
             Some(LoadedProject::Prepared(
                 vec![LoadedSyntax {
                     parsed,
+                    producer: None,
                     reused: true,
                     snapshot: Some(snapshot),
                     stable_module_key: None,
@@ -251,6 +281,7 @@ impl CompilationSession {
             None => (None, None, None),
         };
         let mut report = prepared_report.unwrap_or_else(|| CompileReport::new(root));
+        report.cost_profiled = options.profile_compilation;
         let function_checkpoint = self.function_types.checkpoint();
         if let Err(errors) = self.project_pipeline(
             project,
@@ -335,6 +366,7 @@ impl CompilationSession {
         };
         // Parse is a syntax-only stop for the requested file. Import discovery
         // belongs to expansion and must not read or reject dependencies yet.
+        let discovery_start = cost_start(options.profile_compilation);
         let loaded = if options.stop_after == Stage::Parse {
             let accepted = if let Some(manifest) = &options.project {
                 manifest
@@ -360,6 +392,7 @@ impl CompilationSession {
                 .flatten(),
             _ => None,
         };
+        let discovery_ns = discovery_start.map(|start| start.elapsed().as_nanos());
         let mut report = match loaded {
             Ok(_) if options.stop_after == Stage::Parse => {
                 self.compile_source(&project.modules[0], options)
@@ -378,12 +411,21 @@ impl CompilationSession {
                 report
             }
         };
+        report.cost_profiled = options.profile_compilation;
+        if let Some(nanos) = discovery_ns {
+            *report
+                .driver_timings_ns
+                .entry("source_ingress")
+                .or_default() += nanos;
+        }
+        let publication_start = cost_start(options.profile_compilation);
         if report.status == ResultCategory::Success
             && report.verification_runs != 0
             && let Some(pending) = discovery_pending
         {
             pending.publish(&project, options);
         }
+        report.record_driver_cost("discovery_receipt_publication", publication_start);
         report.seconds = start.elapsed().as_secs_f64();
         report
     }
@@ -397,6 +439,7 @@ impl CompilationSession {
         loaded_syntax: Option<&[LoadedSyntax]>,
         preloaded_semantic: Option<(TypedProgram, CandidatePlan)>,
     ) -> CompileResult<()> {
+        let setup_start = cost_start(options.profile_compilation);
         options
             .cancellation
             .check(Phase::Driver)
@@ -445,6 +488,7 @@ impl CompilationSession {
             .flatten();
         self.prepare_project(&identity, target, project.modules.len());
         let key = |phase, depends_on_target| phase_key(&identity, phase, depends_on_target, target);
+        report.record_driver_cost("project_setup", setup_start);
         let mut semantic = super::semantic_cache::Store::new(options, &key(Phase::Types, true));
         if let Some(store) = &mut semantic {
             store.bind_path(&artifacts.semantic_cache(&store.path())?);
@@ -453,7 +497,10 @@ impl CompilationSession {
             } else {
                 DiskCacheStatus::Missing
             };
-            if let Some((typed, candidate)) = preloaded_semantic.or_else(|| store.load(options))
+            let cache_start = cost_start(options.profile_compilation);
+            let restored = preloaded_semantic.or_else(|| store.load(options));
+            report.record_driver_cost("semantic_cache_read", cache_start);
+            if let Some((typed, candidate)) = restored
                 && typed.module.source_fingerprint == fingerprint
                 && typed.module.module_id == project.root
                 && typed.module.target == options.target
@@ -536,6 +583,7 @@ impl CompilationSession {
             );
         }
         let mut parsed = Vec::new();
+        let mut producer_syntax = Vec::new();
         let mut dependencies: Vec<Arc<QuerySnapshot>> = Vec::new();
         let mut remaining = options.limits.clone();
         for (index, source) in project.modules.iter().enumerate() {
@@ -561,6 +609,7 @@ impl CompilationSession {
                 // published dependency without a second query or event.
                 charge_frontend(&mut remaining, &loaded.parsed)?;
                 parsed.push(loaded.parsed.clone());
+                producer_syntax.push(loaded.producer.clone());
                 dependencies.push(snapshot.clone());
                 continue;
             }
@@ -569,7 +618,18 @@ impl CompilationSession {
             } else {
                 (self.parse_key(source, &parse_options), None)
             };
-            let reused = loaded.map_or(borrowed.is_some(), |syntax| syntax.reused);
+            let producer_input = if options.producer_reuse {
+                match loaded {
+                    Some(loaded) => loaded.producer.clone().map(|p| (p, loaded.reused)),
+                    None => Some(self.producer_parse(source, &parse_options.limits)),
+                }
+            } else {
+                None
+            };
+            let reused = producer_input.as_ref().map_or_else(
+                || loaded.map_or(borrowed.is_some(), |syntax| syntax.reused),
+                |(_, reused)| *reused,
+            );
             let (raw, snapshot) = self.query_with_disposition(
                 parse_key,
                 &[],
@@ -577,6 +637,13 @@ impl CompilationSession {
                 report,
                 observer,
                 || {
+                    if let Some((producer, _)) = &producer_input {
+                        let parsed = producer.parsed_shared();
+                        if !parsed.diagnostics.is_empty() {
+                            return Err(parsed.diagnostics.clone());
+                        }
+                        return Ok(RawSnapshot::Parse(parsed));
+                    }
                     if let Some(syntax) = loaded {
                         // load_sources parsed these immutable bytes with the
                         // same per-file remaining token/node/depth budgets.
@@ -608,6 +675,7 @@ impl CompilationSession {
             };
             charge_frontend(&mut remaining, &result)?;
             parsed.push(result);
+            producer_syntax.push(producer_input.map(|(source, _)| source));
             dependencies.push(snapshot);
         }
         report.phase = Phase::Parse;
@@ -669,13 +737,52 @@ impl CompilationSession {
                 .iter()
                 .zip(&parsed)
                 .any(|(source, parsed)| artifact_candidate(source, parsed));
-        let (raw, expand_snapshot) = self.query(
+        let producer_sources = if options.producer_reuse && !selection_needed && !artifact_needed {
+            producer_syntax.into_iter().collect::<Option<Vec<_>>>()
+        } else {
+            None
+        };
+        let mut producer = std::mem::take(&mut self.producer);
+        producer.set_cost_profiling(options.profile_compilation);
+        let producer_checkpoint = options.producer_reuse.then(|| producer.checkpoint());
+        let mut producer_work = None;
+        let expand_query = self.query(
             key(Phase::Expand, selection_needed || artifact_needed),
             &dependencies,
             options,
             report,
             observer,
             || {
+                if let Some(sources) = &producer_sources {
+                    let result = producer.expand_parsed(
+                        sources,
+                        &imports,
+                        &options.limits,
+                        &options.target,
+                        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                            root: project.root,
+                            aliases: &project.paths,
+                            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+                        },
+                    );
+                    producer_work = Some(producer.last_stats().clone());
+                    if let Some(expanded) = result? {
+                        let (produced, maps) = expanded.into_program(project.root, fingerprint);
+                        return Ok(RawSnapshot::Project(Arc::new(ExpandedProject {
+                            core: produced.program().clone(),
+                            maps,
+                            selection: super::ct_selection::Receipt::default(),
+                            ct_usage: None,
+                            ct_previews: Vec::new(),
+                            syntax: Arc::new(ProjectSyntax {
+                                root: (root.file_id, root.module_id, root.path.clone()),
+                                entries: dependencies.iter().zip(&parsed)
+                                    .map(|(snapshot, parsed)| (snapshot.key.clone(), parsed.clone())).collect(),
+                            }),
+                            producer: Some(produced),
+                        })));
+                    }
+                }
                 let mut modules = Vec::new();
                 let mut maps = Vec::new();
                 let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
@@ -799,9 +906,17 @@ impl CompilationSession {
                             .map(|(snapshot, parsed)| (snapshot.key.clone(), parsed.clone()))
                             .collect(),
                     }),
+                    producer: None,
                 })))
             },
-        )?;
+        );
+        report.producer_work = producer_work;
+        self.producer = if expand_query.is_ok() {
+            producer
+        } else {
+            producer_checkpoint.unwrap_or_default()
+        };
+        let (raw, expand_snapshot) = expand_query?;
         let RawSnapshot::Project(expanded) = raw else {
             return Err(infra(
                 "E-QUERY-KIND",
@@ -841,8 +956,15 @@ impl CompilationSession {
             report,
             observer,
             || {
-                let inference =
-                    zil_types::infer_shared_program_for_ct(&expanded.core, &options.limits)?;
+                let inference = if options.producer_reuse {
+                    if let Some(produced) = &expanded.producer {
+                        zil_types::infer_produced_program_for_ct(produced, &options.limits)?
+                    } else {
+                        zil_types::infer_shared_program_for_ct(&expanded.core, &options.limits)?
+                    }
+                } else {
+                    zil_types::infer_shared_program_for_ct(&expanded.core, &options.limits)?
+                };
                 let inferred = inference.program();
                 let mut remaining = expanded.selection.remaining(&options.limits)?;
                 if let Some(usage) = &expanded.ct_usage {
@@ -947,14 +1069,17 @@ impl CompilationSession {
             store.bind_path(&artifacts.semantic_cache(&store.path())?);
         }
         let mut function_types = std::mem::take(&mut self.function_types);
+        function_types.set_cost_profiling(options.profile_compilation);
+        let function_restore_start = cost_start(options.profile_compilation);
         if let Some(store) = &function_store {
             store.restore(&mut function_types, options);
         }
+        report.record_driver_cost("function_cache_read", function_restore_start);
         let checkpoint = function_types.checkpoint();
         // Paths identify owners; current immutable Core, binding IDs, complete
         // limits/target and observed declarations still prove validity inside
         // FunctionSession. A path or source fingerprint grants no reuse alone.
-        let reactive_owners = options.reactive_queries.then(|| {
+        let reactive_owners = (options.reactive_queries || options.producer_reuse).then(|| {
             project
                 .modules
                 .iter()
@@ -969,8 +1094,19 @@ impl CompilationSession {
             report,
             observer,
             || {
-                let checked = if let Some(owners) = &reactive_owners {
+                let checked = if options.reactive_queries
+                    && let Some(owners) = &reactive_owners
+                {
                     function_types.check_prepared_program_with_owners(
+                        &prepared,
+                        &options.target,
+                        &options.limits,
+                        owners,
+                    )
+                } else if options.producer_reuse
+                    && let Some(owners) = &reactive_owners
+                {
+                    function_types.check_prepared_program_with_producer_owners(
                         &prepared,
                         &options.target,
                         &options.limits,
@@ -1021,6 +1157,7 @@ impl CompilationSession {
             artifacts.clone(),
             stable_source.as_ref(),
         );
+        let persistence_start = cost_start(options.profile_compilation);
         if result.is_ok()
             && let Some(store) = &semantic
             && let Some(candidate) = self.analysis_candidate(&typed_snapshot)
@@ -1032,6 +1169,7 @@ impl CompilationSession {
         {
             store.save(&self.function_types, options, &artifacts);
         }
+        report.record_driver_cost("semantic_cache_publication", persistence_start);
         result
     }
 }
@@ -1602,18 +1740,24 @@ fn load_sources(
         query_options.scoped_imports = None;
         query_options.limits.max_tokens = parse_limits.max_tokens;
         query_options.limits.max_nodes = remaining.max_nodes;
-        let (_, cached) = session.project_parse_input(
-            &project.modules[index],
-            &query_options,
-            retained_syntax.as_deref(),
-        )?;
-        let reused = cached.is_some();
-        let parsed = cached.unwrap_or_else(|| {
-            Arc::new(zil_syntax::parse_with_limits(
+        let (parsed, reused, producer) = if options.producer_reuse {
+            let (source, reused) = session.producer_parse(&project.modules[index], &parse_limits);
+            (source.parsed_shared(), reused, Some(source))
+        } else {
+            let (_, cached) = session.project_parse_input(
                 &project.modules[index],
-                &parse_limits,
-            ))
-        });
+                &query_options,
+                retained_syntax.as_deref(),
+            )?;
+            let reused = cached.is_some();
+            let parsed = cached.unwrap_or_else(|| {
+                Arc::new(zil_syntax::parse_with_limits(
+                    &project.modules[index],
+                    &parse_limits,
+                ))
+            });
+            (parsed, reused, None)
+        };
         if !parsed.diagnostics.is_empty() {
             return Err(parsed.diagnostics.clone());
         }
@@ -1785,6 +1929,7 @@ fn load_sources(
         let stable_module_key = stable_modules.as_ref().and_then(|keys| keys.get(index));
         syntax.push(LoadedSyntax {
             parsed,
+            producer,
             reused,
             snapshot: None,
             stable_module_key,

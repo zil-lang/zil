@@ -283,7 +283,28 @@ pub(super) fn specialize_with_runtime(
     runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
 ) -> CompileResult<Vec<(Module, Vec<CoreImport>)>> {
     normalize(
-        sources, modules, imports, limits, products, context, runtime_ct,
+        sources, modules, imports, limits, products, context, runtime_ct, None,
+    )
+    .map_err(|e| vec![e])
+}
+pub(super) fn specialize_cached(
+    sources: &[SourceUnit],
+    modules: &[&Module],
+    imports: &[Vec<CoreImport>],
+    limits: &Limits,
+    products: &mut generics::products::Products,
+    context: Option<super::source_context::SourceIdentityContext<'_>>,
+    reuse: &mut crate::incremental::Reuse<'_>,
+) -> CompileResult<Vec<(Module, Vec<CoreImport>)>> {
+    normalize(
+        sources,
+        modules,
+        imports,
+        limits,
+        products,
+        context,
+        None,
+        Some(reuse),
     )
     .map_err(|e| vec![e])
 }
@@ -295,6 +316,7 @@ fn normalize(
     products: &mut generics::products::Products,
     context: Option<super::source_context::SourceIdentityContext<'_>>,
     runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
+    mut reuse: Option<&mut crate::incremental::Reuse<'_>>,
 ) -> R<Vec<(Module, Vec<CoreImport>)>> {
     let mut budget = Budget::new(limits);
     if runtime_ct.is_some() {
@@ -309,6 +331,17 @@ fn normalize(
     }
     // Bound borrowed inputs before cloning any syntax or symbol table.
     for ((source, module), edges) in sources.iter().zip(modules).zip(imports) {
+        if reuse.as_deref_mut().is_some_and(|reuse| {
+            reuse.replay(
+                crate::incremental::Stage::Preflight,
+                module.span,
+                &mut budget,
+            )
+        }) {
+            continue;
+        }
+        let before = budget.remaining_limits();
+        let clock = reuse.as_deref().and_then(|reuse| reuse.clock());
         budget.node(module.span, 0)?;
         if source.module_id != module.id || !module.span.is_valid_for(source) {
             return Err(error(
@@ -323,6 +356,15 @@ fn normalize(
         for edge in edges {
             budget.node(edge.span, 0)?;
             budget.text(&edge.alias, edge.span)?;
+        }
+        if let Some(reuse) = reuse.as_deref_mut() {
+            reuse.production(clock);
+            reuse.record(
+                crate::incremental::Stage::Preflight,
+                module.span,
+                before,
+                &budget,
+            );
         }
     }
     let mut origins = (budget.has_generic_methods() || budget.needs_source_identity())
@@ -477,8 +519,49 @@ fn normalize(
                     },
                 });
             }
-            let mut item = source_item.clone();
-            visitor.item(&mut item, &Names::new(), true, 0)?;
+            let cached = reuse
+                .as_deref_mut()
+                .and_then(|reuse| reuse.normalized(source_item.span));
+            let mut item = if let Some(cached) = cached
+                && reuse.as_deref_mut().is_some_and(|reuse| {
+                    reuse.replay(
+                        crate::incremental::Stage::Normalize,
+                        source_item.span,
+                        visitor.budget,
+                    )
+                }) {
+                if let Some(reuse) = reuse.as_deref_mut() {
+                    reuse.cloned(source_item.span, crate::incremental::Stage::Normalize);
+                }
+                let clock = reuse.as_deref().and_then(|reuse| reuse.clock());
+                let item = cached.as_ref().clone();
+                if let Some(reuse) = reuse.as_deref_mut() {
+                    reuse.assembly(clock);
+                }
+                item
+            } else {
+                let before = visitor.budget.remaining_limits();
+                let clock = reuse.as_deref().and_then(|reuse| reuse.clock());
+                let mut item = source_item.clone();
+                if let Some(reuse) = reuse.as_deref_mut() {
+                    reuse.assembly(clock);
+                }
+                let clock = reuse.as_deref().and_then(|reuse| reuse.clock());
+                visitor.item(&mut item, &Names::new(), true, 0)?;
+                if let Some(reuse) = reuse.as_deref_mut() {
+                    reuse.production(clock);
+                    reuse.record(
+                        crate::incremental::Stage::Normalize,
+                        source_item.span,
+                        before,
+                        visitor.budget,
+                    );
+                    reuse.cloned(source_item.span, crate::incremental::Stage::Normalize);
+                    reuse.save_normalized(source_item.span, &item);
+                    reuse.cloned(source_item.span, crate::incremental::Stage::Normalize);
+                }
+                item
+            };
             if let ItemKind::Impl(implementation) = &item.kind
                 && trait_instances::head(&implementation.target)
                     .is_some_and(super::static_traits::scalar_self)
@@ -558,7 +641,7 @@ fn normalize(
         index: &index,
         static_hosts: &static_hosts,
     });
-    let specialized = match generics::specialize_products_with_runtime(
+    let specialized = match generics::specialize_products_with_runtime_cached(
         &combined,
         &instance_limits,
         products,
@@ -566,6 +649,7 @@ fn normalize(
         runtime_bridge
             .as_ref()
             .map(|bridge| bridge as &dyn crate::runtime_ct::RuntimeCt),
+        reuse.as_deref_mut(),
     )
     .map_err(|mut e| e.remove(0))?
     {
@@ -595,7 +679,26 @@ fn normalize(
     let mut positions = Vec::new();
     let mut static_impls = Vec::new();
     for (ordinal, item) in specialized.items.iter().enumerate() {
-        budget.item(item)?;
+        if !reuse.as_deref_mut().is_some_and(|reuse| {
+            reuse.replay(
+                crate::incremental::Stage::Distribute,
+                item.span,
+                &mut budget,
+            )
+        }) {
+            let before = budget.remaining_limits();
+            let clock = reuse.as_deref().and_then(|reuse| reuse.clock());
+            budget.item(item)?;
+            if let Some(reuse) = reuse.as_deref_mut() {
+                reuse.production(clock);
+                reuse.record(
+                    crate::incremental::Stage::Distribute,
+                    item.span,
+                    before,
+                    &budget,
+                );
+            }
+        }
         let position = if let Some(origins) = &products.origins {
             budget.node(item.span, 0)?;
             let owner = origins.get(ordinal, item.span)?.declaration.module;
@@ -781,6 +884,27 @@ fn normalize(
                 }
             }
         }
+        let cached = reuse
+            .as_deref_mut()
+            .and_then(|reuse| reuse.restored(module.span.file));
+        if let Some(cached) = cached
+            && reuse.as_deref_mut().is_some_and(|reuse| {
+                reuse.replay(crate::incremental::Stage::Restore, module.span, &mut budget)
+            })
+        {
+            if let Some(reuse) = reuse.as_deref_mut() {
+                reuse.cloned(module.span, crate::incremental::Stage::Restore);
+            }
+            let clock = reuse.as_deref().and_then(|reuse| reuse.clock());
+            *module = cached.0.clone();
+            *edges = cached.1.clone();
+            if let Some(reuse) = reuse.as_deref_mut() {
+                reuse.assembly(clock);
+            }
+            continue;
+        }
+        let before = budget.remaining_limits();
+        let clock = reuse.as_deref().and_then(|reuse| reuse.clock());
         let mut visitor = Visitor {
             default_nominal: None,
             const_scope: Names::new(),
@@ -793,6 +917,17 @@ fn normalize(
         };
         for item in &mut module.items {
             visitor.item(item, &Names::new(), true, 0)?;
+        }
+        if let Some(reuse) = reuse.as_deref_mut() {
+            reuse.production(clock);
+            reuse.record(
+                crate::incremental::Stage::Restore,
+                module.span,
+                before,
+                &budget,
+            );
+            reuse.save_restored(module.span.file, module, edges);
+            reuse.cloned(module.span, crate::incremental::Stage::Restore);
         }
     }
     products

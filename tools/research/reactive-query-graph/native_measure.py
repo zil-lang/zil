@@ -139,10 +139,10 @@ class Worker:
         self.err.close()
 
 
-def native_outcomes(program, case, label, a):
+def native_outcomes(program, case, label, a, oracle_fn=oracle):
     out = []
     for data in inputs(case):
-        expected = oracle(case, data, label, a.modules, a.functions, a.steps)
+        expected = oracle_fn(case, data, label, a.modules, a.functions, a.steps)
         try:
             p = subprocess.run([str(program)], input=data, capture_output=True, timeout=a.native_timeout)
             actual = {'exit': p.returncode, 'stdout_hex': p.stdout.hex(), 'stderr_hex': p.stderr.hex()}

@@ -101,6 +101,8 @@ fn main() -> ExitCode {
             "--json" => {}
             "--resident" => resident_mode = true,
             "--reactive-queries" => options.reactive_queries = true,
+            "--producer-reuse" => options.producer_reuse = true,
+            "--profile-compilation" => options.profile_compilation = true,
             "--resident-capacity" | "--resident-reset-after" => {
                 let flag = args[index].as_str();
                 if index + 1 == args.len() {

@@ -42,6 +42,7 @@ pub(super) fn check_resolved_program_with_reuse(
     limits: &Limits,
     mut reuse: Option<&mut incremental::Reuse<'_>>,
 ) -> CompileResult<TypedProgram> {
+    let context_started = reuse.as_ref().and_then(|reuse| reuse.start_cost());
     let reject = |code: &str, text: &str| vec![Diagnostic::error(Phase::Types, code, None, text)];
     let limit = || {
         vec![Diagnostic::limit(
@@ -327,6 +328,7 @@ pub(super) fn check_resolved_program_with_reuse(
         factories.insert(id, typed);
     }
     if let Some(reuse) = &mut reuse {
+        reuse.context_constructed(context_started);
         reuse.prepare(program, &signatures_by_module, target, limits);
     }
     let mut functions = Vec::new();
@@ -365,37 +367,45 @@ pub(super) fn check_resolved_program_with_reuse(
                 typed
             } else {
                 let accounting_before = closure_state.accounting();
-                let pending_start = closure_state.pending.len();
-                let thin_start = closure_state.thin.len();
-                let mut builder =
-                    Builder::new(f, id, table, limits, &mut closure_state).map_err(|e| vec![e])?;
-                builder.imports = Some(&imports);
-                builder.enums = Some(&enum_types);
-                builder.dyn_declarations = &dyn_declarations;
-                builder.dyn_interfaces = &dyn_interfaces;
-                builder.dyn_vtables = &dyn_vtables;
-                let typed = builder.finish(&f.body).map_err(|e| vec![e])?;
-                visibility.check(
-                    &typed,
-                    core.module_id,
-                    &closure_state.internal_product_fields,
-                )?;
-                for closure in &closure_state.pending[pending_start..] {
-                    if let Some(function) = &closure.typed {
+                let cfg_started = reuse.as_ref().and_then(|reuse| reuse.start_cost());
+                let result: CompileResult<TypedFunction> = (|| {
+                    let pending_start = closure_state.pending.len();
+                    let thin_start = closure_state.thin.len();
+                    let mut builder = Builder::new(f, id, table, limits, &mut closure_state)
+                        .map_err(|e| vec![e])?;
+                    builder.imports = Some(&imports);
+                    builder.enums = Some(&enum_types);
+                    builder.dyn_declarations = &dyn_declarations;
+                    builder.dyn_interfaces = &dyn_interfaces;
+                    builder.dyn_vtables = &dyn_vtables;
+                    let typed = builder.finish(&f.body).map_err(|e| vec![e])?;
+                    visibility.check(
+                        &typed,
+                        core.module_id,
+                        &closure_state.internal_product_fields,
+                    )?;
+                    for closure in &closure_state.pending[pending_start..] {
+                        if let Some(function) = &closure.typed {
+                            visibility.check(
+                                function,
+                                core.module_id,
+                                &closure_state.internal_product_fields,
+                            )?;
+                        }
+                    }
+                    for function in closure_state.thin[thin_start..].iter().flatten() {
                         visibility.check(
                             function,
                             core.module_id,
                             &closure_state.internal_product_fields,
                         )?;
                     }
+                    Ok(typed)
+                })();
+                if let Some(reuse) = &mut reuse {
+                    reuse.cfg_executed(cfg_started);
                 }
-                for function in closure_state.thin[thin_start..].iter().flatten() {
-                    visibility.check(
-                        function,
-                        core.module_id,
-                        &closure_state.internal_product_fields,
-                    )?;
-                }
+                let typed = result?;
                 if let Some(reuse) = &mut reuse {
                     reuse.save(
                         core.module_id,
