@@ -15,7 +15,7 @@ fn core(text: &str) -> CoreProgram {
         root: ModuleId(0),
         source_fingerprint: core.source_fingerprint,
         modules: vec![ProgramModule {
-            core,
+            core: core.into(),
             imports: vec![],
             exports: vec![],
         }],
@@ -29,7 +29,8 @@ fn ct(program: &CoreProgram) -> CoreProgram {
             &TargetProfile::default(),
             &Limits::default(),
         )
-        .unwrap();
+        .unwrap()
+        .into();
     }
     result
 }
@@ -183,8 +184,10 @@ fn changed_limits_or_declarations_cannot_retain_the_previous_preparation() {
         );
     }
     let mut changed = program.clone();
-    changed.modules[0].core.functions[1].name = "a".into();
-    changed.modules[0].core.functions[1].span.start += 1;
+    std::sync::Arc::make_mut(&mut changed.modules[0].core).functions[1].name = "a".into();
+    std::sync::Arc::make_mut(&mut changed.modules[0].core).functions[1]
+        .span
+        .start += 1;
     let expected =
         zil_types::check_program(&changed, &TargetProfile::default(), &limits).unwrap_err();
     let prepared = zil_types::infer_program_for_ct(&program, &limits)

@@ -321,8 +321,8 @@ fn original_forward_has_exact_fresh_types_and_expand_work_boundaries() {
             .iter()
             .any(|e| e.category == zil_base::ResultCategory::ResourceLimit)
     );
-    assert_eq!(expand(en).unwrap().core, expanded);
-    assert_eq!(expand(en).unwrap().core, expanded);
+    assert_eq!(expand(en).unwrap().core.as_ref(), &expanded);
+    assert_eq!(expand(en).unwrap().core.as_ref(), &expanded);
     assert_eq!(types(tn).unwrap(), expected);
     assert_eq!(types(tn).unwrap(), expected);
     println!(

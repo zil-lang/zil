@@ -85,7 +85,8 @@ fn program() -> CoreProgram {
                         ))))],
                     },
                 }],
-            },
+            }
+            .into(),
         }],
     }
 }
@@ -162,22 +163,28 @@ fn collector_bounds_query_and_reachable_helper_annotations_before_copying() {
     for position in 0..4 {
         limited(&program(), &annotation(position), None);
         let mut p = program();
-        p.modules[0].core.functions[0].body.statements.insert(
-            0,
-            statement(CoreStatementKind::Expression(annotation(position))),
-        );
+        std::sync::Arc::make_mut(&mut p.modules[0].core).functions[0]
+            .body
+            .statements
+            .insert(
+                0,
+                statement(CoreStatementKind::Expression(annotation(position))),
+            );
         limited(&p, &query(), None);
     }
     let mut p = program();
-    p.modules[0].core.functions[0].body.statements.insert(
-        0,
-        statement(CoreStatementKind::Binding {
-            name: "cb".into(),
-            mutable: false,
-            ty: Some(callback()),
-            initializer: None,
-        }),
-    );
+    std::sync::Arc::make_mut(&mut p.modules[0].core).functions[0]
+        .body
+        .statements
+        .insert(
+            0,
+            statement(CoreStatementKind::Binding {
+                name: "cb".into(),
+                mutable: false,
+                ty: Some(callback()),
+                initializer: None,
+            }),
+        );
     limited(&p, &query(), None);
     limited(&program(), &query(), Some(&callback()));
 }
@@ -186,7 +193,7 @@ fn collector_bounds_query_and_reachable_helper_annotations_before_copying() {
 fn collector_bounds_retained_and_returned_callable_contracts() {
     for retained in [false, true] {
         let mut p = program();
-        let f = &mut p.modules[0].core.functions[0];
+        let f = &mut std::sync::Arc::make_mut(&mut p.modules[0].core).functions[0];
         if retained {
             f.callable_parameters = vec![CoreCallableParameter {
                 source_life: None,
@@ -226,10 +233,13 @@ fn collector_rejects_static_foreign_values_and_callbacks_in_every_reachable_posi
         for in_helper in [false, true] {
             let mut p = program();
             let q = if in_helper {
-                p.modules[0].core.functions[0].body.statements.insert(
-                    0,
-                    statement(CoreStatementKind::Expression(expr(kind.clone()))),
-                );
+                std::sync::Arc::make_mut(&mut p.modules[0].core).functions[0]
+                    .body
+                    .statements
+                    .insert(
+                        0,
+                        statement(CoreStatementKind::Expression(expr(kind.clone()))),
+                    );
                 query()
             } else {
                 expr(kind.clone())
@@ -244,7 +254,7 @@ fn collector_rejects_static_foreign_values_and_callbacks_in_every_reachable_posi
 #[test]
 fn single_runtime_copy_has_bounded_static_values_and_keeps_valid_literals() {
     let mut p = program();
-    let f = &mut p.modules[0].core.functions[0];
+    let f = &mut std::sync::Arc::make_mut(&mut p.modules[0].core).functions[0];
     let mut units = vec![65; 128];
     units.push(0);
     f.body.statements.insert(
@@ -253,7 +263,7 @@ fn single_runtime_copy_has_bounded_static_values_and_keeps_valid_literals() {
             Constant::WideString(units),
         )))),
     );
-    let core = &p.modules[0].core;
+    let core = p.modules[0].core.as_ref();
     let target = TargetProfile::host_llvm();
     let output = adapter::single(core, &target, &Limits::default()).unwrap();
     assert_eq!(output, *core);
@@ -276,14 +286,16 @@ fn collector_text_budget_precedes_declaration_and_query_name_copies() {
         ..Limits::default()
     };
     let mut p = program();
-    p.modules[0].core.aggregates.push(CoreAggregate {
-        id: NodeId(8),
-        name: "A".repeat(1024),
-        kind: AggregateKind::Struct,
-        teardown: None,
-        fields: vec![],
-        span: span(),
-    });
+    std::sync::Arc::make_mut(&mut p.modules[0].core)
+        .aggregates
+        .push(CoreAggregate {
+            id: NodeId(8),
+            name: "A".repeat(1024),
+            kind: AggregateKind::Struct,
+            teardown: None,
+            fields: vec![],
+            span: span(),
+        });
     assert_eq!(
         reject(&p, &query(), None, &limits)[0].category,
         ResultCategory::ResourceLimit

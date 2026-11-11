@@ -470,7 +470,7 @@ fn type_life_raw_scalar_live_and_restored_reuse_recheck_the_current_header() {
         root: ModuleId(0),
         source_fingerprint: core.source_fingerprint,
         modules: vec![zil_ir::ProgramModule {
-            core,
+            core: core.into(),
             imports: vec![],
             exports: vec![],
         }],
@@ -507,7 +507,7 @@ fn type_life_raw_scalar_live_and_restored_reuse_recheck_the_current_header() {
         .unwrap();
     for attack in 0..6 {
         let mut changed = original.clone();
-        let life = changed.modules[0].core.functions[index]
+        let life = std::sync::Arc::make_mut(&mut changed.modules[0].core).functions[index]
             .life
             .as_mut()
             .unwrap();
@@ -867,7 +867,7 @@ fn record_sum_scalar_reuse_must_recheck_current_raw_life_declarations() {
         root: ModuleId(0),
         source_fingerprint: core.source_fingerprint,
         modules: vec![zil_ir::ProgramModule {
-            core,
+            core: core.into(),
             imports: vec![],
             exports: vec![],
         }],
@@ -895,7 +895,10 @@ fn record_sum_scalar_reuse_must_recheck_current_raw_life_declarations() {
     let mut bypassed = Vec::new();
     for attack in 0..6 {
         let mut changed = original.clone();
-        let life = changed.modules[0].core.functions[0].life.as_mut().unwrap();
+        let life = std::sync::Arc::make_mut(&mut changed.modules[0].core).functions[0]
+            .life
+            .as_mut()
+            .unwrap();
         match attack {
             0 => life.binders.clear(),
             1 => life.binders[1] = life.binders[0].clone(),
@@ -975,7 +978,7 @@ fn record_sum_scalar_work_products_reject_a_typed_return_life_bound() {
         root: ModuleId(0),
         source_fingerprint: core.source_fingerprint,
         modules: vec![zil_ir::ProgramModule {
-            core,
+            core: core.into(),
             imports: vec![],
             exports: vec![],
         }],
@@ -1038,7 +1041,7 @@ fn explicit_life_scalar_reuse_keeps_valid_hits_ordered_keys_and_exact_budget() {
         root: ModuleId(0),
         source_fingerprint: core.source_fingerprint,
         modules: vec![zil_ir::ProgramModule {
-            core,
+            core: core.into(),
             imports: vec![],
             exports: vec![],
         }],
@@ -1114,7 +1117,7 @@ fn explicit_life_scalar_reuse_keeps_valid_hits_ordered_keys_and_exact_budget() {
     let encoded = seeded.encode_work_products(&target, &limits).unwrap();
     for remove in [false, true] {
         let mut changed = original.clone();
-        let function = &mut changed.modules[0].core.functions[0];
+        let function = &mut std::sync::Arc::make_mut(&mut changed.modules[0].core).functions[0];
         if remove {
             function.life = None;
         } else {

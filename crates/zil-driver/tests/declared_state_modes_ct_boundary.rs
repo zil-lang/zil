@@ -23,7 +23,7 @@ fn program(source: &str) -> CoreProgram {
         root: ModuleId(0),
         source_fingerprint: core.source_fingerprint,
         modules: vec![ProgramModule {
-            core,
+            core: core.into(),
             imports: vec![],
             exports: vec![],
         }],
@@ -69,7 +69,7 @@ fn state(function: &mut CoreFunction) {
 
 fn raw_state() -> CoreProgram {
     let mut p = program("fn state()->i32{return #(6*7)}");
-    state(&mut p.modules[0].core.functions[0]);
+    state(&mut std::sync::Arc::make_mut(&mut p.modules[0].core).functions[0]);
     p
 }
 
@@ -86,7 +86,7 @@ fn limited(errors: Vec<zil_base::Diagnostic>) {
 fn state_mode_compile_time_preserves_two_declared_modes_and_reversed_selectors_during_runtime_folding()
  {
     let p = raw_state();
-    let input = &p.modules[0].core;
+    let input = p.modules[0].core.as_ref();
     let target = TargetProfile::default();
     let limits = Limits::default();
     let context = zil_ct::SourceProgramContext::new(&p, &limits).unwrap();
@@ -133,7 +133,9 @@ fn state_mode_compile_time_bounds_unused_second_binding_before_all_public_copy_p
     let target = TargetProfile::default();
     for deep in [false, true] {
         let mut p = raw_state();
-        let bound = &mut p.modules[0].core.functions[0].state_parameters[0].bindings[1];
+        let bound = &mut std::sync::Arc::make_mut(&mut p.modules[0].core).functions[0]
+            .state_parameters[0]
+            .bindings[1];
         let limits = if deep {
             bound.result = Type::Tuple(vec![Type::Tuple(vec![Type::Tuple(vec![Type::I32])])]);
             Limits {
@@ -147,7 +149,7 @@ fn state_mode_compile_time_bounds_unused_second_binding_before_all_public_copy_p
                 ..Limits::default()
             }
         };
-        let input = &p.modules[0].core;
+        let input = p.modules[0].core.as_ref();
         limited(zil_ct::evaluate_source_constants(input, &target, &limits).unwrap_err());
         limited(
             zil_ct::SourceProgramContext::new(&p, &limits)
@@ -158,7 +160,7 @@ fn state_mode_compile_time_bounds_unused_second_binding_before_all_public_copy_p
     }
     for mutation in 0..5 {
         let mut p = raw_state();
-        let f = &mut p.modules[0].core.functions[0];
+        let f = &mut std::sync::Arc::make_mut(&mut p.modules[0].core).functions[0];
         match mutation {
             0 => f.state_parameters[0].index = 1,
             1 => f.state_parameters[0].bindings.pop().map(|_| ()).unwrap(),
@@ -172,7 +174,7 @@ fn state_mode_compile_time_bounds_unused_second_binding_before_all_public_copy_p
                 }]
             }
         }
-        let core = &p.modules[0].core;
+        let core = p.modules[0].core.as_ref();
         for errors in [
             zil_ct::evaluate_source_constants(core, &target, &Limits::default()).unwrap_err(),
             zil_ct::SourceProgramContext::new(&p, &Limits::default())
@@ -215,8 +217,7 @@ fn state_mode_compile_time_direct_and_wrapper_queries_cannot_execute_a_state_tem
         zil_ct::CompileTimeValue::Scalar(Constant::I32(42))
     );
     state(
-        p.modules[0]
-            .core
+        std::sync::Arc::make_mut(&mut p.modules[0].core)
             .functions
             .iter_mut()
             .find(|f| f.name == "pure")

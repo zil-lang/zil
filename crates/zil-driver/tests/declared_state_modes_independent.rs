@@ -141,7 +141,7 @@ fn program(core: CoreModule) -> CoreProgram {
                 .filter(|f| f.name == "main")
                 .map(|f| f.id)
                 .collect(),
-            core,
+            core: core.into(),
         }],
     }
 }
@@ -440,7 +440,7 @@ fn main()->i32{return 0}
     // through its real public stage before introducing the new raw table.
     let mut resolved =
         zil_types::resolve_program_shapes(&program(core), &Limits::default()).unwrap();
-    let mut core = resolved.modules.remove(0).core;
+    let mut core = std::sync::Arc::unwrap_or_clone(resolved.modules.remove(0).core);
     let index = core
         .functions
         .iter()
@@ -1868,7 +1868,7 @@ fn raw_complete_type_application_cannot_relabel_equal_concrete_callback_slots() 
     raw_types("typeapply-origin-valid", &core, &Limits::default(), false);
     let mut resolved =
         zil_types::resolve_program_shapes(&program(core), &Limits::default()).unwrap();
-    let mut changed = resolved.modules.remove(0).core;
+    let mut changed = std::sync::Arc::unwrap_or_clone(resolved.modules.remove(0).core);
     let function = changed
         .functions
         .iter_mut()
@@ -2081,7 +2081,7 @@ fn value_inferred_complete_argument_work_has_an_exact_new_path_boundary() {
                 ..Limits::default()
             },
         )
-        .map(|actual| assert_eq!(actual.core, core))
+        .map(|actual| assert_eq!(actual.core.as_ref(), &core))
     });
     let types = boundary(|n| {
         zil_types::check(

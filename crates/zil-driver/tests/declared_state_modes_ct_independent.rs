@@ -96,7 +96,7 @@ fn program(core: CoreModule) -> CoreProgram {
         modules: vec![ProgramModule {
             imports: vec![],
             exports: core.functions.iter().map(|f| f.id).collect(),
-            core,
+            core: core.into(),
         }],
     }
 }
@@ -133,7 +133,7 @@ fn state_mode_imported_wrapper_cannot_hide_new_state_execution() {
     p.modules.push(ProgramModule {
         imports: vec![],
         exports: dependency.functions.iter().map(|f| f.id).collect(),
-        core: dependency,
+        core: dependency.into(),
     });
     let target = TargetProfile::host_llvm();
     let case = Case::new("imported-pure-positive");
@@ -153,7 +153,7 @@ fn state_mode_imported_wrapper_cannot_hide_new_state_execution() {
         result.value,
         zil_ct::CompileTimeValue::Scalar(Constant::I32(7))
     );
-    state(&mut p.modules[1].core.functions[0]);
+    state(&mut std::sync::Arc::make_mut(&mut p.modules[1].core).functions[0]);
     for called in ["wrapper", "main"] {
         let case = Case::new(&format!("imported-state-through-{called}"));
         let q = query(&p, called);
@@ -317,7 +317,7 @@ fn state_mode_imported_value_template_hints_do_not_execute_or_ignore_shadowing()
     p.modules.push(ProgramModule {
         exports: child.functions.iter().map(|f| f.id).collect(),
         imports: vec![],
-        core: child,
+        core: child.into(),
     });
     let mut q = query(&p, "entry");
     let CoreExprKind::Call { arguments, .. } = &mut q.kind else {
@@ -348,7 +348,7 @@ fn state_mode_imported_value_template_hints_do_not_execute_or_ignore_shadowing()
         zil_ct::CompileTimeValue::Scalar(Constant::I64(7))
     );
 
-    let function = &mut p.modules[1].core.functions[0];
+    let function = &mut std::sync::Arc::make_mut(&mut p.modules[1].core).functions[0];
     function.type_parameters = vec![CoreTypeParameter {
         index: 0,
         name: "T".into(),
@@ -375,7 +375,7 @@ fn state_mode_imported_value_template_hints_do_not_execute_or_ignore_shadowing()
     p.modules[0].core = module(
         0,
         "fn entry(value:i32)->i64{return child.accept(value,#(4294967296))}fn main()->i32{return 0}",
-    );
+    ).into();
     let context = zil_ct::SourceProgramContext::new(&p, &limits).unwrap();
     let normalized = zil_ct::evaluate_source_constants_with_context(
         &p.modules[0].core,
@@ -408,7 +408,7 @@ fn state_mode_imported_value_template_hints_do_not_execute_or_ignore_shadowing()
 
     for local in [false, true] {
         let mut shadow = p.clone();
-        let function = &mut shadow.modules[0].core.functions[0];
+        let function = &mut std::sync::Arc::make_mut(&mut shadow.modules[0].core).functions[0];
         if local {
             function.body.statements.insert(
                 0,

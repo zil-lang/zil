@@ -267,7 +267,7 @@ fn raw_program(core: zil_ir::CoreModule) -> zil_ir::CoreProgram {
         modules: vec![zil_ir::ProgramModule {
             imports: vec![],
             exports: vec![],
-            core,
+            core: core.into(),
         }],
     }
 }

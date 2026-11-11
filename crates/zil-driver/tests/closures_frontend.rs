@@ -853,7 +853,7 @@ fn closure_raw_type_and_metadata_budgets_precede_recursive_cloning() {
         root: core.module_id,
         source_fingerprint: core.source_fingerprint,
         modules: vec![zil_ir::ProgramModule {
-            core,
+            core: core.into(),
             imports: vec![],
             exports: vec![],
         }],
@@ -864,7 +864,7 @@ fn closure_raw_type_and_metadata_budgets_precede_recursive_cloning() {
         &TargetProfile::default(),
         &limits,
     ));
-    program.modules[0].core.functions[0].return_type = Type::I32;
+    std::sync::Arc::make_mut(&mut program.modules[0].core).functions[0].return_type = Type::I32;
     program.modules[0].exports = (0..10_000).map(zil_base::NodeId).collect();
     resource_limited(zil_types::infer_program_closures(&program, &limits));
     resource_limited(zil_types::check_program(

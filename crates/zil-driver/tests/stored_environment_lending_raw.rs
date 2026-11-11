@@ -2737,8 +2737,8 @@ fn stored_core(source: &str) -> zil_ir::CoreModule {
             declarations: zil_expand::source_context::DeclarationPlacement::Original,
         },
     )
+    .map(|expanded| std::sync::Arc::unwrap_or_clone(expanded.core))
     .unwrap()
-    .core
 }
 fn typed_stored(source: &str) -> TypedModule {
     zil_types::check(

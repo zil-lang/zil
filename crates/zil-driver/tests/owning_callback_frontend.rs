@@ -392,8 +392,8 @@ fn dispatch_has_fresh_exact_types_and_expand_work_boundaries() {
     );
     assert_eq!(types(types_n).unwrap(), expected);
     assert_eq!(types(types_n).unwrap(), expected);
-    assert_eq!(expand(expand_n).unwrap().core, expanded);
-    assert_eq!(expand(expand_n).unwrap().core, expanded);
+    assert_eq!(expand(expand_n).unwrap().core.as_ref(), &expanded);
+    assert_eq!(expand(expand_n).unwrap().core.as_ref(), &expanded);
     println!(
         "owned dispatch Types N={types_n}, Expand N={expand_n}; N-1 ResourceLimit and fresh N identity"
     );
@@ -504,8 +504,8 @@ fn registered_copy_helper_costs_and_old_flat_control_have_exact_fresh_boundaries
                 .iter()
                 .any(|d| d.category == zil_base::ResultCategory::ResourceLimit)
         );
-        assert_eq!(expand(expand_n).unwrap().core, core);
-        assert_eq!(expand(expand_n).unwrap().core, core);
+        assert_eq!(expand(expand_n).unwrap().core.as_ref(), &core);
+        assert_eq!(expand(expand_n).unwrap().core.as_ref(), &core);
         assert!(
             types(types_n - 1)
                 .unwrap_err()

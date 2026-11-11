@@ -1071,7 +1071,7 @@ fn program(input: &CoreModule) -> CoreProgram {
         root: input.module_id,
         source_fingerprint: input.source_fingerprint,
         modules: vec![ProgramModule {
-            core: input.clone(),
+            core: input.clone().into(),
             imports: vec![],
             exports: vec![],
         }],
@@ -1494,7 +1494,7 @@ fn imported_family_preserves_the_callers_lexical_callable_owner_through_ct() {
             output.aggregate_applications,
             module.core.aggregate_applications
         );
-        module.core = output;
+        module.core = output.into();
     }
     zil_types::check_program(&normalized, &target, &limits).unwrap();
     let mut forged = input.clone();
@@ -1512,7 +1512,7 @@ fn imported_family_preserves_the_callers_lexical_callable_owner_through_ct() {
     let application = forged
         .modules
         .iter_mut()
-        .flat_map(|m| &mut m.core.aggregate_applications)
+        .flat_map(|m| &mut std::sync::Arc::make_mut(&mut m.core).aggregate_applications)
         .find(|a| {
             a.template_module == ModuleId(1) && a.owner.is_some_and(|o| o.module == ModuleId(0))
         })

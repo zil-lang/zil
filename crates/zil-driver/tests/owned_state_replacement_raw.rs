@@ -41,7 +41,7 @@ fn program(core: CoreModule) -> CoreProgram {
         modules: vec![ProgramModule {
             imports: vec![],
             exports: vec![],
-            core,
+            core: core.into(),
         }],
     }
 }

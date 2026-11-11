@@ -12,8 +12,8 @@ fn core_source(program: &str) -> zil_ir::CoreModule {
     let input = source(program);
     let ast = zil_syntax::parse(&input).into_result().unwrap();
     zil_expand::expand_with_map_limits(&input, &ast, &Limits::default())
+        .map(|expanded| std::sync::Arc::unwrap_or_clone(expanded.core))
         .unwrap()
-        .core
 }
 
 fn raw_source(program: &str) -> zil_ir::TypedModule {

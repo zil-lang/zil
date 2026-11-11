@@ -156,7 +156,7 @@ fn both_public_types_apis_check_unused_complete_product_metadata() {
                     .filter(|f| f.name == "main")
                     .map(|f| f.id)
                     .collect(),
-                core: core.clone(),
+                core: core.clone().into(),
             }],
         };
         let dir = directory(&format!("metadata-{label}"));

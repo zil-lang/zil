@@ -601,7 +601,7 @@ fn nested_actual_leaf_paths_have_exact_fresh_phase_work_boundaries() {
     };
     let expand = boundary(|n| {
         zil_expand::expand_with_map_limits(&input, &syntax, &limits(n))
-            .map(|m| assert_eq!(m.core, core))
+            .map(|m| assert_eq!(m.core.as_ref(), &core))
     });
     let types = boundary(|n| {
         zil_types::check(&core, &typed.target, &limits(n)).map(|m| assert_eq!(m, typed))

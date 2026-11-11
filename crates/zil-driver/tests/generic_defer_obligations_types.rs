@@ -26,7 +26,7 @@ fn reject(c: &CoreModule) {
                 root: c.module_id,
                 source_fingerprint: c.source_fingerprint,
                 modules: vec![ProgramModule {
-                    core: c.clone(),
+                    core: c.clone().into(),
                     imports: vec![],
                     exports: vec![],
                 }],
@@ -283,7 +283,7 @@ fn prepared_and_function_session_recheck_unused_metadata_after_a_scalar_success(
         root: c.module_id,
         source_fingerprint: c.source_fingerprint,
         modules: vec![ProgramModule {
-            core: c,
+            core: c.into(),
             imports: vec![],
             exports: vec![],
         }],
@@ -304,8 +304,7 @@ fn prepared_and_function_session_recheck_unused_metadata_after_a_scalar_success(
     assert_eq!(session.last_stats().reused_functions, 1);
     let mut bad = good.clone();
     let span = bad.modules[0].core.functions[0].span;
-    bad.modules[0]
-        .core
+    std::sync::Arc::make_mut(&mut bad.modules[0].core)
         .aggregate_templates
         .push(CoreAggregateTemplate {
             id: zil_base::NodeId(999),

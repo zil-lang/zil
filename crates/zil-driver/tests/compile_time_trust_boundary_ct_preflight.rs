@@ -330,7 +330,7 @@ fn unusable_context_callback_headers_are_still_structurally_bounded() {
         root: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,
         modules: vec![ProgramModule {
-            core,
+            core: core.into(),
             imports: vec![],
             exports: vec![],
         }],

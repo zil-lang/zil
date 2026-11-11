@@ -149,7 +149,7 @@ fn program(core: CoreModule) -> CoreProgram {
                 .filter(|f| f.name == "main")
                 .map(|f| f.id)
                 .collect(),
-            core,
+            core: core.into(),
         }],
     }
 }

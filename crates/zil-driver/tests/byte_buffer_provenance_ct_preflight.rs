@@ -24,7 +24,7 @@ fn program(core: CoreModule) -> CoreProgram {
         root: core.module_id,
         source_fingerprint: core.source_fingerprint,
         modules: vec![ProgramModule {
-            core,
+            core: core.into(),
             imports: vec![],
             exports: vec![],
         }],

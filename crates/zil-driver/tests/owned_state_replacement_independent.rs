@@ -160,7 +160,7 @@ fn program(core: CoreModule) -> CoreProgram {
                 .filter(|f| f.name == "main")
                 .map(|f| f.id)
                 .collect(),
-            core,
+            core: core.into(),
         }],
     }
 }
@@ -1412,7 +1412,7 @@ fn main()->i32{let state=revise(make(3),true,pack(make(1),make(2)));return state
     };
     let expand = boundary(|n| {
         zil_expand::expand_with_map_limits(&unit, &syntax, &limits(n))
-            .map(|actual| assert_eq!(actual.core, core))
+            .map(|actual| assert_eq!(actual.core.as_ref(), &core))
     });
     let types = boundary(|n| {
         zil_types::check(&core, &typed.target, &limits(n)).map(|actual| assert_eq!(actual, typed))

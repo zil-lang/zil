@@ -45,7 +45,8 @@ fn qualified_enum_array_source_raw_wire_and_nearest_forgery() {
         })
         .expect("real Enum instance");
     let mut wrong_core = core.clone();
-    let Type::BorrowedStorage { storage, .. } = &mut wrong_core.life_instances[enum_index].ty
+    let Type::BorrowedStorage { storage, .. } =
+        &mut std::sync::Arc::make_mut(&mut wrong_core).life_instances[enum_index].ty
     else {
         unreachable!()
     };

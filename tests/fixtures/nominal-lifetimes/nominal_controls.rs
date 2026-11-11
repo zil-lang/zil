@@ -81,6 +81,7 @@ fn core_named_fields_and_actuals_get_resolved_physical_checks() {
         }
         for mutation in 0..5 {
             let mut hostile = core.clone();
+            let hostile = std::sync::Arc::make_mut(&mut hostile);
             match mutation {
                 0 => hostile.life_instances[0].arguments[0] = LifeNominalActual::Type(Type::I32),
                 1 => {
@@ -123,7 +124,7 @@ fn core_named_fields_and_actuals_get_resolved_physical_checks() {
                 _ => unreachable!(),
             }
             assert!(
-                zil_types::check(&hostile, &target, &limits).is_err(),
+                zil_types::check(hostile, &target, &limits).is_err(),
                 "Types accepted unresolved/physical mutation {mutation}"
             );
         }
@@ -383,6 +384,7 @@ fn actual_core_nested_type_metadata_controls() {
         .unwrap();
     for mutation in 0..8 {
         let mut hostile = core.clone();
+        let hostile = std::sync::Arc::make_mut(&mut hostile);
         match mutation {
             0..=3 => {
                 let Type::BorrowedStorage { life, .. } = &mut hostile.life_instances[outer].ty
@@ -442,7 +444,7 @@ fn actual_core_nested_type_metadata_controls() {
             }
             _ => unreachable!(),
         }
-        let errors = zil_types::check(&hostile, &target, &limits)
+        let errors = zil_types::check(hostile, &target, &limits)
             .expect_err("Types accepted hostile actual metadata");
         if mutation == 6 {
             assert!(

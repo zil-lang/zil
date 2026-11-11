@@ -60,7 +60,7 @@ fn source_program() -> CoreProgram {
         modules: vec![ProgramModule {
             imports: vec![],
             exports: vec![],
-            core,
+            core: core.into(),
         }],
     }
 }
@@ -95,8 +95,7 @@ fn application(program: &CoreProgram, text: &str) -> CoreExpr {
     }
 }
 fn ordinary(program: &mut CoreProgram) {
-    let f = program.modules[0]
-        .core
+    let f = std::sync::Arc::make_mut(&mut program.modules[0].core)
         .functions
         .iter_mut()
         .find(|f| f.name == "pure")
@@ -192,8 +191,7 @@ fn a_regular_wrapper_cannot_hide_template_or_application_execution() {
         &call(&generic, "wrapper"),
     );
     let application = application(&generic, "pure");
-    let f = generic.modules[0]
-        .core
+    let f = std::sync::Arc::make_mut(&mut generic.modules[0].core)
         .functions
         .iter_mut()
         .find(|f| f.name == "wrapper")
@@ -212,8 +210,7 @@ fn a_regular_wrapper_cannot_hide_template_or_application_execution() {
     );
     // The same applied wrapper also stays forbidden if its target is made
     // concrete again; the public TypeApply node itself cannot disappear.
-    generic.modules[0]
-        .core
+    std::sync::Arc::make_mut(&mut generic.modules[0].core)
         .functions
         .iter_mut()
         .find(|f| f.name == "pure")

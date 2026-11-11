@@ -1650,7 +1650,7 @@ mod tests {
             root: core.module_id,
             source_fingerprint: core.source_fingerprint,
             modules: vec![ProgramModule {
-                core: std::sync::Arc::new(core),
+                core,
                 imports: vec![],
                 exports: vec![],
             }],

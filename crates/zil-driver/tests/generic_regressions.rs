@@ -3847,7 +3847,7 @@ fn async_registration_export_program() -> zil_ir::TypedProgram {
             root: src.module_id,
             source_fingerprint: core.source_fingerprint,
             modules: vec![zil_ir::ProgramModule {
-                core,
+                core: core.into(),
                 imports: vec![],
                 exports: vec![worker],
             }],
@@ -5143,7 +5143,7 @@ fn async_child_effect_free_suspend_interface_and_incremental_identity() {
         root: ModuleId(0),
         source_fingerprint: core.source_fingerprint,
         modules: vec![ProgramModule {
-            core,
+            core: core.into(),
             imports: vec![],
             exports: vec![worker],
         }],
@@ -5165,7 +5165,8 @@ fn async_child_effect_free_suspend_interface_and_incremental_identity() {
     // Raw header mutation deliberately preserves source fingerprint/body/spans:
     // the declaration field itself must invalidate the Types work product.
     let mut changed = original;
-    changed.modules[0].core.functions[0].call_kind = Some(CallKind::Suspend);
+    std::sync::Arc::make_mut(&mut changed.modules[0].core).functions[0].call_kind =
+        Some(CallKind::Suspend);
     let prepared = zil_types::infer_program_for_ct(&changed, &limits)
         .unwrap()
         .into_prepared();
@@ -5347,7 +5348,7 @@ fn async_registration_scalar_library_helpers_keep_sealed_identity() {
                 root: ModuleId(0),
                 source_fingerprint: core.source_fingerprint,
                 modules: vec![zil_ir::ProgramModule {
-                    core,
+                    core: core.into(),
                     imports: vec![],
                     exports: vec![export],
                 }],
@@ -7501,8 +7502,8 @@ fn shared_helper_life_core(text: &str) -> zil_ir::CoreModule {
             declarations: DeclarationPlacement::Original,
         },
     )
+    .map(|expanded| std::sync::Arc::unwrap_or_clone(expanded.core))
     .unwrap()
-    .core
 }
 fn shared_helper_life_role(core: &zil_ir::CoreModule) -> &zil_ir::CoreCallableParameter {
     core.functions
@@ -7843,7 +7844,7 @@ fn shared_helper_life_malformed_context_clone_budget_and_fresh_warm_requests() {
         root: core.module_id,
         source_fingerprint: core.source_fingerprint,
         modules: vec![ProgramModule {
-            core,
+            core: core.into(),
             imports: vec![],
             exports: vec![],
         }],
@@ -8585,7 +8586,7 @@ fn mutable_helper_life_context_budget_and_actual_function_session_requests_are_b
         root: core.module_id,
         source_fingerprint: core.source_fingerprint,
         modules: vec![ProgramModule {
-            core: core.clone(),
+            core: core.clone().into(),
             imports: vec![],
             exports: vec![],
         }],

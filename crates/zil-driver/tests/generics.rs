@@ -179,7 +179,7 @@ fn terminal_stored_core_requires_matching_actual_nominal_inventory() {
         root: core.module_id,
         source_fingerprint: core.source_fingerprint,
         modules: vec![zil_ir::ProgramModule {
-            core,
+            core: core.into(),
             imports: vec![],
             exports: vec![],
         }],
@@ -200,7 +200,7 @@ fn terminal_stored_core_requires_matching_actual_nominal_inventory() {
     let make_id = exported.modules[0].core.functions[make].id;
     exported.modules[0].exports.push(make_id);
     let first = zil_types::check_program(&exported, &target, &limits).unwrap();
-    let contract = exported.modules[0].core.functions[make]
+    let contract = std::sync::Arc::make_mut(&mut exported.modules[0].core).functions[make]
         .storage_life
         .as_mut()
         .unwrap();
@@ -2698,8 +2698,8 @@ fn capture_context_relations_source_core(text: &str) -> zil_ir::CoreModule {
             declarations: DeclarationPlacement::Original,
         },
     )
+    .map(|expanded| std::sync::Arc::unwrap_or_clone(expanded.core))
     .unwrap()
-    .core
 }
 
 #[test]
@@ -2917,7 +2917,7 @@ fn capture_context_relations_context_clone_preflight_and_warm_scalar_orphan_stay
         root: scalar.module_id,
         source_fingerprint: scalar.source_fingerprint,
         modules: vec![zil_ir::ProgramModule {
-            core: scalar,
+            core: scalar.into(),
             imports: vec![],
             exports: vec![],
         }],
@@ -2939,7 +2939,9 @@ fn capture_context_relations_context_clone_preflight_and_warm_scalar_orphan_stay
     let mut orphan = core.closure_life_contexts[0].clone();
     orphan.creator = program.modules[0].core.functions[0].id;
     orphan.expression.0 = u32::MAX;
-    program.modules[0].core.closure_life_contexts.push(orphan);
+    std::sync::Arc::make_mut(&mut program.modules[0].core)
+        .closure_life_contexts
+        .push(orphan);
     let prepared = zil_types::infer_program_for_ct(&program, &limits)
         .unwrap()
         .into_prepared();

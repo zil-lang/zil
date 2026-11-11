@@ -42,7 +42,7 @@ fn program(source: &str) -> CoreProgram {
         root: ModuleId(0),
         source_fingerprint: core.source_fingerprint,
         modules: vec![ProgramModule {
-            core,
+            core: core.into(),
             imports: vec![],
             exports: vec![],
         }],
@@ -53,7 +53,7 @@ fn mixed(reverse: bool, fields: usize, kind: CallableKind) -> CoreProgram {
     let mut p = program(
         "fn identity(state:i32,replacement:i32,tag:i64)->i32{return state} fn marker()->i32{return #(6*7)}",
     );
-    let f = &mut p.modules[0].core.functions[0];
+    let f = &mut std::sync::Arc::make_mut(&mut p.modules[0].core).functions[0];
     let mut members = vec![("bytes".into(), Type::Managed(Box::new(Type::ByteBuffer)))];
     for i in 0..fields {
         members.push((format!("callback{i}"), Type::Named("F".into())));
@@ -97,7 +97,7 @@ fn mixed(reverse: bool, fields: usize, kind: CallableKind) -> CoreProgram {
 }
 
 fn results(p: &CoreProgram, limits: &Limits) -> [Result<CoreModule, Vec<zil_base::Diagnostic>>; 3] {
-    let core = &p.modules[0].core;
+    let core = p.modules[0].core.as_ref();
     let target = TargetProfile::default();
     [
         zil_ct::evaluate_source_constants(core, &target, limits),
@@ -146,7 +146,7 @@ fn state_replacement_compile_time_unused_mixed_headers_reject_wrong_roles_signat
  {
     for attack in 0..21 {
         let mut p = mixed(false, 2, CallableKind::FnOnce);
-        let f = &mut p.modules[0].core.functions[0];
+        let f = &mut std::sync::Arc::make_mut(&mut p.modules[0].core).functions[0];
         match attack {
             0 => f.state_parameters.push(f.state_parameters[0].clone()),
             1 => f.state_parameters[0].bindings[0].generic_index = 1,
@@ -206,7 +206,7 @@ fn state_replacement_compile_time_both_heads_are_bounded_before_deep_signature_e
     for direct in [false, true] {
         for large in 0..3 {
             let mut p = mixed(false, 2, CallableKind::Fn);
-            let f = &mut p.modules[0].core.functions[0];
+            let f = &mut std::sync::Arc::make_mut(&mut p.modules[0].core).functions[0];
             let (name, parameters, result) = if direct {
                 let b = &mut f.callable_parameters[0];
                 (&mut b.generic_name, &mut b.parameters, &mut b.result)
@@ -253,7 +253,7 @@ fn state_replacement_compile_time_both_heads_are_bounded_before_deep_signature_e
 #[test]
 fn state_replacement_compile_time_exact_metadata_node_budget_recovers_on_fresh_retry() {
     let p = mixed(true, 2, CallableKind::FnOnce);
-    let core = &p.modules[0].core;
+    let core = p.modules[0].core.as_ref();
     let target = TargetProfile::default();
     let initial = zil_ct::evaluate_source_constants_with_usage(core, &target, &Limits::default());
     record("node-budget-initial", core, &initial);
@@ -312,12 +312,10 @@ fn state_replacement_compile_time_mixed_templates_and_wrappers_never_execute_in_
         zil_ct::evaluate_program(&verified).unwrap().value,
         zil_ct::CompileTimeValue::Scalar(Constant::I32(42))
     );
-    p.modules[0].core.functions[0] = mixed(false, 2, CallableKind::Fn)
-        .modules
-        .remove(0)
-        .core
-        .functions
-        .remove(0);
+    std::sync::Arc::make_mut(&mut p.modules[0].core).functions[0] =
+        std::sync::Arc::unwrap_or_clone(mixed(false, 2, CallableKind::Fn).modules.remove(0).core)
+            .functions
+            .remove(0);
     for name in ["identity", "wrapper"] {
         let result = adapter::Compiler {
             program: &p,
@@ -335,7 +333,8 @@ fn state_replacement_compile_time_mixed_templates_and_wrappers_never_execute_in_
 #[test]
 fn state_replacement_compile_time_does_not_erase_an_unsupported_transfer_premise() {
     let mut input = mixed(false, 1, CallableKind::FnMut);
-    input.modules[0].core.functions[0].callable_parameters[0].transfer = true;
+    std::sync::Arc::make_mut(&mut input.modules[0].core).functions[0].callable_parameters[0]
+        .transfer = true;
     check_category(
         "transfer-premise",
         &input,
@@ -347,7 +346,8 @@ fn state_replacement_compile_time_does_not_erase_an_unsupported_transfer_premise
 #[test]
 fn state_replacement_compile_time_does_not_erase_an_unsupported_thread_call_premise() {
     let mut input = mixed(false, 1, CallableKind::FnMut);
-    input.modules[0].core.functions[0].callable_parameters[0].thread_callable = true;
+    std::sync::Arc::make_mut(&mut input.modules[0].core).functions[0].callable_parameters[0]
+        .thread_callable = true;
     check_category(
         "thread-call-premise",
         &input,

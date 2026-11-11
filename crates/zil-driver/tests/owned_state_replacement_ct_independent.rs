@@ -45,7 +45,7 @@ fn program(core: CoreModule) -> CoreProgram {
         modules: vec![ProgramModule {
             imports: vec![],
             exports: core.functions.iter().map(|f| f.id).collect(),
-            core,
+            core: core.into(),
         }],
     }
 }
@@ -172,7 +172,7 @@ fn state_replacement_ct_reversed_nonadjacent_roles_preserve_actual_scalar_contex
         p.modules.push(ProgramModule {
             imports: vec![],
             exports: child.functions.iter().map(|f| f.id).collect(),
-            core: child,
+            core: child.into(),
         });
         let context = zil_ct::SourceProgramContext::new(&p, &limits).unwrap();
         let result =
@@ -217,7 +217,7 @@ fn state_replacement_ct_imported_wrapper_cannot_execute_either_mixed_role() {
     p.modules.push(ProgramModule {
         imports: vec![],
         exports: child.functions.iter().map(|f| f.id).collect(),
-        core: child,
+        core: child.into(),
     });
     let target = TargetProfile::host_llvm();
     let limits = Limits::default();
@@ -234,7 +234,10 @@ fn state_replacement_ct_imported_wrapper_cannot_execute_either_mixed_role() {
         result.value,
         zil_ct::CompileTimeValue::Scalar(Constant::I32(42))
     );
-    mixed(&mut p.modules[1].core.functions[0], CallableKind::FnOnce);
+    mixed(
+        &mut std::sync::Arc::make_mut(&mut p.modules[1].core).functions[0],
+        CallableKind::FnOnce,
+    );
     for name in ["wrapper", "main"] {
         let result = adapter::Compiler {
             program: &p,

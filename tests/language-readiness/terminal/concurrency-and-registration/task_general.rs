@@ -729,7 +729,7 @@ fn shared_task_raw_rejects_untracked_parameter_and_result_shapes() {
     };
     assert_eq!(retained_life.ports.len(), 1);
 
-    let worker = core
+    let worker = std::sync::Arc::make_mut(&mut core)
         .functions
         .iter_mut()
         .find(|f| f.name == "worker")
@@ -1505,7 +1505,7 @@ fn general_task_generated_ascribed_and_sequence_head_hints_preserve_types() {
     for sequence in [false, true] {
         for wrong in [false, true] {
             let mut core = expand(SOURCE, &limits).unwrap().core;
-            let drive = core
+            let drive = std::sync::Arc::make_mut(&mut core)
                 .functions
                 .iter_mut()
                 .find(|f| f.name == "drive")
