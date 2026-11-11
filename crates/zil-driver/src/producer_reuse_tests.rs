@@ -313,6 +313,51 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
 }
 
 #[test]
+fn producer_revisited_parse_allocation_keeps_materialization_sparse() {
+    const IO: &str = include_str!("../../../examples/mainline/resource_closures/io.zil");
+    const ENTRY: &str = "import left\nimport io\nfn main()->i32{let x=left.value(io.read());io.emit(x);return x%127;}";
+    for graph in [false, true] {
+        let dir = Directory::new();
+        dir.project(&[("main", ENTRY), ("left", LEFT), ("io", IO)]);
+        let path = dir.0.join("main.zil");
+        let options = options(graph);
+        let mut session = CompilationSession::default();
+        let cold = session.compile_path(&path, &options);
+        successful(&cold);
+        let edited_left = LEFT.replacen("x+1", "x+10", 1);
+        fs::write(dir.0.join("left.zil"), &edited_left).unwrap();
+        let private = session.compile_path(&path, &options);
+        successful(&private);
+        compare_path(&session, &private, &path, &options);
+        // Revisit a previously cached project before a batch that repeats the
+        // private bytes. Discovery constructs a new sealed parser owner, while
+        // the query database may still return an older equivalent Parse Arc.
+        fs::write(dir.0.join("left.zil"), LEFT).unwrap();
+        let restored = session.compile_path(&path, &options);
+        successful(&restored);
+        assert!(
+            restored.producer_work.is_none(),
+            "named parent is a project hit"
+        );
+        fs::write(dir.0.join("left.zil"), &edited_left).unwrap();
+        fs::write(
+            dir.0.join("io.zil"),
+            IO.replace("putchar(value)", "putchar(value + 1)"),
+        )
+        .unwrap();
+        let batch = session.compile_path(&path, &options);
+        successful(&batch);
+        compare_path(&session, &batch, &path, &options);
+        let work = batch
+            .materialization_work
+            .expect("current sealed materialization");
+        assert_eq!(work.executed_modules, 2);
+        assert_eq!(work.cloned_modules, 2);
+        assert_eq!(work.reused_modules, 1);
+    }
+}
+
+#[test]
 fn producer_borrowed_bodies_reenter_full_restore_on_insufficient_budget() {
     let directory = Directory::new();
     let target = directory.scalar(MAIN, LEFT, RIGHT);

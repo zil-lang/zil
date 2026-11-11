@@ -312,6 +312,7 @@ pub struct ExpandedModule {
 }
 
 type ProjectDefaults = BTreeMap<(String, String), (zil_base::ModuleId, String)>;
+type SharedProgramModules = Vec<(ProgramModule, std::sync::Arc<SourceMap>)>;
 
 pub fn expand(source: &SourceUnit, module: &s::Module) -> CompileResult<CoreModule> {
     Ok(std::sync::Arc::unwrap_or_clone(
@@ -675,7 +676,7 @@ fn expand_program_cached(
     target: &zil_base::TargetProfile,
     context: source_context::SourceIdentityContext<'_>,
     reuse: &mut incremental::Reuse<'_>,
-) -> CompileResult<Option<Vec<(ProgramModule, std::sync::Arc<SourceMap>)>>> {
+) -> CompileResult<Option<SharedProgramModules>> {
     expand_program_impl(
         sources,
         syntax,
@@ -697,7 +698,7 @@ fn expand_program_impl(
     context: Option<source_context::SourceIdentityContext<'_>>,
     runtime_ct: Option<&dyn runtime_ct::RuntimeCt>,
     mut reuse: Option<&mut incremental::Reuse<'_>>,
-) -> CompileResult<Option<Vec<(ProgramModule, std::sync::Arc<SourceMap>)>>> {
+) -> CompileResult<Option<SharedProgramModules>> {
     let mut products = generics::products::Products::default();
     products.target_pointer_width = Some(target.pointer_width);
     let specialized = if let Some(reuse) = reuse.as_deref_mut() {
