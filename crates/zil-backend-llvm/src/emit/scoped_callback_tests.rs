@@ -52,6 +52,76 @@ fn function(id: u32, foreign: Option<&str>) -> TypedFunction {
 }
 
 #[test]
+fn large_copy_rejection_precedes_deferred_machine_structure_error() {
+    let mut source = function(0, None);
+    source.values.push(Type::Array {
+        element: Box::new(Type::I32),
+        length: 4096,
+    });
+    let target = TargetProfile::host_llvm();
+    let dyn_module = no_dyn_test_module(target.clone(), &[source.clone()], &[], &[]);
+    let functions = BTreeMap::from([(source.id, &source)]);
+    let closures = BTreeMap::new();
+    let slot = copy_aggregates::classify(
+        &source.values[0],
+        &mut usize::MAX,
+        &zil_base::Limits::default(),
+    )
+    .unwrap()
+    .expect("large physical snapshot");
+    let copy_values = BTreeMap::from([(ValueId(0), slot)]);
+    let abi_plans = large_copy_abi::Plans::default();
+    for snapshot_argument in [false, true] {
+        let mut intrinsics = BTreeSet::new();
+        let mut emitter = FunctionEmitter {
+            dyn_module: &dyn_module,
+            task_ownership: None,
+            vacated_pollable_drops: BTreeSet::new(),
+            function: &source,
+            target: &target,
+            functions: &functions,
+            scalar_summaries: None,
+            closures: &closures,
+            resources: &[],
+            intrinsics: &mut intrinsics,
+            text: m::ItemBuilder::new(),
+            temporary: 0,
+            continuation: 0,
+            partial_packages: BTreeSet::new(),
+            replacements: BTreeMap::new(),
+            partial_sums: BTreeMap::new(),
+            safe_divisors: None,
+            copy_values: &copy_values,
+            abi_plans: &abi_plans,
+            unsupported_large_copy: false,
+        };
+        // Raw internal control: first damage the event structure, then let the
+        // real copy_event check reject a physical snapshot as a value argument.
+        emitter.event(m::Event::End);
+        if snapshot_argument {
+            emitter.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Return(Some(m::Arg::new(
+                    copy_values[&ValueId(0)].ty.clone(),
+                    m::Val::Local("v.0".into()),
+                ))),
+            )));
+        }
+        let errors = emitter.emit().unwrap_err();
+        let expected = if snapshot_argument {
+            vec![Diagnostic::unsupported(
+                Phase::Codegen,
+                "large Copy value requires an unsupported callable/helper ABI",
+                Some(source.span),
+            )]
+        } else {
+            machine_error("unmatched function end".into())
+        };
+        assert_eq!(errors, expected);
+    }
+}
+
+#[test]
 fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
     let f = Type::Closure(ClosureId(0));
     let body = Type::Closure(ClosureId(1));
@@ -208,7 +278,7 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
     let closure_definitions = closures.values().map(|c| (*c).clone()).collect::<Vec<_>>();
     let dyn_module = no_dyn_test_module(target.clone(), &definitions, &closure_definitions, &[]);
     let mut intrinsics = BTreeSet::new();
-    let mut code = m::Code::from(vec![
+    let code = m::Code::from(vec![
         m::Event::NamedType("zil_env_0".into(), vec![]),
         m::Event::NamedType("zil_env_1".into(), vec![]),
         m::Event::Declare(m::Function {
@@ -256,7 +326,8 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
             blocks: None,
         }),
     ]);
-    code.append(
+    let mut items = code.into_items().expect("machine prelude");
+    items.extend(
         FunctionEmitter {
             dyn_module: &dyn_module,
             task_ownership: None,
@@ -268,7 +339,7 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
             closures: &closures,
             resources: &[],
             intrinsics: &mut intrinsics,
-            text: m::Code::new(),
+            text: m::ItemBuilder::new(),
             temporary: 0,
             continuation: 0,
             partial_packages: BTreeSet::new(),
@@ -282,8 +353,11 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
         .emit()
         .expect("raw machine lowering"),
     );
-    let mut module = m::Module::from_code(target.triple, "raw-callback-llvm-shape".into(), code)
-        .expect("machine model");
+    let mut module = m::Module {
+        triple: target.triple,
+        fingerprint: "raw-callback-llvm-shape".into(),
+        items,
+    };
     for item in &mut module.items {
         if let m::Item::Function(machine) = item
             && machine.name == "zil.fn.0"

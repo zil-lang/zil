@@ -651,7 +651,7 @@ fn lower_function_batch(
             closures,
             resources: lir.resources,
             intrinsics: &mut intrinsics,
-            text: m::Code::new(),
+            text: m::ItemBuilder::new(),
             temporary: 0,
             continuation: 0,
             partial_packages: BTreeSet::new(),
@@ -669,9 +669,7 @@ fn lower_function_batch(
             function,
             verified.limits(),
             task_worker || verified.task_ownership(function.id).is_some(),
-        ))?
-        .into_items()
-        .map_err(machine_error)?;
+        ))?;
         for item in emitted {
             let mut item = match item {
                 m::Item::Function(machine)
@@ -1440,7 +1438,7 @@ struct FunctionEmitter<'a> {
     closures: &'a BTreeMap<ClosureId, &'a ClosureDefinition>,
     resources: &'a [ResourceDefinition],
     intrinsics: &'a mut BTreeSet<(&'static str, u32)>,
-    text: m::Code,
+    text: m::ItemBuilder,
     temporary: u64,
     continuation: u64,
     // Only locals with field ownership/update operations need field flags.
@@ -1456,13 +1454,13 @@ struct FunctionEmitter<'a> {
 
 impl FunctionEmitter<'_> {
     #[cfg(test)]
-    fn emit(self) -> CompileResult<m::Code> {
+    fn emit(self) -> CompileResult<Vec<m::Item>> {
         self.emit_with_cleanup(None)
     }
     fn emit_with_cleanup(
         mut self,
         cleanup: Option<cleanup_tails::Plan<'_>>,
-    ) -> CompileResult<m::Code> {
+    ) -> CompileResult<Vec<m::Item>> {
         let mut parameters = self
             .function
             .parameters
@@ -1796,7 +1794,9 @@ impl FunctionEmitter<'_> {
                 Some(self.function.span),
             );
         }
-        Ok(self.text)
+        // As with the former event tape, emitter errors take precedence over
+        // structural errors retained while consuming the events.
+        self.text.finish().map_err(machine_error)
     }
 
     fn instruction(&mut self, instruction: &Instruction) -> CompileResult<()> {

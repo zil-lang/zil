@@ -240,8 +240,9 @@ fn model() -> (m::Module, LirModule) {
         &lir.closures,
         &lir.resources,
     );
+    let mut items = code.into_items().expect("machine prelude");
     for f in lir.functions.iter().filter(|f| f.foreign.is_none()) {
-        code.append(
+        items.extend(
             FunctionEmitter {
                 dyn_module: &dyn_module,
                 task_ownership: None,
@@ -253,7 +254,7 @@ fn model() -> (m::Module, LirModule) {
                 closures: &closures,
                 resources: &[],
                 intrinsics: &mut intrinsics,
-                text: m::Code::new(),
+                text: m::ItemBuilder::new(),
                 temporary: 0,
                 continuation: 0,
                 partial_packages: BTreeSet::new(),
@@ -269,7 +270,7 @@ fn model() -> (m::Module, LirModule) {
         );
     }
     for (operation, bits) in intrinsics {
-        code.push(m::Event::Declare(m::Function {
+        items.push(m::Item::Function(m::Function {
             name: format!("llvm.{operation}.with.overflow.i{bits}"),
             linkage: m::Linkage::External,
             signature: m::Signature::new(
@@ -284,12 +285,11 @@ fn model() -> (m::Module, LirModule) {
         }));
     }
     (
-        m::Module::from_code(
-            lir.target.triple.clone(),
-            "thread-backend-model".into(),
-            code,
-        )
-        .unwrap(),
+        m::Module {
+            triple: lir.target.triple.clone(),
+            fingerprint: "thread-backend-model".into(),
+            items,
+        },
         lir,
     )
 }

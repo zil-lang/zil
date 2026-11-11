@@ -702,45 +702,89 @@ impl Code {
     /// Moving events into items per function avoids a whole-module event tape
     /// coexisting with the final machine IR. Event validation and order are unchanged.
     pub fn into_items(self) -> Result<Vec<Item>, String> {
-        let mut items = vec![];
-        let mut active: Option<Function> = None;
+        let mut items = ItemBuilder::new();
         for event in self.0 {
-            match event {
-                Event::Begin(mut f) if active.is_none() => {
-                    f.blocks = Some(vec![]);
-                    active = Some(f);
-                }
-                Event::Label(name) => {
-                    let f = active.as_mut().ok_or("block outside function")?;
-                    f.blocks.as_mut().unwrap().push(Block {
-                        name,
-                        instructions: vec![],
-                    });
-                }
-                Event::Instruction(i) => {
-                    active
-                        .as_mut()
-                        .and_then(|f| f.blocks.as_mut())
-                        .and_then(|b| b.last_mut())
-                        .ok_or("instruction outside block")?
-                        .instructions
-                        .push(i);
-                }
-                Event::End => items.push(Item::Function(
-                    active.take().ok_or("unmatched function end")?,
-                )),
-                Event::NamedType(n, fields) if active.is_none() => {
-                    items.push(Item::NamedType(n, fields))
-                }
-                Event::Global(g) if active.is_none() => items.push(Item::Global(g)),
-                Event::Declare(f) if active.is_none() => items.push(Item::Function(f)),
-                _ => return Err("malformed lowering event structure".into()),
-            }
+            items.push(event);
         }
-        if active.is_some() {
+        items.finish()
+    }
+}
+
+/// Consume lowering events directly into their final owned machine structures.
+/// Structural errors are retained until `finish`, so an emitter can preserve
+/// the priority of its own errors without retaining an intermediate event tape.
+#[derive(Debug, Default)]
+pub struct ItemBuilder {
+    items: Vec<Item>,
+    active: Option<Function>,
+    error: Option<&'static str>,
+}
+
+#[cfg(test)]
+#[path = "item_builder_tests.rs"]
+mod item_builder_tests;
+
+impl ItemBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn append(&mut self, code: Code) {
+        for event in code.0 {
+            self.push(event);
+        }
+    }
+
+    pub fn push(&mut self, event: Event) {
+        if self.error.is_some() {
+            return;
+        }
+        self.error = self.accept(event).err();
+    }
+
+    fn accept(&mut self, event: Event) -> Result<(), &'static str> {
+        match event {
+            Event::Begin(mut f) if self.active.is_none() => {
+                f.blocks = Some(vec![]);
+                self.active = Some(f);
+            }
+            Event::Label(name) => {
+                let f = self.active.as_mut().ok_or("block outside function")?;
+                f.blocks.as_mut().unwrap().push(Block {
+                    name,
+                    instructions: vec![],
+                });
+            }
+            Event::Instruction(i) => {
+                self.active
+                    .as_mut()
+                    .and_then(|f| f.blocks.as_mut())
+                    .and_then(|b| b.last_mut())
+                    .ok_or("instruction outside block")?
+                    .instructions
+                    .push(i);
+            }
+            Event::End => self.items.push(Item::Function(
+                self.active.take().ok_or("unmatched function end")?,
+            )),
+            Event::NamedType(n, fields) if self.active.is_none() => {
+                self.items.push(Item::NamedType(n, fields))
+            }
+            Event::Global(g) if self.active.is_none() => self.items.push(Item::Global(g)),
+            Event::Declare(f) if self.active.is_none() => self.items.push(Item::Function(f)),
+            _ => return Err("malformed lowering event structure"),
+        }
+        Ok(())
+    }
+
+    pub fn finish(self) -> Result<Vec<Item>, String> {
+        if let Some(error) = self.error {
+            return Err(error.into());
+        }
+        if self.active.is_some() {
             return Err("unterminated function".into());
         }
-        Ok(items)
+        Ok(self.items)
     }
 }
 
