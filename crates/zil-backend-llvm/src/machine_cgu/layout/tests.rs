@@ -289,11 +289,11 @@ fn layout_projection_reuses_multi_body_edits_but_replays_every_current_operand()
     zil_llvm_api::validate_module(&module).unwrap();
     let (_, layout) = planned(&module, &source);
     let key = projection_key(&module, &source, 2);
-    let cache = Cache {
+    let cache = || Cache {
         root: directory.0.clone(),
         key,
     };
-    cache.pending(&layout).unwrap().pin().unwrap().commit();
+    cache().pending(&layout).unwrap().pin().unwrap().commit();
     let mut changed = module.clone();
     for (offset, item) in changed.items[3..5].iter_mut().enumerate() {
         let Item::Function(function) = item else {
@@ -309,7 +309,7 @@ fn layout_projection_reuses_multi_body_edits_but_replays_every_current_operand()
     zil_llvm_api::validate_module(&changed).unwrap();
     assert_ne!(changed, module);
     assert_eq!(projection_key(&changed, &source, 2), key);
-    let loaded = cache.load(&changed, &source.as_view(), 2).unwrap();
+    let loaded = cache().load(&changed, &source.as_view(), 2).unwrap();
     let current = loaded.replay(changed.clone());
     let (uncached, _) = planned(&changed, &source);
     assert_eq!(current, uncached.units);
@@ -325,7 +325,7 @@ fn layout_projection_reuses_multi_body_edits_but_replays_every_current_operand()
     function.blocks.as_mut().unwrap()[0].instructions[0].op =
         Op::Freeze(Arg::new(Ty::Int(0), Val::Int(7)));
     assert_eq!(projection_key(&changed, &source, 2), key);
-    let invalid = cache
+    let invalid = cache()
         .load(&changed, &source.as_view(), 2)
         .unwrap()
         .replay(changed.clone());
