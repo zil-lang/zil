@@ -10,6 +10,8 @@ A为现有缓存；B为相同生产者模块复用加直接版本memo；C为相�
 
 首个真实生产者切片已远端冻结 `ea049e8497d9c26fcf567330bc68e6173d4f7563`，独立验证树 `producer-validation-ea049e8`、独立target。实际 `cargo check --locked --offline -p zil-cli -p zil-driver -p zil-expand -p zil-syntax -p zil-types --all-targets` 通过；四crate lib测试155 driver＋77 expand＋35 syntax＋66 types＝333全部通过，零忽略。新增9个driver真实Source差分、3个Types来源/版本测试、2个Syntax密封来源测试已实际执行。三模块等宽编辑实际Normalize/Lower从3减为1、2模块复用，Core递归Eq为0，B和C都复用正文键；这不是性能结论。日志 `out/runs/producer-check-ea049e8`（尚未外部持久化）。后续补分段预算、失败成本和A/B/C统计器，须新冻结后验证，不能复用首版通过计数。
 
+`1c7b6cd3767e65d86da227095baca801f1c21c4c` 首次测试编译失败：遗漏仅测试使用的lifetimes wrapper，未记通过。同SHA独立公开API probe实际重现重复FileId误replay：raw为ResourceLimit，producer为SafeReject/E-MODULE-ID；原始Source/probe/日志在`out/runs/producer-duplicate-fileid-1c7b6cd`。`2a6b873857ac0e9e1d7175652018508153433a42` 分类前回退修复后，157 driver＋83 expand＋35 syntax＋66 types＝341全部通过，新增预算同限额warm、6个Expand tests、2个真实A/B/C互斥计时tests实际执行；architecture为15crate/40edge通过。严格Clippy发现一处末次Option借用lint，后续提交修正。所有候选仍未性能验收。源树和验证树分别保留；验证树只在旧构建停止后正常ff，目录名不代表当前SHA。
+
 以下是前轮交付，保留其源码和证据身份；本节WIP不能计作通过或净收益。
 
 父任务goal G10.5.1.15；分支`research/reactive-query-graph`。本轮实际main基线`99035931d358add0eaed6d4535035c38413701dd`，从`c75c58bf7f564a1ce8049702f9c6ec41c82d1da2`正常续接，无需rebase/main变更。本轮生产实现、真实测试与测量已经执行；完整跨阶段架构未完成，当前切片没有证明大型净等待收益，默认关闭、不合main。不要把此状态写成整条zit路线失败，也不要把BodyKey局部减少写成大项目提速。

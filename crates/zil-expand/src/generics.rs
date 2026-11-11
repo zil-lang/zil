@@ -208,7 +208,7 @@ pub(super) fn specialize_products_with_runtime_cached<'a>(
             prepared.prelude,
             context,
             runtime_ct,
-            reuse.as_deref_mut(),
+            reuse,
         )
         .map(|module| Cow::Owned(module.into_owned())),
         None => specialize_products_prepared(
@@ -218,7 +218,7 @@ pub(super) fn specialize_products_with_runtime_cached<'a>(
             origins::CompilerPrelude::default(),
             context,
             runtime_ct,
-            reuse.as_deref_mut(),
+            reuse,
         ),
     }
 }

@@ -64,6 +64,10 @@ macro_rules! statistics {
         }
     };
 }
+// `visited_nodes`/`receipt_nodes` count successful original Budget::node units,
+// not every compiler visit. `syntax_clone_receipt_nodes` counts those units for
+// complete syntax clones. `cloned_source_map_entries` counts copied mapping
+// entries (including span markers), not all nested Core/type/string copies.
 statistics!(
     classified_modules,
     classifier_nodes,
@@ -77,8 +81,8 @@ statistics!(
     receipt_hits,
     receipt_nodes,
     visited_nodes,
-    cloned_syntax_nodes,
-    cloned_core_nodes,
+    syntax_clone_receipt_nodes,
+    cloned_source_map_entries,
     cloned_source_bytes,
     context_ns,
     production_ns,
@@ -497,12 +501,12 @@ impl Reuse<'_> {
         let expanded = cached.as_ref().clone();
         self.assembly(clock);
         self.stats.reused_lower_modules += 1;
-        self.stats.cloned_core_nodes += expanded.source_map.entries.len() as u64;
+        self.stats.cloned_source_map_entries += expanded.source_map.entries.len() as u64;
         Some(expanded)
     }
     pub(crate) fn save_lower(&mut self, file: FileId, limits: &Limits, expanded: &ExpandedModule) {
         self.stats.lower_modules += 1;
-        self.stats.cloned_core_nodes += expanded.source_map.entries.len() as u64;
+        self.stats.cloned_source_map_entries += expanded.source_map.entries.len() as u64;
         let clock = self.clock();
         let value = Arc::new(expanded.clone());
         self.assembly(clock);
@@ -512,7 +516,7 @@ impl Reuse<'_> {
     }
     pub(crate) fn cloned(&mut self, span: Span, stage: Stage) {
         if let Some(receipt) = self.entry(span.file).receipts.get(&(stage, span.start)) {
-            self.stats.cloned_syntax_nodes += receipt.nodes as u64;
+            self.stats.syntax_clone_receipt_nodes += receipt.nodes as u64;
         }
     }
 }

@@ -102,8 +102,8 @@ fn producer_wide_private_edit_skips_unchanged_modules_and_preserves_local_spans(
         warm.revisions[&ModuleId(1)],
         current.revisions[&ModuleId(1)]
     );
-    assert!(session.last_stats().cloned_syntax_nodes > 0);
-    assert!(session.last_stats().cloned_core_nodes > 0);
+    assert!(session.last_stats().syntax_clone_receipt_nodes > 0);
+    assert!(session.last_stats().cloned_source_map_entries > 0);
     assert_eq!(session.last_stats().total_ns, 0, "profiling disabled");
 }
 #[test]
