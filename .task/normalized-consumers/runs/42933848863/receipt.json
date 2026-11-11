@@ -1,0 +1,16 @@
+{
+  "baseline": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852",
+  "fixed_production_source": "570e57555c1ee82afe3a8af4a0d03aa8e74bdb2c",
+  "source": "56d928a7a43f5ffcddcbe8b764ab3c66ba0567e9",
+  "status_before_preservation": "success",
+  "files": {
+    "raw.tar.gz": "871bba1e8bbe31a632c1ba24cb2799e825733330eab9dedc6a6f1baa9293021c",
+    "omitted-elf.json": "c7ad9dc066b1254b08d7e91473104b07e229e662cbf61bd4d055f4eaa19412ae",
+    "state/summary.json": "ed5c8b3a50fb68030c34274b0a6f6e74ecc4d9fa202706dd311405009d90bcaa",
+    "holdout/manifest.json": "be73b3b43440d4759c010a9763605aa946a2b3d1d8ece337686305111b5ec9fa",
+    "holdout/runtime.jsonl": "f3c1e4807e1b352afc6c93bce10bc3a5704988b49f1277a0d1c635d6840ed4f1",
+    "holdout/rows.jsonl": "0e3b0cbdc98cb6630d6a145436a0f89628ebaace4087143d2b46af13ba16652e",
+    "holdout/summary.json": "a71789d843b76126aa77c73650a503ea4837bc0e45c6de3135a17cab7cdd185c"
+  },
+  "main_modified": false
+}
