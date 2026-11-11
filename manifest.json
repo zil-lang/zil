@@ -1,12 +1,11 @@
 {
   "format": 1,
   "created_utc": "2026-11-11T01:13:36.759319+00:00",
-  "prior_archive": "1690cbc2fffd814e35e6021db425f7e730aa6f2c",
+  "prior_archive": "e75ade949d559bd90914df0d40b860af5f283626",
   "commit_parents": [
-    "1690cbc2fffd814e35e6021db425f7e730aa6f2c",
-    "f38ed14b2c18c587f01a117f3c8a6d9cc67c4e7b",
-    "130d3a7cab25603ae42a7fae0c9f63116c858c72",
-    "ccbb7164a9ab4d41befc5c68e6ddbd1029b0f914"
+    "e75ade949d559bd90914df0d40b860af5f283626",
+    "2222699d7382c6c2d986c256cbc7610329cd421c",
+    "5aa8057f9cc0bff651fc6a44147b4e6e2dd307de"
   ],
   "commit_tips": [
     "0a8929d4f6126683737d62ab9def1d8e67a784ca",
@@ -57,7 +56,9 @@
     "f9dd0bcd3313f6a04ad8883caecd7996f51cd737",
     "4f29707db7f73689f377624024b9ff991c94a164",
     "e19e35a9177b491b595f085fc77836a963856382",
-    "13c53cf315d0eaa0512424707bcb0ed60c6f8e33"
+    "13c53cf315d0eaa0512424707bcb0ed60c6f8e33",
+    "2222699d7382c6c2d986c256cbc7610329cd421c",
+    "5aa8057f9cc0bff651fc6a44147b4e6e2dd307de"
   ],
   "local_refs": {},
   "remote_refs": {
@@ -491,6 +492,28 @@
       "code_tree": "9247db968b5ac493afa0619f6c239e3576c56a98",
       "scope": "Ordinary geometric Store growth, exact owner return/retry and focused/native/full-workspace acceptance source. Ancestors preserve initial rejected consumers and the subsequent fixes.",
       "acceptance_and_retirement": "PR82 and goal:records/store-growth-resumption.json track acceptance/deletion separately. No compiler branch mutation is authorized by this entry."
+    },
+    {
+      "name": "worker-owned-machine-unit-lifetimes",
+      "base": "99035931d358add0eaed6d4535035c38413701dd",
+      "executed_local_commit": "9e15ab226b5c0e95f18b1e1a7d1d2517dc646850",
+      "published_commit": "2222699d7382c6c2d986c256cbc7610329cd421c",
+      "identical_tree": "ba2a08e59c67339b1420e47480d2055ef81d1021",
+      "status": "Not adopted. Fixed 84 requests preserved 42 ELF pairs and 252 native outputs but did not establish request-time gain. No new remote production branch was created.",
+      "evidence_commit": "5aa8057f9cc0bff651fc6a44147b4e6e2dd307de",
+      "evidence_path": ".task/compiler-resumption/request-cost",
+      "raw_evidence": {
+        "library_file_id": "libfile_fde3_f-07fc3294c7f48191822564a4a82f48ba_bd147c3485448191a9df16b3c3cea7dd",
+        "file_id": "file_000000003b788230a343944d2d62c4dc",
+        "filename": "request-cost-raw-evidence.tar.gz",
+        "version": 0,
+        "bytes": 395661,
+        "sha256": "500e41c04674dcd96792473bfac2125b6d14a0d64c34c56923b0d1dc37fca720",
+        "entries": 1047,
+        "scope": "Original per-request JSON/stdout/stderr/native I/O, pinned corpus and model, profile instrumentation and raw spans, source patch and review. Generated ELF/sidecars, cache directories and host binaries are excluded; hashes and byte equality remain recorded.",
+        "download_url": "https://chatgpt.com/library?file_id=libfile_fde3_f-07fc3294c7f48191822564a4a82f48ba_bd147c3485448191a9df16b3c3cea7dd&account_id=personal"
+      },
+      "acceptance": false
     }
   ],
   "compiler_resumption_snapshots": [
@@ -535,6 +558,14 @@
       "file_id": "file_0000000027bc81f88c46d85bbca1846d",
       "bytes": 10946590,
       "sha256": "dcfafaca60f366b03232c6400fdd0fac878cefa78e53cf7db91bd519c6402766"
+    },
+    "request_cost_profile": {
+      "baseline": "99035931d358add0eaed6d4535035c38413701dd",
+      "evidence_commit": "5aa8057f9cc0bff651fc6a44147b4e6e2dd307de",
+      "profile_path": ".task/compiler-resumption/stage-profile",
+      "candidate_path": ".task/compiler-resumption/request-cost",
+      "decision": "Profile completed; worker-owned candidate not adopted; source, raw records and all negative values preserved"
     }
-  }
+  },
+  "updated_utc": "2026-11-11 03:50:46 UTC"
 }
