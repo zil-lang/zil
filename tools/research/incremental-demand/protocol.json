@@ -1,0 +1,35 @@
+{
+  "baseline": "ea0ce45741fde0082b6c92173b7480b167c888d4",
+  "purpose": "Test whether retaining complete producer products and per-module materializer receipts removes real edit latency.",
+  "primary": {
+    "case": "scalar",
+    "modules": 20,
+    "functions": 20,
+    "steps": 16,
+    "blocks": 6,
+    "cache": "all",
+    "capacity": 256,
+    "backend": "llvm-api",
+    "codegen_units": 1,
+    "codegen_jobs": 1
+  },
+  "requests": ["cold", "unchanged", "private", "multi", "broad", "restore", "error", "recovery"],
+  "contrasts": {
+    "old_B_new_B": "Same producer flag, no graph, frozen old and new binaries; isolate this continuation.",
+    "new_A_B_C": "A existing caches, B shared producer plus materializer receipts, C B plus reactive graph; do not count B gains as graph gains."
+  },
+  "weights": {
+    "hypothetical_manual": {"unchanged": 0.10, "private": 0.65, "multi": 0.05, "broad": 0.05, "recovery": 0.10, "cold": 0.05},
+    "hypothetical_multi_edit": {"unchanged": 0.05, "private": 0.15, "multi": 0.55, "broad": 0.10, "recovery": 0.10, "cold": 0.05}
+  },
+  "rules": [
+    "Hypothetical weights are sensitivity calculations, not measured user request frequencies.",
+    "Profiled diagnostics and unprofiled full request measurements remain separate.",
+    "Every edited request starts from a validated named parent; preserve all preparation rows.",
+    "All successful requests execute current independent Verify; O2 runs validate complete native outcomes.",
+    "No increased limits, changed cache policy, reduced optimization or source replacement.",
+    "Single-block and cross-window cost differences diagnose mechanisms, not accepted speedup.",
+    "Retain failed runs; report cold/broad/error/fallback separately from incremental edits.",
+    "Require actual shared Core/maps, sparse materializer walks and unchanged CFG recomputation before performance claims."
+  ]
+}
