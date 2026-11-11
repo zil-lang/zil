@@ -31,7 +31,7 @@ pub struct ProjectSources {
 #[derive(Clone, Debug)]
 pub(super) struct ExpandedProject {
     core: Arc<CoreProgram>,
-    maps: Vec<SourceMap>,
+    maps: Vec<Arc<SourceMap>>,
     selection: super::ct_selection::Receipt,
     ct_usage: Option<zil_ir::ct_artifact::CtUsageReceipt>,
     ct_previews: Vec<super::ct_artifact::Preview>,
@@ -934,7 +934,7 @@ impl CompilationSession {
                     };
                     for (module, map) in expanded {
                         modules.push(module);
-                        maps.push(map);
+                        maps.push(Arc::new(map));
                     }
                 }
                 if let Some(phase) = runtime_phase {
@@ -1087,7 +1087,7 @@ impl CompilationSession {
                     )?;
                     charge_ct_usage(&mut remaining, usage, core.functions.len())?;
                     modules.push(ProgramModule {
-                        core,
+                        core: Arc::new(core),
                         imports: module.imports.clone(),
                         exports: module.exports.clone(),
                     });

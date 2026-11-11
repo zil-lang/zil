@@ -50,8 +50,7 @@ impl generics::products::Products {
                     continue;
                 };
                 budget.identity_work(expanded.core.functions.len().saturating_add(1), item.span)?;
-                let mut actual = expanded
-                    .core
+                let mut actual = std::sync::Arc::make_mut(&mut expanded.core)
                     .functions
                     .iter_mut()
                     .filter(|f| f.id == emission.creator);

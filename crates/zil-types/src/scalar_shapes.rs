@@ -346,7 +346,8 @@ mod tests {
                             ],
                         },
                     }],
-                },
+                }
+                .into(),
             }],
         }
     }
@@ -388,7 +389,7 @@ mod tests {
         let mut program = scalar_program();
         // The old remaining work is shared across modules, not reset per module.
         let mut second = program.modules[0].clone();
-        second.core.module_id = ModuleId(1);
+        std::sync::Arc::make_mut(&mut second.core).module_id = ModuleId(1);
         program.modules.push(second);
         for depth in [false, true] {
             let limits = |n| {
@@ -428,27 +429,31 @@ mod tests {
         let mut cases = Vec::new();
         for mode in [PassingMode::Create, PassingMode::Give] {
             let mut program = base.clone();
-            program.modules[0].core.functions[0].result_mode = mode;
+            std::sync::Arc::make_mut(&mut program.modules[0].core).functions[0].result_mode = mode;
             cases.push(program);
         }
         let mut parameter = base.clone();
-        parameter.modules[0].core.functions[0].parameters[0].mode = PassingMode::Give;
+        std::sync::Arc::make_mut(&mut parameter.modules[0].core).functions[0].parameters[0].mode =
+            PassingMode::Give;
         cases.push(parameter);
         let mut named = base.clone();
-        named.modules[0].core.functions[0].return_type = Type::Named("Missing".into());
+        std::sync::Arc::make_mut(&mut named.modules[0].core).functions[0].return_type =
+            Type::Named("Missing".into());
         cases.push(named);
         let mut aggregate = base.clone();
-        aggregate.modules[0].core.aggregates.push(CoreAggregate {
-            id: NodeId(40),
-            name: "Empty".into(),
-            kind: AggregateKind::Struct,
-            teardown: None,
-            fields: vec![],
-            span: span(40),
-        });
+        std::sync::Arc::make_mut(&mut aggregate.modules[0].core)
+            .aggregates
+            .push(CoreAggregate {
+                id: NodeId(40),
+                name: "Empty".into(),
+                kind: AggregateKind::Struct,
+                teardown: None,
+                fields: vec![],
+                span: span(40),
+            });
         cases.push(aggregate);
         let mut generic = base.clone();
-        generic.modules[0].core.functions[0]
+        std::sync::Arc::make_mut(&mut generic.modules[0].core).functions[0]
             .type_parameters
             .push(CoreTypeParameter {
                 index: 0,
@@ -459,7 +464,7 @@ mod tests {
         // Decline after an already charged valid prefix; no speculative work
         // may be deducted from the fallback's allowance.
         let mut closure = base.clone();
-        closure.modules[0].core.functions[0]
+        std::sync::Arc::make_mut(&mut closure.modules[0].core).functions[0]
             .body
             .statements
             .push(statement(
@@ -499,10 +504,12 @@ mod tests {
         let base = scalar_program();
         let mut cases = Vec::new();
         let mut schema = base.clone();
-        schema.modules[0].core.schema_version = 0;
+        std::sync::Arc::make_mut(&mut schema.modules[0].core).schema_version = 0;
         cases.push(schema);
         let mut conversion = base.clone();
-        conversion.modules[0].core.functions[0].body.statements = vec![statement(
+        std::sync::Arc::make_mut(&mut conversion.modules[0].core).functions[0]
+            .body
+            .statements = vec![statement(
             45,
             CoreStatementKind::Return(Some(expr(
                 46,
@@ -514,7 +521,9 @@ mod tests {
         )];
         cases.push(conversion);
         let mut unknown = base;
-        unknown.modules[0].core.functions[0].body.statements = vec![statement(
+        std::sync::Arc::make_mut(&mut unknown.modules[0].core).functions[0]
+            .body
+            .statements = vec![statement(
             48,
             CoreStatementKind::Return(Some(expr(49, CoreExprKind::Name("absent".into())))),
         )];

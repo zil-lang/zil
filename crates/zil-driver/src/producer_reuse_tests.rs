@@ -552,8 +552,10 @@ fn producer_equal_width_edit_skips_real_module_work_and_uses_versions_without_gr
         assert!(work.receipt_hits > 0);
         assert!(work.visited_nodes < cold_work.visited_nodes);
         assert!(
-            work.cloned_source_map_entries > 0,
-            "assembling Vec-backed Core still copies its source-map entries"
+            work.cloned_source_map_entries == 0
+                && work.retained_lower_cores > 0
+                && work.retained_lower_source_maps > 0,
+            "producer assembly retains unchanged Core and source maps"
         );
         let functions = current
             .function_type_work

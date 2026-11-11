@@ -37,7 +37,7 @@ fn expand(
 fn fresh(
     input: &[ParsedSource],
     limits: &Limits,
-) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
+) -> CompileResult<Vec<(ProgramModule, Arc<SourceMap>)>> {
     let sources: Vec<_> = input.iter().map(|p| p.source().clone()).collect();
     let syntax: Vec<_> = input.iter().map(|p| &p.parsed().module).collect();
     expand_program_with_limits_target(
@@ -47,6 +47,12 @@ fn fresh(
         limits,
         &TargetProfile::default(),
     )
+    .map(|modules| {
+        modules
+            .into_iter()
+            .map(|(module, map)| (module, Arc::new(map)))
+            .collect()
+    })
 }
 fn checked(
     session: &mut ExpandSession,
@@ -59,6 +65,69 @@ fn checked(
     assert_eq!(expanded.modules, fresh(input, limits).unwrap());
     expanded
 }
+#[test]
+fn producer_shares_complete_core_and_maps_across_unchanged_modules() {
+    let limits = Limits::default();
+    let mut input = [
+        parsed(0, "fn first(x:i32)->i32=>x+1;"),
+        parsed(1, "fn second(x:i32)->i32=>x+2;"),
+    ];
+    let mut session = ExpandSession::default();
+    assert!(session.parsed_scalar(&input[0], &limits));
+    let cold = checked(&mut session, &input, &limits);
+    assert!(session.parsed_scalar(&input[0], &limits));
+    assert!(!session.parsed_scalar(
+        &input[0],
+        &Limits {
+            max_nodes: 0,
+            ..limits.clone()
+        }
+    ));
+    assert!(!session.parsed_scalar(&parsed(0, "struct Rich{x:i32}"), &limits));
+    let warm = checked(&mut session, &input, &limits);
+    for ((before, before_map), (after, after_map)) in cold.modules.iter().zip(&warm.modules) {
+        assert!(Arc::ptr_eq(&before.core, &after.core));
+        assert!(Arc::ptr_eq(before_map, after_map));
+    }
+    assert_eq!(session.last_stats().retained_lower_cores, 2);
+    assert_eq!(session.last_stats().retained_lower_source_maps, 2);
+    assert_eq!(session.last_stats().cloned_source_map_entries, 0);
+    input[0] = parsed(0, "fn first(x:i32)->i32=>x+3;");
+    let current = checked(&mut session, &input, &limits);
+    assert!(!Arc::ptr_eq(
+        &warm.modules[0].0.core,
+        &current.modules[0].0.core
+    ));
+    assert!(!Arc::ptr_eq(&warm.modules[0].1, &current.modules[0].1));
+    assert!(Arc::ptr_eq(
+        &warm.modules[1].0.core,
+        &current.modules[1].0.core
+    ));
+    assert!(Arc::ptr_eq(&warm.modules[1].1, &current.modules[1].1));
+    assert_eq!(session.last_stats().retained_lower_cores, 1);
+    assert_eq!(session.last_stats().retained_lower_source_maps, 1);
+    assert_eq!(session.last_stats().cloned_source_map_entries, 0);
+
+    // The public raw entry keeps its owned SourceMap result and identical data.
+    let sources = input.iter().map(|p| p.source().clone()).collect::<Vec<_>>();
+    let syntax = input.iter().map(|p| &p.parsed().module).collect::<Vec<_>>();
+    let raw: Vec<(ProgramModule, SourceMap)> = expand_program_with_limits_target(
+        &sources,
+        &syntax,
+        &[vec![], vec![]],
+        &limits,
+        &TargetProfile::default(),
+    )
+    .unwrap();
+    for ((shared, map), (owned, owned_map)) in current.modules.iter().zip(&raw) {
+        assert_eq!(shared, owned);
+        assert_eq!(map.as_ref(), owned_map);
+    }
+    let mut edited = current.modules[1].0.clone();
+    Arc::make_mut(&mut edited.core).functions[0].name = "raw_edit".into();
+    assert_eq!(current.modules[1].0.core.functions[0].name, "second");
+}
+
 #[test]
 fn producer_wide_private_edit_skips_unchanged_modules_and_preserves_local_spans() {
     let limits = Limits::default();
@@ -103,7 +172,7 @@ fn producer_wide_private_edit_skips_unchanged_modules_and_preserves_local_spans(
         current.revisions[&ModuleId(1)]
     );
     assert!(session.last_stats().syntax_clone_receipt_nodes > 0);
-    assert!(session.last_stats().cloned_source_map_entries > 0);
+    assert_eq!(session.last_stats().cloned_source_map_entries, 0);
     assert_eq!(session.last_stats().total_ns, 0, "profiling disabled");
 }
 #[test]
@@ -520,10 +589,7 @@ fn producer_retains_complete_ast_products_without_warm_deep_clones() {
     assert_eq!(session.last_stats().retained_normalized_items, 4);
     assert_eq!(session.last_stats().retained_restored_modules, 3);
     assert_eq!(session.last_stats().syntax_clone_receipt_nodes, 0);
-    assert!(
-        session.last_stats().cloned_source_map_entries > 0,
-        "public Core/Map assembly still copies"
-    );
+    assert_eq!(session.last_stats().cloned_source_map_entries, 0);
     let changed = [
         parsed(
             0,

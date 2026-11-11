@@ -108,8 +108,7 @@ impl generics::products::Products {
                     row.named_fixed.len().saturating_add(row.inputs.len()),
                     item.span,
                 )?;
-                expanded
-                    .core
+                std::sync::Arc::make_mut(&mut expanded.core)
                     .closure_life_contexts
                     .push(zil_ir::CoreClosureLifeContext {
                         creator: emission.creator,

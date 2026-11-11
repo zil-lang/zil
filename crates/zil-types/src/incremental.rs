@@ -1641,7 +1641,8 @@ mod reactive_tests {
                     aggregate_applications: vec![],
                     enums: vec![],
                     unsupported: vec![],
-                },
+                }
+                .into(),
             }],
         }
     }
@@ -1707,7 +1708,8 @@ mod reactive_tests {
             check(&mut graph, &source, true),
             check(&mut legacy, &source, false)
         );
-        source.modules[0].core.functions[0].parameters[0].name = "renamed".into();
+        Arc::make_mut(&mut source.modules[0].core).functions[0].parameters[0].name =
+            "renamed".into();
         assert_eq!(
             check(&mut graph, &source, true),
             check(&mut legacy, &source, false)
@@ -1716,7 +1718,7 @@ mod reactive_tests {
         assert_eq!(graph.last_stats().body_key_reuses, 1);
         same_wire(&graph, &legacy);
         let valid = source.clone();
-        source.modules[0].core.functions[0].name = "missing".into();
+        Arc::make_mut(&mut source.modules[0].core).functions[0].name = "missing".into();
         let result = check(&mut graph, &source, true);
         assert_eq!(result, check(&mut legacy, &source, false));
         assert!(result.is_err());

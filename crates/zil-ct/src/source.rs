@@ -3960,7 +3960,7 @@ mod tests {
             root: core.module_id,
             source_fingerprint: core.source_fingerprint,
             modules: vec![ProgramModule {
-                core: core.clone(),
+                core: core.clone().into(),
                 imports: vec![],
                 exports: vec![],
             }],
@@ -4050,7 +4050,7 @@ mod tests {
             root: core.module_id,
             source_fingerprint: core.source_fingerprint,
             modules: vec![ProgramModule {
-                core: core.clone(),
+                core: core.clone().into(),
                 imports: vec![],
                 exports: vec![],
             }],

@@ -611,7 +611,7 @@ pub(super) fn inventory_program(
                     .modules
                     .iter()
                     .filter(|other| other.core.module_id != local.module_id)
-                    .map(|other| &other.core),
+                    .map(|other| other.core.as_ref()),
             )
             .collect();
         for table in inventory_in_modules(

@@ -291,8 +291,8 @@ struct LoweringDemand {
 }
 #[derive(Clone, Debug)]
 pub struct ExpandedModule {
-    pub core: CoreModule,
-    pub source_map: SourceMap,
+    pub core: std::sync::Arc<CoreModule>,
+    pub source_map: std::sync::Arc<SourceMap>,
     // Compiler-generated ordinary imports, never safety capabilities.
     generated_imports: Vec<CoreImport>,
     generated_exports: Vec<NodeId>,
@@ -314,7 +314,9 @@ pub struct ExpandedModule {
 type ProjectDefaults = BTreeMap<(String, String), (zil_base::ModuleId, String)>;
 
 pub fn expand(source: &SourceUnit, module: &s::Module) -> CompileResult<CoreModule> {
-    Ok(expand_with_map(source, module)?.core)
+    Ok(std::sync::Arc::unwrap_or_clone(
+        expand_with_map(source, module)?.core,
+    ))
 }
 
 pub fn expand_with_map(source: &SourceUnit, module: &s::Module) -> CompileResult<ExpandedModule> {
@@ -385,7 +387,10 @@ fn expand_with_map_limits_target_impl(
     products.finish_closure_contexts(limits)?;
     products.finish_callable_contexts(limits)?;
     products.publish(
-        &mut [(&mut expanded.core, &mut expanded.source_map)],
+        &mut [(
+            std::sync::Arc::make_mut(&mut expanded.core),
+            std::sync::Arc::make_mut(&mut expanded.source_map),
+        )],
         std::slice::from_ref(source),
         limits,
     )?;
@@ -449,7 +454,10 @@ pub fn expand_program_module_with_limits_target(
     products.finish_closure_contexts(limits)?;
     products.finish_callable_contexts(limits)?;
     products.publish(
-        &mut [(&mut expanded.core, &mut expanded.source_map)],
+        &mut [(
+            std::sync::Arc::make_mut(&mut expanded.core),
+            std::sync::Arc::make_mut(&mut expanded.source_map),
+        )],
         std::slice::from_ref(source),
         limits,
     )?;
@@ -465,7 +473,7 @@ pub fn expand_program_module_with_limits_target(
             imports,
             exports,
         },
-        expanded.source_map,
+        std::sync::Arc::unwrap_or_clone(expanded.source_map),
     ))
 }
 
@@ -650,7 +658,13 @@ fn expand_program_with_limits_target_impl(
     expand_program_impl(
         sources, syntax, imports, limits, target, context, runtime_ct, None,
     )
-    .map(|modules| modules.expect("raw expansion always returns owned output"))
+    .map(|modules| {
+        modules
+            .expect("raw expansion always returns owned output")
+            .into_iter()
+            .map(|(module, map)| (module, std::sync::Arc::unwrap_or_clone(map)))
+            .collect()
+    })
 }
 #[allow(clippy::too_many_arguments)]
 fn expand_program_cached(
@@ -661,7 +675,7 @@ fn expand_program_cached(
     target: &zil_base::TargetProfile,
     context: source_context::SourceIdentityContext<'_>,
     reuse: &mut incremental::Reuse<'_>,
-) -> CompileResult<Option<Vec<(ProgramModule, SourceMap)>>> {
+) -> CompileResult<Option<Vec<(ProgramModule, std::sync::Arc<SourceMap>)>>> {
     expand_program_impl(
         sources,
         syntax,
@@ -683,7 +697,7 @@ fn expand_program_impl(
     context: Option<source_context::SourceIdentityContext<'_>>,
     runtime_ct: Option<&dyn runtime_ct::RuntimeCt>,
     mut reuse: Option<&mut incremental::Reuse<'_>>,
-) -> CompileResult<Option<Vec<(ProgramModule, SourceMap)>>> {
+) -> CompileResult<Option<Vec<(ProgramModule, std::sync::Arc<SourceMap>)>>> {
     let mut products = generics::products::Products::default();
     products.target_pointer_width = Some(target.pointer_width);
     let specialized = if let Some(reuse) = reuse.as_deref_mut() {
@@ -911,16 +925,25 @@ fn expand_program_impl(
             expanded.source_map,
         ));
     }
-    let mut product_cores = result
-        .iter_mut()
-        .map(|(module, map)| (&mut module.core, map))
-        .collect::<Vec<_>>();
     if products.metered() {
         products.allowance = Some(remaining);
     }
     products.finish_closure_contexts(limits)?;
     products.finish_callable_contexts(limits)?;
-    products.publish(&mut product_cores, sources, limits)?;
+    // Check the existing no-op publication condition before requesting mutable
+    // storage: sealed scalar hits retain their complete Core and map Arcs.
+    if products.has_publications() {
+        let mut product_cores = result
+            .iter_mut()
+            .map(|(module, map)| {
+                (
+                    std::sync::Arc::make_mut(&mut module.core),
+                    std::sync::Arc::make_mut(map),
+                )
+            })
+            .collect::<Vec<_>>();
+        products.publish(&mut product_cores, sources, limits)?;
+    }
     Ok(Some(result))
 }
 
@@ -1132,8 +1155,8 @@ fn expand_inner_project(
         unsupported: e.unsupported,
     };
     Ok(ExpandedModule {
-        core,
-        source_map: e.source_map,
+        core: std::sync::Arc::new(core),
+        source_map: std::sync::Arc::new(e.source_map),
         generated_imports: e.generated_imports.into_values().collect(),
         generated_exports: e.generated_exports,
         imported_public_traits: e.imported_public_traits,

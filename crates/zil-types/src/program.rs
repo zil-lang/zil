@@ -130,7 +130,8 @@ pub(super) fn check_resolved_program_with_reuse(
     // Preserve the single-module entry's lexical diagnostic precedence across
     // the entire bounded input graph. Unsupported aggregate/trait headers must
     // not conceal a receiver error in this module or a later dependency.
-    names::check_modules(program.modules.iter().map(|m| &m.core), limits).map_err(|e| vec![e])?;
+    names::check_modules(program.modules.iter().map(|m| m.core.as_ref()), limits)
+        .map_err(|e| vec![e])?;
     let mut closure_state = closures::State::new(count, limits);
     let mut life_declarations = Vec::new();
     let mut life_instances = Vec::new();
@@ -180,7 +181,11 @@ pub(super) fn check_resolved_program_with_reuse(
         closure_state
             .snapshot(program.modules.len(), Span::default())
             .map_err(|e| vec![e])?;
-        let modules = program.modules.iter().map(|m| &m.core).collect::<Vec<_>>();
+        let modules = program
+            .modules
+            .iter()
+            .map(|m| m.core.as_ref())
+            .collect::<Vec<_>>();
         let mut product_work = limits.max_analysis_steps;
         closure_state.products = aggregate_templates::origins(&modules, limits, &mut product_work)
             .map_err(|e| vec![e])?;

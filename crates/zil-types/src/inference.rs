@@ -347,7 +347,11 @@ pub(super) fn infer_program_closures_borrowed<'a>(
         budget
             .work(program.modules.len(), Span::default())
             .map_err(|e| vec![e])?;
-        let modules = program.modules.iter().map(|m| &m.core).collect::<Vec<_>>();
+        let modules = program
+            .modules
+            .iter()
+            .map(|m| m.core.as_ref())
+            .collect::<Vec<_>>();
         aggregate_templates::Index::new(&modules, limits, &mut budget.work).map_err(|e| vec![e])?;
     }
     let mut count = 0usize;
@@ -452,7 +456,8 @@ pub(super) fn infer_program_closures_borrowed<'a>(
                 .map_err(|e| vec![e])?,
         );
     }
-    names::check_modules(program.modules.iter().map(|m| &m.core), limits).map_err(|e| vec![e])?;
+    names::check_modules(program.modules.iter().map(|m| m.core.as_ref()), limits)
+        .map_err(|e| vec![e])?;
     let normalized = if flags.iter().flatten().any(|f| *f)
         || program.modules.iter().any(|m| {
             !m.core.aggregate_templates.is_empty() || !m.core.aggregate_applications.is_empty()
@@ -480,7 +485,11 @@ pub(super) fn infer_program_closures_borrowed<'a>(
         budget
             .work(program.modules.len(), Span::default())
             .map_err(|e| vec![e])?;
-        let modules = program.modules.iter().map(|m| &m.core).collect::<Vec<_>>();
+        let modules = program
+            .modules
+            .iter()
+            .map(|m| m.core.as_ref())
+            .collect::<Vec<_>>();
         budget.products = aggregate_templates::origins(&modules, limits, &mut budget.work)
             .map_err(|e| vec![e])?;
     }
@@ -553,7 +562,8 @@ pub(super) fn infer_program_closures_borrowed<'a>(
                 core: copy_module_metadata(
                     &module.core,
                     functions.into_iter().map(Cow::into_owned).collect(),
-                ),
+                )
+                .into(),
                 imports: module.imports.clone(),
                 exports: module.exports.clone(),
             })

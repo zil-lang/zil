@@ -1761,14 +1761,16 @@ fn main() -> i32 {
             aliases: &aliases,
             declarations: source_context::DeclarationPlacement::Original,
         };
-        Ok(expand_with_map_limits_target_context(
-            &source,
-            &syntax,
-            &Limits::default(),
-            &zil_base::TargetProfile::default(),
-            context,
-        )?
-        .core)
+        Ok(std::sync::Arc::unwrap_or_clone(
+            expand_with_map_limits_target_context(
+                &source,
+                &syntax,
+                &Limits::default(),
+                &zil_base::TargetProfile::default(),
+                context,
+            )?
+            .core,
+        ))
     }
 
     #[test]
@@ -1995,18 +1997,20 @@ fn make<life a, life b>(x: &'a i64, y: &'b i64) -> Phantom<'a, ACTUAL> {
             let source = SourceUnit::new(FileId(0), ModuleId(0), "alpha-code.zil", text);
             let syntax = zil_syntax::parse(&source).into_result()?;
             let modules = BTreeMap::from([(ModuleId(0), Vec::new())]);
-            Ok(expand_with_map_limits_target_context(
-                &source,
-                &syntax,
-                &Limits::default(),
-                &zil_base::TargetProfile::default(),
-                source_context::SourceIdentityContext::Explicit {
-                    package: "terminal341-rich-code-alpha",
-                    modules: &modules,
-                    declarations: source_context::DeclarationPlacement::Original,
-                },
-            )?
-            .core)
+            Ok(std::sync::Arc::unwrap_or_clone(
+                expand_with_map_limits_target_context(
+                    &source,
+                    &syntax,
+                    &Limits::default(),
+                    &zil_base::TargetProfile::default(),
+                    source_context::SourceIdentityContext::Explicit {
+                        package: "terminal341-rich-code-alpha",
+                        modules: &modules,
+                        declarations: source_context::DeclarationPlacement::Original,
+                    },
+                )?
+                .core,
+            ))
         };
         for (signature, class, binders) in [
             ("for<life a> fn(&'a Tag<'a>)->i32", 0, 1),

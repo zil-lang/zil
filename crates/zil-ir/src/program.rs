@@ -1,5 +1,6 @@
 //! Raw project identities and scalar interfaces; none confer verification authority.
 use super::*;
+use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreImport {
@@ -10,7 +11,9 @@ pub struct CoreImport {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProgramModule {
-    pub core: CoreModule,
+    /// Immutable raw module storage; sharing confers no verification authority.
+    /// Raw transformations use `Arc::make_mut` before modifying a snapshot.
+    pub core: Arc<CoreModule>,
     pub imports: Vec<CoreImport>,
     pub exports: Vec<NodeId>,
 }

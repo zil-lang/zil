@@ -367,7 +367,11 @@ pub(super) fn resolve_program(
     limits: &Limits,
 ) -> CompileResult<CoreProgram> {
     let mut remaining = limits.max_analysis_steps;
-    let modules = program.modules.iter().map(|m| &m.core).collect::<Vec<_>>();
+    let modules = program
+        .modules
+        .iter()
+        .map(|m| m.core.as_ref())
+        .collect::<Vec<_>>();
     let mut normalized = Vec::new();
     for module in &program.modules {
         inference::unconsumed_inventory(&module.core).map_err(|e| vec![e])?;
@@ -390,7 +394,7 @@ pub(super) fn resolve_program(
             .map_err(|e| vec![e])?;
         let core = resolve_indexed(snapshot, &modules, limits, &mut remaining)?;
         normalized.push(ProgramModule {
-            core,
+            core: core.into(),
             imports: module.imports.clone(),
             exports: module.exports.clone(),
         });

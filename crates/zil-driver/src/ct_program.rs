@@ -100,7 +100,7 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
                 .copied()
                 .collect();
             modules.push(ProgramModule {
-                core: CoreModule {
+                core: std::sync::Arc::new(CoreModule {
                     life_declarations: module.core.life_declarations.clone(),
                     life_instances: module.core.life_instances.clone(),
                     // Selected pure-query functions cannot contain these runtime
@@ -140,7 +140,7 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
                         .collect(),
                     enums: module.core.enums.clone(),
                     unsupported: Vec::new(),
-                },
+                }),
                 imports: module.imports.clone(),
                 exports,
             });
@@ -196,7 +196,9 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
             .find(|m| m.core.module_id == self.module)
             .expect("selected query root exists");
         root.exports.push(function.id);
-        root.core.functions.push(function);
+        std::sync::Arc::make_mut(&mut root.core)
+            .functions
+            .push(function);
         let typed = zil_types::check_program(&program, self.target, limits).map_err(ct_errors)?;
         let entry = typed
             .root_functions
@@ -1546,7 +1548,7 @@ pub(super) fn single(
         root: core.module_id,
         source_fingerprint: core.source_fingerprint,
         modules: vec![ProgramModule {
-            core: core.clone(),
+            core: std::sync::Arc::new(core.clone()),
             imports: Vec::new(),
             exports: core.functions.iter().map(|f| f.id).collect(),
         }],
@@ -1648,7 +1650,7 @@ mod tests {
             root: core.module_id,
             source_fingerprint: core.source_fingerprint,
             modules: vec![ProgramModule {
-                core,
+                core: std::sync::Arc::new(core),
                 imports: vec![],
                 exports: vec![],
             }],
@@ -1686,7 +1688,7 @@ mod tests {
             root: ModuleId(0),
             source_fingerprint: core.source_fingerprint,
             modules: vec![ProgramModule {
-                core,
+                core: std::sync::Arc::new(core),
                 imports: vec![],
                 exports: vec![],
             }],
@@ -1694,7 +1696,7 @@ mod tests {
         let limits = Limits::default();
         let old = selection_cost(&program, &limits).unwrap();
         for role in [ScopedCallbackRole::Register, ScopedCallbackRole::Close] {
-            program.modules[0].core.functions[0]
+            std::sync::Arc::make_mut(&mut program.modules[0].core).functions[0]
                 .foreign
                 .as_mut()
                 .unwrap()
@@ -1725,7 +1727,7 @@ mod tests {
                 );
             }
         }
-        program.modules[0].core.functions[0]
+        std::sync::Arc::make_mut(&mut program.modules[0].core).functions[0]
             .foreign
             .as_mut()
             .unwrap()
@@ -1763,7 +1765,7 @@ mod tests {
             root: ModuleId(0),
             source_fingerprint: core.source_fingerprint,
             modules: vec![ProgramModule {
-                core,
+                core: std::sync::Arc::new(core),
                 imports: vec![],
                 exports: vec![],
             }],
@@ -1906,7 +1908,7 @@ mod tests {
                     root: core.module_id,
                     source_fingerprint: core.source_fingerprint,
                     modules: vec![ProgramModule {
-                        core,
+                        core: std::sync::Arc::new(core),
                         imports: vec![],
                         exports: vec![],
                     }],
@@ -1953,7 +1955,7 @@ mod tests {
             root: ModuleId(0),
             source_fingerprint: core.source_fingerprint,
             modules: vec![ProgramModule {
-                core,
+                core: std::sync::Arc::new(core),
                 imports: vec![],
                 exports: vec![],
             }],
@@ -1983,8 +1985,7 @@ mod tests {
             zil_ct::evaluate_program(&verified).unwrap().value,
             zil_ct::CompileTimeValue::Scalar(Constant::I64(42))
         );
-        program.modules[0]
-            .core
+        std::sync::Arc::make_mut(&mut program.modules[0].core)
             .functions
             .iter_mut()
             .find(|f| f.name == "pure")

@@ -28,7 +28,7 @@ impl ProducedProgram {
     }
 }
 pub struct ExpandedProgram {
-    modules: Vec<(ProgramModule, SourceMap)>,
+    modules: Vec<(ProgramModule, Arc<SourceMap>)>,
     revisions: BTreeMap<ModuleId, ModuleRevision>,
 }
 impl ExpandedProgram {
@@ -36,7 +36,7 @@ impl ExpandedProgram {
         self,
         root: ModuleId,
         source_fingerprint: Fingerprint,
-    ) -> (ProducedProgram, Vec<SourceMap>) {
+    ) -> (ProducedProgram, Vec<Arc<SourceMap>>) {
         let (modules, maps) = self.modules.into_iter().unzip();
         (
             ProducedProgram {
@@ -88,6 +88,8 @@ statistics!(
     restored_module_deep_clones,
     retained_normalized_items,
     retained_restored_modules,
+    retained_lower_cores,
+    retained_lower_source_maps,
     cloned_source_map_entries,
     cloned_source_bytes,
     context_ns,
@@ -218,6 +220,8 @@ struct Receipt {
 struct Entry {
     parsed: ParsedSource,
     scalar: bool,
+    scalar_nodes: u64,
+    scalar_depth_limit: usize,
     receipts: BTreeMap<(Stage, usize), Receipt>,
     normalized: BTreeMap<usize, Arc<s::Item>>,
     restored: Option<Arc<(s::Module, Vec<CoreImport>)>>,
@@ -240,6 +244,28 @@ impl ExpandSession {
     }
     pub fn last_stats(&self) -> &ProducerStats {
         &self.stats
+    }
+    /// Probe the sealed scalar input domain without lowering or publishing an
+    /// epoch. This is eligibility only, never a receipt for later stage work.
+    /// A retained successful classification avoids revisiting unchanged syntax.
+    pub fn parsed_scalar(&self, parsed: &ParsedSource, limits: &Limits) -> bool {
+        let syntax = parsed.parsed();
+        if !syntax.diagnostics.is_empty()
+            || !syntax.deferred_attributes.is_empty()
+            || !syntax.cfg_removed.is_empty()
+            || syntax.type_meta_candidate
+        {
+            return false;
+        }
+        if self.entries.get(&syntax.module.id).is_some_and(|entry| {
+            entry.scalar
+                && entry.parsed.same_revision(parsed)
+                && (limits.max_nodes as u64) >= entry.scalar_nodes
+                && limits.max_call_depth >= entry.scalar_depth_limit
+        }) {
+            return true;
+        }
+        scalar(&syntax.module, limits).0
     }
     pub fn expand_parsed(
         &mut self,
@@ -330,6 +356,8 @@ impl ExpandSession {
                 Entry {
                     parsed: parsed.clone(),
                     scalar,
+                    scalar_nodes: nodes,
+                    scalar_depth_limit: limits.max_call_depth,
                     receipts: BTreeMap::new(),
                     normalized: BTreeMap::new(),
                     restored: None,
@@ -662,14 +690,14 @@ impl Reuse<'_> {
         let expanded = cached.as_ref().clone();
         self.assembly(clock);
         self.stats.reused_lower_modules += 1;
-        self.stats.cloned_source_map_entries += expanded.source_map.entries.len() as u64;
+        self.stats.retained_lower_cores += 1;
+        self.stats.retained_lower_source_maps += 1;
         Some(expanded)
     }
     pub(crate) fn lower_executed(&mut self) {
         self.stats.lower_modules += 1;
     }
     pub(crate) fn save_lower(&mut self, file: FileId, limits: &Limits, expanded: &ExpandedModule) {
-        self.stats.cloned_source_map_entries += expanded.source_map.entries.len() as u64;
         let clock = self.clock();
         let value = Arc::new(expanded.clone());
         self.assembly(clock);

@@ -291,18 +291,20 @@ impl Products {
         self.allowance = Some(budget.remaining_limits());
         Ok(())
     }
+    pub(crate) fn has_publications(&self) -> bool {
+        !(self.templates.is_empty()
+            && self.storage.instances.is_empty()
+            && self.storage.functions.is_empty()
+            && self.storage.project_functions.is_empty()
+            && self.dynamic.is_empty())
+    }
     pub(crate) fn publish(
         &self,
         cores: &mut [(&mut CoreModule, &mut SourceMap)],
         sources: &[zil_base::SourceUnit],
         limits: &Limits,
     ) -> CompileResult<()> {
-        if self.templates.is_empty()
-            && self.storage.instances.is_empty()
-            && self.storage.functions.is_empty()
-            && self.storage.project_functions.is_empty()
-            && self.dynamic.is_empty()
-        {
+        if !self.has_publications() {
             return Ok(());
         }
         let allowance = self.allowance.as_ref().unwrap_or(limits);
