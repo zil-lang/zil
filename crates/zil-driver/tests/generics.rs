@@ -181,7 +181,7 @@ fn terminal_stored_core_requires_matching_actual_nominal_inventory() {
         root: core.module_id,
         source_fingerprint: core.source_fingerprint,
         modules: vec![zil_ir::ProgramModule {
-            core: core.into(),
+            core,
             imports: vec![],
             exports: vec![],
         }],
