@@ -328,7 +328,10 @@ pub fn build_view_with_cancellation_and_stable_names(
             options.emit.entry,
             options.codegen.units,
             options.optimization == Optimization::O0 || options.incremental_o2,
-            options.optimization == Optimization::O2 && options.incremental_o2,
+            crate::machine_cgu::CallImportPolicy::for_incremental_o2(
+                options.optimization == Optimization::O2 && options.incremental_o2,
+                options.function_merging,
+            ),
             (options.backend == NativeBackend::LlvmApi)
                 .then_some(options.object_cache.as_deref())
                 .flatten(),

@@ -188,7 +188,12 @@ fn exact_layout_replay_preserves_imports_addresses_and_item_order() {
 fn layout_key_binds_current_model_planning_projection_and_policy() {
     let (module, mut source) = fixture();
     let compiler = Fingerprint::of(b"this-compiler");
-    let key = |m: &Module, l: &LirModule, entry, count, split, imports, compiler| {
+    let key = |m: &Module, l: &LirModule, entry, count, split, imports: bool, compiler| {
+        let imports = if imports {
+            CallImportPolicy::Complete
+        } else {
+            CallImportPolicy::Disabled
+        };
         action_key(m, &l.as_view(), entry, count, split, imports, compiler).unwrap()
     };
     let original = key(&module, &source, EntryPoint::None, 2, true, true, compiler);
@@ -289,11 +294,44 @@ fn layout_records_are_bounded_and_require_complete_current_ownership() {
         EntryPoint::None,
         2,
         true,
-        true,
+        CallImportPolicy::Complete,
         None,
     );
     assert_eq!(plan.fallback, Some("invalid machine declaration prelude"));
     assert!(pending.is_none());
+}
+
+#[test]
+fn layout_cache_keeps_complete_and_resource_helper_policies_separate() {
+    let directory = Directory::new();
+    let (module, source) = fixture();
+    let (plan, layout) = planned(&module, &source);
+    let cache = |imports| Cache {
+        root: directory.0.clone(),
+        key: action_key(
+            &module,
+            &source.as_view(),
+            EntryPoint::None,
+            2,
+            true,
+            imports,
+            Fingerprint::of(b"same-compiler"),
+        )
+        .unwrap(),
+    };
+    let complete = cache(CallImportPolicy::Complete);
+    let helpers = cache(CallImportPolicy::ResourceHelpers);
+    assert_ne!(complete.key, helpers.key);
+    complete.pending(&layout).unwrap().pin().unwrap().commit();
+    assert!(helpers.load(&module, &source.as_view(), 2).is_none());
+    helpers.pending(&layout).unwrap().pin().unwrap().commit();
+    for policy in [
+        CallImportPolicy::Complete,
+        CallImportPolicy::ResourceHelpers,
+    ] {
+        let loaded = cache(policy).load(&module, &source.as_view(), 2).unwrap();
+        assert_eq!(loaded.replay(module.clone()), plan.units);
+    }
 }
 
 #[test]
