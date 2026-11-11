@@ -1,8 +1,488 @@
 {
-  "schema": 2,
+  "schema": 3,
   "date": "2026-11-11",
-  "scope": "Real ZIL compiler production slice plus separately labelled prior JS model history",
-  "production_continuation": {
+  "scope": "Real producer/version and shared-artifact continuation; explicitly separated prior BodyKey stage and historical JS model.",
+  "producer_continuation": {
+    "task": "G10.5.1.15",
+    "status": "Interrupted by unavailable execution environment; real producer slices implemented and frozen; net waiting reduction not accepted; default off; not merged into main",
+    "source_branch": "research/reactive-query-graph",
+    "main_baseline": "99035931d358add0eaed6d4535035c38413701dd",
+    "latest_production_source": "12e648af1f50ffcb18fc32b8f4dc50a680900182",
+    "latest_binary_sha256": "c64da5a70a938a21811c52b95f2ccc946599315fbf5b615896d35d74b58e65b6",
+    "toolchain": {
+      "rust": "1.99.1",
+      "rust_commit": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+      "LLVM_Clang_LLD": "23.1.4",
+      "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+      "llvm_dso_sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250",
+      "clang_sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67",
+      "repository_checker": "Pass"
+    },
+    "comparisons": {
+      "A": "existing caches; producer off; graph off",
+      "B": "same actual producer reuse and valid versions, direct memo with actual signature dependencies; graph off",
+      "C": "same producer and validity as B; reactive graph on",
+      "attribution": "B-A is producer effect; only C-B estimates graph extra effect. Common CT-copy changes and existing CGU partitioning are separate."
+    },
+    "production_changes": [
+      "zil-syntax: parser-owned immutable ParsedSource binds actual source bytes, ParseResult, context and limits; public raw input cannot forge producer provenance.",
+      "zil-expand: sealed scalar module Normalize/Restore/Lower results and original stage-order budget receipts; unchanged actual AST Items/Modules retained with Arc; nonmatching context or insufficient current allowance falls back from original uncharged entry.",
+      "zil-expand:12e648a retains actual SourceMap via an opaque Owned/Shared carrier. Shared holds only Arc<SourceMap>, not CachedLower/Core. Fresh copies a real map sidecar once after fees; unchanged map is shared. Public raw Expand return and ExpandedModule fields unchanged.",
+      "zil-types: producer versions remove unchanged CoreFunction deep equality and supply the existing function CFG/cost/span cache. B direct memo has the same version and signature evidence as C.",
+      "zil-driver project/session: real early and post-materialization sealed routes, ordered current input snapshot, source-map artifact binding, current independent Verify and disjoint same-request cost reporting.",
+      "CLI independent --producer-reuse/--reactive-queries/--profile-compilation switches; defaults false. One narrow root-coordinated Types-to-Expand dependency and prior Types-to-db edge; no public IR/schema, Verify or backend weakening.",
+      "Common ct_artifact/snapshot.rs removes Function/Extern clones discarded by shape snapshot; isolated both-off control did not establish net waiting benefit."
+    ],
+    "current_validation": {
+      "source": "12e648af1f50ffcb18fc32b8f4dc50a680900182",
+      "lib_tests": {
+        "driver": 164,
+        "expand": 92,
+        "syntax": 35,
+        "types": 66,
+        "total": 357,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "cli_tests": 1,
+      "strict_clippy": "cargo clippy --locked --offline --workspace --all-targets -- -D warnings: exit0",
+      "release": "cargo build --locked --offline --release -p zil-cli: exit0; frozen binary hash reread by non-author",
+      "independent_review": "producer_types matched exact source blobs and actual gate logs before environment loss; complete map/Debug/artifact and Weak cache-lifetime assertions executed",
+      "raw_path": "out/runs/producer-validation-12e648a",
+      "coverage": "Same-current-Source full TypedProgram, Core/map/artifact and first-diagnostic/span comparisons; source/ID/import/negative name/candidate/CT/generic/resource fallback; exact N/N-1 budgets, error repair, cancellation retry, eviction/corruption/restoration and existing long-session tests.",
+      "native_latest_slice": "UNCONFIRMED: native-abc-map-20x20x16-O2-r1 was launched, but no completion/summary/native result was received before environment loss. Cannot substitute prior ea0 native pass."
+    },
+    "current_work_gate": {
+      "run": "native-abc-cost-20x20x16-r6",
+      "kind": "one-block profiled cost/work diagnostic, not latency acceptance",
+      "rows": 21,
+      "measured": 12,
+      "preparations": 9,
+      "invalid": 0,
+      "native": 0,
+      "B_and_C": {
+        "cold": {
+          "normalize": 22,
+          "lower": 22,
+          "source_map_deep_clones": 22,
+          "cloned_map_entries": 147191,
+          "core_module_deep_clones": 22,
+          "shared_maps": 22,
+          "shared_entries": 147191,
+          "CFG": 425
+        },
+        "private_and_equal_width": {
+          "normalize": 1,
+          "lower": 1,
+          "reused_lower": 21,
+          "normalized_item_deep_clones": 21,
+          "restored_module_deep_clones": 1,
+          "source_map_deep_clones": 1,
+          "cloned_map_entries": 7346,
+          "core_module_deep_clones": 22,
+          "shared_maps": 22,
+          "shared_entries": 147191,
+          "producer_version_reuses": 400,
+          "body_keys": 21,
+          "Core_function_Eq": 0,
+          "CFG": 5
+        },
+        "multi": {
+          "normalize": 3,
+          "lower": 3,
+          "reused_lower": 19,
+          "normalized_item_deep_clones": 63,
+          "restored_module_deep_clones": 3,
+          "source_map_deep_clones": 3,
+          "cloned_map_entries": 22038,
+          "core_module_deep_clones": 22,
+          "shared_maps": 22,
+          "shared_entries": 147191,
+          "producer_version_reuses": 358,
+          "body_keys": 63,
+          "Core_function_Eq": 0,
+          "CFG": 6
+        }
+      },
+      "A": "producer counters are null, not zero execution; the original complete path runs. Actual CFG counts are the same425/5/6. BodyKey421 on private/multi.",
+      "C_private_same_request_cost_ms": {
+        "expand_assembly": 106.149861,
+        "expand_materialization": 154.97022,
+        "expand_production": 8.305519,
+        "expand_context": 2.369018,
+        "expand_reuse": 0.275578,
+        "semantic_cache_publication": 165.969024,
+        "types_graph_maintenance": 0.903271,
+        "types_query_evaluation": 0.714926,
+        "verify": 65.958831,
+        "analyze": 46.280593,
+        "ct": 24.16149,
+        "total_profiled": 639.338664,
+        "unassigned": 6.954632,
+        "overlap": 0
+      },
+      "cost_boundary": "All named costs are disjoint subdivisions of the same request; do not sum parent Expand/Types clocks again. One block and different source stages do not establish cost speed ratios. Receipt budget units are not actual AST visits.",
+      "counter_review": "abc_measurement ran a read-only raw-counter checker before loss; producer_types independently reviewed production and test code; full new timing/raw independent review not completed."
+    },
+    "latest_check": {
+      "run": "native-abc-map-20x20x16-check-r1",
+      "source": "12e648af1f50ffcb18fc32b8f4dc50a680900182",
+      "blocks": 6,
+      "rows": 306,
+      "measured": 162,
+      "preparations": 144,
+      "invalid": 0,
+      "native": 0,
+      "complete_analyzer_result_observed": true,
+      "independent_raw_review": "not started successfully; first read failed after environment loss",
+      "durable_console_projection": "interruption-checkpoint-20261111.json",
+      "net_performance_accepted": false
+    },
+    "previous_ast_stage": {
+      "source": "ea0ce45741fde0082b6c92173b7480b167c888d4",
+      "binary_sha256": "7c1e3354557f24480a6e92e90072704a500903a886f1fb494c37f58dbedb74e1",
+      "tests": "355lib + CLI1 + strictClippy + release; first temp-directory collision preserved; same source and assertions passed with isolated TMPDIR",
+      "runs": {
+        "check": "native-abc-producer-20x20x16-check-r1",
+        "O2": "native-abc-producer-20x20x16-O2-r1"
+      },
+      "configuration": "Generated22files498620bytes,20x20x16; live stdin6 independent outputs; default limits; resident256; cache all; source cache off; six balanced ABC orders; no profile; O2 llvm-api1CGU1job. Cold is application cache, not OS page-cache flush.",
+      "per_mode_counts": {
+        "rows": 306,
+        "measured": 162,
+        "preparations": 144,
+        "invalid": 0
+      },
+      "O2_native": {
+        "total": 1620,
+        "measured": 864,
+        "preparations": 756
+      },
+      "independent_review": "Full raw/source/oracles and 3680check/4040O2 numeric aggregates plus27contrasts per mode independently recomputed before environment loss. 90 nonerror O2 triplets have identical ELF/LLVM; across-block LLVM includes different absolute-source fingerprint comments. Old native artifact paths overwrite earlier ELF/LLVM, whose hashes/output receipts remain.",
+      "rounded_observed_summaries": {
+        "check": {
+          "columns": [
+            "median_A_ms",
+            "median_B_ms",
+            "median_C_ms",
+            "paired_mean_saved_A_minus_B_ms",
+            "paired_mean_saved_B_minus_C_ms",
+            "paired_mean_saved_A_minus_C_ms"
+          ],
+          "scenarios": {
+            "cold": [
+              1036.619,
+              1301.023,
+              880.7,
+              -199.649,
+              50.15,
+              -149.499
+            ],
+            "unchanged": [
+              96.933,
+              107.783,
+              113.284,
+              34.449,
+              -5.185,
+              29.264
+            ],
+            "private": [
+              562.74,
+              539.354,
+              650.114,
+              21.571,
+              -118.794,
+              -97.223
+            ],
+            "multi": [
+              598.495,
+              688.09,
+              504.066,
+              -80.845,
+              151.646,
+              70.801
+            ],
+            "broad": [
+              1028.185,
+              1273.036,
+              1299.759,
+              -333.669,
+              50.23,
+              -283.439
+            ],
+            "positions": [
+              1078.059,
+              1323.021,
+              1284.747,
+              -228.417,
+              16.64,
+              -211.777
+            ],
+            "error": [
+              494.912,
+              757.02,
+              674.453,
+              -227.44,
+              -32.712,
+              -260.152
+            ],
+            "recovery": [
+              565.801,
+              477.19,
+              493.98,
+              148.446,
+              -8.453,
+              139.993
+            ],
+            "restore": [
+              87.691,
+              134.42,
+              129.439,
+              -34.316,
+              -7.545,
+              -41.861
+            ]
+          }
+        },
+        "O2": {
+          "columns": [
+            "median_A_ms",
+            "median_B_ms",
+            "median_C_ms",
+            "paired_mean_saved_A_minus_B_ms",
+            "paired_mean_saved_B_minus_C_ms",
+            "paired_mean_saved_A_minus_C_ms"
+          ],
+          "scenarios": {
+            "cold": [
+              6529.999,
+              6861.401,
+              6622.86,
+              -145.185,
+              428.553,
+              283.368
+            ],
+            "unchanged": [
+              465.696,
+              494.102,
+              497.655,
+              -19.912,
+              -62.018,
+              -81.93
+            ],
+            "private": [
+              5462.162,
+              5272.543,
+              5301.722,
+              120.88,
+              50.217,
+              171.096
+            ],
+            "multi": [
+              5315.147,
+              5520.766,
+              5559.826,
+              -207.574,
+              -67.976,
+              -275.55
+            ],
+            "broad": [
+              6185.921,
+              6227.874,
+              6396.313,
+              -142.93,
+              -215.708,
+              -358.638
+            ],
+            "positions": [
+              1562.811,
+              1895.564,
+              1909.327,
+              -418.757,
+              37.76,
+              -380.996
+            ],
+            "error": [
+              337.445,
+              470.379,
+              464.78,
+              -130.934,
+              11.12,
+              -119.814
+            ],
+            "recovery": [
+              5699.59,
+              5532.815,
+              5639.41,
+              78.799,
+              23.824,
+              102.623
+            ],
+            "restore": [
+              486.307,
+              555.295,
+              577.966,
+              -75.332,
+              -112.89,
+              -188.221
+            ]
+          }
+        }
+      },
+      "selected_paired_95pct_exploratory_ci_ms": {
+        "O2_private_A_minus_C": [
+          36.58,
+          299.247
+        ],
+        "O2_private_B_minus_C": [
+          -114.455,
+          218.946
+        ],
+        "O2_multi_A_minus_C": [
+          -470.643,
+          -93.159
+        ],
+        "check_private_A_minus_B": [
+          -47.208,
+          105.274
+        ],
+        "check_broad_A_minus_B": [
+          -630.838,
+          -40.884
+        ]
+      },
+      "statistical_limits": "n6 matched blocks; 20000 fixed-seed percentile bootstrap, exploratory/no multiple-comparison adjustment; not stable p95. Do not pool source stages or infer backend from O2 minus check.",
+      "frequency_hypotheses_per100": {
+        "human": {
+          "cold": 5,
+          "unchanged": 15,
+          "private": 60,
+          "multi": 10,
+          "broad": 5,
+          "recovery": 3,
+          "restore": 2
+        },
+        "LLM": {
+          "cold": 5,
+          "unchanged": 10,
+          "private": 15,
+          "multi": 55,
+          "broad": 10,
+          "recovery": 3,
+          "restore": 2
+        },
+        "cold_broad": {
+          "cold": 40,
+          "unchanged": 5,
+          "private": 5,
+          "multi": 10,
+          "broad": 35,
+          "recovery": 3,
+          "restore": 2
+        }
+      },
+      "weighted_C_minus_A_saved_seconds_per100": {
+        "check": {
+          "human": -6.515,
+          "LLM": -0.517,
+          "cold_broad": -15.196
+        },
+        "O2": {
+          "human": 5.836,
+          "LLM": -15.646,
+          "cold_broad": -3.596
+        }
+      },
+      "weight_limit": "Predeclared artificial frequencies, not observed users. Independent per-block weighted bootstrap retains within-block covariance. O2 human interval crosses0; LLM additional wait CI[4.769,27.627]seconds/100. Zero weights for position/error do not erase their separate regressions.",
+      "long_session": {
+        "run": "native-producer-long-ea0ce45-r1",
+        "arms": "B and C; no A",
+        "requests": 102,
+        "unique_snapshots_per_arm": 51,
+        "edits": 50,
+        "fresh_public_JSON_checks": 5,
+        "native": 0,
+        "capacity": 32,
+        "disk_cache": false,
+        "resets": 0,
+        "C_graph_nodes": 1268,
+        "C_graph_edges": 1685,
+        "initial_rss_kib": {
+          "B": 348184,
+          "C": 350268
+        },
+        "final_rss_kib": {
+          "B": 551292,
+          "C": 554756
+        },
+        "second_half_rss_growth_kib": {
+          "B": 112,
+          "C": 188
+        },
+        "edit_wall_seconds": {
+          "B": 29.022435097,
+          "C": 28.548118207
+        },
+        "edit_CPU_seconds": {
+          "B": 28.88,
+          "C": 28.45
+        },
+        "limit": "One correlated sequence, public fresh comparisons only; finite near-plateau is not a leak proof. Does not validate latest SourceMap slice."
+      },
+      "net_performance_accepted": false
+    },
+    "scale_boundaries": [
+      {
+        "run": "native-abc-scale-32x32x16-screen-r1",
+        "source": "89ae96d62acb97d577e96b6e5d3fd90a56f99e8c",
+        "result": "all3 default Lex token ResourceLimit; Verify0; valid performance denominator0"
+      },
+      {
+        "run": "native-abc-scale-24x24x16-screen-r1",
+        "source": "ea0ce45741fde0082b6c92173b7480b167c888d4",
+        "files": 26,
+        "bytes": 717325,
+        "result": "all3 default CT analysis-work ResourceLimit; Verify0; excluded"
+      },
+      {
+        "run": "native-abc-scale-40x10x16-screen-r1",
+        "source": "ea0ce45741fde0082b6c92173b7480b167c888d4",
+        "files": 42,
+        "bytes": 500720,
+        "result": "15check requests valid; privateLower1/reuse41, multi3/39; one profile block, native0, breadth scaling not larger arithmetic body volume"
+      }
+    ],
+    "remaining": [
+      "Latest12e full native O2 completion/current runtime controls, default-off vs main comparison, new long-session and 8CGU factorial not confirmed/completed.",
+      "Still full Core Vec clone/assembly22modules, materialization traversal, semantic/function cache encoding and several global context/inventory walks.",
+      "General per-name negative/candidate/visibility queries, CT/instantiation/analysis facets and actual SCC fixed-point retraction are not integrated; ordinary recursion via signatures is not SCC evidence.",
+      "Rich mixed/resources/trait/CT mostly full fallback; graph zero only compatibility. No claim for full ZUI application or general Rust safety/runtime targets.",
+      "No overlapping filesystem-write or general asynchronous publication/cancellation proof.",
+      "New independent incremental-demand branch has claimed Core sharing/materializer receipts; this branch does not modify it."
+    ],
+    "evidence": {
+      "durable_source_and_harness": "Git research/reactive-query-graph, latest production12e648a. Interruption checkpoint contains only console projection and explicitly rounded reviewer summaries.",
+      "durable_archive_checkpoint": {
+        "library_file_id": "libfile_fde3_f-11852a3f427881918ed8650db66dc3f3_bd147c3485448191a9df16b3c3cea7dd",
+        "current_version_number": 0,
+        "url": "https://chatgpt.com/library?file_id=libfile_fde3_f-11852a3f427881918ed8650db66dc3f3_bd147c3485448191a9df16b3c3cea7dd&account_id=personal",
+        "filename": "zil-producer-compiler-evidence-20261111.zip",
+        "bytes": 90983519,
+        "archive_entries": 1084,
+        "sha256": "ae533035eee20c532b22b3d6797c45ab3331d97d811e0d291d4644112051defc",
+        "manifest_sha256": "030eaa500ac176f809d4f30476b826cb35c1ffadddec55bfa0b64c7e7d0d3568",
+        "all_entries_read_back_hash_verified": true,
+        "boundary": "Version0 only includes completed raw through7b2 red beforef7/89; ea0/new SourceMap results not yet durable. Final must replace same file after completed windows.",
+        "private_zit_included": false
+      },
+      "latest_raw": "Files through ea0 matrices/long session and12e gates/r6/check were locally written but were NOT uploaded in the latest archive version before environment loss. Cannot claim full late raw backup; recover environment or rerun with new run identity.",
+      "interruption": "exec-server transport disconnected; recovery timed out45s; explicit environment status unavailable; final read-only pwd probe returned No usable execution environment is available. No callable environment-recovery tool was exposed. GitHub remained available.",
+      "unknown_inflight": "native-abc-map-20x20x16-O2-r1/session77850 started; no completion receipt received. Its process state is unknown; no background continuation promised.",
+      "last_worktree_state": "implementation12e and validation12e clean before loss; goal1434986 clean after ff. Latest out/runs logs/review scripts are unpushed/inaccessible; forthcoming documentation commits are remote-only until environment restore."
+    }
+  },
+  "historical_bodykey_stage": {
     "status": "WIP: actual production integration and real validation complete for this slice; no accepted end-to-end gain; full goal not complete; default off; not merged into main",
     "base_commit": "99035931d358add0eaed6d4535035c38413701dd",
     "first_production_commit": "71bed1fc8d5f184549b2f08ab7af724a9952fc9a",
@@ -87,14 +567,14 @@
             "cpu_rss": {
               "baseline": {
                 "cpu_mean_seconds": 5.828333333333333,
-                "rss_median_kib": 497508.0,
-                "sampled_tree_peak_max_kib": 528588.0,
+                "rss_median_kib": 497508,
+                "sampled_tree_peak_max_kib": 528588,
                 "session_hwm_max_kib": 528588
               },
               "candidate": {
                 "cpu_mean_seconds": 6.128333333333334,
-                "rss_median_kib": 501748.0,
-                "sampled_tree_peak_max_kib": 533276.0,
+                "rss_median_kib": 501748,
+                "sampled_tree_peak_max_kib": 533276,
                 "session_hwm_max_kib": 533404
               }
             }
@@ -122,14 +602,14 @@
             "cpu_rss": {
               "baseline": {
                 "cpu_mean_seconds": 0.4883333333333333,
-                "rss_median_kib": 515598.0,
-                "sampled_tree_peak_max_kib": 515920.0,
+                "rss_median_kib": 515598,
+                "sampled_tree_peak_max_kib": 515920,
                 "session_hwm_max_kib": 528588
               },
               "candidate": {
                 "cpu_mean_seconds": 0.4883333333333333,
-                "rss_median_kib": 519762.0,
-                "sampled_tree_peak_max_kib": 520340.0,
+                "rss_median_kib": 519762,
+                "sampled_tree_peak_max_kib": 520340,
                 "session_hwm_max_kib": 533404
               }
             }
@@ -157,14 +637,14 @@
             "cpu_rss": {
               "baseline": {
                 "cpu_mean_seconds": 5.193333333333333,
-                "rss_median_kib": 602140.0,
-                "sampled_tree_peak_max_kib": 628688.0,
+                "rss_median_kib": 602140,
+                "sampled_tree_peak_max_kib": 628688,
                 "session_hwm_max_kib": 628688
               },
               "candidate": {
                 "cpu_mean_seconds": 5.266666666666667,
-                "rss_median_kib": 606274.0,
-                "sampled_tree_peak_max_kib": 632540.0,
+                "rss_median_kib": 606274,
+                "sampled_tree_peak_max_kib": 632540,
                 "session_hwm_max_kib": 632540
               }
             }
@@ -192,14 +672,14 @@
             "cpu_rss": {
               "baseline": {
                 "cpu_mean_seconds": 5.25,
-                "rss_median_kib": 697448.0,
-                "sampled_tree_peak_max_kib": 724132.0,
+                "rss_median_kib": 697448,
+                "sampled_tree_peak_max_kib": 724132,
                 "session_hwm_max_kib": 724132
               },
               "candidate": {
                 "cpu_mean_seconds": 5.210000000000001,
-                "rss_median_kib": 701566.0,
-                "sampled_tree_peak_max_kib": 727464.0,
+                "rss_median_kib": 701566,
+                "sampled_tree_peak_max_kib": 727464,
                 "session_hwm_max_kib": 727464
               }
             }
@@ -227,14 +707,14 @@
             "cpu_rss": {
               "baseline": {
                 "cpu_mean_seconds": 5.67,
-                "rss_median_kib": 906568.0,
-                "sampled_tree_peak_max_kib": 931668.0,
+                "rss_median_kib": 906568,
+                "sampled_tree_peak_max_kib": 931668,
                 "session_hwm_max_kib": 931668
               },
               "candidate": {
                 "cpu_mean_seconds": 5.578333333333334,
-                "rss_median_kib": 910730.0,
-                "sampled_tree_peak_max_kib": 936216.0,
+                "rss_median_kib": 910730,
+                "sampled_tree_peak_max_kib": 936216,
                 "session_hwm_max_kib": 936216
               }
             }
@@ -262,14 +742,14 @@
             "cpu_rss": {
               "baseline": {
                 "cpu_mean_seconds": 1.2850000000000008,
-                "rss_median_kib": 1084354.0,
-                "sampled_tree_peak_max_kib": 1084880.0,
+                "rss_median_kib": 1084354,
+                "sampled_tree_peak_max_kib": 1084880,
                 "session_hwm_max_kib": 1085024
               },
               "candidate": {
                 "cpu_mean_seconds": 1.468333333333333,
-                "rss_median_kib": 1087708.0,
-                "sampled_tree_peak_max_kib": 1088160.0,
+                "rss_median_kib": 1087708,
+                "sampled_tree_peak_max_kib": 1088160,
                 "session_hwm_max_kib": 1088280
               }
             }
@@ -297,14 +777,14 @@
             "cpu_rss": {
               "baseline": {
                 "cpu_mean_seconds": 0.3533333333333341,
-                "rss_median_kib": 1084534.0,
-                "sampled_tree_peak_max_kib": 1084952.0,
+                "rss_median_kib": 1084534,
+                "sampled_tree_peak_max_kib": 1084952,
                 "session_hwm_max_kib": 1085264
               },
               "candidate": {
                 "cpu_mean_seconds": 0.36166666666666636,
-                "rss_median_kib": 1088030.0,
-                "sampled_tree_peak_max_kib": 1088544.0,
+                "rss_median_kib": 1088030,
+                "sampled_tree_peak_max_kib": 1088544,
                 "session_hwm_max_kib": 1088696
               }
             }
@@ -332,14 +812,14 @@
             "cpu_rss": {
               "baseline": {
                 "cpu_mean_seconds": 5.253333333333333,
-                "rss_median_kib": 1196776.0,
-                "sampled_tree_peak_max_kib": 1221784.0,
+                "rss_median_kib": 1196776,
+                "sampled_tree_peak_max_kib": 1221784,
                 "session_hwm_max_kib": 1221784
               },
               "candidate": {
                 "cpu_mean_seconds": 5.558333333333334,
-                "rss_median_kib": 1199920.0,
-                "sampled_tree_peak_max_kib": 1224836.0,
+                "rss_median_kib": 1199920,
+                "sampled_tree_peak_max_kib": 1224836,
                 "session_hwm_max_kib": 1224836
               }
             }
@@ -367,14 +847,14 @@
             "cpu_rss": {
               "baseline": {
                 "cpu_mean_seconds": 0.49666666666666615,
-                "rss_median_kib": 1202728.0,
-                "sampled_tree_peak_max_kib": 1202972.0,
+                "rss_median_kib": 1202728,
+                "sampled_tree_peak_max_kib": 1202972,
                 "session_hwm_max_kib": 1221784
               },
               "candidate": {
                 "cpu_mean_seconds": 0.44833333333333175,
-                "rss_median_kib": 1205884.0,
-                "sampled_tree_peak_max_kib": 1206148.0,
+                "rss_median_kib": 1205884,
+                "sampled_tree_peak_max_kib": 1206148,
                 "session_hwm_max_kib": 1224836
               }
             }
@@ -417,14 +897,14 @@
             "cpu_rss": {
               "baseline": {
                 "cpu_mean_seconds": 0.735,
-                "rss_median_kib": 231874.0,
-                "sampled_tree_peak_max_kib": 272408.0,
+                "rss_median_kib": 231874,
+                "sampled_tree_peak_max_kib": 272408,
                 "session_hwm_max_kib": 272408
               },
               "candidate": {
                 "cpu_mean_seconds": 0.9833333333333334,
-                "rss_median_kib": 235666.0,
-                "sampled_tree_peak_max_kib": 276112.0,
+                "rss_median_kib": 235666,
+                "sampled_tree_peak_max_kib": 276112,
                 "session_hwm_max_kib": 276112
               }
             }
@@ -452,14 +932,14 @@
             "cpu_rss": {
               "baseline": {
                 "cpu_mean_seconds": 0.09333333333333332,
-                "rss_median_kib": 240214.0,
-                "sampled_tree_peak_max_kib": 274488.0,
+                "rss_median_kib": 240214,
+                "sampled_tree_peak_max_kib": 274488,
                 "session_hwm_max_kib": 274488
               },
               "candidate": {
                 "cpu_mean_seconds": 0.09000000000000001,
-                "rss_median_kib": 244014.0,
-                "sampled_tree_peak_max_kib": 278064.0,
+                "rss_median_kib": 244014,
+                "sampled_tree_peak_max_kib": 278064,
                 "session_hwm_max_kib": 278064
               }
             }
@@ -487,14 +967,14 @@
             "cpu_rss": {
               "baseline": {
                 "cpu_mean_seconds": 0.5733333333333334,
-                "rss_median_kib": 366022.0,
-                "sampled_tree_peak_max_kib": 366276.0,
+                "rss_median_kib": 366022,
+                "sampled_tree_peak_max_kib": 366276,
                 "session_hwm_max_kib": 366388
               },
               "candidate": {
                 "cpu_mean_seconds": 0.73,
-                "rss_median_kib": 376266.0,
-                "sampled_tree_peak_max_kib": 376396.0,
+                "rss_median_kib": 376266,
+                "sampled_tree_peak_max_kib": 376396,
                 "session_hwm_max_kib": 376416
               }
             }
@@ -522,14 +1002,14 @@
             "cpu_rss": {
               "baseline": {
                 "cpu_mean_seconds": 0.51,
-                "rss_median_kib": 466226.0,
-                "sampled_tree_peak_max_kib": 466500.0,
+                "rss_median_kib": 466226,
+                "sampled_tree_peak_max_kib": 466500,
                 "session_hwm_max_kib": 466592
               },
               "candidate": {
                 "cpu_mean_seconds": 0.6066666666666666,
-                "rss_median_kib": 468626.0,
-                "sampled_tree_peak_max_kib": 468684.0,
+                "rss_median_kib": 468626,
+                "sampled_tree_peak_max_kib": 468684,
                 "session_hwm_max_kib": 468776
               }
             }
@@ -557,14 +1037,14 @@
             "cpu_rss": {
               "baseline": {
                 "cpu_mean_seconds": 0.7566666666666667,
-                "rss_median_kib": 621874.0,
-                "sampled_tree_peak_max_kib": 662376.0,
+                "rss_median_kib": 621874,
+                "sampled_tree_peak_max_kib": 662376,
                 "session_hwm_max_kib": 662376
               },
               "candidate": {
                 "cpu_mean_seconds": 0.87,
-                "rss_median_kib": 625362.0,
-                "sampled_tree_peak_max_kib": 665972.0,
+                "rss_median_kib": 625362,
+                "sampled_tree_peak_max_kib": 665972,
                 "session_hwm_max_kib": 665972
               }
             }
@@ -592,14 +1072,14 @@
             "cpu_rss": {
               "baseline": {
                 "cpu_mean_seconds": 0.745,
-                "rss_median_kib": 795362.0,
-                "sampled_tree_peak_max_kib": 835836.0,
+                "rss_median_kib": 795362,
+                "sampled_tree_peak_max_kib": 835836,
                 "session_hwm_max_kib": 835836
               },
               "candidate": {
                 "cpu_mean_seconds": 0.8566666666666668,
-                "rss_median_kib": 798892.0,
-                "sampled_tree_peak_max_kib": 839472.0,
+                "rss_median_kib": 798892,
+                "sampled_tree_peak_max_kib": 839472,
                 "session_hwm_max_kib": 839472
               }
             }
@@ -627,14 +1107,14 @@
             "cpu_rss": {
               "baseline": {
                 "cpu_mean_seconds": 0.5149999999999998,
-                "rss_median_kib": 896780.0,
-                "sampled_tree_peak_max_kib": 897012.0,
+                "rss_median_kib": 896780,
+                "sampled_tree_peak_max_kib": 897012,
                 "session_hwm_max_kib": 897076
               },
               "candidate": {
                 "cpu_mean_seconds": 0.5316666666666664,
-                "rss_median_kib": 900268.0,
-                "sampled_tree_peak_max_kib": 900392.0,
+                "rss_median_kib": 900268,
+                "sampled_tree_peak_max_kib": 900392,
                 "session_hwm_max_kib": 900400
               }
             }
@@ -662,14 +1142,14 @@
             "cpu_rss": {
               "baseline": {
                 "cpu_mean_seconds": 0.6333333333333336,
-                "rss_median_kib": 955066.0,
-                "sampled_tree_peak_max_kib": 955252.0,
+                "rss_median_kib": 955066,
+                "sampled_tree_peak_max_kib": 955252,
                 "session_hwm_max_kib": 955452
               },
               "candidate": {
                 "cpu_mean_seconds": 0.6700000000000003,
-                "rss_median_kib": 954714.0,
-                "sampled_tree_peak_max_kib": 954792.0,
+                "rss_median_kib": 954714,
+                "sampled_tree_peak_max_kib": 954792,
                 "session_hwm_max_kib": 954832
               }
             }
@@ -697,14 +1177,14 @@
             "cpu_rss": {
               "baseline": {
                 "cpu_mean_seconds": 0.08500000000000026,
-                "rss_median_kib": 955068.0,
-                "sampled_tree_peak_max_kib": 955252.0,
+                "rss_median_kib": 955068,
+                "sampled_tree_peak_max_kib": 955252,
                 "session_hwm_max_kib": 955452
               },
               "candidate": {
                 "cpu_mean_seconds": 0.08833333333333322,
-                "rss_median_kib": 954714.0,
-                "sampled_tree_peak_max_kib": 954792.0,
+                "rss_median_kib": 954714,
+                "sampled_tree_peak_max_kib": 954792,
                 "session_hwm_max_kib": 954832
               }
             }
@@ -880,7 +1360,7 @@
       },
       "edit_cpu_seconds": {
         "baseline": 27.73,
-        "candidate": 28.0
+        "candidate": 28
       },
       "final_rss_kib": {
         "baseline": 452568,
