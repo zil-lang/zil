@@ -1,0 +1,80 @@
+diff --git a/crates/zil-cli/tests/function_merging_research.rs b/crates/zil-cli/tests/function_merging_research.rs
+index 0c4413fbf..1f213883d 100644
+--- a/crates/zil-cli/tests/function_merging_research.rs
++++ b/crates/zil-cli/tests/function_merging_research.rs
+@@ -77,7 +77,7 @@ fn cli_policy_reaches_cache_keys_exports_and_failure_cleanup() {
+                     "off" => "default<O2>",
+                     "after" => "default<O2>|merge-functions=after|aliases=false",
+                     _ =>
+-                        "function(sroa,early-cse),ipsccp,globalopt,function(mem2reg,instcombine<max-iterations=1;no-verify-fixpoint>,simplifycfg),cgscc(inline),mergefunc,default<O2>|merge-functions=after|aliases=false",
++                        "function(sroa,early-cse),ipsccp,globalopt,function(mem2reg,instcombine<max-iterations=1;no-verify-fixpoint>,simplifycfg),mergefunc,default<O2>|merge-functions=after|aliases=false",
+                 }
+             );
+             assert_eq!(Command::new(&output).status().unwrap().code(), Some(42));
+diff --git a/crates/zil-llvm-api/src/lib.rs b/crates/zil-llvm-api/src/lib.rs
+index df1963023..3cac51887 100644
+--- a/crates/zil-llvm-api/src/lib.rs
++++ b/crates/zil-llvm-api/src/lib.rs
+@@ -25,8 +25,8 @@ pub enum FunctionMerging {
+     #[default]
+     Disabled,
+     AfterOptimization,
+-    /// Normalize and expose small implementations before early equivalence,
+-    /// then retain the complete target-specific O2 pipeline and its late merge.
++    /// Normalize implementations before early equivalence, then retain the
++    /// complete target-specific O2 pipeline, its normal inlining and late merge.
+     /// No distinct-address aliasing or verification permission is introduced.
+     BeforeAndAfter,
+ }
+@@ -44,7 +44,7 @@ pub const fn pipeline_identity(
+             "default<O2>|merge-functions=after|aliases=false"
+         }
+         (Optimization::O2, FunctionMerging::BeforeAndAfter) => {
+-            "function(sroa,early-cse),ipsccp,globalopt,function(mem2reg,instcombine<max-iterations=1;no-verify-fixpoint>,simplifycfg),cgscc(inline),mergefunc,default<O2>|merge-functions=after|aliases=false"
++            "function(sroa,early-cse),ipsccp,globalopt,function(mem2reg,instcombine<max-iterations=1;no-verify-fixpoint>,simplifycfg),mergefunc,default<O2>|merge-functions=after|aliases=false"
+         }
+     }
+ }
+@@ -215,7 +215,8 @@ mod pipeline_policy_tests {
+     fn normalized_early_policy_keeps_the_complete_default_and_a_distinct_cache_identity() {
+         let early = pipeline_identity(Optimization::O2, FunctionMerging::BeforeAndAfter);
+         assert!(early.starts_with("function(sroa,early-cse),ipsccp,globalopt,"));
+-        assert!(early.contains("cgscc(inline),mergefunc,default<O2>"));
++        assert!(early.contains("simplifycfg),mergefunc,default<O2>"));
++        assert!(!early.contains("cgscc(inline)"));
+         assert!(early.ends_with("|merge-functions=after|aliases=false"));
+         assert_ne!(
+             early,
+diff --git a/crates/zil-llvm-api/src/native.rs b/crates/zil-llvm-api/src/native.rs
+index 113d27b88..9ada7e7a6 100644
+--- a/crates/zil-llvm-api/src/native.rs
++++ b/crates/zil-llvm-api/src/native.rs
+@@ -368,7 +368,7 @@ fn compile_input(
+     unsafe { LLVMSetModuleDataLayout(module.0, layout.0) };
+     let pipeline = match (optimized, function_merging) {
+         (false, _) => c"default<O0>",
+-        (true, FunctionMerging::BeforeAndAfter) => c"function(sroa,early-cse),ipsccp,globalopt,function(mem2reg,instcombine<max-iterations=1;no-verify-fixpoint>,simplifycfg),cgscc(inline),mergefunc,default<O2>",
++        (true, FunctionMerging::BeforeAndAfter) => c"function(sroa,early-cse),ipsccp,globalopt,function(mem2reg,instcombine<max-iterations=1;no-verify-fixpoint>,simplifycfg),mergefunc,default<O2>",
+         (true, _) => c"default<O2>",
+     };
+     let opts = PassOptions(unsafe { LLVMCreatePassBuilderOptions() });
+diff --git a/docs/guide/function-merging.md b/docs/guide/function-merging.md
+index 6830432da..558c2b744 100644
+--- a/docs/guide/function-merging.md
++++ b/docs/guide/function-merging.md
+@@ -1,11 +1,11 @@
+ # 函数等价合并的执行顺序
+ 
+-`--function-merging before-and-after` 仍是显式的LLVM API O2策略，默认关闭；`off`和`after`保持原有含义。此策略先做有限的标量替换、表达式整理和模块常量传播，再执行一次早期内联、合并可证明相同的实现，最后完整执行目标平台的`default<O2>`及原末尾合并。它不替换整个LLVM默认管线，也不承诺每种程序都比`after`更快。
++`--function-merging before-and-after` 仍是显式的LLVM API O2策略，默认关闭；`off`和`after`保持原有含义。此策略先做有限的标量替换、表达式整理和模块常量传播，再合并可证明相同的实现，最后完整执行目标平台的`default<O2>`及原末尾合并。完整O2保留正常的内联策略；前缀不额外执行独立的CGSCC内联阶段。它不替换整个LLVM默认管线，也不承诺每种程序都比`after`更快。
+ 
+-顺序很重要：直接合并原始函数可能改变调用次数和内联决策；等完整O2之后才合并，又可能已经为相同实现重复付出大量优化成本。规范化与早期内联使早期合并看到更接近实际使用的实现，同时仍保留完整的后续优化机会。前缀使用固定的LLVM23支持管线，不读取环境变量选择研究版本。InstCombine使用与默认O2相同的有限迭代和调试收敛检查选项；当前ZIL独立Verify、机器预检和LLVM优化前后模块验证均不受影响。
++顺序很重要：直接合并原始函数可能改变调用次数和内联决策；等完整O2之后才合并，又可能已经为相同实现重复付出大量优化成本。规范化为早期等价比较整理实现，同时将调用展开留给完整的后续O2优化。前缀使用固定的LLVM23支持管线，不读取环境变量选择研究版本。InstCombine使用与默认O2相同的有限迭代和调试收敛检查选项；当前ZIL独立Verify、机器预检和LLVM优化前后模块验证均不受影响。
+ 
+-与`--incremental-o2`一起使用时，默认`off`和`before-and-after`均保留原完整调用闭包规划，后者使早期内联与合并能看到完整的本地实现；仅显式`after`允许采用[资源helper分区](resource-helper-partition.md)，减少私有编辑触及的机器单元。各策略的编译收益和运行质量须分别测量，不能相加视作组合收益，也不能将`after`的运行质量推广到关闭合并的模式。完整闭包仍受原复制预算约束，超过预算时采用原有普通分区回退。分区策略进入布局缓存身份，完整优化管线进入对象缓存身份。
++与`--incremental-o2`一起使用时，默认`off`和`before-and-after`均保留原完整调用闭包规划，后者使早期合并及后续O2能看到完整的本地实现；仅显式`after`允许采用[资源helper分区](resource-helper-partition.md)，减少私有编辑触及的机器单元。各策略的编译收益和运行质量须分别测量，不能相加视作组合收益，也不能将`after`的运行质量推广到关闭合并的模式。完整闭包仍受原复制预算约束，超过预算时采用原有普通分区回退。分区策略进入布局缓存身份，完整优化管线进入对象缓存身份。
+ 
+-完整管线及函数地址别名策略进入对象缓存身份，旧的原始早期合并对象不能命中新策略。合并仍禁止将不同可观察函数地址别名化：外部C消费者观察地址、具名导出、调用结果和清理顺序均须保持。Clang参考后端仍明确拒绝`before-and-after`，不能静默改用不同管线；`after`继续作为双方后端的对照。
++完整管线及函数地址别名策略进入对象缓存身份，不同前缀使用不同缓存身份。合并仍禁止将不同可观察函数地址别名化：外部C消费者观察地址、具名导出、调用结果和清理顺序均须保持。Clang参考后端仍明确拒绝`before-and-after`，不能静默改用不同管线；`after`继续作为双方后端的对照。
+ 
+ 评测须明确使用的策略、真实修改历史、冷构建代价和生成程序运行质量。额外的早期优化可能增加递归调用图的冷构建和私有编辑编译时间，即使生成程序并未变慢；编译延迟、对象大小和运行时间须分别检查。该策略尝试减少相同实现的重复优化工作，不构成新的所有权假设、验证权限、完整增量链接或对一般分派程序的全面提速保证。

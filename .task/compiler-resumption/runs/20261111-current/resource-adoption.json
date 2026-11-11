@@ -1,0 +1,51 @@
+{
+  "scope": "Explicit incremental O2 with after resource helper partitioning only",
+  "source": "f38ed14b2c18c587f01a117f3c8a6d9cc67c4e7b",
+  "tree": "1c16744d838064cb1c687ba56ef3a0d17ed3130c",
+  "base": "4ec5e78cfe1f2d0188ddc2502e6b15358f062b71",
+  "decision": "Accept finite opt-in implementation; not a universal performance acceptance",
+  "basis": [
+    "Unchanged independent Verify, budgets, ABI and mandatory machine preflight",
+    "Exact-tree official and research CI each 6050 workspace / 5935 reference / 70 text-reference passed",
+    "All 16 fixed multi runtime cells pass the original 10% and Rust90 conditions; 384 raw observations independently recomputed",
+    "Fixed multi edit weighted full-request wall 242.786492ms to 180.181832ms; 62.604660ms or 25.7859% reduction",
+    "Current default-off and single-file unaffected source paths retain the original planner; retained base/candidate ELFs are byte identical in failed timing cells"
+  ],
+  "preserved_nonpasses": {
+    "default_off_original": {
+      "numerical_pass": false,
+      "worst_regression_pct": 25.1184,
+      "same_complete_elf": true
+    },
+    "default_off_confirmation": {
+      "numerical_pass": false,
+      "case": "dispatch16/base/depth0",
+      "base_ms": 1.661198,
+      "candidate_ms": 1.828185,
+      "regression_pct": 10.0522032894,
+      "same_complete_elf": true,
+      "aa_difference_pct": 8.759986
+    },
+    "quality_rust90_new_numeric_crossing": {
+      "count": 1,
+      "same_complete_elf": true,
+      "numerical_pass": false
+    },
+    "existing_rust90_objective": false,
+    "all_protocol_flags_pass": false
+  },
+  "costs": [
+    "Original eight-workload weighted compilation does not show an overall gain (three profiles slower)",
+    "Multi cold CPU rises 23.5928%; pipeline cold CPU rises about39% and48%",
+    "pipeline16 edit-warm is40.63% slower; no universal warm-build claim",
+    "Worst new-code multi runtime +9.9365859928% has only0.0634140072 percentage points below the original limit"
+  ],
+  "normalization": {
+    "source": "130d3a7cab25603ae42a7fae0c9f63116c858c72",
+    "accepted": false,
+    "reason": "Different generated code; primary three runtime cells regress13%-24%, plus holdout failure; no runtime waiver"
+  },
+  "parent_gates_closed": false,
+  "evidence": "All prior raw data preserved in raw.tar.gz and original local files. Numerical false observations stay false; acceptance is limited to explicit after policy with separate source and code-identity reasoning.",
+  "root_review_date": "2026-11-11 Asia/Shanghai"
+}
