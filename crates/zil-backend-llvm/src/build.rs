@@ -1,5 +1,5 @@
 use std::fs;
-use std::io;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
@@ -215,6 +215,26 @@ pub fn build_view_with_cancellation_and_stable_names(
     stable_names: Option<&[(FunctionId, String)]>,
 ) -> CompileResult<BuildArtifact> {
     check_cancelled(cancelled)?;
+    // Research-only exporter: the wrapper supplies the real ThinLTO pipeline.
+    // A receipt path is the explicit opt-in; ordinary requests are unchanged.
+    let thinlto_receipt = std::env::var_os("ZIL_RESEARCH_THINLTO_RECEIPT").map(PathBuf::from);
+    if let Some(path) = &thinlto_receipt {
+        if options.backend != NativeBackend::Clang
+            || options.optimization != Optimization::O2
+            || !options.incremental_o2
+            || options.function_merging != FunctionMerging::AfterOptimization
+            || options.closed_executable
+            || options.object_cache.is_some()
+            || options.codegen.units != 8
+            || options.codegen.jobs != 2
+            || options.emit.entry != EntryPoint::Main
+            || lir.target.triple != "x86_64-unknown-linux-gnu"
+            || !path.is_absolute()
+            || path.exists()
+        {
+            return Err(infra("E-RESEARCH-THINLTO-SCOPE", "ThinLTO research requires explicit Linux main Clang O2 incremental after, 8 units/2 jobs, no closed/object cache, and a fresh absolute receipt path"));
+        }
+    }
     if options.emit.entry == EntryPoint::None {
         return Err(vec![Diagnostic::error(
             Phase::Link,
@@ -260,6 +280,13 @@ pub fn build_view_with_cancellation_and_stable_names(
             options.codegen.jobs,
         )?;
     let mut task_abis = crate::task_abi::derive(verified, &machine, &mut task_work)?;
+    let original_preflight_ns = if thinlto_receipt.is_some() {
+        let start = std::time::Instant::now();
+        zil_llvm_api::validate_module(&machine).map_err(api_error)?;
+        start.elapsed().as_nanos()
+    } else {
+        0
+    };
     // The opt-in O2 strategy contracts strict checked-add chains before
     // scalar evaluation. Each nonempty plan validates its complete unchanged
     // input before mutation. Ordinary O2 skips both passes.
@@ -305,6 +332,13 @@ pub fn build_view_with_cancellation_and_stable_names(
     // Diagnostic/reference output only. Each nonempty transform plan requires
     // complete original-model preflight. Existing per-unit API preflight still runs
     // immediately before its LLVMBuilder calls and cannot be bypassed.
+    let partition_input_preflight_ns = if thinlto_receipt.is_some() {
+        let start = std::time::Instant::now();
+        zil_llvm_api::validate_module(&machine).map_err(api_error)?;
+        start.elapsed().as_nanos()
+    } else {
+        0
+    };
     let llvm = machine.to_text();
     let mut pending_layout = None;
     let (mut plan, stable_candidates, stable_diagnostic) = if let Some(stable) = stable {
@@ -328,10 +362,14 @@ pub fn build_view_with_cancellation_and_stable_names(
             options.emit.entry,
             options.codegen.units,
             options.optimization == Optimization::O0 || options.incremental_o2,
-            crate::machine_cgu::CallImportPolicy::for_incremental_o2(
-                options.optimization == Optimization::O2 && options.incremental_o2,
-                options.function_merging,
-            ),
+            if thinlto_receipt.is_some() {
+                crate::machine_cgu::CallImportPolicy::Disabled
+            } else {
+                crate::machine_cgu::CallImportPolicy::for_incremental_o2(
+                    options.optimization == Optimization::O2 && options.incremental_o2,
+                    options.function_merging,
+                )
+            },
             (options.backend == NativeBackend::LlvmApi)
                 .then_some(options.object_cache.as_deref())
                 .flatten(),
@@ -422,6 +460,20 @@ pub fn build_view_with_cancellation_and_stable_names(
         fallback: plan.fallback.map(str::to_owned),
         task_abis,
     };
+    if let Some(path) = &thinlto_receipt {
+        let mut units = Vec::new();
+        for (unit, module) in plan.units.iter().enumerate() {
+            check_cancelled(cancelled)?;
+            let start = std::time::Instant::now();
+            zil_llvm_api::validate_module(module).map_err(api_error)?;
+            units.push(format!("{{\"unit\":{unit},\"preflight_ns\":{}}}", start.elapsed().as_nanos()));
+        }
+        let receipt = format!("{{\"format\":\"zil-thinlto-export-preflight/1\",\"backend\":\"clang\",\"request\":\"O2+incremental-o2+after\",\"imports\":\"disabled-for-llvm-thinlto\",\"original_preflight_ns\":{original_preflight_ns},\"partition_input_preflight_ns\":{partition_input_preflight_ns},\"actual_units\":{actual_units},\"units\":[{}],\"llvm_verification\":\"external-wrapper-required\"}}", units.join(","));
+        let mut file = fs::OpenOptions::new().write(true).create_new(true).open(path)
+            .map_err(|error| io_error("create ThinLTO research preflight receipt", path, error))?;
+        file.write_all(receipt.as_bytes()).map_err(|error| io_error("write ThinLTO research preflight receipt", path, error))?;
+        codegen.object_reports.push(receipt);
+    }
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";
     if windows != options.windows.is_some() {
         return Err(infra(
@@ -737,7 +789,6 @@ fn check_cancelled(cancelled: &(dyn Fn() -> bool + Sync)) -> CompileResult<()> {
     }
 }
 
-#[cfg(feature = "llvm-api")]
 fn api_error(error: zil_llvm_api::Error) -> Vec<Diagnostic> {
     use zil_llvm_api::ErrorKind;
     let (code, category) = match error.kind {
