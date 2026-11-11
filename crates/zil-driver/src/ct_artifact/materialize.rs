@@ -31,8 +31,8 @@ mod self_constant_coverage;
 mod self_constants;
 #[path = "materialize_source_sites.rs"]
 mod source_sites;
-pub use scalar_materialization::ScalarMaterializationStats;
 pub(crate) use scalar_materialization::ScalarMaterializationSession;
+pub use scalar_materialization::ScalarMaterializationStats;
 
 fn category(message: impl Into<String>, span: Span) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
