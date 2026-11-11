@@ -5,7 +5,7 @@
   "read_goal_sha": "32fe4e123b5c75fc943f8f0fe346964dac1c1102",
   "source_base": "99035931d358add0eaed6d4535035c38413701dd",
   "source_branch": "research/reactive-query-graph",
-  "source_head": "e31e7eceee15f4e703eb81731c88d8a8578fe68f",
+  "source_head": "21746adedf6eac6aee6f3c31e7b7ec4907027428",
   "probe_commit": "1735a305ccfff2c95ac2658b6c2ca427dc9eb392",
   "probe_blob": "98762b26506c0e35ec11072b8d397c845b407eff",
   "probe_sha256": "a657bfe2c05b16be3dea346ec6afee2f9470ce14a820f1606b876b97fae94c57",
@@ -18,14 +18,12 @@
     "positive, adverse, superseded and timed-out measurement identities retained"
   ],
   "not_run": [
-    "production compiler integration",
-    "Source/Types/Analyze/independent Verify equivalence",
-    "LLVM/linker/native behavior",
-    "Rust comparison",
-    "compiler memory and workload-weighted acceptance",
-    "independent review"
+    "complete cross-stage stable semantic query/SCC architecture",
+    "repeated paired performance acceptance",
+    "full workspace/product integration gates",
+    "large raw evidence durable delivery (pending)"
   ],
-  "scope_state": "model delivered; production integration not executed; no background work",
+  "scope_state": "Default-off production slice implemented and under real validation; no accepted end-to-end gain; main unchanged",
   "evidence": {
     "readme": "tools/research/reactive-query-graph/README.md",
     "receipt": "tools/research/reactive-query-graph/receipt.json",
@@ -38,20 +36,20 @@
     "height_adaptation": "fbf8cb4979fa2fb655fbdf73f72a7037d64a39cd",
     "cp25_c": "3e5657a312c80188dbaa81451e88f651d586b265"
   },
-  "coordination": "New research branch and this record only. main, archive and existing compiler task refs unchanged. goal.md main task table was not rewritten; this is a delivery record, not a second task board. Production write sets must be coordinated before further integration.",
+  "coordination": "Own production/metrics write set and narrow root Types→zil-db edge are claimed in continuation. Other compiler refs untouched; current main remains 99035931; goal never merged into main.",
   "continuation": {
     "task": "G10.5.1.15",
-    "read_goal_sha": "92b0ad66b9e24b4d3c6b0bc3ad1be7271be0eb2d",
+    "read_goal_sha": "a67f6778e1696991cf4b45c8eb12ba2efa86ff43",
     "source_start": "c75c58bf7f564a1ce8049702f9c6ec41c82d1da2",
     "main": "99035931d358add0eaed6d4535035c38413701dd",
-    "status": "Executing real compiler baseline and production integration; not accepted",
-    "updated_utc": "2026-11-11T12:28:26.384041+00:00",
+    "status": "Frozen production slice validation; not accepted",
+    "updated_utc": "2026-11-11T12:52:45.838551+00:00",
     "write_set": [
       "crates/zil-driver/src/session.rs",
       "crates/zil-driver/src/project.rs",
       "crates/zil-driver/src/semantic_cache.rs",
       "crates/zil-driver/src/reactive*.rs",
-      "crates/zil-driver/src/lib.rs (module wiring only)",
+      "crates/zil-driver/src/lib.rs (CompileOptions/report/attempt instrumentation and module wiring; no public IR/schema)",
       "crates/zil-db/src/**",
       "crates/zil-types/src/incremental.rs",
       "crates/zil-analyze/src/incremental.rs",
@@ -72,9 +70,9 @@
       "root Cargo.toml; all other dependency and unsafe boundary entries"
     ],
     "worktree": "/workspace/scratch/e28839ace920/reactive",
-    "target": "/workspace/scratch/e28839ace920/targets/reactive",
+    "target": "/workspace/scratch/e28839ace920/targets/reactive-validation-71bed1f",
     "toolchain": "existing pinned Rust1.99.1 / LLVM23.1.4; checker Pass",
-    "next": "Build frozen main baseline, run Source check and native output, then wire stable owners and real semantic consumers",
+    "next": "Run frozen21746 native repeated O2/check pairs and retain all samples; only after measured acceptance consider broader module expansion queries",
     "root_only_coordination": {
       "reason": "Real Types consumer must call the common zil-db reactive graph; no dependency cycle and no external dependency. Root alone adds this narrow edge, outside the active ThinLTO backend/LLVM edits.",
       "paths": [
@@ -88,6 +86,50 @@
         "LLVM unsafe boundary",
         "other compiler branches"
       ]
-    }
+    },
+    "source_head": "21746adedf6eac6aee6f3c31e7b7ec4907027428",
+    "tests": {
+      "source": "21746adedf6eac6aee6f3c31e7b7ec4907027428",
+      "db_lib_passed": 25,
+      "types_lib_passed": 63,
+      "driver_lib_passed": 144,
+      "raw": "validation-71bed1f/out/runs/reactive-21746ad-lib-tests-r2/test.log"
+    },
+    "independent_review": {
+      "reviewer": "/root/workload_harness (sol high), did not author production code",
+      "source": "21746adedf6eac6aee6f3c31e7b7ec4907027428",
+      "result": "RQ-REVIEW-01/02 corrected; no new proven blocker in reviewed diff; static review only"
+    },
+    "native_screen": {
+      "source": "71bed1fc8d5f184549b2f08ab7af724a9952fc9a",
+      "binary_sha256": "fa966e4010301e207503acb88028783715e9706b064c7c60706514a0b76244c7",
+      "runner_source": "21746adedf6eac6aee6f3c31e7b7ec4907027428",
+      "case": "generated scalar20x20x16, 22 files,498620bytes, O2 LLVM-API oneCGU",
+      "requests": 14,
+      "native_executions": 84,
+      "blocks": 1,
+      "interpretation": "screen only; all semantics/native/ELF/LLVM pairs equal; no net-gain acceptance",
+      "raw": "reactive/out/runs/native-scalar-screen-71bed1f-r1"
+    },
+    "failures": [
+      {
+        "run": "reactive-21746ad-tests-r1",
+        "category": "InfraError",
+        "reason": "Unrestricted package test selection generated ~40GB debug integration-test ELF outputs and exhausted disk before execution. Not Pass. Only 98 owned rebuildable test executables reclaimed; logs/source/rlibs/release/other tasks preserved."
+      }
+    ],
+    "raw_backup": "Not yet durably bundled; local raw paths alone do not constitute backup"
+  },
+  "prior_model_status": {
+    "source_head": "e31e7eceee15f4e703eb81731c88d8a8578fe68f",
+    "scope_state": "model delivered; production integration not executed; no background work",
+    "not_run": [
+      "production compiler integration",
+      "Source/Types/Analyze/independent Verify equivalence",
+      "LLVM/linker/native behavior",
+      "Rust comparison",
+      "compiler memory and workload-weighted acceptance",
+      "independent review"
+    ]
   }
 }
