@@ -1,0 +1,121 @@
+name: Combined closure compiler acceptance
+on:
+  push:
+    branches: [task/compiler-composition-validation]
+    paths: [.github/workflows/compiler-composition.yml]
+permissions:
+  contents: write
+jobs:
+  acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Exact current main and unchanged complete protocols
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/composed-setup" .task/normalized-merging/bench .task/normalized-merging/neighbors .task/normalized-consumers
+          rustup toolchain install 1.99.1 --profile minimal
+          cargo fetch --locked
+          sudo apt-get update -qq
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/composed-llvm" > "$RUNNER_TEMP/composed-setup/llvm.log" 2>&1
+          echo "ZIL_CLANG=$RUNNER_TEMP/composed-llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/composed-llvm/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/composed-llvm/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/composed-llvm/bin" >> "$GITHUB_PATH"
+          git fetch --depth=1 --no-tags origin 2bb30ce1819137d666c073299aa2639da4fd2964 5172f85373345c90d39aea8b8c51fa5e7ad2f632 56d928a7a43f5ffcddcbe8b764ab3c66ba0567e9 e19e35a9177b491b595f085fc77836a963856382
+          git worktree add --detach "$RUNNER_TEMP/composed-base" 2bb30ce1819137d666c073299aa2639da4fd2964
+          test "$(git rev-parse e19e35a9177b491b595f085fc77836a963856382^{tree})" = 906af07211d882d2957cb7254bf03cd4beab9cdb
+          for f in corpus.py measure.py; do git show 5172f85373345c90d39aea8b8c51fa5e7ad2f632:.task/normalized-merging/bench/$f > .task/normalized-merging/bench/$f; done
+          for f in controls.py quality.py multimodule.py; do git show 5172f85373345c90d39aea8b8c51fa5e7ad2f632:.task/normalized-merging/$f > .task/normalized-merging/$f; done
+          for f in check.py corpus.py; do git show 5172f85373345c90d39aea8b8c51fa5e7ad2f632:.task/normalized-merging/neighbors/$f > .task/normalized-merging/neighbors/$f; done
+          for f in holdout.py state_store.py; do git show 56d928a7a43f5ffcddcbe8b764ab3c66ba0567e9:.task/normalized-consumers/$f > .task/normalized-consumers/$f; done
+          python3 -m py_compile .task/normalized-merging/*.py .task/normalized-merging/bench/*.py .task/normalized-merging/neighbors/*.py .task/normalized-consumers/*.py
+          git add .task/normalized-merging .task/normalized-consumers
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Freeze unchanged complete request and runtime protocols on actual combined production tree'
+          git rev-parse HEAD > "$RUNNER_TEMP/composed-setup/source.txt"
+          git fetch --no-tags origin refs/heads/task/compiler-composition-validation
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git push origin HEAD:refs/heads/task/compiler-composition-validation
+          rustc -vV > "$RUNNER_TEMP/composed-setup/rustc.txt"
+          git diff 2bb30ce1819137d666c073299aa2639da4fd2964 e19e35a9177b491b595f085fc77836a963856382 -- crates docs > "$RUNNER_TEMP/composed-setup/production.patch"
+      - name: Independent same-profile release compilers
+        id: build
+        run: |
+          set -euo pipefail
+          CARGO_TARGET_DIR="$RUNNER_TEMP/composed-base-target" cargo build --locked --offline --release --manifest-path "$RUNNER_TEMP/composed-base/Cargo.toml" -p zil-cli > "$RUNNER_TEMP/composed-setup/base-build.log" 2>&1
+          CARGO_TARGET_DIR="$RUNNER_TEMP/composed-candidate-target" cargo build --locked --offline --release -p zil-cli > "$RUNNER_TEMP/composed-setup/candidate-build.log" 2>&1
+      - name: Complete original eight-case request matrix
+        run: |
+          set -euo pipefail
+          python3 .task/normalized-merging/bench/measure.py --base "$RUNNER_TEMP/composed-base-target/release/zil" --candidate "$RUNNER_TEMP/composed-candidate-target/release/zil" --out "$RUNNER_TEMP/composed-primary" --rounds 5 2>&1 | tee "$RUNNER_TEMP/composed-setup/primary.log"
+      - name: Complete Check O0 O2 multi-module request matrix
+        run: |
+          set -euo pipefail
+          python3 .task/normalized-merging/multimodule.py --base "$RUNNER_TEMP/composed-base-target/release/zil" --candidate "$RUNNER_TEMP/composed-candidate-target/release/zil" --out "$RUNNER_TEMP/composed-multi" --rounds 5 2>&1 | tee "$RUNNER_TEMP/composed-setup/multi.log"
+      - name: All original active and inactive runtime guards
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 .task/normalized-merging/quality.py --base "$RUNNER_TEMP/composed-base-target/release/zil" --candidate "$RUNNER_TEMP/composed-candidate-target/release/zil" --out "$RUNNER_TEMP/composed-quality" 2>&1 | tee "$RUNNER_TEMP/composed-setup/quality.log"
+          python3 .task/normalized-merging/neighbors/check.py --base "$RUNNER_TEMP/composed-base-target/release/zil" --candidate "$RUNNER_TEMP/composed-candidate-target/release/zil" --out "$RUNNER_TEMP/composed-neighbors" 2>&1 | tee "$RUNNER_TEMP/composed-setup/neighbors.log"
+      - name: Allocation failure and cleanup order in both native backends
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 .task/normalized-merging/controls.py --base "$RUNNER_TEMP/composed-base-target/release/zil" --candidate "$RUNNER_TEMP/composed-candidate-target/release/zil" --out "$RUNNER_TEMP/composed-controls" 2>&1 | tee "$RUNNER_TEMP/composed-setup/controls.log"
+      - name: Unequal implementation holdout and actual State Store policy consumers
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 .task/normalized-consumers/holdout.py --base "$RUNNER_TEMP/composed-base-target/release/zil" --candidate "$RUNNER_TEMP/composed-candidate-target/release/zil" --out "$RUNNER_TEMP/composed-holdout" 2>&1 | tee "$RUNNER_TEMP/composed-setup/holdout.log"
+          python3 .task/normalized-consumers/state_store.py --repo "$GITHUB_WORKSPACE" --cli "$RUNNER_TEMP/composed-candidate-target/release/zil" --clang "$ZIL_CLANG" --out "$RUNNER_TEMP/composed-state" 2>&1 | tee "$RUNNER_TEMP/composed-setup/state.log"
+      - name: Preserve all actual combined observations without adding isolated gains
+        if: ${{ always() }}
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,json,tarfile,hashlib,shutil
+          t=Path(os.environ['RUNNER_TEMP']);d=Path('.task/composition/runs')/os.environ['GITHUB_RUN_ID'];d.mkdir(parents=True);labels=['primary','multi','quality','neighbors','controls','holdout','state'];omitted=[]
+          for label in labels:
+              source=t/('composed-'+label)
+              if source.exists():
+                  dest=d/label;dest.mkdir()
+                  for name in ('summary.json','rows.jsonl','runtime.jsonl','cells.json','manifest.json','failures.json','equivalence.json','failure.json'):
+                      if (source/name).exists():shutil.copyfile(source/name,dest/name)
+          with tarfile.open(d/'raw.tar.gz','w:gz') as tar:
+              for label in ['setup']+labels:
+                  source=t/('composed-'+label)
+                  if source.exists():
+                      for p in source.rglob('*'):
+                          if not p.is_file() or any(x in p.parts for x in ('incremental','semantic','objects')):continue
+                          with p.open('rb') as f:elf=f.read(4)==b'\x7fELF'
+                          if elf:omitted.append({'path':label+'/'+str(p.relative_to(source)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()});continue
+                          tar.add(p,arcname=label+'/'+str(p.relative_to(source)))
+          (d/'omitted-elf.json').write_text(json.dumps(omitted,indent=2)+'\n')
+          f=t/'composed-setup/source.txt';r={'baseline':'2bb30ce1819137d666c073299aa2639da4fd2964','production_candidate':'e19e35a9177b491b595f085fc77836a963856382','production_tree':'906af07211d882d2957cb7254bf03cd4beab9cdb','source':f.read_text().strip() if f.exists() else None,'recipe':os.environ['GITHUB_SHA'],'comparison':'actual composition; base after vs candidate normalized before-and-after atO2; Check/O0 unchanged','status_before_preservation':os.environ['PRIOR_STATUS'],'files':{str(p.relative_to(d)):hashlib.sha256(p.read_bytes()).hexdigest() for p in d.rglob('*') if p.is_file()},'main_modified':False,'acceptance':'Pending source, CI and full numerical review; no isolated percentage addition'}
+          (d/'receipt.json').write_text(json.dumps(r,indent=2)+'\n');assert (d/'raw.tar.gz').stat().st_size<48*1024*1024
+          PY
+          git fetch --no-tags origin refs/heads/task/compiler-composition-validation
+          expected="$GITHUB_SHA"; if test -f "$RUNNER_TEMP/composed-setup/source.txt"; then expected="$(cat "$RUNNER_TEMP/composed-setup/source.txt")"; fi
+          test "$(git rev-parse FETCH_HEAD)" = "$expected"
+          git add -- ".task/composition/runs/$GITHUB_RUN_ID"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Preserve actual combined compiler acceptance $GITHUB_RUN_ID including all failures"
+          git push origin HEAD:refs/heads/task/compiler-composition-validation
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: compiler-composition-${{ github.run_id }}
+          path: .task/composition/runs/${{ github.run_id }}
+          retention-days: 30
