@@ -33,7 +33,7 @@ def inject(pos):
     return 'module('+text+')' if wrapped else text
 variants={
  'raw':'mergefunc,default<O2>',
- 'normalize':'function(sroa,early-cse,instcombine,simplifycfg),mergefunc,default<O2>',
+ 'normalize':'function(sroa,early-cse,instcombine<max-iterations=1;no-verify-fixpoint>,simplifycfg),mergefunc,default<O2>',
  'before-inline':inject(idx),
  'after-inline':inject(idx+1),
  'after-cleanup':inject(next(i+1 for i in range(idx+1,len(parts)) if parts[i].startswith('function'))),
