@@ -478,11 +478,11 @@
   },
   "producer_continuation": {
     "task": "G10.5.1.15",
-    "read_goal_sha": "bc7d69e60b92c5860f5ee55b4f92bb4b81ff5ba4",
+    "read_goal_sha": "3aa63044726594ef2973760f7374f21095af032e",
     "source_start": "0a529a6247793f63ccd41ff3f65dc97afcbb666c",
     "main": "99035931d358add0eaed6d4535035c38413701dd",
-    "status": "进行中·大Source单点/批量稀疏工作门与O2输出已通过，未证净等待收益，正在删除未变AST深复制",
-    "updated_utc": "2026-11-11T16:17:21.765422+00:00",
+    "status": "进行中·真实AST借用与更新范围门通过，正式配对等待测量中，未接受净收益",
+    "updated_utc": "2026-11-11T16:34:01.762885+00:00",
     "write_set": [
       "crates/zil-syntax/src/**: parser-owned immutable Source provenance and tests",
       "crates/zil-expand/src/**: scalar module Normalize/Restore/Lower products, ordered budget receipts and tests",
@@ -514,11 +514,11 @@
       "requirements": "B must use versions fairly; separate production/Eq/context/inventory/graph/evaluation/backend within same request; preserve current Verify/source binding/first diagnostics/budgets and real native behavior. Freeze source before performance."
     },
     "success_gate": "Unchanged modules actually skip Normalize/Lower, unchanged Core deep comparison drops, CFG execution does not increase, complete fresh-current differential passes; only then extend graph or performance matrix.",
-    "remaining": "真实编译更新范围已缩小，但r4单block的复制组装仍约250–350ms，未有可靠端到端净收益；正以真实Arc借用Normalize/Restore产物消除深复制，保留原ledger/首次诊断和最终Core Vec clone。随后正式平衡A/B/C、规模/长会话/默认关成本门。C-B图收益单独，默认关，不合main。",
-    "source_head": "89ae96d62acb97d577e96b6e5d3fd90a56f99e8c",
+    "remaining": "六顺序无profile真实A/B/C check进行中；随后同源码O2/native与规模、长期、默认关控制。已减少未变模块生产和AST深clone；最终Core/Map组装、材料化及缓存编码仍全量，r5单block无可靠总等待收益。C-B只记图增量，默认关闭、不合main。",
+    "source_head": "ea0ce45741fde0082b6c92173b7480b167c888d4",
     "validation": {
-      "source": "89ae96d62acb97d577e96b6e5d3fd90a56f99e8c",
-      "lib_tests": 352,
+      "source": "ea0ce45741fde0082b6c92173b7480b167c888d4",
+      "lib_tests": 355,
       "cli_tests": 1,
       "strict_clippy": "workspace/all-targets -D warnings passed",
       "architecture": {
@@ -526,20 +526,14 @@
         "edges": 40,
         "status": "Pass at2a6; following source only type aliases/counter names"
       },
-      "actual_work_gate": "22module generated real Source: private equal/width NormalizeLower1,reuse21,version400,BodyKey21,CoreEq0;3file batch NormalizeLower3,reuse19,version358,BodyKey63;CFG same A5/6. Full fresh Typed/diag/budget/current Verify tests pass.",
-      "raw_local": "out/runs/producer-validation-89ae96d; native-abc-cost-20x20x16-r4; native-abc-producer-native-20x20x16-r4; final evidence replacement pending",
-      "review_source": "89ae96d62acb97d577e96b6e5d3fd90a56f99e8c",
-      "review": "non-author exact-byte budget/SourceMap/measurement review;352+CLI1 logs confirmed; no semantic blockers, no latency acceptance",
+      "actual_work_gate": "r5 real22modules: privateNormalizeLower1,actual Normalize input clone21/Restore moduleclone1,retained404/21;multi3,clone63/3,retained362/19;CoreEq0,CFG5/6sameA;all21requests currentVerify1;mutually exclusive costs valid",
+      "raw_local": "out/runs/producer-validation-fc2cd48;producer-validation-ea0ce45;producer-validation-ea0ce45-isolated-r2;native-abc-cost-20x20x16-r5; formal check underway; not yet in durable version0",
+      "review_source": "ea0ce45741fde0082b6c92173b7480b167c888d4",
+      "review": "non-author exact-byte Arc body/independent ledgers/full fallback/old path review;355+CLI1/strict lint/release logs independently confirmed",
+      "release": "passed",
+      "binary_sha256": "7c1e3354557f24480a6e92e90072704a500903a886f1fb494c37f58dbedb74e1",
       "native": {
-        "mode": "O2 llvm-api1CGU1job cacheall resident",
-        "blocks": 1,
-        "rows": 15,
-        "measured_rows": 9,
-        "native_executions": 90,
-        "current_verify_every_success": 1,
-        "A_B_C_ELF_equal": true,
-        "independent_oracle": "all90passed",
-        "interpretation": "real producer native correctness/work control; one block is not performance acceptance"
+        "status": "new ea0 native pending; prior89 native separately identified"
       }
     },
     "preserved_failures": [
@@ -574,6 +568,14 @@
       {
         "source": "f7defd7cfbaf7ad8d963db2e9fda41bbec73efeb",
         "issue": "352lib+CLI1 pass;strictClippy let_and_return only, exact direct-return fix89 then strictgate passed"
+      },
+      {
+        "source": "89ae96d62acb97d577e96b6e5d3fd90a56f99e8c",
+        "issue": "32x32x16 real Source allABC Lex defaulttoken ResourceLimit atfile33,m31:8271..39743,Verify0;private/multi notrun,valid performance denominator0; defaultlimits notextended"
+      },
+      {
+        "source": "ea0ce45741fde0082b6c92173b7480b167c888d4",
+        "issue": "firstvalidation driver163pass1fail in initialsetup: PID+atomic temp dir reused oldleaf/mod.zil causingE-MODULE-AMBIGUOUS;rawinput+mtime preserved. Same source/unchanged assertions with freshTMPDIR/ZIL_TEST_REPORT_DIR then355lib+CLI1pass"
       }
     ],
     "common_copy_control": {
@@ -605,6 +607,18 @@
       "all_entries_read_back_hash_verified": true,
       "boundary": "completed raw through7b2 red beforef7/89; new f7/89/r4 results not yet in saved version0",
       "private_zit_included": false
+    },
+    "previous_native_control": {
+      "source": "89ae96d62acb97d577e96b6e5d3fd90a56f99e8c",
+      "mode": "O2 llvm-api1CGU1job cacheall resident",
+      "blocks": 1,
+      "rows": 15,
+      "measured_rows": 9,
+      "native_executions": 90,
+      "current_verify_every_success": 1,
+      "A_B_C_ELF_equal": true,
+      "independent_oracle": "all90passed",
+      "interpretation": "real producer native correctness/work control; one block is not performance acceptance"
     }
   }
 }
