@@ -1,0 +1,36 @@
+name: Reactive query offline toolchain
+on:
+  push:
+    branches: [research/reactive-query-graph]
+    paths: ['.github/workflows/reactive-query-toolchain.yml']
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Package public compiler and locked public dependencies only
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          mkdir -p "$RUNNER_TEMP/offline-env" "$RUNNER_TEMP/vendor"
+          SYSROOT="$(rustc --print sysroot)"
+          rustc -vV > "$RUNNER_TEMP/offline-env/toolchain.txt"
+          tar -C "$SYSROOT" -czf "$RUNNER_TEMP/offline-env/rust-1.99.1.tar.gz" bin lib
+          cargo vendor --locked "$RUNNER_TEMP/vendor" > "$RUNNER_TEMP/offline-env/vendor-config.txt"
+          tar -C "$RUNNER_TEMP" -czf "$RUNNER_TEMP/offline-env/vendor.tar.gz" vendor
+          du -sh "$RUNNER_TEMP/offline-env/"*
+          sha256sum "$RUNNER_TEMP/offline-env/"*.tar.gz > "$RUNNER_TEMP/offline-env/SHA256SUMS"
+          git rev-parse HEAD > "$RUNNER_TEMP/offline-env/source-commit.txt"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: reactive-offline-env-${{ github.sha }}
+          path: ${{ runner.temp }}/offline-env/
+          compression-level: 0
+          retention-days: 3
+          if-no-files-found: error
