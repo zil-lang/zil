@@ -2,7 +2,7 @@
   "date": "2026-11-11",
   "parent_scope": "G10.5.1",
   "research": "stable-owner reactive query graph",
-  "read_goal_sha": "a4e78dd67301110f072189dc76cb49bb962e9081",
+  "read_goal_sha": "80117ff0dcadaa0829d9a4b226b741ae478f5f1b",
   "source_base": "99035931d358add0eaed6d4535035c38413701dd",
   "source_branch": "research/reactive-query-graph",
   "source_head": "0a529a6247793f63ccd41ff3f65dc97afcbb666c",
@@ -56,11 +56,11 @@
   "coordination": "Own production/metrics write set and narrow root Types→zil-db edge are claimed in continuation. Other compiler refs untouched; current main remains 99035931; goal never merged into main.",
   "continuation": {
     "task": "G10.5.1.15",
-    "read_goal_sha": "a4e78dd67301110f072189dc76cb49bb962e9081",
+    "read_goal_sha": "80117ff0dcadaa0829d9a4b226b741ae478f5f1b",
     "source_start": "c75c58bf7f564a1ce8049702f9c6ec41c82d1da2",
     "main": "99035931d358add0eaed6d4535035c38413701dd",
     "status": "本轮有限真实阶段已保存/未验收；默认关闭，无后台任务",
-    "updated_utc": "2026-11-11T13:40:08.471067+00:00",
+    "updated_utc": "2026-11-11T13:43:21.187570+00:00",
     "write_set": [
       "crates/zil-driver/src/session.rs",
       "crates/zil-driver/src/project.rs",
@@ -441,7 +441,21 @@
       "validation_head": "be6dcf9fd82566b5874298327e8c19b30ee87ec3",
       "release_binary_source": "21746adedf6eac6aee6f3c31e7b7ec4907027428",
       "unpublished_unique_source": "none",
-      "background_work": "none promised; all tests/measurements completed"
+      "background_work": "none promised; all tests/measurements completed",
+      "active_goal_worktree": "/workspace/scratch/e28839ace920/goal-final",
+      "obsolete_coordination_staging": {
+        "path": "/workspace/scratch/e28839ace920/goal-update",
+        "state": "Inactive earlier staging tree retained without reset/clean; two uncommitted coordination files and one local duplicate commit have no unique unpublished content.",
+        "uncommitted_files": {
+          "goal.md": "ff54389fd96c6f7c0f75c83af96fe0ed5b9b59f4",
+          "records/compiler-reactive-query-graph.json": "34265a867bc251f8126319407c85f599db5ae84e"
+        },
+        "both_working_file_blobs_already_remote_at": "a67f6778e1696991cf4b45c8eb12ba2efa86ff43",
+        "local_duplicate_commit": "f921c3390ebcc61e8518a9dbb3d142005da81634",
+        "local_duplicate_tree": "f025049c4cedde87347a17785a5a12445da6aa5d",
+        "exact_tree_already_remote_at": "92b0ad66b9e24b4d3c6b0bc3ad1be7271be0eb2d",
+        "verification": "Actual git hash-object and remote-reachable commit tree comparisons completed; do not resume task from this obsolete tree."
+      }
     },
     "blocking_conditions": [
       "No environment/toolchain blocker",
