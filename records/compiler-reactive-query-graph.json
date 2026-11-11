@@ -2,10 +2,10 @@
   "date": "2026-11-11",
   "parent_scope": "G10.5.1",
   "research": "stable-owner reactive query graph",
-  "read_goal_sha": "32fe4e123b5c75fc943f8f0fe346964dac1c1102",
+  "read_goal_sha": "a4e78dd67301110f072189dc76cb49bb962e9081",
   "source_base": "99035931d358add0eaed6d4535035c38413701dd",
   "source_branch": "research/reactive-query-graph",
-  "source_head": "21746adedf6eac6aee6f3c31e7b7ec4907027428",
+  "source_head": "0a529a6247793f63ccd41ff3f65dc97afcbb666c",
   "probe_commit": "1735a305ccfff2c95ac2658b6c2ca427dc9eb392",
   "probe_blob": "98762b26506c0e35ec11072b8d397c845b407eff",
   "probe_sha256": "a657bfe2c05b16be3dea346ec6afee2f9470ce14a820f1606b876b97fae94c57",
@@ -15,20 +15,37 @@
     "synchronous stable-owner/bidirectional-bond/height-dedup/equality-barrier model",
     "three fresh Node processes each passing the same 2730 differential comparisons",
     "512/4096/16384-function-shaped model windows against strengthened pull and indexed-invalidation baselines",
-    "positive, adverse, superseded and timed-out measurement identities retained"
+    "positive, adverse, superseded and timed-out measurement identities retained",
+    "actual stable-owner BodyKey graph integrated in Types/driver/CLI with current independent Verify",
+    "234 selected db/types/driver library tests and1CLI resident test pass",
+    "six paired blocks each for real large scalar O2 andcheck, raw negative results retained",
+    "large rich native fallback and five existing O0/O2 consumers, finite50-edit session and non-author raw review",
+    "complete versioned raw archive with per-file manifest hashes, including every first failure"
   ],
   "not_run": [
-    "complete cross-stage stable semantic query/SCC architecture",
-    "repeated paired performance acceptance",
-    "full workspace/product integration gates",
-    "large raw evidence durable delivery (pending)"
+    "complete Source-to-semantic stable producer provenance and module Normalize/Lower graph",
+    "general per-facet trait/instantiation/effect/SCC integration and asynchronous overlapping publication",
+    "full workspace/product/runtime integration gates",
+    "main promotion: current performance acceptance failed to demonstrate net gain"
   ],
-  "scope_state": "Default-off production slice implemented and under real validation; no accepted end-to-end gain; main unchanged",
+  "scope_state": "进行中：真实生产切片已验证并持久化；大项目净收益未成立，完整架构和main门未完成，默认关闭",
   "evidence": {
-    "readme": "tools/research/reactive-query-graph/README.md",
-    "receipt": "tools/research/reactive-query-graph/receipt.json",
-    "handoff": ".task/reactive-query-graph.md",
-    "full_raw_samples": "conversation delivery bundle; hashes retained in source receipt"
+    "readme": "https://github.com/zil-lang/zil/blob/0a529a6247793f63ccd41ff3f65dc97afcbb666c/tools/research/reactive-query-graph/README.md",
+    "receipt": "https://github.com/zil-lang/zil/blob/0a529a6247793f63ccd41ff3f65dc97afcbb666c/tools/research/reactive-query-graph/receipt.json",
+    "handoff": "https://github.com/zil-lang/zil/blob/0a529a6247793f63ccd41ff3f65dc97afcbb666c/.task/reactive-query-graph.md",
+    "full_raw_samples": {
+      "name": "zil-reactive-compiler-evidence-20261111.zip",
+      "library_file_id": "libfile_fde3_f-2b7913d388a0819192209665af814d06_bd147c3485448191a9df16b3c3cea7dd",
+      "version": 1,
+      "url": "https://chatgpt.com/library?file_id=libfile_fde3_f-2b7913d388a0819192209665af814d06_bd147c3485448191a9df16b3c3cea7dd&account_id=personal",
+      "bytes": 50430867,
+      "sha256": "2bb15c5a045abcf493f8e789512653ac416bebfe86229fb8b56c9bd53c51dc42",
+      "manifest_sha256": "2567a515b7ef8207a7d8fb9bb4160880eece34681d2c7506397356cc57e1530d",
+      "files": 6490,
+      "verified_every_entry": true,
+      "start_here": "reactive/out/runs/reactive-final-index-20261111/README.md",
+      "scope": "All completed raw runs and first failures in this round; excludes reproducible Rust targets/application caches and private original zit. Source separately persisted in git."
+    }
   },
   "historical_candidates": {
     "reverse_index": "ee786e7fd7162cfd76d5f532fe5c80d9e175ad57",
@@ -39,11 +56,11 @@
   "coordination": "Own production/metrics write set and narrow root Types→zil-db edge are claimed in continuation. Other compiler refs untouched; current main remains 99035931; goal never merged into main.",
   "continuation": {
     "task": "G10.5.1.15",
-    "read_goal_sha": "a67f6778e1696991cf4b45c8eb12ba2efa86ff43",
+    "read_goal_sha": "a4e78dd67301110f072189dc76cb49bb962e9081",
     "source_start": "c75c58bf7f564a1ce8049702f9c6ec41c82d1da2",
     "main": "99035931d358add0eaed6d4535035c38413701dd",
-    "status": "Frozen production slice validation; not accepted",
-    "updated_utc": "2026-11-11T12:52:45.838551+00:00",
+    "status": "本轮有限真实阶段已保存/未验收；默认关闭，无后台任务",
+    "updated_utc": "2026-11-11T13:40:08.471067+00:00",
     "write_set": [
       "crates/zil-driver/src/session.rs",
       "crates/zil-driver/src/project.rs",
@@ -67,12 +84,13 @@
       "independent Verify kernel",
       "machine backends",
       "other task branches",
-      "root Cargo.toml; all other dependency and unsafe boundary entries"
+      "root Cargo.toml; all other dependency and unsafe boundary entries",
+      "other compiler task refs; latest observed ThinLTO8072f23187a77f2e63686696111a8e0e71e8be7b"
     ],
     "worktree": "/workspace/scratch/e28839ace920/reactive",
     "target": "/workspace/scratch/e28839ace920/targets/reactive-validation-71bed1f",
     "toolchain": "existing pinned Rust1.99.1 / LLVM23.1.4; checker Pass",
-    "next": "Run frozen21746 native repeated O2/check pairs and retain all samples; only after measured acceptance consider broader module expansion queries",
+    "next": "先在goal认领zil-syntax密封Source生产者、zil-expand真实模块产物与逐阶段预算receipt、Types preparation/incremental、driver组装的新相交写集；从.task给出的rg入口落实，不能再以source fingerprint/Parse指针代替Core来源证据；实际Expand工作下降后才重跑冻结配对",
     "root_only_coordination": {
       "reason": "Real Types consumer must call the common zil-db reactive graph; no dependency cycle and no external dependency. Root alone adds this narrow edge, outside the active ThinLTO backend/LLVM edits.",
       "paths": [
@@ -87,18 +105,26 @@
         "other compiler branches"
       ]
     },
-    "source_head": "21746adedf6eac6aee6f3c31e7b7ec4907027428",
+    "source_head": "0a529a6247793f63ccd41ff3f65dc97afcbb666c",
     "tests": {
-      "source": "21746adedf6eac6aee6f3c31e7b7ec4907027428",
-      "db_lib_passed": 25,
-      "types_lib_passed": 63,
-      "driver_lib_passed": 144,
-      "raw": "validation-71bed1f/out/runs/reactive-21746ad-lib-tests-r2/test.log"
+      "db_lib": 25,
+      "types_lib": 63,
+      "driver_lib": 146,
+      "cli_resident": 1,
+      "source": "a655cd12d685818732ce7d9ab96e2676735f26f3",
+      "manifest": "validation-71bed1f/out/runs/reactive-a655cd1-final-validation-r1/manifest.json",
+      "architecture": {
+        "status": "Pass",
+        "source": "a05526bfbeb31e90962f53692468ad05f48c1620",
+        "crates": 15,
+        "edges": 39
+      }
     },
     "independent_review": {
-      "reviewer": "/root/workload_harness (sol high), did not author production code",
-      "source": "21746adedf6eac6aee6f3c31e7b7ec4907027428",
-      "result": "RQ-REVIEW-01/02 corrected; no new proven blocker in reviewed diff; static review only"
+      "production": "/root/workload_harness non-author exact217 source review; RQ-REVIEW-01/02 closed; latera055 diagnostic test and actual long evidence reviewed",
+      "measurement": "/root/measurement_review raw408primary+524supplemental rows independently checked; source/native/ELF/LLVM/currentVerify/weighted arithmetic consistent. No gain accepted.",
+      "statistics": "native_summarize.py authored by measurement reviewer; root reviewed formulas/code; not falsely called author-independent tool review",
+      "full_review_file": "reactive/out/runs/reactive-final-index-20261111/review.json"
     },
     "native_screen": {
       "source": "71bed1fc8d5f184549b2f08ab7af724a9952fc9a",
@@ -115,10 +141,314 @@
       {
         "run": "reactive-21746ad-tests-r1",
         "category": "InfraError",
-        "reason": "Unrestricted package test selection generated ~40GB debug integration-test ELF outputs and exhausted disk before execution. Not Pass. Only 98 owned rebuildable test executables reclaimed; logs/source/rlibs/release/other tasks preserved."
+        "reason": "Broad Cargo integration selection filled own disk before test execution;98owned generated test ELFs reclaimed, original logs preserved; bounded lib tests rerun."
+      },
+      {
+        "run": "reactive-8762d78-rich-tests-r1",
+        "category": "Incorrect test expected diagnostic",
+        "reason": "Same Source correctly rejected by both paths as E-UNINITIALIZED; exact message/secondf()span fixedata055, original repro and first failure kept."
+      },
+      {
+        "run": "native-existing-resource_closures-o0-21746ad-r1",
+        "category": "Oracle bug:4invalid rows,56native attempts,not Pass",
+        "reason": "Existing spec/README/native protocol require capture-orderAB; fixeda655, completeO0-r2/O2-r1 pass."
+      },
+      {
+        "run": "native-existing-ct-selection-o0-21746ad-r1",
+        "category": "Input manifest bug:4invalid rows,0native,not Pass",
+        "reason": "Copied unimported wide replacement fixture into compact project; existing runner requires exactly3modules. Fixedbe6 while retaining strict source map; completeO0-r2/O2-r1 pass."
+      },
+      {
+        "run": "native-workload-scale-20261111-r2/r3",
+        "category": "ResourceLimit",
+        "reason": "Beyond defaultCT/lex budgets; excluded from successful ratios, budgets not relaxed."
       }
     ],
-    "raw_backup": "Not yet durably bundled; local raw paths alone do not constitute backup"
+    "raw_backup": {
+      "library_file_id": "libfile_fde3_f-2b7913d388a0819192209665af814d06_bd147c3485448191a9df16b3c3cea7dd",
+      "version": 1,
+      "url": "https://chatgpt.com/library?file_id=libfile_fde3_f-2b7913d388a0819192209665af814d06_bd147c3485448191a9df16b3c3cea7dd&account_id=personal",
+      "sha256": "2bb15c5a045abcf493f8e789512653ac416bebfe86229fb8b56c9bd53c51dc42",
+      "manifest_sha256": "2567a515b7ef8207a7d8fb9bb4160880eece34681d2c7506397356cc57e1530d",
+      "files": 6490
+    },
+    "production_source": "21746adedf6eac6aee6f3c31e7b7ec4907027428",
+    "binary_sha256": "0a0aa4049c9cae9f9c872186e8b00d76066903e0c76728a106627da410c0a1bc",
+    "actual_production_paths": [
+      "crates/zil-db/src/reactive.rs and lib.rs wiring",
+      "crates/zil-types/src/incremental.rs",
+      "crates/zil-driver/src/lib.rs, project.rs, session.rs",
+      "crates/zil-cli/src/main.rs",
+      "root-coordinated crates/zil-types/Cargo.toml, Cargo.lock and policy/dependencies.json single internal edge"
+    ],
+    "primary_measurements": {
+      "O2": {
+        "run": "native-scalar-large-o2-21746ad-r1",
+        "blocks": 6,
+        "counts": {
+          "rows": 204,
+          "measured_rows": 108,
+          "invalid_rows": 0,
+          "native_executions": 1080,
+          "preparation_rows": 96,
+          "expected_blocks": 6
+        },
+        "private": {
+          "baseline_median_ms": 5160.7133535,
+          "candidate_median_ms": 5169.341634,
+          "paired_mean_saved_ms": -71.52616400000004,
+          "candidate_mean_over_baseline_mean": 1.0137059281268457,
+          "exploratory_paired_mean_saved_ci_ms": [
+            -291.1219499999999,
+            119.94482549999991
+          ]
+        },
+        "multi": {
+          "baseline_median_ms": 5214.764919499999,
+          "candidate_median_ms": 5095.266502,
+          "paired_mean_saved_ms": 43.13723566666689,
+          "candidate_mean_over_baseline_mean": 0.9918112466040845,
+          "exploratory_paired_mean_saved_ci_ms": [
+            -144.38006683333288,
+            228.65155466666693
+          ]
+        },
+        "recovery": {
+          "baseline_median_ms": 5248.582463,
+          "candidate_median_ms": 5480.14941,
+          "paired_mean_saved_ms": -299.5407736666666,
+          "candidate_mean_over_baseline_mean": 1.0568022510809103,
+          "exploratory_paired_mean_saved_ci_ms": [
+            -537.0233226666666,
+            -59.89121050000009
+          ]
+        },
+        "full_samples": "source receipt and durable archive raw/summary; no rows copied into goal"
+      },
+      "check": {
+        "run": "native-scalar-large-check-21746ad-r1",
+        "blocks": 6,
+        "counts": {
+          "rows": 204,
+          "measured_rows": 108,
+          "invalid_rows": 0,
+          "native_executions": 0,
+          "preparation_rows": 96,
+          "expected_blocks": 6
+        },
+        "private": {
+          "baseline_median_ms": 547.4622704999999,
+          "candidate_median_ms": 732.7121870000001,
+          "paired_mean_saved_ms": -159.8109315,
+          "candidate_mean_over_baseline_mean": 1.2755403095480693,
+          "exploratory_paired_mean_saved_ci_ms": [
+            -245.63448583333334,
+            -69.39255716666666
+          ]
+        },
+        "multi": {
+          "baseline_median_ms": 483.4714525,
+          "candidate_median_ms": 618.0201294999999,
+          "paired_mean_saved_ms": -98.26935133333332,
+          "candidate_mean_over_baseline_mean": 1.190366223253995,
+          "exploratory_paired_mean_saved_ci_ms": [
+            -175.761605,
+            -24.703236333333326
+          ]
+        },
+        "recovery": {
+          "baseline_median_ms": 637.1275595,
+          "candidate_median_ms": 657.7533465,
+          "paired_mean_saved_ms": -35.451452166666684,
+          "candidate_mean_over_baseline_mean": 1.05521273005551,
+          "exploratory_paired_mean_saved_ci_ms": [
+            -90.80173216666667,
+            4.410423666666645
+          ]
+        },
+        "full_samples": "source receipt and durable archive raw/summary; no rows copied into goal"
+      }
+    },
+    "wait_per_100_hypothetical_requests": {
+      "manual": {
+        "hypothetical_only": true,
+        "weights": {
+          "unchanged": 0.1,
+          "private": 0.65,
+          "multi": 0.05,
+          "broad": 0.05,
+          "recovery": 0.1,
+          "cold": 0.05
+        },
+        "O2_mean_saved_seconds": -8.468553385833356,
+        "check_mean_saved_seconds": -13.016197674166673
+      },
+      "LLM": {
+        "hypothetical_only": true,
+        "weights": {
+          "cold": 0.05,
+          "unchanged": 0.05,
+          "private": 0.15,
+          "multi": 0.55,
+          "broad": 0.1,
+          "recovery": 0.1
+        },
+        "O2_mean_saved_seconds": -2.2255840433333263,
+        "check_mean_saved_seconds": -10.5139233425
+      },
+      "broad-build": {
+        "hypothetical_only": true,
+        "weights": {
+          "cold": 0.4,
+          "unchanged": 0.05,
+          "private": 0.05,
+          "multi": 0.1,
+          "broad": 0.35,
+          "recovery": 0.05
+        },
+        "O2_mean_saved_seconds": -10.203632564166657,
+        "check_mean_saved_seconds": -15.68208786166666
+      }
+    },
+    "work_attribution": {
+      "private_BodyKey_executions": [
+        421,
+        21
+      ],
+      "private_BodyKey_nodes": [
+        159558,
+        7965
+      ],
+      "candidate_full_Core_Eq": 421,
+      "private_actual_CFG_executions": [
+        5,
+        5
+      ],
+      "candidate_private_graph_edge_reads": 83,
+      "interpretation": "Only BodyKey projection work reduced. All input Eq/context walks and whole Expand remain; no accepted net waiting gain."
+    },
+    "supplemental": [
+      {
+        "run": "native-mixed-large-o2-21746ad-r1",
+        "configuration": "generated14x14x16,19files246565bytes,O2,1CGU/1job,allcache,2blocks",
+        "rows": 100,
+        "measured": 52,
+        "preparation": 48,
+        "native": 552,
+        "invalid": 0,
+        "coverage": "graph0: real rich fallback composition; not graph performance"
+      },
+      {
+        "run": "native-scalar-small-o2-21746ad-r1",
+        "configuration": "generated2x2x4,O2,6blocks",
+        "rows": 204,
+        "measured": 108,
+        "preparation": 96,
+        "native": 1080,
+        "invalid": 0,
+        "coverage": "small overhead only; not averaged with large projects"
+      },
+      {
+        "runs": "5 existing consumers x O0/O2; exact names/rows hashes in archive index",
+        "rows": 220,
+        "measured": 120,
+        "preparation": 100,
+        "native": 1368,
+        "invalid": 0,
+        "coverage": "resource/where-traits/trait-modules/CT compact fallback; simple generics real4-query graph. No CT wide or allocator-fault coverage"
+      },
+      {
+        "run": "native-scalar-cgu8-screen-21746ad-r1",
+        "configuration": "same large scalar,O2,8CGU/1job,allcache,1block",
+        "rows": 10,
+        "native": 60,
+        "private_wall_ms": {
+          "baseline": 1837.748943,
+          "candidate": 1644.667792
+        },
+        "private_object_hits_misses_each_arm": [
+          7,
+          1
+        ],
+        "coverage": "diagnostic existing object partition control; not accepted graph speedup"
+      },
+      {
+        "run": "native-main-vs-instrumented-check-21746ad-r1",
+        "configuration": "main990 vs217default,large scalar,check,allcache,3blocks",
+        "rows": 102,
+        "native": 0,
+        "coverage": "variable default-path overhead; equivalence not accepted"
+      },
+      {
+        "run": "native-scalar-large-check-no-disk-21746ad-r1",
+        "configuration": "same217off/on,large scalar,check,cache-none,capacity256,3blocks",
+        "rows": 102,
+        "native": 0,
+        "coverage": "diagnostic cache control; insufficient to attribute all unattributed wall to serialization"
+      }
+    ],
+    "long_session": {
+      "run": "native-scalar-long-check-21746ad-r1",
+      "mode": "check",
+      "unique_snapshots_per_arm": 51,
+      "edits": 50,
+      "rows": 102,
+      "fresh_legacy_checks": 5,
+      "native": 0,
+      "capacity": 32,
+      "disk_cache": false,
+      "resets": 0,
+      "graph_nodes": 1268,
+      "graph_edges": 1685,
+      "edit_wall_seconds": {
+        "baseline": 27.819391,
+        "candidate": 28.043637
+      },
+      "edit_cpu_seconds": {
+        "baseline": 27.73,
+        "candidate": 28.0
+      },
+      "final_rss_kib": {
+        "baseline": 452568,
+        "candidate": 457140
+      },
+      "initial_rss_kib": {
+        "baseline": 234496,
+        "candidate": 238136
+      },
+      "second_half_rss_growth_kib": {
+        "baseline": 20,
+        "candidate": 328
+      },
+      "second_half_hwm_growth_kib": {
+        "baseline": 0,
+        "candidate": 0
+      },
+      "limits": "Public JSON comparisons plus5fresh; full TypedProgram from Rust tests. Both arms warm/grow~213MiB;50edits is not a general leak proof."
+    },
+    "remaining": [
+      "stable Source producer provenance and actual module Normalize/Lower result/receipt nodes",
+      "general per-facet negative lookups, trait candidates/instantiation identities, effect/borrow summaries and real SCC solving",
+      "complete asynchronous/cancellation publication and extended long-session/full application evidence",
+      "main-vs-instrumented-default performance equivalence and complete product/runtime/main integration gates",
+      "accepted repeatable absolute waiting gain on large real workloads"
+    ],
+    "working_state_at_delivery": {
+      "implementation_worktree": "/workspace/scratch/e28839ace920/reactive",
+      "implementation_head": "0a529a6247793f63ccd41ff3f65dc97afcbb666c",
+      "implementation_unique_uncommitted": "none after final remote fast-forward verification",
+      "validation_worktree": "/workspace/scratch/e28839ace920/validation-71bed1f",
+      "validation_head": "be6dcf9fd82566b5874298327e8c19b30ee87ec3",
+      "release_binary_source": "21746adedf6eac6aee6f3c31e7b7ec4907027428",
+      "unpublished_unique_source": "none",
+      "background_work": "none promised; all tests/measurements completed"
+    },
+    "blocking_conditions": [
+      "No environment/toolchain blocker",
+      "Measured large O2/check net gain not established; check and failure-recovery regressions retained",
+      "No sealed Source-to-Core producer version chain or stage-order budget/first-diagnostic receipts for module work reuse",
+      "Full cross-stage/instantiation/SCC/async and complete product integration gates not completed"
+    ]
   },
   "prior_model_status": {
     "source_head": "e31e7eceee15f4e703eb81731c88d8a8578fe68f",
