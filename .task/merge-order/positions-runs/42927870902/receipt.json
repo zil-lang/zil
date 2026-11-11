@@ -1,0 +1,18 @@
+{
+  "baseline": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852",
+  "source": "b9f3c09478de13c0e0e366ae932b5015f9c1e93b",
+  "recipe": "c4e2f2c9f810c2a8458ccb8524e6bdf7088fc4a4",
+  "prior_raw_before_merge_runtime_failure": 42924878932,
+  "status_before_preservation": "success",
+  "scope": "research-only generated pinned pass strings; focused screen, not production or weighted acceptance",
+  "files": {
+    "manifest.json": "f39b743196b61a4e9e702de717ed590e9365f6abb4ade237a372134dd9106969",
+    "runtime.jsonl": "a29b1b7eda64aec1392dd158c1b68a3d5fcbad59d7f8fe1643deb6b106aaadd3",
+    "rows.jsonl": "70899280f00b6406a87c711ec3ec1a829c71a8e29ce468e5e588aec867bdef93",
+    "raw.tar.gz": "b54b301da036f1f44aed0e7abcaf43dda66994faea3cacf0651e4a02b165e72a",
+    "summary.json": "8094d94c8ecf2cf40acc0ab3cd2ed81cd669f50184dbd3d259895c3907b115a0",
+    "omitted-elf.json": "bb39fe52fecf783a20c1e41e94ea161144e8ed5390601fa70f60c3ad75b3a8bf",
+    "pipelines.json": "df41495f53fb82faba0ec3d73a3a486fc2cfb53f77137dcfb8c9a8543aa90b6b"
+  },
+  "main_modified": false
+}
