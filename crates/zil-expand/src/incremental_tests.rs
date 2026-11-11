@@ -360,7 +360,11 @@ fn producer_unavailable_scalar_lineage_keeps_raw_outputs_and_exact_budget_bounda
         max_analysis_steps: low,
         ..Limits::default()
     };
-    let expected = raw(&limits).unwrap();
+    let expected = raw(&limits)
+        .unwrap()
+        .into_iter()
+        .map(|(module, map)| (module, Arc::new(map)))
+        .collect::<Vec<_>>();
     let mut session = ExpandSession::default();
     let produce = |session: &mut ExpandSession, limits: &Limits| {
         session.expand_parsed(&input, &imports, limits, &target, context)
