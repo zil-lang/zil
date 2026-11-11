@@ -1,4 +1,4 @@
-name: Retire archived compiler research refs
+name: Retire accepted helper and rejected normalization refs
 on:
   push:
     branches: [task/compiler-composition-validation]

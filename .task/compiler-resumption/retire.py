@@ -10,9 +10,10 @@ import urllib.parse
 import urllib.request
 
 REPOSITORY = 'zil-lang/zil'
-ARCHIVE = '1690cbc2fffd814e35e6021db425f7e730aa6f2c'
+ARCHIVE = 'e75ade949d559bd90914df0d40b860af5f283626'
 CANDIDATES = {
-    'task/compiler-normalized-merging': '4f29707db7f73689f377624024b9ff991c94a164',
+    'task/resource-helper-codegen': 'f38ed14b2c18c587f01a117f3c8a6d9cc67c4e7b',
+    'task/normalized-function-equivalence': '130d3a7cab25603ae42a7fae0c9f63116c858c72',
 }
 
 
