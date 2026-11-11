@@ -13,8 +13,56 @@ from pathlib import Path
 import random
 
 from native_abc_measure import ARMS, CONTRASTS, ORDERS, row_valid, validate_cost_profile
+from native_abc_workloads import oracle as workload_oracle
 from native_measure import pair_validation, transition, validate_response
 from native_summarize import (arm_details, describe, interval, json_safe, metrics, number)
+from native_workloads import inputs as workload_inputs
+
+
+def validate_sidecars(directory, row, name):
+    worker = directory / f'block-{row["block"]}-{row["arm"]}'
+    response = json.loads((worker / f'{name}.response.json').read_text())
+    if response != row.get('resident'):
+        raise ValueError('response sidecar differs from the complete row response')
+    samples = json.loads((worker / f'{name}.memory-samples.json').read_text())
+    if not isinstance(samples, list) or not samples:
+        raise ValueError('memory sample sidecar must be a nonempty list')
+    previous = -1
+    for sample in samples:
+        if not isinstance(sample, dict):
+            raise ValueError('invalid memory sample record')
+        offset = sample.get('offset_ms')
+        if not number(offset) or offset < 0 or offset < previous:
+            raise ValueError('memory sample offsets must be finite, nonnegative and ordered')
+        previous = offset
+        if type(sample.get('processes')) is not int or sample['processes'] <= 0:
+            raise ValueError('memory sample must observe a positive process count')
+        rss = sample.get('tree_rss_sum_kib')
+        if not number(rss) or rss <= 0:
+            raise ValueError('memory sample RSS must be finite and positive')
+    if type(row.get('memory_sample_count')) is not int or len(samples) != row['memory_sample_count']:
+        raise ValueError('memory sample count differs from its sidecar')
+    if max(sample['tree_rss_sum_kib'] for sample in samples) != row.get('tree_peak_sampled_rss_sum_kib'):
+        raise ValueError('sampled peak RSS differs from the sidecar maximum')
+
+
+def validate_native_oracle(row, args):
+    native = row.get('native', [])
+    if not isinstance(native, list) or any(not isinstance(item, dict) for item in native):
+        raise ValueError('invalid native outcome records')
+    if args['mode'] == 'check' or row.get('request') == 'error':
+        if native:
+            raise ValueError('check/rejected request unexpectedly claims native executions')
+        return
+    expected_inputs = workload_inputs(args['case'])
+    if [item.get('stdin_hex') for item in native] != [data.hex() for data in expected_inputs]:
+        raise ValueError('native inputs are incomplete, duplicated or out of workload order')
+    for data, item in zip(expected_inputs, native):
+        expected = workload_oracle(args['case'], data, row['request'],
+                                   args['modules'], args['functions'], args['steps'])
+        if (item.get('valid') is not True or item.get('expected') != expected
+                or item.get('actual') != expected):
+            raise ValueError('saved native outcome differs from the recomputed independent oracle')
 
 
 def summarize(directory, seed=20261111, repetitions=20000):
@@ -111,6 +159,10 @@ def summarize(directory, seed=20261111, repetitions=20000):
             errors.append('missing sampled memory')
         name = f'{row.get("request_index")}-' + ('' if row.get('measured') else 'prepare-') + str(row.get('request'))
         try:
+            validate_sidecars(directory, row, name)
+        except (OSError, KeyError, TypeError, ValueError) as error:
+            errors.append(f'missing/invalid per-request sidecars: {error}')
+        try:
             source = json.loads((directory / f'source-{row.get("block")}-{name}.json').read_text())
             if source.get('identity_sha256') != row.get('source_identity_sha256') or source.get('changed_files') != row.get('changed_files'):
                 errors.append('row differs from archived source metadata')
@@ -121,10 +173,10 @@ def summarize(directory, seed=20261111, repetitions=20000):
                 errors.append('source snapshot bytes differ from archived metadata')
         except (OSError, KeyError, ValueError) as error:
             errors.append(f'missing/invalid source evidence: {error}')
-        if args['mode'] != 'check' and row.get('request') != 'error':
-            native = row.get('native', [])
-            if not native or any(item.get('valid') is not True or item.get('expected') != item.get('actual') for item in native):
-                errors.append('missing/invalid independent native oracle')
+        try:
+            validate_native_oracle(row, args)
+        except (KeyError, TypeError, ValueError) as error:
+            errors.append(f'missing/invalid independent native oracle: {error}')
         if len(errors) != before:
             rejected.append({'errors': errors[before:], 'row': row})
     measured = [row for row in rows if row.get('measured') is True]
