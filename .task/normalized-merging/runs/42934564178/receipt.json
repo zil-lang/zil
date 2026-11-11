@@ -1,0 +1,30 @@
+{
+  "baseline": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852",
+  "source": "5172f85373345c90d39aea8b8c51fa5e7ad2f632",
+  "recipe": "bf851d22858b12ce1c781e4a34246a055eda124b",
+  "screen": 42931006690,
+  "comparison": "explicit baseline after versus fixed normalized candidate before-and-after; default/off/after unchanged",
+  "status_before_preservation": "success",
+  "files": {
+    "raw.tar.gz": "f499fd173858c1602cbf9dcec47d571348e68847bc8297115e6c53d62b358f4e",
+    "omitted-elf.json": "0428931d7e8a7aa8cf859d648d4a9e68203d96e6533bfac834cead8478bfca26",
+    "multi/manifest.json": "dfab0a57d10e9094ddeaf863016e6081e3a0d988c72c82938e8bdcffdf78870e",
+    "multi/runtime.jsonl": "84da4022d500ed4a2a7d392f6382d4c9bd00e925d7d232695e702cde215bd988",
+    "multi/rows.jsonl": "d32ff132f9a19fe1a2a783c9eff287072e1b3e7bb45351c908ca5dae38c61b04",
+    "multi/summary.json": "10dc82c7ae4620053dc2dc2ebdbc073410326284c6f0acc596edaa033b5361be",
+    "neighbors/summary.json": "b28c24d462f609240b7aea8dde23d266e4e409b9c10089e1c89d30f208bc55c0",
+    "primary/failures.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "primary/manifest.json": "804fc5f2fcb8eec27308d944d7a0880a4a1ca08ded0ce7273f5301b99375c3f4",
+    "primary/runtime.jsonl": "7b98bd433e82456946f6ae807c4e4cd0bafa94105b913c578832f2eac777951c",
+    "primary/equivalence.json": "0bed0eb2077b29b445ca2b56daabbe9a75b14c467aafb772525ddd09a9e43dc1",
+    "primary/rows.jsonl": "7259459c15b8894bd99778d57dc6e3bc70b128e2753c231595d89a048a2e74c7",
+    "primary/summary.json": "d5dd1547298371fb6f3002ce1211080ff16795779d4c909aaf3d05fb4518711e",
+    "primary/cells.json": "60c100308c7b76f715c9fb632ae46deae220a69ad98f7080cfa51e97dc5cfc3a",
+    "consumer/summary.json": "ee434cd6249e48a6a9060e8c028e94d0e31fcd85f498c73e2e3ffd1d433a6bd0",
+    "controls/summary.json": "b2ccc02e5e7972ebe4a92d74b9e0413c64f80bd19c3b91ac5357b08fb0e153e8",
+    "quality/summary.json": "3de0e0106c3ac35afb3dc9953c475036d137f4f40246da23e982cf6d7e6b019e"
+  },
+  "main_modified": false,
+  "external_ai_review": false,
+  "acceptance": "Pending source and numerical review, not automatic"
+}
