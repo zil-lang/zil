@@ -4,9 +4,9 @@
     "G10.5.1.13",
     "G10.5.1.14"
   ],
-  "updated_utc": "2026-11-11T10:55:40.351449+00:00",
-  "read_goal": "112e4d107aa35be1a61f9da7b57a618a10482978",
-  "status": "Four implemented candidates completed NoGo; actual inline-cost mechanism isolated; bounded private-postlink candidate being implemented",
+  "updated_utc": "2026-11-11T13:04:43.956563+00:00",
+  "read_goal": "2c0ebde29de1315d92c344849d3858f75aaf3cee",
+  "status": "Completed research iteration; all candidates not adopted. Full producer has N256 compile improvement but both runtime gates fail; no new production compile-speed gain.",
   "baseline": {
     "sha": "99035931d358add0eaed6d4535035c38413701dd",
     "tree": "1c16744d838064cb1c687ba56ef3a0d17ed3130c",
@@ -135,7 +135,7 @@
     "raw": "out/next-optimization/builder-screen-9f0",
     "adopted": false
   },
-  "source_history_status": "All four remote candidate heads retained; fixed archive text checkpoint being refreshed, raw durable bundle and safe retirement pending. Old composition branch remains archived and absent.",
+  "source_history_status": "Four failed remote candidates actually retired with archived ancestry, exact leases, openPR/activeRun guards and successful verified_absent receipts. Old composition remains archived and absent. One private-import/prelink research branch retained; no main merge.",
   "thinlto_complete": {
     "sha": "2549cbec8e1f3096d4c8c8a960459c83095ad13d",
     "tree": "ebb993128355fed8228627c6d7b37d5cb0a90d45",
@@ -214,7 +214,7 @@
     }
   },
   "private_postlink": {
-    "status": "Being implemented; not built or tested",
+    "status": "Built, real controls Pass, 6 compile/54 native runtime Pass; no compile-speed adoption",
     "scope": "Fresh-cache research only; original complete Allowed/cost/owner proof; exact direct-callee-use only; rename actual AE imports to private Internal before standard ThinLTOPostLink O2; no body, threshold or alwaysinline change",
     "reason": "Reuse prelink work while preserving original ZIL private-copy policy; no claim that Blaze uses Internal imports",
     "cache_boundary": "LLVM LTO key omits pass-plugin bytes/config; never reuse prior native cache in this control",
@@ -222,6 +222,468 @@
       "B_over_A_max": 1.1,
       "R_over_B_min": 0.9
     },
-    "production_adoption": false
+    "production_adoption": false,
+    "sha": "1cc866a08bac100012e41726067711c94caf1899",
+    "tree": "910d281b288b9266f67c92ae9891b3b9290d16d2",
+    "raw": "out/next-optimization/private-runtime-v1",
+    "protocol_sha256": "208adf6f5a3e904182afdaf1ef1c6b30a173fb559400ab14d05b2f59e4803a44",
+    "counts": {
+      "compile": 6,
+      "native": 54,
+      "formal": 36
+    },
+    "runtime_B_over_A": [
+      0.7387339795,
+      0.9105647474
+    ],
+    "required": [
+      56,
+      224
+    ],
+    "private_imports": 280,
+    "report": "research/thinlto-private-imports/result-review.md",
+    "report_sha256": "80ecaca190a8e6bcc27269b31bca7fb969238703e6c1505b555d2470e36a1538",
+    "adopted": false
+  },
+  "identity_screen": {
+    "sha": "3d0dc3e1f420ebea68aff66ebbcd86111251bffc",
+    "tree": "dbbc630ebb80319fd62aaab438e44e7f80ee9307",
+    "protocol_sha256": "722a146dd2bee2cbf5e4f1550532bf4404829bfc8aed46a956925590e4989215",
+    "raw": "out/next-optimization/private-identity-screen-v1",
+    "status": "runtime-Pass-compile-NoGo",
+    "counts": {
+      "cases": 2,
+      "formal_compilations": 36,
+      "native_total": 108,
+      "native_formal": 36,
+      "native_functional": 72
+    },
+    "cases": [
+      {
+        "case": "n64/base",
+        "compile_mean_ms": {
+          "A": {
+            "wall_ms": 1309.322091,
+            "cpu_ms": 2371.032
+          },
+          "B": {
+            "wall_ms": 3971.8673774999997,
+            "cpu_ms": 4992.498833333333
+          },
+          "R": {
+            "wall_ms": 811.3586548333333,
+            "cpu_ms": 1091.4099999999999
+          }
+        },
+        "runtime_mean_ms": {
+          "A": 103.82801533333333,
+          "B": 73.5907735,
+          "R": 400.68533633333334
+        },
+        "ratios": {
+          "compile_B_over_A_wall": 3.0335296446930564,
+          "compile_B_over_A_CPU": 2.1056227133726297,
+          "compile_R_over_B_wall": 0.2042763712176171,
+          "runtime_B_over_A": 0.7087756928006516,
+          "runtime_R_over_B": 5.444776801175128
+        }
+      },
+      {
+        "case": "n256/base",
+        "compile_mean_ms": {
+          "A": {
+            "wall_ms": 4324.369303666666,
+            "cpu_ms": 7694.447833333334
+          },
+          "B": {
+            "wall_ms": 10843.820691166668,
+            "cpu_ms": 13968.3995
+          },
+          "R": {
+            "wall_ms": 2648.3200385,
+            "cpu_ms": 4055.3716666666664
+          }
+        },
+        "runtime_mean_ms": {
+          "A": 340.9429225,
+          "B": 312.13496499999997,
+          "R": 1576.735762
+        },
+        "ratios": {
+          "compile_B_over_A_wall": 2.5076074520212943,
+          "compile_B_over_A_CPU": 1.8153868610931514,
+          "compile_R_over_B_wall": 0.2442238869421099,
+          "runtime_B_over_A": 0.9155050432231804,
+          "runtime_R_over_B": 5.051455103724122
+        }
+      }
+    ],
+    "report": "research/thinlto-private-identity/result-review.md",
+    "report_sha256": "dff0e7c30ec80f051867bf78e60077e7cb7c4998a5837ec112171d4792a82b78",
+    "all_raw_rehashed": 6125,
+    "actual_process_attempts": 930,
+    "outliers_removed": 0,
+    "production_adoption": false,
+    "many_edit_or_concurrency_claim": false
+  },
+  "linear_screen": {
+    "sha": "3d024219dc48f6ee1cec57c87afa2e62580a7ad6",
+    "tree": "cdeb311aee300549e797561d13ef76411fffdb90",
+    "protocol_sha256": "a30ffe86586c77849a613be636ece4f58fa3bfcebbc0eec3191cba333ce4e72c",
+    "raw": "out/next-optimization/private-linear-screen-v1",
+    "status": "runtime-Pass-compile-NoGo",
+    "counts": {
+      "cases": 2,
+      "formal_compilations": 36,
+      "native_total": 108,
+      "native_formal": 36,
+      "native_functional": 72
+    },
+    "cases": [
+      {
+        "case": "n64/base",
+        "compile_mean_ms": {
+          "A": {
+            "wall_ms": 1165.508022,
+            "cpu_ms": 2072.0473333333334
+          },
+          "B": {
+            "wall_ms": 3446.8442305,
+            "cpu_ms": 4362.1745
+          },
+          "R": {
+            "wall_ms": 731.0909071666666,
+            "cpu_ms": 1045.5569999999998
+          }
+        },
+        "runtime_mean_ms": {
+          "A": 105.52671233333334,
+          "B": 78.43878433333333,
+          "R": 397.19918283333334
+        },
+        "ratios": {
+          "compile_B_over_A_wall": 2.9573749518988723,
+          "compile_B_over_A_CPU": 2.10524848048838,
+          "compile_R_over_B_wall": 0.21210442314087818,
+          "runtime_B_over_A": 0.7433073825475033,
+          "runtime_R_over_B": 5.063811049714849
+        }
+      },
+      {
+        "case": "n256/base",
+        "compile_mean_ms": {
+          "A": {
+            "wall_ms": 4284.156129,
+            "cpu_ms": 7671.044166666667
+          },
+          "B": {
+            "wall_ms": 7957.4085585,
+            "cpu_ms": 11042.7045
+          },
+          "R": {
+            "wall_ms": 2536.0869773333334,
+            "cpu_ms": 3915.3691666666664
+          }
+        },
+        "runtime_mean_ms": {
+          "A": 328.6731921666667,
+          "B": 339.47566133333333,
+          "R": 1592.487619
+        },
+        "ratios": {
+          "compile_B_over_A_wall": 1.857403959821932,
+          "compile_B_over_A_CPU": 1.4395308200654562,
+          "compile_R_over_B_wall": 0.3187076494425209,
+          "runtime_B_over_A": 1.0328669006907896,
+          "runtime_R_over_B": 4.691021479258056
+        }
+      }
+    ],
+    "report": "research/thinlto-private-linear/result-review.md",
+    "report_sha256": "b041cb363f3385f411e95826255098635fa86fe9800ebc4d900167fcf5b82dff",
+    "all_raw_rehashed": 6125,
+    "actual_process_attempts": 930,
+    "outliers_removed": 0,
+    "production_adoption": false,
+    "many_edit_or_concurrency_claim": false
+  },
+  "manual_prelink": {
+    "status": "Built and 36/108 complete; runtime Pass, complete-request compile NoGo",
+    "branch": "task/compiler-thinlto-private-imports",
+    "scope": "Same pure Linux/API/O2/incremental/after/8units/2jobs/no-cache research scope; in-process canonical prelink once, actual bounded Required graph, exact donor trim/link, direct Use private imports, full postlink O2; ordinary BC without summary/index; no official ThinLTO importer claim",
+    "new_environment": "ZIL_RESEARCH_PRELINK_RECEIPT",
+    "scheduling": "two bounded phases with complete join; immutable current-request BC/facts only, no LLVM handles cross threads",
+    "default_path_changed": false,
+    "shared_config_receipt_model_changed": false,
+    "cache_implemented": false,
+    "many_edit_or_concurrency_claim": false,
+    "adopted": false,
+    "sha": "2321e74897975978925dc7d2a611f7d672f716e1",
+    "tree": "03fa3d83dc5ba80d7849f7148b97b7d12449700b",
+    "binary_sha256": "ce90681f261c109c412bb9d513e3c0ff58680a2e593d798cdf21b3e27daa407a",
+    "harness_source": "850289f5a732e58cf03ee79f8a2c8b1b3ae3a489",
+    "protocol_sha256": "a2999b0eb482994de4516f8de6760ca6dd4a7b99fe722c8b0d75aaa9daa76810",
+    "raw": "out/next-optimization/manual-prelink-screen-v1",
+    "counts": {
+      "cases": 2,
+      "formal_compilations": 36,
+      "native_total": 108,
+      "native_formal": 36,
+      "native_functional": 72
+    },
+    "runtime_gate_pass": true,
+    "cases": [
+      {
+        "case": "n64/base",
+        "compile_mean_ms": {
+          "A": {
+            "wall_ms": 1166.2458861666667,
+            "cpu_ms": 2074.2763333333332
+          },
+          "B": {
+            "wall_ms": 1428.279647,
+            "cpu_ms": 2110.976166666667
+          },
+          "R": {
+            "wall_ms": 831.4100071666667,
+            "cpu_ms": 1089.3883333333333
+          }
+        },
+        "runtime_mean_ms": {
+          "A": 98.63860716666667,
+          "B": 97.85497583333333,
+          "R": 409.3190545
+        },
+        "ratios": {
+          "compile_B_over_A_wall": 1.2246814020451657,
+          "compile_B_over_A_CPU": 1.017692837132436,
+          "compile_R_over_B_wall": 0.5821058984583196,
+          "runtime_B_over_A": 0.9920555312382984,
+          "runtime_R_over_B": 4.182915084432216
+        }
+      },
+      {
+        "case": "n256/base",
+        "compile_mean_ms": {
+          "A": {
+            "wall_ms": 4456.92436,
+            "cpu_ms": 7888.215833333333
+          },
+          "B": {
+            "wall_ms": 4867.9133225000005,
+            "cpu_ms": 8314.393333333333
+          },
+          "R": {
+            "wall_ms": 2655.8219401666665,
+            "cpu_ms": 4057.016166666667
+          }
+        },
+        "runtime_mean_ms": {
+          "A": 325.83138583333334,
+          "B": 342.74335633333334,
+          "R": 1558.1831563333333
+        },
+        "ratios": {
+          "compile_B_over_A_wall": 1.0922135825746884,
+          "compile_B_over_A_CPU": 1.0540271094255684,
+          "compile_R_over_B_wall": 0.5455770808184242,
+          "runtime_B_over_A": 1.0519040560096646,
+          "runtime_R_over_B": 4.546209656702813
+        }
+      }
+    ],
+    "build": {
+      "API_tests": 64,
+      "new_API_controls": 4,
+      "proof_selected": 6,
+      "no_native_check": "Pass",
+      "release": "Pass"
+    },
+    "next_single_change": "Full producer 2458 completed 36 compile/108 native; N256 compile improvement retained, but both runtime gates failed; NoGo, not adopted or widened.",
+    "independent_review": {
+      "path": "research/manual-prelink-result-review.md",
+      "sha256": "76d9a4b13d62bb58ded2f0d44b13bd83e5b3d30f703587e71277432cf282635a",
+      "raw_files": 913,
+      "recorded_process_attempts": 146
+    }
+  },
+  "retirement": {
+    "archive": "f6c6cba6876a84694750e28c104ccc387860a6f8",
+    "branch_heads_deleted": [
+      "task/compiler-structured-emission",
+      "task/compiler-builder-position",
+      "task/compiler-thinlto-prototype",
+      "task/compiler-thinlto-complete-visibility"
+    ],
+    "actions_runs": [
+      43014067899,
+      43014310393,
+      43014487178,
+      43014666292
+    ],
+    "records": "research/retirement-next-optimization-executed",
+    "all_verified_absent": true
+  },
+  "raw_checkpoint": {
+    "version": 1,
+    "bytes": 218069679,
+    "sha256": "b815cbc9d9741ebaad7a4640bd54a743c460217310b58478422ac1408f1c0f86",
+    "library_file_id": "libfile_fde3_f-182729328f508191aedc5d2668080d96_bd147c3485448191a9df16b3c3cea7dd",
+    "file_id": "file_00000000aa5882129ce8ac220e8117e5",
+    "members": 33851,
+    "source_paths": 33850,
+    "covers_through": "full-producer 36/108 and four large independent result audits; full supersets of v0 and all 105 retirement records",
+    "all_tar_members_verified": true,
+    "all_prior_paths_and_payload_unchanged": true
+  },
+  "parent_goal_open": true,
+  "production_adoption": false,
+  "new_many_edit_or_concurrency_speedup_proven": false,
+  "full_producer": {
+    "status": "Complete-runtime-NoGo-not-adopted",
+    "branch": "task/compiler-thinlto-private-imports",
+    "source_commit": "2458defcaf8be51c87b80c0dadf391bb585735e8",
+    "source_tree": "e917926bc8976da90e58897911c72978b9a24f88",
+    "binary_sha256": "30140135c39706e8251bd5da3eb9acb4e8481a9c12acbc4aed6403f57a768097",
+    "harness_commit": "8072f23187a77f2e63686696111a8e0e71e8be7b",
+    "harness_tree": "8f37c83a22f403fe81caf84deecb68f723a87f06",
+    "protocol_sha256": "360635bffc5dc4230bd2c9ed2ca18e66c8edd29139e17a910afc559c03c0147f",
+    "raw": "out/next-optimization/full-producer-screen-v1",
+    "counts": {
+      "cases": 2,
+      "formal_compilations": 36,
+      "native_total": 108,
+      "native_formal": 36,
+      "native_functional": 72
+    },
+    "driver_exit_code": 1,
+    "exit_reason": "Final runtime gate failure after complete fixed screen; not incomplete execution",
+    "all_outputs_valid": true,
+    "runtime_gate_pass": false,
+    "cases": [
+      {
+        "case": "n64/base",
+        "compile_mean_ms": {
+          "A": {
+            "wall_ms": 1165.2249371666667,
+            "cpu_ms": 2110.902666666667
+          },
+          "B": {
+            "wall_ms": 1447.1398191666667,
+            "cpu_ms": 2127.768
+          },
+          "R": {
+            "wall_ms": 902.7970886666667,
+            "cpu_ms": 1226.9813333333332
+          }
+        },
+        "runtime_mean_ms": {
+          "A": 112.22990716666666,
+          "B": 150.944054,
+          "R": 419.4657725
+        },
+        "ratios": {
+          "compile_B_over_A_wall": 1.2419403095555932,
+          "compile_B_over_A_CPU": 1.0079896309761953,
+          "compile_R_over_B_wall": 0.6238492485035351,
+          "runtime_B_over_A": 1.3449539236973707,
+          "runtime_R_over_B": 2.7789486328490955
+        }
+      },
+      {
+        "case": "n256/base",
+        "compile_mean_ms": {
+          "A": {
+            "wall_ms": 4486.5228995,
+            "cpu_ms": 7893.6151666666665
+          },
+          "B": {
+            "wall_ms": 4061.06725,
+            "cpu_ms": 6848.0315
+          },
+          "R": {
+            "wall_ms": 2828.954318833333,
+            "cpu_ms": 3995.2591666666663
+          }
+        },
+        "runtime_mean_ms": {
+          "A": 321.8291765,
+          "B": 470.6039881666667,
+          "R": 1593.2605896666666
+        },
+        "ratios": {
+          "compile_B_over_A_wall": 0.9051702935590913,
+          "compile_B_over_A_CPU": 0.867540582535366,
+          "compile_R_over_B_wall": 0.6966036622105515,
+          "runtime_B_over_A": 1.4622788191072125,
+          "runtime_R_over_B": 3.385565421732902
+        }
+      }
+    ],
+    "mechanism": "Canonical full default<O2> producer; independently recompute actual Required; empty Required emits after current parse/sealed/target/graph/LLVM validation, nonempty keeps exact original budgeted donor/private import and full postlink O2",
+    "actual_counts": {
+      "full_producer_units": 96,
+      "producer_before_after_verifies": 192,
+      "postlink_optimization_ran_units": 12,
+      "empty_required_emit_units": 84,
+      "private_imports_and_exact_direct_uses": 1680,
+      "screen_empty_required_with_nonempty_allowed_units": 0
+    },
+    "boundary": "Allowed-nonempty/Required-empty counterexample covered only by actual API control; not present in these screen cases",
+    "build": {
+      "api_tests": 64,
+      "research_api_controls": 4,
+      "selected_proof_tests": 6,
+      "no_native": "Pass",
+      "release": "Pass"
+    },
+    "independent_review": {
+      "path": "research/full-producer-result-review.md",
+      "sha256": "ced448f567370e068c6cc49a291f6e5e82430a60f1f8f9dbe17306571e962188",
+      "json_sha256": "e6280cf7b6a00144e6643639d70c93656f6830b868ff3ea2ec4ccd2f56b0a23f",
+      "raw_files": 913,
+      "recorded_process_attempts": 146,
+      "all_raw_before_after_equal": true
+    },
+    "production_adoption": false,
+    "expanded_matrix": false,
+    "many_edit_or_concurrency_claim": false,
+    "outliers_removed": 0,
+    "specific_pass_cause_isolated": false
+  },
+  "latest_research_head": "8072f23187a77f2e63686696111a8e0e71e8be7b",
+  "raw_checkpoint_v0": {
+    "version": 0,
+    "bytes": 104191976,
+    "sha256": "9b1677993e14d608cd5f64c99eecc75bf13963a142219bb48caa1b7945bfadef",
+    "library_file_id": "libfile_fde3_f-182729328f508191aedc5d2668080d96_bd147c3485448191a9df16b3c3cea7dd",
+    "members": 11917,
+    "covers_through": "private54 runtime; identity/linear latest append pending"
+  },
+  "path_lessons": {
+    "report": "research/final-compiler-path-lessons.md",
+    "sha256": "f4ddf290b0ff59ae8a7313eda4a4226f0d35b8be073578b35aa8c45e52c26daf",
+    "summary": "Whole-request and per-case quality gates determine adoption. Rust/Blaze ownership, actual imports and request-local optimized-body reuse were implemented in research; persistent prelink cache, shared daemon single-flight and new many-edit/concurrent benefits were not implemented/proven. Do not subtract stage sums or compare separate windows as paired speedup."
+  },
+  "archive_final": {
+    "commit": "b9ece374dffdf6d5412f42d1970ac742c004b1cb",
+    "tree": "f8be59f02c5587fa5dcedadf3b0272bf524de18d",
+    "parents": [
+      "f6c6cba6876a84694750e28c104ccc387860a6f8",
+      "8072f23187a77f2e63686696111a8e0e71e8be7b"
+    ],
+    "branch": "archive/source-history",
+    "snapshot": "research/compiler-next-optimization-20261111",
+    "exact_local_remote_tree_match": true,
+    "selected_remote_blob_sha256_readback": {
+      "manifest.json": "06af1bb5cfc44a7d8d2f12984bd15434ad2803837474ad012561b68422225936",
+      "research/compiler-next-optimization-20261111/README.md": "a5dd2cd2c5d990cc13f3d9aeb8ff232e2cbfa9e2be0f1745555f778f05aeebec",
+      "research/compiler-next-optimization-20261111/manifest.json": "efdab2574875a70d3362bb6d3caf7ed11b61e7b670073f5f169e434ab430da42",
+      "research/compiler-next-optimization-20261111/raw-checkpoint-v1.json": "a94565aa2ee138330013ae5ab5aa68f9f4d69725bd5561d13064ebb14b8aab09",
+      "research/compiler-next-optimization-20261111/snapshot/research/full-producer-result-review.md": "ced448f567370e068c6cc49a291f6e5e82430a60f1f8f9dbe17306571e962188"
+    },
+    "text_payload_files": 461,
+    "text_total_with_manifest_and_sums": 463,
+    "source_ancestry_includes_latest_research": true
   }
 }
