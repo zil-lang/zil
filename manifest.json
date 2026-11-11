@@ -1,10 +1,10 @@
 {
   "format": 1,
   "created_utc": "2026-11-11T01:13:36.759319+00:00",
-  "prior_archive": "34ded7a21bed380b71e5bf85f4eb88569404710f",
+  "prior_archive": "098789c8cfb7f3f436c8014af1069a7f8314da08",
   "commit_parents": [
-    "34ded7a21bed380b71e5bf85f4eb88569404710f",
-    "19681c97573460252df425cfaefc0e5d3dadb0e0"
+    "098789c8cfb7f3f436c8014af1069a7f8314da08",
+    "f2522c0786d4a1cd3cfb9cee03c2fcc7e31e72b8"
   ],
   "commit_tips": [
     "0a8929d4f6126683737d62ab9def1d8e67a784ca",
@@ -65,7 +65,8 @@
     "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
     "b0da05ec784d632fa88c00d860382d656db712ec",
     "087757507562a47bde7e32ba34f19d1986592cde",
-    "19681c97573460252df425cfaefc0e5d3dadb0e0"
+    "19681c97573460252df425cfaefc0e5d3dadb0e0",
+    "f2522c0786d4a1cd3cfb9cee03c2fcc7e31e72b8"
   ],
   "local_refs": {},
   "remote_refs": {
@@ -117,7 +118,8 @@
     "refs/heads/task/compiler-bounded-imports": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
     "refs/heads/task/compiler-structured-emission": "b0da05ec784d632fa88c00d860382d656db712ec",
     "refs/heads/task/compiler-builder-position": "087757507562a47bde7e32ba34f19d1986592cde",
-    "refs/heads/task/compiler-thinlto-prototype": "19681c97573460252df425cfaefc0e5d3dadb0e0"
+    "refs/heads/task/compiler-thinlto-prototype": "19681c97573460252df425cfaefc0e5d3dadb0e0",
+    "refs/heads/task/compiler-thinlto-complete-visibility": "f2522c0786d4a1cd3cfb9cee03c2fcc7e31e72b8"
   },
   "worktrees": [],
   "missing_commit_objects": [],
@@ -622,7 +624,7 @@
       "decision": "Profile completed; worker-owned candidate not adopted; source, raw records and all negative values preserved"
     }
   },
-  "updated_utc": "2026-11-11T11:44:31.390Z",
+  "updated_utc": "2026-11-11T11:45:46.255Z",
   "compiler_multi_edit_20261111": {
     "directory": "research/compiler-multi-edit-20261111",
     "main": "99035931d358add0eaed6d4535035c38413701dd",
@@ -683,6 +685,13 @@
       "prior_archive": "34ded7a21bed380b71e5bf85f4eb88569404710f",
       "status": "archived recipe; remote retirement planned",
       "recipe_sha256": "3afb23be536dc5b61f0c98f21fc7ce268e30d859bde5b61822fb81b80433363c"
+    },
+    "task/compiler-thinlto-complete-visibility": {
+      "source_head": "2549cbec8e1f3096d4c8c8a960459c83095ad13d",
+      "recipe_head": "f2522c0786d4a1cd3cfb9cee03c2fcc7e31e72b8",
+      "prior_archive": "098789c8cfb7f3f436c8014af1069a7f8314da08",
+      "status": "archived recipe; remote retirement planned",
+      "recipe_sha256": "a55cec058d3730d2394bf62da8893d6ca65de010163cc5bbaf48789feba65cd9"
     }
   },
   "next_optimization_evidence": {
