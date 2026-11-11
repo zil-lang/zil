@@ -1,9 +1,10 @@
 {
   "format": 1,
   "created_utc": "2026-11-11T01:13:36.759319+00:00",
-  "prior_archive": "5c97386cef5a337c432fc7f1351dfcc22a0c02e6",
+  "prior_archive": "5e31ee5f0d8d0219afde8a73ac8c960e04f844b5",
   "commit_parents": [
-    "5c97386cef5a337c432fc7f1351dfcc22a0c02e6"
+    "5e31ee5f0d8d0219afde8a73ac8c960e04f844b5",
+    "b0da05ec784d632fa88c00d860382d656db712ec"
   ],
   "commit_tips": [
     "0a8929d4f6126683737d62ab9def1d8e67a784ca",
@@ -61,7 +62,8 @@
     "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
     "1679decf177c9a6eda5a64063c525f06e44e56a2",
     "52284449ea652983b16069c71bc8dc1a40a8b802",
-    "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247"
+    "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
+    "b0da05ec784d632fa88c00d860382d656db712ec"
   ],
   "local_refs": {},
   "remote_refs": {
@@ -110,7 +112,8 @@
     "refs/heads/task/compiler-consolidation": "dafe801c34b709520e50b31fe86f944c3f346da6",
     "refs/heads/task/compiler-composition-validation": "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56",
     "refs/heads/task/compiler-layout-projection": "52284449ea652983b16069c71bc8dc1a40a8b802",
-    "refs/heads/task/compiler-bounded-imports": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247"
+    "refs/heads/task/compiler-bounded-imports": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
+    "refs/heads/task/compiler-structured-emission": "b0da05ec784d632fa88c00d860382d656db712ec"
   },
   "worktrees": [],
   "missing_commit_objects": [],
@@ -615,7 +618,7 @@
       "decision": "Profile completed; worker-owned candidate not adopted; source, raw records and all negative values preserved"
     }
   },
-  "updated_utc": "2026-11-11 08:44:54 UTC",
+  "updated_utc": "2026-11-11T11:41:21.104Z",
   "compiler_multi_edit_20261111": {
     "directory": "research/compiler-multi-edit-20261111",
     "main": "99035931d358add0eaed6d4535035c38413701dd",
@@ -654,5 +657,22 @@
       "archive": "5c97386cef5a337c432fc7f1351dfcc22a0c02e6"
     }
   },
-  "remote_refs_semantics": "Historical preserved source/recipe tips, not a live branch listing. Final readback separately records all retired refs absent and the three remaining branches."
+  "remote_refs_semantics": "Historical preserved source/recipe tips, not a live branch listing. Final readback separately records all retired refs absent and the three remaining branches.",
+  "next_optimization_retirements": {
+    "task/compiler-structured-emission": {
+      "source_head": "ee0cc45261dbfadf25dce567f0fc1fa0b4d4b6f5",
+      "recipe_head": "b0da05ec784d632fa88c00d860382d656db712ec",
+      "prior_archive": "5e31ee5f0d8d0219afde8a73ac8c960e04f844b5",
+      "status": "archived recipe; remote retirement planned",
+      "recipe_sha256": "b573e924f2aba93dbfabea430a983cfa97990e8d68741bdf99fd054657f7f933"
+    }
+  },
+  "next_optimization_evidence": {
+    "archive_checkpoint": "5e31ee5f0d8d0219afde8a73ac8c960e04f844b5",
+    "manifest_path": "research/compiler-next-optimization-20261111/manifest.json",
+    "raw_checkpoint_path": "research/compiler-next-optimization-20261111/raw-checkpoint-v0.json",
+    "raw_sha256": "9b1677993e14d608cd5f64c99eecc75bf13963a142219bb48caa1b7945bfadef",
+    "raw_library_version": 0,
+    "identity_dedup_candidate_retained": "3d0dc3e1f420ebea68aff66ebbcd86111251bffc"
+  }
 }
