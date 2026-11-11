@@ -1,13 +1,12 @@
 {
   "format": 1,
   "created_utc": "2026-11-11T01:13:36.759319+00:00",
-  "prior_archive": "b2c53b4b79bceac60f213034b30e159238c3f9bd",
+  "prior_archive": "1690cbc2fffd814e35e6021db425f7e730aa6f2c",
   "commit_parents": [
-    "b2c53b4b79bceac60f213034b30e159238c3f9bd",
-    "f9dd0bcd3313f6a04ad8883caecd7996f51cd737",
-    "4f29707db7f73689f377624024b9ff991c94a164",
-    "e19e35a9177b491b595f085fc77836a963856382",
-    "13c53cf315d0eaa0512424707bcb0ed60c6f8e33"
+    "1690cbc2fffd814e35e6021db425f7e730aa6f2c",
+    "f38ed14b2c18c587f01a117f3c8a6d9cc67c4e7b",
+    "130d3a7cab25603ae42a7fae0c9f63116c858c72",
+    "ccbb7164a9ab4d41befc5c68e6ddbd1029b0f914"
   ],
   "commit_tips": [
     "0a8929d4f6126683737d62ab9def1d8e67a784ca",
@@ -519,5 +518,23 @@
       ],
       "retired": []
     }
-  ]
+  ],
+  "compiler_resumption_20261111": {
+    "main": "99035931d358add0eaed6d4535035c38413701dd",
+    "accepted": "f38ed14b2c18c587f01a117f3c8a6d9cc67c4e7b",
+    "not_accepted": "130d3a7cab25603ae42a7fae0c9f63116c858c72",
+    "no_inline_wip": {
+      "base": "130d3a7cab25603ae42a7fae0c9f63116c858c72",
+      "patch_commit": "ccbb7164a9ab4d41befc5c68e6ddbd1029b0f914",
+      "patch_path": ".task/compiler-resumption/no-inline-screen/candidate.patch",
+      "screen": "24 builds / 408 runs; runtime screen passes; no general compile gain established; not adopted"
+    },
+    "evidence_commit": "ccbb7164a9ab4d41befc5c68e6ddbd1029b0f914",
+    "raw_evidence": {
+      "library_file_id": "libfile_fde3_f-423835f961488191ba4183d1944bab00_bd147c3485448191a9df16b3c3cea7dd",
+      "file_id": "file_0000000027bc81f88c46d85bbca1846d",
+      "bytes": 10946590,
+      "sha256": "dcfafaca60f366b03232c6400fdd0fac878cefa78e53cf7db91bd519c6402766"
+    }
+  }
 }
