@@ -1,5 +1,7 @@
 # 编译专项续轮结果与归档决策
 
+原始证据包中的相对路径以下述 `raw/multi-edit/` 为起点；`../bounded-imports/…` 对应包内 `raw/bounded-imports/…`。后续退役收据单独保留在本归档的 `retirement-multiedit/`，不冒称已进入冻结原始包。
+
 主线保持`99035931d358add0eaed6d4535035c38413701dd`。本轮没有达到可采纳的新增编译优化：a60投影hash的收益混合且不足以确立整体净收益；1679 bounded imports在真实运行门中8/8失败，已停止扩展测量。main同binary A/A与Rust并发实验及独审已完成：固定四CPU下六格Rust均更快，这只是当前主线诊断，没有候选改善结论。以下均为已有证据的归档，不新增采样、代码或协议变更。
 
 ## 1. a60：同机器码，编译收益不足以采纳
@@ -56,7 +58,7 @@ wall为所有批次观测的算术均值；吞吐为总完成任务数/总batch 
 
 [N64只读成本诊断](n64-cost-diagnosis.md)已定位真正的重复工作：入口unit含68个canonical定义和504个完整导入body；只改m1一个文件仍使unit1及覆盖全调用闭包的unit0同时失效，根unit重新执行完整O2和机器码发射。a60只复用layout recipe，没有改变这个关键重编范围；1679缩减body可见性则破坏IPO，实际丢失内联、跨调用SIMD及检查消除。AE及CP084已有旧反证，本轮不重复旧NoGo；CP084精确来源为`8255079de3434de5aad44805a12eed8e9f433c24:docs/research/084/RESULTS.md`，其absent-key shortcut功能等价成立，但完整编译收益未建立，不能把“少扫一次图”直接当作实际净提速。当前证据尚未建立保住优化质量且能减少这部分重复工作的可信小修复。
 
-旧`task/compiler-composition-validation`分支已删除，删除前tip `1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56`；研究父提交`5aa8057f9cc0bff651fc6a44147b4e6e2dd307de`保留，归档提交`c43cda662622d81d7a43849ac7bf5266062fc8f7`。[删除与保留收据：原始证据包](https://chatgpt.com/library?file_id=libfile_fde3_f-543f5b7d390481918a9a3fc3e4099f2b_bd147c3485448191a9df16b3c3cea7dd&account_id=personal)（包内`retirement-receipt.json`）记录远端复核，不代表旧候选获准进入生产。**layout-projection和bounded-imports两个新ref仍待归档删除，本文不提前称已删。** main保持`99035931d358add0eaed6d4535035c38413701dd`。
+旧`task/compiler-composition-validation`分支已删除，删除前tip `1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56`；研究父提交`5aa8057f9cc0bff651fc6a44147b4e6e2dd307de`保留，归档提交`c43cda662622d81d7a43849ac7bf5266062fc8f7`。[删除与保留收据：原始证据包](https://chatgpt.com/library?file_id=libfile_fde3_f-543f5b7d390481918a9a3fc3e4099f2b_bd147c3485448191a9df16b3c3cea7dd&account_id=personal)（包内`retirement-receipt.json`）记录远端复核，不代表旧候选获准进入生产。**layout-projection和bounded-imports两个实验ref已先保全并删除。** layout退役运行[42988640504](https://github.com/zil-lang/zil/actions/runs/42988640504)、bounded退役运行[42988998893](https://github.com/zil-lang/zil/actions/runs/42988998893)均成功，删除后各自ref返回404；源码a60和1679及其正负证据仍可由固定归档恢复。见[最终清理独审](../retirement-multiedit/retirement-final-readback.md)。 main保持`99035931d358add0eaed6d4535035c38413701dd`。
 
 本轮在已恢复LLVM23.1.4/Rust1.99.1的环境中完成，工具全程按冻结身份复用；旧cloud目录不作为本轮复用构建或缓存的来源。完整default O2、独立Verify、当前完整机器预检以及原相对运行门始终保留。
 

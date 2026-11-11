@@ -1,0 +1,61 @@
+{
+  "review_utc": "2026-11-11T08:41:41.949498+00:00",
+  "decision": "Pass: publish exact A2 before advancing only bounded ref to exact W",
+  "read_only": true,
+  "W": {
+    "sha": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
+    "tree": "aa04999ebdb6dc0e80f681eb71ecf101e3a58457",
+    "parents": [
+      "1679decf177c9a6eda5a64063c525f06e44e56a2"
+    ],
+    "only_changed_file": ".github/workflows/compiler-resumption-retire.yml",
+    "change_status": "added",
+    "workflow_blob": "fe4215efed9c2d52e0c5e83d281da14e075fc219",
+    "workflow_bytes": 6713,
+    "workflow_sha256": "76bccdf5a692ee47db924115e9d3c642f888cecbcd47642d1f7a6a87c5fe272b",
+    "PRIOR_ARCHIVE": "a018e25431dc74a5d56e7e2df9ecf75b9f179717"
+  },
+  "A2": {
+    "sha": "5c97386cef5a337c432fc7f1351dfcc22a0c02e6",
+    "tree": "b1f2eb0248af2ab2008580c95f9c945b56c2d2e1",
+    "parents": [
+      "a018e25431dc74a5d56e7e2df9ecf75b9f179717",
+      "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247"
+    ],
+    "only_changes_from_A1": [
+      "manifest.json",
+      "research/compiler-multi-edit-20261111/retirement-multiedit/final-bounded.yml",
+      "research/compiler-multi-edit-20261111/retirement-multiedit/layout-retirement-receipt.json"
+    ],
+    "manifest_prior": "a018e25431dc74a5d56e7e2df9ecf75b9f179717",
+    "manifest_W_tip_included": true,
+    "manifest_planned_bounded_ref": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
+    "layout_retirement_completed": true,
+    "layout_completed_run": 42988640504,
+    "layout_receipt_blob": "d96c3cbed4494010ccf1db66ba35e4312adc4de0",
+    "layout_receipt_matches_exact_local": true,
+    "bounded_retirement_completed": false
+  },
+  "template_check": {
+    "success_template_commit": "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56",
+    "reverse_four_fields_equal": true,
+    "replacement_counts": [
+      1,
+      2,
+      1,
+      1
+    ],
+    "local_remote_A2_recipe_exact_same_blob": true,
+    "python_AST_parse": true,
+    "guard_logic_changed": false
+  },
+  "observed_before_publish": {
+    "archive": "a018e25431dc74a5d56e7e2df9ecf75b9f179717",
+    "bounded_source_ref": "1679decf177c9a6eda5a64063c525f06e44e56a2"
+  },
+  "links": {
+    "W": "https://github.com/zil-lang/zil/commit/69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
+    "A2": "https://github.com/zil-lang/zil/commit/5c97386cef5a337c432fc7f1351dfcc22a0c02e6"
+  },
+  "scope": "Exact final object audit only. No raw rehash, benchmark edits, production mutation, workflow dispatch or ref updates."
+}

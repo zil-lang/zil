@@ -1,0 +1,99 @@
+{
+  "format": 1,
+  "observed_utc": "2026-11-11 08:42:46 UTC",
+  "repository": "zil-lang/zil",
+  "workflow_receipt": {
+    "started_utc": "2026-11-11T08:41:19.844180+00:00",
+    "target": "refs/heads/task/compiler-bounded-imports",
+    "expected": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
+    "run": 42988998893,
+    "prior_archive": "a018e25431dc74a5d56e7e2df9ecf75b9f179717",
+    "archive": "5c97386cef5a337c432fc7f1351dfcc22a0c02e6",
+    "returncode": 0,
+    "stdout": "To https://github.com/zil-lang/zil\n-\t:refs/heads/task/compiler-bounded-imports\t[deleted]\nDone\n",
+    "stderr": "",
+    "verified_absent": true,
+    "status": "Completed exact archived self retirement"
+  },
+  "post_run_readback": {
+    "target_ref": "refs/heads/task/compiler-bounded-imports",
+    "http_status": 404,
+    "verified_absent": true,
+    "archive": "5c97386cef5a337c432fc7f1351dfcc22a0c02e6"
+  },
+  "source_evidence_head": "1679decf177c9a6eda5a64063c525f06e44e56a2",
+  "run": {
+    "id": 42988998893,
+    "url": "https://github.com/zil-lang/zil/actions/runs/42988998893",
+    "status": "completed",
+    "conclusion": "success",
+    "head_sha": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
+    "event": "push"
+  },
+  "job": {
+    "id": 130416969841,
+    "name": "retire",
+    "status": "completed",
+    "conclusion": "success",
+    "run_id": 42988998893,
+    "logs_url": null,
+    "steps": [
+      {
+        "name": "Set up job",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 1
+      },
+      {
+        "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 2
+      },
+      {
+        "name": "Verify immutable archive and exact branch lease, then retire only this branch",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 3
+      },
+      {
+        "name": "Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 4
+      },
+      {
+        "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 8
+      },
+      {
+        "name": "Complete job",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 9
+      }
+    ]
+  },
+  "artifact": {
+    "id": 13840842014,
+    "name": "compiler-retirement-42988998893",
+    "size_in_bytes": 483,
+    "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13840842014",
+    "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13840842014/zip",
+    "expired": false,
+    "created_at": "2026-11-11T08:41:27Z",
+    "expires_at": "2026-12-11T08:41:26Z",
+    "updated_at": "2026-11-11T08:41:27Z",
+    "digest": "sha256:ea5bd5752ef502d3bff918ceaeb1b607c81f1c7f824be5a9854c0a651f807ae1",
+    "workflow_run": {
+      "id": 42988998893,
+      "repository_id": 1433889316,
+      "head_repository_id": 1433889316,
+      "head_branch": "task/compiler-bounded-imports",
+      "head_sha": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247"
+    }
+  },
+  "interpretation": "Exact archived experimental ref retired; source and runtime NoGo retained. No production adoption."
+}

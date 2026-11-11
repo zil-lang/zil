@@ -1,0 +1,96 @@
+{
+  "format": 1,
+  "readback_utc": "2026-11-11T08:44:02.881Z",
+  "decision": "Both exact archived task refs retired; three retired refs absent; main and goal unchanged at final pre-F snapshot",
+  "scope": "Independent GET-only readback; no raw/benchmark/source reread or remote mutation",
+  "refs": {
+    "main": "99035931d358add0eaed6d4535035c38413701dd",
+    "goal": "acdeb7db04b796bf080ec527f1089b857e0c9431",
+    "archive": "5c97386cef5a337c432fc7f1351dfcc22a0c02e6"
+  },
+  "complete_branch_list": [
+    {
+      "name": "archive/source-history",
+      "sha": "5c97386cef5a337c432fc7f1351dfcc22a0c02e6"
+    },
+    {
+      "name": "goal",
+      "sha": "acdeb7db04b796bf080ec527f1089b857e0c9431"
+    },
+    {
+      "name": "main",
+      "sha": "99035931d358add0eaed6d4535035c38413701dd"
+    }
+  ],
+  "retired_refs": [
+    {
+      "ref": "refs/heads/task/compiler-composition-validation",
+      "http_status": 404,
+      "error_code": "NOT_FOUND",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/ref/heads/task/compiler-composition-validation"
+    },
+    {
+      "ref": "refs/heads/task/compiler-layout-projection",
+      "http_status": 404,
+      "error_code": "NOT_FOUND",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/ref/heads/task/compiler-layout-projection"
+    },
+    {
+      "ref": "refs/heads/task/compiler-bounded-imports",
+      "http_status": 404,
+      "error_code": "NOT_FOUND",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/ref/heads/task/compiler-bounded-imports"
+    }
+  ],
+  "runs": [
+    {
+      "name": "layout",
+      "id": 42988640504,
+      "job_id": 130415780442,
+      "head_sha": "52284449ea652983b16069c71bc8dc1a40a8b802",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/zil-lang/zil/actions/runs/42988640504",
+      "actual_receipt_from_job_logs": {
+        "started_utc": "2026-11-11T08:38:33.674345+00:00",
+        "target": "refs/heads/task/compiler-layout-projection",
+        "expected": "52284449ea652983b16069c71bc8dc1a40a8b802",
+        "run": 42988640504,
+        "prior_archive": "a48374cce53d1018fe52a1c749990db4248f7135",
+        "archive": "a018e25431dc74a5d56e7e2df9ecf75b9f179717",
+        "returncode": 0,
+        "stdout": "To https://github.com/zil-lang/zil\n-\t:refs/heads/task/compiler-layout-projection\t[deleted]\nDone\n",
+        "stderr": "",
+        "verified_absent": true,
+        "status": "Completed exact archived self retirement"
+      },
+      "local_receipt_matches_actual_log": true
+    },
+    {
+      "name": "bounded",
+      "id": 42988998893,
+      "job_id": 130416969841,
+      "head_sha": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/zil-lang/zil/actions/runs/42988998893",
+      "actual_receipt_from_job_logs": {
+        "started_utc": "2026-11-11T08:41:19.844180+00:00",
+        "target": "refs/heads/task/compiler-bounded-imports",
+        "expected": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
+        "run": 42988998893,
+        "prior_archive": "a018e25431dc74a5d56e7e2df9ecf75b9f179717",
+        "archive": "5c97386cef5a337c432fc7f1351dfcc22a0c02e6",
+        "returncode": 0,
+        "stdout": "To https://github.com/zil-lang/zil\n-\t:refs/heads/task/compiler-bounded-imports\t[deleted]\nDone\n",
+        "stderr": "",
+        "verified_absent": true,
+        "status": "Completed exact archived self retirement"
+      },
+      "local_receipt_matches_actual_log": true
+    }
+  ],
+  "root_local_receipts_match_actual_job_logs": true,
+  "pre_final_archive_snapshot": true,
+  "interpretation": "Archive/goal may subsequently be advanced by root to record these completed retirements; this snapshot does not claim those later writes."
+}

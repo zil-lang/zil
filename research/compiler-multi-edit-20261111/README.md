@@ -30,3 +30,7 @@
 
 当前环境中旧会话工作目录未挂载，已恢复 LLVM/Clang/LLD 23.1.4 和 Rust 1.99.1；随后复用此环境及独立目标目录中的依赖。完整 O2、每请求 Verify、当前机器预检与原运行质量门保持。
 
+
+## 最终退役结果
+
+两条本轮实验ref已按原guard顺序退役：layout运行[42988640504](https://github.com/zil-lang/zil/actions/runs/42988640504)、bounded运行[42988998893](https://github.com/zil-lang/zil/actions/runs/42988998893)均成功，精确ref删除后404。源码/证据初次保全提交为 `a48374cce53d1018fe52a1c749990db4248f7135`，直接保全recipe的归档为 `a018e25431dc74a5d56e7e2df9ecf75b9f179717` 和 `5c97386cef5a337c432fc7f1351dfcc22a0c02e6`。旧composition也已完成退役。实际完成收据与[最终独立回读](retirement-multiedit/retirement-final-readback.md)在本目录保留；先前草案和首末尾LF差异/修正记录均保留。主线没有新合入的优化，广泛Rust目标保持开放。

@@ -1,0 +1,29 @@
+{
+  "template_commit": "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56",
+  "template_path": ".github/workflows/compiler-resumption-retire.yml",
+  "drafts_only": true,
+  "remote_mutations": false,
+  "order": "Evidence E, then Wlayout/A1 and complete retirement, then Wbounded/A2 and complete retirement",
+  "drafts": [
+    {
+      "target_branch": "task/compiler-layout-projection",
+      "source_head_OLD": "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
+      "draft": "/workspace/scratch/abf690ce880c/out/retirement-multiedit/compiler-layout-projection-retire.yml",
+      "sha256": "79aa1546c3ad01e0756d2016bb01a81c81c07a1f317d9ef5989fc1bdec4b4695",
+      "install_path": ".github/workflows/compiler-resumption-retire.yml",
+      "unresolved_field": "PRIOR_ARCHIVE",
+      "expected_recipe_head": "GITHUB_SHA",
+      "successful_template_guard_unchanged": true
+    },
+    {
+      "target_branch": "task/compiler-bounded-imports",
+      "source_head_OLD": "1679decf177c9a6eda5a64063c525f06e44e56a2",
+      "draft": "/workspace/scratch/abf690ce880c/out/retirement-multiedit/compiler-bounded-imports-retire.yml",
+      "sha256": "cc1daba6034dcd6e310750f468a7e89bb90c5bb7b1b57644247b5dc498a0bca3",
+      "install_path": ".github/workflows/compiler-resumption-retire.yml",
+      "unresolved_field": "PRIOR_ARCHIVE",
+      "expected_recipe_head": "GITHUB_SHA",
+      "successful_template_guard_unchanged": true
+    }
+  ]
+}

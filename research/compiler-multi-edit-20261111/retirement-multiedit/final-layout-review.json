@@ -1,0 +1,98 @@
+{
+  "review_utc": "2026-11-11T08:37:52.594732+00:00",
+  "decision": "Pass for exact W and A1; publish A1 first, then advance only layout ref to W",
+  "read_only": true,
+  "objects": {
+    "E": {
+      "sha": "a48374cce53d1018fe52a1c749990db4248f7135",
+      "tree": "cef7de0efdd467580e37821a4ac39f02dc3a9312",
+      "parents": [
+        "c43cda662622d81d7a43849ac7bf5266062fc8f7",
+        "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
+        "1679decf177c9a6eda5a64063c525f06e44e56a2"
+      ]
+    },
+    "W": {
+      "sha": "52284449ea652983b16069c71bc8dc1a40a8b802",
+      "tree": "72df7aa4b27ac5b5def37818e1c47880ac545268",
+      "parents": [
+        "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf"
+      ],
+      "only_changed_path": ".github/workflows/compiler-resumption-retire.yml",
+      "status": "added",
+      "blob": "713334961b62b271610b28a1c4b951eae7f220cf",
+      "source_bytes": 6719,
+      "source_sha256": "f5a7f1f229b2e337fddf2521a488dbd46317d1dbdf4b1a55f1fc3d58f624e5f8"
+    },
+    "A1": {
+      "sha": "a018e25431dc74a5d56e7e2df9ecf75b9f179717",
+      "tree": "0473ff363458ed61acacc9d33c252bbf76095f7b",
+      "parents": [
+        "a48374cce53d1018fe52a1c749990db4248f7135",
+        "52284449ea652983b16069c71bc8dc1a40a8b802"
+      ],
+      "only_changed_paths_from_E": [
+        "manifest.json",
+        "research/compiler-multi-edit-20261111/retirement-multiedit/final-layout.yml"
+      ],
+      "preserved_recipe_blob": "713334961b62b271610b28a1c4b951eae7f220cf"
+    }
+  },
+  "checks": {
+    "remote_W_and_local_exact_bytes_match_after_root_fix": true,
+    "inverse_success_template_equal": true,
+    "replacement_counts": [
+      1,
+      2,
+      1,
+      1
+    ],
+    "PRIOR_ARCHIVE_is_E": true,
+    "W_parent_exact_source": true,
+    "W_only_workflow_addition": true,
+    "A1_direct_parents_exact": true,
+    "A1_manifest_prior_and_parents_match": true,
+    "A1_manifest_tip_includes_W": true,
+    "A1_target_remote_ref_is_explicit_planned_W": true,
+    "A1_observed_refs_preserve_source_tip_a60": true,
+    "E_preserves_prior_archive_and_both_sources": true,
+    "missing_commit_objects": [],
+    "guard_lease_activity_PR_identity_and_receipt_logic_unchanged": true
+  },
+  "local_newline_discrepancy": {
+    "initial_local_bytes": 6720,
+    "initial_local_sha256": "9d6edeb6bf9860f9ba88ba9b945c1dc1cc6aef94592c5448f58b5f841caf3f24",
+    "initial_local_blob": "ee5c87e6b19a4b90001a8ab918f930dca4f348ea",
+    "difference": "Exactly one extra final LF in local final-layout.yml; actual remote W already matched successful template after four substitutions",
+    "correction": "Root aligned local file to actual remote source; no Git object changed",
+    "final_bytes": 6719,
+    "final_sha256": "f5a7f1f229b2e337fddf2521a488dbd46317d1dbdf4b1a55f1fc3d58f624e5f8",
+    "final_blob": "713334961b62b271610b28a1c4b951eae7f220cf"
+  },
+  "evidence_pointer": {
+    "path": "research/compiler-multi-edit-20261111/raw-evidence.json",
+    "library_file_id": "libfile_fde3_f-543f5b7d390481918a9a3fc3e4099f2b_bd147c3485448191a9df16b3c3cea7dd",
+    "library_version": 1,
+    "sha256": "6058113ae324218f7e159c7f9fc35be71408e7bebf5210ce79d00554863fe330",
+    "bytes": 20657285,
+    "tar_entries": 6223,
+    "raw_files": 6212,
+    "local_package_sha_bytes_entries_verified": true,
+    "later_retirement_receipts_not_claimed_inside_frozen_raw": true
+  },
+  "pre_publish_observations": {
+    "archive": "a48374cce53d1018fe52a1c749990db4248f7135",
+    "layout": "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
+    "bounded": "1679decf177c9a6eda5a64063c525f06e44e56a2",
+    "main": "99035931d358add0eaed6d4535035c38413701dd",
+    "goal": "acdeb7db04b796bf080ec527f1089b857e0c9431",
+    "open_PRs": 0,
+    "layout_workflow_runs": 0
+  },
+  "links": {
+    "E": "https://github.com/zil-lang/zil/commit/a48374cce53d1018fe52a1c749990db4248f7135",
+    "W": "https://github.com/zil-lang/zil/commit/52284449ea652983b16069c71bc8dc1a40a8b802",
+    "A1": "https://github.com/zil-lang/zil/commit/a018e25431dc74a5d56e7e2df9ecf75b9f179717"
+  },
+  "scope": "No ref/PR/workflow mutations; no benchmarks or production files changed; execution-time workflow guards must still pass."
+}

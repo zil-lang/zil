@@ -1,10 +1,9 @@
 {
   "format": 1,
   "created_utc": "2026-11-11T01:13:36.759319+00:00",
-  "prior_archive": "a018e25431dc74a5d56e7e2df9ecf75b9f179717",
+  "prior_archive": "5c97386cef5a337c432fc7f1351dfcc22a0c02e6",
   "commit_parents": [
-    "a018e25431dc74a5d56e7e2df9ecf75b9f179717",
-    "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247"
+    "5c97386cef5a337c432fc7f1351dfcc22a0c02e6"
   ],
   "commit_tips": [
     "0a8929d4f6126683737d62ab9def1d8e67a784ca",
@@ -464,20 +463,24 @@
       "prior_archive": "a48374cce53d1018fe52a1c749990db4248f7135",
       "remote_ref_snapshot_note": "Planned recipe head, to be published only after this archive; runtime checks exact lease.",
       "completed_run": 42988640504,
-      "completion_receipt": "research/compiler-multi-edit-20261111/retirement-multiedit/layout-retirement-receipt.json"
+      "completion_receipt": "research/compiler-multi-edit-20261111/retirement-multiedit/layout-retirement-receipt.json",
+      "actual_deleted_recipe": "52284449ea652983b16069c71bc8dc1a40a8b802"
     },
     {
       "ref": "refs/heads/task/compiler-bounded-imports",
       "head_before_retirement": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
       "source_evidence_head": "1679decf177c9a6eda5a64063c525f06e44e56a2",
-      "retirement_completed": false,
+      "retirement_completed": true,
       "disposition": "rejected",
       "reason": "NoGo: all eight native runtime cases regressed 61.6%–112.3% from main and failed the unchanged 10% quality gate.",
       "archive_is_acceptance": false,
       "evidence_directory": "research/compiler-multi-edit-20261111",
       "recipe_commit": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
       "prior_archive": "a018e25431dc74a5d56e7e2df9ecf75b9f179717",
-      "remote_ref_snapshot_note": "Planned recipe head, to be published only after this archive; runtime checks exact lease."
+      "remote_ref_snapshot_note": "Planned recipe head, to be published only after this archive; runtime checks exact lease.",
+      "completed_run": 42988998893,
+      "completion_receipt": "research/compiler-multi-edit-20261111/retirement-multiedit/bounded-retirement-receipt.json",
+      "actual_deleted_recipe": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247"
     }
   ],
   "research_sources": [
@@ -612,7 +615,7 @@
       "decision": "Profile completed; worker-owned candidate not adopted; source, raw records and all negative values preserved"
     }
   },
-  "updated_utc": "2026-11-11 08:31:45 UTC",
+  "updated_utc": "2026-11-11 08:44:54 UTC",
   "compiler_multi_edit_20261111": {
     "directory": "research/compiler-multi-edit-20261111",
     "main": "99035931d358add0eaed6d4535035c38413701dd",
@@ -638,6 +641,18 @@
       "task/compiler-layout-projection": "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
       "task/compiler-bounded-imports": "1679decf177c9a6eda5a64063c525f06e44e56a2"
     },
-    "retirement_status": "Layout exact ref retired successfully and receipt preserved; bounded recipe directly preserved before its branch is advanced."
-  }
+    "retirement_status": "Completed: composition, layout-projection and bounded-imports refs absent; exact source/evidence and recipe ancestry retained; no production acceptance.",
+    "evidence_preservation_commit": "a48374cce53d1018fe52a1c749990db4248f7135",
+    "retirement_archive_commits": [
+      "a018e25431dc74a5d56e7e2df9ecf75b9f179717",
+      "5c97386cef5a337c432fc7f1351dfcc22a0c02e6"
+    ],
+    "final_readback": "research/compiler-multi-edit-20261111/retirement-multiedit/retirement-final-readback.json",
+    "observed_refs_after_retirement": {
+      "main": "99035931d358add0eaed6d4535035c38413701dd",
+      "goal": "acdeb7db04b796bf080ec527f1089b857e0c9431",
+      "archive": "5c97386cef5a337c432fc7f1351dfcc22a0c02e6"
+    }
+  },
+  "remote_refs_semantics": "Historical preserved source/recipe tips, not a live branch listing. Final readback separately records all retired refs absent and the three remaining branches."
 }
