@@ -228,24 +228,33 @@
       "open_prs": [
         83
       ]
-    }
-  ],
-  "skipped": [
+    },
     {
       "branch": "task/helper-current-main-validation",
-      "reason": "changed or missing since audit",
-      "expected": "835364edf2a7741587829543177d9b25dffc7a81",
-      "actual": "467b5ffd791c6aae80cc524b1c23cf7259182661"
+      "sha": "467b5ffd791c6aae80cc524b1c23cf7259182661",
+      "category": "evidence-only",
+      "reason": "Final immutable report added after first audit; implementation unchanged, candidate continues in PR80/84.",
+      "evidence": [
+        "42927538037",
+        ".task/helper-current/RESULTS.md"
+      ],
+      "open_prs": []
     },
     {
       "branch": "task/repeatable-closure-drop",
-      "reason": "changed or missing since audit",
-      "expected": "a5d1f1d57dacbe14ead435be0d39f17609c4a79e",
-      "actual": "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071"
+      "sha": "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071",
+      "category": "rejected",
+      "reason": "Final negative-quality report added after first audit; static cleanup remains rejected, PR83 closed.",
+      "evidence": [
+        "42930165591",
+        "PR83"
+      ],
+      "open_prs": []
     }
   ],
+  "skipped": [],
   "main_modified": false,
-  "goal_updated": false,
+  "goal_updated": true,
   "refs_before": {
     "archive/source-history": "4fe6113e8a44d1089cc96fc58fd391e4ae4793e0",
     "goal": "add5db2057180f35bbef710b11b008cd73aecefe",
@@ -336,6 +345,100 @@
     "task/repeatable-closure-drop": "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071",
     "task/resource-helper-codegen": "13c53cf315d0eaa0512424707bcb0ed60c6f8e33"
   },
-  "archive_final": "25297450db6fd517544e7c9da3e2d67f8c6c1443",
-  "completed_at": "2026-11-11T01:08:11.072145+00:00"
+  "archive_final": "b2c53b4b79bceac60f213034b30e159238c3f9bd",
+  "completed_at": "2026-11-11T01:08:11.072145+00:00",
+  "goal_before": "add5db2057180f35bbef710b11b008cd73aecefe",
+  "goal_commit": "6ea0ebb5c8c4f12598cf514a8100f4409911730c",
+  "goal_readback": "6ea0ebb5c8c4f12598cf514a8100f4409911730c",
+  "refs_final": {
+    "archive/source-history": "b2c53b4b79bceac60f213034b30e159238c3f9bd",
+    "goal": "6ea0ebb5c8c4f12598cf514a8100f4409911730c",
+    "main": "4ec5e78cfe1f2d0188ddc2502e6b15358f062b71",
+    "task/compiler-composition-validation": "a15cc71988eeabc6d63b92232c1817b1ee098b92",
+    "task/compiler-normalized-merging": "4f29707db7f73689f377624024b9ff991c94a164",
+    "task/normalized-function-equivalence": "e19e35a9177b491b595f085fc77836a963856382",
+    "task/resource-helper-codegen": "13c53cf315d0eaa0512424707bcb0ed60c6f8e33"
+  },
+  "late_evidence_review": [
+    {
+      "branch": "task/helper-current-main-validation",
+      "old": "835364edf2a7741587829543177d9b25dffc7a81",
+      "head": "467b5ffd791c6aae80cc524b1c23cf7259182661",
+      "changed_paths": [
+        ".task/helper-current/RESULTS.md"
+      ],
+      "production_unchanged": true
+    },
+    {
+      "branch": "task/repeatable-closure-drop",
+      "old": "a5d1f1d57dacbe14ead435be0d39f17609c4a79e",
+      "head": "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071",
+      "changed_paths": [
+        ".task/repeatable-drop/RESULTS.md"
+      ],
+      "production_unchanged": true
+    }
+  ],
+  "decision_base": "2bb30ce1819137d666c073299aa2639da4fd2964",
+  "decision_commit": "4ec5e78cfe1f2d0188ddc2502e6b15358f062b71",
+  "decision_tree": "9d2f726798917e44e2ec927b8461b97ad68e2328",
+  "decision_changed_paths": [
+    "docs/guide/build.md",
+    "docs/guide/compiler-cost-contract.md"
+  ],
+  "decision_checks": [
+    "exact documentation-only diff",
+    "all source/test/toolchain files unchanged",
+    "git diff --check",
+    "all relative documentation links resolve"
+  ],
+  "retired_compiler_count": 22,
+  "finalized_at": "2026-11-11T01:13:28.875908+00:00",
+  "coordination_branch_retired": {
+    "branch": "task/compiler-consolidation",
+    "sha": "dafe801c34b709520e50b31fe86f944c3f346da6",
+    "category": "completed-coordination",
+    "reason": "Branch audit and guarded retirement complete; no compiler implementation pending on this temporary branch.",
+    "evidence": [
+      ".task/compiler-consolidation/final-receipt.json"
+    ],
+    "open_prs": []
+  },
+  "active_final": [
+    {
+      "id": 42937302869,
+      "head_branch": "task/compiler-consolidation",
+      "head_sha": "c6c45943d3d9cc99651efa92aa09c63ad9aefab7",
+      "status": "in_progress",
+      "name": "Finalize compiler branch consolidation"
+    },
+    {
+      "id": 42935614289,
+      "head_branch": "task/compiler-composition-validation",
+      "head_sha": "186cbaf783347959e3cab112cb1daa98093b6325",
+      "status": "in_progress",
+      "name": "Combined closure compiler acceptance"
+    },
+    {
+      "id": 42935467555,
+      "head_branch": "task/normalized-function-equivalence",
+      "head_sha": "e19e35a9177b491b595f085fc77836a963856382",
+      "status": "in_progress",
+      "name": "Research LLVM verification"
+    },
+    {
+      "id": 42935467558,
+      "head_branch": "task/normalized-function-equivalence",
+      "head_sha": "e19e35a9177b491b595f085fc77836a963856382",
+      "status": "in_progress",
+      "name": "Main source verification"
+    },
+    {
+      "id": 42932930148,
+      "head_branch": "task/resource-helper-codegen",
+      "head_sha": "13c53cf315d0eaa0512424707bcb0ed60c6f8e33",
+      "status": "in_progress",
+      "name": "Research LLVM verification"
+    }
+  ]
 }
