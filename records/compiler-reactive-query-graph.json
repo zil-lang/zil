@@ -478,11 +478,11 @@
   },
   "producer_continuation": {
     "task": "G10.5.1.15",
-    "read_goal_sha": "b298b6986e7106ed76baf421a4fe16b6aaa1ea4d",
+    "read_goal_sha": "bc7d69e60b92c5860f5ee55b4f92bb4b81ff5ba4",
     "source_start": "0a529a6247793f63ccd41ff3f65dc97afcbb666c",
     "main": "99035931d358add0eaed6d4535035c38413701dd",
-    "status": "实施中·late真实文件路由与成本分区已过正确性门，release构建中，下一真实A/B/C成本重测",
-    "updated_utc": "2026-11-11T15:42:52.326921+00:00",
+    "status": "进行中·大Source单点/批量稀疏工作门与O2输出已通过，未证净等待收益，正在删除未变AST深复制",
+    "updated_utc": "2026-11-11T16:17:21.765422+00:00",
     "write_set": [
       "crates/zil-syntax/src/**: parser-owned immutable Source provenance and tests",
       "crates/zil-expand/src/**: scalar module Normalize/Restore/Lower products, ordered budget receipts and tests",
@@ -514,11 +514,11 @@
       "requirements": "B must use versions fairly; separate production/Eq/context/inventory/graph/evaluation/backend within same request; preserve current Verify/source binding/first diagnostics/budgets and real native behavior. Freeze source before performance."
     },
     "success_gate": "Unchanged modules actually skip Normalize/Lower, unchanged Core deep comparison drops, CFG execution does not increase, complete fresh-current differential passes; only then extend graph or performance matrix.",
-    "remaining": "大项目接入需r2实际非零Normalize/Lower与版本reuse验证后，才扩大无profile配对check/O2；无本片端到端收益结论。CT无用clone仅认领待测，单独旧A/新A归因，不记图收益。默认关闭，不合main。",
-    "source_head": "28b5ebcd33090d68d4a705d5078cf50eb1061697",
+    "remaining": "真实编译更新范围已缩小，但r4单block的复制组装仍约250–350ms，未有可靠端到端净收益；正以真实Arc借用Normalize/Restore产物消除深复制，保留原ledger/首次诊断和最终Core Vec clone。随后正式平衡A/B/C、规模/长会话/默认关成本门。C-B图收益单独，默认关，不合main。",
+    "source_head": "89ae96d62acb97d577e96b6e5d3fd90a56f99e8c",
     "validation": {
-      "source": "28b5ebcd33090d68d4a705d5078cf50eb1061697",
-      "lib_tests": 348,
+      "source": "89ae96d62acb97d577e96b6e5d3fd90a56f99e8c",
+      "lib_tests": 352,
       "cli_tests": 1,
       "strict_clippy": "workspace/all-targets -D warnings passed",
       "architecture": {
@@ -526,10 +526,21 @@
         "edges": 40,
         "status": "Pass at2a6; following source only type aliases/counter names"
       },
-      "actual_work_gate": "real filesystem io.emit + ordinary CT-like names: module reuse, zero Core Eq; exact work/node N/N−1, orphan pruning and current fresh Typed/Verify passed; real large workload gate pending",
-      "raw_local": "out/runs/producer-validation-28b5ebc; raw evidence packaging pending",
-      "review_source": "a17dc03a2f03e35ee641ef9a410a9f5627e58644 production byte-identical at28b5; independent exact-hash review",
-      "review": "non-author production read review and diagnosis assertion review; no semantic blockers; performance not accepted"
+      "actual_work_gate": "22module generated real Source: private equal/width NormalizeLower1,reuse21,version400,BodyKey21,CoreEq0;3file batch NormalizeLower3,reuse19,version358,BodyKey63;CFG same A5/6. Full fresh Typed/diag/budget/current Verify tests pass.",
+      "raw_local": "out/runs/producer-validation-89ae96d; native-abc-cost-20x20x16-r4; native-abc-producer-native-20x20x16-r4; final evidence replacement pending",
+      "review_source": "89ae96d62acb97d577e96b6e5d3fd90a56f99e8c",
+      "review": "non-author exact-byte budget/SourceMap/measurement review;352+CLI1 logs confirmed; no semantic blockers, no latency acceptance",
+      "native": {
+        "mode": "O2 llvm-api1CGU1job cacheall resident",
+        "blocks": 1,
+        "rows": 15,
+        "measured_rows": 9,
+        "native_executions": 90,
+        "current_verify_every_success": 1,
+        "A_B_C_ELF_equal": true,
+        "independent_oracle": "all90passed",
+        "interpretation": "real producer native correctness/work control; one block is not performance acceptance"
+      }
     },
     "preserved_failures": [
       {
@@ -551,7 +562,49 @@
       {
         "source": "a17dc03a2f03e35ee641ef9a410a9f5627e58644",
         "issue": "new failed-materializer cost test hardcoded SafeReject; actual baselineUnsupported/Ct/E-UNSUPPORTED span0:32..41.16/17passed; fixture and differential retained, exact assertion repaired28b5 then348lib+CLI1 passed"
+      },
+      {
+        "source": "28b5ebcd33090d68d4a705d5078cf50eb1061697",
+        "issue": "r2 equal-width only sparse; width/multi stillLower22, then ae675 debug r3 showed sole actual remaining work changes−1/−3; debug timings excluded"
+      },
+      {
+        "source": "7b2d1fe040ce16ec3e09206903764b2c8b616317",
+        "issue": "strong realIO red test: wide-private Normalize3 vs expected1. Fixed with current receipt/demand validation, same test passesf7/89"
+      },
+      {
+        "source": "f7defd7cfbaf7ad8d963db2e9fda41bbec73efeb",
+        "issue": "352lib+CLI1 pass;strictClippy let_and_return only, exact direct-return fix89 then strictgate passed"
       }
-    ]
+    ],
+    "common_copy_control": {
+      "sources": [
+        "28b5ebcd33090d68d4a705d5078cf50eb1061697",
+        "f632fe5395baf539924e2041340485c042290cec"
+      ],
+      "actual_production_diff": "plain_item rejects kinds never producing shape before cloning; no budget/diagnostic/accepted shape changes",
+      "mode": "check, producer/graph/profile disabled both arms",
+      "blocks": 6,
+      "rows": 60,
+      "measured_rows": 36,
+      "mean_saved_ms": {
+        "cold": 26.712681333333364,
+        "private": -11.897947666666662,
+        "multi": -18.379748166666662
+      },
+      "result": "all exploratory95% paired mean intervals cross0; no net latency benefit proven; never counted as graph benefit"
+    },
+    "evidence_checkpoint": {
+      "library_file_id": "libfile_fde3_f-11852a3f427881918ed8650db66dc3f3_bd147c3485448191a9df16b3c3cea7dd",
+      "current_version_number": 0,
+      "url": "https://chatgpt.com/library?file_id=libfile_fde3_f-11852a3f427881918ed8650db66dc3f3_bd147c3485448191a9df16b3c3cea7dd&account_id=personal",
+      "filename": "zil-producer-compiler-evidence-20261111.zip",
+      "bytes": 90983519,
+      "archive_entries": 1084,
+      "sha256": "ae533035eee20c532b22b3d6797c45ab3331d97d811e0d291d4644112051defc",
+      "manifest_sha256": "030eaa500ac176f809d4f30476b826cb35c1ffadddec55bfa0b64c7e7d0d3568",
+      "all_entries_read_back_hash_verified": true,
+      "boundary": "completed raw through7b2 red beforef7/89; new f7/89/r4 results not yet in saved version0",
+      "private_zit_included": false
+    }
   }
 }
