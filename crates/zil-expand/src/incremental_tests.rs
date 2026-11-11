@@ -48,6 +48,16 @@ fn fresh(
         &TargetProfile::default(),
     )
 }
+fn assert_complete_modules(
+    actual: &[(ProgramModule, ProducedSourceMap)],
+    expected: &[(ProgramModule, SourceMap)],
+) {
+    assert_eq!(actual.len(), expected.len());
+    for ((actual, map), (expected, original_map)) in actual.iter().zip(expected) {
+        assert_eq!(actual, expected);
+        assert_eq!(&**map, original_map);
+    }
+}
 fn checked(
     session: &mut ExpandSession,
     input: &[ParsedSource],
@@ -56,7 +66,7 @@ fn checked(
     let expanded = expand(session, input, limits)
         .unwrap()
         .expect("sealed scalar path");
-    assert_eq!(expanded.modules, fresh(input, limits).unwrap());
+    assert_complete_modules(&expanded.modules, &fresh(input, limits).unwrap());
     expanded
 }
 #[test]
@@ -167,7 +177,7 @@ fn producer_receipts_preserve_ordered_first_budget_diagnostic() {
         let expected = fresh(&changed, &limits);
         let actual = expand(&mut session, &changed, &limits);
         match (actual, expected) {
-            (Ok(Some(actual)), Ok(expected)) => assert_eq!(actual.modules, expected),
+            (Ok(Some(actual)), Ok(expected)) => assert_complete_modules(&actual.modules, &expected),
             (Err(actual), Err(expected)) => {
                 assert_eq!(actual, expected, "remaining work={work}");
                 if session.last_stats().receipt_hits > 0 {
@@ -299,9 +309,9 @@ fn producer_unavailable_scalar_lineage_keeps_raw_outputs_and_exact_budget_bounda
     let cold = produce(&mut session, &limits)
         .unwrap()
         .expect("scalar unavailable domain");
-    assert_eq!(cold.modules, expected);
+    assert_complete_modules(&cold.modules, &expected);
     let warm = produce(&mut session, &limits).unwrap().unwrap();
-    assert_eq!(warm.modules, expected);
+    assert_complete_modules(&warm.modules, &expected);
     assert_eq!(warm.revisions, cold.revisions);
     assert_eq!(session.last_stats().lower_modules, 0);
     let below = Limits {
@@ -427,7 +437,9 @@ fn producer_changed_allowances_keep_full_fresh_first_diagnostics() {
                 expand(&mut session, &input, &current),
                 fresh(&input, &current),
             ) {
-                (Ok(Some(actual)), Ok(expected)) => assert_eq!(actual.modules, expected),
+                (Ok(Some(actual)), Ok(expected)) => {
+                    assert_complete_modules(&actual.modules, &expected)
+                }
                 (Err(actual), Err(expected)) => {
                     assert_eq!(actual, expected, "nodes={nodes}, amount={amount}")
                 }
@@ -520,9 +532,11 @@ fn producer_retains_complete_ast_products_without_warm_deep_clones() {
     assert_eq!(session.last_stats().retained_normalized_items, 4);
     assert_eq!(session.last_stats().retained_restored_modules, 3);
     assert_eq!(session.last_stats().syntax_clone_receipt_nodes, 0);
-    assert!(
-        session.last_stats().cloned_source_map_entries > 0,
-        "public Core/Map assembly still copies"
+    assert_eq!(session.last_stats().cloned_source_map_entries, 0);
+    assert_eq!(
+        session.last_stats().core_module_deep_clones,
+        3,
+        "public Core Vec assembly still copies each module"
     );
     let changed = [
         parsed(
@@ -586,4 +600,71 @@ fn producer_retained_body_receipt_shortfall_reenters_complete_restore_input() {
         "changed first module and insufficient retained second module both copy complete normalized bodies"
     );
     assert!(session.last_stats().receipt_budget_misses > 0);
+}
+
+#[test]
+fn producer_shared_maps_equal_complete_raw_values_and_count_only_real_copies() {
+    let input = [
+        parsed(0, "fn first()->i32=>1;"),
+        parsed(1, "fn second(x:i32)->i32=>x+2;"),
+    ];
+    let limits = Limits::default();
+    let original = fresh(&input, &limits).unwrap();
+    let entry_count: u64 = original
+        .iter()
+        .map(|(_, map)| map.entries.len() as u64)
+        .sum();
+    let mut session = ExpandSession::default();
+    let cold = checked(&mut session, &input, &limits);
+    assert_eq!(session.last_stats().shared_maps, 2);
+    assert_eq!(session.last_stats().shared_entries, entry_count);
+    assert_eq!(session.last_stats().cloned_source_map_entries, entry_count);
+    assert_eq!(session.last_stats().source_map_deep_clones, 2);
+    assert_eq!(session.last_stats().core_module_deep_clones, 2);
+    let cold_maps: Vec<_> = cold.modules.iter().map(|(_, map)| map).collect();
+    let expected_maps: Vec<_> = original.iter().map(|(_, map)| map).collect();
+    assert_eq!(format!("{cold_maps:?}"), format!("{expected_maps:?}"));
+    assert_eq!(format!("{cold_maps:#?}"), format!("{expected_maps:#?}"));
+    checked(&mut session, &input, &limits);
+    assert_eq!(session.last_stats().cloned_source_map_entries, 0);
+    assert_eq!(session.last_stats().source_map_deep_clones, 0);
+    assert_eq!(session.last_stats().shared_maps, 2);
+    assert_eq!(session.last_stats().shared_entries, entry_count);
+    assert_eq!(session.last_stats().core_module_deep_clones, 2);
+    let changed = [parsed(0, "fn first()->i32=>10;"), input[1].clone()];
+    checked(&mut session, &changed, &limits);
+    assert_eq!(session.last_stats().source_map_deep_clones, 1);
+    assert_eq!(
+        session.last_stats().cloned_source_map_entries,
+        fresh(&changed, &limits).unwrap()[0].1.entries.len() as u64
+    );
+    assert_eq!(session.last_stats().shared_maps, 2);
+    assert_eq!(session.last_stats().core_module_deep_clones, 2);
+    let owned: ProducedSourceMap = original[0].1.clone().into();
+    assert_eq!(&*owned, &original[0].1);
+    assert_eq!(format!("{owned:#?}"), format!("{:#?}", original[0].1));
+}
+
+#[test]
+fn producer_retained_map_does_not_retain_replaced_cached_core() {
+    let input = [parsed(0, "fn first()->i32=>1;")];
+    let limits = Limits::default();
+    let expected = fresh(&input, &limits).unwrap().remove(0).1;
+    let mut session = ExpandSession::default();
+    let expanded = checked(&mut session, &input, &limits);
+    let weak = Arc::downgrade(&session.entries[&ModuleId(0)].lower.as_ref().unwrap().1);
+    let (program, mut maps) = expanded.into_program(ModuleId(0), Fingerprint::ZERO);
+    let retained_map = maps.remove(0);
+    drop(program);
+    drop(maps);
+    // An actual source replacement drops the old CachedLower owner. The map
+    // alone must not keep its Core alive, while its own value remains usable.
+    checked(&mut session, &[parsed(0, "fn first()->i32=>10;")], &limits);
+    assert!(
+        weak.upgrade().is_none(),
+        "historical SourceMap kept the old Core cache alive"
+    );
+    drop(session);
+    assert_eq!(&*retained_map, &expected);
+    assert_eq!(format!("{retained_map:#?}"), format!("{expected:#?}"));
 }

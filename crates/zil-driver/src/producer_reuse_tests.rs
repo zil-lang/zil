@@ -84,16 +84,63 @@ fn typed<'a>(session: &'a CompilationSession, report: &CompileReport) -> &'a Typ
         })
         .expect("current complete TypedProgram")
 }
+fn source_map_artifact(report: &CompileReport) -> Option<String> {
+    report.artifacts.get("source-map").map(|path| {
+        let contents = fs::read_to_string(path).expect("actual published source-map artifact");
+        assert!(
+            contents.contains("SourceMapEntry {"),
+            "complete mapping entries must be emitted"
+        );
+        assert!(
+            contents.contains("origin: Span {"),
+            "actual source origins must be emitted"
+        );
+        assert!(
+            contents.contains("start:") && contents.contains("end:"),
+            "actual source span bounds must be emitted"
+        );
+        for field in [
+            "module_id:",
+            "entries:",
+            "target:",
+            "role:",
+            "related:",
+            "parent:",
+            "file:",
+        ] {
+            assert!(
+                contents.contains(field),
+                "complete SourceMap Debug field {field} must be emitted"
+            );
+        }
+        contents
+    })
+}
+fn source_map_entry_counts(report: &CompileReport) -> Vec<u64> {
+    // Count the actual emitted entries, not a reconstructed AST-size formula.
+    // Complete text equality with fresh legacy is checked independently above.
+    source_map_artifact(report)
+        .expect("published source-map artifact")
+        .split("SourceMap {")
+        .skip(1)
+        .map(|map| map.matches("SourceMapEntry {").count() as u64)
+        .collect()
+}
 fn compare(
     session: &CompilationSession,
     report: &CompileReport,
     project: &ProjectSources,
     options: &CompileOptions,
 ) -> CompileReport {
+    let actual_map = source_map_artifact(report);
     let legacy = CompileOptions {
         producer_reuse: false,
         reactive_queries: false,
         semantic_cache: None,
+        emit_dir: options
+            .emit_dir
+            .as_ref()
+            .map(|path| path.join("fresh-legacy")),
         cancellation: Default::default(),
         ..options.clone()
     };
@@ -112,6 +159,17 @@ fn compare(
     assert_eq!(report.source_files, expected.source_files);
     assert_eq!(report.scalar_interfaces, expected.scalar_interfaces);
     assert_eq!(report.verification_runs, expected.verification_runs);
+    assert_eq!(
+        actual_map,
+        source_map_artifact(&expected),
+        "complete SourceMap Debug artifact differs from fresh legacy"
+    );
+    if report.status == ResultCategory::Success
+        && options.emit_dir.is_some()
+        && options.stop_after >= Stage::Core
+    {
+        assert!(report.artifacts.contains_key("source-map"));
+    }
     assert_eq!(session.active_query_count(), 0);
     assert_eq!(fresh.active_query_count(), 0);
     if report.status == ResultCategory::Success && options.stop_after >= Stage::Types {
@@ -126,10 +184,15 @@ fn compare_path(
     path: &Path,
     options: &CompileOptions,
 ) -> CompileReport {
+    let actual_map = source_map_artifact(report);
     let legacy = CompileOptions {
         producer_reuse: false,
         reactive_queries: false,
         semantic_cache: None,
+        emit_dir: options
+            .emit_dir
+            .as_ref()
+            .map(|path| path.join("fresh-legacy")),
         cancellation: Default::default(),
         ..options.clone()
     };
@@ -148,6 +211,17 @@ fn compare_path(
     assert_eq!(report.source_files, expected.source_files);
     assert_eq!(report.scalar_interfaces, expected.scalar_interfaces);
     assert_eq!(report.verification_runs, expected.verification_runs);
+    assert_eq!(
+        actual_map,
+        source_map_artifact(&expected),
+        "complete SourceMap Debug artifact differs from fresh legacy"
+    );
+    if report.status == ResultCategory::Success
+        && options.emit_dir.is_some()
+        && options.stop_after >= Stage::Core
+    {
+        assert!(report.artifacts.contains_key("source-map"));
+    }
     assert_eq!(session.active_query_count(), 0);
     assert_eq!(fresh.active_query_count(), 0);
     if report.status == ResultCategory::Success && options.stop_after >= Stage::Types {
@@ -162,7 +236,10 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
     const ENTRY: &str = "import left\nimport io\nfn main()->i32{var x:i32=io.read();if x<0{x=0;}let y=left.value(x);io.emit(y&255);return y%127;}";
     for graph in [false, true] {
         let dir = Directory::new();
-        let options = options(graph);
+        let options = CompileOptions {
+            emit_dir: Some(dir.0.join("artifacts")),
+            ..options(graph)
+        };
         dir.project(&[("main", ENTRY), ("left", LEFT), ("io", IO)]);
         let path = dir.0.join("main.zil");
         let mut session = CompilationSession::default();
@@ -185,6 +262,20 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
         assert_eq!(work.restored_module_deep_clones, 3);
         assert_eq!(work.retained_normalized_items, 0);
         assert_eq!(work.retained_restored_modules, 0);
+        let cold_map_entries = source_map_entry_counts(&cold);
+        assert_eq!(cold_map_entries.len(), 3);
+        assert!(cold_map_entries.iter().all(|entries| *entries > 0));
+        assert_eq!(
+            work.cloned_source_map_entries,
+            cold_map_entries.iter().sum::<u64>(),
+            "cold maps pay one real sidecar copy per entry"
+        );
+        assert_eq!(work.shared_maps, 3);
+        assert_eq!(work.shared_entries, cold_map_entries.iter().sum::<u64>());
+        assert_eq!(
+            work.core_module_deep_clones, 3,
+            "the current Core value representation still copies each module"
+        );
         let mut previous_left = LEFT.to_owned();
         let mut previous_io = IO.to_owned();
         for (label, left, io, changed_modules) in [
@@ -266,6 +357,34 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
                 work.retained_restored_modules,
                 3 - changed_modules,
                 "{label}: every unchanged module retains its complete restored Arc"
+            );
+            let map_entries = source_map_entry_counts(&current);
+            assert_eq!(map_entries.len(), 3);
+            // Discovery follows the real `import left; import io` order:
+            // map[0] is main, map[1] left, and map[2] IO. Count complete
+            // emitted maps, rather than estimating entries from source ASTs.
+            let changed_map_entries = map_entries[1]
+                + if changed_modules == 2 {
+                    map_entries[2]
+                } else {
+                    0
+                };
+            assert_eq!(
+                work.cloned_source_map_entries, changed_map_entries,
+                "{label}: unchanged modules must not deep-copy any SourceMap entries"
+            );
+            assert_eq!(
+                work.shared_maps, 3,
+                "{label}: all published maps use the actual Arc sidecars"
+            );
+            assert_eq!(
+                work.shared_entries,
+                map_entries.iter().sum::<u64>(),
+                "{label}: sharing retains every actual mapping entry"
+            );
+            assert_eq!(
+                work.core_module_deep_clones, 3,
+                "{label}: necessary Core copies remain explicitly counted"
             );
             let functions = current
                 .function_type_work
@@ -553,7 +672,7 @@ fn producer_equal_width_edit_skips_real_module_work_and_uses_versions_without_gr
         assert!(work.visited_nodes < cold_work.visited_nodes);
         assert!(
             work.cloned_source_map_entries > 0,
-            "assembling Vec-backed Core still copies its source-map entries"
+            "the changed module still pays its real fresh SourceMap sidecar copy"
         );
         let functions = current
             .function_type_work
@@ -575,9 +694,15 @@ fn producer_equal_width_edit_skips_real_module_work_and_uses_versions_without_gr
 fn producer_declarations_imports_absence_visibility_and_compact_ids_match_fresh() {
     for graph in [false, true] {
         let dir = Directory::new();
-        let options = options(graph);
+        let options = CompileOptions {
+            emit_dir: Some(dir.0.join("artifacts")),
+            ..options(graph)
+        };
         let mut session = CompilationSession::default();
-        successful(&session.compile_project(&dir.scalar(MAIN, LEFT, RIGHT), &options));
+        let initial = session.compile_project(&dir.scalar(MAIN, LEFT, RIGHT), &options);
+        successful(&initial);
+        let initial_map =
+            source_map_artifact(&initial).expect("initial complete source-map artifact");
         for (main, left, right) in [
             (
                 MAIN.to_owned(),
@@ -622,9 +747,18 @@ fn producer_declarations_imports_absence_visibility_and_compact_ids_match_fresh(
             ),
             (MAIN.to_owned(), LEFT.to_owned(), RIGHT.to_owned()),
         ] {
+            let position_only = main.starts_with("// shifted root");
             let project = dir.scalar(&main, &left, &right);
             let current = session.compile_project(&project, &options);
             compare(&session, &current, &project, &options);
+            if position_only {
+                successful(&current);
+                assert_ne!(
+                    source_map_artifact(&current).as_ref(),
+                    Some(&initial_map),
+                    "position-only edits must update the actual emitted mapping spans"
+                );
+            }
         }
         // Add/remove a module, rename logical import and source path together.
         for project in [
@@ -658,6 +792,11 @@ fn producer_declarations_imports_absence_visibility_and_compact_ids_match_fresh(
         let current = session.compile_project(&rebound, &options);
         successful(&current);
         compare(&session, &current, &rebound, &options);
+        assert_ne!(
+            source_map_artifact(&current).as_ref(),
+            Some(&initial_map),
+            "FileId rebinding must replace the actual emitted source identities"
+        );
     }
 }
 

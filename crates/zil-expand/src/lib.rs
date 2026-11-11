@@ -15,7 +15,8 @@ pub use generated_spans::{remap_generated_spans, remap_generated_spans_metered};
 mod incremental;
 mod mapping;
 pub use incremental::{
-    ExpandSession, ExpandedProgram, ModuleRevision, ProducedProgram, ProducerStats,
+    ExpandSession, ExpandedProgram, ModuleRevision, ProducedProgram, ProducedSourceMap,
+    ProducerStats,
 };
 mod modules;
 mod project_traits;
@@ -309,6 +310,56 @@ pub struct ExpandedModule {
     // This is a successful producer receipt, never a safety certificate.
     lowering_demand: LoweringDemand,
     source_map_work: Option<usize>,
+}
+
+impl ExpandedModule {
+    fn shareable(&self) -> bool {
+        self.dyn_method_emissions.is_empty()
+            && self.closure_context_emissions.is_empty()
+            && self.callable_context_emissions.is_empty()
+    }
+}
+#[allow(clippy::large_enum_variant)] // Keep the raw owned Lower path allocation-free.
+enum LoweredModule {
+    Owned(ExpandedModule),
+    Shared(std::sync::Arc<incremental::CachedLower>),
+}
+impl std::ops::Deref for LoweredModule {
+    type Target = ExpandedModule;
+    fn deref(&self) -> &ExpandedModule {
+        match self {
+            Self::Owned(module) => module,
+            Self::Shared(module) => module,
+        }
+    }
+}
+trait ProjectMapOutput: Sized {
+    fn owned(map: SourceMap) -> Self;
+    fn retained(map: std::sync::Arc<SourceMap>) -> Option<Self>;
+    fn owned_mut(&mut self) -> Option<&mut SourceMap>;
+}
+impl ProjectMapOutput for SourceMap {
+    fn owned(map: SourceMap) -> Self {
+        map
+    }
+    // Raw callers never supply Reuse, so their maps always move directly out.
+    fn retained(_map: std::sync::Arc<SourceMap>) -> Option<Self> {
+        None
+    }
+    fn owned_mut(&mut self) -> Option<&mut SourceMap> {
+        Some(self)
+    }
+}
+impl ProjectMapOutput for ProducedSourceMap {
+    fn owned(map: SourceMap) -> Self {
+        map.into()
+    }
+    fn retained(map: std::sync::Arc<SourceMap>) -> Option<Self> {
+        Some(Self::shared(map))
+    }
+    fn owned_mut(&mut self) -> Option<&mut SourceMap> {
+        ProducedSourceMap::owned_mut(self)
+    }
 }
 
 type ProjectDefaults = BTreeMap<(String, String), (zil_base::ModuleId, String)>;
@@ -647,7 +698,7 @@ fn expand_program_with_limits_target_impl(
     context: Option<source_context::SourceIdentityContext<'_>>,
     runtime_ct: Option<&dyn runtime_ct::RuntimeCt>,
 ) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
-    expand_program_impl(
+    expand_program_impl::<SourceMap>(
         sources, syntax, imports, limits, target, context, runtime_ct, None,
     )
     .map(|modules| modules.expect("raw expansion always returns owned output"))
@@ -661,8 +712,8 @@ fn expand_program_cached(
     target: &zil_base::TargetProfile,
     context: source_context::SourceIdentityContext<'_>,
     reuse: &mut incremental::Reuse<'_>,
-) -> CompileResult<Option<Vec<(ProgramModule, SourceMap)>>> {
-    expand_program_impl(
+) -> CompileResult<Option<Vec<(ProgramModule, ProducedSourceMap)>>> {
+    expand_program_impl::<ProducedSourceMap>(
         sources,
         syntax,
         imports,
@@ -674,7 +725,7 @@ fn expand_program_cached(
     )
 }
 #[allow(clippy::too_many_arguments)]
-fn expand_program_impl(
+fn expand_program_impl<M: ProjectMapOutput>(
     sources: &[SourceUnit],
     syntax: &[&s::Module],
     imports: &[Vec<CoreImport>],
@@ -683,7 +734,7 @@ fn expand_program_impl(
     context: Option<source_context::SourceIdentityContext<'_>>,
     runtime_ct: Option<&dyn runtime_ct::RuntimeCt>,
     mut reuse: Option<&mut incremental::Reuse<'_>>,
-) -> CompileResult<Option<Vec<(ProgramModule, SourceMap)>>> {
+) -> CompileResult<Option<Vec<(ProgramModule, M)>>> {
     let mut products = generics::products::Products::default();
     products.target_pointer_width = Some(target.pointer_width);
     let specialized = if let Some(reuse) = reuse.as_deref_mut() {
@@ -758,12 +809,16 @@ fn expand_program_impl(
         sources.iter().zip(&specialized).zip(imports)
     {
         let lower_input_limits = reuse.as_ref().map(|_| remaining.clone());
-        let cached = reuse
-            .as_deref_mut()
-            .and_then(|reuse| reuse.lower(module.span.file, &remaining));
+        let cached = if reuse.is_some() && products.publish_is_noop() {
+            reuse
+                .as_deref_mut()
+                .and_then(|reuse| reuse.lower(module.span.file, &remaining))
+        } else {
+            None
+        };
         let fresh_lower = cached.is_none();
         let mut expanded = if let Some(cached) = cached {
-            cached
+            LoweredModule::Shared(cached)
         } else {
             if let Some(reuse) = reuse.as_deref_mut() {
                 reuse.lower_executed();
@@ -791,7 +846,7 @@ fn expand_program_impl(
             if let Some(reuse) = reuse.as_deref_mut() {
                 reuse.production(clock);
             }
-            expanded?
+            LoweredModule::Owned(expanded?)
         };
         // New member constraints share the project's actual remaining allowance.
         remaining.max_analysis_steps = remaining
@@ -866,28 +921,37 @@ fn expand_program_impl(
                     Some(module.span),
                 )]
             })?;
-        if fresh_lower && let Some(reuse) = reuse.as_deref_mut() {
-            // Only the sealed scalar caller supplies reuse: there are no
-            // dynamic/callable/closure products or later semantic fixups. Save
-            // after the current ordered map debits, with the original Lower
-            // entry allowance, never the already debited project remainder.
+        if fresh_lower && reuse.is_some() && products.publish_is_noop() && expanded.shareable() {
+            // Only the sealed scalar caller supplies Reuse. Cache ownership is
+            // transferred after every current debit; the final map shares only
+            // its independent sidecar, never the cached Core owner.
+            let LoweredModule::Owned(mut owned) = expanded else {
+                unreachable!("fresh Lower is owned");
+            };
             let map_work = map_work.expect("successful checked source-map debit");
-            expanded.source_map_work = Some(map_work);
-            expanded.lowering_demand.work = expanded.lowering_demand.work.max(map_work);
-            reuse.save_lower(
-                module.span.file,
-                lower_input_limits.as_ref().expect("reuse Lower input"),
-                &expanded,
-            );
+            owned.source_map_work = Some(map_work);
+            owned.lowering_demand.work = owned.lowering_demand.work.max(map_work);
+            let cached = reuse
+                .as_deref_mut()
+                .expect("checked scalar reuse")
+                .save_lower(
+                    module.span.file,
+                    lower_input_limits.as_ref().expect("reuse Lower input"),
+                    owned,
+                );
+            expanded = LoweredModule::Shared(cached);
         }
         if !products.dynamic.is_empty()
             || !expanded.closure_context_emissions.is_empty()
             || !expanded.callable_context_emissions.is_empty()
         {
+            let LoweredModule::Owned(expanded) = &mut expanded else {
+                return Ok(None);
+            };
             products.allowance = Some(remaining);
-            products.bind_dynamic_targets(module, &expanded, limits)?;
-            products.bind_closure_contexts(module, &mut expanded, limits)?;
-            products.bind_callable_contexts(module, &mut expanded, limits)?;
+            products.bind_dynamic_targets(module, expanded, limits)?;
+            products.bind_closure_contexts(module, expanded, limits)?;
+            products.bind_callable_contexts(module, expanded, limits)?;
             remaining = products
                 .allowance
                 .clone()
@@ -899,28 +963,53 @@ fn expand_program_impl(
             &expanded.imported_public_traits,
             &expanded.trait_method_names,
         );
-        exports.extend(expanded.generated_exports);
         let mut resolved_imports = module_imports.clone();
-        resolved_imports.extend(expanded.generated_imports);
+        let (core, map) = match expanded {
+            LoweredModule::Owned(expanded) => {
+                exports.extend(expanded.generated_exports);
+                resolved_imports.extend(expanded.generated_imports);
+                (expanded.core, M::owned(expanded.source_map))
+            }
+            LoweredModule::Shared(cached) => {
+                exports.extend(cached.generated_exports.iter().copied());
+                resolved_imports.extend(cached.generated_imports.iter().cloned());
+                let Some(map) = M::retained(cached.shared_map()) else {
+                    return Ok(None);
+                };
+                let reuse = reuse.as_deref_mut().expect("shared Lower has scalar owner");
+                let core = reuse.clone_published_core(&cached);
+                reuse.publish_shared_map(cached.source_map.entries.len());
+                (core, map)
+            }
+        };
         result.push((
             ProgramModule {
-                core: expanded.core,
+                core,
                 imports: resolved_imports,
                 exports,
             },
-            expanded.source_map,
+            map,
         ));
     }
-    let mut product_cores = result
-        .iter_mut()
-        .map(|(module, map)| (&mut module.core, map))
-        .collect::<Vec<_>>();
     if products.metered() {
         products.allowance = Some(remaining);
     }
     products.finish_closure_contexts(limits)?;
     products.finish_callable_contexts(limits)?;
-    products.publish(&mut product_cores, sources, limits)?;
+    if products.publish_is_noop() {
+        // Execute the exact existing zero-work publish branch, without asking
+        // immutable shared maps for a mutable view or cloning their contents.
+        products.publish(&mut [], sources, limits)?;
+    } else {
+        let mut product_cores = Vec::with_capacity(result.len());
+        for (module, map) in &mut result {
+            let Some(map) = map.owned_mut() else {
+                return Ok(None);
+            };
+            product_cores.push((&mut module.core, map));
+        }
+        products.publish(&mut product_cores, sources, limits)?;
+    }
     Ok(Some(result))
 }
 

@@ -1,5 +1,15 @@
 # 响应式编译查询图专项：本轮真实阶段交付与恢复
 
+## 当前冻结前检查点：只共享真实 SourceMap（WIP）
+
+本节覆盖后面的历史状态。父源码 `ea0ce45741fde0082b6c92173b7480b167c888d4` 已实际通过355lib＋CLI1、严格Clippy、release和非作者精确源码复核。首次复测因旧PID临时目录残留leaf/mod.zil失败，输入/mtime/日志保留；同源码、同断言使用全新TMPDIR后全过。其check和O2各6block/306请求/162measured，0invalid；O2真实1620次native（864measured＋756parent）全部对拍通过。仅同一请求triplet ELF/LLVM相同，跨block LLVM含不同source fingerprint注释，不混淆身份。
+
+ea0当前仍未证明总体净收益：check私有B−A均值省21.571ms区间跨0，广泛修改多333.669ms；O2私有C−A省171.096ms，但C−B省50.217ms区间跨0，批量C−A多275.550ms。21/63个BodyKey和CFG5/6不变，不以局部命中冒充图因果。完整成本/ranges/CPU/RSS均在native-abc-producer-20x20x16-{check,O2}-r1；50唯一编辑B/C、容量32无磁盘cache运行已完成102请求+5 fresh公开JSON对拍，非native。
+
+当前新增未测试源码仅将生产者SourceMap输出改为opaque Owned真实map/Shared Arc<SourceMap>。Shared不持CachedLower/Core，避免旧项目map额外保活历史Core；fresh保持一次实际Map sidecar复制，warm未变Map不复制，必要Core复制继续实际计数。公共SourceMap/CoreProgram/ExpandedModule字段和raw Expand返回签名不改，raw泛型直接move无Vec往返；原owner→trait→map扣费/不足回退保留。原Products.publish精确零工作条件单独共用，finish仍运行，不为只读map制造伪占位或Arc::make_mut复制。新增完整Map值/Debug对拍、实际cache替换Weak释放门及真实driver artifact/位置/ID检查，尚待冻结后cargo和新binary实测。
+
+规模边界已实测：32×32×16超默认Lex token；24×24×16（26文件717325B）超默认CT work，均Verify0/不入性能分母。40×10×16（42文件500720B）通过默认额度的check工作门：private只Lower1/复用41、multi3/39；只是profile单block，还不能写作大规模原生收益。新证据晚于Library版本0，最终须更新原证据文件。
+
 ## 当前冻结前检查点：真实 AST 借用切片（WIP）
 
 本节优先于后面按提交保存的历史状态。父源码 `89ae96d62acb97d577e96b6e5d3fd90a56f99e8c` 已实际通过352lib＋CLI1、严格Clippy和release；22模块498620字节真实Source成本r4中，私有等宽/变宽只Normalize/Lower 1模块、三模块同批只执行3模块，未变Core递归Eq为0，CFG重算仍与A相同。完整O2 r4共15请求、90原生输出对拍全部通过，ABC同ELF；单block不能判定速度净收益。

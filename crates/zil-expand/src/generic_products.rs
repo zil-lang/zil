@@ -291,18 +291,22 @@ impl Products {
         self.allowance = Some(budget.remaining_limits());
         Ok(())
     }
+    /// Exactly the original publish early-return condition. This does no work
+    /// on any Core/Map, and permits immutable scalar map views to remain shared.
+    pub(crate) fn publish_is_noop(&self) -> bool {
+        self.templates.is_empty()
+            && self.storage.instances.is_empty()
+            && self.storage.functions.is_empty()
+            && self.storage.project_functions.is_empty()
+            && self.dynamic.is_empty()
+    }
     pub(crate) fn publish(
         &self,
         cores: &mut [(&mut CoreModule, &mut SourceMap)],
         sources: &[zil_base::SourceUnit],
         limits: &Limits,
     ) -> CompileResult<()> {
-        if self.templates.is_empty()
-            && self.storage.instances.is_empty()
-            && self.storage.functions.is_empty()
-            && self.storage.project_functions.is_empty()
-            && self.dynamic.is_empty()
-        {
+        if self.publish_is_noop() {
             return Ok(());
         }
         let allowance = self.allowance.as_ref().unwrap_or(limits);

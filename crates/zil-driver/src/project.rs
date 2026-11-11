@@ -8,7 +8,7 @@ use super::*;
 use std::collections::{BTreeSet, VecDeque};
 use std::sync::Arc;
 use std::time::Instant;
-use zil_base::{CompileResult, ModuleId, SourceMap, Span};
+use zil_base::{CompileResult, ModuleId, Span};
 use zil_db::{QueryKey, QuerySnapshot};
 use zil_ir::{CandidatePlan, CoreImport, CoreProgram, ProgramModule, TypedProgram};
 use zil_syntax::{ParseResult, ast};
@@ -31,7 +31,7 @@ pub struct ProjectSources {
 #[derive(Clone, Debug)]
 pub(super) struct ExpandedProject {
     core: Arc<CoreProgram>,
-    maps: Vec<SourceMap>,
+    maps: Vec<zil_expand::ProducedSourceMap>,
     selection: super::ct_selection::Receipt,
     ct_usage: Option<zil_ir::ct_artifact::CtUsageReceipt>,
     ct_previews: Vec<super::ct_artifact::Preview>,
@@ -934,7 +934,7 @@ impl CompilationSession {
                     };
                     for (module, map) in expanded {
                         modules.push(module);
-                        maps.push(map);
+                        maps.push(map.into());
                     }
                 }
                 if let Some(phase) = runtime_phase {

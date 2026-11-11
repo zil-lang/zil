@@ -27,8 +27,62 @@ impl ProducedProgram {
         self.revisions.get(&module)
     }
 }
+/// A raw source-map value, not a producer/version or verification proof. The
+/// shared arm owns only the actual map: historical maps cannot retain Core.
+#[derive(Clone)]
+pub struct ProducedSourceMap(MapOwnership);
+#[derive(Clone)]
+enum MapOwnership {
+    Owned(SourceMap),
+    Shared(Arc<SourceMap>),
+}
+impl std::ops::Deref for ProducedSourceMap {
+    type Target = SourceMap;
+    fn deref(&self) -> &SourceMap {
+        match &self.0 {
+            MapOwnership::Owned(map) => map,
+            MapOwnership::Shared(map) => map,
+        }
+    }
+}
+impl std::fmt::Debug for ProducedSourceMap {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(&**self, formatter)
+    }
+}
+impl From<SourceMap> for ProducedSourceMap {
+    fn from(map: SourceMap) -> Self {
+        Self(MapOwnership::Owned(map))
+    }
+}
+impl ProducedSourceMap {
+    pub(crate) fn shared(map: Arc<SourceMap>) -> Self {
+        Self(MapOwnership::Shared(map))
+    }
+    pub(crate) fn owned_mut(&mut self) -> Option<&mut SourceMap> {
+        match &mut self.0 {
+            MapOwnership::Owned(map) => Some(map),
+            MapOwnership::Shared(_) => None,
+        }
+    }
+}
+pub(crate) struct CachedLower {
+    expanded: ExpandedModule,
+    map: Arc<SourceMap>,
+}
+impl std::ops::Deref for CachedLower {
+    type Target = ExpandedModule;
+    fn deref(&self) -> &ExpandedModule {
+        &self.expanded
+    }
+}
+impl CachedLower {
+    pub(crate) fn shared_map(&self) -> Arc<SourceMap> {
+        self.map.clone()
+    }
+}
 pub struct ExpandedProgram {
-    modules: Vec<(ProgramModule, SourceMap)>,
+    modules: Vec<(ProgramModule, ProducedSourceMap)>,
     revisions: BTreeMap<ModuleId, ModuleRevision>,
 }
 impl ExpandedProgram {
@@ -36,7 +90,7 @@ impl ExpandedProgram {
         self,
         root: ModuleId,
         source_fingerprint: Fingerprint,
-    ) -> (ProducedProgram, Vec<SourceMap>) {
+    ) -> (ProducedProgram, Vec<ProducedSourceMap>) {
         let (modules, maps) = self.modules.into_iter().unzip();
         (
             ProducedProgram {
@@ -68,6 +122,9 @@ macro_rules! statistics {
 // not every compiler visit. `syntax_clone_receipt_nodes` counts those units for
 // complete syntax clones. `cloned_source_map_entries` counts copied mapping
 // entries (including span markers), not all nested Core/type/string copies.
+// `shared_maps` includes fresh sidecars and cache hits actually emitted here;
+// their entries are counted separately from the one real fresh map clone.
+// `core_module_deep_clones` counts actual final Core Vec assembly copies.
 statistics!(
     classified_modules,
     classifier_nodes,
@@ -89,6 +146,10 @@ statistics!(
     retained_normalized_items,
     retained_restored_modules,
     cloned_source_map_entries,
+    source_map_deep_clones,
+    shared_maps,
+    shared_entries,
+    core_module_deep_clones,
     cloned_source_bytes,
     context_ns,
     production_ns,
@@ -221,7 +282,7 @@ struct Entry {
     receipts: BTreeMap<(Stage, usize), Receipt>,
     normalized: BTreeMap<usize, Arc<s::Item>>,
     restored: Option<Arc<(s::Module, Vec<CoreImport>)>>,
-    lower: Option<(Limits, Arc<ExpandedModule>)>,
+    lower: Option<(Limits, Arc<CachedLower>)>,
     revision: ModuleRevision,
 }
 #[derive(Clone, Default)]
@@ -635,7 +696,7 @@ impl Reuse<'_> {
         self.assembly(clock);
         self.entry(file).restored = Some(value);
     }
-    pub(crate) fn lower(&mut self, file: FileId, limits: &Limits) -> Option<ExpandedModule> {
+    pub(crate) fn lower(&mut self, file: FileId, limits: &Limits) -> Option<Arc<CachedLower>> {
         let clock = self.clock();
         let candidate = self
             .entry(file)
@@ -643,7 +704,7 @@ impl Reuse<'_> {
             .as_ref()
             .map(|(old, value)| (old.clone(), value.clone()));
         let cached = candidate.and_then(|(old, value)| {
-            if !same_limit_domain(&old, limits) {
+            if !same_limit_domain(&old, limits) || !value.shareable() {
                 return None;
             }
             if limits.max_analysis_steps < value.lowering_demand.work
@@ -658,24 +719,41 @@ impl Reuse<'_> {
             self.stats.reuse_ns += nanos(start);
         }
         let cached = cached?;
-        let clock = self.clock();
-        let expanded = cached.as_ref().clone();
-        self.assembly(clock);
         self.stats.reused_lower_modules += 1;
-        self.stats.cloned_source_map_entries += expanded.source_map.entries.len() as u64;
-        Some(expanded)
+        Some(cached)
     }
     pub(crate) fn lower_executed(&mut self) {
         self.stats.lower_modules += 1;
     }
-    pub(crate) fn save_lower(&mut self, file: FileId, limits: &Limits, expanded: &ExpandedModule) {
+    pub(crate) fn save_lower(
+        &mut self,
+        file: FileId,
+        limits: &Limits,
+        expanded: ExpandedModule,
+    ) -> Arc<CachedLower> {
+        // One fresh map copy builds the sidecar, replacing the map copy paid by
+        // the former whole-ExpandedModule cache clone. Core itself moves in.
         self.stats.cloned_source_map_entries += expanded.source_map.entries.len() as u64;
         let clock = self.clock();
-        let value = Arc::new(expanded.clone());
+        self.stats.source_map_deep_clones += 1;
+        let map = Arc::new(expanded.source_map.clone());
+        let value = Arc::new(CachedLower { expanded, map });
         self.assembly(clock);
         let entry = self.entry(file);
-        entry.lower = Some((limits.clone(), value));
+        entry.lower = Some((limits.clone(), value.clone()));
         entry.revision = ModuleRevision(Arc::new(()));
+        value
+    }
+    pub(crate) fn clone_published_core(&mut self, cached: &CachedLower) -> CoreModule {
+        let clock = self.clock();
+        self.stats.core_module_deep_clones += 1;
+        let core = cached.core.clone();
+        self.assembly(clock);
+        core
+    }
+    pub(crate) fn publish_shared_map(&mut self, entries: usize) {
+        self.stats.shared_maps += 1;
+        self.stats.shared_entries += entries as u64;
     }
     pub(crate) fn cloned(&mut self, span: Span, stage: Stage) {
         if let Some(receipt) = self.entry(span.file).receipts.get(&(stage, span.start)) {
