@@ -452,13 +452,31 @@ fn fallback_ct_branch_redirects_actual_calls_with_owned_closure_state() {
                 "{}",
                 current.to_json()
             );
-            assert!(
-                current
-                    .diagnostics
-                    .iter()
-                    .any(|diagnostic| diagnostic.phase == Phase::Analyze
-                        && diagnostic.code == "E-ANALYZE-IR")
+            // Initialization runs before resource-closure flow: the first
+            // FnOnce call takes f, so the second read is the exact first error.
+            let diagnostic = current
+                .diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.phase == Phase::Analyze && diagnostic.code == "E-UNINITIALIZED"
+                })
+                .expect("the second FnOnce call must retain its named initialization rejection");
+            assert_eq!(
+                diagnostic.message,
+                "local 0 is not initialized on every incoming path"
             );
+            let first_call = main
+                .find("f()+f()")
+                .expect("the negative control contains both calls");
+            let span = diagnostic
+                .span
+                .expect("the failing second call retains its source span");
+            assert_eq!(
+                span,
+                zil_base::Span::new(project.modules[0].file_id, first_call + 4, first_call + 7)
+            );
+            assert_eq!(&main[span.start..span.end], "f()");
+            assert_eq!(current.source_files[&span.file], project.modules[0].path);
             assert_eq!(current.verification_runs, 0);
         } else {
             successful(&current);
