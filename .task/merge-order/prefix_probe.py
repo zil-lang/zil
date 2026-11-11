@@ -22,7 +22,7 @@ pub(crate) fn pipeline() -> (&'static std::ffi::CStr, &'static str) {
     })
 }
 '''
-Path('crates/zil-llvm-api/src/research_position.rs').write_text(source)
+Path('crates/zil-llvm-api/src/research_position.rs').write_text('\n'.join(line.rstrip() for line in source.splitlines())+'\n')
 s=(root/'screen_positions.py').read_text();old="ARMS=['base','raw','inline-first','inline-attrs','inline-clean','default-expanded']";assert s.count(old)==1
 s=s.replace(old,"ARMS=['base','inline-first','minimal-prefix','normalized-prefix','full-prefix']")
 s=s.replace("arm if arm!='base' else 'raw'","arm if arm!='base' else 'minimal-prefix'")

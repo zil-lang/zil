@@ -5,7 +5,7 @@ import argparse,importlib.util,json,os,random,shutil,statistics,subprocess,time
 HERE=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('multi',HERE/'multimodule.py');multi=importlib.util.module_from_spec(spec);spec.loader.exec_module(multi);m=multi.m;c=m.corpus
 CASES=['dispatch16','pipeline16','owned32','unequal16']
-ARMS=['base','raw','inline-first','inline-attrs','inline-clean','default-expanded']
+ARMS=['base','inline-first','minimal-prefix','normalized-prefix','full-prefix']
 def files(case,snapshot):
     if case=='owned32':return {'main.zil':c.resources(32,'zil',snapshot=='private')+c.io_source('zil')}
     result=multi.files('pipeline16' if case=='pipeline16' else 'dispatch16',16,'zil',snapshot)
@@ -41,7 +41,7 @@ def main():
                         for name,text in files(case,snapshot).items():
                             path=work/name
                             if not path.exists() or path.read_text()!=text:path.write_text(text)
-                        os.environ['ZIL_RESEARCH_PASS_POSITION']=arm if arm!='base' else 'raw'
+                        os.environ['ZIL_RESEARCH_PASS_POSITION']=arm if arm!='base' else 'minimal-prefix'
                         exe=work/'app';argv=[cli,'build',work/'main.zil','--json','--opt','O2','--backend','llvm-api','--clang',os.environ['ZIL_CLANG'],'--codegen-units','8','--codegen-jobs','2','--incremental-o2','--function-merging','after' if arm=='base' else 'before-and-after','--semantic-cache',work/'semantic','--object-cache',work/'objects','-o',exe]
                         r,stdout,stderr=m.timed(argv,out/'logs'/str(len(rows)),timeout=180)
                         r.update(case=case,snapshot=snapshot,block=block,arm=arm,warmup=block<0,valid=False,env={'ZIL_RESEARCH_PASS_POSITION':os.environ['ZIL_RESEARCH_PASS_POSITION']},checks=[])
@@ -87,5 +87,5 @@ def main():
                     if all(v['n']==7 for v in q['arms'].values()):
                         for arm in ARMS:q['arms'][arm]['ratio_to_base']=q['arms'][arm]['median_ms']/q['arms']['base']['median_ms']
                     quality.append(q)
-        m.dump(out/'summary.json',{'complete':not failures and len(rows)==192 and len(runtime)==768,'compile_requests':len(rows),'formal_requests':sum(not r['warmup'] for r in rows),'output_checks':sum(len(r['checks']) for r in rows),'runtime_requests':len(runtime),'cells':cells,'quality':quality,'failures':failures,'acceptance':'Screen only; no automatic main integration or regression waiver'})
+        m.dump(out/'summary.json',{'complete':not failures and len(rows)==160 and len(runtime)==640,'compile_requests':len(rows),'formal_requests':sum(not r['warmup'] for r in rows),'output_checks':sum(len(r['checks']) for r in rows),'runtime_requests':len(runtime),'cells':cells,'quality':quality,'failures':failures,'acceptance':'Screen only; no automatic main integration or regression waiver'})
 if __name__=='__main__':main()
