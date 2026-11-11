@@ -1,0 +1,135 @@
+{
+  "status": "Pass",
+  "source_commit": "2458defcaf8be51c87b80c0dadf391bb585735e8",
+  "source_tree": "e917926bc8976da90e58897911c72978b9a24f88",
+  "checkout": "/workspace/scratch/abf690ce880c/manual-prelink-validation",
+  "target": "/workspace/scratch/abf690ce880c/targets/manual-full-2458",
+  "seed_target": "/workspace/scratch/abf690ce880c/targets/manual-prelink-2321",
+  "seed_binary": {
+    "path": "/workspace/scratch/abf690ce880c/targets/manual-prelink-2321/release/zil",
+    "sha256": "ce90681f261c109c412bb9d513e3c0ff58680a2e593d798cdf21b3e27daa407a"
+  },
+  "reuse_policy": "copied prior Cargo artifacts; real cargo fingerprint/rebuild and all controls still execute",
+  "recipe": {
+    "path": "/workspace/scratch/abf690ce880c/research/manual-full-build.py",
+    "sha256": "152731384833ec775667a816f426ef3065d920d5073e0853b73193047f51f7a5"
+  },
+  "cpus": [
+    0,
+    1
+  ],
+  "jobs": 2,
+  "attempts": [
+    {
+      "phase": "api-tests",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-j",
+        "2",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "native"
+      ],
+      "passed": true,
+      "process_attempt": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-full-build-2458-v1/api-tests/process-attempt.json",
+        "sha256": "a0c0cac2d133b8c06c3ac7befecdfd59a41e45bf55fd38774d40306955ce630f"
+      },
+      "stdout": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-full-build-2458-v1/api-tests/stdout",
+        "sha256": "0c1b3ccdcec20a706ac5c1531781dd57d4c902c88e0395562a5333f765e2c4d1"
+      },
+      "stderr": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-full-build-2458-v1/api-tests/stderr",
+        "sha256": "6981d8332a64bcb9eca4273afbd4719e80a3691992a1a42f6702236d4106b68e"
+      }
+    },
+    {
+      "phase": "proof-tests",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-j",
+        "2",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "llvm-api",
+        "complete_visibility"
+      ],
+      "passed": true,
+      "process_attempt": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-full-build-2458-v1/proof-tests/process-attempt.json",
+        "sha256": "aac3b51ff214368fefd2ad0ae7685624ecdb7dcc80d4157506e8bf433b954093"
+      },
+      "stdout": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-full-build-2458-v1/proof-tests/stdout",
+        "sha256": "53586e8b49f8942bbf0a91b13238f9efb159c1814dbf37d4bf7f1c5fe564524b"
+      },
+      "stderr": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-full-build-2458-v1/proof-tests/stderr",
+        "sha256": "024dfa4b299332db7d66637af2039db0aa4139027afc7918e812ff0b616a8ac8"
+      }
+    },
+    {
+      "phase": "no-native",
+      "command": [
+        "cargo",
+        "check",
+        "--locked",
+        "-j",
+        "2",
+        "-p",
+        "zil-backend-llvm",
+        "--no-default-features"
+      ],
+      "passed": true,
+      "process_attempt": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-full-build-2458-v1/no-native/process-attempt.json",
+        "sha256": "2181f4dfb593c6d51aaec41bafae3e677f5fbfead6274a01a3c08d5ea49bdb70"
+      },
+      "stdout": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-full-build-2458-v1/no-native/stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-full-build-2458-v1/no-native/stderr",
+        "sha256": "f90b4a1445e8539936f357bcd5a5cc748e04bef098a2dc10de5f96d498bda3d0"
+      }
+    },
+    {
+      "phase": "release",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "-j",
+        "2",
+        "-p",
+        "zil-cli"
+      ],
+      "passed": true,
+      "process_attempt": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-full-build-2458-v1/release/process-attempt.json",
+        "sha256": "8b1b08310acaa9bba75a54e90e65066d48557a926b6b0e4ff8b37162a1870fb2"
+      },
+      "stdout": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-full-build-2458-v1/release/stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-full-build-2458-v1/release/stderr",
+        "sha256": "d102021d77362f452da331b12bb63cfd7bac3839dd88bc625f2a0d743fbea8fa"
+      }
+    }
+  ],
+  "binary": {
+    "path": "/workspace/scratch/abf690ce880c/targets/manual-full-2458/release/zil",
+    "sha256": "30140135c39706e8251bd5da3eb9acb4e8481a9c12acbc4aed6403f57a768097"
+  }
+}

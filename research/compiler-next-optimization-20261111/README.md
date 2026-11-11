@@ -1,63 +1,50 @@
-# 编译优化下一轮：文本索引与恢复布局（2026-11-11）
+# 编译优化研究归档与恢复（2026-11-11）
 
-本目录是进行中的轻量文本证据快照，不是最终档案，也不是新性能运行。私有导入 pass 的固定纯base两case已完成运行质量Pass，身份核验去重对照正在准备；不得以本快照宣称编译加速、后续对照或生产采用已完成。Root负责后续Git提交/发布及原始证据单包持久化；当前raw包仍明确pending。旧`research/compiler-multi-edit-20261111/`未改动。
+**本轮所有候选均未采用，生产 main 保持 `99035931d358add0eaed6d4535035c38413701dd`。** 本目录保存源码、协议、成功与失败证据；归档、功能正确或运行质量通过，都不等于编译优化获得生产准入。旧 multi-edit、a60/1679及其否定结果不被本轮覆盖。
 
-## 决策快照
+## 实际结果
 
-| 对照 | 结果 |
-| --- | --- |
-| S：直接结构sink，发布ee0cc452／作者924076，同tree ad37913 | 84请求、42对、252短I/O完整且同ELF/materialIR；固定screen总wall +7.632591%，未建立收益，NoGo不采用、不扩矩阵 |
-| B：builder插入块复用，发布9f0deb4／作者78e300，同tree257a296 | 同84/42/252完整且同码；固定screen总wall +2.078146%，完整请求和builder相位收益均未建立，NoGo不采用 |
-| 默认ThinLTO：发布eb5b150／作者e2e3ce1，同tree1da99d0 | 6clean、54native、36formal完整、输出正确；n64/n256 B/A=1.7357655313/2.0076492560，均越1.10，NoGo，不扩矩阵 |
-| 严格完整可见性：发布2549cbe／作者499798，同treeebb9931 | 6clean、54native、36formal全部完成且输出正确；n64/n256 B/A=1.6181061285/2.0561126545，均越1.10，NoGo；实际Required/AE=56/56与224/224，完整所需导入仍未恢复质量 |
+| 对照 | 已完成规模 | 结论 |
+|---|---:|---|
+| S：结构化直接输出 | 84请求、42对、252短I/O | 完整请求wall +7.633%，同ELF/materialIR，编译NoGo |
+| B：builder插入位置复用 | 84请求、42对、252短I/O | 完整请求wall +2.078%，同码，编译NoGo |
+| 默认ThinLTO | 6编译、54native | 两格runtime B/A约1.736/2.008，质量NoGo |
+| 严格完整可见性 | 6编译、54native | 实际Required导入56/224仍runtime约1.618/2.056，质量NoGo |
+| 私有Internal导入 | 6编译、54native | 两格运行质量Pass；完整研究请求慢，编译NoGo |
+| 请求内身份核验去重 | 36编译、108native | 运行Pass，编译NoGo |
+| 引用计数改为一次线性扫描 | 36编译、108native | 运行Pass，编译NoGo |
+| 进程内手工prelink复用 | 36编译、108native | 运行Pass；两格编译wall约+22.468%/+9.221%，编译NoGo |
+| 完整O2 producer、空Required直接发射 | 36编译、108native | N64编译wall +24.194%；N256 wall −9.483%、CPU −13.246%，但runtime分别+34.495%/+46.228%，两格质量NoGo |
 
-私有导入研究 source `1cc866a08bac100012e41726067711c94caf1899` / tree `910d281b288b9266f67c92ae9891b3b9290d16d2` 的正式6clean/54native/36formal完整，N64/N256 B/A=0.7387339795/0.9105647474，Rust/B=5.1888733054/5.0376022735，纯base运行门Pass。其研究包装器完整编译请求仍慢于A，不视为编译优化成功；身份核验去重对照另行准备。
+短I/O不是runtime性能门；上述后端质量对照仅覆盖N64/N256纯base。10%相对退化门与Rust/B≥.90均未放宽，单格编译改善不能抵消质量失败。没有新增many-edit、暖缓存、并发或真实用户频率分布的收益证据，也未扩大到原八case、函数地址、可变globals等范围。保留全部样本与长尾，不跨session相减，不把阶段累计wall当关键路径可直接扣减的成本。
 
-S/B工作总量不是用户频率加权分数，短I/O不是runtime性能样本；Rust90及10%相对退化门、完整O2和Verify/预检合同未放宽。旧a60/1679、AE、CP084等否定记录不被本轮覆盖。
+## 源码与二进制身份
+
+| 角色 | 精确源码提交 |
+|---|---|
+| 手工prelink二进制producer | `2321e74897975978925dc7d2a611f7d672f716e1` |
+| 对应冻结harness | `850289f5a732e58cf03ee79f8a2c8b1b3ae3a489` |
+| 完整O2复用二进制producer | `2458defcaf8be51c87b80c0dadf391bb585735e8` |
+| 对应冻结harness | `8072f23187a77f2e63686696111a8e0e71e8be7b` |
+
+harness子提交只保存研究脚本，不能替换binary buildbinding中的producer身份；author与remote同tree也不等于同commit。完整commit/tree/binary/工具SHA以manifest、正式protocol及buildbinding为准。新C API路径是手工模块裁剪、链接与O2复用，未冒称官方ThinLTO index/importer。语言Verify、完整原模型/分区/实际unit预检、原owner/复制预算、LLVM验证、实际Required与逐Use检查均保留；没有开启native/object缓存。
 
 ## 布局与恢复
 
-- `snapshot/research/`：Rust/Blaze只读研究、机制审计、S/B源码/协议/结果复核及复算脚本；Thin默认正式冻结Python、vendor、process-scope工具、现存v1/v2/v3旧冻结记录及旧wrapper、工具pilot输入/结果。`thinlto-complete-visibility/`现保留v2全部冻结Python/vendor/prefreeze、源与协议审计、实际Required/AE名单及费用、正式结果、IR/inline归因；`thinlto-complete-visibility-history/`完整保留未执行v1及两行变量rename修复收据。严格actual protocol另存，绝不使用默认Thin身份冒认。
-- `snapshot/out/next-optimization/`：A/S/B/Thin binary与源码绑定、固定plan/attempt身份、结果summary/completion及默认/严格Thin各自正式protocol。完整raw、ELF、BC、decoded大LLVM文本、工具二进制和cache等待单独raw包；仅v1两unit首败的小stdout/stderr与leaf.prelink.ll作为例外随文本保留。
-- `manifest.json`：每份复制文件的原绝对路径、归档相对路径、字节数、SHA；源码remote与author local同tree关系；已完成/未执行范围；raw持久化pending。复制前后stat/hash稳定校验，不修改原物。
-- `SHA256SUMS`：覆盖全部归档payload、README与manifest；该文件不自哈希，避免递归，根提交/外部收据可另记录其SHA。
+- [snapshot/research/](snapshot/research/)：冻结脚本、源码/协议独审、结果MD、控制与恢复说明；identity、linear、manual及full各自保留版本，旧失败不覆写。
+- [snapshot/out/next-optimization/](snapshot/out/next-optimization/)：正式protocol、summary、完成状态、实际构建/二进制绑定及小型过程收据。
+- [manifest.json](manifest.json) 与 [SHA256SUMS](SHA256SUMS)：文本payload的路径、字节数和SHA、source关系、范围及原始证据指针；SUMS不自哈希。替换前旧元数据在 `update-history/` 保留。
 
-先在本目录执行`sha256sum -c SHA256SUMS`检查文本，再将`snapshot/research`和`snapshot/out`按相对结构恢复到新任务根。源代码从manifest固定commit/tree恢复独立worktree，author local SHA不冒称远端已可达；不要用工作区basename猜源码。实际工具按binding/protocol的版本、调用角色和SHA重新获取，不能把缺失binary当已复现。
+先在本目录核 `sha256sum -c SHA256SUMS`，再按相对结构恢复snapshot；源码按精确Git提交创建独立worktree。工具按protocol的版本、调用角色及SHA恢复，ZIL/Clang LLVM23.1.4与Rust1.99.1 bundledLLVM23.1.1分别绑定。绝对工作区路径是原始provenance，移址必须另记映射，不能伪造旧attempt或重用已消费运行目录。
 
-S/B用保存的corpus.py重建原语料并核plan六源hash；完整八语料可生成但本轮只执行原screen三语料/四lane。Thin用正式prepare.py/vendor从protocol定义重建n64/n256固定base及参考源，再逐文件核protocol中的source hash；生成.zil/.rs未重复入本包。运行脚本的冻结绝对路径不能直接换址后冒称原plan：移址应另记录恢复映射与新身份，不能伪造原attempt。历史attempt一旦消费不得复用/追加采样。
+完整raw、BC/ELF、decoded LLVM、生成语料、二进制及本轮新增大型 `result-review.json` 独立打包；文本结果MD指向对应raw，不能仅恢复文本便声称已复现。新版实际绑定：
 
-Thin `prefreeze.json`保持准备时原状态文字，正式执行事实以已完成protocol/result-review/summary为准；旧prefreeze并不都是运行结果。现存archive-v1/v2/v3仅有部分历史文件字节，manifest逐条列出只有旧hash而尚未定位的版本；**不把hash清单说成全部旧代码已经保全**。正式实际运行protocol绑定的13份v4 Python全部在本目录且逐hash核对一致，可按其冻结hash恢复。prefreeze/4的早期README已由Root精确恢复到archive-v4/README.md，SHA与旧freeze完全一致，restoration.json记录仅反转已知状态段替换的恢复方式；当前顶层README仍保留运行后版本。旧v1/v2/v3未定位字节仍维持metadata-only。旧缺失版本保留待补状态，不臆造内容。
+[raw-checkpoint-v1.json](raw-checkpoint-v1.json) 记录实际已保存版本 **1**；包大小 **218069679B**，条目 **33851**，SHA256 `b815cbc9d9741ebaad7a4640bd54a743c460217310b58478422ac1408f1c0f86`。保存文件身份 `libfile_fde3_f-182729328f508191aedc5d2668080d96_bd147c3485448191a9df16b3c3cea7dd`；[完整证据包](https://chatgpt.com/library?file_id=libfile_fde3_f-182729328f508191aedc5d2668080d96_bd147c3485448191a9df16b3c3cea7dd&account_id=personal)。所有源文件打包前后相同，tar逐条读回通过；与v0逐路径比较，11916条旧路径无缺失、内容/模式无改变。
 
-本轮四个旧候选及新增私有导入研究候选均未合main；最终归档commit/远端可达、raw包路径/hash/bytes仍由Root在完成后补齐；严格新脚本和本轮NoGo结果已经补入，当前不填假SHA或结果。
+旧v0检查点仍由 [raw-checkpoint-v0.json](raw-checkpoint-v0.json) 固定，只覆盖形成时的证据，不冒称包含后续identity/linear/native实验。
 
-## 严格导入正式结果与精确诊断补充
+## 退役与历史边界
 
-严格固定协议 `snapshot/out/next-optimization/thin-complete-protocol-v1/protocol.json` SHA `5b0ff104485ba18c34db170716ead50cc438bfc3b8c8ebc1c1d1266876946728`；source 2549cbec8e1f3096d4c8c8a960459c83095ad13d/tree ebb993128355fed8228627c6d7b37d5cb0a90d45，binary fdfe6cea83286475582ce5b9063e9d84a9371b584baf99920193689f5e93d3e4。正式6编译/54native/36formal全输出正确，196process attempts正常；原始1192文件独审前后hash一致。两格分别B/A=1.6181061284580245/2.0561126545254256，Rust/B=2.3864832011975228/2.3620208027736953；后者通过不挽救前者失败。全部样本、长尾与getchar诊断保留，NoGo不是Incomplete。
+[退役执行记录](snapshot/research/retirement-next-optimization-executed/)共105路径：104个payload加freeze索引，含四次成功Actions、精确lease、归档先行、实际日志收据和ref404读回。S/B/default/strict旧分支已退役，源码与recipe由归档祖先保留；旧composition-validation历史研究也已归档且ref缺席，不存在待整体合main的生产候选。
 
-`thinlto-complete-visibility-actual-audit.json`保留逐AE名称/owner/原函数费用：N64/N256原sourcecost35777/144449，原copycost31360/125440，unit0原Allowed504/2016，实际Required=Added=AE为56/224，未扩大预算。完整的是当前prelink所需函数体；预链接已内联的helpers不要求以每个原符号独立导入。14个非根unit未新增AE。原默认16imports全空NoGo仍独立保留，不被本结果覆盖。
-
-`inline-diagnostic-report.md`及`inline-diagnostic-evidence.json`记录Root另授权的一次N64诊断重链：恢复正式8份prelink BC逐SHA相等，仅追加inline remarks，不运行产物、不新增正式样本、不评价其重链耗时。182条实际remarks=168 TooCostly+9 Inlined+5 NoDefinition；56跨owner AE三轮拒绝，7个同owner内部函数inline。LLVM23.1.4 local sole-call奖励15000与实际linkage/cost差异对应；fn14实际报告565/562并不证明完整cost只超3，不建议阈值扫描。显式range传播和overflow消除已发生，不能笼统说AE使全部IPO失效；同owner局部对照也不能证明私有导入新实验必过质量门。
-
-诊断的原始小YAML、解析记录、plan/attempt、shape比较与artifact索引随文本保留；BC/ELF/decoded LL仍只在待打包raw内。本档案中的旧报告按其形成时点保留，早期“等待诊断/尚未复制”措辞由本节追加解释，不回写旧事实。所有原复制文件保持原位；若本次更新需替换旧内容，其旧字节另在`update-history/pre-strict-complete/`保留，连同旧README/manifest/SHA256SUMS。`source-copy-receipt.json`逐项记录只读来源before/after/副本SHA，原source没有修改。
-
-## 退役与尚欠内容
-
-`retirement-next-optimization/`四份占位草稿及独立审计已入档：只在成功composition模板上替换四字段，未执行workflow、未删除任何ref。PRIOR仍是A0/A1/A2/A3占位；新A0及顺序归档/删除需由Root实际完成并另存收据，不能把静审Pass当执行成功。
-
-仍欠：本轮完整raw包持久化路径/hash/bytes，身份核验去重对照的新source/protocol/真实结果/非作者审计，最终archive Git提交与远端可达、最终退役状态及收据。默认Thin旧v1/v2/v3缺失字节仍只保留已知metadata，不宣称完整恢复；严格v1/v2则已逐freeze全部保全。本更新未运行编译器/LLVM/native、未采样、未git add/commit/remote。
-
-## 私有导入 checkpoint 补充：非最终
-
-本次新增 `snapshot/research/thinlto-private-imports/` 全部十四发布源码（十二Python、一CPP、一README）、sourcefreeze与prefreeze、实际运行结果独审MD/JSON；目录外的CPP/Python/API-design审、两项有效地址控制源码及API边界、成本审计和封包器源码也保留。sourcefreeze条目逐Git blob/current字节一致的审查见Python报告。prefreeze中的prepared-not-run是冻结形成时点原文，不改写成运行后状态；实际完成事实以protocol/summary/独审为准。
-
-正式协议 `snapshot/out/next-optimization/private-protocol-v1/protocol.json` SHA `208adf6f5a3e904182afdaf1ef1c6b30a173fb559400ab14d05b2f59e4803a44`，插件C++ SHA `a22e5004b5f99150ae197ffa88f406eafb2136c796d5d3cc651a8fc97cc99623`，SO SHA `585a84701033e21669a2465df4007150e1fddf36df1acdab3165c48a16734cf6`，buildbinding SHA `056e812dbb270f07c40abf9658fa6ef3007ed76bc8f5869941ed49322fdcf2a9`。编译器仍复用main990/exporter2549各自冻结binary，不假称新增第六个ZIL编译器。
-
-正式6编译、54native、36formal，196attempt正常、1260raw完整前后SHA相等；原251seed oracle独立复算及全部IO通过。实际.3 Required=Added=AE为56/224，原Allowed504/2016及source/copycost未扩大；16unit×4hook文件齐全，280imports各一directuse，独立逆名/linkage全文核等。B/A两格通过不扩大到八case、地址/global或多点并发覆盖；另行有效LLVM地址控制2/0的原始plan/process/stdout/summary和源均随文本保留，不混入54native正式计数。
-
-`snapshot/research/private-compile-cost-audit.md`与JSON保留完整请求/工具叶的分解及边界：B gross wall约8285.686/14630.546ms，不能扣除诊断成本后宣布编译加速。下一身份核验去重对照只在准备，不调整O2、原Verify/preflight/LLVM验证/预算/actualvisibility/hook及运行门；其新freeze/protocol/结果尚未纳入本checkpoint。
-
-`snapshot/research/next-evidence-pack.py`是Root后续执行的封包器源码。完整raw、BC、ELF、decoded LLVM文本、五ZIL二进制及插件SO仍不进入本Git文本快照；本轮完整raw checkpoint由Root另行封包持久化，包路径/size/hash及可达A0仍pending。本更新只读来源并写archive-next，未改out/next-optimization，未gitadd/commit/remote，未运行编译/LLVM/native。所有旧归档字节仍保留，旧元数据/复制收据在`update-history/pre-private-imports-pass/`；当前来源复制SHA另由新source-copy-receipt逐项记录。
-
-## Raw证据检查点 v0
-
-全部原始数据已保全：11,917 tar成员、104,191,976字节，SHA256 `9b1677993e14d608cd5f64c99eecc75bf13963a142219bb48caa1b7945bfadef`。逐源before/after、所有tar成员读回完整核对。身份见 `raw-checkpoint-v0.json`；包含5个实际ZIL编译器、正式/控制插件、全部本轮请求输出及首失败，不包含SDK。该检查点尚不包含准备中的身份去重实验。
+旧Thin archive-v1/v2/v3仍有未找到的历史字节，只保留已知hash与实际可用文件，继续明确metadata-only缺口；不因最终收束宣称全部恢复。正式v4及严格v1/v2的完整恢复事实单列。未由本轮解决的旧回归恢复缺口仍见manifest，不以归档或NoGo结论抹除。

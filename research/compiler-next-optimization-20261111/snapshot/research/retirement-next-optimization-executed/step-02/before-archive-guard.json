@@ -1,0 +1,79 @@
+{
+  "utc": "2026-11-11T11:43:27.018Z",
+  "refs": [
+    {
+      "branch": "archive/source-history",
+      "data": {
+        "ref": "refs/heads/archive/source-history",
+        "node_id": "REF_kwDOVXdqJNoAIXJlZnMvaGVhZHMvYXJjaGl2ZS9zb3VyY2UtaGlzdG9yeQ",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/refs/heads/archive/source-history",
+        "object": {
+          "sha": "78ce99886e435dd56c0af632240eded1840827c0",
+          "type": "commit",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/commits/78ce99886e435dd56c0af632240eded1840827c0"
+        }
+      }
+    },
+    {
+      "branch": "task/compiler-builder-position",
+      "data": {
+        "ref": "refs/heads/task/compiler-builder-position",
+        "node_id": "REF_kwDOVXdqJNoAKXJlZnMvaGVhZHMvdGFzay9jb21waWxlci1idWlsZGVyLXBvc2l0aW9u",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/refs/heads/task/compiler-builder-position",
+        "object": {
+          "sha": "9f0deb4c4142d0fff2ef622442518fc1d7a65d5c",
+          "type": "commit",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/commits/9f0deb4c4142d0fff2ef622442518fc1d7a65d5c"
+        }
+      }
+    },
+    {
+      "branch": "main",
+      "data": {
+        "ref": "refs/heads/main",
+        "node_id": "REF_kwDOVXdqJK9yZWZzL2hlYWRzL21haW4",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/refs/heads/main",
+        "object": {
+          "sha": "99035931d358add0eaed6d4535035c38413701dd",
+          "type": "commit",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/commits/99035931d358add0eaed6d4535035c38413701dd"
+        }
+      }
+    },
+    {
+      "branch": "goal",
+      "data": {
+        "ref": "refs/heads/goal",
+        "node_id": "REF_kwDOVXdqJK9yZWZzL2hlYWRzL2dvYWw",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/refs/heads/goal",
+        "object": {
+          "sha": "32fe4e123b5c75fc943f8f0fe346964dac1c1102",
+          "type": "commit",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/commits/32fe4e123b5c75fc943f8f0fe346964dac1c1102"
+        }
+      }
+    },
+    {
+      "branch": "task/compiler-thinlto-private-imports",
+      "data": {
+        "ref": "refs/heads/task/compiler-thinlto-private-imports",
+        "node_id": "REF_kwDOVXdqJNoAMHJlZnMvaGVhZHMvdGFzay9jb21waWxlci10aGlubHRvLXByaXZhdGUtaW1wb3J0cw",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/refs/heads/task/compiler-thinlto-private-imports",
+        "object": {
+          "sha": "3d0dc3e1f420ebea68aff66ebbcd86111251bffc",
+          "type": "commit",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/commits/3d0dc3e1f420ebea68aff66ebbcd86111251bffc"
+        }
+      }
+    }
+  ],
+  "all_pages_open_prs": [],
+  "all_pages_active": {
+    "queued": [],
+    "in_progress": [],
+    "waiting": [],
+    "requested": [],
+    "pending": [],
+    "action_required": []
+  }
+}

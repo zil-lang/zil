@@ -1,0 +1,38 @@
+{
+  "format": "zil-manual-prelink-harness-source-freeze/1",
+  "status": "code-frozen-not-prepared-not-executed",
+  "source_commit": "2321e74897975978925dc7d2a611f7d672f716e1",
+  "source_tree": "03fa3d83dc5ba80d7849f7148b97b7d12449700b",
+  "candidate_binary_sha256": "ce90681f261c109c412bb9d513e3c0ff58680a2e593d798cdf21b3e27daa407a",
+  "candidate_build_receipt": {
+    "path": "/workspace/scratch/abf690ce880c/out/next-optimization/binding-manual-prelink-2321.json",
+    "sha256": "1f6fd80b428a2d6f256691b532db1866e9275e25925f53fd57628327ad12c602"
+  },
+  "candidate_raw_release_log_sha256": "d2e563605cafb803d38a8b099363e32b32234697f88842c754458d18acdb1af4",
+  "reference_protocol_sha256": "a30ffe86586c77849a613be636ece4f58fa3bfcebbc0eec3191cba333ce4e72c",
+  "llvm_dso": {
+    "path": "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/lib/libLLVM.so.23.1",
+    "bytes_claimed_by_root": 72146000,
+    "sha256_to_validate_at_prepare": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+  },
+  "counts": {
+    "formal_compilations": 36,
+    "native_total": 108,
+    "native_formal": 36,
+    "native_functional": 72
+  },
+  "AST_python_files": 9,
+  "files": {
+    "README.md": "ab7b65f5b736d8f85705711091c90fed9dfd1bc150a379f12886c144898557d5",
+    "common.py": "d63f48d6df899be8526909f6fb7cd4f48b95dc9667ff4edbbed6b4baed1ea870",
+    "compile_screen.py": "1e5ed322f8e87a5b578cc6843bb370036cdc655bcc8cec950998a0534b261bd6",
+    "prepare.py": "8e104e7d16e0e01b4c530a191d76cd14f699bf20e9f05da857b02e6c0d6b6f61",
+    "processes.py": "ac8cbab5aaa2c2b50a891f5dac28c392dbe5228da6d517749af1b13645abbe04",
+    "vendor/fixture.py": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+    "vendor/prepare_runtime.py": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+    "vendor/runtime_fixture.py": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+    "vendor/runtime_gate.py": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+    "vendor/screen.py": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3"
+  },
+  "author_compiler_llvm_native_executed": false
+}

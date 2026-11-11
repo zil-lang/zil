@@ -1,0 +1,9 @@
+{
+  "format": "zil-raw-v0-superset-check/1",
+  "status": "Pass",
+  "prior_paths": 11916,
+  "new_paths": 33850,
+  "missing": [],
+  "changed_old_payload": [],
+  "compared": "type/mode/bytes/content-hash/link-target; directory timestamps/inodes are not payload identity"
+}

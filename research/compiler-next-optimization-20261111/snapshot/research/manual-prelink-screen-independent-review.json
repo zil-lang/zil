@@ -1,0 +1,176 @@
+{
+  "format": "zil-manual-prelink-harness-independent-static-review/1",
+  "status": "Pass for prepare and frozen two-case screen; no performance/quality claim",
+  "utc": "2026-11-11T12:24:23.862272+00:00",
+  "review_scope": "Non-author review of Python measurement harness; reviewer authored native API and does not count this as independent native-source approval",
+  "source_freeze_sha256": "9d959c5d5017c7f73e76a76c92db966ba18a6a7a98f62454979ce41ca690ed1d",
+  "source_commit": "2321e74897975978925dc7d2a611f7d672f716e1",
+  "source_tree": "03fa3d83dc5ba80d7849f7148b97b7d12449700b",
+  "candidate_binary_sha256_claim_bound_to_successful_build": "ce90681f261c109c412bb9d513e3c0ff58680a2e593d798cdf21b3e27daa407a",
+  "build_receipt_sha256": "1f6fd80b428a2d6f256691b532db1866e9275e25925f53fd57628327ad12c602",
+  "files": {
+    "README.md": {
+      "sha256": "ab7b65f5b736d8f85705711091c90fed9dfd1bc150a379f12886c144898557d5",
+      "bytes": 5395
+    },
+    "common.py": {
+      "sha256": "d63f48d6df899be8526909f6fb7cd4f48b95dc9667ff4edbbed6b4baed1ea870",
+      "bytes": 16075
+    },
+    "compile_screen.py": {
+      "sha256": "1e5ed322f8e87a5b578cc6843bb370036cdc655bcc8cec950998a0534b261bd6",
+      "bytes": 12464
+    },
+    "prepare.py": {
+      "sha256": "8e104e7d16e0e01b4c530a191d76cd14f699bf20e9f05da857b02e6c0d6b6f61",
+      "bytes": 2962
+    },
+    "processes.py": {
+      "sha256": "ac8cbab5aaa2c2b50a891f5dac28c392dbe5228da6d517749af1b13645abbe04",
+      "bytes": 4188
+    },
+    "vendor/fixture.py": {
+      "sha256": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+      "bytes": 7327
+    },
+    "vendor/prepare_runtime.py": {
+      "sha256": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+      "bytes": 4682
+    },
+    "vendor/runtime_fixture.py": {
+      "sha256": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+      "bytes": 4693
+    },
+    "vendor/runtime_gate.py": {
+      "sha256": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+      "bytes": 17727
+    },
+    "vendor/screen.py": {
+      "sha256": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3",
+      "bytes": 31550
+    }
+  },
+  "AST_files": 9,
+  "reference_protocol_sha256": "a30ffe86586c77849a613be636ece4f58fa3bfcebbc0eec3191cba333ce4e72c",
+  "counts": {
+    "cases": 2,
+    "compile": 36,
+    "native": 108,
+    "formal_native": 36,
+    "functional_native": 72
+  },
+  "position_balance": {
+    "A": [
+      2,
+      2,
+      2
+    ],
+    "B": [
+      2,
+      2,
+      2
+    ],
+    "R": [
+      2,
+      2,
+      2
+    ]
+  },
+  "oracle_math": {
+    "period": 251,
+    "iterations": 100000,
+    "cycles": 398,
+    "remainder": 102,
+    "all_6_stored_vectors_recomputed": true,
+    "max_acc_plus_value_n64": 1126005,
+    "max_acc_plus_value_n256": 1510005,
+    "i32_max": 2147483647
+  },
+  "checked": [
+    "same complete original cases object and source hashes",
+    "current Verify and actual source count",
+    "current complete original/partition/eight unit preflight",
+    "typed Complete canonical/Required/Allowed/original cost bound",
+    "eight actual prelink definition/declaration/direct-call/intrinsic facts",
+    "independent transitive prelink Required and exact post receipt coverage",
+    "eight complete O2 native object target/pipeline/verification receipts",
+    "ordinary pinned Clang one link with eight objects and no plugin/LTO flags",
+    "full request wall/CPU/RSS; symmetric selected compiler identity outside timer",
+    "raw before receipt/output validation; every exception incomplete; no trimming",
+    "six same-arm ELF unique; A/B material IR each stable; cross-arm code can differ",
+    "B/A runtime<=1.10 and Rust/B>=0.90 per case; compile benefit separate",
+    "native fresh outputs and no object/native cache",
+    "full scripts/build/DSO/reference checks before and after screen",
+    "Rust bundled LLVM23.1.1 distinguished from native/clang23.1.4"
+  ],
+  "resolved_first_issues": [
+    "stale result format and README changed before final freeze",
+    "actual raw build binding nested binary versus old flat schema: normalized new binding file; original raw unchanged; validator unchanged"
+  ],
+  "limits": [
+    "No protocol prepared/imported or compiler/LLVM/native executed by this reviewer",
+    "No large compiler/DSO hash read by reviewer; root runner must perform actual prepare validation",
+    "Original foreign intrinsic eliminated from all prelink outputs can cause conservative Incomplete, never performance NoGo",
+    "Direct-call sets do not independently prove use multiplicity; typed source controls and native code review cover exact per-Use predicate",
+    "Two pure base cold-process cases do not establish warm incremental cache, multiedit, concurrent or product distribution gains",
+    "RSS is wait4 high-water, not aggregate peak and may include launcher/fork floor"
+  ],
+  "prepared_protocol_gate": {
+    "status": "Pass exact prepared protocol",
+    "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-prelink-protocol-v1/protocol.json",
+    "sha256": "a2999b0eb482994de4516f8de6760ca6dd4a7b99fe722c8b0d75aaa9daa76810",
+    "producer_source": {
+      "A": {
+        "commit": "99035931d358add0eaed6d4535035c38413701dd",
+        "tree": "1c16744d838064cb1c687ba56ef3a0d17ed3130c"
+      },
+      "B": {
+        "commit": "2321e74897975978925dc7d2a611f7d672f716e1",
+        "tree": "03fa3d83dc5ba80d7849f7148b97b7d12449700b"
+      }
+    },
+    "source_files_hashed": 640,
+    "source_bytes_hashed": 729074,
+    "cases_identical_to_original_reference": true,
+    "tools_claims": {
+      "baseline": {
+        "path": "/workspace/scratch/abf690ce880c/targets/main990/release/zil",
+        "sha256": "64e1ff43bbaa59f786f1cc899b69e707072219a9c0abf0122ce31cd7b77f981d"
+      },
+      "candidate": {
+        "path": "/workspace/scratch/abf690ce880c/targets/manual-prelink-2321/release/zil",
+        "sha256": "ce90681f261c109c412bb9d513e3c0ff58680a2e593d798cdf21b3e27daa407a"
+      },
+      "rustc": {
+        "path": "/workspace/scratch/abf690ce880c/toolchain/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+        "sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853"
+      },
+      "clang": {
+        "path": "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/clang",
+        "sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67"
+      }
+    },
+    "build_bindings": {
+      "A": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/binding-main990.json",
+        "sha256": "a2613c636671f86ee55f82dd49b7395e741455f5d9c2d72b349f6bffb1f98936"
+      },
+      "B": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/binding-manual-prelink-2321.json",
+        "sha256": "1f6fd80b428a2d6f256691b532db1866e9275e25925f53fd57628327ad12c602"
+      }
+    },
+    "llvm_dso_claim": {
+      "path": "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/lib/libLLVM.so.23.1",
+      "resolved_path": "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/lib/libLLVM.so.23.1",
+      "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+    },
+    "loader_environment": {
+      "LD_LIBRARY_PATH": "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/lib"
+    },
+    "script_claims_exact_actual_small_files": true,
+    "no_large_tool_or_DSO_hash_by_reviewer": true,
+    "no_compiler_llvm_native_executed_by_reviewer": true,
+    "candidate_is_producer_2321_not_script_child": true
+  }
+}

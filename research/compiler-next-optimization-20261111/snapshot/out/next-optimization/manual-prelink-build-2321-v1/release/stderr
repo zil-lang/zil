@@ -1,0 +1,26 @@
+   Compiling typenum v1.20.1
+   Compiling rustc_apfloat v0.2.3+llvm-462a31f5a5ab
+   Compiling cfg-if v1.0.5
+   Compiling smallvec v1.16.4
+   Compiling bitflags v2.13.2
+   Compiling cpufeatures v0.3.1
+   Compiling hybrid-array v0.4.15
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/abf690ce880c/manual-prelink-validation/crates/zil-llvm-api)
+   Compiling crypto-common v0.2.2
+   Compiling block-buffer v0.12.1
+   Compiling digest v0.11.3
+   Compiling sha2 v0.11.1
+   Compiling zil-base v0.1.0 (/workspace/scratch/abf690ce880c/manual-prelink-validation/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/abf690ce880c/manual-prelink-validation/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/abf690ce880c/manual-prelink-validation/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/abf690ce880c/manual-prelink-validation/crates/zil-verify)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/abf690ce880c/manual-prelink-validation/crates/zil-analyze)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/abf690ce880c/manual-prelink-validation/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/abf690ce880c/manual-prelink-validation/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/abf690ce880c/manual-prelink-validation/crates/zil-lower)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/abf690ce880c/manual-prelink-validation/crates/zil-expand)
+   Compiling zil-types v0.1.0 (/workspace/scratch/abf690ce880c/manual-prelink-validation/crates/zil-types)
+   Compiling zil-db v0.1.0 (/workspace/scratch/abf690ce880c/manual-prelink-validation/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/abf690ce880c/manual-prelink-validation/crates/zil-driver)
+   Compiling zil-cli v0.1.0 (/workspace/scratch/abf690ce880c/manual-prelink-validation/crates/zil-cli)
+    Finished `release` profile [optimized] target(s) in 3m 33s

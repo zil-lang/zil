@@ -1,0 +1,26 @@
+{
+  "format": "zil-manual-prelink-full-o2-api-author-freeze/1",
+  "base_local_commit": "2f5567077bbdde1b8c4ccd753496b8d46f5bdfc7",
+  "base_remote_from_root": "850289f (root to bind full remote SHA)",
+  "files": {
+    "lib.rs": {
+      "sha256": "f116bed15e2527598b9b93dc05e00d06ab79822ef8d21934005af31c2e977046",
+      "bytes": 9636
+    },
+    "native/research_prelink.rs": {
+      "sha256": "4d306a3d0da65ee0cf6fcd34904b82db6e7713ecdcc172592717920ed5795680",
+      "bytes": 43404
+    }
+  },
+  "unit_receipt_format": "zil-research-manual-prelink-unit/2",
+  "producer_pipeline": "default<O2>",
+  "object_receipt_format": "zil-research-manual-prelink-object/2",
+  "object_pipeline": "canonical-full<O2>|budgeted-direct-imports=private|empty-required=emit|nonempty-required=thinlto<O2>|merge-functions=after|aliases=false",
+  "path_verified_field": "actual_required_path_verified",
+  "postlink_ran_exactly_when": "actual Required is nonempty, after graph/owner/Allowed/parse/check_sealed/verify",
+  "empty_required_metrics": "donor_modules/trim_link_ns/postlink_optimize_ns/Object.optimize_ns=0; no trim/link/private/second O2 claimed",
+  "scope": "same current pure scope, original budgets and full validation; no cache/default compile change",
+  "controls": "same eight-unit fixture: nonemptyRequired f0->f1 must postO2, f2 has getchar and Allowed f3 but fullO2 removes dead f3 call so actualRequired empty must directly emit; old missingAllowed remains reject; original legal address Use and BitReader/Link controls retained",
+  "compiler_llvm_native_executed": false,
+  "rustfmt_only": true
+}

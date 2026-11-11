@@ -1,0 +1,29 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-j",
+    "2",
+    "-p",
+    "zil-llvm-api",
+    "--features",
+    "native"
+  ],
+  "exit": 0,
+  "timeout": false,
+  "exception": null,
+  "cpu_ms": 12182.426,
+  "rss_kib": 289496,
+  "wall_ms": 7747.962415,
+  "reaped": true,
+  "scope": "owned-request-session",
+  "cleanup": [
+    {
+      "action": "owned-request-group-empty",
+      "group": 17
+    }
+  ],
+  "owned_group": 17,
+  "residual_descendants": false
+}

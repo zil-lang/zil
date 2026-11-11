@@ -1,0 +1,25 @@
+{
+  "source_commit": "2321e74897975978925dc7d2a611f7d672f716e1",
+  "source_tree": "03fa3d83dc5ba80d7849f7148b97b7d12449700b",
+  "checkout": "/workspace/scratch/abf690ce880c/manual-prelink-validation",
+  "binary": "/workspace/scratch/abf690ce880c/targets/manual-prelink-2321/release/zil",
+  "binary_sha256": "ce90681f261c109c412bb9d513e3c0ff58680a2e593d798cdf21b3e27daa407a",
+  "build_log": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-prelink-build-2321-v1/release/process-attempt.json",
+  "build_log_sha256": "d2e563605cafb803d38a8b099363e32b32234697f88842c754458d18acdb1af4",
+  "toolchain": {
+    "rust": "1.99.1",
+    "llvm": "23.1.4"
+  },
+  "release_build_status": "Pass",
+  "complete_build_receipt": {
+    "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-prelink-build-2321-v1/binding.json",
+    "sha256": "33c3634cf52ae203eb30e9594e8d9ed0179f3d66a24e5fcba1ca7b45f8ddf695"
+  },
+  "validation": {
+    "API_native_tests": 64,
+    "new_real_API_controls": 4,
+    "proof_selected": 6,
+    "no_native_check": "Pass",
+    "no_native_warnings": "unused fields in research-only opaque structs; no compile errors"
+  }
+}

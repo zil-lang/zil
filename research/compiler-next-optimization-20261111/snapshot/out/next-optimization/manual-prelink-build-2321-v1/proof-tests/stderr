@@ -1,0 +1,18 @@
+   Compiling typenum v1.20.1
+   Compiling rustc_apfloat v0.2.3+llvm-462a31f5a5ab
+   Compiling smallvec v1.16.4
+   Compiling bitflags v2.13.2
+   Compiling cpufeatures v0.3.1
+   Compiling cfg-if v1.0.5
+   Compiling hybrid-array v0.4.15
+   Compiling block-buffer v0.12.1
+   Compiling crypto-common v0.2.2
+   Compiling digest v0.11.3
+   Compiling sha2 v0.11.1
+   Compiling zil-base v0.1.0 (/workspace/scratch/abf690ce880c/manual-prelink-validation/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/abf690ce880c/manual-prelink-validation/crates/zil-ir)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/abf690ce880c/manual-prelink-validation/crates/zil-verify)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/abf690ce880c/manual-prelink-validation/crates/zil-backend-llvm)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 43.84s
+     Running unittests src/lib.rs (/workspace/scratch/abf690ce880c/targets/manual-prelink-2321/debug/deps/zil_backend_llvm-a8512d2f36785475)
+     Running tests/closed_executable_research.rs (/workspace/scratch/abf690ce880c/targets/manual-prelink-2321/debug/deps/closed_executable_research-b50e8e8fca10d6dc)

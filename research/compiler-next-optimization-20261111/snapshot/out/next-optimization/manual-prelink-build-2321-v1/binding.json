@@ -1,0 +1,129 @@
+{
+  "status": "Pass",
+  "source_commit": "2321e74897975978925dc7d2a611f7d672f716e1",
+  "source_tree": "03fa3d83dc5ba80d7849f7148b97b7d12449700b",
+  "checkout": "/workspace/scratch/abf690ce880c/manual-prelink-validation",
+  "target": "/workspace/scratch/abf690ce880c/targets/manual-prelink-2321",
+  "recipe": {
+    "path": "/workspace/scratch/abf690ce880c/research/manual-prelink-build.py",
+    "sha256": "5c6ffcd24d2aa8e3347abcd780e74739209b59889e21968cca40c5a535046d21"
+  },
+  "cpus": [
+    0,
+    1
+  ],
+  "jobs": 2,
+  "attempts": [
+    {
+      "phase": "api-tests",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-j",
+        "2",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "native"
+      ],
+      "passed": true,
+      "process_attempt": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-prelink-build-2321-v1/api-tests/process-attempt.json",
+        "sha256": "9853d7bee345dbe88337dbf26b0deae6313643efa9d92d566d369f06acaf8c84"
+      },
+      "stdout": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-prelink-build-2321-v1/api-tests/stdout",
+        "sha256": "327a8afaf4d0189ae9fc8d39cf43136fc8c08288860b7be33c33318368f98a60"
+      },
+      "stderr": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-prelink-build-2321-v1/api-tests/stderr",
+        "sha256": "f506d59d801086f9f85e7340a537ce5db8899bf37d1be6714ee24be33b4a84ac"
+      }
+    },
+    {
+      "phase": "proof-tests",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-j",
+        "2",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "llvm-api",
+        "complete_visibility"
+      ],
+      "passed": true,
+      "process_attempt": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-prelink-build-2321-v1/proof-tests/process-attempt.json",
+        "sha256": "5adcd26b5132853c9d0fb50bcc6788c3eee95f4534990ef88c43621173bf7942"
+      },
+      "stdout": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-prelink-build-2321-v1/proof-tests/stdout",
+        "sha256": "2b7f07a0cad87b12f667b015fa18ada1e5303c0e9cb2a99fc4b0bbb0b4a455e6"
+      },
+      "stderr": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-prelink-build-2321-v1/proof-tests/stderr",
+        "sha256": "78233056b18be3d80f8ce08697ca6314ed19938fa7dc97bf1a5321b4791170e9"
+      }
+    },
+    {
+      "phase": "no-native",
+      "command": [
+        "cargo",
+        "check",
+        "--locked",
+        "-j",
+        "2",
+        "-p",
+        "zil-backend-llvm",
+        "--no-default-features"
+      ],
+      "passed": true,
+      "process_attempt": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-prelink-build-2321-v1/no-native/process-attempt.json",
+        "sha256": "b552eee02e77e24c6ce0893390333590fa99de6812fd56e7ad36be8b40e28478"
+      },
+      "stdout": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-prelink-build-2321-v1/no-native/stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-prelink-build-2321-v1/no-native/stderr",
+        "sha256": "05fa27af761faa7c345cf364973d5627aa29a4ace9088f9819ed9c89f003c44b"
+      }
+    },
+    {
+      "phase": "release",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "-j",
+        "2",
+        "-p",
+        "zil-cli"
+      ],
+      "passed": true,
+      "process_attempt": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-prelink-build-2321-v1/release/process-attempt.json",
+        "sha256": "d2e563605cafb803d38a8b099363e32b32234697f88842c754458d18acdb1af4"
+      },
+      "stdout": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-prelink-build-2321-v1/release/stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-prelink-build-2321-v1/release/stderr",
+        "sha256": "dd9c8a1706b55dd456c4f138d54a430b71eacf9d5d7f99a0d62c3785b562e952"
+      }
+    }
+  ],
+  "binary": {
+    "path": "/workspace/scratch/abf690ce880c/targets/manual-prelink-2321/release/zil",
+    "sha256": "ce90681f261c109c412bb9d513e3c0ff58680a2e593d798cdf21b3e27daa407a"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "Action completed."
+    }
+  ],
+  "structuredContent": {
+    "artifacts": [
+      {
+        "id": 13851707507,
+        "name": "compiler-retirement-43014067899",
+        "size_in_bytes": 483,
+        "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13851707507",
+        "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13851707507/zip",
+        "expired": false,
+        "created_at": "2026-11-11T11:42:04Z",
+        "expires_at": "2026-12-11T11:42:03Z",
+        "updated_at": "2026-11-11T11:42:04Z",
+        "digest": "sha256:6416813e343445731ebb816c133c7b9491365987319ebdc666621d9830e1bafb",
+        "workflow_run": {
+          "id": 43014067899,
+          "repository_id": 1433889316,
+          "head_repository_id": 1433889316,
+          "head_branch": "task/compiler-structured-emission",
+          "head_sha": "b0da05ec784d632fa88c00d860382d656db712ec"
+        }
+      }
+    ]
+  },
+  "isError": false
+}

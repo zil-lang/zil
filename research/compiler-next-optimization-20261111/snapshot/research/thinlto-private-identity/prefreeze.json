@@ -1,0 +1,34 @@
+{
+  "status": "prepared-not-run",
+  "source_commit": "3d0dc3e1f420ebea68aff66ebbcd86111251bffc",
+  "source_tree": "dbbc630ebb80319fd62aaab438e44e7f80ee9307",
+  "protocol": {
+    "path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-identity-protocol-v1/protocol.json",
+    "sha256": "722a146dd2bee2cbf5e4f1550532bf4404829bfc8aed46a956925590e4989215"
+  },
+  "scripts": {
+    "PrivateImports.cpp": "a22e5004b5f99150ae197ffa88f406eafb2136c796d5d3cc651a8fc97cc99623",
+    "clang_wrapper.py": "9006574e40259d3dc514d2f68939ac0669b6ea5ce42bcfb5a8cdbb72025f66ba",
+    "common.py": "5800eef2ac10c31463bc10cf69c7b0ffd3b342700fd835609b14bfc1178b53f2",
+    "compile_screen.py": "13d8c5e7b843c3bfcbfcaf05fb10748f4035bbbf01890ce5fabb1c8c2c581856",
+    "hook_checks.py": "532bb71f9d5275f118aa6a6c029829554d059fccc5ce682759d5cf935d81d242",
+    "prepare.py": "a4ddf7044290e271035b7faed5db062a5f2de15e9e2cf71fad25b68d557d43c6",
+    "processes.py": "ac8cbab5aaa2c2b50a891f5dac28c392dbe5228da6d517749af1b13645abbe04",
+    "run.py": "302c97626f4f0ffdb0c2bf41fa3c399f36a81fcc0329aba4b78f5eb55a42ad47",
+    "vendor/fixture.py": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+    "vendor/prepare_runtime.py": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+    "vendor/runtime_fixture.py": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+    "vendor/runtime_gate.py": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+    "vendor/screen.py": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3",
+    "visibility.py": "bbd583f3f948f4292c5a484c37b3e8ebd24213d414fcbcab11b890a8eaedde21"
+  },
+  "same_cases_tools_build_bindings_orders_limits_cpu_jobs_as_previous_private": true,
+  "counts": {
+    "cases": 2,
+    "formal_compilations": 36,
+    "native_total": 108,
+    "native_formal": 36,
+    "native_functional": 72
+  },
+  "first_complete_tool_validation_inside_each_B_request": true
+}

@@ -1,0 +1,7 @@
+{
+  "status": "unexecuted draft before sealed-facts graph reuse",
+  "sha256": "d29a83888690e6f10a048d8b429543084ddd1d648202759b0a9e667026294d6f",
+  "bytes": 25612,
+  "built_or_executed": false,
+  "delta_planned": "Remove destination-wide all-BC reparsing; reuse immutable producer facts, verify only own and Required donor parses"
+}

@@ -1,0 +1,79 @@
+{
+  "utc": "2026-11-11T11:46:06.503Z",
+  "refs": [
+    {
+      "branch": "archive/source-history",
+      "data": {
+        "ref": "refs/heads/archive/source-history",
+        "node_id": "REF_kwDOVXdqJNoAIXJlZnMvaGVhZHMvYXJjaGl2ZS9zb3VyY2UtaGlzdG9yeQ",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/refs/heads/archive/source-history",
+        "object": {
+          "sha": "f6c6cba6876a84694750e28c104ccc387860a6f8",
+          "type": "commit",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/commits/f6c6cba6876a84694750e28c104ccc387860a6f8"
+        }
+      }
+    },
+    {
+      "branch": "task/compiler-thinlto-complete-visibility",
+      "data": {
+        "ref": "refs/heads/task/compiler-thinlto-complete-visibility",
+        "node_id": "REF_kwDOVXdqJNoANHJlZnMvaGVhZHMvdGFzay9jb21waWxlci10aGlubHRvLWNvbXBsZXRlLXZpc2liaWxpdHk",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/refs/heads/task/compiler-thinlto-complete-visibility",
+        "object": {
+          "sha": "2549cbec8e1f3096d4c8c8a960459c83095ad13d",
+          "type": "commit",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/commits/2549cbec8e1f3096d4c8c8a960459c83095ad13d"
+        }
+      }
+    },
+    {
+      "branch": "main",
+      "data": {
+        "ref": "refs/heads/main",
+        "node_id": "REF_kwDOVXdqJK9yZWZzL2hlYWRzL21haW4",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/refs/heads/main",
+        "object": {
+          "sha": "99035931d358add0eaed6d4535035c38413701dd",
+          "type": "commit",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/commits/99035931d358add0eaed6d4535035c38413701dd"
+        }
+      }
+    },
+    {
+      "branch": "goal",
+      "data": {
+        "ref": "refs/heads/goal",
+        "node_id": "REF_kwDOVXdqJK9yZWZzL2hlYWRzL2dvYWw",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/refs/heads/goal",
+        "object": {
+          "sha": "32fe4e123b5c75fc943f8f0fe346964dac1c1102",
+          "type": "commit",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/commits/32fe4e123b5c75fc943f8f0fe346964dac1c1102"
+        }
+      }
+    },
+    {
+      "branch": "task/compiler-thinlto-private-imports",
+      "data": {
+        "ref": "refs/heads/task/compiler-thinlto-private-imports",
+        "node_id": "REF_kwDOVXdqJNoAMHJlZnMvaGVhZHMvdGFzay9jb21waWxlci10aGlubHRvLXByaXZhdGUtaW1wb3J0cw",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/refs/heads/task/compiler-thinlto-private-imports",
+        "object": {
+          "sha": "3d0dc3e1f420ebea68aff66ebbcd86111251bffc",
+          "type": "commit",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/commits/3d0dc3e1f420ebea68aff66ebbcd86111251bffc"
+        }
+      }
+    }
+  ],
+  "all_pages_open_prs": [],
+  "all_pages_active": {
+    "queued": [],
+    "in_progress": [],
+    "waiting": [],
+    "requested": [],
+    "pending": [],
+    "action_required": []
+  }
+}

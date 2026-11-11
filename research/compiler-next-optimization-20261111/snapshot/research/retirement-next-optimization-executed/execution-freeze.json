@@ -1,0 +1,421 @@
+{
+  "format": "zil-retirement-execution-freeze/1",
+  "files": {
+    "A0-preservation-readback.json": {
+      "sha256": "1a74a34287a670c8167f556028660cd1787783abdd72c24d6e7e8708f390e5c1",
+      "bytes": 9763
+    },
+    "README.md": {
+      "sha256": "7067d368818c39e4ab27706c56155a0e7999d7b6817ece1355ffc0d77bc34b7e",
+      "bytes": 4660
+    },
+    "final-readback.json": {
+      "sha256": "6dd6f7e7dc10e91d77ef83ec72917c607f3def725d87d9e4fa7ec89781b3e60e",
+      "bytes": 33995
+    },
+    "step-01/A-commit.json": {
+      "sha256": "500fe8302b6482f1114bea1c944740504b76360ca1a7165a31eac4f2be080daf",
+      "bytes": 195
+    },
+    "step-01/A-tree.json": {
+      "sha256": "9abefb0a00afc3f2f36ccc4216e9cc98d617adf2060acb85a0ef03e7fc94d603",
+      "bytes": 195
+    },
+    "step-01/W-blob.json": {
+      "sha256": "0944d8069f4f7829d3b0af871093dc9661caba7c2a06b7f7189cc32263da67ac",
+      "bytes": 195
+    },
+    "step-01/W-commit.json": {
+      "sha256": "845b73fd8e06481e7f3a0e222684d62628ab422654796637bada3bffa1cc2f6b",
+      "bytes": 195
+    },
+    "step-01/W-tree.json": {
+      "sha256": "58ab9e6e0ffad5236fe9515cb9272fea31a7596025fc28a563609ca79842fb68",
+      "bytes": 195
+    },
+    "step-01/actual-receipt.json": {
+      "sha256": "129a123dc501a4855f28c8bb81f9d1e2c6138cd3d58c55e1b293473f11dec30b",
+      "bytes": 553
+    },
+    "step-01/artifacts.json": {
+      "sha256": "cb67d8c36bebd495cfdbafbbb5dfa8221660a08d2ab5f9b2a15018f4157fd5b5",
+      "bytes": 1023
+    },
+    "step-01/before-archive-guard.json": {
+      "sha256": "df64df773d7397dfd7287b4a79106053853f338d5e5dd9503e6fbe8e3474c421",
+      "bytes": 2924
+    },
+    "step-01/before-trigger-guard.json": {
+      "sha256": "4ba99779a8366ac6a45ba0d67f75cbc27e02193f85b8e94798f8ce27621c5c09",
+      "bytes": 2924
+    },
+    "step-01/completed.json": {
+      "sha256": "0284eac14227094086d291a436c682e5b2c1d6d9985183976c18adfc72bd2cfd",
+      "bytes": 5982
+    },
+    "step-01/final-object-check.json": {
+      "sha256": "f415603ed10476bd83c1a92f67da35ca7e493de490d1f67d4dc13c7e3f631c37",
+      "bytes": 937
+    },
+    "step-01/initial-runs.json": {
+      "sha256": "763f11efb3fd0695809422708bf5765dfad5d8438bfb9a7bad31f23ff74d3285",
+      "bytes": 46
+    },
+    "step-01/job-logs.json": {
+      "sha256": "cbf834a2d7f1983d6c513aeb45a1917db526b7d48455c6fc4da639abed7ab84f",
+      "bytes": 27292
+    },
+    "step-01/jobs.json": {
+      "sha256": "4c2dd2056185bb8588cef121983d71d016d140ee83eb4f931316bcd1ff7fc696",
+      "bytes": 1544
+    },
+    "step-01/manifest-blob.json": {
+      "sha256": "4674978d27ef50159c9610c7aea3382dec59b8ceb3863b952253147d3005a510",
+      "bytes": 195
+    },
+    "step-01/metadata-blob.json": {
+      "sha256": "7c05d57848a84ff68882f71542f13b3c5e83c0e341c13bf6b306a6c6c430f4f8",
+      "bytes": 195
+    },
+    "step-01/prepared.json": {
+      "sha256": "066ca923f26c8535506de27be75b07073780841eea7b2341d1a73283729a88db",
+      "bytes": 830
+    },
+    "step-01/publish-archive.json": {
+      "sha256": "0aad31566ba642e38c47f18ab55ad16470654eade0b74575427dd592d966998e",
+      "bytes": 161
+    },
+    "step-01/publish-target.json": {
+      "sha256": "0aad31566ba642e38c47f18ab55ad16470654eade0b74575427dd592d966998e",
+      "bytes": 161
+    },
+    "step-01/recipe-source.json": {
+      "sha256": "e8ff92ad27a61ccf97e9ed68d1ef4f7da8f58bb9313a7dfbc5d7ace560ee23e3",
+      "bytes": 7022
+    },
+    "step-01/recipe.yml": {
+      "sha256": "b573e924f2aba93dbfabea430a983cfa97990e8d68741bdf99fd054657f7f933",
+      "bytes": 6725
+    },
+    "step-01/ref-404.json": {
+      "sha256": "929fdc37b1bd92a54d1a68b22cde5c9ceb70e2eab86f02af7b921970af5aac8b",
+      "bytes": 629
+    },
+    "step-01/run-discovery.json": {
+      "sha256": "df37c5108f78e03ab25f04a980fe3975f15545da09e55af7aeeb17ecb0a4ad9f",
+      "bytes": 13795
+    },
+    "step-01/run-final.json": {
+      "sha256": "49bcb3b91240e57e06e67fddb8b987d6973850c67765ce29318ad5b2d46660aa",
+      "bytes": 12853
+    },
+    "step-01/run-latest.json": {
+      "sha256": "9d19a17ec3e27399f82113f6a75638eb4b713d032084d649b93bb4e443333dc2",
+      "bytes": 12850
+    },
+    "step-01-before-object-guard.json": {
+      "sha256": "6d0456280d9b335e7d194b246f505ece401fb116418acab0fdd75ff6f6173a93",
+      "bytes": 2924
+    },
+    "step-02/A-commit.json": {
+      "sha256": "67abbd432af8f57f4c43e6f7e40ddc13db108e3ce2fa4759b469f2126335999c",
+      "bytes": 195
+    },
+    "step-02/A-tree.json": {
+      "sha256": "26abaa481b4bb88912c2e7eab073b860fff2d8aad50d541749e7438b8f7a837d",
+      "bytes": 195
+    },
+    "step-02/W-blob.json": {
+      "sha256": "15438aeec9335335a84ad7dc35633ba05149a0784726efb6dec5d52f370b4a52",
+      "bytes": 195
+    },
+    "step-02/W-commit.json": {
+      "sha256": "bf5a3757fafd8392fc78a00f7b9493d1d4bfe5eed0bd79a206a46016f2ac90fd",
+      "bytes": 195
+    },
+    "step-02/W-tree.json": {
+      "sha256": "efa9b337a9963ef48902e6b45748468f0d268becfb1e00c040ef8f301ee5317d",
+      "bytes": 195
+    },
+    "step-02/actual-receipt.json": {
+      "sha256": "dbec0a8e67366aef079c4da39f03eeabf82b8034506ffb5230b4a5bc7a933679",
+      "bytes": 547
+    },
+    "step-02/artifacts.json": {
+      "sha256": "eb77a510a2055fc1f6ef8443342dd2f60efa576875199145d61867aaeecdb193",
+      "bytes": 1020
+    },
+    "step-02/before-archive-guard.json": {
+      "sha256": "321e34f05fc0694ca817ca279e7fdb3c7fcccb32905eecfc7176ff011008d684",
+      "bytes": 2911
+    },
+    "step-02/before-trigger-guard.json": {
+      "sha256": "c8842a641e00e443f2ebd484f9af18c6358fff0cd101f978ea4b8a4926888fec",
+      "bytes": 2911
+    },
+    "step-02/completed.json": {
+      "sha256": "dd3aca6ebfdbee0a4ccefff35ba1b8f8520d382a652d11b6fa135a8085ed2a2f",
+      "bytes": 5970
+    },
+    "step-02/final-object-check.json": {
+      "sha256": "9ec5633dd3f21dae0568f732bbd045ca6de0f9390087878558c08c974c6e88ed",
+      "bytes": 934
+    },
+    "step-02/initial-runs.json": {
+      "sha256": "763f11efb3fd0695809422708bf5765dfad5d8438bfb9a7bad31f23ff74d3285",
+      "bytes": 46
+    },
+    "step-02/job-logs.json": {
+      "sha256": "f394893d518c63d31ef96d613e7b3058acb9dc0a72e992b952cbd2ac4d2478b2",
+      "bytes": 27280
+    },
+    "step-02/manifest-blob.json": {
+      "sha256": "ca13a09e6918c5e565db64befee8a8359858b6acbf775bb6ad2799705b3822c9",
+      "bytes": 195
+    },
+    "step-02/metadata-blob.json": {
+      "sha256": "a976089b4b86bf903bc99a314d6ba037d6c312ae210a13507025a42729c9aa0e",
+      "bytes": 195
+    },
+    "step-02/prepared.json": {
+      "sha256": "4866896feb09c51af651862bd1c53178195cd580dbc3d466757b24a796d638ce",
+      "bytes": 827
+    },
+    "step-02/previous-receipt-blob.json": {
+      "sha256": "1e7f34e9e54301a6391e3f4a8d95df0b40c6759f7cdf259a7a695f14af7a4899",
+      "bytes": 195
+    },
+    "step-02/publish-archive.json": {
+      "sha256": "0aad31566ba642e38c47f18ab55ad16470654eade0b74575427dd592d966998e",
+      "bytes": 161
+    },
+    "step-02/publish-target.json": {
+      "sha256": "0aad31566ba642e38c47f18ab55ad16470654eade0b74575427dd592d966998e",
+      "bytes": 161
+    },
+    "step-02/recipe-source.json": {
+      "sha256": "483cc647e5b42381ade4aa3ad0eaf9f5dfc9582338e602e059bc17da765ed65a",
+      "bytes": 7010
+    },
+    "step-02/recipe.yml": {
+      "sha256": "4db4405c13b28cfc757ce993590496fe290e45a3f3a665b329897e18cbea8745",
+      "bytes": 6716
+    },
+    "step-02/ref-404.json": {
+      "sha256": "929fdc37b1bd92a54d1a68b22cde5c9ceb70e2eab86f02af7b921970af5aac8b",
+      "bytes": 629
+    },
+    "step-02/run-discovery.json": {
+      "sha256": "d2d569ce24aaa7b44d1615c472ccf9e0ce2dfec43c7a811fadfa97412f3bc7e1",
+      "bytes": 13786
+    },
+    "step-02/run-latest.json": {
+      "sha256": "8b877a377cb86d612a94fe094fbad704244ee00b495546e263d2436e56e795f6",
+      "bytes": 12844
+    },
+    "step-02-before-object-guard.json": {
+      "sha256": "50a89e7253d28e6699d27401266dff58274cd408b4d352bf6fd0e6e0dfdac4e2",
+      "bytes": 2911
+    },
+    "step-03/A-commit.json": {
+      "sha256": "1d9749076cfd6f48af6ced9b3d903159740e298a88c704ad64058e5fd137755a",
+      "bytes": 195
+    },
+    "step-03/A-tree.json": {
+      "sha256": "afb9ebd2888ce40947e42429808df96f7dd9c147b78795885e718be1b5d6d2e2",
+      "bytes": 195
+    },
+    "step-03/W-blob.json": {
+      "sha256": "52120070291474fd73f7ddd9d969fd5e81d9a36b6c1d2095abfd4d3fd44da322",
+      "bytes": 195
+    },
+    "step-03/W-commit.json": {
+      "sha256": "823d7a77cd794dddb15ac8f86dc6f460e61c69fade4dc2a14b9bcdc7f1deff2f",
+      "bytes": 195
+    },
+    "step-03/W-tree.json": {
+      "sha256": "59dc18ae196f58b67e9f746f52fbf0583d3db89110e1e9796310635012502517",
+      "bytes": 195
+    },
+    "step-03/actual-receipt.json": {
+      "sha256": "8bd539b30f8d08a78f3dfdef6bf6ee5f2efb1caf6da2abfcf701819ec095485e",
+      "bytes": 549
+    },
+    "step-03/artifacts.json": {
+      "sha256": "3accea01227d6ef7beaa633be215574d70a647344f468eaa659313612bf2179d",
+      "bytes": 1021
+    },
+    "step-03/before-archive-guard.json": {
+      "sha256": "eb816673e575e70c7e78d59edc1643c2f48de77b4c984e347c15a446742bcfe3",
+      "bytes": 2916
+    },
+    "step-03/before-trigger-guard.json": {
+      "sha256": "b8af3a2d4bb8fd2a0d21f70e0cdd6442f4174e00ada08407fc0bd45abce6dadd",
+      "bytes": 2916
+    },
+    "step-03/completed.json": {
+      "sha256": "33cecc65c664e77bf0dcbf1d42008ed22439a242541cfbdb65ae64b06f2566ce",
+      "bytes": 5974
+    },
+    "step-03/final-object-check.json": {
+      "sha256": "df908694a244fb7fe610509f2ddb8782e0346a4dcb02d21ca18181c50047265f",
+      "bytes": 935
+    },
+    "step-03/initial-runs.json": {
+      "sha256": "763f11efb3fd0695809422708bf5765dfad5d8438bfb9a7bad31f23ff74d3285",
+      "bytes": 46
+    },
+    "step-03/job-logs.json": {
+      "sha256": "a654c0e01722709454350dd6a352d132f654b6d1ee91955804b92df071d17e76",
+      "bytes": 27289
+    },
+    "step-03/manifest-blob.json": {
+      "sha256": "39260a39d3800c6cacc479ecd148bf8140dc3cf8936026926aa5a8a9dfb3d046",
+      "bytes": 195
+    },
+    "step-03/metadata-blob.json": {
+      "sha256": "3648485ef28bf1b6a5ee5f579a131985b7f753e356fcbfa90aa65549108f415a",
+      "bytes": 195
+    },
+    "step-03/prepared.json": {
+      "sha256": "fa5a4c22681c663ef4412df299e88b1741af0a5e6059e346826b5b2dcf4026a5",
+      "bytes": 828
+    },
+    "step-03/previous-receipt-blob.json": {
+      "sha256": "e57addfddff84e578e24320fda9ef69345a462aac96d8c26ab8ee227a92a6758",
+      "bytes": 195
+    },
+    "step-03/publish-archive.json": {
+      "sha256": "0aad31566ba642e38c47f18ab55ad16470654eade0b74575427dd592d966998e",
+      "bytes": 161
+    },
+    "step-03/publish-target.json": {
+      "sha256": "0aad31566ba642e38c47f18ab55ad16470654eade0b74575427dd592d966998e",
+      "bytes": 161
+    },
+    "step-03/recipe-source.json": {
+      "sha256": "56a7a064fefbac0c9c7436b33688ef7a7eeb99f4777a63cf2f3a7407a89781fb",
+      "bytes": 7014
+    },
+    "step-03/recipe.yml": {
+      "sha256": "3afb23be536dc5b61f0c98f21fc7ce268e30d859bde5b61822fb81b80433363c",
+      "bytes": 6719
+    },
+    "step-03/ref-404.json": {
+      "sha256": "929fdc37b1bd92a54d1a68b22cde5c9ceb70e2eab86f02af7b921970af5aac8b",
+      "bytes": 629
+    },
+    "step-03/run-discovery.json": {
+      "sha256": "e787aa94b60eaa07c5a8132ff6e9fce77ccc616ece424f090b3054eae83a69dc",
+      "bytes": 13789
+    },
+    "step-03/run-latest.json": {
+      "sha256": "4b121e682a4d22237bfb2a0ddcf54caf35af136b34740e2ca6e95c19ca2e88af",
+      "bytes": 12847
+    },
+    "step-03-before-object-guard.json": {
+      "sha256": "b76a7c49755e4f655c420dba67c14b770c9529f53563385586fe24e6f94a0fce",
+      "bytes": 2916
+    },
+    "step-04/A-commit.json": {
+      "sha256": "89ac3c8e799ed3b3eb723dbed720b8658a67256f6ccb24a5cc9eec88ec38ebf2",
+      "bytes": 195
+    },
+    "step-04/A-tree.json": {
+      "sha256": "bf985d150d88aa4a1b209057393c82709e6884081a58a7bf91529eca1100f72b",
+      "bytes": 195
+    },
+    "step-04/W-blob.json": {
+      "sha256": "cd4b0e24937e402d0d3a5cbdd8376f56578eda8864796dd65272f3cc610894a8",
+      "bytes": 195
+    },
+    "step-04/W-commit.json": {
+      "sha256": "c53e5a32637bb5742318befee752bb6930184a3c2d8104a63b8b72f7821fe8af",
+      "bytes": 195
+    },
+    "step-04/W-tree.json": {
+      "sha256": "111349a08568625d9f39c79cd8167cc29a3183b0a56dbbb76a922679c4f87b7e",
+      "bytes": 195
+    },
+    "step-04/actual-receipt.json": {
+      "sha256": "7f322a5260e37a4c15dbef0fbf5f0dd799b5461a30e59888235557b256bdf15e",
+      "bytes": 569
+    },
+    "step-04/artifacts.json": {
+      "sha256": "e590d8c7edeb99531285b6cab7ef3330df66740b01e7f2699fc7257202725a10",
+      "bytes": 1031
+    },
+    "step-04/before-archive-guard.json": {
+      "sha256": "a5e6af018ab71547735efa0e2d68f9cebb0524a286bca4efaf3e2fce95ad241f",
+      "bytes": 2959
+    },
+    "step-04/before-trigger-guard.json": {
+      "sha256": "5a2444902c763e3e55270c8f80b711aaa2c04efc13776adee53d5ba3a8dd1722",
+      "bytes": 2959
+    },
+    "step-04/completed.json": {
+      "sha256": "b608eb8bbdd4378ecbc65ce6259a8c1d13b913ecaad8f153833bd17bb36c159b",
+      "bytes": 6014
+    },
+    "step-04/final-object-check.json": {
+      "sha256": "d4def791f8b6a4f5891625015b95e6f1e14ca383e0124e81432918bf36b2b255",
+      "bytes": 945
+    },
+    "step-04/initial-runs.json": {
+      "sha256": "763f11efb3fd0695809422708bf5765dfad5d8438bfb9a7bad31f23ff74d3285",
+      "bytes": 46
+    },
+    "step-04/job-logs.json": {
+      "sha256": "d494d18ae51383db3152125d69729b98a2617b6cd4322056748e0c5aa9f0d790",
+      "bytes": 27322
+    },
+    "step-04/manifest-blob.json": {
+      "sha256": "bfdf00f3e282b8e264ecbb0bd3b6d47b03666db044bfcc41990b4f0da47ac45e",
+      "bytes": 195
+    },
+    "step-04/metadata-blob.json": {
+      "sha256": "f506664e69cde99599bca4282d448b64d33da5073f2d8b3c9d4e14b49e92b4a6",
+      "bytes": 195
+    },
+    "step-04/prepared.json": {
+      "sha256": "854d55ea0286752f15d23c795dd46f72f8c4538b517ea459469e9d0da0393249",
+      "bytes": 838
+    },
+    "step-04/previous-receipt-blob.json": {
+      "sha256": "0feac90ffd84c6725939af24d4689d17969000af84c6ed9f6a4a6eded8b41258",
+      "bytes": 195
+    },
+    "step-04/publish-archive.json": {
+      "sha256": "0aad31566ba642e38c47f18ab55ad16470654eade0b74575427dd592d966998e",
+      "bytes": 161
+    },
+    "step-04/publish-target.json": {
+      "sha256": "0aad31566ba642e38c47f18ab55ad16470654eade0b74575427dd592d966998e",
+      "bytes": 161
+    },
+    "step-04/recipe-source.json": {
+      "sha256": "33d1e823bdc0eb440d440279b2fec4a5424c909899f8d97e567515b22759e78d",
+      "bytes": 7054
+    },
+    "step-04/recipe.yml": {
+      "sha256": "a55cec058d3730d2394bf62da8893d6ca65de010163cc5bbaf48789feba65cd9",
+      "bytes": 6749
+    },
+    "step-04/ref-404.json": {
+      "sha256": "929fdc37b1bd92a54d1a68b22cde5c9ceb70e2eab86f02af7b921970af5aac8b",
+      "bytes": 629
+    },
+    "step-04/run-discovery.json": {
+      "sha256": "58f4ce6517c1e0a6f340dd81256e4070fd0a29d332c46cccf7c07ab75c55e22a",
+      "bytes": 13819
+    },
+    "step-04/run-latest.json": {
+      "sha256": "673e484e3a1d7d60979e1ef5776517f253b35283926652ce23c7b84369a5f668",
+      "bytes": 12877
+    },
+    "step-04-before-object-guard.json": {
+      "sha256": "23b0ad86365a03b7ec1cc5d1606a3d27490a2a5ec2753d568c3cae0faa8c14e9",
+      "bytes": 2959
+    }
+  }
+}

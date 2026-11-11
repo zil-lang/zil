@@ -1,0 +1,151 @@
+{
+  "format": "zil-full-producer-harness-independent-static-review/1",
+  "status": "Pass frozen source and actual protocol",
+  "utc": "2026-11-11T12:40:47.829038+00:00",
+  "source_freeze_sha256": "684a858a2a7d4c58d29395b87c3d2a5dda0bd808588e25074074fb8eae001a31",
+  "producer_commit": "2458defcaf8be51c87b80c0dadf391bb585735e8",
+  "producer_tree": "e917926bc8976da90e58897911c72978b9a24f88",
+  "binary_sha256_claim": "30140135c39706e8251bd5da3eb9acb4e8481a9c12acbc4aed6403f57a768097",
+  "flat_binding_sha256": "0308c9cdba884481c08c2372e9c28b4389043db3b6aaec3bb767e71d5b5df4dd",
+  "raw_release_sha256": "8b1b08310acaa9bba75a54e90e65066d48557a926b6b0e4ff8b37162a1870fb2",
+  "complete_raw_binding_sha256": "cab4b8644dc992c300f18872737663f5f8a6f4d784e32a7f6a75d3cba743c34a",
+  "files": {
+    "README.md": {
+      "sha256": "fdf8cad9745baba31e8c296dfd0bfa80e4120c78a5da8e60594da8f5933ab5ae",
+      "bytes": 4035
+    },
+    "common.py": {
+      "sha256": "cb72623ca3e22dead7ddda13b711a2e7625100d6e82510f2d7c3446dd1bc637c",
+      "bytes": 17422
+    },
+    "compile_screen.py": {
+      "sha256": "5729a4c997c5cdbf6011f8653bcecf012b1b36048110596f49c34c0f89017e94",
+      "bytes": 12478
+    },
+    "prepare.py": {
+      "sha256": "76cfe5eebc0af9b527116a62104fc295c7ae1b3a5d9e91f9cd0df11783786c39",
+      "bytes": 3025
+    },
+    "processes.py": {
+      "sha256": "ac8cbab5aaa2c2b50a891f5dac28c392dbe5228da6d517749af1b13645abbe04",
+      "bytes": 4188
+    },
+    "vendor/fixture.py": {
+      "sha256": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+      "bytes": 7327
+    },
+    "vendor/prepare_runtime.py": {
+      "sha256": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+      "bytes": 4682
+    },
+    "vendor/runtime_fixture.py": {
+      "sha256": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+      "bytes": 4693
+    },
+    "vendor/runtime_gate.py": {
+      "sha256": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+      "bytes": 17727
+    },
+    "vendor/screen.py": {
+      "sha256": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3",
+      "bytes": 31550
+    }
+  },
+  "AST_python_files": 9,
+  "unchanged_manual_dependencies": [
+    "processes.py",
+    "vendor/fixture.py",
+    "vendor/prepare_runtime.py",
+    "vendor/runtime_fixture.py",
+    "vendor/runtime_gate.py",
+    "vendor/screen.py"
+  ],
+  "delta_review": [
+    "protocol/result/schema identities distinguish new variant",
+    "unit/2 actual complete default<O2> with current preflight/before-after LLVM verification and positive producer optimize time",
+    "external closure derives actual Required from all eight canonical producer fact graphs",
+    "empty actual Required\u2014not empty Allowed\u2014requires ran=false, Object.optimize_ns=postlink_optimize_ns=trim_link_ns=0, donor_modules=0/imports=[]",
+    "nonempty actual Required requires ran=true, both optimize_ns positive and equal, trim time positive, original exact imports/Allowed/owner/foreign/budget gates",
+    "eight objects counted separately from second optimization unit count",
+    "all a299 sourcecases/counts/math/order/CPU/jobs/limits/DSO/environment/identity/raw-retention/determinism gates unchanged"
+  ],
+  "review_scope": "non-author Python harness review; native API author, not an independent native-source approval",
+  "no_compiler_llvm_native_or_large_binary_DSO_hash_by_reviewer": true,
+  "actual_protocol_not_yet_reviewed": false,
+  "prepared_protocol_gate": {
+    "status": "Pass exact actual prepared protocol",
+    "utc": "2026-11-11T12:45:51.463091+00:00",
+    "path": "/workspace/scratch/abf690ce880c/out/next-optimization/full-producer-protocol-v1/protocol.json",
+    "sha256": "360635bffc5dc4230bd2c9ed2ca18e66c8edd29139e17a910afc559c03c0147f",
+    "bytes": 127645,
+    "source_files_hashed": 640,
+    "source_bytes_hashed": 729074,
+    "whole_cases_equal_a30_and_a299": true,
+    "producer_source": {
+      "A": {
+        "commit": "99035931d358add0eaed6d4535035c38413701dd",
+        "tree": "1c16744d838064cb1c687ba56ef3a0d17ed3130c"
+      },
+      "B": {
+        "commit": "2458defcaf8be51c87b80c0dadf391bb585735e8",
+        "tree": "e917926bc8976da90e58897911c72978b9a24f88"
+      }
+    },
+    "candidate_binary_claim": {
+      "path": "/workspace/scratch/abf690ce880c/targets/manual-full-2458/release/zil",
+      "sha256": "30140135c39706e8251bd5da3eb9acb4e8481a9c12acbc4aed6403f57a768097"
+    },
+    "build_receipts": {
+      "A": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/binding-main990.json",
+        "sha256": "a2613c636671f86ee55f82dd49b7395e741455f5d9c2d72b349f6bffb1f98936"
+      },
+      "B": {
+        "path": "/workspace/scratch/abf690ce880c/out/next-optimization/binding-manual-full-2458.json",
+        "sha256": "0308c9cdba884481c08c2372e9c28b4389043db3b6aaec3bb767e71d5b5df4dd"
+      }
+    },
+    "scripts_exact_freeze_and_current_small_files": true,
+    "schema": "zil-manual-prelink-preflight/1+unit/2+object/2",
+    "cpus": [
+      0,
+      1
+    ],
+    "jobs": 2,
+    "orders": [
+      "ABR",
+      "BRA",
+      "RAB",
+      "ARB",
+      "RBA",
+      "BAR"
+    ],
+    "limits": {
+      "B_over_A_max": 1.1,
+      "R_over_B_min": 0.9
+    },
+    "counts": {
+      "cases": 2,
+      "formal_compilations": 36,
+      "native_total": 108,
+      "native_formal": 36,
+      "native_functional": 72
+    },
+    "llvm_dso_claim": {
+      "path": "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/lib/libLLVM.so.23.1",
+      "resolved_path": "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/lib/libLLVM.so.23.1",
+      "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+    },
+    "loader_environment": {
+      "LD_LIBRARY_PATH": "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/lib"
+    },
+    "tool_versions": {
+      "zil_native": "23.1.4",
+      "clang": "23.1.4",
+      "rustc": "1.99.1",
+      "rustc_bundled_llvm": "23.1.1"
+    },
+    "producer_not_rebound_to_script_child": true,
+    "no_compiler_llvm_native_or_large_binary_DSO_hash_by_reviewer": true
+  }
+}

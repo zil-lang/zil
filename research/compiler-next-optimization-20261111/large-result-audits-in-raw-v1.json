@@ -1,0 +1,26 @@
+[
+  {
+    "path_in_raw_package": "research/full-producer-result-review.json",
+    "sha256": "e6280cf7b6a00144e6643639d70c93656f6830b868ff3ea2ec4ccd2f56b0a23f",
+    "bytes": 2679386,
+    "text_archive_intentionally_omits_large_JSON": true
+  },
+  {
+    "path_in_raw_package": "research/manual-prelink-result-review.json",
+    "sha256": "bc5daf832531fc26c358ff8a94c17d983e4a80178067e7240b11630c2f2d54b3",
+    "bytes": 3105227,
+    "text_archive_intentionally_omits_large_JSON": true
+  },
+  {
+    "path_in_raw_package": "research/thinlto-private-identity/result-review.json",
+    "sha256": "117106a2088a528e3c6537ca562277686c72b3fc0d8eba4c4eaacdeb61365d66",
+    "bytes": 1262499,
+    "text_archive_intentionally_omits_large_JSON": true
+  },
+  {
+    "path_in_raw_package": "research/thinlto-private-linear/result-review.json",
+    "sha256": "a065ceda1913cf0dbf666b685e8f431719a96a8fdc907d7d2873c2e723539699",
+    "bytes": 1460512,
+    "text_archive_intentionally_omits_large_JSON": true
+  }
+]

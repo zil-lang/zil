@@ -1,0 +1,45 @@
+    Checking zil-llvm-api v0.1.0 (/workspace/scratch/abf690ce880c/manual-prelink-validation/crates/zil-llvm-api)
+warning: fields `bytes`, `signatures`, `foreign`, `intrinsics`, and `triple` are never read
+   --> crates/zil-llvm-api/src/lib.rs:127:20
+    |
+126 |     pub struct PrelinkedUnit {
+    |                ------------- fields in this struct
+127 |         pub(crate) bytes: Vec<u8>,
+    |                    ^^^^^
+128 |         pub(crate) facts: UnitFacts,
+129 |         pub(crate) signatures: BTreeMap<String, String>,
+    |                    ^^^^^^^^^^
+130 |         pub(crate) foreign: BTreeMap<String, String>,
+    |                    ^^^^^^^
+131 |         pub(crate) intrinsics: std::collections::BTreeSet<String>,
+    |                    ^^^^^^^^^^
+132 |         pub(crate) triple: String,
+    |                    ^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `zil-llvm-api` (lib) generated 1 warning
+    Checking zil-backend-llvm v0.1.0 (/workspace/scratch/abf690ce880c/manual-prelink-validation/crates/zil-backend-llvm)
+warning: field `units` is never read
+  --> crates/zil-backend-llvm/src/machine_cgu/complete_visibility.rs:31:16
+   |
+29 | pub(crate) struct CheckedProof {
+   |                   ------------ field in this struct
+30 |     pub(crate) receipt: String,
+31 |     pub(crate) units: Vec<CheckedUnit>,
+   |                ^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: fields `canonical` and `allowed` are never read
+  --> crates/zil-backend-llvm/src/machine_cgu/complete_visibility.rs:34:16
+   |
+33 | pub(crate) struct CheckedUnit {
+   |                   ----------- fields in this struct
+34 |     pub(crate) canonical: BTreeSet<String>,
+   |                ^^^^^^^^^
+35 |     pub(crate) allowed: BTreeSet<String>,
+   |                ^^^^^^^
+
+warning: `zil-backend-llvm` (lib) generated 2 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.70s

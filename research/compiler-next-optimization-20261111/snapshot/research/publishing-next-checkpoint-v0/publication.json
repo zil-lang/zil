@@ -1,0 +1,165 @@
+{
+  "status": "Published-and-readback-verified",
+  "branch": "archive/source-history",
+  "previous_archive": "93adb1e7aec44bce6e93fcce237dbf77ec2b7aa4",
+  "remote_commit": "5e31ee5f0d8d0219afde8a73ac8c960e04f844b5",
+  "tree": "8e4e4e25cdd1a0c17501eebddd793fba95ea818c",
+  "parents": [
+    "93adb1e7aec44bce6e93fcce237dbf77ec2b7aa4",
+    "ee0cc45261dbfadf25dce567f0fc1fa0b4d4b6f5",
+    "9f0deb4c4142d0fff2ef622442518fc1d7a65d5c",
+    "1cc866a08bac100012e41726067711c94caf1899"
+  ],
+  "local_commit": "d0324f9470511ef2060ed3fc402358dbc7549f83",
+  "local_tree_equal": true,
+  "files": 226,
+  "tree_batches": [
+    {
+      "batch": 0,
+      "tree": "c8b2b7f12257524ae2541f1bbb6e71e4946f7af8"
+    },
+    {
+      "batch": 1,
+      "tree": "b4293ce8f9449473119baf0905151c6aab869f2d"
+    },
+    {
+      "batch": 2,
+      "tree": "3b6400c42df022de11416ee961dbcb4ee600c646"
+    },
+    {
+      "batch": 3,
+      "tree": "59c8f7da7d61741e185722016c1f269377b6bb4d"
+    },
+    {
+      "batch": 4,
+      "tree": "6f755e0d5a116c44a5a63aa09b38d693ec9db4c1"
+    },
+    {
+      "batch": 5,
+      "tree": "80e5a9313878e4ee10dc6342bd575450b2240648"
+    },
+    {
+      "batch": 6,
+      "tree": "e565ed58a81a30588e5ef336cf29bd37f52630b0"
+    },
+    {
+      "batch": 7,
+      "tree": "474702dd2b90575522d2536b9f4b2365fd565e31"
+    },
+    {
+      "batch": 8,
+      "tree": "7b4ac9906db004cfb13978e40d424e0fdc5204f2"
+    },
+    {
+      "batch": 9,
+      "tree": "e1e9ddaf7c82f132f146049a9a86f5fa94f410da"
+    },
+    {
+      "batch": 10,
+      "tree": "e61b6e12ef4ef291fc870e3296790853c262ac0b"
+    },
+    {
+      "batch": 11,
+      "tree": "19c07b74c4fb81e3f7d75ca2640f2460c8e40acb"
+    },
+    {
+      "batch": 12,
+      "tree": "4ef147300c3483c529c395b39b9b83bc36aa6d95"
+    },
+    {
+      "batch": 13,
+      "tree": "f747f9942767252c8f49b71a2fafcaba5656f295"
+    },
+    {
+      "batch": 14,
+      "tree": "6ad370048a39eed55f5f736edd00a6324e9f5bb2"
+    },
+    {
+      "batch": 15,
+      "tree": "1adffecad889cca8fb71cc93a338cdaf5b5b1e96"
+    },
+    {
+      "batch": 16,
+      "tree": "8fe21f56f0abd84a57b7b4971792a8297fe45f05"
+    },
+    {
+      "batch": 17,
+      "tree": "4862100f82b8f720937cc8024121038e7b7a8282"
+    },
+    {
+      "batch": 18,
+      "tree": "fd826a4870bd5b902829e226b0d068b2bf78973f"
+    },
+    {
+      "batch": 19,
+      "tree": "b1eb7de129dff2fc811d844aa2f2a9700b543bf4"
+    },
+    {
+      "batch": 20,
+      "tree": "e2ad4316f4f4c27dcfa1e53ae5be9a7c582cb60a"
+    },
+    {
+      "batch": 21,
+      "tree": "8e4e4e25cdd1a0c17501eebddd793fba95ea818c"
+    }
+  ],
+  "key_blobs": [
+    {
+      "path": "research/compiler-next-optimization-20261111/README.md",
+      "blob_sha": "75ed5adab6b6db58520738511ec6b3ecc9fc1678",
+      "bytes": 11416,
+      "content_equal": true
+    },
+    {
+      "path": "research/compiler-next-optimization-20261111/manifest.json",
+      "blob_sha": "a0e204496f7127a2f26855e18d6d0074bc62a0f0",
+      "bytes": 116476,
+      "content_equal": true
+    },
+    {
+      "path": "research/compiler-next-optimization-20261111/SHA256SUMS",
+      "blob_sha": "8dbf5ddda455269b6a1bcb09888380a56a1ad8f5",
+      "bytes": 29723,
+      "content_equal": true
+    },
+    {
+      "path": "research/compiler-next-optimization-20261111/raw-checkpoint-v0.json",
+      "blob_sha": "f60fc9785150444d5fc3fb5ca8ffe47a00d5bcee",
+      "bytes": 3465,
+      "content_equal": true
+    },
+    {
+      "path": "research/compiler-next-optimization-20261111/raw-package-receipt-v0.json",
+      "blob_sha": "601e1636ea265f463e1db915171a598e6d1799b8",
+      "bytes": 2627,
+      "content_equal": true
+    },
+    {
+      "path": "research/compiler-next-optimization-20261111/snapshot/research/thinlto-private-imports/PrivateImports.cpp",
+      "blob_sha": "4d107a5cb93b3260159a28f220050bf95d2515a8",
+      "bytes": 20367,
+      "content_equal": true
+    },
+    {
+      "path": "research/compiler-next-optimization-20261111/snapshot/research/thinlto-private-imports/result-review.md",
+      "blob_sha": "dcc39c9f3d39b7ad5cfd25232ad34e8a5f4c2262",
+      "bytes": 8870,
+      "content_equal": true
+    },
+    {
+      "path": "research/compiler-next-optimization-20261111/snapshot/research/thinlto-private-imports-source-freeze-v1.json",
+      "blob_sha": "8d42648ea7c5bb8abd8aa173317f0698895b7d5a",
+      "bytes": 1366,
+      "content_equal": true
+    }
+  ],
+  "expected_sha_guard": "93adb1e7aec44bce6e93fcce237dbf77ec2b7aa4",
+  "force": false,
+  "nonfinal": true,
+  "adoption": false,
+  "task_refs_retired": false,
+  "raw_checkpoint_sha256": "9b1677993e14d608cd5f64c99eecc75bf13963a142219bb48caa1b7945bfadef",
+  "raw_checkpoint_bytes": 104191976,
+  "library_file_id": "libfile_fde3_f-182729328f508191aedc5d2668080d96_bd147c3485448191a9df16b3c3cea7dd",
+  "library_version": 0
+}

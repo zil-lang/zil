@@ -1,0 +1,31 @@
+{
+  "format": "zil-next-retirement-step/1",
+  "order": 4,
+  "prior": "098789c8cfb7f3f436c8014af1069a7f8314da08",
+  "source": "2549cbec8e1f3096d4c8c8a960459c83095ad13d",
+  "W": "f2522c0786d4a1cd3cfb9cee03c2fcc7e31e72b8",
+  "branch": "task/compiler-thinlto-complete-visibility",
+  "recipe": {
+    "sha256": "a55cec058d3730d2394bf62da8893d6ca65de010163cc5bbaf48789feba65cd9",
+    "bytes": 6749,
+    "inverse_template_equal": true,
+    "python_ast": true
+  },
+  "W_parents": [
+    "2549cbec8e1f3096d4c8c8a960459c83095ad13d"
+  ],
+  "W_files": [
+    {
+      "filename": ".github/workflows/compiler-resumption-retire.yml",
+      "status": "added"
+    }
+  ],
+  "mutation_order": [
+    "publish archive exact lease",
+    "advance only target exact lease",
+    "workflow self delete exact lease"
+  ],
+  "status": "prepared; no task ref advanced",
+  "A": "f6c6cba6876a84694750e28c104ccc387860a6f8",
+  "A_tree": "c87e1a139e6daa0c2ec30cfabde54311876a65ba"
+}

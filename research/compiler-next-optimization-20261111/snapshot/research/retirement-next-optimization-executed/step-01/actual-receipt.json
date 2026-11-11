@@ -1,0 +1,13 @@
+{
+  "started_utc": "2026-11-11T11:41:56.575100+00:00",
+  "target": "refs/heads/task/compiler-structured-emission",
+  "expected": "b0da05ec784d632fa88c00d860382d656db712ec",
+  "run": 43014067899,
+  "prior_archive": "5e31ee5f0d8d0219afde8a73ac8c960e04f844b5",
+  "archive": "78ce99886e435dd56c0af632240eded1840827c0",
+  "returncode": 0,
+  "stdout": "To https://github.com/zil-lang/zil\n-\t:refs/heads/task/compiler-structured-emission\t[deleted]\nDone\n",
+  "stderr": "",
+  "verified_absent": true,
+  "status": "Completed exact archived self retirement"
+}

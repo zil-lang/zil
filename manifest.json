@@ -1,10 +1,10 @@
 {
   "format": 1,
   "created_utc": "2026-11-11T01:13:36.759319+00:00",
-  "prior_archive": "098789c8cfb7f3f436c8014af1069a7f8314da08",
+  "prior_archive": "f6c6cba6876a84694750e28c104ccc387860a6f8",
   "commit_parents": [
-    "098789c8cfb7f3f436c8014af1069a7f8314da08",
-    "f2522c0786d4a1cd3cfb9cee03c2fcc7e31e72b8"
+    "f6c6cba6876a84694750e28c104ccc387860a6f8",
+    "8072f23187a77f2e63686696111a8e0e71e8be7b"
   ],
   "commit_tips": [
     "0a8929d4f6126683737d62ab9def1d8e67a784ca",
@@ -624,7 +624,7 @@
       "decision": "Profile completed; worker-owned candidate not adopted; source, raw records and all negative values preserved"
     }
   },
-  "updated_utc": "2026-11-11T11:45:46.255Z",
+  "updated_utc": "2026-11-11T12:58:34.519405+00:00",
   "compiler_multi_edit_20261111": {
     "directory": "research/compiler-multi-edit-20261111",
     "main": "99035931d358add0eaed6d4535035c38413701dd",
@@ -663,43 +663,64 @@
       "archive": "5c97386cef5a337c432fc7f1351dfcc22a0c02e6"
     }
   },
-  "remote_refs_semantics": "Historical preserved source/recipe tips, not a live branch listing. Final readback separately records all retired refs absent and the three remaining branches.",
+  "remote_refs_semantics": "Historical source/recipe refs retained for ancestry and recovery, not a current branch inventory. Current selected observations are recorded separately; earlier historical main/ref names need not still exist.",
   "next_optimization_retirements": {
     "task/compiler-structured-emission": {
       "source_head": "ee0cc45261dbfadf25dce567f0fc1fa0b4d4b6f5",
       "recipe_head": "b0da05ec784d632fa88c00d860382d656db712ec",
       "prior_archive": "5e31ee5f0d8d0219afde8a73ac8c960e04f844b5",
-      "status": "archived recipe; remote retirement planned",
-      "recipe_sha256": "b573e924f2aba93dbfabea430a983cfa97990e8d68741bdf99fd054657f7f933"
+      "status": "retired-success-actual-receipt-and-ref404-verified",
+      "recipe_sha256": "b573e924f2aba93dbfabea430a983cfa97990e8d68741bdf99fd054657f7f933",
+      "actions_run_id": 43014067899,
+      "evidence": "research/compiler-next-optimization-20261111/snapshot/research/retirement-next-optimization-executed/final-readback.json"
     },
     "task/compiler-builder-position": {
       "source_head": "9f0deb4c4142d0fff2ef622442518fc1d7a65d5c",
       "recipe_head": "087757507562a47bde7e32ba34f19d1986592cde",
       "prior_archive": "78ce99886e435dd56c0af632240eded1840827c0",
-      "status": "archived recipe; remote retirement planned",
-      "recipe_sha256": "4db4405c13b28cfc757ce993590496fe290e45a3f3a665b329897e18cbea8745"
+      "status": "retired-success-actual-receipt-and-ref404-verified",
+      "recipe_sha256": "4db4405c13b28cfc757ce993590496fe290e45a3f3a665b329897e18cbea8745",
+      "actions_run_id": 43014310393,
+      "evidence": "research/compiler-next-optimization-20261111/snapshot/research/retirement-next-optimization-executed/final-readback.json"
     },
     "task/compiler-thinlto-prototype": {
       "source_head": "eb5b150903b67d8b9011f6adc2d3ac67b1c419a6",
       "recipe_head": "19681c97573460252df425cfaefc0e5d3dadb0e0",
       "prior_archive": "34ded7a21bed380b71e5bf85f4eb88569404710f",
-      "status": "archived recipe; remote retirement planned",
-      "recipe_sha256": "3afb23be536dc5b61f0c98f21fc7ce268e30d859bde5b61822fb81b80433363c"
+      "status": "retired-success-actual-receipt-and-ref404-verified",
+      "recipe_sha256": "3afb23be536dc5b61f0c98f21fc7ce268e30d859bde5b61822fb81b80433363c",
+      "actions_run_id": 43014487178,
+      "evidence": "research/compiler-next-optimization-20261111/snapshot/research/retirement-next-optimization-executed/final-readback.json"
     },
     "task/compiler-thinlto-complete-visibility": {
       "source_head": "2549cbec8e1f3096d4c8c8a960459c83095ad13d",
       "recipe_head": "f2522c0786d4a1cd3cfb9cee03c2fcc7e31e72b8",
       "prior_archive": "098789c8cfb7f3f436c8014af1069a7f8314da08",
-      "status": "archived recipe; remote retirement planned",
-      "recipe_sha256": "a55cec058d3730d2394bf62da8893d6ca65de010163cc5bbaf48789feba65cd9"
+      "status": "retired-success-actual-receipt-and-ref404-verified",
+      "recipe_sha256": "a55cec058d3730d2394bf62da8893d6ca65de010163cc5bbaf48789feba65cd9",
+      "actions_run_id": 43014666292,
+      "evidence": "research/compiler-next-optimization-20261111/snapshot/research/retirement-next-optimization-executed/final-readback.json"
     }
   },
   "next_optimization_evidence": {
-    "archive_checkpoint": "5e31ee5f0d8d0219afde8a73ac8c960e04f844b5",
+    "prior_checkpoint": "5e31ee5f0d8d0219afde8a73ac8c960e04f844b5",
+    "final_snapshot_in_this_commit": true,
     "manifest_path": "research/compiler-next-optimization-20261111/manifest.json",
-    "raw_checkpoint_path": "research/compiler-next-optimization-20261111/raw-checkpoint-v0.json",
-    "raw_sha256": "9b1677993e14d608cd5f64c99eecc75bf13963a142219bb48caa1b7945bfadef",
-    "raw_library_version": 0,
-    "identity_dedup_candidate_retained": "3d0dc3e1f420ebea68aff66ebbcd86111251bffc"
+    "manifest_sha256": "efdab2574875a70d3362bb6d3caf7ed11b61e7b670073f5f169e434ab430da42",
+    "sums_sha256": "a0ec5d6299dc045d995d04a0a3f6b0e882e47915b0a0e79571b54d71e743c264",
+    "raw_checkpoint_path": "research/compiler-next-optimization-20261111/raw-checkpoint-v1.json",
+    "raw_sha256": "b815cbc9d9741ebaad7a4640bd54a743c460217310b58478422ac1408f1c0f86",
+    "raw_library_version": 1,
+    "active_research_head": "8072f23187a77f2e63686696111a8e0e71e8be7b",
+    "all_candidates_not_adopted": true
+  },
+  "current_selected_ref_observation": {
+    "observed_utc": "2026-11-11T12:58:34.519405+00:00",
+    "main": "99035931d358add0eaed6d4535035c38413701dd",
+    "goal": "2c0ebde29de1315d92c344849d3858f75aaf3cee",
+    "archive_before_this_commit": "f6c6cba6876a84694750e28c104ccc387860a6f8",
+    "task/compiler-thinlto-private-imports": "8072f23187a77f2e63686696111a8e0e71e8be7b",
+    "task/compiler-composition-validation": "absent",
+    "goal_note": "Concurrent coordination task updates preserved; observation is not a promise that goal cannot advance."
   }
 }

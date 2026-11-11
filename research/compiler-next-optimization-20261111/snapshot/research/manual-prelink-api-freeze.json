@@ -1,0 +1,23 @@
+{
+  "format": "zil-manual-prelink-api-author-freeze/1",
+  "source_root": "private-imports",
+  "files": {
+    "lib.rs": {
+      "sha256": "d9283a5608b32271c8a072c3b34710a5815885efd64e930952de55273f80e986",
+      "bytes": 9501
+    },
+    "native.rs": {
+      "sha256": "e8def5f676e698f8dfdc46fed67c5c82b07a3cfb2d65f9dc5389b97e2573a6c9",
+      "bytes": 16803
+    },
+    "native/research_prelink.rs": {
+      "sha256": "09fe7a8d0bc76687c6eaa09455a5ed8fb699e2f6f78471e63204e049ab558c16",
+      "bytes": 38935
+    }
+  },
+  "build_llvm_native_executed": false,
+  "controls_authored": 4,
+  "rustfmt_only": true,
+  "current_inputs": "sealed producer facts and BC from same verified module; only same-request typed CheckedProof supplies Allowed; no receipt/cache input",
+  "unexecuted_draft_preserved": "research/manual-prelink-api-history/v1/research_prelink.rs"
+}

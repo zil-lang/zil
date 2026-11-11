@@ -1,0 +1,28 @@
+{
+  "command": [
+    "cargo",
+    "check",
+    "--locked",
+    "-j",
+    "2",
+    "-p",
+    "zil-backend-llvm",
+    "--no-default-features"
+  ],
+  "exit": 0,
+  "timeout": false,
+  "exception": null,
+  "cpu_ms": 744.7459999999999,
+  "rss_kib": 232140,
+  "wall_ms": 751.333403,
+  "reaped": true,
+  "scope": "owned-request-session",
+  "cleanup": [
+    {
+      "action": "owned-request-group-empty",
+      "group": 1973
+    }
+  ],
+  "owned_group": 1973,
+  "residual_descendants": false
+}

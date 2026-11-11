@@ -1,0 +1,4 @@
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/abf690ce880c/manual-prelink-validation/crates/zil-backend-llvm)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 18.27s
+     Running unittests src/lib.rs (/workspace/scratch/abf690ce880c/targets/manual-full-2458/debug/deps/zil_backend_llvm-a8512d2f36785475)
+     Running tests/closed_executable_research.rs (/workspace/scratch/abf690ce880c/targets/manual-full-2458/debug/deps/closed_executable_research-b50e8e8fca10d6dc)

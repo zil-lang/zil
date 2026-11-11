@@ -1,0 +1,13 @@
+{
+  "started_utc": "2026-11-11T11:46:17.115911+00:00",
+  "target": "refs/heads/task/compiler-thinlto-complete-visibility",
+  "expected": "f2522c0786d4a1cd3cfb9cee03c2fcc7e31e72b8",
+  "run": 43014666292,
+  "prior_archive": "098789c8cfb7f3f436c8014af1069a7f8314da08",
+  "archive": "f6c6cba6876a84694750e28c104ccc387860a6f8",
+  "returncode": 0,
+  "stdout": "To https://github.com/zil-lang/zil\n-\t:refs/heads/task/compiler-thinlto-complete-visibility\t[deleted]\nDone\n",
+  "stderr": "",
+  "verified_absent": true,
+  "status": "Completed exact archived self retirement"
+}

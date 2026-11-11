@@ -1,0 +1,14 @@
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/abf690ce880c/manual-prelink-validation/crates/zil-llvm-api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.66s
+     Running unittests src/lib.rs (/workspace/scratch/abf690ce880c/targets/manual-full-2458/debug/deps/zil_llvm_api-4458934e46080ec7)
+error: file doesn't start with bitcode header
+error: Linking globals named 'duplicate': symbol multiply defined!
+     Running tests/available_externally.rs (/workspace/scratch/abf690ce880c/targets/manual-full-2458/debug/deps/available_externally-1e61ef58cd8227ca)
+     Running tests/disabled.rs (/workspace/scratch/abf690ce880c/targets/manual-full-2458/debug/deps/disabled-f4a9e168cb2b6003)
+     Running tests/function_merging.rs (/workspace/scratch/abf690ce880c/targets/manual-full-2458/debug/deps/function_merging-578365bdc08811fa)
+     Running tests/llvm_builder_allocation_cleanup.rs (/workspace/scratch/abf690ce880c/targets/manual-full-2458/debug/deps/llvm_builder_allocation_cleanup-805dd3b9030e6b48)
+     Running tests/machine_preflight_and_builder.rs (/workspace/scratch/abf690ce880c/targets/manual-full-2458/debug/deps/machine_preflight_and_builder-8ba54f6e90944c82)
+     Running tests/native.rs (/workspace/scratch/abf690ce880c/targets/manual-full-2458/debug/deps/native-d2c82d7a2b4906b9)
+     Running tests/native_object_emission.rs (/workspace/scratch/abf690ce880c/targets/manual-full-2458/debug/deps/native_object_emission-bd43ee16b2717ea8)
+     Running tests/structured_llvm_builder.rs (/workspace/scratch/abf690ce880c/targets/manual-full-2458/debug/deps/structured_llvm_builder-ed5a61a675f4e800)
+   Doc-tests zil_llvm_api

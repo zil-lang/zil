@@ -1,0 +1,114 @@
+
+running 34 tests
+test model::text_reference_tests::direct_atoms_match_unchanged_display_including_integer_edges_and_all_bytes ... ok
+test model::text_reference_tests::every_instruction_and_module_form_matches_original_bytes ... ok
+test native::research_prelink::tests::actual_required_without_current_allowed_is_rejected ... ok
+test native::research_prelink::tests::eager_bitreader_failure_and_linker_consumed_source_failure ... ok
+test native::research_prelink::tests::valid_call_same_user_callee_and_address_have_distinct_use_roles ... ok
+test native::research_prelink::tests::current_eight_units_reuse_full_o2_empty_and_optimize_actual_import ... ok
+test preflight::dominance_interval_tests::checked_chain_trap_idoms_survive_fanin_order_duplicates_and_backedges ... ok
+test preflight::dominance_interval_tests::deep_dominator_chain_uses_iterative_intervals ... ok
+test preflight::named_layout_tests::cached_shallow_success_never_hides_deeper_failure_or_first_error ... ok
+test preflight::named_layout_tests::cyclic_missing_void_and_width_neighbors_match_original_dfs ... ok
+test preflight::named_layout_tests::shared_layout_dag_is_bounded_by_nodes_and_depth_not_expanded_paths ... ok
+test preflight::validate_only_tests::actual_atomics_have_typed_operands_and_valid_memory_orders ... ok
+test preflight::validate_only_tests::borrowed_result_types_preserve_aggregate_projection_and_gep ... ok
+test preflight::validate_only_tests::borrowed_results_keep_result_type_and_identifier_error_order ... ok
+test preflight::validate_only_tests::branch_local_definition_must_dominate_a_non_phi_join_use ... ok
+test preflight::validate_only_tests::duplicate_cfg_edges_accept_equal_phi_values_but_reject_different_values ... ok
+test preflight::validate_only_tests::first_error_follows_original_function_order_in_mixed_reachability_modules ... ok
+test preflight::validate_only_tests::ieee_float_bits_and_operations_have_distinct_machine_types ... ok
+test preflight::validate_only_tests::large_functions_use_temporary_scratch_without_growing_the_small_pool ... ok
+test preflight::dominance_interval_tests::intervals_match_original_walk_for_cycles_unreachable_and_irreducible_cfgs ... ok
+test preflight::validate_only_tests::noinline_is_a_function_boundary_not_a_result_or_parameter_attribute ... ok
+test preflight::validate_only_tests::operation_types_and_cast_direction_are_checked_before_schedule_shortcut ... ok
+test preflight::validate_only_tests::phi_backedge_is_valid_and_phi_is_not_part_of_builder_schedule ... ok
+test preflight::validate_only_tests::phi_predecessors_match_the_full_cfg_multiset ... ok
+test preflight::validate_only_tests::phi_source_must_dominate_its_named_predecessor ... ok
+test preflight::validate_only_tests::reachable_non_phi_recurrence_remains_a_dominance_error ... ok
+test preflight::validate_only_tests::reachable_reordered_blocks_keep_real_data_and_sequence_dependencies ... ok
+test preflight::validate_only_tests::reused_scratch_preserves_errors_and_schedules_across_function_boundaries ... ok
+test preflight::validate_only_tests::same_block_forward_reference_is_not_accepted_by_schedule_elision ... ok
+test preflight::validate_only_tests::strong_compare_exchange_has_exact_result_and_c11_order_matrix ... ok
+test preflight::validate_only_tests::native_atomics_synchronize_real_threads_at_o0_and_o2 ... ok
+test preflight::validate_only_tests::unreachable_acyclic_uses_still_receive_a_complete_dependency_schedule ... ok
+test preflight::validate_only_tests::unreachable_non_phi_cycle_keeps_the_original_kahn_rejection ... ok
+test preflight::validate_only_tests::strong_compare_exchange_native_observes_failure_and_real_contention ... ok
+
+test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+
+running 2 tests
+test available_body_requires_current_valid_body_and_is_not_local ... ok
+test imported_body_never_emits_a_second_symbol_and_retains_canonical_address ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 1 test
+test merging_preserves_distinct_addresses_exports_and_current_validation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+
+running 4 tests
+test bounded_fragments_match_one_event_stream_and_manual_items ... ok
+test dense_schedule_deduplicates_operand_and_sequence_edges_without_missing_errors ... ok
+test fragments_do_not_hide_missing_or_nested_function_boundaries ... ok
+test operand_iterator_keeps_order_multiplicity_and_nested_values ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 12 tests
+test direct_call_signature_and_narrow_abi_checked ... ok
+test duplicate_predecessor_phi_requires_same_values ... ok
+test bad_global_initializers_rejected ... ok
+test missing_definition_and_forward_local_use_rejected ... ok
+test malformed_cfg_and_duplicate_names_rejected ... ok
+test non_dominating_branch_value_rejected ... ok
+test phi_type_mismatch_rejected ... ok
+test phi_wrong_predecessor_rejected ... ok
+test structure_assembly_cannot_silently_drop_events ... ok
+test type_indices_alignment_and_constants_checked_before_ffi ... ok
+test valid_phi_and_forward_block_order ... ok
+test void_and_duplicate_global_and_recursive_type_rejected ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 2 tests
+test reused_direct_call_type_keeps_narrow_attributes_and_function_local_scopes ... ok
+test cached_variadic_function_type_preserves_fixed_and_extra_arguments ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+
+running 9 tests
+test cancellation_at_each_native_boundary ... ok
+test direct_backend_rejects_disabled_text_adapter ... ok
+test direct_aggregates_global_function_table_and_indirect_call_execute ... ok
+test direct_loop_forward_block_phi_executes_o0_o2 ... ok
+test invalid_module_never_reaches_assert_prone_builder ... ok
+test direct_target_not_host_and_optimization_modes ... ok
+test separate_contexts_have_deterministic_objects ... ok
+test target_mismatch_is_explicit ... ok
+test signed_and_unsigned_spellings_of_integer_bits_are_identical_at_all_widths ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.24s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

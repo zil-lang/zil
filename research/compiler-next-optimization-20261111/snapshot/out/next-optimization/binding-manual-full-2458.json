@@ -1,0 +1,26 @@
+{
+  "source_commit": "2458defcaf8be51c87b80c0dadf391bb585735e8",
+  "source_tree": "e917926bc8976da90e58897911c72978b9a24f88",
+  "checkout": "/workspace/scratch/abf690ce880c/manual-prelink-validation",
+  "binary": "/workspace/scratch/abf690ce880c/targets/manual-full-2458/release/zil",
+  "binary_sha256": "30140135c39706e8251bd5da3eb9acb4e8481a9c12acbc4aed6403f57a768097",
+  "build_log": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-full-build-2458-v1/release/process-attempt.json",
+  "build_log_sha256": "8b1b08310acaa9bba75a54e90e65066d48557a926b6b0e4ff8b37162a1870fb2",
+  "toolchain": {
+    "rust": "1.99.1",
+    "llvm": "23.1.4"
+  },
+  "release_build_status": "Pass",
+  "complete_build_receipt": {
+    "path": "/workspace/scratch/abf690ce880c/out/next-optimization/manual-full-build-2458-v1/binding.json",
+    "sha256": "cab4b8644dc992c300f18872737663f5f8a6f4d784e32a7f6a75d3cba743c34a"
+  },
+  "validation": {
+    "api-tests": 64,
+    "proof-tests": 6
+  },
+  "seed_binary_preserved": {
+    "path": "/workspace/scratch/abf690ce880c/targets/manual-prelink-2321/release/zil",
+    "sha256": "ce90681f261c109c412bb9d513e3c0ff58680a2e593d798cdf21b3e27daa407a"
+  }
+}

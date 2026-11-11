@@ -1,0 +1,705 @@
+{
+  "format": 1,
+  "created_utc": "2026-11-11T01:13:36.759319+00:00",
+  "prior_archive": "098789c8cfb7f3f436c8014af1069a7f8314da08",
+  "commit_parents": [
+    "098789c8cfb7f3f436c8014af1069a7f8314da08",
+    "f2522c0786d4a1cd3cfb9cee03c2fcc7e31e72b8"
+  ],
+  "commit_tips": [
+    "0a8929d4f6126683737d62ab9def1d8e67a784ca",
+    "1bd22f6ed801725de554f374af54b9d1b80a956b",
+    "2293d19b53b4882fac663ac8e669bf7cdade386b",
+    "4095e7431988750809cc223a129741c22641e4fc",
+    "428eb2c549f5285efc0b7921b380e2eff54f808b",
+    "44e1540eb0922f0058f0bab8f2f16676c5b435fc",
+    "59dfb76dddc4db72b8c920342563cd8d3b9554e3",
+    "5cf970ba56ff26388df5abcf72a8946cc2c20350",
+    "6a95603edfe73688ab3b1531f9dec5065119120e",
+    "6c5162cd9e676c8d4e367e8966b75eb13a029b11",
+    "7dd7bb0eb8d1a55429455794fa6a94e80c777739",
+    "9f91ccc5ee32b46b2bd68230c786f84ccdd24d5d",
+    "b0200a07fb829966c072b4b00dde2ccddcb68529",
+    "b3037af95569ecb55b02489d893ada384c8e84b0",
+    "b731111d7476db1d3a3379f1b5cbf4dca70beeb0",
+    "da1e94124344c812e348bab131f03868de2dccc9",
+    "e2ffe7033127e006342465611181367995e6115e",
+    "f0ee4f8215938c27549a4cc1ff176445d2cb6bfe",
+    "f46254b886accba1c39f915a649b5d0ef6fbd788",
+    "f942fb506f0a9579e1af69a4a9d7cdde9593ebcd",
+    "30d5f9aa7e05b06b44394ad70ca2b7a56f5551d7",
+    "5059c1a669a179be6372ec63c45241543aa15280",
+    "83adcaf84b742eb487d1d86c96c7081de969e96c",
+    "599b1c1978059deff989579fce360925b9082e57",
+    "68e554e48e88bd69fa1ff4278f9ab9ec1fd2a956",
+    "1b68492c636978fc4a8679244835faff72224f2b",
+    "d392db44993f67646e9ec3e4b12991c42fc422fe",
+    "22f7c59fa593861987176b1c1bd604d84a7bc670",
+    "bb0c8759df3650efb0646978a03daea8a6c687f3",
+    "01d2ee433873b298e7e5982339b16d0b8d667713",
+    "0105b22c5116f645f4e70fbd6d192ec168aa20f1",
+    "bf3acbd2b68a507819a5578457422d4b68be44cc",
+    "c815c483f8877005de02d9c9cc40a933dec077f0",
+    "9c53f62ab66f3fc3e801905f2f0740c70c226dd1",
+    "6265198c2a8e84b09b0658c37a1bca49d4aa26e1",
+    "59f1124a6bb684c74d076de3f30594f87fb8e6e3",
+    "b3393f9c741d1a0dab34577e87a52c2620a18fb6",
+    "db8696d23270d35d015d20928e75c355a0092627",
+    "b0e2ab28f10a5d3b1e67f2ba5ce91bb0685e7f5f",
+    "af5965c78dc894ee9b6bef9ebafab9fdd5792935",
+    "07af3468db6828f0c1e4b9276169a35013fde318",
+    "fbbdc1f6e643858cf181e3c1a67960223e50fd99",
+    "467b5ffd791c6aae80cc524b1c23cf7259182661",
+    "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071",
+    "dafe801c34b709520e50b31fe86f944c3f346da6",
+    "f9dd0bcd3313f6a04ad8883caecd7996f51cd737",
+    "4f29707db7f73689f377624024b9ff991c94a164",
+    "e19e35a9177b491b595f085fc77836a963856382",
+    "13c53cf315d0eaa0512424707bcb0ed60c6f8e33",
+    "2222699d7382c6c2d986c256cbc7610329cd421c",
+    "5aa8057f9cc0bff651fc6a44147b4e6e2dd307de",
+    "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56",
+    "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
+    "1679decf177c9a6eda5a64063c525f06e44e56a2",
+    "52284449ea652983b16069c71bc8dc1a40a8b802",
+    "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
+    "b0da05ec784d632fa88c00d860382d656db712ec",
+    "087757507562a47bde7e32ba34f19d1986592cde",
+    "19681c97573460252df425cfaefc0e5d3dadb0e0",
+    "f2522c0786d4a1cd3cfb9cee03c2fcc7e31e72b8"
+  ],
+  "local_refs": {},
+  "remote_refs": {
+    "refs/heads/main": "2293d19b53b4882fac663ac8e669bf7cdade386b",
+    "refs/heads/task/G2.4.11.1": "6c5162cd9e676c8d4e367e8966b75eb13a029b11",
+    "refs/heads/task/G2.4.12.1": "44e1540eb0922f0058f0bab8f2f16676c5b435fc",
+    "refs/heads/task/G3.4.20": "f0ee4f8215938c27549a4cc1ff176445d2cb6bfe",
+    "refs/heads/task/G3.4.21": "7dd7bb0eb8d1a55429455794fa6a94e80c777739",
+    "refs/heads/task/G3.4.22": "b0200a07fb829966c072b4b00dde2ccddcb68529",
+    "refs/heads/task/G3.5.1.1": "f46254b886accba1c39f915a649b5d0ef6fbd788",
+    "refs/heads/task/G3.5.1.2": "6a95603edfe73688ab3b1531f9dec5065119120e",
+    "refs/heads/task/G9.3.11.1": "b731111d7476db1d3a3379f1b5cbf4dca70beeb0",
+    "refs/heads/task/G10.3.4": "5cf970ba56ff26388df5abcf72a8946cc2c20350",
+    "refs/heads/task/G10.3.5": "9f91ccc5ee32b46b2bd68230c786f84ccdd24d5d",
+    "refs/heads/task/G10.3.6": "1bd22f6ed801725de554f374af54b9d1b80a956b",
+    "refs/heads/task/G10.5.1": "59dfb76dddc4db72b8c920342563cd8d3b9554e3",
+    "refs/heads/task/G10.5.1.1": "da1e94124344c812e348bab131f03868de2dccc9",
+    "refs/heads/task/G10.5.1.2": "e2ffe7033127e006342465611181367995e6115e",
+    "refs/heads/task/G10.5.1.3": "83adcaf84b742eb487d1d86c96c7081de969e96c",
+    "refs/heads/task/G10.6.3": "428eb2c549f5285efc0b7921b380e2eff54f808b",
+    "refs/heads/task/G10.6.7": "4095e7431988750809cc223a129741c22641e4fc",
+    "refs/heads/task/collected-pipeline-acceptance": "b3037af95569ecb55b02489d893ada384c8e84b0",
+    "refs/heads/task/owned-pipeline-composition": "f942fb506f0a9579e1af69a4a9d7cdde9593ebcd",
+    "refs/heads/task/ordinary-collections": "5059c1a669a179be6372ec63c45241543aa15280",
+    "refs/heads/task/G10.5.1.4": "599b1c1978059deff989579fce360925b9082e57",
+    "refs/heads/task/G10.5.1.5": "68e554e48e88bd69fa1ff4278f9ab9ec1fd2a956",
+    "refs/heads/task/G10.5.1.6": "1b68492c636978fc4a8679244835faff72224f2b",
+    "refs/heads/task/G10.5.1.7": "d392db44993f67646e9ec3e4b12991c42fc422fe",
+    "refs/heads/task/G10.5.1.8": "22f7c59fa593861987176b1c1bd604d84a7bc670",
+    "refs/heads/task/byte-buffer-growth-boundary": "bb0c8759df3650efb0646978a03daea8a6c687f3",
+    "refs/heads/task/closure-destructor-boundary": "01d2ee433873b298e7e5982339b16d0b8d667713",
+    "refs/heads/task/closure-helper-partition": "0105b22c5116f645f4e70fbd6d192ec168aa20f1",
+    "refs/heads/task/compiler-closure-dependencies": "bf3acbd2b68a507819a5578457422d4b68be44cc",
+    "refs/heads/task/compiler-inline-equivalence": "c815c483f8877005de02d9c9cc40a933dec077f0",
+    "refs/heads/task/compiler-inline-prefix": "9c53f62ab66f3fc3e801905f2f0740c70c226dd1",
+    "refs/heads/task/compiler-merge-order": "6265198c2a8e84b09b0658c37a1bca49d4aa26e1",
+    "refs/heads/task/compiler-resident-cli": "59f1124a6bb684c74d076de3f30594f87fb8e6e3",
+    "refs/heads/task/compiler-resident-session": "b3393f9c741d1a0dab34577e87a52c2620a18fb6",
+    "refs/heads/task/destructor-runtime-neighbors": "db8696d23270d35d015d20928e75c355a0092627",
+    "refs/heads/task/helper-public-boundary": "b0e2ab28f10a5d3b1e67f2ba5ce91bb0685e7f5f",
+    "refs/heads/task/normalized-merging-consumers": "af5965c78dc894ee9b6bef9ebafab9fdd5792935",
+    "refs/heads/task/resident-memory-validation": "07af3468db6828f0c1e4b9276169a35013fde318",
+    "refs/heads/task/static-byte-closure-cleanup": "fbbdc1f6e643858cf181e3c1a67960223e50fd99",
+    "refs/heads/task/helper-current-main-validation": "467b5ffd791c6aae80cc524b1c23cf7259182661",
+    "refs/heads/task/repeatable-closure-drop": "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071",
+    "refs/heads/task/compiler-consolidation": "dafe801c34b709520e50b31fe86f944c3f346da6",
+    "refs/heads/task/compiler-composition-validation": "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56",
+    "refs/heads/task/compiler-layout-projection": "52284449ea652983b16069c71bc8dc1a40a8b802",
+    "refs/heads/task/compiler-bounded-imports": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
+    "refs/heads/task/compiler-structured-emission": "b0da05ec784d632fa88c00d860382d656db712ec",
+    "refs/heads/task/compiler-builder-position": "087757507562a47bde7e32ba34f19d1986592cde",
+    "refs/heads/task/compiler-thinlto-prototype": "19681c97573460252df425cfaefc0e5d3dadb0e0",
+    "refs/heads/task/compiler-thinlto-complete-visibility": "f2522c0786d4a1cd3cfb9cee03c2fcc7e31e72b8"
+  },
+  "worktrees": [],
+  "missing_commit_objects": [],
+  "scope": "Preserve the existing archive plus exact inactive compiler source and evidence histories. Retired names are not lost commits; rejected experiments are not accepted source.",
+  "retirements": [
+    {
+      "ref": "refs/heads/task/collected-pipeline-acceptance",
+      "head_before_retirement": "b3037af95569ecb55b02489d893ada384c8e84b0",
+      "retirement_completed": true,
+      "reason": "Exact head b3037af is ancestor of main; PR69 merged."
+    },
+    {
+      "ref": "refs/heads/task/owned-pipeline-composition",
+      "head_before_retirement": "f942fb506f0a9579e1af69a4a9d7cdde9593ebcd",
+      "retirement_completed": true,
+      "reason": "Exact head f942fb is preserved as archive parent. Archive manifest explicitly says all unique production and original collected input/tests covered by PR68/69; PR69 now merged."
+    },
+    {
+      "ref": "refs/heads/task/G2.4.11.1",
+      "head_before_retirement": "6c5162cd9e676c8d4e367e8966b75eb13a029b11",
+      "retirement_completed": false,
+      "reason": "Both production/spec blobs identical to main. Original consumer body identical except main adds a three-line child module inclusion."
+    },
+    {
+      "ref": "refs/heads/task/G2.4.12.1",
+      "head_before_retirement": "44e1540eb0922f0058f0bab8f2f16676c5b435fc",
+      "retirement_completed": false,
+      "reason": "Both changed files identical to main."
+    },
+    {
+      "ref": "refs/heads/task/G3.5.1.1",
+      "head_before_retirement": "f46254b886accba1c39f915a649b5d0ef6fbd788",
+      "retirement_completed": false,
+      "reason": "All seven changed files identical to main."
+    },
+    {
+      "ref": "refs/heads/task/G3.4.21",
+      "head_before_retirement": "7dd7bb0eb8d1a55429455794fa6a94e80c777739",
+      "retirement_completed": false,
+      "reason": "PR64 production extraction receipt and exact original consumer mapping. All 23 functions retained; 20 identical, three exact-work boundaries adjusted by later accepted algorithm changes."
+    },
+    {
+      "ref": "refs/heads/task/G10.3.4",
+      "head_before_retirement": "5cf970ba56ff26388df5abcf72a8946cc2c20350",
+      "retirement_completed": false,
+      "reason": "PR64 explicitly preserves nine production stages through 5cf970ba. All 18 original consumer functions remain; changes strengthen diagnostic checks or pin later algorithm work."
+    },
+    {
+      "ref": "refs/heads/task/G10.3.5",
+      "head_before_retirement": "9f91ccc5ee32b46b2bd68230c786f84ccdd24d5d",
+      "retirement_completed": false,
+      "reason": "PR64 includes original 511c32f06 codegen stage and 9f91ccc5 native correction. All 19 original consumer functions remain. Reverse-check of 9f91ccc5 succeeds."
+    },
+    {
+      "ref": "refs/heads/task/G10.5.1.3",
+      "head_before_retirement": "83adcaf84b742eb487d1d86c96c7081de969e96c",
+      "retirement_completed": true,
+      "reason": "Signature dependency facets are already delivered in PR70; this ref retains the experiment and measurements.",
+      "disposition": "delivered",
+      "evidence_refs": [
+        "PR70",
+        ".task/G10.5.1.3/RESULTS.md"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/G10.5.1.4",
+      "head_before_retirement": "599b1c1978059deff989579fce360925b9082e57",
+      "retirement_completed": true,
+      "reason": "Both buffer-growth outlining variants failed the original generated-runtime guard.",
+      "disposition": "rejected",
+      "evidence_refs": [
+        "PR72",
+        ".task/G10.5.1.4/OUTLINING-RESULTS.md"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/G10.5.1.5",
+      "head_before_retirement": "68e554e48e88bd69fa1ff4278f9ab9ec1fd2a956",
+      "retirement_completed": true,
+      "reason": "Exact resource-order representation is delivered by PR75; no ongoing work remains on the experiment ref.",
+      "disposition": "delivered",
+      "evidence_refs": [
+        "PR75",
+        "42766117593"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/G10.5.1.6",
+      "head_before_retirement": "1b68492c636978fc4a8679244835faff72224f2b",
+      "retirement_completed": true,
+      "reason": "Cleanup suffix sharing is delivered by PR76; preserve original failures and successful evidence.",
+      "disposition": "delivered",
+      "evidence_refs": [
+        "PR76",
+        ".task/G10.5.1.6/RESULTS.md"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/G10.5.1.7",
+      "head_before_retirement": "d392db44993f67646e9ec3e4b12991c42fc422fe",
+      "retirement_completed": true,
+      "reason": "Out-of-line destructor boundary regressed inactive/mostly-empty workloads; PR77 is not accepted.",
+      "disposition": "rejected",
+      "evidence_refs": [
+        "PR77",
+        "42800092569"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/G10.5.1.8",
+      "head_before_retirement": "22f7c59fa593861987176b1c1bd604d84a7bc670",
+      "retirement_completed": true,
+      "reason": "Package empty-aware refinement still regressed an original runtime case by18.3%.",
+      "disposition": "rejected",
+      "evidence_refs": [
+        "42814450893",
+        ".task/G10.5.1.8/RESULTS.md"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/byte-buffer-growth-boundary",
+      "head_before_retirement": "bb0c8759df3650efb0646978a03daea8a6c687f3",
+      "retirement_completed": true,
+      "reason": "Production extraction of rejected growth-boundary candidate; no runtime acceptance despite passing functional CI.",
+      "disposition": "rejected",
+      "evidence_refs": [
+        "PR72",
+        "42756277204"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/closure-destructor-boundary",
+      "head_before_retirement": "01d2ee433873b298e7e5982339b16d0b8d667713",
+      "retirement_completed": true,
+      "reason": "Production extraction of rejected destructor boundary, superseded by explicit negative quality conclusion.",
+      "disposition": "rejected",
+      "evidence_refs": [
+        "PR77",
+        "42800092569"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/closure-helper-partition",
+      "head_before_retirement": "0105b22c5116f645f4e70fbd6d192ec168aa20f1",
+      "retirement_completed": true,
+      "reason": "Historical helper-partition source and unsuccessful predecessors are carried by the current production/composition candidate; no separate implementation stream needed.",
+      "disposition": "superseded",
+      "evidence_refs": [
+        "PR80",
+        "PR84",
+        ".task/helper-partition/RESULTS.md"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/compiler-closure-dependencies",
+      "head_before_retirement": "bf3acbd2b68a507819a5578457422d4b68be44cc",
+      "retirement_completed": true,
+      "reason": "Anonymous closure linkage is delivered by PR79; retain the bounded performance findings and outstanding gaps.",
+      "disposition": "delivered",
+      "evidence_refs": [
+        "PR79",
+        ".task/closure-dependencies/RESULTS.md"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/compiler-inline-equivalence",
+      "head_before_retirement": "c815c483f8877005de02d9c9cc40a933dec077f0",
+      "retirement_completed": true,
+      "reason": "Expanded-pipeline screen is superseded by the fixed, maintainable normalized candidate; probe selector must not enter main.",
+      "disposition": "superseded",
+      "evidence_refs": [
+        "42928304327",
+        "PR84"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/compiler-inline-prefix",
+      "head_before_retirement": "9c53f62ab66f3fc3e801905f2f0740c70c226dd1",
+      "retirement_completed": true,
+      "reason": "Short-prefix screening has completed and is absorbed into the normalized fixed-policy candidate; preserve its negative variants.",
+      "disposition": "superseded",
+      "evidence_refs": [
+        "42931006690",
+        "PR84"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/compiler-merge-order",
+      "head_before_retirement": "6265198c2a8e84b09b0658c37a1bca49d4aa26e1",
+      "retirement_completed": true,
+      "reason": "Raw early merge and pass-position probes are finished; rejected runtime outcomes and conclusions are preserved, production continues in PR84.",
+      "disposition": "superseded",
+      "evidence_refs": [
+        "42924878932",
+        "42927870902",
+        "PR84"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/compiler-resident-cli",
+      "head_before_retirement": "59f1124a6bb684c74d076de3f30594f87fb8e6e3",
+      "retirement_completed": true,
+      "reason": "Resident compilation is delivered by PR78; benchmark-only branch is not an active implementation.",
+      "disposition": "delivered",
+      "evidence_refs": [
+        "PR78",
+        ".task/resident-cli/RESULTS.md"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/compiler-resident-session",
+      "head_before_retirement": "b3393f9c741d1a0dab34577e87a52c2620a18fb6",
+      "retirement_completed": true,
+      "reason": "The resident-session prototype is superseded by the delivered resident CLI and explicit memory-lifetime controls.",
+      "disposition": "superseded",
+      "evidence_refs": [
+        "PR78",
+        ".task/resident/RESULTS.md"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/destructor-runtime-neighbors",
+      "head_before_retirement": "db8696d23270d35d015d20928e75c355a0092627",
+      "retirement_completed": true,
+      "reason": "Completed counterexample validation; the evidence remains necessary but does not require a live source branch.",
+      "disposition": "evidence-only",
+      "evidence_refs": [
+        "42800092569"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/helper-public-boundary",
+      "head_before_retirement": "b0e2ab28f10a5d3b1e67f2ba5ce91bb0685e7f5f",
+      "retirement_completed": true,
+      "reason": "Completed public-signature boundary validation; retained as immutable evidence for the continuing candidate.",
+      "disposition": "evidence-only",
+      "evidence_refs": [
+        "42863910118",
+        "PR80"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/normalized-merging-consumers",
+      "head_before_retirement": "af5965c78dc894ee9b6bef9ebafab9fdd5792935",
+      "retirement_completed": true,
+      "reason": "Completed unchanged-source handler and State consumer controls; continue under the combined candidate rather than a separate consumer branch.",
+      "disposition": "evidence-only",
+      "evidence_refs": [
+        "42933848863",
+        "PR84"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/resident-memory-validation",
+      "head_before_retirement": "07af3468db6828f0c1e4b9276169a35013fde318",
+      "retirement_completed": true,
+      "reason": "Completed retention/memory validation supports already delivered explicit resident mode; no unmerged production feature.",
+      "disposition": "evidence-only",
+      "evidence_refs": [
+        "PR78",
+        ".task/resident/MEMORY-RESULTS.md"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/static-byte-closure-cleanup",
+      "head_before_retirement": "fbbdc1f6e643858cf181e3c1a67960223e50fd99",
+      "retirement_completed": true,
+      "reason": "Frozen production extraction of rejected static cleanup; keep exact source and tests in archive, close PR83.",
+      "disposition": "rejected",
+      "evidence_refs": [
+        "PR83",
+        "42930165591"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/helper-current-main-validation",
+      "head_before_retirement": "467b5ffd791c6aae80cc524b1c23cf7259182661",
+      "retirement_completed": true,
+      "reason": "Final immutable report added after first audit; implementation unchanged, candidate continues in PR80/84.",
+      "disposition": "evidence-only",
+      "evidence_refs": [
+        "42927538037",
+        ".task/helper-current/RESULTS.md"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/repeatable-closure-drop",
+      "head_before_retirement": "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071",
+      "retirement_completed": true,
+      "reason": "Final negative-quality report added after first audit; static cleanup remains rejected, PR83 closed.",
+      "disposition": "rejected",
+      "evidence_refs": [
+        "42930165591",
+        "PR83"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/compiler-consolidation",
+      "head_before_retirement": "dafe801c34b709520e50b31fe86f944c3f346da6",
+      "retirement_completed": true,
+      "reason": "Branch audit and guarded retirement complete; no compiler implementation pending on this temporary branch.",
+      "disposition": "completed-coordination",
+      "evidence_refs": [
+        ".task/compiler-consolidation/final-receipt.json"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/compiler-composition-validation",
+      "head_before_retirement": "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56",
+      "source_evidence_head": "5aa8057f9cc0bff651fc6a44147b4e6e2dd307de",
+      "retirement_completed": true,
+      "reason": "Composition experiments, profiling and rejected candidates have immutable archival parents; accepted production is already in main. This final guarded workflow only retires its own archived ref.",
+      "archive_is_acceptance": false,
+      "completed_run": 42972887557,
+      "completion_receipt": "research/compiler-multi-edit-20261111/raw-evidence.json -> raw/multi-edit/retirement-receipt.json"
+    },
+    {
+      "ref": "refs/heads/task/compiler-layout-projection",
+      "head_before_retirement": "52284449ea652983b16069c71bc8dc1a40a8b802",
+      "source_evidence_head": "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
+      "retirement_completed": true,
+      "disposition": "rejected",
+      "reason": "Not adopted: mixed original screen and only 0.9475% hypothetical weighted gain in the added multi-file matrix; Rust faster in all 16 comparable CLI cells.",
+      "archive_is_acceptance": false,
+      "evidence_directory": "research/compiler-multi-edit-20261111",
+      "recipe_commit": "52284449ea652983b16069c71bc8dc1a40a8b802",
+      "prior_archive": "a48374cce53d1018fe52a1c749990db4248f7135",
+      "remote_ref_snapshot_note": "Planned recipe head, to be published only after this archive; runtime checks exact lease.",
+      "completed_run": 42988640504,
+      "completion_receipt": "research/compiler-multi-edit-20261111/retirement-multiedit/layout-retirement-receipt.json",
+      "actual_deleted_recipe": "52284449ea652983b16069c71bc8dc1a40a8b802"
+    },
+    {
+      "ref": "refs/heads/task/compiler-bounded-imports",
+      "head_before_retirement": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
+      "source_evidence_head": "1679decf177c9a6eda5a64063c525f06e44e56a2",
+      "retirement_completed": true,
+      "disposition": "rejected",
+      "reason": "NoGo: all eight native runtime cases regressed 61.6%–112.3% from main and failed the unchanged 10% quality gate.",
+      "archive_is_acceptance": false,
+      "evidence_directory": "research/compiler-multi-edit-20261111",
+      "recipe_commit": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
+      "prior_archive": "a018e25431dc74a5d56e7e2df9ecf75b9f179717",
+      "remote_ref_snapshot_note": "Planned recipe head, to be published only after this archive; runtime checks exact lease.",
+      "completed_run": 42988998893,
+      "completion_receipt": "research/compiler-multi-edit-20261111/retirement-multiedit/bounded-retirement-receipt.json",
+      "actual_deleted_recipe": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247"
+    }
+  ],
+  "research_sources": [
+    {
+      "ref": "refs/heads/task/G10.5.1",
+      "sha": "59dfb76dddc4db72b8c920342563cd8d3b9554e3",
+      "disposition": "Unadopted coarsening experiment. Preserve original code, results and rejection rationale; production continuation is the already accepted PR65 and current compile work."
+    },
+    {
+      "ref": "refs/heads/task/G10.5.1.1",
+      "sha": "da1e94124344c812e348bab131f03868de2dccc9",
+      "disposition": "All three changed production blobs exactly equal main@2293d19b. PR65 already accepted; preserve experiment and receipts only here."
+    },
+    {
+      "ref": "refs/heads/task/G10.5.1.2",
+      "sha": "e2ffe7033127e006342465611181367995e6115e",
+      "disposition": "Unadopted single-pass planner experiment. Weighted benefit not established. Preserve complete experimental histories; do not merge experiment to main."
+    },
+    {
+      "ref": "refs/heads/task/G10.5.1.3",
+      "sha": "0a8929d4f6126683737d62ab9def1d8e67a784ca",
+      "disposition": "Production and regression blobs exactly equal current PR70@cadc656c. Preserve original measurements here. PR70 acceptance is separate; its active ref is retained."
+    }
+  ],
+  "pending_regression_restoration": [
+    {
+      "branch": "task/G3.5.1.2",
+      "reason": "Production stored_callables in both Analyze and Verify is byte-identical to main. Meaningful last-commit 46-line budget-boundary test absent from main.",
+      "test": "stored_borrowed_callbacks_have_exact_fresh_kernel_work",
+      "snippet": "/workspace/scratch/4a034e35838f/audit-notes/missing-stored-callback-budget-test.rs"
+    },
+    {
+      "branch": "task/G10.6.7",
+      "reason": "Four original ZIL input blobs identical to main; default success and 48 native cases retained elsewhere. Two original safety tests absent in same complete pipeline; related lending/collected controls exist but combination coverage is not identical.",
+      "tests": [
+        "owning_pipeline_keeps_the_parent_loan_and_affine_fresh_results",
+        "owning_pipeline_raw_and_wire_recover_actual_store_roots"
+      ]
+    }
+  ],
+  "preserved_candidates": [
+    {
+      "name": "complete-retirement-source-no-change",
+      "base": "b731111d7476db1d3a3379f1b5cbf4dca70beeb0",
+      "executed_commit": "3ce20d48bc2256c6007aa1b6ace882aba7c7dc91",
+      "published_commit": "30d5f9aa7e05b06b44394ad70ca2b7a56f5551d7",
+      "identical_tree": "c8b35bf17026d7b7734b943c92f0a889add71487",
+      "scope": "Four source/test files; paid complete Sources proof before shared page COW; preserve missing capture key and empty row distinction.",
+      "status": "Component controls passed 15/15; original 5008B Map still fails default independent Verify. Not accepted production or whole-program performance evidence."
+    },
+    {
+      "name": "ordinary-store-growth",
+      "ref": "refs/heads/task/ordinary-collections",
+      "published_commit": "5059c1a669a179be6372ec63c45241543aa15280",
+      "published_tree": "03251642e6e0866edb39449912ff9ffb48e40b29",
+      "code_commit": "c8c13db74630c9d47115db38c1472bd82faedcb9",
+      "code_tree": "9247db968b5ac493afa0619f6c239e3576c56a98",
+      "scope": "Ordinary geometric Store growth, exact owner return/retry and focused/native/full-workspace acceptance source. Ancestors preserve initial rejected consumers and the subsequent fixes.",
+      "acceptance_and_retirement": "PR82 and goal:records/store-growth-resumption.json track acceptance/deletion separately. No compiler branch mutation is authorized by this entry."
+    },
+    {
+      "name": "worker-owned-machine-unit-lifetimes",
+      "base": "99035931d358add0eaed6d4535035c38413701dd",
+      "executed_local_commit": "9e15ab226b5c0e95f18b1e1a7d1d2517dc646850",
+      "published_commit": "2222699d7382c6c2d986c256cbc7610329cd421c",
+      "identical_tree": "ba2a08e59c67339b1420e47480d2055ef81d1021",
+      "status": "Not adopted. Fixed 84 requests preserved 42 ELF pairs and 252 native outputs but did not establish request-time gain. No new remote production branch was created.",
+      "evidence_commit": "5aa8057f9cc0bff651fc6a44147b4e6e2dd307de",
+      "evidence_path": ".task/compiler-resumption/request-cost",
+      "raw_evidence": {
+        "library_file_id": "libfile_fde3_f-07fc3294c7f48191822564a4a82f48ba_bd147c3485448191a9df16b3c3cea7dd",
+        "file_id": "file_000000003b788230a343944d2d62c4dc",
+        "filename": "request-cost-raw-evidence.tar.gz",
+        "version": 0,
+        "bytes": 395661,
+        "sha256": "500e41c04674dcd96792473bfac2125b6d14a0d64c34c56923b0d1dc37fca720",
+        "entries": 1047,
+        "scope": "Original per-request JSON/stdout/stderr/native I/O, pinned corpus and model, profile instrumentation and raw spans, source patch and review. Generated ELF/sidecars, cache directories and host binaries are excluded; hashes and byte equality remain recorded.",
+        "download_url": "https://chatgpt.com/library?file_id=libfile_fde3_f-07fc3294c7f48191822564a4a82f48ba_bd147c3485448191a9df16b3c3cea7dd&account_id=personal"
+      },
+      "acceptance": false
+    }
+  ],
+  "compiler_resumption_snapshots": [
+    {
+      "purpose": "Preserve exact compiler branch heads before resuming independent acceptance or retiring redundant refs; not acceptance.",
+      "base_main": "4ec5e78cfe1f2d0188ddc2502e6b15358f062b71",
+      "previous_archive": "b2c53b4b79bceac60f213034b30e159238c3f9bd",
+      "heads": [
+        {
+          "ref": "refs/heads/task/compiler-composition-validation",
+          "sha": "f9dd0bcd3313f6a04ad8883caecd7996f51cd737"
+        },
+        {
+          "ref": "refs/heads/task/compiler-normalized-merging",
+          "sha": "4f29707db7f73689f377624024b9ff991c94a164"
+        },
+        {
+          "ref": "refs/heads/task/normalized-function-equivalence",
+          "sha": "e19e35a9177b491b595f085fc77836a963856382"
+        },
+        {
+          "ref": "refs/heads/task/resource-helper-codegen",
+          "sha": "13c53cf315d0eaa0512424707bcb0ed60c6f8e33"
+        }
+      ],
+      "retired": []
+    }
+  ],
+  "compiler_resumption_20261111": {
+    "main": "99035931d358add0eaed6d4535035c38413701dd",
+    "accepted": "f38ed14b2c18c587f01a117f3c8a6d9cc67c4e7b",
+    "not_accepted": "130d3a7cab25603ae42a7fae0c9f63116c858c72",
+    "no_inline_wip": {
+      "base": "130d3a7cab25603ae42a7fae0c9f63116c858c72",
+      "patch_commit": "ccbb7164a9ab4d41befc5c68e6ddbd1029b0f914",
+      "patch_path": ".task/compiler-resumption/no-inline-screen/candidate.patch",
+      "screen": "24 builds / 408 runs; runtime screen passes; no general compile gain established; not adopted"
+    },
+    "evidence_commit": "ccbb7164a9ab4d41befc5c68e6ddbd1029b0f914",
+    "raw_evidence": {
+      "library_file_id": "libfile_fde3_f-423835f961488191ba4183d1944bab00_bd147c3485448191a9df16b3c3cea7dd",
+      "file_id": "file_0000000027bc81f88c46d85bbca1846d",
+      "bytes": 10946590,
+      "sha256": "dcfafaca60f366b03232c6400fdd0fac878cefa78e53cf7db91bd519c6402766"
+    },
+    "request_cost_profile": {
+      "baseline": "99035931d358add0eaed6d4535035c38413701dd",
+      "evidence_commit": "5aa8057f9cc0bff651fc6a44147b4e6e2dd307de",
+      "profile_path": ".task/compiler-resumption/stage-profile",
+      "candidate_path": ".task/compiler-resumption/request-cost",
+      "decision": "Profile completed; worker-owned candidate not adopted; source, raw records and all negative values preserved"
+    }
+  },
+  "updated_utc": "2026-11-11T11:45:46.255Z",
+  "compiler_multi_edit_20261111": {
+    "directory": "research/compiler-multi-edit-20261111",
+    "main": "99035931d358add0eaed6d4535035c38413701dd",
+    "goal_at_preservation": "acdeb7db04b796bf080ec527f1089b857e0c9431",
+    "source_heads": {
+      "layout": "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
+      "bounded": "1679decf177c9a6eda5a64063c525f06e44e56a2"
+    },
+    "source_trees": {
+      "layout": "d260d616a23af8f9c716fbe26c38c200e0eeeb5f",
+      "bounded": "1e599b1bc2f0f6a0c438088a30faee9ff4018271"
+    },
+    "source_decision": "Both candidates not adopted; no main update",
+    "evidence_pointer": "research/compiler-multi-edit-20261111/raw-evidence.json",
+    "raw_sha256": "6058113ae324218f7e159c7f9fc35be71408e7bebf5210ce79d00554863fe330",
+    "raw_library_version": 1,
+    "concurrency_protocol_sha256": "770d5805601c87ed08e220b8ba1aa7ab95684fac32f29bc8524edede7954d25b",
+    "concurrency_scope": "Unchanged main A/A plus Rust; 36 final batches, 252 total compiles, 756 captured native I/O; no optimization-candidate claim",
+    "observed_refs": {
+      "main": "99035931d358add0eaed6d4535035c38413701dd",
+      "goal": "acdeb7db04b796bf080ec527f1089b857e0c9431",
+      "archive/source-history": "c43cda662622d81d7a43849ac7bf5266062fc8f7",
+      "task/compiler-layout-projection": "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
+      "task/compiler-bounded-imports": "1679decf177c9a6eda5a64063c525f06e44e56a2"
+    },
+    "retirement_status": "Completed: composition, layout-projection and bounded-imports refs absent; exact source/evidence and recipe ancestry retained; no production acceptance.",
+    "evidence_preservation_commit": "a48374cce53d1018fe52a1c749990db4248f7135",
+    "retirement_archive_commits": [
+      "a018e25431dc74a5d56e7e2df9ecf75b9f179717",
+      "5c97386cef5a337c432fc7f1351dfcc22a0c02e6"
+    ],
+    "final_readback": "research/compiler-multi-edit-20261111/retirement-multiedit/retirement-final-readback.json",
+    "observed_refs_after_retirement": {
+      "main": "99035931d358add0eaed6d4535035c38413701dd",
+      "goal": "acdeb7db04b796bf080ec527f1089b857e0c9431",
+      "archive": "5c97386cef5a337c432fc7f1351dfcc22a0c02e6"
+    }
+  },
+  "remote_refs_semantics": "Historical preserved source/recipe tips, not a live branch listing. Final readback separately records all retired refs absent and the three remaining branches.",
+  "next_optimization_retirements": {
+    "task/compiler-structured-emission": {
+      "source_head": "ee0cc45261dbfadf25dce567f0fc1fa0b4d4b6f5",
+      "recipe_head": "b0da05ec784d632fa88c00d860382d656db712ec",
+      "prior_archive": "5e31ee5f0d8d0219afde8a73ac8c960e04f844b5",
+      "status": "archived recipe; remote retirement planned",
+      "recipe_sha256": "b573e924f2aba93dbfabea430a983cfa97990e8d68741bdf99fd054657f7f933"
+    },
+    "task/compiler-builder-position": {
+      "source_head": "9f0deb4c4142d0fff2ef622442518fc1d7a65d5c",
+      "recipe_head": "087757507562a47bde7e32ba34f19d1986592cde",
+      "prior_archive": "78ce99886e435dd56c0af632240eded1840827c0",
+      "status": "archived recipe; remote retirement planned",
+      "recipe_sha256": "4db4405c13b28cfc757ce993590496fe290e45a3f3a665b329897e18cbea8745"
+    },
+    "task/compiler-thinlto-prototype": {
+      "source_head": "eb5b150903b67d8b9011f6adc2d3ac67b1c419a6",
+      "recipe_head": "19681c97573460252df425cfaefc0e5d3dadb0e0",
+      "prior_archive": "34ded7a21bed380b71e5bf85f4eb88569404710f",
+      "status": "archived recipe; remote retirement planned",
+      "recipe_sha256": "3afb23be536dc5b61f0c98f21fc7ce268e30d859bde5b61822fb81b80433363c"
+    },
+    "task/compiler-thinlto-complete-visibility": {
+      "source_head": "2549cbec8e1f3096d4c8c8a960459c83095ad13d",
+      "recipe_head": "f2522c0786d4a1cd3cfb9cee03c2fcc7e31e72b8",
+      "prior_archive": "098789c8cfb7f3f436c8014af1069a7f8314da08",
+      "status": "archived recipe; remote retirement planned",
+      "recipe_sha256": "a55cec058d3730d2394bf62da8893d6ca65de010163cc5bbaf48789feba65cd9"
+    }
+  },
+  "next_optimization_evidence": {
+    "archive_checkpoint": "5e31ee5f0d8d0219afde8a73ac8c960e04f844b5",
+    "manifest_path": "research/compiler-next-optimization-20261111/manifest.json",
+    "raw_checkpoint_path": "research/compiler-next-optimization-20261111/raw-checkpoint-v0.json",
+    "raw_sha256": "9b1677993e14d608cd5f64c99eecc75bf13963a142219bb48caa1b7945bfadef",
+    "raw_library_version": 0,
+    "identity_dedup_candidate_retained": "3d0dc3e1f420ebea68aff66ebbcd86111251bffc"
+  }
+}

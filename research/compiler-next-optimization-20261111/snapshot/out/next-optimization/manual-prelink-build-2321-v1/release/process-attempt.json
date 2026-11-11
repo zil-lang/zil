@@ -1,0 +1,28 @@
+{
+  "command": [
+    "cargo",
+    "build",
+    "--locked",
+    "--release",
+    "-j",
+    "2",
+    "-p",
+    "zil-cli"
+  ],
+  "exit": 0,
+  "timeout": false,
+  "exception": null,
+  "cpu_ms": 405748.56799999997,
+  "rss_kib": 1215948,
+  "wall_ms": 213066.597105,
+  "reaped": true,
+  "scope": "owned-request-session",
+  "cleanup": [
+    {
+      "action": "owned-request-group-empty",
+      "group": 2748
+    }
+  ],
+  "owned_group": 2748,
+  "residual_descendants": false
+}

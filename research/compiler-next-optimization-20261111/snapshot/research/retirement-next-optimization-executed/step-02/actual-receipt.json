@@ -1,0 +1,13 @@
+{
+  "started_utc": "2026-11-11T11:43:42.860258+00:00",
+  "target": "refs/heads/task/compiler-builder-position",
+  "expected": "087757507562a47bde7e32ba34f19d1986592cde",
+  "run": 43014310393,
+  "prior_archive": "78ce99886e435dd56c0af632240eded1840827c0",
+  "archive": "34ded7a21bed380b71e5bf85f4eb88569404710f",
+  "returncode": 0,
+  "stdout": "To https://github.com/zil-lang/zil\n-\t:refs/heads/task/compiler-builder-position\t[deleted]\nDone\n",
+  "stderr": "",
+  "verified_absent": true,
+  "status": "Completed exact archived self retirement"
+}

@@ -1,0 +1,16 @@
+
+running 6 tests
+test machine_cgu::complete_visibility::tests::changed_canonical_owners_and_extra_import_are_rejected ... ok
+test machine_cgu::complete_visibility::tests::original_budgeted_visibility_preserves_exact_lc1_name ... ok
+test machine_cgu::complete_visibility::tests::silent_copy_fallback_with_same_units_and_no_fallback_is_rejected ... ok
+test machine_cgu::complete_visibility::tests::recursive_closure_terminates_and_copy_cost_is_per_unit ... ok
+test machine_cgu::complete_visibility::tests::unknown_target_and_nested_address_are_rejected ... ok
+test machine_cgu::resource_helpers::tests::only_explicit_late_merging_splits_helpers_while_other_policies_keep_complete_visibility ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 203 filtered out; finished in 0.01s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+

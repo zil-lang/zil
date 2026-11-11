@@ -1,0 +1,13 @@
+{
+  "started_utc": "2026-11-11T11:45:01.193400+00:00",
+  "target": "refs/heads/task/compiler-thinlto-prototype",
+  "expected": "19681c97573460252df425cfaefc0e5d3dadb0e0",
+  "run": 43014487178,
+  "prior_archive": "34ded7a21bed380b71e5bf85f4eb88569404710f",
+  "archive": "098789c8cfb7f3f436c8014af1069a7f8314da08",
+  "returncode": 0,
+  "stdout": "To https://github.com/zil-lang/zil\n-\t:refs/heads/task/compiler-thinlto-prototype\t[deleted]\nDone\n",
+  "stderr": "",
+  "verified_absent": true,
+  "status": "Completed exact archived self retirement"
+}
