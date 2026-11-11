@@ -772,7 +772,7 @@ impl CompilationSession {
                 if artifact_needed && let Some(sources) = &producer_sources {
                     let start = cost_start(options.profile_compilation);
                     let admitted = materializer.materialize(
-                        &producer, sources, &project.modules, &parsed, &project.paths,
+                        &producer, sources, &project.modules, &project.paths,
                         options.scoped_imports.as_deref(), &imports, project.root,
                         fingerprint, &options.target, &options.limits,
                     );

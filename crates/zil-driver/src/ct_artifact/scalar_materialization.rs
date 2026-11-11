@@ -104,7 +104,6 @@ impl ScalarMaterializationSession {
         producer: &zil_expand::ExpandSession,
         inputs: &[ParsedSource],
         sources: &[SourceUnit],
-        parsed: &[Arc<ParseResult>],
         paths: &BTreeMap<Vec<String>, ModuleId>,
         scoped: Option<&crate::ScopedImports>,
         imports: &[Vec<CoreImport>],
@@ -116,19 +115,21 @@ impl ScalarMaterializationSession {
         self.stats = ScalarMaterializationStats::default();
         if inputs.is_empty()
             || inputs.len() != sources.len()
-            || sources.len() != parsed.len()
-            || parsed.len() != imports.len()
-            || !inputs
-                .iter()
-                .zip(sources)
-                .zip(parsed)
-                .all(|((input, source), parsed)| {
-                    input.source() == source
-                        && Arc::ptr_eq(&input.parsed_shared(), parsed)
-                        && producer.parsed_scalar(input, limits)
-                })
-            || !retains_runtime_graph(parsed, imports, root)
+            || inputs.len() != imports.len()
+            || !inputs.iter().zip(sources).all(|(input, source)| {
+                input.source() == source && producer.parsed_scalar(input, limits)
+            })
         {
+            return Ok(None);
+        }
+        // Parse query history may retain an older parser construction for the
+        // same source bytes. Only these sealed owners supply the actual ASTs
+        // admitted below; public ParseResult hints are not an input to this API.
+        let parsed = inputs
+            .iter()
+            .map(ParsedSource::parsed_shared)
+            .collect::<Vec<_>>();
+        if !retains_runtime_graph(&parsed, imports, root) {
             return Ok(None);
         }
         let modules = parsed
@@ -153,7 +154,7 @@ impl ScalarMaterializationSession {
         }
         let mut environment = Environment::new_scoped(
             sources,
-            parsed,
+            &parsed,
             paths,
             scoped,
             imports,
@@ -172,7 +173,7 @@ impl ScalarMaterializationSession {
             runtime_deferred: false,
             environment: &mut environment,
             sources,
-            parsed,
+            parsed: &parsed,
             registry: None,
             paths,
             previews: Vec::new(),
@@ -424,7 +425,6 @@ mod tests {
                 &zil_expand::ExpandSession::default(),
                 &self.inputs,
                 &self.sources,
-                &self.parsed,
                 &self.paths,
                 None,
                 &self.imports,
@@ -637,23 +637,34 @@ mod tests {
     }
 
     #[test]
-    fn public_parse_substitution_and_pruned_modules_cannot_claim_unchanged_output() {
+    fn public_parse_hints_cannot_replace_sealed_ast_and_source_mismatch_rejects() {
         let mut fixture = Fixture::new("return left.emit(1)+right.emit(2);");
         let mut session = ScalarMaterializationSession::default();
-        fixture
+        let admitted = fixture
             .run(&mut session, &Limits::default())
             .unwrap()
             .unwrap();
-        let mut substituted = fixture.parsed.clone();
-        Arc::make_mut(&mut substituted[1]).module.items.clear();
-        std::mem::swap(&mut substituted, &mut fixture.parsed);
+        // Public ParseResult allocations cannot enter the admission API. A COW
+        // mutation of an unrelated query hint leaves the sealed AST unchanged.
+        Arc::make_mut(&mut fixture.parsed[1]).module.items.clear();
+        assert!(!fixture.inputs[1].parsed().module.items.is_empty());
+        let current = fixture
+            .run(&mut session, &Limits::default())
+            .unwrap()
+            .unwrap();
+        assert_eq!(current.usage(), admitted.usage());
+        assert_eq!(session.last_stats().reused_modules, 3);
+        let original = fixture.sources[1].text.clone();
+        fixture.sources[1]
+            .text
+            .push_str("\nfn changed()->i32{return 9;}\n");
         assert!(
             fixture
                 .run(&mut session, &Limits::default())
                 .unwrap()
                 .is_none()
         );
-        std::mem::swap(&mut substituted, &mut fixture.parsed);
+        fixture.sources[1].text = original;
         fixture.imports[0].pop();
         assert!(
             fixture
@@ -670,5 +681,41 @@ mod tests {
         ]);
         assert!(ct.run(&mut session, &Limits::default()).unwrap().is_none());
         assert_eq!(session.entries.len(), 3);
+    }
+
+    #[test]
+    fn independent_parser_construction_for_same_source_admits_fresh_module_walks() {
+        let original = Fixture::new("return left.emit(1)+right.emit(2);");
+        let mut current = Fixture::new("return left.emit(1)+right.emit(2);");
+        assert_eq!(original.sources, current.sources);
+        assert!(
+            original
+                .inputs
+                .iter()
+                .zip(&current.inputs)
+                .all(|(left, right)| !left.same_revision(right))
+        );
+        // A restored source can have an old Parse query owner and a newly
+        // constructed sealed producer owner. Admission uses the latter alone.
+        current.parsed = original.parsed.clone();
+        let mut session = ScalarMaterializationSession::default();
+        let old = original
+            .run(&mut session, &Limits::default())
+            .unwrap()
+            .unwrap();
+        let fresh = current
+            .run(&mut session, &Limits::default())
+            .unwrap()
+            .unwrap();
+        assert_eq!(fresh.usage(), old.usage());
+        assert_eq!(fresh.remaining(), old.remaining());
+        assert_eq!(session.last_stats().executed_modules, 3);
+        assert_eq!(session.last_stats().cloned_modules, 3);
+        assert_eq!(session.last_stats().reused_modules, 0);
+        current
+            .run(&mut session, &Limits::default())
+            .unwrap()
+            .unwrap();
+        assert_eq!(session.last_stats().reused_modules, 3);
     }
 }
