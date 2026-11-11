@@ -1,0 +1,25 @@
+{
+  "baseline": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852",
+  "source": "570e57555c1ee82afe3a8af4a0d03aa8e74bdb2c",
+  "recipe": "b52db7f11e2829ba6f74c113e2c3c50f8b84c989",
+  "screen": 42931006690,
+  "comparison": "explicit baseline after versus fixed normalized candidate before-and-after; default/off/after unchanged",
+  "status_before_preservation": "failure",
+  "files": {
+    "raw.tar.gz": "bb3c6c556179b6bbc37bfd2f7cc3602b24db66884affd3a66f44bf25135eb952",
+    "omitted-elf.json": "7919bc299b73252c3f7d194046188917fabe9099f101e5867ad6e5c8395010b4",
+    "neighbors/summary.json": "7ec99ac250aad151b8717b456bd38f353e20fa4cf3a791200b21df0c5f28b686",
+    "primary/failures.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "primary/manifest.json": "4408f2539c98daef7772cdbd2ea88278d95ac6145f46bd13f736b549485f5c90",
+    "primary/equivalence.json": "ddbfc3d09407f4f2d4f2be4dd4860d1ed703f08b18c3c3f7ee3df47bd9aa5937",
+    "primary/rows.jsonl": "3677d9d20cb7fa03d7fb6ceca1d8a934fd05574aa46238154d12f711bf749864",
+    "primary/summary.json": "f28b64775e6224137f98789851c02b91992d3cd9579d6b14854790b68b67e963",
+    "primary/cells.json": "4723d17ba947894f85420a25f4c5f150f062e978c2859de18729df352bbd6827",
+    "consumer/summary.json": "94151547711ed4032518366ed8f192ba421e423474cb4a46188c483bb5822acf",
+    "controls/summary.json": "11316e7bba6e7b027a97c26721e13dce5fed72ed173bebd8ea3b26b5f7843498",
+    "quality/summary.json": "e7d834658e5797b354295885e7770c267e6082c6e17253042492df4ae0319a3d"
+  },
+  "main_modified": false,
+  "external_ai_review": false,
+  "acceptance": "Pending source and numerical review, not automatic"
+}
