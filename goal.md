@@ -528,7 +528,7 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 | G10.5.1.11 | 显式增量O2的资源helper分区与多模块私有编辑 | 已合入·有限阶段 | — | Chat编译专项 · PR80 | main99035931/tree1c16744；双工具链各6050/5935/70过，固定multi16运行格过，编辑242.79→180.18ms（25.79%）。原八项未证整体提速、multi冷CPU+23.59%、无修改回退及同ELF计时false均保留；不关闭通用父门。[收据](records/compiler-request-resumption.json)。 |
 | G10.5.1.12 | 前置规范化与函数等价合并 | 未采用·已归档 | — | — | PR84关闭，旧130d不同码运行退化13%–24%；去额外inline新变体24构建/408运行反例筛通过，但单次编译诊断未保留大图收益，不投入全矩阵或放宽门。原源码/补丁/正负证据在固定archive e75ade94，生产ref已删除。 |
 | G10.5.1.13 | 完整请求关键路径与对象命中后的重复工作 | 进行中 | P1 | Chat编译专项 · root | 真实CLI三请求/同ELF已定位：shared4096全命中仍568.76ms，机器lower104.70ms、两规划扫描63.07ms、整图key46.00ms，worker后串行析构69.98ms；Verify/预检保持。单文件worker拥有unit候选9e15/发布2222699d同treeba2a完成84请求、42ELF对及252输出，2job大图暖均值618.65→788.60ms，未建立收益，停止且固定archive c6a62987保全；未扩测或合入。后续先证可消除的实际工作，计时补丁仅研究。 |
-| G10.5.1.14 | 多点批量修改、并发候选及重编范围 | 施工·运行质量门优先 | P1 | Chat编译专项 · root | main990基线；a60布局投影84请求混合、完整多点after 330ZIL+48Rust通过，假设频率绝对等待仅省0.95%，未采用；off/并发旧草案保留未跑。真实N64改两body仍重编含572函数的入口。独立新1679decf/tree1e599b1推广既有cost32有限导入到普通多文件，仅显式after；源码独审/release/34分区测试过，补API测试及固定长循环Rust运行门后再决定性能矩阵。首败/负值和父门保持。[记录](records/compiler-multi-edit-continuation.json)。 |
+| G10.5.1.14 | 多点批量修改、并发候选及重编范围 | 候选否定·并发基线验收中 | P1 | Chat编译专项 · root | main990保持。a60完整多点加权仅省0.95%且12快12慢，未采用；1679有限导入虽34/38测试与24clean/216native功能全过，8格运行却退化61.6%–112.3%，触发10%门，停止扩其性能/并发。机器码确认根跨leaf SIMD/内联及范围证明损失；完整AE也有历史四臂反证，不重复。正单独测main同binary A/A+Rust四CPU下c1/2/4真实并发；源码和正负证据保全后退役两实验ref。父门不关闭。[记录](records/compiler-multi-edit-continuation.json)。 |
 
 </details>
 

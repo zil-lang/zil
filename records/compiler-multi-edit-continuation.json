@@ -1,9 +1,9 @@
 {
   "format": 1,
   "task": "G10.5.1.14",
-  "updated_utc": "2026-11-11 07:34:38 UTC",
-  "read_goal": "8ca42ed8f47783e264c57bb040a5f52e06803868",
-  "status": "Independent bounded-source-import candidate under runtime-first validation; prior projection experiments preserved and not adopted",
+  "updated_utc": "2026-11-11 08:07:09 UTC",
+  "read_goal": "634762b59c1f03451bde47de7e07d0f29f00ed41",
+  "status": "Both optimization candidates not adopted; complete baseline-only concurrency diagnosis and durable archival/retirement",
   "baseline": {
     "sha": "99035931d358add0eaed6d4535035c38413701dd",
     "tree": "1c16744d838064cb1c687ba56ef3a0d17ed3130c"
@@ -30,14 +30,188 @@
         "failed": 0,
         "native_feature": false
       },
-      "llvm_api_machine_cgu_tests": "Running; do not count before completion",
+      "llvm_api_machine_cgu_tests": {
+        "passed": 38,
+        "failed": 0,
+        "includes_real_native_identity_and_effect_controls": true
+      },
       "binary_sha256": "04d8af53887b0a159684eedb03a0763ac45c19ffabacdf1e599de94531086339"
     },
     "risks": [
       "Reduced cross-unit inline/IPO/merge visibility can regress generated-code performance; original runtime gates unchanged",
       "Planner and full original model validation also run on current pure no-helper requests; no persisted bounded-layout recipe",
       "All-dimensional Rust comparison remains open"
-    ]
+    ],
+    "status": "NoGo after all eight actual native runtime cases exceeded the unchanged relative regression gate",
+    "runtime_quality": {
+      "status": "Failed",
+      "gate_pass": false,
+      "protocol_sha256": "71e918a862acd5f0e7685e6286f906b971fc442fca1d19c2430258069579dee5",
+      "counts": {
+        "clean_compilations": 24,
+        "native_total": 216,
+        "native_formal": 144
+      },
+      "all_native_outputs_valid": true,
+      "outliers_removed": 0,
+      "independent_audit_sha256": "848e5ed899f98e84cd8abdd71baea53c37ff0f73a23c2f9d286b9710a8a299a8",
+      "current_verify": 16,
+      "current_preflight": 128,
+      "elf_equal_cases": 0,
+      "prepartition_sidecar_equal_cases": 8,
+      "rss_qualification": "All 216 wait4 maxima were 314488 KiB; no discriminatory memory inference.",
+      "cases": [
+        {
+          "case": "n64/base",
+          "gate_pass": false,
+          "ratios": {
+            "B_over_A": 1.6368286821743596,
+            "Rust_over_B": 2.2620609045133264
+          },
+          "mean_wall_ms": {
+            "A": 103.71001733333333,
+            "B": 169.755531,
+            "R": 383.99735
+          },
+          "mean_cpu_ms": {
+            "A": 99.86066666666666,
+            "B": 169.24416666666664,
+            "R": 382.8118333333333
+          }
+        },
+        {
+          "case": "n64/edit-1",
+          "gate_pass": false,
+          "ratios": {
+            "B_over_A": 1.745082577386372,
+            "Rust_over_B": 2.2544702791462297
+          },
+          "mean_wall_ms": {
+            "A": 98.53445183333334,
+            "B": 171.95075516666668,
+            "R": 387.657867
+          },
+          "mean_cpu_ms": {
+            "A": 98.11099999999999,
+            "B": 170.76749999999998,
+            "R": 382.17616666666663
+          }
+        },
+        {
+          "case": "n64/edit-16",
+          "gate_pass": false,
+          "ratios": {
+            "B_over_A": 1.7596509553652828,
+            "Rust_over_B": 2.1718610800281173
+          },
+          "mean_wall_ms": {
+            "A": 98.031875,
+            "B": 172.5018825,
+            "R": 374.65012483333334
+          },
+          "mean_cpu_ms": {
+            "A": 97.75383333333333,
+            "B": 168.605,
+            "R": 373.18149999999997
+          }
+        },
+        {
+          "case": "n64/edit-64",
+          "gate_pass": false,
+          "ratios": {
+            "B_over_A": 1.6161873394957993,
+            "Rust_over_B": 2.2365331231110654
+          },
+          "mean_wall_ms": {
+            "A": 110.28968866666666,
+            "B": 178.2487985,
+            "R": 398.659342
+          },
+          "mean_cpu_ms": {
+            "A": 110.01966666666667,
+            "B": 177.5875,
+            "R": 393.337
+          }
+        },
+        {
+          "case": "n256/base",
+          "gate_pass": false,
+          "ratios": {
+            "B_over_A": 2.056963607350091,
+            "Rust_over_B": 2.218298155566854
+          },
+          "mean_wall_ms": {
+            "A": 336.77478,
+            "B": 692.7334663333334,
+            "R": 1536.6893706666667
+          },
+          "mean_cpu_ms": {
+            "A": 334.0541666666667,
+            "B": 687.4951666666666,
+            "R": 1528.734
+          }
+        },
+        {
+          "case": "n256/edit-1",
+          "gate_pass": false,
+          "ratios": {
+            "B_over_A": 2.12321431300414,
+            "Rust_over_B": 2.2255433974743335
+          },
+          "mean_wall_ms": {
+            "A": 330.8725748333333,
+            "B": 702.5133866666666,
+            "R": 1563.4740293333334
+          },
+          "mean_cpu_ms": {
+            "A": 327.389,
+            "B": 698.7568333333334,
+            "R": 1551.58
+          }
+        },
+        {
+          "case": "n256/edit-16",
+          "gate_pass": false,
+          "ratios": {
+            "B_over_A": 1.969770518915549,
+            "Rust_over_B": 2.327187009661512
+          },
+          "mean_wall_ms": {
+            "A": 365.611078,
+            "B": 720.1699228333333,
+            "R": 1675.9700891666666
+          },
+          "mean_cpu_ms": {
+            "A": 358.12516666666664,
+            "B": 719.1308333333333,
+            "R": 1659.3220000000001
+          }
+        },
+        {
+          "case": "n256/edit-64",
+          "gate_pass": false,
+          "ratios": {
+            "B_over_A": 1.7813270899673013,
+            "Rust_over_B": 2.2315132032946927
+          },
+          "mean_wall_ms": {
+            "A": 412.0166355,
+            "B": 733.9363943333333,
+            "R": 1637.7887543333334
+          },
+          "mean_cpu_ms": {
+            "A": 405.1983333333333,
+            "B": 730.8588333333333,
+            "R": 1627.5068333333334
+          }
+        }
+      ],
+      "geomeans_additional_only": {
+        "B_over_A": 1.8276357654333184,
+        "Rust_over_B": 2.2405537372683284
+      },
+      "decision": "Do not adopt; Rust90 success cannot compensate for 61.6%–112.3% runtime regression from main. Candidate compile/concurrency screens not prepared or executed."
+    }
   },
   "continuity": {
     "old_cloud_workspace": "Not mounted in this runtime; restored exact remote source and pinned toolchains",
@@ -107,6 +281,18 @@
         "complete_request": 975.956
       },
       "source": "Independent decode of actual recipe and reports; not inferred from hit counts"
+    },
+    "available_externally_history": {
+      "status": "Do not repeat as a new mechanism",
+      "primary_evidence": "8255079de:changes/research-incremental-o2-quality-closure.md",
+      "arms": [
+        "bounded AE",
+        "complete AE",
+        "bounded Internal",
+        "complete Internal"
+      ],
+      "finding": "Complete AE previously failed to fully restore branch quality and had higher diagnostic optimizer cost. Real Internal clones preserve non-inlining IPO implementations. Historical functional diagnostic evidence, not relabeled as a new formal window.",
+      "selected_historical_commit": "b9e566e02cf69b217a2d47c2377340771b02f161"
     }
   },
   "measurement": {
@@ -189,7 +375,7 @@
       "rust_lane_separate": true
     },
     "runtime_first": {
-      "status": "Draft under non-author review; not executed",
+      "status": "Completed Failed; all eight cases retained, no downstream candidate performance expansion",
       "files": [
         64,
         256
@@ -216,6 +402,43 @@
         "extra_functional_native": 48
       },
       "decision": "If runtime gate fails, stop expansion; never change cost32 or sample selection after seeing outcomes"
+    },
+    "main_concurrency": {
+      "status": "Running; independent unchanged-main diagnosis, no optimization adoption",
+      "protocol_sha256": "770d5805601c87ed08e220b8ba1aa7ab95684fac32f29bc8524edede7954d25b",
+      "script_sha256": "79f9befbbca74b88383547ce352794bc8b79ea5f9dc391ce78a22942b4129919",
+      "sources": {
+        "A": "99035931d358add0eaed6d4535035c38413701dd",
+        "B": "99035931d358add0eaed6d4535035c38413701dd"
+      },
+      "A_and_B_identical_binary": true,
+      "files": 256,
+      "edits": [
+        16,
+        64
+      ],
+      "concurrency": [
+        1,
+        2,
+        4
+      ],
+      "total_cpus": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "order": [
+        "A",
+        "R",
+        "B",
+        "B",
+        "R",
+        "A"
+      ],
+      "expected_final_batches": 36,
+      "expected_compile_requests_with_clean_and_seed": 252,
+      "meaning": "Same-binary A/A positions quantify observed variation; compare current main to Rust separately; not a continuation or bypass of failed1679 candidate."
     }
   },
   "blaze": {
@@ -489,5 +712,6 @@
     "sha256": "9162ca3fb141e6c8fab9f57b7062dfa7b4dc29b94791183f1c7c4c9203845144",
     "entries": 1045,
     "scope": "First projection negative screen, first harness parse failure, corrected functional pilots; no generated binaries/IR/caches or repository-backed source."
-  }
+  },
+  "archival_status": "Preparing durable raw evidence and source archive; experimental refs remain until exact ancestry and evidence preservation verified."
 }
