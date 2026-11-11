@@ -10,6 +10,13 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
 pub(super) fn validate_cached(
     module: &s::Module,
     budget: &mut generics::Budget<'_>,
+    reuse: Option<&mut crate::incremental::Reuse<'_>>,
+) -> CompileResult<()> {
+    validate_items_cached(module.items.iter(), budget, reuse)
+}
+pub(super) fn validate_items_cached<'i>(
+    items: impl IntoIterator<Item = &'i s::Item>,
+    budget: &mut generics::Budget<'_>,
     mut reuse: Option<&mut crate::incremental::Reuse<'_>>,
 ) -> CompileResult<()> {
     struct Walk<'a, 'l> {
@@ -358,7 +365,7 @@ pub(super) fn validate_cached(
         enum_fields: false,
         ordinary_type_argument: false,
     };
-    for item in &module.items {
+    for item in items {
         if reuse.as_deref_mut().is_some_and(|reuse| {
             reuse.replay(crate::incremental::Stage::Lifetimes, item.span, walk.budget)
         }) {

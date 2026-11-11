@@ -1,5 +1,15 @@
 # 响应式编译查询图专项：本轮真实阶段交付与恢复
 
+## 当前冻结前检查点：真实 AST 借用切片（WIP）
+
+本节优先于后面按提交保存的历史状态。父源码 `89ae96d62acb97d577e96b6e5d3fd90a56f99e8c` 已实际通过352lib＋CLI1、严格Clippy和release；22模块498620字节真实Source成本r4中，私有等宽/变宽只Normalize/Lower 1模块、三模块同批只执行3模块，未变Core递归Eq为0，CFG重算仍与A相同。完整O2 r4共15请求、90原生输出对拍全部通过，ABC同ELF；单block不能判定速度净收益。
+
+当前新增未验收源码只改变内部AST所有权：sealed scalar的Normalize产物保留真实Arc<Item>，Restore保留完整Arc<Module>；共用原Probe、Lifetime及header检查，预算receipt不足时从原额度进入完整真实AST visitor。raw/rich保持owned路径；独立Verify、公开IR及预算不改。新增真实deep-clone/retained事件计数、真实IO编辑范围门和借用后预算不足首诊断差分。尚未cargo，须冻结新SHA后在独立验证树执行，不计入89通过数。
+
+复制组装在89仍有约250–350ms，不能用执行次数代替总等待收益。新片先测实际复制是否下降，再跑无profile六种交替顺序A/B/C；B−A是生产者复用，C−B才是图增量收益。32×32×16放大样本在默认token额度下三臂均ResourceLimit/Lex、Verify0，保留 `native-abc-scale-32x32x16-screen-r1`，不扩大预算或计入速度比。
+
+原始新证据在 `out/runs/producer-validation-89ae96d`、`native-abc-cost-20x20x16-r4`、`native-abc-producer-native-20x20x16-r4`；这些晚于下面Library checkpoint，结束前需更新同一证据文件。当前无环境阻塞，未满足性能/完整架构验收，留专项、不合main。
+
 ## 正在接续：生产者复用与 A/B/C 隔离（WIP，尚未验收）
 
 从0a529a6247793f63ccd41ff3f65dc97afcbb666c正常续接；goal认领5b5547e5e623ccd30f428e41a3e0ff2811a6b14c，main仍99035931。写集扩大到Syntax真实parser密封Source、Expand普通scalar模块实际Normalize/Restore/Lower及原顺序预算receipt、Types preparation/incremental/program计量、driver消费者/报告与CLI显式开关、ABC测试器。root单写新增Types→Expand内部依赖及锁/policy；不改公共IR/schema、Verify、后端或其他编译专项。

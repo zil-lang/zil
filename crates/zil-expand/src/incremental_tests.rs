@@ -500,3 +500,90 @@ fn producer_failed_lower_source_map_validation_counts_actual_execution() {
     assert_eq!(repaired.modules.len(), input.len());
     assert_eq!(session.last_stats().lower_modules, 0);
 }
+
+#[test]
+fn producer_retains_complete_ast_products_without_warm_deep_clones() {
+    let input = [
+        parsed(0, "fn local()->i32=>9;pub fn first(x:i32)->i32=>x+local();"),
+        parsed(1, "pub fn second(x:i32)->i32=>x+2;"),
+        parsed(2, "pub fn third(x:i32)->i32=>x+3;"),
+    ];
+    let mut session = ExpandSession::default();
+    let limits = Limits::default();
+    let cold = checked(&mut session, &input, &limits);
+    assert_eq!(session.last_stats().normalized_item_deep_clones, 4);
+    assert_eq!(session.last_stats().restored_module_deep_clones, 3);
+    assert_eq!(session.last_stats().retained_normalized_items, 0);
+    checked(&mut session, &input, &limits);
+    assert_eq!(session.last_stats().normalized_item_deep_clones, 0);
+    assert_eq!(session.last_stats().restored_module_deep_clones, 0);
+    assert_eq!(session.last_stats().retained_normalized_items, 4);
+    assert_eq!(session.last_stats().retained_restored_modules, 3);
+    assert_eq!(session.last_stats().syntax_clone_receipt_nodes, 0);
+    assert!(
+        session.last_stats().cloned_source_map_entries > 0,
+        "public Core/Map assembly still copies"
+    );
+    let changed = [
+        parsed(
+            0,
+            "fn local()->i32=>10;pub fn first(x:i32)->i32=>x+local();",
+        ),
+        input[1].clone(),
+        input[2].clone(),
+    ];
+    let current = checked(&mut session, &changed, &limits);
+    assert_eq!(session.last_stats().normalized_item_deep_clones, 2);
+    assert_eq!(session.last_stats().restored_module_deep_clones, 1);
+    assert_eq!(session.last_stats().retained_normalized_items, 2);
+    assert_eq!(session.last_stats().retained_restored_modules, 2);
+    assert_eq!(
+        current.revisions[&ModuleId(1)],
+        cold.revisions[&ModuleId(1)]
+    );
+    assert_eq!(
+        current.revisions[&ModuleId(2)],
+        cold.revisions[&ModuleId(2)]
+    );
+}
+
+#[test]
+fn producer_retained_body_receipt_shortfall_reenters_complete_restore_input() {
+    let current = [
+        parsed(0, "fn first()->i32=>10;"),
+        parsed(1, "fn second()->i32=>2;"),
+    ];
+    let cheap = [parsed(0, "fn first()->i32=>9;"), current[1].clone()];
+    let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+    while low < high {
+        let middle = low + (high - low) / 2;
+        let limits = Limits {
+            max_analysis_steps: middle,
+            ..Limits::default()
+        };
+        if fresh(&current, &limits).is_ok() {
+            high = middle;
+        } else {
+            low = middle + 1;
+        }
+    }
+    assert!(low > 0);
+    let limits = Limits {
+        max_analysis_steps: low - 1,
+        ..Limits::default()
+    };
+    let expected = fresh(&current, &limits).unwrap_err();
+    let mut session = ExpandSession::default();
+    checked(&mut session, &cheap, &limits);
+    let actual = expand(&mut session, &current, &limits)
+        .err()
+        .expect("current original Restore fails");
+    assert_eq!(actual, expected);
+    assert!(session.last_stats().retained_normalized_items > 0);
+    assert_eq!(
+        session.last_stats().restored_module_deep_clones,
+        2,
+        "changed first module and insufficient retained second module both copy complete normalized bodies"
+    );
+    assert!(session.last_stats().receipt_budget_misses > 0);
+}

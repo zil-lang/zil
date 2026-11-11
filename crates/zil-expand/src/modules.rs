@@ -3,9 +3,46 @@
 use super::*;
 use generics::{Budget, trait_instances};
 use std::borrow::Cow;
+use std::sync::Arc;
 use zil_base::{FileId, ModuleId};
 use zil_syntax::ast::*;
 
+/// A private whole-module product. Both arms contain complete actual syntax;
+/// retained bodies never masquerade as declaration-only or empty ASTs.
+pub(super) enum ModuleProduct {
+    Owned(Module),
+    Retained(Arc<(Module, Vec<CoreImport>)>),
+}
+impl std::ops::Deref for ModuleProduct {
+    type Target = Module;
+    fn deref(&self) -> &Module {
+        match self {
+            Self::Owned(module) => module,
+            Self::Retained(module) => &module.0,
+        }
+    }
+}
+impl ModuleProduct {
+    fn into_owned(self) -> Module {
+        match self {
+            Self::Owned(module) => module,
+            Self::Retained(module) => {
+                Arc::try_unwrap(module)
+                    .unwrap_or_else(|module| module.as_ref().clone())
+                    .0
+            }
+        }
+    }
+}
+pub(super) fn owned_products(
+    modules: Vec<(Module, Vec<CoreImport>)>,
+) -> Vec<(ModuleProduct, Vec<CoreImport>)> {
+    modules
+        .into_iter()
+        .map(|(module, imports)| (ModuleProduct::Owned(module), imports))
+        .collect()
+}
+type ModuleProducts = Vec<(ModuleProduct, Vec<CoreImport>)>;
 type R<T> = Result<T, Diagnostic>;
 type Names = BTreeSet<String>;
 // The flag distinguishes source declarations from actual specialization output;
@@ -285,6 +322,13 @@ pub(super) fn specialize_with_runtime(
     normalize(
         sources, modules, imports, limits, products, context, runtime_ct, None,
     )
+    .map(|modules| {
+        modules
+            .expect("raw normalizer owns its output")
+            .into_iter()
+            .map(|(module, imports)| (module.into_owned(), imports))
+            .collect()
+    })
     .map_err(|e| vec![e])
 }
 pub(super) fn specialize_cached(
@@ -295,7 +339,7 @@ pub(super) fn specialize_cached(
     products: &mut generics::products::Products,
     context: Option<super::source_context::SourceIdentityContext<'_>>,
     reuse: &mut crate::incremental::Reuse<'_>,
-) -> CompileResult<Vec<(Module, Vec<CoreImport>)>> {
+) -> CompileResult<Option<ModuleProducts>> {
     normalize(
         sources,
         modules,
@@ -318,7 +362,7 @@ fn normalize(
     context: Option<super::source_context::SourceIdentityContext<'_>>,
     runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
     mut reuse: Option<&mut crate::incremental::Reuse<'_>>,
-) -> R<Vec<(Module, Vec<CoreImport>)>> {
+) -> R<Option<ModuleProducts>> {
     let mut budget = Budget::new(limits);
     if runtime_ct.is_some() {
         budget.note_source_identity();
@@ -469,6 +513,17 @@ fn normalize(
         }
         index.symbols.insert(module.id, symbols);
         index.imports.insert(module.id, aliases);
+    }
+    if let Some(reuse) = reuse.as_deref_mut() {
+        // The only producer of Reuse is the sealed scalar classifier. Keep a
+        // whole-input fallback for a future domain extension; no partial
+        // ledger is handed to the raw pipeline.
+        if origins.is_some() {
+            return Ok(None);
+        }
+        return normalize_scalar(
+            modules, imports, limits, products, &index, files, functions, budget, reuse,
+        );
     }
     let mut static_hosts = Vec::new();
     let mut scalar_traits = BTreeSet::new();
@@ -941,7 +996,144 @@ fn normalize(
         products.allowance = Some(budget.remaining_limits());
     }
     products.restore_owners(&functions)?;
-    Ok(output)
+    Ok(Some(owned_products(output)))
+}
+
+/// Scalar orchestration changes ownership only. All body operations below are
+/// the existing Normalize/Probe/Lifetime/Budget/Restore visitors, in their
+/// original ledgers and item order, on complete real ASTs.
+#[allow(clippy::too_many_arguments)]
+fn normalize_scalar(
+    modules: &[&Module],
+    imports: &[Vec<CoreImport>],
+    limits: &Limits,
+    products: &mut generics::products::Products,
+    index: &Index,
+    files: BTreeMap<FileId, usize>,
+    mut functions: Functions,
+    mut budget: Budget<'_>,
+    reuse: &mut crate::incremental::Reuse<'_>,
+) -> R<Option<ModuleProducts>> {
+    use crate::incremental::Stage;
+    let mut normalized = Vec::<Arc<Item>>::new();
+    for module in modules {
+        let mut visitor = Visitor {
+            default_nominal: None,
+            const_scope: Names::new(),
+            mode: Mode::Normalize(index),
+            module: module.id,
+            budget: &mut budget,
+        };
+        for source_item in &module.items {
+            if matches!(source_item.kind, ItemKind::Import(_)) {
+                continue;
+            }
+            if let Some(item) = reuse.normalized(source_item.span)
+                && reuse.replay(Stage::Normalize, source_item.span, visitor.budget)
+            {
+                reuse.retain_normalized();
+                normalized.push(item);
+                continue;
+            }
+            let before = visitor.budget.remaining_limits();
+            let clock = reuse.clock();
+            reuse.normalized_input_cloned();
+            let mut item = source_item.clone();
+            reuse.assembly(clock);
+            let clock = reuse.clock();
+            let result = visitor.item(&mut item, &Names::new(), true, 0);
+            reuse.production(clock);
+            result?;
+            reuse.record(Stage::Normalize, source_item.span, before, visitor.budget);
+            reuse.cloned(source_item.span, Stage::Normalize);
+            let clock = reuse.clock();
+            let item = Arc::new(item);
+            reuse.assembly(clock);
+            reuse.save_normalized_shared(source_item.span, item.clone());
+            normalized.push(item);
+        }
+    }
+    // Preserve the separate generic allowance: plain modules never adopt this
+    // Probe/Lifetime/header ledger back into the outer normalization budget.
+    if !generics::validate_plain_products(&normalized, limits, products, reuse)
+        .map_err(|mut errors| errors.remove(0))?
+    {
+        return Ok(None);
+    }
+    let mut positions = vec![Vec::<Arc<Item>>::new(); modules.len()];
+    for item in normalized {
+        if !reuse.replay(Stage::Distribute, item.span, &mut budget) {
+            let before = budget.remaining_limits();
+            let clock = reuse.clock();
+            let result = budget.item(&item);
+            reuse.production(clock);
+            result?;
+            reuse.record(Stage::Distribute, item.span, before, &budget);
+        }
+        let position = *files.get(&item.span.file).ok_or_else(|| {
+            error(
+                "E-MODULE-ID",
+                item.span,
+                "instantiated declaration lost its definition source",
+            )
+        })?;
+        if let ItemKind::Function(function) = &item.kind {
+            functions.entry(function.name.clone()).or_insert((
+                modules[position].id,
+                function.name.clone(),
+                false,
+            ));
+        }
+        positions[position].push(item);
+    }
+    let mut output = Vec::with_capacity(modules.len());
+    for ((module, edges), items) in modules.iter().zip(imports).zip(positions) {
+        if let Some(restored) = reuse.restored(module.span.file)
+            && reuse.replay(Stage::Restore, module.span, &mut budget)
+        {
+            reuse.retain_restored();
+            let edges = restored.1.clone();
+            output.push((ModuleProduct::Retained(restored), edges));
+            continue;
+        }
+        let before = budget.remaining_limits();
+        let clock = reuse.clock();
+        reuse.restored_input_cloned();
+        let mut restored = Module {
+            id: module.id,
+            span: module.span,
+            items: items.iter().map(|item| item.as_ref().clone()).collect(),
+        };
+        let mut edges = edges.clone();
+        reuse.assembly(clock);
+        let clock = reuse.clock();
+        let mut visitor = Visitor {
+            default_nominal: None,
+            const_scope: Names::new(),
+            mode: Mode::Restore {
+                functions: &functions,
+                edges: &mut edges,
+            },
+            module: module.id,
+            budget: &mut budget,
+        };
+        let result = restored
+            .items
+            .iter_mut()
+            .try_for_each(|item| visitor.item(item, &Names::new(), true, 0));
+        reuse.production(clock);
+        result?;
+        reuse.record(Stage::Restore, module.span, before, &budget);
+        reuse.cloned(module.span, Stage::Restore);
+        let restored = reuse.save_restored_owned(module.span.file, restored, edges);
+        let edges = restored.1.clone();
+        output.push((ModuleProduct::Retained(restored), edges));
+    }
+    products
+        .storage
+        .restore_functions(&functions, &mut budget)?;
+    products.restore_owners(&functions)?;
+    Ok(Some(output))
 }
 
 /// Re-enter the actual module normalizer for syntax produced by the CT

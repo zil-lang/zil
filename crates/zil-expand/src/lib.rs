@@ -650,6 +650,7 @@ fn expand_program_with_limits_target_impl(
     expand_program_impl(
         sources, syntax, imports, limits, target, context, runtime_ct, None,
     )
+    .map(|modules| modules.expect("raw expansion always returns owned output"))
 }
 #[allow(clippy::too_many_arguments)]
 fn expand_program_cached(
@@ -660,7 +661,7 @@ fn expand_program_cached(
     target: &zil_base::TargetProfile,
     context: source_context::SourceIdentityContext<'_>,
     reuse: &mut incremental::Reuse<'_>,
-) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
+) -> CompileResult<Option<Vec<(ProgramModule, SourceMap)>>> {
     expand_program_impl(
         sources,
         syntax,
@@ -682,11 +683,11 @@ fn expand_program_impl(
     context: Option<source_context::SourceIdentityContext<'_>>,
     runtime_ct: Option<&dyn runtime_ct::RuntimeCt>,
     mut reuse: Option<&mut incremental::Reuse<'_>>,
-) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
+) -> CompileResult<Option<Vec<(ProgramModule, SourceMap)>>> {
     let mut products = generics::products::Products::default();
     products.target_pointer_width = Some(target.pointer_width);
     let specialized = if let Some(reuse) = reuse.as_deref_mut() {
-        modules::specialize_cached(
+        let Some(modules) = modules::specialize_cached(
             sources,
             syntax,
             imports,
@@ -695,8 +696,12 @@ fn expand_program_impl(
             context,
             reuse,
         )?
+        else {
+            return Ok(None);
+        };
+        modules
     } else if let Some(runtime_ct) = runtime_ct {
-        modules::specialize_with_runtime(
+        modules::owned_products(modules::specialize_with_runtime(
             sources,
             syntax,
             imports,
@@ -704,11 +709,18 @@ fn expand_program_impl(
             &mut products,
             context,
             Some(runtime_ct),
-        )?
+        )?)
     } else {
-        modules::specialize_with_context(sources, syntax, imports, limits, &mut products, context)?
+        modules::owned_products(modules::specialize_with_context(
+            sources,
+            syntax,
+            imports,
+            limits,
+            &mut products,
+            context,
+        )?)
     };
-    let project_modules: Vec<_> = specialized.iter().map(|(module, _)| module).collect();
+    let project_modules: Vec<_> = specialized.iter().map(|(module, _)| &**module).collect();
     let declarations = declaration_index(project_modules.iter().copied());
     let mut result = Vec::new();
     let mut remaining = products.trait_limits(limits);
@@ -916,7 +928,7 @@ fn expand_program_impl(
     products.finish_closure_contexts(limits)?;
     products.finish_callable_contexts(limits)?;
     products.publish(&mut product_cores, sources, limits)?;
-    Ok(result)
+    Ok(Some(result))
 }
 
 fn debit_trait_lowering(

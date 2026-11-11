@@ -84,6 +84,10 @@ statistics!(
     lower_budget_misses,
     visited_nodes,
     syntax_clone_receipt_nodes,
+    normalized_item_deep_clones,
+    restored_module_deep_clones,
+    retained_normalized_items,
+    retained_restored_modules,
     cloned_source_map_entries,
     cloned_source_bytes,
     context_ns,
@@ -425,9 +429,12 @@ impl ExpandSession {
             executed: BTreeSet::new(),
             profiling: self.profiling,
         };
-        let modules = super::expand_program_cached(
+        let Some(modules) = super::expand_program_cached(
             &sources, &syntax, imports, limits, target, context, &mut reuse,
-        )?;
+        )?
+        else {
+            return Ok(None);
+        };
         let revisions = entries
             .iter()
             .map(|(id, entry)| (*id, entry.revision.clone()))
@@ -580,6 +587,33 @@ impl Reuse<'_> {
             self.stats.reuse_ns += nanos(start);
         }
         value
+    }
+    pub(crate) fn normalized_input_cloned(&mut self) {
+        self.stats.normalized_item_deep_clones += 1;
+    }
+    pub(crate) fn restored_input_cloned(&mut self) {
+        self.stats.restored_module_deep_clones += 1;
+    }
+    pub(crate) fn retain_normalized(&mut self) {
+        self.stats.retained_normalized_items += 1;
+    }
+    pub(crate) fn retain_restored(&mut self) {
+        self.stats.retained_restored_modules += 1;
+    }
+    pub(crate) fn save_normalized_shared(&mut self, span: Span, item: Arc<s::Item>) {
+        self.entry(span.file).normalized.insert(span.start, item);
+    }
+    pub(crate) fn save_restored_owned(
+        &mut self,
+        file: FileId,
+        module: s::Module,
+        imports: Vec<CoreImport>,
+    ) -> Arc<(s::Module, Vec<CoreImport>)> {
+        let clock = self.clock();
+        let module = Arc::new((module, imports));
+        self.assembly(clock);
+        self.entry(file).restored = Some(module.clone());
+        module
     }
     pub(crate) fn save_normalized(&mut self, span: Span, item: &s::Item) {
         let clock = self.clock();

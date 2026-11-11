@@ -179,6 +179,12 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
             .expect("ordinary io.emit must reach the actual producer");
         assert_eq!(work.normalize_modules, 3);
         assert_eq!(work.lower_modules, 3);
+        // Actual input declarations: main has one, left two, and the original
+        // IO fixture four (two extern declarations plus read and emit).
+        assert_eq!(work.normalized_item_deep_clones, 7);
+        assert_eq!(work.restored_module_deep_clones, 3);
+        assert_eq!(work.retained_normalized_items, 0);
+        assert_eq!(work.retained_restored_modules, 0);
         let mut previous_left = LEFT.to_owned();
         let mut previous_io = IO.to_owned();
         for (label, left, io, changed_modules) in [
@@ -242,6 +248,25 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
                 3 - changed_modules,
                 "{label}: keep unchanged module products"
             );
+            let changed_declarations = if changed_modules == 1 { 2u64 } else { 6 };
+            assert_eq!(
+                work.normalized_item_deep_clones, changed_declarations,
+                "{label}: no unchanged declaration may create a mutable Normalize body"
+            );
+            assert_eq!(
+                work.restored_module_deep_clones, changed_modules,
+                "{label}: no unchanged module may deep-clone its Restore input"
+            );
+            assert_eq!(
+                work.retained_normalized_items,
+                7 - changed_declarations,
+                "{label}: every unchanged declaration retains its complete normalized Arc"
+            );
+            assert_eq!(
+                work.retained_restored_modules,
+                3 - changed_modules,
+                "{label}: every unchanged module retains its complete restored Arc"
+            );
             let functions = current
                 .function_type_work
                 .expect("actual current Types work");
@@ -262,6 +287,67 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
             }
             previous_left = left;
             previous_io = io;
+        }
+    }
+}
+
+#[test]
+fn producer_borrowed_bodies_reenter_full_restore_on_insufficient_budget() {
+    let directory = Directory::new();
+    let target = directory.scalar(MAIN, LEFT, RIGHT);
+    // Keep the token quota identical so right really retains its parser
+    // revision. Extra module separators add no placeholder body or statement.
+    let cheaper_left = format!("{};;", LEFT.replacen("return x+1;", "return x;", 1));
+    let cheaper = directory.scalar(MAIN, &cheaper_left, RIGHT);
+    let full_parse =
+        zil_syntax::parse_with_limits(&target.modules[1], &CompileOptions::default().limits);
+    let cheap_parse =
+        zil_syntax::parse_with_limits(&cheaper.modules[1], &CompileOptions::default().limits);
+    assert!(full_parse.diagnostics.is_empty());
+    assert!(cheap_parse.diagnostics.is_empty());
+    assert_eq!(full_parse.tokens.len(), cheap_parse.tokens.len());
+    for nodes in [false, true] {
+        let n = budget_boundary(&target, Stage::Core, nodes);
+        for graph in [false, true] {
+            let mut limited = CompileOptions {
+                stop_after: Stage::Core,
+                ..options(graph)
+            };
+            set_budget(&mut limited, nodes, n - 1);
+            let mut session = CompilationSession::default();
+            let warm = session.compile_project(&cheaper, &limited);
+            assert_eq!(warm.status, ResultCategory::Success, "{}", warm.to_json());
+            compare(&session, &warm, &cheaper, &limited);
+            let current = session.compile_project(&target, &limited);
+            compare(&session, &current, &target, &limited);
+            assert_eq!(current.status, ResultCategory::ResourceLimit);
+            assert!(!current.diagnostics.is_empty());
+            let work = current
+                .producer_work
+                .as_ref()
+                .expect("actual failed producer work");
+            assert!(
+                work.retained_normalized_items > 0,
+                "the rejected request must actually borrow complete normalized bodies"
+            );
+            assert!(
+                work.retained_restored_modules > 0,
+                "a complete unchanged module must be retained before the failing stage"
+            );
+            assert!(
+                work.restored_module_deep_clones > 1,
+                "beyond the changed left module, insufficient receipts must materialize an unchanged module's full normalized body"
+            );
+            assert_eq!(current.verification_runs, 0);
+            assert_eq!(session.active_query_count(), 0);
+            let restored = session.compile_project(&cheaper, &limited);
+            assert_eq!(
+                restored.status,
+                ResultCategory::Success,
+                "{}",
+                restored.to_json()
+            );
+            compare(&session, &restored, &cheaper, &limited);
         }
     }
 }

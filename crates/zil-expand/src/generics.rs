@@ -223,24 +223,20 @@ pub(super) fn specialize_products_with_runtime_cached<'a>(
     }
 }
 
-fn specialize_products_prepared<'a>(
-    module: &'a Module,
-    limits: &Limits,
-    products: &mut products::Products,
-    prelude: origins::CompilerPrelude,
-    context: Option<(
-        &[zil_base::SourceUnit],
-        super::source_context::SourceIdentityContext<'_>,
-    )>,
-    runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
-    reuse: Option<&mut crate::incremental::Reuse<'_>>,
-) -> CompileResult<Cow<'a, Module>> {
-    let mut names_budget = Budget::new(limits);
-    if runtime_ct.is_some() {
-        names_budget.note_source_identity();
-    }
-    names_budget.target_pointer_width = products.target_pointer_width.unwrap_or(64);
-    super::lifetimes::validate_cached(module, &mut names_budget, reuse)?;
+#[derive(Default)]
+struct HeaderFeatures {
+    has_where: bool,
+    has_defaults: bool,
+    has_associated: bool,
+    has_generic_methods: bool,
+    has_impl_recipes: bool,
+    has_inherent: bool,
+    has_alias: bool,
+}
+fn validate_headers<'i>(
+    items: impl IntoIterator<Item = &'i Item>,
+    names_budget: &mut Budget<'_>,
+) -> CompileResult<HeaderFeatures> {
     let mut has_where = false;
     let mut has_defaults = false;
     let mut has_associated = false;
@@ -248,7 +244,7 @@ fn specialize_products_prepared<'a>(
     let mut has_impl_recipes = false;
     let mut has_inherent = false;
     let mut has_alias = false;
-    for item in &module.items {
+    for item in items {
         names_budget.node(item.span, 0).map_err(|e| vec![e])?;
         has_where |= matches!(&item.kind, ItemKind::Function(f) if !f.where_clause.is_empty());
         has_alias |= matches!(item.kind, ItemKind::TypeAlias(_));
@@ -261,7 +257,7 @@ fn specialize_products_prepared<'a>(
         }
         if let ItemKind::Trait(declaration) = &item.kind {
             let (defaults, associated, methods) =
-                trait_defaults::features_with_methods(declaration, &mut names_budget)
+                trait_defaults::features_with_methods(declaration, names_budget)
                     .map_err(|e| vec![e])?;
             has_generic_methods |= methods;
             has_associated |= associated;
@@ -317,6 +313,78 @@ fn specialize_products_prepared<'a>(
             }
         }
     }
+    Ok(HeaderFeatures {
+        has_where,
+        has_defaults,
+        has_associated,
+        has_generic_methods,
+        has_impl_recipes,
+        has_inherent,
+        has_alias,
+    })
+}
+/// The caller owns a sealed primitive-only domain. Every fallible real Probe,
+/// lifetime walk and header check is shared with the owned/rich pipeline. No
+/// invented Module or declaration-only body is admitted to a body visitor.
+pub(super) fn validate_plain_products(
+    items: &[std::sync::Arc<Item>],
+    limits: &Limits,
+    products: &products::Products,
+    reuse: &mut crate::incremental::Reuse<'_>,
+) -> CompileResult<bool> {
+    let Some(remaining) =
+        options::prepare_plain_items(items.iter().map(AsRef::as_ref), limits, Some(&mut *reuse))?
+    else {
+        return Ok(false);
+    };
+    let mut names_budget = Budget::new(&remaining);
+    names_budget.target_pointer_width = products.target_pointer_width.unwrap_or(64);
+    super::lifetimes::validate_items_cached(
+        items.iter().map(AsRef::as_ref),
+        &mut names_budget,
+        Some(&mut *reuse),
+    )?;
+    let features = validate_headers(items.iter().map(AsRef::as_ref), &mut names_budget)?;
+    Ok(!features.has_where
+        && !features.has_defaults
+        && !features.has_associated
+        && !features.has_generic_methods
+        && !features.has_impl_recipes
+        && !features.has_inherent
+        && !features.has_alias
+        && items.iter().all(|item| params(item).is_empty())
+        && !names_budget.has_primitive_binders()
+        && !names_budget.has_enum_profiles()
+        && !names_budget.needs_source_identity()
+        && !names_budget.has_borrowed_keys())
+}
+fn specialize_products_prepared<'a>(
+    module: &'a Module,
+    limits: &Limits,
+    products: &mut products::Products,
+    prelude: origins::CompilerPrelude,
+    context: Option<(
+        &[zil_base::SourceUnit],
+        super::source_context::SourceIdentityContext<'_>,
+    )>,
+    runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
+    reuse: Option<&mut crate::incremental::Reuse<'_>>,
+) -> CompileResult<Cow<'a, Module>> {
+    let mut names_budget = Budget::new(limits);
+    if runtime_ct.is_some() {
+        names_budget.note_source_identity();
+    }
+    names_budget.target_pointer_width = products.target_pointer_width.unwrap_or(64);
+    super::lifetimes::validate_cached(module, &mut names_budget, reuse)?;
+    let HeaderFeatures {
+        has_where,
+        has_defaults,
+        has_associated,
+        has_generic_methods,
+        has_impl_recipes,
+        has_inherent,
+        has_alias,
+    } = validate_headers(module.items.iter(), &mut names_budget)?;
     if has_generic_methods || names_budget.needs_source_identity() {
         if let Some(origins) = &mut products.origins {
             if prelude.len != 0 {

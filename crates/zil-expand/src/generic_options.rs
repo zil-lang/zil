@@ -198,24 +198,17 @@ pub(super) struct Prepared {
     pub(super) module: Module,
     pub(super) prelude: origins::CompilerPrelude,
 }
-#[cfg(test)]
-pub(super) fn prepare(
-    module: &Module,
-    limits: &Limits,
-) -> CompileResult<(Option<Prepared>, Limits)> {
-    prepare_cached(module, limits, None)
-}
-pub(super) fn prepare_cached(
-    module: &Module,
-    limits: &Limits,
+fn probe_items<'a, 'i>(
+    items: impl IntoIterator<Item = &'i Item>,
+    limits: &'a Limits,
     mut reuse: Option<&mut crate::incremental::Reuse<'_>>,
-) -> CompileResult<(Option<Prepared>, Limits)> {
+) -> CompileResult<Probe<'a>> {
     let mut probe = Probe {
         budget: Budget::new(limits),
         present: false,
         tasks: false,
     };
-    for item in &module.items {
+    for item in items {
         if reuse.as_deref_mut().is_some_and(|reuse| {
             reuse.replay(
                 crate::incremental::Stage::Prepare,
@@ -254,6 +247,30 @@ pub(super) fn prepare_cached(
             );
         }
     }
+    Ok(probe)
+}
+/// Shared real Probe for the sealed scalar item's borrowed representation.
+pub(super) fn prepare_plain_items<'i>(
+    items: impl IntoIterator<Item = &'i Item>,
+    limits: &Limits,
+    reuse: Option<&mut crate::incremental::Reuse<'_>>,
+) -> CompileResult<Option<Limits>> {
+    let probe = probe_items(items, limits, reuse)?;
+    Ok((!probe.present && !probe.tasks).then(|| probe.budget.remaining_limits()))
+}
+#[cfg(test)]
+pub(super) fn prepare(
+    module: &Module,
+    limits: &Limits,
+) -> CompileResult<(Option<Prepared>, Limits)> {
+    prepare_cached(module, limits, None)
+}
+pub(super) fn prepare_cached(
+    module: &Module,
+    limits: &Limits,
+    reuse: Option<&mut crate::incremental::Reuse<'_>>,
+) -> CompileResult<(Option<Prepared>, Limits)> {
+    let probe = probe_items(module.items.iter(), limits, reuse)?;
     let remaining = probe.budget.remaining_limits();
     if !probe.present && !probe.tasks {
         return Ok((None, remaining));
