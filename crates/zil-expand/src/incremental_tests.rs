@@ -217,3 +217,37 @@ fn producer_profiles_fallback_and_recomputation_without_overlapping_categories()
             <= stats.total_ns
     );
 }
+
+#[test]
+fn producer_duplicate_file_identity_falls_back_before_any_receipt() {
+    let first = parsed(0, "fn a(){}");
+    let second_source = Arc::new(SourceUnit::new(
+        FileId(0),
+        ModuleId(1),
+        "other.zil",
+        format!("fn b()->i32=>1{};", "+1".repeat(15)),
+    ));
+    let second = ParsedSource::parse(
+        second_source,
+        &Limits::default(),
+        &AttributeContext::default(),
+    );
+    assert!(second.parsed().diagnostics.is_empty());
+    let input = [first, second];
+    let limits = Limits {
+        max_analysis_steps: 32,
+        ..Limits::default()
+    };
+    let raw = fresh(&input, &limits).unwrap_err();
+    assert_eq!(raw[0].category, zil_base::ResultCategory::ResourceLimit);
+    let mut session = ExpandSession::default();
+    match expand(&mut session, &input, &limits) {
+        Ok(None) => {}
+        Err(actual) => panic!(
+            "file-keyed producer changed raw first diagnostic: producer={actual:?}, raw={raw:?}"
+        ),
+        Ok(Some(_)) => panic!("duplicate file identities cannot enter the sealed reuse domain"),
+    }
+    assert_eq!(session.last_stats().receipt_hits, 0);
+    assert_eq!(session.last_stats().preflight_modules, 0);
+}

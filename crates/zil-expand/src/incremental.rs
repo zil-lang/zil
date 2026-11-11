@@ -171,6 +171,16 @@ impl ExpandSession {
         if parsed.is_empty() || parsed.len() != imports.len() {
             return Ok(None);
         }
+        // The raw normalizer checks duplicate files after complete input
+        // preflight. A file-keyed receipt must never merge two distinct inputs;
+        // fall back so raw budget/identity diagnostics keep their original order.
+        let mut files = BTreeSet::new();
+        if parsed
+            .iter()
+            .any(|parsed| !files.insert(parsed.source().file_id))
+        {
+            return Ok(None);
+        }
         let context_key = match context {
             source_context::SourceIdentityContext::ClosedSnapshot {
                 root,

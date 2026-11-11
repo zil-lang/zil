@@ -3,6 +3,10 @@ use super::*;
 
 /// Walk every type position, including unused definitions, before generic
 /// removal. Header node identities are request-local traversal context only.
+#[cfg(test)]
+pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) -> CompileResult<()> {
+    validate_cached(module, budget, None)
+}
 pub(super) fn validate_cached(
     module: &s::Module,
     budget: &mut generics::Budget<'_>,

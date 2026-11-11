@@ -585,7 +585,7 @@ impl CompilationSession {
             );
         }
         let mut parsed = Vec::new();
-        let mut producer_syntax = Vec::new();
+        let mut producer_syntax = options.producer_reuse.then(Vec::new);
         let mut dependencies: Vec<Arc<QuerySnapshot>> = Vec::new();
         let mut remaining = options.limits.clone();
         for (index, source) in project.modules.iter().enumerate() {
@@ -611,7 +611,9 @@ impl CompilationSession {
                 // published dependency without a second query or event.
                 charge_frontend(&mut remaining, &loaded.parsed)?;
                 parsed.push(loaded.parsed.clone());
-                producer_syntax.push(loaded.producer.clone());
+                if let Some(inputs) = &mut producer_syntax {
+                    inputs.push(loaded.producer.clone());
+                }
                 dependencies.push(snapshot.clone());
                 continue;
             }
@@ -677,7 +679,9 @@ impl CompilationSession {
             };
             charge_frontend(&mut remaining, &result)?;
             parsed.push(result);
-            producer_syntax.push(producer_input.map(|(source, _)| source));
+            if let Some(inputs) = &mut producer_syntax {
+                inputs.push(producer_input.map(|(source, _)| source));
+            }
             dependencies.push(snapshot);
         }
         report.phase = Phase::Parse;
@@ -740,7 +744,7 @@ impl CompilationSession {
                 .zip(&parsed)
                 .any(|(source, parsed)| artifact_candidate(source, parsed));
         let producer_sources = if options.producer_reuse && !selection_needed && !artifact_needed {
-            producer_syntax.into_iter().collect::<Option<Vec<_>>>()
+            producer_syntax.and_then(|inputs| inputs.into_iter().collect::<Option<Vec<_>>>())
         } else {
             None
         };

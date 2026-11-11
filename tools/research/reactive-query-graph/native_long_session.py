@@ -186,6 +186,8 @@ def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', type=Path, required=True)
     parser.add_argument('--source-sha', required=True)
+    parser.add_argument('--producer-reuse', action='store_true',
+                        help='enable identical sealed producer reuse in both arms (B versus C)')
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--modules', type=int, default=20)
     parser.add_argument('--functions', type=int, default=20)
@@ -239,6 +241,8 @@ def main():
         'generator_sha256': digest(Path(__file__).with_name('native_workloads.py')),
         'worker_sha256': digest(Path(__file__).with_name('native_measure.py')),
         'requests_per_arm': args.edits + 1, 'unique_private_edits': args.edits,
+        'arms': {'baseline': ['--producer-reuse'] if args.producer_reuse else [],
+                 'candidate': (['--producer-reuse'] if args.producer_reuse else []) + ['--reactive-queries']},
         'reset_after': 4096, 'fresh_legacy_indices': sorted(set(range(10, args.edits + 1, 10)) | {args.edits}),
         'declared_functions_including_externs': declared, 'syntactic_call_occurrences': calls,
         'graph_bounds': {'nodes': node_bound, 'edges': edge_bound,
@@ -263,6 +267,8 @@ def main():
             directory.mkdir()
             command = [str(args.binary), 'check', str(source / 'main.zil'), '--json', '--resident',
                        '--resident-capacity', str(args.capacity), '--resident-reset-after', '4096']
+            if args.producer_reuse:
+                command.append('--producer-reuse')
             if arm == 'candidate':
                 command.append('--reactive-queries')
             workers[arm] = Worker(command, directory, args.timeout, args.sample_ms)
