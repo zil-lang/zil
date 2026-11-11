@@ -194,7 +194,7 @@ impl CompilationSession {
         self.clock = 0;
         self.analysis.clear();
         self.function_types.clear();
-        self.producer = Box::default();
+        *self.producer = Default::default();
         self.materializer = super::ct_artifact::ScalarMaterializationSession::default();
         self.producer_syntax.borrow_mut().clear();
     }
