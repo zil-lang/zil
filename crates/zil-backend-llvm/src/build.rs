@@ -13,6 +13,8 @@ use crate::object_cache::{
 };
 use crate::{EmitOptions, EntryPoint, FunctionMerging};
 
+mod research_prelink;
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Optimization {
     #[default]
@@ -219,6 +221,30 @@ pub fn build_view_with_cancellation_and_stable_names(
     // A receipt path is the explicit opt-in; ordinary requests are unchanged.
     let thinlto_receipt = std::env::var_os("ZIL_RESEARCH_THINLTO_RECEIPT").map(PathBuf::from);
     let thinlto_complete = std::env::var_os("ZIL_RESEARCH_THINLTO_COMPLETE");
+    let prelink_receipt = std::env::var_os("ZIL_RESEARCH_PRELINK_RECEIPT").map(PathBuf::from);
+    if let Some(path) = &prelink_receipt {
+        if thinlto_receipt.is_some()
+            || thinlto_complete.is_some()
+            || options.backend != NativeBackend::LlvmApi
+            || options.optimization != Optimization::O2
+            || !options.incremental_o2
+            || options.function_merging != FunctionMerging::AfterOptimization
+            || options.closed_executable
+            || options.object_cache.is_some()
+            || options.codegen.units != 8
+            || options.codegen.jobs != 2
+            || options.emit.entry != EntryPoint::Main
+            || lir.target.triple != "x86_64-unknown-linux-gnu"
+            || !path.is_absolute()
+            || path.exists()
+        {
+            return Err(infra(
+                "E-RESEARCH-PRELINK-SCOPE",
+                "manual prelink research requires Linux main LLVM API O2 incremental after, 8 units/2 jobs, no cache/closed/exporter, and a fresh absolute receipt path",
+            ));
+        }
+    }
+    let research_partition = thinlto_receipt.is_some() || prelink_receipt.is_some();
     if thinlto_complete.as_ref().is_some_and(|value| value != "1")
         || (thinlto_complete.is_some() && thinlto_receipt.is_none())
     {
@@ -292,7 +318,7 @@ pub fn build_view_with_cancellation_and_stable_names(
             options.codegen.jobs,
         )?;
     let mut task_abis = crate::task_abi::derive(verified, &machine, &mut task_work)?;
-    let original_preflight_ns = if thinlto_receipt.is_some() {
+    let original_preflight_ns = if research_partition {
         let start = std::time::Instant::now();
         zil_llvm_api::validate_module(&machine).map_err(api_error)?;
         start.elapsed().as_nanos()
@@ -344,14 +370,14 @@ pub fn build_view_with_cancellation_and_stable_names(
     // Diagnostic/reference output only. Each nonempty transform plan requires
     // complete original-model preflight. Existing per-unit API preflight still runs
     // immediately before its LLVMBuilder calls and cannot be bypassed.
-    let partition_input_preflight_ns = if thinlto_receipt.is_some() {
+    let partition_input_preflight_ns = if research_partition {
         let start = std::time::Instant::now();
         zil_llvm_api::validate_module(&machine).map_err(api_error)?;
         start.elapsed().as_nanos()
     } else {
         0
     };
-    let visibility_proof = if thinlto_complete.is_some() {
+    let visibility_proof = if thinlto_complete.is_some() || prelink_receipt.is_some() {
         Some(
             crate::machine_cgu::complete_visibility::Proof::prepare(
                 &machine,
@@ -387,7 +413,7 @@ pub fn build_view_with_cancellation_and_stable_names(
             options.emit.entry,
             options.codegen.units,
             options.optimization == Optimization::O0 || options.incremental_o2,
-            if thinlto_receipt.is_some() {
+            if research_partition {
                 crate::machine_cgu::CallImportPolicy::Disabled
             } else {
                 crate::machine_cgu::CallImportPolicy::for_incremental_o2(
@@ -485,7 +511,8 @@ pub fn build_view_with_cancellation_and_stable_names(
         fallback: plan.fallback.map(str::to_owned),
         task_abis,
     };
-    if let Some(path) = &thinlto_receipt {
+    let mut native_prelink_proof = None;
+    if let Some(path) = thinlto_receipt.as_ref().or(prelink_receipt.as_ref()) {
         let mut units = Vec::new();
         for (unit, module) in plan.units.iter().enumerate() {
             check_cancelled(cancelled)?;
@@ -496,15 +523,32 @@ pub fn build_view_with_cancellation_and_stable_names(
                 start.elapsed().as_nanos()
             ));
         }
-        let visibility = visibility_proof
-            .map(|proof| proof.finish(&plan.units))
-            .transpose()
-            .map_err(|error| infra("E-RESEARCH-THINLTO-PROOF", error))?
-            .unwrap_or_else(|| "null".into());
-        let receipt = format!(
-            "{{\"format\":\"zil-thinlto-export-preflight/1\",\"backend\":\"clang\",\"request\":\"O2+incremental-o2+after\",\"imports\":\"disabled-for-llvm-thinlto\",\"original_preflight_ns\":{original_preflight_ns},\"partition_input_preflight_ns\":{partition_input_preflight_ns},\"actual_units\":{actual_units},\"units\":[{}],\"llvm_verification\":\"external-wrapper-required\",\"visibility_proof\":{visibility}}}",
-            units.join(",")
-        );
+        let visibility = if prelink_receipt.is_some() {
+            let proof = visibility_proof
+                .ok_or_else(|| infra("E-RESEARCH-PRELINK-PROOF", "current proof missing"))?
+                .finish_checked(&plan.units)
+                .map_err(|error| infra("E-RESEARCH-PRELINK-PROOF", error))?;
+            let text = proof.receipt.clone();
+            native_prelink_proof = Some(proof);
+            text
+        } else {
+            visibility_proof
+                .map(|proof| proof.finish(&plan.units))
+                .transpose()
+                .map_err(|error| infra("E-RESEARCH-THINLTO-PROOF", error))?
+                .unwrap_or_else(|| "null".into())
+        };
+        let receipt = if prelink_receipt.is_some() {
+            format!(
+                "{{\"format\":\"zil-manual-prelink-preflight/1\",\"backend\":\"llvm-api\",\"request\":\"O2+incremental-o2+after\",\"original_preflight_ns\":{original_preflight_ns},\"partition_input_preflight_ns\":{partition_input_preflight_ns},\"actual_units\":{actual_units},\"units\":[{}],\"visibility_proof\":{visibility},\"cache\":\"disabled\",\"summary_index\":false}}",
+                units.join(",")
+            )
+        } else {
+            format!(
+                "{{\"format\":\"zil-thinlto-export-preflight/1\",\"backend\":\"clang\",\"request\":\"O2+incremental-o2+after\",\"imports\":\"disabled-for-llvm-thinlto\",\"original_preflight_ns\":{original_preflight_ns},\"partition_input_preflight_ns\":{partition_input_preflight_ns},\"actual_units\":{actual_units},\"units\":[{}],\"llvm_verification\":\"external-wrapper-required\",\"visibility_proof\":{visibility}}}",
+                units.join(",")
+            )
+        };
         let mut file = fs::OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -624,14 +668,18 @@ pub fn build_view_with_cancellation_and_stable_names(
                 })
             })
             .collect::<CompileResult<Vec<_>>>()?;
-        let compiled = compile_units(
-            &inputs,
-            &lir.target.triple,
-            optimization,
-            options,
-            cache.as_ref(),
-            cancelled,
-        )?;
+        let compiled = if let Some(proof) = native_prelink_proof.as_ref() {
+            research_prelink::compile_units(&inputs, &lir.target.triple, options, proof, cancelled)?
+        } else {
+            compile_units(
+                &inputs,
+                &lir.target.triple,
+                optimization,
+                options,
+                cache.as_ref(),
+                cancelled,
+            )?
+        };
         for result in compiled {
             commands.extend(result.commands);
             if let Some(receipt) = result.receipt {

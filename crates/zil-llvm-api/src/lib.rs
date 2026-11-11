@@ -105,6 +105,97 @@ pub const fn available() -> bool {
     cfg!(feature = "native")
 }
 
+/// Experimental request-local canonical prelink reuse. Not a ThinLTO importer
+/// and not a persistent cache. No LLVM handles cross this boundary.
+#[doc(hidden)]
+pub mod research_prelink {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct UnitFacts {
+        pub unit: usize,
+        pub canonical: Vec<String>,
+        pub definitions: Vec<String>,
+        pub declarations: Vec<String>,
+        pub direct_calls: BTreeMap<String, Vec<String>>,
+    }
+    /// Only prelink_module can construct these current, checked bytes.
+    pub struct PrelinkedUnit {
+        pub(crate) bytes: Vec<u8>,
+        pub(crate) facts: UnitFacts,
+        pub(crate) signatures: BTreeMap<String, String>,
+        pub(crate) foreign: BTreeMap<String, String>,
+        pub(crate) intrinsics: std::collections::BTreeSet<String>,
+        pub(crate) triple: String,
+        pub(crate) receipt: String,
+    }
+    impl PrelinkedUnit {
+        pub fn facts(&self) -> &UnitFacts {
+            &self.facts
+        }
+        pub fn receipt_json(&self) -> String {
+            self.receipt.clone()
+        }
+    }
+    pub struct ResearchReceipt(pub(crate) String);
+    impl ResearchReceipt {
+        pub fn to_json(&self) -> String {
+            self.0.clone()
+        }
+    }
+    pub struct ResearchObject {
+        pub object: Object,
+        pub receipt: ResearchReceipt,
+    }
+    pub fn prelink_module(
+        unit: usize,
+        module: &model::Module,
+        config: &Config<'_>,
+        merging: FunctionMerging,
+        cancelled: &(dyn Fn() -> bool + Sync),
+    ) -> Result<PrelinkedUnit, Error> {
+        #[cfg(feature = "native")]
+        {
+            native::research_prelink::prelink_module(unit, module, config, merging, cancelled)
+        }
+        #[cfg(not(feature = "native"))]
+        {
+            let _ = (unit, module, config, merging, cancelled);
+            Err(unavailable())
+        }
+    }
+    /// Allowed must come from this request's checked original planner. Receipts
+    /// are output only; native independently rebuilds the actual bitcode graph.
+    pub fn compile_prelinked_unit(
+        unit: usize,
+        units: &[PrelinkedUnit],
+        allowed: &[String],
+        config: &Config<'_>,
+        merging: FunctionMerging,
+        cancelled: &(dyn Fn() -> bool + Sync),
+    ) -> Result<ResearchObject, Error> {
+        #[cfg(feature = "native")]
+        {
+            native::research_prelink::compile_prelinked_unit(
+                unit, units, allowed, config, merging, cancelled,
+            )
+        }
+        #[cfg(not(feature = "native"))]
+        {
+            let _ = (unit, units, allowed, config, merging, cancelled);
+            Err(unavailable())
+        }
+    }
+    #[cfg(not(feature = "native"))]
+    fn unavailable() -> Error {
+        Error {
+            kind: ErrorKind::Unavailable,
+            message: "research prelink requires native LLVM API support".into(),
+        }
+    }
+}
+
 /// Cancellation is cooperative at phase boundaries, never an unsafe interruption
 /// inside LLVM. The caller must recheck before publishing the returned object.
 /// Legacy differential-test entry; disabled in the standard CLI.

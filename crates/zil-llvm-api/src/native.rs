@@ -112,6 +112,7 @@ owned!(Layout, LLVMDisposeTargetData);
 owned!(PassOptions, LLVMDisposePassBuilderOptions);
 owned!(Buffer, LLVMDisposeMemoryBuffer);
 mod builder;
+pub(super) mod research_prelink;
 static INIT: Once = Once::new();
 fn error(kind: ErrorKind, message: impl Into<String>) -> Error {
     Error {

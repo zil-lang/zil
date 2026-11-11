@@ -101,7 +101,7 @@
       "module": "src/native.rs",
       "feature": "native",
       "upstream": "LLVM 23.1.4 C API",
-      "scope": "owned context/module/builder/target machine/pass options/object buffer; native.rs and its private native/builder.rs; no frontend/verify dependency; machine preflight before LLVMBuilder"
+      "scope": "owned context/module/builder/target machine/pass options/object buffer; native.rs and its private builder/research_prelink children; research bitcode/linker handles remain on one thread with owned bytes across phases; no frontend/verify dependency; machine preflight before LLVMBuilder"
     }
   }
 }

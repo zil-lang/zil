@@ -24,6 +24,17 @@ pub(crate) struct Proof {
     original: Vec<Unit>,
 }
 
+/// Current-request facts produced only after the unchanged planner, owner,
+/// closure and copy-budget checks below. The JSON is diagnostic, never input.
+pub(crate) struct CheckedProof {
+    pub(crate) receipt: String,
+    pub(crate) units: Vec<CheckedUnit>,
+}
+pub(crate) struct CheckedUnit {
+    pub(crate) canonical: BTreeSet<String>,
+    pub(crate) allowed: BTreeSet<String>,
+}
+
 fn no_address(value: &Val) -> bool {
     match value {
         Val::Global(_) => false,
@@ -210,6 +221,14 @@ impl Proof {
     }
 
     pub(crate) fn finish(self, canonical_units: &[Module]) -> Result<String, &'static str> {
+        self.finish_checked(canonical_units)
+            .map(|proof| proof.receipt)
+    }
+
+    pub(crate) fn finish_checked(
+        self,
+        canonical_units: &[Module],
+    ) -> Result<CheckedProof, &'static str> {
         let mut canonical = Vec::new();
         let mut owners = BTreeMap::new();
         for (index, unit) in canonical_units.iter().enumerate() {
@@ -237,6 +256,7 @@ impl Proof {
         let mut matched = BTreeSet::new();
         let mut copied_cost = 0usize;
         let mut receipts = Vec::new();
+        let mut checked_units = Vec::new();
         for (index, names) in canonical.iter().enumerate() {
             let candidates = self
                 .original
@@ -294,13 +314,21 @@ impl Proof {
             }
             receipts.push(format!("{{\"unit\":{index},\"canonical\":{},\"allowed\":[{}],\"required_original\":{},\"copy_cost\":{unit_cost}}}",
                 strings(names), imports.join(","), strings(&required)));
+            checked_units.push(CheckedUnit {
+                canonical: names.clone(),
+                allowed: allowed.clone(),
+            });
         }
-        Ok(format!(
+        let receipt = format!(
             "{{\"format\":\"zil-thinlto-complete-visibility/1\",\"original_source_cost\":{},\"total_copy_cost\":{copied_cost},\"foreign\":{},\"units\":[{}],\"current_complete_planner\":true,\"canonical_owners_equal\":true,\"original_required_exactly_allowed\":true}}",
             self.source_cost,
             strings(&self.foreign),
             receipts.join(",")
-        ))
+        );
+        Ok(CheckedProof {
+            receipt,
+            units: checked_units,
+        })
     }
 }
 

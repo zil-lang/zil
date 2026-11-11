@@ -15,6 +15,15 @@ LLVMGetErrorMessage consumes the LLVMErrorRef and uses LLVMDisposeErrorMessage.
 The emitted buffer is copied into owned Rust bytes before disposal. No LLVM caller owns
 Rust memory. No host pointer width or host CPU features are used for target layout.
 
+The explicit manual-prelink research path adds a private `native/research_prelink.rs`
+child under the same boundary. Eager `LLVMParseBitcodeInContext2` borrows its buffer;
+`LLVMLinkModules2` consumes its source module even on failure. Only sealed, owned
+bitcode and facts cross the two-phase worker barrier. This path has no persistent
+cache, summary index or external receipt input; its distinct pass identity is
+`thinlto-pre-link<O2>` followed by checked manual imports and full `thinlto<O2>`.
+Ordinary entry points retain the existing pipeline. Its limited adoption status and
+evidence are separate from this ownership contract.
+
 ## Failure and cancellation
 Parse, verifier (pre/post), target mismatch, pass or object failures return errors.
 No object is written before complete code generation. Driver staging publishes the IR and
