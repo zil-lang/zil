@@ -148,7 +148,10 @@ def expected_existing(case, data):
         status, output = 0, b''
     elif case == 'resource_closures':
         status, output = {
-            ord('D'): (0, b'C'), ord('S'): (0, b'A'), ord('U'): (0, b'BA'),
+            # Owned environment fields drop in capture order (r, then s),
+            # not reverse local construction order; see the consumer protocol
+            # and resource_closure_lifecycle's independent U -> AB assertion.
+            ord('D'): (0, b'C'), ord('S'): (0, b'A'), ord('U'): (0, b'AB'),
             ord('O'): (0, b'CB'), ord('M'): (0, b'C'), ord('E'): (7, b'A'),
             ord('T'): (0, b'A'), ord('L'): (0, b'AB'),
             ord('0'): (1, b'A'), ord('1'): (2, b'BA'),
