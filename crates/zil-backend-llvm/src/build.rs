@@ -218,6 +218,15 @@ pub fn build_view_with_cancellation_and_stable_names(
     // Research-only exporter: the wrapper supplies the real ThinLTO pipeline.
     // A receipt path is the explicit opt-in; ordinary requests are unchanged.
     let thinlto_receipt = std::env::var_os("ZIL_RESEARCH_THINLTO_RECEIPT").map(PathBuf::from);
+    let thinlto_complete = std::env::var_os("ZIL_RESEARCH_THINLTO_COMPLETE");
+    if thinlto_complete.as_ref().is_some_and(|value| value != "1")
+        || (thinlto_complete.is_some() && thinlto_receipt.is_none())
+    {
+        return Err(infra(
+            "E-RESEARCH-THINLTO-PROOF",
+            "complete visibility requires value 1 and the explicit checked exporter",
+        ));
+    }
     if let Some(path) = &thinlto_receipt {
         if options.backend != NativeBackend::Clang
             || options.optimization != Optimization::O2
@@ -232,7 +241,10 @@ pub fn build_view_with_cancellation_and_stable_names(
             || !path.is_absolute()
             || path.exists()
         {
-            return Err(infra("E-RESEARCH-THINLTO-SCOPE", "ThinLTO research requires explicit Linux main Clang O2 incremental after, 8 units/2 jobs, no closed/object cache, and a fresh absolute receipt path"));
+            return Err(infra(
+                "E-RESEARCH-THINLTO-SCOPE",
+                "ThinLTO research requires explicit Linux main Clang O2 incremental after, 8 units/2 jobs, no closed/object cache, and a fresh absolute receipt path",
+            ));
         }
     }
     if options.emit.entry == EntryPoint::None {
@@ -338,6 +350,19 @@ pub fn build_view_with_cancellation_and_stable_names(
         start.elapsed().as_nanos()
     } else {
         0
+    };
+    let visibility_proof = if thinlto_complete.is_some() {
+        Some(
+            crate::machine_cgu::complete_visibility::Proof::prepare(
+                &machine,
+                lir,
+                options.emit.entry,
+                options.codegen.units,
+            )
+            .map_err(|error| infra("E-RESEARCH-THINLTO-PROOF", error))?,
+        )
+    } else {
+        None
     };
     let llvm = machine.to_text();
     let mut pending_layout = None;
@@ -466,12 +491,27 @@ pub fn build_view_with_cancellation_and_stable_names(
             check_cancelled(cancelled)?;
             let start = std::time::Instant::now();
             zil_llvm_api::validate_module(module).map_err(api_error)?;
-            units.push(format!("{{\"unit\":{unit},\"preflight_ns\":{}}}", start.elapsed().as_nanos()));
+            units.push(format!(
+                "{{\"unit\":{unit},\"preflight_ns\":{}}}",
+                start.elapsed().as_nanos()
+            ));
         }
-        let receipt = format!("{{\"format\":\"zil-thinlto-export-preflight/1\",\"backend\":\"clang\",\"request\":\"O2+incremental-o2+after\",\"imports\":\"disabled-for-llvm-thinlto\",\"original_preflight_ns\":{original_preflight_ns},\"partition_input_preflight_ns\":{partition_input_preflight_ns},\"actual_units\":{actual_units},\"units\":[{}],\"llvm_verification\":\"external-wrapper-required\"}}", units.join(","));
-        let mut file = fs::OpenOptions::new().write(true).create_new(true).open(path)
+        let visibility = visibility_proof
+            .map(|proof| proof.finish(&plan.units))
+            .transpose()
+            .map_err(|error| infra("E-RESEARCH-THINLTO-PROOF", error))?
+            .unwrap_or_else(|| "null".into());
+        let receipt = format!(
+            "{{\"format\":\"zil-thinlto-export-preflight/1\",\"backend\":\"clang\",\"request\":\"O2+incremental-o2+after\",\"imports\":\"disabled-for-llvm-thinlto\",\"original_preflight_ns\":{original_preflight_ns},\"partition_input_preflight_ns\":{partition_input_preflight_ns},\"actual_units\":{actual_units},\"units\":[{}],\"llvm_verification\":\"external-wrapper-required\",\"visibility_proof\":{visibility}}}",
+            units.join(",")
+        );
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
             .map_err(|error| io_error("create ThinLTO research preflight receipt", path, error))?;
-        file.write_all(receipt.as_bytes()).map_err(|error| io_error("write ThinLTO research preflight receipt", path, error))?;
+        file.write_all(receipt.as_bytes())
+            .map_err(|error| io_error("write ThinLTO research preflight receipt", path, error))?;
         codegen.object_reports.push(receipt);
     }
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";

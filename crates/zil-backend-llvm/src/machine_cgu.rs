@@ -2,6 +2,7 @@
 //! LLVM assembly. Local-linkage definitions and all users remain co-located.
 use crate::{EntryPoint, FunctionMerging};
 
+pub(crate) mod complete_visibility;
 pub(crate) mod layout;
 mod resource_helpers;
 use std::collections::{BTreeMap, BTreeSet};
