@@ -2,6 +2,19 @@
 pub fn new<T:StoreElement>()->Store<T> contract {result(create)} { return store_new() }
 pub fn reserve<T:StoreElement>(items:Store<T>,capacity:i64)->bool { return store_reserve(items,capacity) }
 pub fn push<T:StoreElement>(items:Store<T>,value:T)->T!void { return store_push(items,value) }
+// Grow only when full; failed preparation returns the actual incoming owner.
+// Existing contents and capacity survive a failed reservation.
+pub fn push_growing<T:StoreElement>(items:Store<T>,value:T)->T!void {
+    let length=store_len(items)
+    if length>=store_capacity(items) {
+        if length>=9223372036854775807 {return value}
+        var next:i64=1
+        if length>4611686018427387903 {next=9223372036854775807}
+        else {if length>0 {next=length*2}}
+        if !store_reserve(items,next) {return value}
+    }
+    return store_push(items,value)
+}
 pub fn pop<T:StoreElement>(items:Store<T>)->void!T { return store_pop(items) }
 pub fn len<T:StoreElement>(items:Store<T>)->i64 { return store_len(items) }
 pub fn capacity<T:StoreElement>(items:Store<T>)->i64 { return store_capacity(items) }

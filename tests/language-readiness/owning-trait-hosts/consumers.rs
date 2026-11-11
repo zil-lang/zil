@@ -13,6 +13,8 @@ mod owned_byte_views;
 mod owned_pipeline;
 #[path = "owned_results/consumers.rs"]
 mod owned_results;
+#[path = "store_push_growing/consumers.rs"]
+mod store_push_growing;
 
 const KEY_EQ: &str = "pub trait KeyEq { fn same(self:&Self,other:&Self)->bool; }";
 const QUERY: &str =
@@ -475,6 +477,14 @@ fn owning_package_mutable_trait_crosses_plain_and_generic_helpers_with_exact_cle
 
 #[cfg(target_os = "linux")]
 fn owning_trait_native_cleanup(files: &[(&str, &str)], cases: &[(Option<&str>, i32, &[u8])]) {
+    owning_trait_project_native_cleanup(&project(files), cases);
+}
+
+#[cfg(target_os = "linux")]
+fn owning_trait_project_native_cleanup(
+    sources: &zil_driver::ProjectSources,
+    cases: &[(Option<&str>, i32, &[u8])],
+) {
     use std::{
         os::unix::fs::PermissionsExt,
         path::{Path, PathBuf},
@@ -491,8 +501,8 @@ fn owning_trait_native_cleanup(files: &[(&str, &str)], cases: &[(Option<&str>, i
     ));
     fs::create_dir_all(&dir).unwrap();
     if keep {
-        for (name, text) in files {
-            fs::write(dir.join(format!("{name}.zil")), text).unwrap();
+        for source in &sources.modules {
+            fs::write(dir.join(&source.path), source.text.as_bytes()).unwrap();
         }
     }
     let clang = std::env::var_os("ZIL_CLANG")
@@ -513,7 +523,7 @@ fn owning_trait_native_cleanup(files: &[(&str, &str)], cases: &[(Option<&str>, i
         }
         for optimization in [Optimization::O0, Optimization::O2] {
             let report = compile_project(
-                &project(files),
+                sources,
                 &CompileOptions {
                     backend,
                     optimization,
