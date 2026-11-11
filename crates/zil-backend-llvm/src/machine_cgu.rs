@@ -3,6 +3,7 @@
 use crate::EntryPoint;
 
 pub(crate) mod layout;
+mod resource_helpers;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_base::{FileId, Fingerprint};
 #[cfg(test)]
@@ -151,6 +152,14 @@ pub(crate) fn partition_view_cached(
     import_complete_call_closures: bool,
     cache_root: Option<&std::path::Path>,
 ) -> (Plan, Option<layout::Pending>) {
+    // Shared helper code alone must not force otherwise independent resource
+    // modules into one object. Keep full helper visibility, bounded small source
+    // imports, identity-bearing local components and the original copy bound.
+    if import_complete_call_closures
+        && let Some(recipe) = resource_helpers::prepare(&module, lir, entry, count)
+    {
+        return (recipe.replay(module), None);
+    }
     let cache = cache_root.and_then(|root| {
         layout::Cache::new(
             root,
