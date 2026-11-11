@@ -166,6 +166,9 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
         dir.project(&[("main", ENTRY), ("left", LEFT), ("io", IO)]);
         let path = dir.0.join("main.zil");
         let mut session = CompilationSession::default();
+        let mut legacy_session = CompilationSession::default();
+        let legacy_cold = legacy_session.compile_path(&path, &CompileOptions::default());
+        successful(&legacy_cold);
         let cold = session.compile_path(&path, &options);
         successful(&cold);
         compare_path(&session, &cold, &path, &options);
@@ -176,24 +179,89 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
             .expect("ordinary io.emit must reach the actual producer");
         assert_eq!(work.normalize_modules, 3);
         assert_eq!(work.lower_modules, 3);
-        fs::write(dir.0.join("left.zil"), LEFT.replace("x+1", "x+5")).unwrap();
-        let current = session.compile_path(&path, &options);
-        successful(&current);
-        compare_path(&session, &current, &path, &options);
-        let work = current
-            .producer_work
-            .as_ref()
-            .expect("current actual producer work");
-        assert_eq!(work.normalize_modules, 1);
-        assert_eq!(work.lower_modules, 1);
-        assert_eq!(work.reused_lower_modules, 2);
-        let functions = current
-            .function_type_work
-            .expect("actual current Types work");
-        assert_eq!(functions.core_function_eq_comparisons, 0);
-        assert!(functions.producer_version_reuses > 0);
-        if !graph {
-            assert_eq!(functions.graph.executed, 0);
+        let mut previous_left = LEFT.to_owned();
+        let mut previous_io = IO.to_owned();
+        for (label, left, io, changed_modules) in [
+            (
+                "equal-width",
+                LEFT.replacen("x+1", "x+5", 1),
+                IO.to_owned(),
+                1u64,
+            ),
+            // One source literal grows by one byte. This must not invalidate
+            // the unchanged main/IO producers through remaining-limit guards.
+            (
+                "wide-private",
+                LEFT.replacen("x+1", "x+10", 1),
+                IO.to_owned(),
+                1,
+            ),
+            // Both writes precede this single filesystem compile request. Left
+            // grows again; IO gains a real arithmetic expression before putchar.
+            (
+                "wide-multi",
+                LEFT.replacen("x+1", "x+100", 1),
+                IO.replace("putchar(value)", "putchar(value + 1)"),
+                2,
+            ),
+        ] {
+            assert_ne!(left, previous_left, "{label} actually changes left");
+            assert_eq!(
+                io != previous_io,
+                changed_modules == 2,
+                "{label} actual IO change"
+            );
+            if label != "equal-width" {
+                assert!(
+                    left.len() > previous_left.len(),
+                    "{label} must retain the wider literal"
+                );
+            }
+            fs::write(dir.0.join("left.zil"), &left).unwrap();
+            fs::write(dir.0.join("io.zil"), &io).unwrap();
+            let legacy = legacy_session.compile_path(&path, &CompileOptions::default());
+            let current = session.compile_path(&path, &options);
+            successful(&legacy);
+            successful(&current);
+            compare_path(&session, &current, &path, &options);
+            assert_eq!(typed(&session, &current), typed(&legacy_session, &legacy));
+            let work = current
+                .producer_work
+                .as_ref()
+                .expect("current actual producer work");
+            assert_eq!(
+                work.normalize_modules, changed_modules,
+                "{label}: normalize only changed modules"
+            );
+            assert_eq!(
+                work.lower_modules, changed_modules,
+                "{label}: lower only changed modules"
+            );
+            assert_eq!(
+                work.reused_lower_modules,
+                3 - changed_modules,
+                "{label}: keep unchanged module products"
+            );
+            let functions = current
+                .function_type_work
+                .expect("actual current Types work");
+            let legacy_functions = legacy
+                .function_type_work
+                .expect("actual same-history legacy Types work");
+            assert_eq!(functions.core_function_eq_comparisons, 0, "{label}");
+            assert!(
+                functions.producer_version_reuses > 0,
+                "{label}: unchanged main retains its version"
+            );
+            assert!(
+                functions.executed_functions <= legacy_functions.executed_functions,
+                "{label}: CFG execution cannot increase over the same-history existing cache"
+            );
+            if !graph {
+                assert_eq!(functions.graph.executed, 0);
+            }
+            previous_left = left;
+            previous_io = io;
         }
     }
 }
