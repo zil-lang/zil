@@ -113,7 +113,7 @@ fn producer_parts(work: &zil_expand::ProducerStats) -> u128 {
     .sum()
 }
 fn subdivisions(
-    types: Option<zil_types::FunctionStats>,
+    types: Option<&zil_types::FunctionStats>,
     producer: Option<&zil_expand::ProducerStats>,
     phases: &BTreeMap<Phase, u128>,
     materialization_ns: u128,
@@ -121,10 +121,10 @@ fn subdivisions(
     if let Some(work) = types {
         assert!(work.cost_profiled);
         assert!(
-            type_parts(&work) <= *phases.get(&Phase::Types).unwrap_or(&0),
+            type_parts(work) <= *phases.get(&Phase::Types).unwrap_or(&0),
             "Types subdivisions exceed phase: {work:?}, {phases:?}"
         );
-        assert!(type_parts(&work) <= work.total_ns as u128);
+        assert!(type_parts(work) <= work.total_ns as u128);
         assert!(work.body_key_ns <= work.evaluator_ns);
     }
     let expand_parts = materialization_ns + producer.map_or(0, producer_parts);
@@ -136,15 +136,15 @@ fn subdivisions(
 fn profiled(report: &CompileReport) {
     assert!(report.cost_profiled);
     subdivisions(
-        report.function_type_work,
-        report.producer_work.as_ref(),
+        report.function_type_work.as_deref(),
+        report.producer_work.as_deref(),
         &report.phase_timings_ns,
         report.materialization_ns,
     );
     for attempt in &report.attempts {
         subdivisions(
-            attempt.function_type_work,
-            attempt.producer_work.as_ref(),
+            attempt.function_type_work.as_deref(),
+            attempt.producer_work.as_deref(),
             &attempt.phase_timings_ns,
             attempt.materialization_ns,
         );
@@ -192,12 +192,12 @@ fn unprofiled(report: &CompileReport) {
     assert!(report.driver_timings_ns.is_empty());
     assert_eq!(report.materialization_ns, 0);
     assert_eq!(report.exclusive_costs_json(), "null");
-    let check = |types: Option<zil_types::FunctionStats>,
+    let check = |types: Option<&zil_types::FunctionStats>,
                  producer: Option<&zil_expand::ProducerStats>| {
         if let Some(work) = types {
             assert!(!work.cost_profiled);
             assert_eq!(
-                type_parts(&work) + work.total_ns as u128 + work.body_key_ns as u128,
+                type_parts(work) + work.total_ns as u128 + work.body_key_ns as u128,
                 0
             );
         }
@@ -205,11 +205,17 @@ fn unprofiled(report: &CompileReport) {
             assert_eq!(producer_parts(work) + work.total_ns as u128, 0);
         }
     };
-    check(report.function_type_work, report.producer_work.as_ref());
+    check(
+        report.function_type_work.as_deref(),
+        report.producer_work.as_deref(),
+    );
     for attempt in &report.attempts {
         assert!(attempt.driver_timings_ns.is_empty());
         assert_eq!(attempt.materialization_ns, 0);
-        check(attempt.function_type_work, attempt.producer_work.as_ref());
+        check(
+            attempt.function_type_work.as_deref(),
+            attempt.producer_work.as_deref(),
+        );
     }
 }
 
@@ -316,13 +322,14 @@ fn detailed_abc_costs_partition_cold_edit_error_fix_and_unchanged_requests() {
             if index == 0 {
                 let work = report
                     .function_type_work
+                    .as_deref()
                     .expect("cold Types really executed");
                 assert!(work.executed_functions > 0);
                 assert!(work.total_ns > 0);
                 if arm != 0 {
                     let work = report
                         .producer_work
-                        .as_ref()
+                        .as_deref()
                         .expect("cold producer really executed");
                     assert_eq!(work.lower_modules, 3);
                     assert!(work.production_ns > 0);
@@ -331,7 +338,7 @@ fn detailed_abc_costs_partition_cold_edit_error_fix_and_unchanged_requests() {
             if index == 1 && arm != 0 {
                 let work = report
                     .producer_work
-                    .as_ref()
+                    .as_deref()
                     .expect("edited producer really executed");
                 assert!(work.lower_modules > 0);
                 assert!(work.reused_lower_modules > 0);

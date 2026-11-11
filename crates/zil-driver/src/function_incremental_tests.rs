@@ -284,22 +284,56 @@ fn function_types_decodable_rejected_work_product_rebuilds_current_source() {
     );
     assert!(!rejected.diagnostics.is_empty());
     assert!(accepted.diagnostics.is_empty());
-    assert!(rejected.function_type_work.unwrap().reused_functions > 0);
-    assert_eq!(accepted.function_type_work.unwrap().reused_functions, 0);
-    let work = r.function_type_work.unwrap();
+    assert!(
+        rejected
+            .function_type_work
+            .as_deref()
+            .unwrap()
+            .reused_functions
+            > 0
+    );
+    assert_eq!(
+        accepted
+            .function_type_work
+            .as_deref()
+            .unwrap()
+            .reused_functions,
+        0
+    );
+    let work = r.function_type_work.as_deref().unwrap();
     assert_eq!(
         work.executed_functions,
-        rejected.function_type_work.unwrap().executed_functions
-            + accepted.function_type_work.unwrap().executed_functions
+        rejected
+            .function_type_work
+            .as_deref()
+            .unwrap()
+            .executed_functions
+            + accepted
+                .function_type_work
+                .as_deref()
+                .unwrap()
+                .executed_functions
     );
     assert_eq!(
         work.reused_functions,
-        rejected.function_type_work.unwrap().reused_functions
+        rejected
+            .function_type_work
+            .as_deref()
+            .unwrap()
+            .reused_functions
     );
     assert_eq!(
         work.body_key_executions,
-        rejected.function_type_work.unwrap().body_key_executions
-            + accepted.function_type_work.unwrap().body_key_executions
+        rejected
+            .function_type_work
+            .as_deref()
+            .unwrap()
+            .body_key_executions
+            + accepted
+                .function_type_work
+                .as_deref()
+                .unwrap()
+                .body_key_executions
     );
     assert_eq!(
         r.phase_timings_ns[&Phase::Types],
@@ -419,7 +453,7 @@ fn early_request_failure_does_not_rebill_previous_function_reuse() {
     let edited = LIBRARY.replace("x+1", "x+5");
     let warm = session.compile_project(&dir.project(MAIN, &edited), &options);
     success(&warm);
-    assert!(warm.function_type_work.unwrap().reused_functions > 0);
+    assert!(warm.function_type_work.as_deref().unwrap().reused_functions > 0);
     let bad_parse = dir.project("fn (", &edited);
     let parsed = session.compile_project(&bad_parse, &options);
     assert_ne!(parsed.status, ResultCategory::Success);
@@ -432,7 +466,14 @@ fn early_request_failure_does_not_rebill_previous_function_reuse() {
     );
     let checked = session.compile_project(&bad_types, &options);
     assert_ne!(checked.status, ResultCategory::Success);
-    assert_eq!(checked.function_type_work.unwrap().reused_functions, 0);
+    assert_eq!(
+        checked
+            .function_type_work
+            .as_deref()
+            .unwrap()
+            .reused_functions,
+        0
+    );
     assert_eq!(checked.attempts.len(), 1);
     compare_fresh(&session, &checked, &bad_types, &options);
 }

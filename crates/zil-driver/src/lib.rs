@@ -191,8 +191,8 @@ pub struct CompileAttempt {
     pub phase: Phase,
     pub diagnostics: Vec<Diagnostic>,
     pub verification_runs: usize,
-    pub function_type_work: Option<zil_types::FunctionStats>,
-    pub producer_work: Option<zil_expand::ProducerStats>,
+    pub function_type_work: Option<Box<zil_types::FunctionStats>>,
+    pub producer_work: Option<Box<zil_expand::ProducerStats>>,
     pub materialization_work: Option<ScalarMaterializationStats>,
     pub initialization_work: Option<zil_analyze::AnalysisStats>,
     pub phase_timings_ns: BTreeMap<Phase, u128>,
@@ -225,9 +225,9 @@ impl CompileAttempt {
                 .join(","),
             self.verification_runs,
             frontend_stats_json(
-                self.function_type_work,
+                self.function_type_work.as_deref(),
                 self.initialization_work,
-                self.producer_work.as_ref(),
+                self.producer_work.as_deref(),
                 self.materialization_work,
             ),
             phase_timings_json(&self.phase_timings_ns),
@@ -258,8 +258,11 @@ pub struct CompileReport {
     /// Execution counters sum all attempts in this request; retained gauges
     /// describe the final attempt. A whole-project hit reports None, never old
     /// session work. Per-attempt diagnostics and costs remain in `attempts`.
-    pub function_type_work: Option<zil_types::FunctionStats>,
-    pub producer_work: Option<zil_expand::ProducerStats>,
+    // Keep detailed research counters out of every caller's report/Result
+    // frame. Reports also travel through discovery, retry and query closures;
+    // inline counter payloads multiplied their nonrecursive stack footprint.
+    pub function_type_work: Option<Box<zil_types::FunctionStats>>,
+    pub producer_work: Option<Box<zil_expand::ProducerStats>>,
     pub materialization_work: Option<ScalarMaterializationStats>,
     pub initialization_work: Option<zil_analyze::AnalysisStats>,
     /// Wall time of complete phase queries, including digest/publication, and
@@ -360,9 +363,9 @@ impl CompileReport {
     }
     fn frontend_stats_json(&self) -> String {
         frontend_stats_json(
-            self.function_type_work,
+            self.function_type_work.as_deref(),
             self.initialization_work,
-            self.producer_work.as_ref(),
+            self.producer_work.as_deref(),
             self.materialization_work,
         )
     }
@@ -388,7 +391,7 @@ impl CompileReport {
                     .map(|attempt| attempt.verification_runs)
                     .sum(),
             ),
-            function_type_work: self.function_type_work,
+            function_type_work: self.function_type_work.clone(),
             producer_work: self.producer_work.clone(),
             materialization_work: self.materialization_work,
             initialization_work: self.initialization_work,
@@ -420,9 +423,8 @@ impl CompileReport {
     fn finish_attempts(&mut self) {
         let final_attempt = self.capture_attempt(None, self.diagnostics.clone());
         self.attempts.push(final_attempt);
-        let final_types = self.function_type_work;
+        let final_types = self.function_type_work.take();
         let final_analysis = self.initialization_work;
-        self.function_type_work = None;
         self.producer_work = None;
         self.materialization_work = None;
         self.initialization_work = None;
@@ -435,7 +437,7 @@ impl CompileReport {
                     .get_or_insert_with(Default::default)
                     .add(work);
             }
-            if let Some(work) = attempt.function_type_work {
+            if let Some(work) = attempt.function_type_work.as_deref() {
                 add_function_work(&mut self.function_type_work, work);
             }
             if let Some(work) = &attempt.producer_work {
@@ -462,8 +464,12 @@ impl CompileReport {
             self.materialization_ns += attempt.materialization_ns;
         }
         if let Some(total) = &mut self.function_type_work {
-            total.graph.retained_nodes = final_types.map_or(0, |work| work.graph.retained_nodes);
-            total.graph.retained_edges = final_types.map_or(0, |work| work.graph.retained_edges);
+            total.graph.retained_nodes = final_types
+                .as_ref()
+                .map_or(0, |work| work.graph.retained_nodes);
+            total.graph.retained_edges = final_types
+                .as_ref()
+                .map_or(0, |work| work.graph.retained_edges);
         }
         if let Some(total) = &mut self.initialization_work {
             total.retained_queries = final_analysis.map_or(0, |work| work.retained_queries);
@@ -486,7 +492,11 @@ impl CompileReport {
         for (phase, nanos) in &self.phase_timings_ns {
             costs.insert(phase.as_str(), *nanos);
         }
-        if let Some(work) = self.function_type_work.filter(|work| work.cost_profiled) {
+        if let Some(work) = self
+            .function_type_work
+            .as_deref()
+            .filter(|work| work.cost_profiled)
+        {
             let detail = [
                 ("types_shape", work.shape_resolution_ns),
                 ("types_context", work.context_construction_ns),
@@ -568,7 +578,7 @@ fn named_timings_json(timings: &BTreeMap<&'static str, u128>) -> String {
         .join(",")
 }
 fn frontend_stats_json(
-    types: Option<zil_types::FunctionStats>,
+    types: Option<&zil_types::FunctionStats>,
     analysis: Option<zil_analyze::AnalysisStats>,
     producer: Option<&zil_expand::ProducerStats>,
     materialization: Option<ScalarMaterializationStats>,
@@ -589,7 +599,10 @@ fn frontend_stats_json(
         "{{\"function_types\":{types},\"initialization\":{analysis},\"producer\":{producer},\"materialization\":{materialization}}}"
     )
 }
-fn add_function_work(total: &mut Option<zil_types::FunctionStats>, work: zil_types::FunctionStats) {
+fn add_function_work(
+    total: &mut Option<Box<zil_types::FunctionStats>>,
+    work: &zil_types::FunctionStats,
+) {
     let total = total.get_or_insert_with(Default::default);
     total.cost_profiled |= work.cost_profiled;
     macro_rules! add {
@@ -737,7 +750,7 @@ mod report_attempt_tests {
         first.graph.executed = 4;
         first.graph.retained_nodes = 100;
         first.graph.retained_edges = 80;
-        report.function_type_work = Some(first);
+        report.function_type_work = Some(Box::new(first));
         report.initialization_work = Some(zil_analyze::AnalysisStats {
             executed_functions: 3,
             reused_functions: 2,
@@ -763,7 +776,7 @@ mod report_attempt_tests {
         final_work.graph.executed = 6;
         final_work.graph.retained_nodes = 7;
         final_work.graph.retained_edges = 8;
-        report.function_type_work = Some(final_work);
+        report.function_type_work = Some(Box::new(final_work));
         report.initialization_work = Some(zil_analyze::AnalysisStats {
             executed_functions: 5,
             reused_functions: 1,
@@ -772,7 +785,7 @@ mod report_attempt_tests {
         report.phase_timings_ns.insert(Phase::Types, 13);
         report.verification_runs += 1;
         report.finish_attempts();
-        let work = report.function_type_work.unwrap();
+        let work = report.function_type_work.as_deref().unwrap();
         assert_eq!(work.executed_functions, 8);
         assert_eq!(work.body_key_executions, 10);
         assert_eq!(work.graph.executed, 10);

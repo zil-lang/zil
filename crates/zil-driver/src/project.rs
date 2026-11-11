@@ -299,6 +299,7 @@ impl CompilationSession {
             let retry = !options.cancellation.is_cancelled()
                 && report
                     .function_type_work
+                    .as_deref()
                     .is_some_and(|work| work.reused_functions > 0)
                 && matches!(report.phase, Phase::Types | Phase::Analyze)
                 && errors.iter().all(|e| {
@@ -789,7 +790,7 @@ impl CompilationSession {
                                 declarations: zil_expand::source_context::DeclarationPlacement::Unavailable,
                             },
                         );
-                        producer_work = Some(producer.last_stats().clone());
+                        producer_work = Some(Box::new(producer.last_stats().clone()));
                         if let Some(expanded) = result? {
                             let (produced, maps) = expanded.into_program(project.root, fingerprint);
                             return Ok(RawSnapshot::Project(Arc::new(ExpandedProject {
@@ -818,7 +819,7 @@ impl CompilationSession {
                             declarations: zil_expand::source_context::DeclarationPlacement::Original,
                         },
                     );
-                    producer_work = Some(producer.last_stats().clone());
+                    producer_work = Some(Box::new(producer.last_stats().clone()));
                     if let Some(expanded) = result? {
                         let (produced, maps) = expanded.into_program(project.root, fingerprint);
                         return Ok(RawSnapshot::Project(Arc::new(ExpandedProject {
@@ -958,7 +959,7 @@ impl CompilationSession {
                     let result = producer.expand_parsed(
                         sources, &runtime_imports, expand_limits, &options.target, context,
                     );
-                    producer_work = Some(producer.last_stats().clone());
+                    producer_work = Some(Box::new(producer.last_stats().clone()));
                     if let Some(expanded) = result? {
                         let (program, source_maps) = expanded.into_program(project.root, fingerprint);
                         produced = Some(program);
@@ -1228,7 +1229,7 @@ impl CompilationSession {
                         &options.limits,
                     )
                 };
-                function_work = Some(function_types.last_stats());
+                function_work = Some(Box::new(function_types.last_stats()));
                 checked.map(|typed| RawSnapshot::ProjectTyped(Arc::new(typed)))
             },
         );

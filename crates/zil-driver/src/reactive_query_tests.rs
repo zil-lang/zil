@@ -119,7 +119,13 @@ fn reactive_private_and_atomic_multi_file_edits_reduce_actual_body_encoding() {
     let initial = dir.project(MAIN, LEFT, RIGHT);
     let cold = session.compile_project(&initial, &options);
     successful(&cold);
-    assert!(cold.function_type_work.unwrap().body_key_executions > 0);
+    assert!(
+        cold.function_type_work
+            .as_deref()
+            .unwrap()
+            .body_key_executions
+            > 0
+    );
     for (left, right) in [
         (LEFT.replace("x+1", "x+5"), RIGHT.to_owned()),
         (LEFT.replace("x+1", "x+6"), RIGHT.replace("x+3", "x+7")),
@@ -130,8 +136,8 @@ fn reactive_private_and_atomic_multi_file_edits_reduce_actual_body_encoding() {
         successful(&current);
         let full = compare(&session, &current, &project, &options);
         let (work, full_work) = (
-            current.function_type_work.unwrap(),
-            full.function_type_work.unwrap(),
+            current.function_type_work.as_deref().unwrap(),
+            full.function_type_work.as_deref().unwrap(),
         );
         assert!(work.body_key_reuses > 0);
         assert!(work.body_key_executions < full_work.body_key_executions);
@@ -391,7 +397,7 @@ fn fallback_trait_candidate_add_remove_and_generic_instance_sets_match_fresh() {
             assert_eq!(current.verification_runs, 0);
         } else {
             successful(&current);
-            if let Some(work) = current.function_type_work {
+            if let Some(work) = current.function_type_work.as_deref() {
                 assert_eq!(
                     work.graph.executed, 0,
                     "mixed nominal program must not claim scalar graph work"
@@ -480,7 +486,7 @@ fn fallback_ct_branch_redirects_actual_calls_with_owned_closure_state() {
             assert_eq!(current.verification_runs, 0);
         } else {
             successful(&current);
-            if let Some(work) = current.function_type_work {
+            if let Some(work) = current.function_type_work.as_deref() {
                 assert_eq!(work.graph.executed, 0);
                 assert_eq!(work.body_key_reuses, 0);
             } else {

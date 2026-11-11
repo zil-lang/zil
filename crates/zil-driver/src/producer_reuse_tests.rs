@@ -175,7 +175,7 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
         assert_eq!(cold.source_files.len(), 3);
         let work = cold
             .producer_work
-            .as_ref()
+            .as_deref()
             .expect("ordinary io.emit must reach the actual producer");
         assert_eq!(work.normalize_modules, 3);
         assert_eq!(work.lower_modules, 3);
@@ -253,7 +253,7 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
             );
             let work = current
                 .producer_work
-                .as_ref()
+                .as_deref()
                 .expect("current actual producer work");
             assert_eq!(
                 work.normalize_modules, changed_modules,
@@ -290,9 +290,11 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
             );
             let functions = current
                 .function_type_work
+                .as_deref()
                 .expect("actual current Types work");
             let legacy_functions = legacy
                 .function_type_work
+                .as_deref()
                 .expect("actual same-history legacy Types work");
             assert_eq!(functions.core_function_eq_comparisons, 0, "{label}");
             assert!(
@@ -390,7 +392,7 @@ fn producer_borrowed_bodies_reenter_full_restore_on_insufficient_budget() {
             assert!(!current.diagnostics.is_empty());
             let work = current
                 .producer_work
-                .as_ref()
+                .as_deref()
                 .expect("actual failed producer work");
             assert!(
                 work.retained_normalized_items > 0,
@@ -436,7 +438,7 @@ fn producer_filesystem_ordinary_materializer_identifier_candidates_match_fresh()
             compare_path(&session, &cold, &path, &options);
             let work = cold
                 .producer_work
-                .as_ref()
+                .as_deref()
                 .expect("ordinary identifier must not suppress the sealed scalar producer");
             assert_eq!(work.lower_modules, 3, "ordinary {name}");
             fs::write(dir.0.join("left.zil"), left.replace("x+1", "x+5")).unwrap();
@@ -445,11 +447,14 @@ fn producer_filesystem_ordinary_materializer_identifier_candidates_match_fresh()
             compare_path(&session, &current, &path, &options);
             let work = current
                 .producer_work
-                .as_ref()
+                .as_deref()
                 .expect("actual producer after ordinary-name edit");
             assert_eq!(work.lower_modules, 1, "ordinary {name}");
             assert_eq!(work.reused_lower_modules, 2, "ordinary {name}");
-            let functions = current.function_type_work.expect("actual Types work");
+            let functions = current
+                .function_type_work
+                .as_deref()
+                .expect("actual Types work");
             assert_eq!(functions.core_function_eq_comparisons, 0);
             assert!(functions.producer_version_reuses > 0);
         }
@@ -600,7 +605,7 @@ fn producer_equal_width_edit_skips_real_module_work_and_uses_versions_without_gr
         successful(&cold);
         let cold_work = cold
             .producer_work
-            .as_ref()
+            .as_deref()
             .expect("executed producer counters");
         assert_eq!(cold_work.normalize_modules, 3);
         assert_eq!(cold_work.lower_modules, 3);
@@ -610,7 +615,7 @@ fn producer_equal_width_edit_skips_real_module_work_and_uses_versions_without_gr
         let fresh = compare(&session, &current, &changed, &options);
         let work = current
             .producer_work
-            .as_ref()
+            .as_deref()
             .expect("current producer counters");
         assert_eq!(work.normalize_modules, 1, "only changed left is normalized");
         assert_eq!(work.lower_modules, 1, "only changed left is lowered");
@@ -625,8 +630,12 @@ fn producer_equal_width_edit_skips_real_module_work_and_uses_versions_without_gr
         );
         let functions = current
             .function_type_work
+            .as_deref()
             .expect("actual current Types work");
-        let full = fresh.function_type_work.expect("actual fresh Types work");
+        let full = fresh
+            .function_type_work
+            .as_deref()
+            .expect("actual fresh Types work");
         assert!(functions.producer_version_reuses > 0);
         assert!(functions.body_key_executions < full.body_key_executions);
         assert_eq!(functions.core_function_eq_comparisons, 0);
@@ -848,7 +857,7 @@ fn producer_expand_and_complete_budget_n_n_minus_one_match_first_fresh_error() {
                         assert!(
                             current
                                 .producer_work
-                                .as_ref()
+                                .as_deref()
                                 .expect("current executed producer")
                                 .receipt_hits
                                 > 0,
@@ -981,7 +990,7 @@ fn producer_rich_fallback_ct_traits_generics_and_owned_once_match_fresh() {
             } else {
                 successful(&current);
             }
-            if let Some(work) = current.function_type_work {
+            if let Some(work) = current.function_type_work.as_deref() {
                 assert_eq!(
                     work.graph.executed, 0,
                     "rich fallback must not claim graph execution"
