@@ -1,41 +1,50 @@
 # Incremental producer continuation
 
-User requested a new research branch based on the latest responsive-query
-experiment and the prior point-to-point propagation hypothesis.
+User authorized a new research branch continuing incremental compilation. Later
+steering explicitly requires actual main and Rust comparisons, not comparison
+against another active research worker. Implementation and measurement follow
+that scope; no main merge or default enablement.
 
-Base: `ea0ce45741fde0082b6c92173b7480b167c888d4`.
-Branch: `research/incremental-demand-propagation`.
-Main remains untouched. This is research, not default enablement or main acceptance.
+- Branch: `research/incremental-demand-propagation`.
+- Historical starting point: `ea0ce45741fde0082b6c92173b7480b167c888d4`.
+- Formal baseline: actual main `99035931d358add0eaed6d4535035c38413701dd`.
+- Frozen measured compiler: `0601b9786d0fe683b4321f0d086230e5be027602`.
+- Delivery report/protocol/reproducer: `tools/research/incremental-demand/`.
+- Primary raw evidence: `out/runs/main-matrix-r1`; Rust check and normal
+  incremental CGU256 O2: `out/runs/rust-main-check-r2` and
+  `out/runs/rust-main-cgu256-r1`. Ordinary CGU16 supplement is separate.
 
-The base profiled scalar 20×20×16 request contained 22 files / 498620 bytes.
-Private-edit B (producer enabled, graph disabled) spent 182.856 ms in
-materialization, 131.335 ms in producer assembly, 170.726 ms in combined
-semantic/function cache publication, and 6.980 ms in actual producer execution.
-One profiled block is diagnosis only. Raw data: `out/runs/ea0-profile`.
+Implemented immutable shared CoreModule/SourceMap assembly and sealed scalar
+materialization receipt replay. Current environment admission, budget accounting,
+first diagnostics, independent Verify and richer-domain fallbacks remain. A
+query-history identity bug was reproduced and fixed. Default-worker stack tests
+also exposed a regression inherited from the research base relative to main;
+private state/report heap storage and separated frames fixed it without changing
+stack size, budgets, depths or assertions.
 
-Implementation:
+Independent source review accepts exact 0601. Exact-source workspace lib1654,
+LLVM API generic214, strict all-targets Clippy, fmt and release build pass. Earlier
+full-workspace run passed6119/failed1; the original sole stack failure is fixed
+and revalidated in the full generic suite. Do not claim the whole workspace was
+rerun after the storage fix. Raw failures and successful followups remain in
+unique validation `out/runs/` directories.
 
-- Retain immutable CoreModule and SourceMap Arcs through producer assembly.
-  Raw transformations explicitly use copy-on-write; owned public boundaries
-  unwrap unique allocations. No wire schema/version change.
-- Replay successful scalar materializer module receipts bound to sealed parse
-  owners. Current global environment admission still executes. The original
-  module walk handles insufficient work, temporary bytes, or depth domains.
-- Keep Analyze and current independent Verify. The graph receives no credit
-  for common representation or producer improvements.
-- Split optional publication profiling into semantic candidate and function
-  cache costs to identify residual work without altering cache policy.
+Six paired blocks show reliable main-to-candidate check gains for private and
+three-file edits. Actual materialization/Lower work is1/3modules with21/19shared
+modules, zero map-entry copies and unchanged CFG counts. This is a whole-branch
+comparison, not isolated attribution to the continuation patch. Main already has
+substantial caches. Graph B-to-C gain remains unproven. CGU1 O2 multi-edit
+regression and negative/incomplete configurations remain visible. Rust is a
+separate workflow/timing window with different assurance and partitioning;
+cross-language median ratios are descriptive only.
 
-Validation requirements: actual pointer sharing; fresh/warm full TypedProgram
-and diagnostic equality; changed-width/batched edits; current low-budget first
-diagnostics; failed epoch recovery; rich fallback; real O2 execution; paired
-unprofiled comparisons against the frozen base and A/B/C attribution.
+Keep one heavy build or measurement at a time, independent target directories,
+frozen binaries/helpers during each run, and named-parent/Source/native outcomes.
+Legacy tree-named RSS fields only observe the root in this environment; retain
+raw names but do not claim process-tree or Rust memory advantage. Long-session
+controls are finite entry/source bounds, not byte bounds or leak proofs.
 
-Known initial failures are retained: baseline offline build lacked cached
-`rustc_apfloat` and succeeded after ordinary locked dependency download; first
-Arc all-target check exposed a double Arc in a unit test and old integration
-constructors/mutations. These are not successful test runs.
-
-Only one heavy build or measurement window runs at a time. Source builds use
-the detached `/workspace/zil-incremental-validation` tree and its own target.
-All new runs have unique directories. No reset/clean or edits in a building tree.
+The former base-cost profiles remain provenance/diagnosis only. The accepted
+delivery is a bounded research result with reproducible evidence, not closure
+of the general incremental compilation or Rust parity goals. Final numbers,
+hashes, review receipts, caveats and archive index are in the delivery report.
