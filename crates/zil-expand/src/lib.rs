@@ -701,7 +701,7 @@ fn expand_program_impl(
         };
         modules
     } else if let Some(runtime_ct) = runtime_ct {
-        modules::owned_products(modules::specialize_with_runtime(
+        modules::specialize_with_runtime(
             sources,
             syntax,
             imports,
@@ -709,16 +709,9 @@ fn expand_program_impl(
             &mut products,
             context,
             Some(runtime_ct),
-        )?)
+        )?
     } else {
-        modules::owned_products(modules::specialize_with_context(
-            sources,
-            syntax,
-            imports,
-            limits,
-            &mut products,
-            context,
-        )?)
+        modules::specialize_with_context(sources, syntax, imports, limits, &mut products, context)?
     };
     let project_modules: Vec<_> = specialized.iter().map(|(module, _)| &**module).collect();
     let declarations = declaration_index(project_modules.iter().copied());

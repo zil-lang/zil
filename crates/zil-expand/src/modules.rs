@@ -23,6 +23,7 @@ impl std::ops::Deref for ModuleProduct {
     }
 }
 impl ModuleProduct {
+    #[cfg(test)]
     fn into_owned(self) -> Module {
         match self {
             Self::Owned(module) => module,
@@ -298,7 +299,12 @@ pub(super) fn specialize(
     limits: &Limits,
     products: &mut generics::products::Products,
 ) -> CompileResult<Vec<(Module, Vec<CoreImport>)>> {
-    specialize_with_context(sources, modules, imports, limits, products, None)
+    specialize_with_context(sources, modules, imports, limits, products, None).map(|modules| {
+        modules
+            .into_iter()
+            .map(|(module, imports)| (module.into_owned(), imports))
+            .collect()
+    })
 }
 pub(super) fn specialize_with_context(
     sources: &[SourceUnit],
@@ -307,7 +313,7 @@ pub(super) fn specialize_with_context(
     limits: &Limits,
     products: &mut generics::products::Products,
     context: Option<super::source_context::SourceIdentityContext<'_>>,
-) -> CompileResult<Vec<(Module, Vec<CoreImport>)>> {
+) -> CompileResult<ModuleProducts> {
     specialize_with_runtime(sources, modules, imports, limits, products, context, None)
 }
 pub(super) fn specialize_with_runtime(
@@ -318,17 +324,11 @@ pub(super) fn specialize_with_runtime(
     products: &mut generics::products::Products,
     context: Option<super::source_context::SourceIdentityContext<'_>>,
     runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
-) -> CompileResult<Vec<(Module, Vec<CoreImport>)>> {
+) -> CompileResult<ModuleProducts> {
     normalize(
         sources, modules, imports, limits, products, context, runtime_ct, None,
     )
-    .map(|modules| {
-        modules
-            .expect("raw normalizer owns its output")
-            .into_iter()
-            .map(|(module, imports)| (module.into_owned(), imports))
-            .collect()
-    })
+    .map(|modules| modules.expect("raw normalizer owns its output"))
     .map_err(|e| vec![e])
 }
 pub(super) fn specialize_cached(
