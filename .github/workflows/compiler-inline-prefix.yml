@@ -1,0 +1,68 @@
+name: Maintainable inline equivalence prefix
+on:
+  push:
+    branches: [task/compiler-inline-prefix]
+    paths: [.github/workflows/compiler-inline-prefix.yml]
+permissions:
+  contents: write
+jobs:
+  screen:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Reuse original pinned commands and exact source fixtures
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re,textwrap,os
+          s=Path('.github/workflows/compiler-merge-position.yml').read_text();marks=list(re.finditer(r'^      - (?:name|uses):',s,re.M));out=Path(os.environ['RUNNER_TEMP'])/'prefix-commands';out.mkdir();count=0
+          for i,mark in enumerate(marks):
+              chunk=s[mark.start():marks[i+1].start() if i+1<len(marks) else len(s)]
+              if not chunk.startswith('      - name:') or '        run: |\n' not in chunk:continue
+              code=textwrap.dedent(chunk.split('        run: |\n',1)[1]).replace('refs/heads/task/compiler-merge-order','refs/heads/task/compiler-inline-prefix')
+              code=code.replace('raw normalize before-inline after-inline after-cleanup default-expanded','inline-first minimal-prefix normalized-prefix full-prefix')
+              (out/f'{count}.sh').write_text(code);count+=1
+          assert count==6,count
+          PY
+          bash "$RUNNER_TEMP/prefix-commands/0.sh"
+      - name: Freeze only short-prefix candidates and retained reference
+        run: |
+          set -euo pipefail
+          python3 .task/merge-order/prefix_probe.py 2>&1 | tee "$RUNNER_TEMP/position-setup/generation.log"
+          rustfmt --edition 2024 crates/zil-llvm-api/src/lib.rs
+          python3 -m py_compile .task/merge-order/*.py .task/merge-order/bench/*.py
+          git diff --check
+          git diff > "$RUNNER_TEMP/position-setup/research.patch"
+          git add crates/zil-llvm-api/src/research_position.rs .task/merge-order
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Freeze short equivalent-work prefixes before unmodified target-specific default O2'
+          git rev-parse HEAD > "$RUNNER_TEMP/position-setup/source.txt"
+          git fetch --no-tags origin refs/heads/task/compiler-inline-prefix
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git push origin HEAD:refs/heads/task/compiler-inline-prefix
+          rustc -vV > "$RUNNER_TEMP/position-setup/rustc.txt"
+      - name: Real foreign-observed function address controls
+        run: bash "$RUNNER_TEMP/prefix-commands/2.sh"
+      - name: Single release compiler for the complete screen
+        run: bash "$RUNNER_TEMP/prefix-commands/3.sh"
+      - name: Original equal unequal and owning resource workloads
+        run: bash "$RUNNER_TEMP/prefix-commands/4.sh"
+      - name: Preserve all results without a production claim
+        if: ${{ always() }}
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: bash "$RUNNER_TEMP/prefix-commands/5.sh"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: inline-prefix-${{ github.run_id }}
+          path: .task/merge-order/positions-runs/${{ github.run_id }}
+          retention-days: 30
