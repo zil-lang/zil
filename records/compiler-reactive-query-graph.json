@@ -478,11 +478,11 @@
   },
   "producer_continuation": {
     "task": "G10.5.1.15",
-    "read_goal_sha": "3aa63044726594ef2973760f7374f21095af032e",
+    "read_goal_sha": "f3d5197372ce1737ad06e97888d8c9846674e3d2",
     "source_start": "0a529a6247793f63ccd41ff3f65dc97afcbb666c",
     "main": "99035931d358add0eaed6d4535035c38413701dd",
-    "status": "进行中·真实AST借用与更新范围门通过，正式配对等待测量中，未接受净收益",
-    "updated_utc": "2026-11-11T16:34:01.762885+00:00",
+    "status": "进行中·SourceMap真实共享冻结，357lib＋CLI1与严格Clippy通过，release与新等待门进行中",
+    "updated_utc": "2026-11-11T17:03:04.521003+00:00",
     "write_set": [
       "crates/zil-syntax/src/**: parser-owned immutable Source provenance and tests",
       "crates/zil-expand/src/**: scalar module Normalize/Restore/Lower products, ordered budget receipts and tests",
@@ -503,7 +503,8 @@
       "main",
       "public IR/schema",
       "independent Verify",
-      "backend and LLVM pipeline/optimization budgets"
+      "backend and LLVM pipeline/optimization budgets",
+      "research/incremental-demand-propagation: separate authorized continuation, preserve its goal record and appended coordination note; our SourceMap slice12e frozen, no branch edits"
     ],
     "worktree": "/workspace/scratch/e28839ace920/reactive",
     "target": "/workspace/scratch/e28839ace920/targets/reactive-producer",
@@ -514,27 +515,23 @@
       "requirements": "B must use versions fairly; separate production/Eq/context/inventory/graph/evaluation/backend within same request; preserve current Verify/source binding/first diagnostics/budgets and real native behavior. Freeze source before performance."
     },
     "success_gate": "Unchanged modules actually skip Normalize/Lower, unchanged Core deep comparison drops, CFG execution does not increase, complete fresh-current differential passes; only then extend graph or performance matrix.",
-    "remaining": "六顺序无profile真实A/B/C check进行中；随后同源码O2/native与规模、长期、默认关控制。已减少未变模块生产和AST深clone；最终Core/Map组装、材料化及缓存编码仍全量，r5单block无可靠总等待收益。C-B只记图增量，默认关闭、不合main。",
-    "source_head": "ea0ce45741fde0082b6c92173b7480b167c888d4",
+    "remaining": "ea0六顺序check/O2各306row/162measured均完成，O2 1620native通过；收益/回退保留，C-B未证明图净收益。新12e共享未变SourceMap、保持完整artifact及原费用序，不能沿用ea0时间。新release后先r6实际mapclone门，再配对与native；默认关闭、不合main。",
+    "source_head": "12e648af1f50ffcb18fc32b8f4dc50a680900182",
     "validation": {
-      "source": "ea0ce45741fde0082b6c92173b7480b167c888d4",
-      "lib_tests": 355,
+      "source": "12e648af1f50ffcb18fc32b8f4dc50a680900182",
+      "lib_tests": 357,
+      "lib_breakdown": {
+        "driver": 164,
+        "expand": 92,
+        "syntax": 35,
+        "types": 66
+      },
       "cli_tests": 1,
       "strict_clippy": "workspace/all-targets -D warnings passed",
-      "architecture": {
-        "crates": 15,
-        "edges": 40,
-        "status": "Pass at2a6; following source only type aliases/counter names"
-      },
-      "actual_work_gate": "r5 real22modules: privateNormalizeLower1,actual Normalize input clone21/Restore moduleclone1,retained404/21;multi3,clone63/3,retained362/19;CoreEq0,CFG5/6sameA;all21requests currentVerify1;mutually exclusive costs valid",
-      "raw_local": "out/runs/producer-validation-fc2cd48;producer-validation-ea0ce45;producer-validation-ea0ce45-isolated-r2;native-abc-cost-20x20x16-r5; formal check underway; not yet in durable version0",
-      "review_source": "ea0ce45741fde0082b6c92173b7480b167c888d4",
-      "review": "non-author exact-byte Arc body/independent ledgers/full fallback/old path review;355+CLI1/strict lint/release logs independently confirmed",
-      "release": "passed",
-      "binary_sha256": "7c1e3354557f24480a6e92e90072704a500903a886f1fb494c37f58dbedb74e1",
-      "native": {
-        "status": "new ea0 native pending; prior89 native separately identified"
-      }
+      "release": "running",
+      "raw_local": "out/runs/producer-validation-12e648a",
+      "review": "non-author READY complete actual map/fees/ownership reviewed; exact frozen binding pending",
+      "native": "new source not yet run"
     },
     "preserved_failures": [
       {
@@ -605,7 +602,7 @@
       "sha256": "ae533035eee20c532b22b3d6797c45ab3331d97d811e0d291d4644112051defc",
       "manifest_sha256": "030eaa500ac176f809d4f30476b826cb35c1ffadddec55bfa0b64c7e7d0d3568",
       "all_entries_read_back_hash_verified": true,
-      "boundary": "completed raw through7b2 red beforef7/89; new f7/89/r4 results not yet in saved version0",
+      "boundary": "Version0 only includes completed raw through7b2 red beforef7/89; ea0/new SourceMap results not yet durable. Final must replace same file after completed windows.",
       "private_zit_included": false
     },
     "previous_native_control": {
@@ -619,6 +616,39 @@
       "A_B_C_ELF_equal": true,
       "independent_oracle": "all90passed",
       "interpretation": "real producer native correctness/work control; one block is not performance acceptance"
+    },
+    "previous_ast_stage": {
+      "source": "ea0ce45741fde0082b6c92173b7480b167c888d4",
+      "check": "native-abc-producer-20x20x16-check-r1:6blocks306rows162measured,0invalid",
+      "O2": "native-abc-producer-20x20x16-O2-r1:6blocks306rows162measured,0invalid,1620native=864measured+756prep",
+      "private_O2_mean_saved_ms": {
+        "A_to_B": 120.88,
+        "B_to_C": 50.217,
+        "A_to_C": 171.096
+      },
+      "multi_O2_A_to_C_saved_ms": -275.55,
+      "acceptance": "no overall net gain; C-B private CI crosses0; same-request ELF/LLVM equality only, crossblock LLVM source fingerprint differs; check regressions retained",
+      "long_session": "50unique editsB/C capacity32 cache-none completed102requests+5fresh; native0; independently reviewing"
+    },
+    "previous_ast_validation": {
+      "source": "ea0ce45741fde0082b6c92173b7480b167c888d4",
+      "lib_tests": 355,
+      "cli_tests": 1,
+      "strict_clippy": "workspace/all-targets -D warnings passed",
+      "architecture": {
+        "crates": 15,
+        "edges": 40,
+        "status": "Pass at2a6; following source only type aliases/counter names"
+      },
+      "actual_work_gate": "r5 real22modules: privateNormalizeLower1,actual Normalize input clone21/Restore moduleclone1,retained404/21;multi3,clone63/3,retained362/19;CoreEq0,CFG5/6sameA;all21requests currentVerify1;mutually exclusive costs valid",
+      "raw_local": "out/runs/producer-validation-fc2cd48;producer-validation-ea0ce45;producer-validation-ea0ce45-isolated-r2;native-abc-cost-20x20x16-r5; formal check underway; not yet in durable version0",
+      "review_source": "ea0ce45741fde0082b6c92173b7480b167c888d4",
+      "review": "non-author exact-byte Arc body/independent ledgers/full fallback/old path review;355+CLI1/strict lint/release logs independently confirmed",
+      "release": "passed",
+      "binary_sha256": "7c1e3354557f24480a6e92e90072704a500903a886f1fb494c37f58dbedb74e1",
+      "native": {
+        "status": "new ea0 native pending; prior89 native separately identified"
+      }
     }
   }
 }
