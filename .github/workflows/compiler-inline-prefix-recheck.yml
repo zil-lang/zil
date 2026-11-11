@@ -1,0 +1,57 @@
+name: Maintainable inline prefix recheck
+on:
+  push:
+    branches: [task/compiler-inline-prefix]
+    paths: [.github/workflows/compiler-inline-prefix-recheck.yml]
+permissions:
+  contents: write
+jobs:
+  screen:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Retain exact prior protocol and remove only generated trailing whitespace
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re,textwrap,os
+          p=Path('.task/merge-order/prefix_probe.py');s=p.read_text();old='.write_text(source)';assert s.count(old)==1
+          p.write_text(s.replace(old,".write_text('\\n'.join(line.rstrip() for line in source.splitlines())+'\\n')"))
+          s=Path('.github/workflows/compiler-inline-prefix.yml').read_text();marks=list(re.finditer(r'^      - (?:name|uses):',s,re.M));out=Path(os.environ['RUNNER_TEMP'])/'prefix-recheck';out.mkdir();count=0
+          for i,mark in enumerate(marks):
+              chunk=s[mark.start():marks[i+1].start() if i+1<len(marks) else len(s)]
+              if not chunk.startswith('      - name:') or '        run:' not in chunk:continue
+              if '        run: |\n' in chunk:code=textwrap.dedent(chunk.split('        run: |\n',1)[1])
+              else:code=chunk.split('        run: ',1)[1].splitlines()[0]+'\n'
+              (out/f'{count}.sh').write_text(code);count+=1
+          assert count==6,count
+          PY
+          bash "$RUNNER_TEMP/prefix-recheck/0.sh"
+      - name: Freeze exact same pass choices and source inputs
+        run: bash "$RUNNER_TEMP/prefix-recheck/1.sh"
+      - name: Foreign-observed address identity controls
+        run: bash "$RUNNER_TEMP/prefix-recheck/2.sh"
+      - name: Single release compiler for every arm
+        run: bash "$RUNNER_TEMP/prefix-recheck/3.sh"
+      - name: Full original short-prefix screen
+        run: bash "$RUNNER_TEMP/prefix-recheck/4.sh"
+      - name: Preserve outcomes and original pre-measurement formatting failure
+        if: ${{ always() }}
+        env:
+          PRIOR_STATUS: ${{ job.status }}
+        run: bash "$RUNNER_TEMP/prefix-recheck/5.sh"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: inline-prefix-recheck-${{ github.run_id }}
+          path: .task/merge-order/positions-runs/${{ github.run_id }}
+          retention-days: 30
