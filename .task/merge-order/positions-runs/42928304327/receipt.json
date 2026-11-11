@@ -1,0 +1,18 @@
+{
+  "baseline": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852",
+  "source": "f10cb42a25f36773fe442014c4314d1151dc3ead",
+  "recipe": "31a9a8c90fe758b7101fd766884ec2965337afab",
+  "prior_raw_before_merge_runtime_failure": 42924878932,
+  "status_before_preservation": "success",
+  "scope": "research-only generated pinned pass strings; focused screen, not production or weighted acceptance",
+  "files": {
+    "manifest.json": "a05bc6a2cb0b9c883de7873b81f394c9ebb248756d93b50720431b597954634c",
+    "runtime.jsonl": "ba7fe52cadc10a22d7ce1b5bd9df51e533fc473cdf9ced66bd7277dff44788a5",
+    "rows.jsonl": "ddd34504bb3370b83ccc3e58fd6bb2bf664c26b78a0b19fa173d1d4f35731912",
+    "raw.tar.gz": "3ff3e2aa7bff70c0fb18bcd11aa9e81aae9831b1fc120faddb14f37b15c8d378",
+    "summary.json": "d9c6900c82d5a0fd97b4c6d80861047879b32fa9c2640cf0bd1e08376da28728",
+    "omitted-elf.json": "bf6639df5db441894846e1d8c24ded6a70dfa8ae8b23e6d274de3b6abdf972e1",
+    "pipelines.json": "c52f6691bdde8c6b569130416fb8e609ed34215723376017b08196f696f6bd9f"
+  },
+  "main_modified": false
+}

@@ -1,0 +1,242 @@
+[
+  {
+    "path": "data/quality/owned32/base/base/app",
+    "sha256": "278102bad75e27fe232d16146e92f8512faedeccf33f3d20269ce5e369d64d67",
+    "bytes": 46008
+  },
+  {
+    "path": "data/quality/owned32/base/inline-clean/app",
+    "sha256": "e678f33a1f4546ab5c9e8642199e5be29352ef87d5f0157d2dd2e890b233ffba",
+    "bytes": 37816
+  },
+  {
+    "path": "data/quality/owned32/base/default-expanded/app",
+    "sha256": "278102bad75e27fe232d16146e92f8512faedeccf33f3d20269ce5e369d64d67",
+    "bytes": 46008
+  },
+  {
+    "path": "data/quality/owned32/base/raw/app",
+    "sha256": "90e82741b096d41781db25dee4c09e811c93b98ed9e6eb236bd9cb89443a5c36",
+    "bytes": 46008
+  },
+  {
+    "path": "data/quality/owned32/base/inline-first/app",
+    "sha256": "583a17a6ebee184ffb0671220b7b22c379bdafc2f5d73a2da48693488ef4829f",
+    "bytes": 50104
+  },
+  {
+    "path": "data/quality/owned32/base/inline-attrs/app",
+    "sha256": "583a17a6ebee184ffb0671220b7b22c379bdafc2f5d73a2da48693488ef4829f",
+    "bytes": 50104
+  },
+  {
+    "path": "data/quality/owned32/private/base/app",
+    "sha256": "e725841db87118ceb2819b0af3291846371e84149a3f373e758f2d43787c6e18",
+    "bytes": 46008
+  },
+  {
+    "path": "data/quality/owned32/private/inline-clean/app",
+    "sha256": "ec4b0c9d3029d599ba1fc154d0d3d6e9b863e5c906f0e20eb25d7ff8029fb862",
+    "bytes": 37816
+  },
+  {
+    "path": "data/quality/owned32/private/default-expanded/app",
+    "sha256": "e725841db87118ceb2819b0af3291846371e84149a3f373e758f2d43787c6e18",
+    "bytes": 46008
+  },
+  {
+    "path": "data/quality/owned32/private/raw/app",
+    "sha256": "706b4f57a4ccc130a1ed499de6308dc1b92a0b1df0bd2dd6ba4127f1826cf6b6",
+    "bytes": 46008
+  },
+  {
+    "path": "data/quality/owned32/private/inline-first/app",
+    "sha256": "b08b014f19499111a76ccbe7278763fde66a7225fe73fe05024d175110b4f58f",
+    "bytes": 50104
+  },
+  {
+    "path": "data/quality/owned32/private/inline-attrs/app",
+    "sha256": "b08b014f19499111a76ccbe7278763fde66a7225fe73fe05024d175110b4f58f",
+    "bytes": 50104
+  },
+  {
+    "path": "data/quality/pipeline16/base/base/app",
+    "sha256": "ff21f541bbc3c8785934d7e31dc04d1b52902af4e0b851bc932fdfbfae481a04",
+    "bytes": 28176
+  },
+  {
+    "path": "data/quality/pipeline16/base/inline-clean/app",
+    "sha256": "e4e25181cdf68401858614de71611a32a6acd911bf817d25fc9a3a8a37972ec7",
+    "bytes": 28176
+  },
+  {
+    "path": "data/quality/pipeline16/base/default-expanded/app",
+    "sha256": "ff21f541bbc3c8785934d7e31dc04d1b52902af4e0b851bc932fdfbfae481a04",
+    "bytes": 28176
+  },
+  {
+    "path": "data/quality/pipeline16/base/raw/app",
+    "sha256": "62d95627539d642f87aa4c54e576cdef8b30007e5de18fbd91769438edf937be",
+    "bytes": 28176
+  },
+  {
+    "path": "data/quality/pipeline16/base/inline-first/app",
+    "sha256": "a6b0b072fdc288a919024b694d0a32db6cbb66fab3a8273a22d7d4eec5d7ffdf",
+    "bytes": 28176
+  },
+  {
+    "path": "data/quality/pipeline16/base/inline-attrs/app",
+    "sha256": "a6b0b072fdc288a919024b694d0a32db6cbb66fab3a8273a22d7d4eec5d7ffdf",
+    "bytes": 28176
+  },
+  {
+    "path": "data/quality/pipeline16/private/base/app",
+    "sha256": "e19408f15585f347d920b2c257ff283582e6b0beb89e949d1014b77161843886",
+    "bytes": 28176
+  },
+  {
+    "path": "data/quality/pipeline16/private/inline-clean/app",
+    "sha256": "3b404a782642cae31aee65cf93ef8a467af730504d5b1921f8d81ab6afa4b877",
+    "bytes": 28176
+  },
+  {
+    "path": "data/quality/pipeline16/private/default-expanded/app",
+    "sha256": "e19408f15585f347d920b2c257ff283582e6b0beb89e949d1014b77161843886",
+    "bytes": 28176
+  },
+  {
+    "path": "data/quality/pipeline16/private/raw/app",
+    "sha256": "84af62088862ebbfa0672b711ab4b54a0ffd2897ea80d0aa01b8bdf11ad55be5",
+    "bytes": 28176
+  },
+  {
+    "path": "data/quality/pipeline16/private/inline-first/app",
+    "sha256": "55e003dd073416152b19fb0b81a73aada7f124f10048b68e3599effa6bf41cdc",
+    "bytes": 28176
+  },
+  {
+    "path": "data/quality/pipeline16/private/inline-attrs/app",
+    "sha256": "55e003dd073416152b19fb0b81a73aada7f124f10048b68e3599effa6bf41cdc",
+    "bytes": 28176
+  },
+  {
+    "path": "data/quality/dispatch16/base/base/app",
+    "sha256": "ee6695fb029926077be6fe2314fe15be903f1d6411157ef6879c03a948a9a5d1",
+    "bytes": 24080
+  },
+  {
+    "path": "data/quality/dispatch16/base/inline-clean/app",
+    "sha256": "bca7ef537b84920f9d21a1f140dec8993865b34219d63ee6cc3a2c782983cf83",
+    "bytes": 24080
+  },
+  {
+    "path": "data/quality/dispatch16/base/default-expanded/app",
+    "sha256": "ee6695fb029926077be6fe2314fe15be903f1d6411157ef6879c03a948a9a5d1",
+    "bytes": 24080
+  },
+  {
+    "path": "data/quality/dispatch16/base/raw/app",
+    "sha256": "17b83ecc016c0d38ccfc20902190935e0df90cb3190e8fb0a0ca5cb68d044b90",
+    "bytes": 24080
+  },
+  {
+    "path": "data/quality/dispatch16/base/inline-first/app",
+    "sha256": "e17a436dbb62712236ebe7fcbd24d4ccbff4f4efca1f90e3d4af01cfb2850408",
+    "bytes": 24080
+  },
+  {
+    "path": "data/quality/dispatch16/base/inline-attrs/app",
+    "sha256": "e17a436dbb62712236ebe7fcbd24d4ccbff4f4efca1f90e3d4af01cfb2850408",
+    "bytes": 24080
+  },
+  {
+    "path": "data/quality/dispatch16/private/base/app",
+    "sha256": "58c2f78d0c2778e3fc148d10c579622c8b09317b409e65ed5e1c58a5f50c3200",
+    "bytes": 28176
+  },
+  {
+    "path": "data/quality/dispatch16/private/inline-clean/app",
+    "sha256": "f026c466e8740c4d911743c5bbe797412d2e5ce33115f574c4f929a254f5fa18",
+    "bytes": 28176
+  },
+  {
+    "path": "data/quality/dispatch16/private/default-expanded/app",
+    "sha256": "58c2f78d0c2778e3fc148d10c579622c8b09317b409e65ed5e1c58a5f50c3200",
+    "bytes": 28176
+  },
+  {
+    "path": "data/quality/dispatch16/private/raw/app",
+    "sha256": "9285a52de6e98fc80849e499bb2294d31542b626b8a3e2f4c145c1eb5f5d0f40",
+    "bytes": 28176
+  },
+  {
+    "path": "data/quality/dispatch16/private/inline-first/app",
+    "sha256": "556ac122c76a169c2d300eb224ebb65c00dced2f6f9a926440e311ea10173cdf",
+    "bytes": 28176
+  },
+  {
+    "path": "data/quality/dispatch16/private/inline-attrs/app",
+    "sha256": "556ac122c76a169c2d300eb224ebb65c00dced2f6f9a926440e311ea10173cdf",
+    "bytes": 28176
+  },
+  {
+    "path": "data/quality/unequal16/base/base/app",
+    "sha256": "37be3fa1fb989534c3fe3d34a218423d49cd15a1c6b6c9ef423c72b2720f4fd7",
+    "bytes": 52752
+  },
+  {
+    "path": "data/quality/unequal16/base/inline-clean/app",
+    "sha256": "9563a1dbf9fc61e67963b6c32279154dcb80802223d8bbe55d5262e3c342d3db",
+    "bytes": 48656
+  },
+  {
+    "path": "data/quality/unequal16/base/default-expanded/app",
+    "sha256": "37be3fa1fb989534c3fe3d34a218423d49cd15a1c6b6c9ef423c72b2720f4fd7",
+    "bytes": 52752
+  },
+  {
+    "path": "data/quality/unequal16/base/raw/app",
+    "sha256": "a403161209ce815ae5e8948d4422c7e112b864db57c3f8113b9dc0cab70a4340",
+    "bytes": 60944
+  },
+  {
+    "path": "data/quality/unequal16/base/inline-first/app",
+    "sha256": "7a6b5cf443182ac8682c780e47e78ecb5c62208148bf4e29264a0bb1a13ff941",
+    "bytes": 52752
+  },
+  {
+    "path": "data/quality/unequal16/base/inline-attrs/app",
+    "sha256": "7a6b5cf443182ac8682c780e47e78ecb5c62208148bf4e29264a0bb1a13ff941",
+    "bytes": 52752
+  },
+  {
+    "path": "data/quality/unequal16/private/base/app",
+    "sha256": "ee10bd0deb9afeda030360bf53e42d2fb1403afa6e8bf0b7bcbdfe8069e1caab",
+    "bytes": 52752
+  },
+  {
+    "path": "data/quality/unequal16/private/inline-clean/app",
+    "sha256": "9e84f9575f0ece0fbf45c23f29c8784a8b0ccb95d494cbcf7f28f2553a3761e6",
+    "bytes": 48656
+  },
+  {
+    "path": "data/quality/unequal16/private/default-expanded/app",
+    "sha256": "ee10bd0deb9afeda030360bf53e42d2fb1403afa6e8bf0b7bcbdfe8069e1caab",
+    "bytes": 52752
+  },
+  {
+    "path": "data/quality/unequal16/private/raw/app",
+    "sha256": "4eead5e871edaf2ac222a6dfee7815bef4cac2aa5ffc4496e55e5afed47cd308",
+    "bytes": 60944
+  },
+  {
+    "path": "data/quality/unequal16/private/inline-first/app",
+    "sha256": "299d02419df6e37485c5c2fd802be0632e285403ab4b37907435d015d8e13d73",
+    "bytes": 52752
+  },
+  {
+    "path": "data/quality/unequal16/private/inline-attrs/app",
+    "sha256": "299d02419df6e37485c5c2fd802be0632e285403ab4b37907435d015d8e13d73",
+    "bytes": 52752
+  }
+]
