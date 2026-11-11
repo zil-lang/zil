@@ -4,9 +4,9 @@
     "G10.5.1.13",
     "G10.5.1.14"
   ],
-  "updated_utc": "2026-11-11T09:30:38.217802+00:00",
-  "read_goal": "c33ace5ab78814760c7f65cee230b7b898ce4078",
-  "status": "Implementation in progress; no new performance result or adoption",
+  "updated_utc": "2026-11-11T10:10:04.520285+00:00",
+  "read_goal": "534f065836faaa5553a82f05396a2890facfa004",
+  "status": "Three implemented candidates screened; no production adoption; complete-visibility mechanism control in preparation",
   "baseline": {
     "sha": "99035931d358add0eaed6d4535035c38413701dd",
     "tree": "1c16744d838064cb1c687ba56ef3a0d17ed3130c",
@@ -19,18 +19,37 @@
     "llvm": "23.1.4",
     "timing_cpus": [
       0,
-      1,
-      2,
-      3
+      1
     ],
-    "single_heavy_window": true
+    "single_heavy_window": true,
+    "resource_budget_cpus": 4,
+    "timing_note": "Actual S/B fixed screens and ThinLTO quality use two fixed CPUs; initial record listed four-CPU overall budget, not the executed affinity."
   },
   "candidate": {
     "branch": "task/compiler-structured-emission",
     "parent": "99035931d358add0eaed6d4535035c38413701dd",
-    "status": "authoring",
+    "status": "Implemented and reviewed; fixed screen NoGo",
     "mechanism": "Build machine items directly while lowering each function; remove temporary Event tape and second traversal while retaining Code compatibility, copy admission and delayed structural error priority. Builder insertion-point caching evaluated separately.",
-    "acceptance": false
+    "acceptance": false,
+    "sha": "ee0cc45261dbfadf25dce567f0fc1fa0b4d4b6f5",
+    "tree": "ad37913cf49a1bfec28e66e7abdcf225dbcafed5",
+    "validation": {
+      "release": "Pass",
+      "api_tests": 72,
+      "backend_tests": 205,
+      "requests": 84,
+      "elf_equal_pairs": 42,
+      "material_ir_equal_pairs": 42,
+      "native_io": 252,
+      "current_verify": 84,
+      "current_unit_preflight": 456,
+      "wall_change_pct": 7.632591,
+      "cpu_change_pct": 7.723763,
+      "report": "research/structured-emission/result-review.md",
+      "report_sha256": "ec1d8be776d3faa31dabcc78e627b578ea0ec9dc7d4f8a750c36c4065db5e809",
+      "raw": "out/next-optimization/structured-screen-ee0",
+      "adopted": false
+    }
   },
   "external_sources": {
     "rust_measured": "58cf8f9c35b355199727627d07ae34a4e2846d67",
@@ -41,9 +60,45 @@
     "blaze_relevant_source_delta": "No change between prior and current pins; new review, not upstream new breakthrough"
   },
   "thinlto": {
-    "status": "research-only prototype preparation",
+    "status": "Default import policy completed and independently audited; runtime NoGo",
     "scope": "Canonical owner/declaration partition plus actual clang23 ThinLTO prelink and lld23 imports/cache; first pure multi-file runtime screen. Distinct pipeline, no equivalence or product implementation claim.",
-    "admission": "Current Verify and legal partition; unchanged per-case runtime regression gate <=1.10 before compile-performance expansion"
+    "admission": "Current Verify and legal partition; unchanged per-case runtime regression gate <=1.10 before compile-performance expansion",
+    "sha": "eb5b150903b67d8b9011f6adc2d3ac67b1c419a6",
+    "tree": "1da99d09dbeb53e59f8df4572f4bc5d010ff5929",
+    "protocol_sha256": "b5eeba53b6b79b07f825591a6026c3bd568e5a7925fab9744d19a7e603ed514b",
+    "raw": "out/next-optimization/thin-runtime-v1",
+    "counts": {
+      "clean_compilations": 6,
+      "native_total": 54,
+      "native_formal": 36
+    },
+    "runtime_ms": {
+      "n64": {
+        "A": 100.9794715,
+        "B": 175.27668599999998,
+        "R": 404.5233141666667,
+        "B_over_A": 1.735765531313956
+      },
+      "n256": {
+        "A": 342.93117283333333,
+        "B": 688.485514,
+        "R": 1600.9328941666668,
+        "B_over_A": 2.007649256005689
+      }
+    },
+    "all_outputs_valid": true,
+    "gate_pass": false,
+    "compile_speed_claim": false,
+    "adopted": false,
+    "mechanism_finding": "N64 and N256 actual import lists and .3 bodies contain no cross-unit imported definitions; N64 63 leaf value summaries are 122-184 instructions, all above default 100. Remaining root cross-unit calls 56/224 after owner-local inlining. Not an AE-body-after-import attribution.",
+    "next_control": "One separately frozen force-import-all mechanism control only after current original planner allowlist/copy-cost proof, identical canonical owners and complete cross-owner closure coverage; actual prelink required imports must be covered and actual .3 imports must not exceed original allowed set. No threshold sweep or budget increase; same runtime gates.",
+    "independent_report": {
+      "path": "research/thinlto-prototype/result-review.md",
+      "sha256": "f3f87b045531f1bd766794b05a3b3331e25928e111f2542bcc52ee0112d9ce3d",
+      "raw_files_rehashed": 1044,
+      "process_attempts": 164,
+      "protocol_valid": true
+    }
   },
   "single_flight": {
     "implemented": false,
@@ -56,5 +111,29 @@
     "Exact source review and real output identity before adoption",
     "Main keeps production assets; fixed archive keeps experiments; no task reports merged to main"
   ],
-  "previous_record": "records/compiler-multi-edit-continuation.json"
+  "previous_record": "records/compiler-multi-edit-continuation.json",
+  "builder_position": {
+    "branch": "task/compiler-builder-position",
+    "sha": "9f0deb4c4142d0fff2ef622442518fc1d7a65d5c",
+    "tree": "257a29612531576af3f9fcf1f703fb824970f695",
+    "release": "Pass",
+    "api_tests": 71,
+    "requests": 84,
+    "elf_equal_pairs": 42,
+    "material_ir_equal_pairs": 42,
+    "native_io": 252,
+    "current_verify": 84,
+    "current_unit_preflight": 456,
+    "wall_change_pct": 2.078146,
+    "cpu_change_pct": 3.080408,
+    "builder_total_ms": [
+      280.644815,
+      323.941232
+    ],
+    "report": "research/builder-position/result-review.md",
+    "report_sha256": "7f11c8809f2dfb41c6fcbd6ba4da83b87299ffbc98f3347cf713aaae1d871275",
+    "raw": "out/next-optimization/builder-screen-9f0",
+    "adopted": false
+  },
+  "source_history_status": "Remote task heads retain source; fixed archive and new raw bundle checkpoint pending completion of current bounded control."
 }
