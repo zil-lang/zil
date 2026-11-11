@@ -1,6 +1,6 @@
 //! Private partition-input work products. These recipes are not validation evidence:
 //! current declaration and complete native-unit preflight remain in the caller.
-use super::{CallImportPolicy, direct_calls, distribute_item, rewrite_direct_calls};
+use super::{CallImportPolicy, distribute_item, rewrite_direct_calls};
 use crate::EntryPoint;
 use crate::object_cache::{BufferedHasher, installed_compiler_identity};
 use std::collections::{BTreeMap, BTreeSet};
@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use zil_base::Fingerprint;
 use zil_ir::{InstructionKind, LirView};
-use zil_llvm_api::model::{Item, Linkage, Module};
+use zil_llvm_api::model::{Item, Linkage, Module, Op, Val};
 
 const MAGIC: &[u8; 8] = b"ZILCGU02";
 const DIRECTORY: &str = "partition-layout-v2";
@@ -410,6 +410,46 @@ impl Cache {
     }
 }
 
+// Preserve every symbol occurrence without constructing the planner's owned
+// sets. Order, repetition and container shape may conservatively distinguish
+// equivalent reference sets; no planner-visible reference can disappear.
+fn hash_symbols(value: &Val, state: &mut BufferedHasher) {
+    match value {
+        Val::Global(name) => {
+            0u8.hash(state);
+            name.hash(state);
+        }
+        Val::Array(args) => {
+            1u8.hash(state);
+            args.len().hash(state);
+            for arg in args {
+                hash_symbols(&arg.value, state);
+            }
+            2u8.hash(state);
+        }
+        Val::Gep { ptr, indices, .. } => {
+            3u8.hash(state);
+            hash_symbols(ptr, state);
+            indices.len().hash(state);
+            for arg in indices {
+                hash_symbols(&arg.value, state);
+            }
+            4u8.hash(state);
+        }
+        Val::Local(_)
+        | Val::Int(_)
+        | Val::F32(_)
+        | Val::F64(_)
+        | Val::Bool(_)
+        | Val::Null
+        | Val::Zero
+        | Val::Undef
+        | Val::Poison
+        | Val::Bytes(_)
+        | Val::Invalid(_) => {}
+    }
+}
+
 fn action_key(
     module: &Module,
     lir: &LirView<'_>,
@@ -509,8 +549,22 @@ fn action_key(
                 blocks.is_some().hash(&mut state);
                 blocks.as_ref().map(Vec::len).hash(&mut state);
                 function.cost().hash(&mut state);
-                function.references().hash(&mut state);
-                direct_calls(function).hash(&mut state);
+                for instruction in blocks.iter().flatten().flat_map(|b| &b.instructions) {
+                    // Direct-call membership is distinct from observing the
+                    // same symbol as an address. Keep the shared operand walk.
+                    if let Op::Call {
+                        callee: Val::Global(name),
+                        ..
+                    } = &instruction.op
+                    {
+                        5u8.hash(&mut state);
+                        name.hash(&mut state);
+                    }
+                    for value in instruction.op.values() {
+                        hash_symbols(value, &mut state);
+                    }
+                }
+                6u8.hash(&mut state);
             }
             Item::Global(global) => {
                 2u8.hash(&mut state);
@@ -530,11 +584,10 @@ fn action_key(
                 constant.hash(&mut state);
                 unnamed_addr.hash(&mut state);
                 alignment.hash(&mut state);
-                let mut references = BTreeSet::new();
                 if let Some(value) = initializer {
-                    value.symbols(&mut references);
+                    hash_symbols(value, &mut state);
                 }
-                references.hash(&mut state);
+                6u8.hash(&mut state);
             }
         }
     }

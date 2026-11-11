@@ -411,6 +411,58 @@ fn layout_projection_binds_address_direct_call_linkage_and_definition_changes() 
     };
     g.initializer = Some(Val::Global("zil.fn.1".into()));
     assert_ne!(projection_key(&addressed, &source, 2), key);
+
+    addressed.items.push(Item::Global(Global {
+        name: "nested".into(),
+        linkage: Linkage::External,
+        ty: Ty::array(1, Ty::array(1, Ty::Ptr)),
+        initializer: Some(Val::Array(vec![Arg::new(
+            Ty::array(1, Ty::Ptr),
+            Val::Array(vec![Arg::new(
+                Ty::Ptr,
+                Val::Gep {
+                    ty: Ty::Int(32),
+                    ptr: Box::new(Val::Global("state".into())),
+                    indices: vec![Arg::new(Ty::Int(64), Val::Int(0))],
+                },
+            )]),
+        )])),
+        constant: true,
+        unnamed_addr: false,
+        alignment: 8,
+    }));
+    zil_llvm_api::validate_module(&addressed).unwrap();
+    let key = projection_key(&addressed, &source, 2);
+    let Item::Global(g) = addressed.items.last_mut().unwrap() else {
+        unreachable!()
+    };
+    let Some(Val::Array(outer)) = &mut g.initializer else {
+        unreachable!()
+    };
+    let Val::Array(inner) = &mut outer[0].value else {
+        unreachable!()
+    };
+    let Val::Gep { indices, .. } = &mut inner[0].value else {
+        unreachable!()
+    };
+    // Scalar GEP indices cannot affect placement, but a deeply nested global
+    // pointer must remain visible through both array levels and the GEP.
+    indices[0].value = Val::Int(1);
+    assert_eq!(projection_key(&addressed, &source, 2), key);
+    let Item::Global(g) = addressed.items.last_mut().unwrap() else {
+        unreachable!()
+    };
+    let Some(Val::Array(outer)) = &mut g.initializer else {
+        unreachable!()
+    };
+    let Val::Array(inner) = &mut outer[0].value else {
+        unreachable!()
+    };
+    let Val::Gep { ptr, .. } = &mut inner[0].value else {
+        unreachable!()
+    };
+    *ptr = Box::new(Val::Global("address".into()));
+    assert_ne!(projection_key(&addressed, &source, 2), key);
 }
 
 #[test]
