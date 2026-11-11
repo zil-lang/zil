@@ -80,6 +80,8 @@ statistics!(
     reused_lower_modules,
     receipt_hits,
     receipt_nodes,
+    receipt_budget_misses,
+    lower_budget_misses,
     visited_nodes,
     syntax_clone_receipt_nodes,
     cloned_source_map_entries,
@@ -119,6 +121,31 @@ struct Environment {
     limits: Limits,
     target: TargetProfile,
     context: String,
+}
+// Only monotone node/work allowances are replayable in this slice. Every
+// other limit (including temporary/source bytes and depth) remains an exact
+// validity input. A successful scalar receipt carries no lineage/feature side
+// effect; current insufficient allowances re-enter the original stage untouched.
+fn same_limit_domain(left: &Limits, right: &Limits) -> bool {
+    left.max_source_bytes == right.max_source_bytes
+        && left.max_tokens == right.max_tokens
+        && left.max_functions == right.max_functions
+        && left.max_blocks == right.max_blocks
+        && left.max_instructions == right.max_instructions
+        && left.max_locals == right.max_locals
+        && left.max_values == right.max_values
+        && left.max_ct_steps == right.max_ct_steps
+        && left.max_call_depth == right.max_call_depth
+}
+impl Environment {
+    fn compatible(&self, current: &Self) -> bool {
+        self.sources == current.sources
+            && self.headers == current.headers
+            && self.imports == current.imports
+            && same_limit_domain(&self.limits, &current.limits)
+            && self.target == current.target
+            && self.context == current.context
+    }
 }
 impl ProducerStats {
     fn environment_change(&mut self, previous: Option<&Environment>, current: &Environment) {
@@ -364,7 +391,11 @@ impl ExpandSession {
             self.stats
                 .environment_change(self.environment.as_ref(), &environment);
         }
-        if self.environment.as_ref() != Some(&environment) {
+        if self
+            .environment
+            .as_ref()
+            .is_none_or(|previous| !previous.compatible(&environment))
+        {
             for entry in entries.values_mut() {
                 entry.receipts.clear();
                 entry.normalized.clear();
@@ -500,6 +531,7 @@ impl Reuse<'_> {
         };
         let remaining = budget.remaining_limits();
         if remaining.max_nodes < receipt.nodes || remaining.max_analysis_steps < receipt.work {
+            self.stats.receipt_budget_misses += 1;
             return false;
         }
         let mut after = remaining;
@@ -571,12 +603,23 @@ impl Reuse<'_> {
     }
     pub(crate) fn lower(&mut self, file: FileId, limits: &Limits) -> Option<ExpandedModule> {
         let clock = self.clock();
-        let cached = self
+        let candidate = self
             .entry(file)
             .lower
             .as_ref()
-            .filter(|(old, _)| old == limits)
-            .map(|(_, value)| value.clone());
+            .map(|(old, value)| (old.clone(), value.clone()));
+        let cached = candidate.and_then(|(old, value)| {
+            if !same_limit_domain(&old, limits) {
+                return None;
+            }
+            if limits.max_analysis_steps < value.lowering_demand.work
+                || limits.max_nodes < value.lowering_demand.nodes
+            {
+                self.stats.lower_budget_misses += 1;
+                return None;
+            }
+            Some(value)
+        });
         if let Some(start) = clock {
             self.stats.reuse_ns += nanos(start);
         }
@@ -588,8 +631,10 @@ impl Reuse<'_> {
         self.stats.cloned_source_map_entries += expanded.source_map.entries.len() as u64;
         Some(expanded)
     }
-    pub(crate) fn save_lower(&mut self, file: FileId, limits: &Limits, expanded: &ExpandedModule) {
+    pub(crate) fn lower_executed(&mut self) {
         self.stats.lower_modules += 1;
+    }
+    pub(crate) fn save_lower(&mut self, file: FileId, limits: &Limits, expanded: &ExpandedModule) {
         self.stats.cloned_source_map_entries += expanded.source_map.entries.len() as u64;
         let clock = self.clock();
         let value = Arc::new(expanded.clone());

@@ -284,6 +284,11 @@ use callable_context_lower::CallableContextEmission;
 mod closure_context_lower;
 use closure_context_lower::ClosureContextEmission;
 
+#[derive(Clone, Copy, Debug)]
+struct LoweringDemand {
+    work: usize,
+    nodes: usize,
+}
 #[derive(Clone, Debug)]
 pub struct ExpandedModule {
     pub core: CoreModule,
@@ -300,6 +305,10 @@ pub struct ExpandedModule {
     project_trait_nodes: usize,
     member_owner_work: usize,
     member_owner_nodes: usize,
+    // Independent local callable/owner/trait and source-map validation quotas.
+    // This is a successful producer receipt, never a safety certificate.
+    lowering_demand: LoweringDemand,
+    source_map_work: Option<usize>,
 }
 
 type ProjectDefaults = BTreeMap<(String, String), (zil_base::ModuleId, String)>;
@@ -743,12 +752,17 @@ fn expand_program_impl(
     for ((source, (module, module_imports)), source_imports) in
         sources.iter().zip(&specialized).zip(imports)
     {
+        let lower_input_limits = reuse.as_ref().map(|_| remaining.clone());
         let cached = reuse
             .as_deref_mut()
             .and_then(|reuse| reuse.lower(module.span.file, &remaining));
+        let fresh_lower = cached.is_none();
         let mut expanded = if let Some(cached) = cached {
             cached
         } else {
+            if let Some(reuse) = reuse.as_deref_mut() {
+                reuse.lower_executed();
+            }
             let clock = reuse.as_deref().and_then(|reuse| reuse.clock());
             let expanded = expand_inner_project(
                 source,
@@ -773,9 +787,6 @@ fn expand_program_impl(
                 reuse.production(clock);
             }
             let expanded = expanded?;
-            if let Some(reuse) = reuse.as_deref_mut() {
-                reuse.save_lower(module.span.file, &remaining, &expanded);
-            }
             expanded
         };
         // New member constraints share the project's actual remaining allowance.
@@ -831,13 +842,17 @@ fn expand_program_impl(
                     Some(module.span),
                 )]
             })?;
-        let map_work = expanded
-            .source_map
-            .entries
-            .iter()
-            .try_fold(sources.len(), |work, entry| {
-                work.checked_add(entry.related.len().saturating_add(1))
-            });
+        // Raw/fresh paths retain the original checked map walk at this exact
+        // position. A sealed hit carries the same already validated sum.
+        let map_work = expanded.source_map_work.or_else(|| {
+            expanded
+                .source_map
+                .entries
+                .iter()
+                .try_fold(sources.len(), |work, entry| {
+                    work.checked_add(entry.related.len().saturating_add(1))
+                })
+        });
         remaining.max_analysis_steps = map_work
             .and_then(|work| remaining.max_analysis_steps.checked_sub(work))
             .ok_or_else(|| {
@@ -847,6 +862,20 @@ fn expand_program_impl(
                     Some(module.span),
                 )]
             })?;
+        if fresh_lower && let Some(reuse) = reuse.as_deref_mut() {
+            // Only the sealed scalar caller supplies reuse: there are no
+            // dynamic/callable/closure products or later semantic fixups. Save
+            // after the current ordered map debits, with the original Lower
+            // entry allowance, never the already debited project remainder.
+            let map_work = map_work.expect("successful checked source-map debit");
+            expanded.source_map_work = Some(map_work);
+            expanded.lowering_demand.work = expanded.lowering_demand.work.max(map_work);
+            reuse.save_lower(
+                module.span.file,
+                lower_input_limits.as_ref().expect("reuse Lower input"),
+                &expanded,
+            );
+        }
         if !products.dynamic.is_empty()
             || !expanded.closure_context_emissions.is_empty()
             || !expanded.callable_context_emissions.is_empty()
@@ -1071,6 +1100,16 @@ fn expand_inner_project(
         return Err(e.diagnostics);
     }
     e.source_map.validate(sources, limits)?;
+    let owner_nodes = owner_limits.max_nodes - e.member_owner_nodes;
+    let lowering_demand = LoweringDemand {
+        work: (e.callable_initial_work - e.callable_work)
+            .saturating_add(e.member_owner_work)
+            .saturating_add(e.project_trait_work),
+        nodes: owner_nodes
+            .saturating_add(e.project_trait_nodes)
+            .max(e.source_map.entries.len())
+            .max(sources.len()),
+    };
     let core = CoreModule {
         life_declarations: Vec::new(),
         life_instances: Vec::new(),
@@ -1101,7 +1140,9 @@ fn expand_inner_project(
         project_trait_work: e.project_trait_work,
         project_trait_nodes: e.project_trait_nodes,
         member_owner_work: e.member_owner_work,
-        member_owner_nodes: owner_limits.max_nodes - e.member_owner_nodes,
+        member_owner_nodes: owner_nodes,
+        lowering_demand,
+        source_map_work: None,
     })
 }
 struct Expander<'a> {

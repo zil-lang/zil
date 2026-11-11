@@ -329,3 +329,174 @@ fn producer_unavailable_scalar_lineage_keeps_raw_outputs_and_exact_budget_bounda
             .is_none()
     );
 }
+
+#[test]
+fn producer_current_work_and_node_allowances_replay_successful_stage_receipts() {
+    let input = [
+        parsed(0, "fn local()->i32=>9;pub fn first(x:i32)->i32=>x+local();"),
+        parsed(1, "pub fn second(x:i32)->i32=>x+2;"),
+        parsed(2, "pub fn third(x:i32)->i32=>x+3;"),
+    ];
+    let mut session = ExpandSession::default();
+    session.set_cost_profiling(true);
+    let limits = Limits::default();
+    let cold = checked(&mut session, &input, &limits);
+    let remaining = Limits {
+        max_analysis_steps: limits.max_analysis_steps - 3,
+        max_nodes: limits.max_nodes - 5,
+        ..limits.clone()
+    };
+    let warm = checked(&mut session, &input, &remaining);
+    assert_eq!(warm.revisions, cold.revisions);
+    assert_eq!(session.last_stats().normalize_modules, 0);
+    assert_eq!(session.last_stats().lower_modules, 0);
+    assert_eq!(session.last_stats().reused_lower_modules, 3);
+    assert_eq!(session.last_stats().allowance_work_decrease, 3);
+    assert_eq!(session.last_stats().allowance_nodes_decrease, 5);
+    assert_eq!(session.last_stats().environment_headers_changed, 0);
+    let changed = [
+        parsed(
+            0,
+            "fn local()->i32=>10;pub fn first(x:i32)->i32{let y=x+local();let z=y+1;return z;}",
+        ),
+        input[1].clone(),
+        input[2].clone(),
+    ];
+    let edit = checked(&mut session, &changed, &remaining);
+    assert_eq!(session.last_stats().classified_modules, 1);
+    assert_eq!(session.last_stats().normalize_modules, 1);
+    assert_eq!(session.last_stats().lower_modules, 1);
+    assert_eq!(session.last_stats().reused_lower_modules, 2);
+    assert_eq!(edit.revisions[&ModuleId(1)], warm.revisions[&ModuleId(1)]);
+    assert_eq!(edit.revisions[&ModuleId(2)], warm.revisions[&ModuleId(2)]);
+    let byte_change = Limits {
+        max_source_bytes: remaining.max_source_bytes - 1,
+        ..remaining
+    };
+    let invalidated = checked(&mut session, &changed, &byte_change);
+    assert_eq!(session.last_stats().env_limit_max_source_bytes_changed, 1);
+    assert_eq!(session.last_stats().lower_modules, 3);
+    assert_ne!(
+        invalidated.revisions[&ModuleId(1)],
+        edit.revisions[&ModuleId(1)]
+    );
+}
+
+#[test]
+fn producer_changed_allowances_keep_full_fresh_first_diagnostics() {
+    let input = [
+        parsed(0, "fn first(x:i32)->i32{let a=x+1;return a+a;}"),
+        parsed(1, "fn second(x:i32)->i32=>x+2;"),
+    ];
+    let mut completed = 0;
+    let mut insufficient_receipts = 0;
+    for nodes in [false, true] {
+        let limit = |amount| {
+            if nodes {
+                Limits {
+                    max_nodes: amount,
+                    ..Limits::default()
+                }
+            } else {
+                Limits {
+                    max_analysis_steps: amount,
+                    ..Limits::default()
+                }
+            }
+        };
+        let mut low = 0;
+        let mut high = if nodes {
+            Limits::default().max_nodes
+        } else {
+            Limits::default().max_analysis_steps
+        };
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if fresh(&input, &limit(mid)).is_ok() {
+                high = mid;
+            } else {
+                low = mid + 1;
+            }
+        }
+        assert!(low > 0);
+        for amount in [0, 1, low / 2, low - 1, low, low + 1] {
+            let mut session = ExpandSession::default();
+            checked(&mut session, &input, &Limits::default());
+            let current = limit(amount);
+            match (
+                expand(&mut session, &input, &current),
+                fresh(&input, &current),
+            ) {
+                (Ok(Some(actual)), Ok(expected)) => assert_eq!(actual.modules, expected),
+                (Err(actual), Err(expected)) => {
+                    assert_eq!(actual, expected, "nodes={nodes}, amount={amount}")
+                }
+                _ => panic!("current allowance mismatch nodes={nodes}, amount={amount}"),
+            }
+            insufficient_receipts += session.last_stats().receipt_budget_misses;
+            completed += 1;
+        }
+    }
+    assert_eq!(completed, 12);
+    assert!(insufficient_receipts > 0);
+}
+
+#[test]
+fn producer_lower_demands_fail_closed_before_reusing_a_local_product() {
+    let input = [parsed(0, "fn f(x:i32)->i32=>x+1;")];
+    let mut session = ExpandSession::default();
+    checked(&mut session, &input, &Limits::default());
+    let entry = session.entries.get(&ModuleId(0)).unwrap();
+    let (_, lower) = entry.lower.as_ref().unwrap();
+    assert!(lower.lowering_demand.work > 0 && lower.lowering_demand.nodes > 0);
+    let mut entries = session.entries.clone();
+    let mut stats = ProducerStats::default();
+    let mut reuse = Reuse {
+        entries: &mut entries,
+        files: [(FileId(0), ModuleId(0))].into(),
+        stats: &mut stats,
+        executed: BTreeSet::new(),
+        profiling: false,
+    };
+    let insufficient_work = Limits {
+        max_analysis_steps: lower.lowering_demand.work - 1,
+        ..Limits::default()
+    };
+    assert!(reuse.lower(FileId(0), &insufficient_work).is_none());
+    let insufficient_nodes = Limits {
+        max_nodes: lower.lowering_demand.nodes - 1,
+        ..Limits::default()
+    };
+    assert!(reuse.lower(FileId(0), &insufficient_nodes).is_none());
+    assert_eq!(stats.lower_budget_misses, 2);
+    assert_eq!(stats.reused_lower_modules, 0);
+}
+
+#[test]
+fn producer_failed_lower_source_map_validation_counts_actual_execution() {
+    let input: Vec<_> = (0..8).map(|id| parsed(id, "")).collect();
+    let mut session = ExpandSession::default();
+    checked(&mut session, &input, &Limits::default());
+    let limits = Limits {
+        max_analysis_steps: input.len(),
+        ..Limits::default()
+    };
+    // Capture/normalization consumes exactly one module node each. The first
+    // cached empty map checks all source files and the project debits that work;
+    // the next module re-enters real Lower at zero remaining work and fails its
+    // original map validation. Cache publication cannot count this execution.
+    let actual = expand(&mut session, &input, &limits)
+        .err()
+        .expect("current map validation rejects");
+    assert_eq!(actual, fresh(&input, &limits).unwrap_err());
+    assert_eq!(
+        actual[0].message,
+        "source-map validation work budget exceeded"
+    );
+    assert_eq!(session.last_stats().reused_lower_modules, 1);
+    assert_eq!(session.last_stats().lower_budget_misses, 1);
+    assert_eq!(session.last_stats().lower_modules, 1);
+    let repaired = checked(&mut session, &input, &Limits::default());
+    assert_eq!(repaired.modules.len(), input.len());
+    assert_eq!(session.last_stats().lower_modules, 0);
+}

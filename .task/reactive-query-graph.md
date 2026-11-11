@@ -22,6 +22,12 @@ A为现有缓存；B为相同生产者模块复用加直接版本memo；C为相�
 
 另在goal `bc7d69e60b92c5860f5ee55b4f92bb4b81ff5ba4`独立认领`ct_artifact/snapshot.rs`：plain_item原先对Function/Extern完整深clone后返回None，freeze_shapes两遍都执行。候选仅在clone之前排除不进入形状快照的item kind，不删除任何Budget操作/诊断/接受的shape。该公共材料化优化独立冻结、旧A/新A对照；其收益不得归入生产者或图。需要真实generic shape/field/layout/alias测试和原生组合门，当前尚未验证。
 
+`ae6750784104b05c726ec321cd39133d1176f8e9`仅增加profile模式失效原因计数，不改变任何guard。debug真实20×20×16诊断r3共15请求：private唯一变化max_analysis_steps、相对上次producer work−1；multi唯一同项−3（准备cold为semantic hit，没有Expand，producer仍上次private）；其它环境/额度均0。debug时间不计性能。`7b2d1fe040ce16ec3e09206903764b2c8b616317`更强真实IO文件门实际失败wide-private Normalize3而要求1，保留`out/runs/producer-sparse-work-red-7b2d1fe`。
+
+下一预算WIP将work/nodes额度与语义环境分开：九个其它Limits仍exact，各原阶段当前receipt足够才重放，不足从当前未扣费入口跑原文；Lower持有实际callable/owner/trait与独立SourceMap需求，project扣费顺序不改。single-module/default-off无新增map遍历；原map sum仅成功sealed产物保存，失败也计真实Lower尝试。四个新测试覆盖额度变化复用、raw N/N−1、Lower需求不足与八空模块的实际失败计数。非作者已按精确文件hash完成逐stage/SourceMap来源独审，尚待冻结后实测。assembly深复制未在此片修改。
+
+共用CT复制小片f632的6block旧A/新A、60row/36measured真实check：均值节省cold26.713ms，private−11.898ms，multi−18.380ms，所有配对95%探索区间跨0；未证明净收益，native0。保留`native-ct-copy-isolation-20x20x16-check-r1`，不算图收益，不继续扩大此微小切片的无效矩阵。
+
 以下是前轮交付，保留其源码和证据身份；本节WIP不能计作通过或净收益。
 
 父任务goal G10.5.1.15；分支`research/reactive-query-graph`。本轮实际main基线`99035931d358add0eaed6d4535035c38413701dd`，从`c75c58bf7f564a1ce8049702f9c6ec41c82d1da2`正常续接，无需rebase/main变更。本轮生产实现、真实测试与测量已经执行；完整跨阶段架构未完成，当前切片没有证明大型净等待收益，默认关闭、不合main。不要把此状态写成整条zit路线失败，也不要把BodyKey局部减少写成大项目提速。
