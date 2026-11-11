@@ -105,8 +105,10 @@ pub const fn available() -> bool {
     cfg!(feature = "native")
 }
 
-/// Experimental request-local canonical prelink reuse. Not a ThinLTO importer
-/// and not a persistent cache. No LLVM handles cross this boundary.
+/// Experimental request-local canonical full-O2 reuse. Not a ThinLTO importer
+/// and not a persistent cache. Only nonempty actual imports run postlink O2;
+/// empty Required emits the same-request checked full-O2 producer directly.
+/// No LLVM handles cross this boundary.
 #[doc(hidden)]
 pub mod research_prelink {
     use super::*;
@@ -120,7 +122,7 @@ pub mod research_prelink {
         pub declarations: Vec<String>,
         pub direct_calls: BTreeMap<String, Vec<String>>,
     }
-    /// Only prelink_module can construct these current, checked bytes.
+    /// Only prelink_module can construct these current, full-O2 checked bytes.
     pub struct PrelinkedUnit {
         pub(crate) bytes: Vec<u8>,
         pub(crate) facts: UnitFacts,

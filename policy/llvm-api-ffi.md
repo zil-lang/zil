@@ -19,8 +19,10 @@ The explicit manual-prelink research path adds a private `native/research_prelin
 child under the same boundary. Eager `LLVMParseBitcodeInContext2` borrows its buffer;
 `LLVMLinkModules2` consumes its source module even on failure. Only sealed, owned
 bitcode and facts cross the two-phase worker barrier. This path has no persistent
-cache, summary index or external receipt input; its distinct pass identity is
-`thinlto-pre-link<O2>` followed by checked manual imports and full `thinlto<O2>`.
+cache, summary index or external receipt input. Its canonical producer runs
+complete `default<O2>`; only nonempty actual imports require another full
+`thinlto<O2>`. An empty Required set reuses the same-request sealed full-O2 bytes
+after current graph, target, parse and LLVM checks, before ordinary object emission.
 Ordinary entry points retain the existing pipeline. Its limited adoption status and
 evidence are separate from this ownership contract.
 

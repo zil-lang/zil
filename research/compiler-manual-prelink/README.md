@@ -4,6 +4,8 @@
 
 启用 `ZIL_RESEARCH_PRELINK_RECEIPT=/绝对/新路径`，仅接受 Linux x64、LLVM API、main、O2、incremental-o2、function-merging after、8 units/2 jobs、无 closed/object cache。它与旧 ThinLTO exporter 互斥。主线普通入口、Config/Receipt/机器模型、语言 Verify 和原导入额度均保持；不生成 ThinLTO summary/index，也不冒充官方 importer 或跨请求缓存。
 
-两阶段：先对全部 canonical units 执行当前机器预检→Builder→LLVM verify→thinlto-pre-link<O2>→verify→内存 bitcode；全部 worker join 后，目的 unit 按当前实际调用闭包算 Required⊆原 Allowed，逐 donor 解析、globaldce 裁剪且核全部定义集合、链接、逐 Use 证明后私有改名，再完整 thinlto<O2>→verify→当前对象发射器。只传 owned bytes，LLVM handles 留在原线程，无跨阶段锁。
+两阶段：先对全部 canonical units 执行当前机器预检→Builder→LLVM verify→完整 default<O2>→verify→内存 bitcode；全部 worker join 后，目的 unit 按当前实际调用闭包算 Required⊆原 Allowed。仅当实际 Required 为空，解析并核对同一份已完成完整 O2 的不可变产物后直接生成对象；非空则逐 donor 解析、globaldce 裁剪且核全部定义集合、链接、逐 Use 证明后私有改名，再完整 thinlto<O2>→verify→当前对象发射器。只传 owned bytes，LLVM handles 留在原线程，无跨阶段锁。空导入分支仍保留当前完整图、目标、类型、原预算及 LLVM 验证；不能把薄预优化当完整 O2，也不能按旧收据或原始调用数跳过优化。
+
+前一版2321实际使用 thinlto-pre-link<O2>，八个单元一律再跑 postlink；36次完整编译与108次运行质量通过，但N64/N256编译wall为主线1.225/1.092倍、CPU为1.018/1.054倍，未采用。当前完整producer是另一个明确管线，使用unit/object收据版本2和不同pipeline标识；旧数据、源码、协议均保留，新结果必须独立重测，不能从旧stage wall总和中减出收益。
 
 验收必须先冻结精确源码、独立复核新增 C ABI/所有权/闭包/地址反例，再实际构建与原两个纯多文件用例的完整请求和机器输出。运行门为逐 case B/A≤1.10 且 Rust/B≥0.90，编译 wall/CPU 必须真实净胜；不从旧研究耗时中扣除工具开销。未过门不扩大矩阵、不采用。此原型不声称多点修改或并发候选已经获益。

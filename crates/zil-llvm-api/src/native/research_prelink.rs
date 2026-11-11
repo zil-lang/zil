@@ -1,4 +1,4 @@
-//! Research-only manual prelink reuse. Ordinary compile_input is unchanged.
+//! Research-only canonical full-O2 reuse. Ordinary compile_input is unchanged.
 //! Same pinned LLVM instance, full O2, pure direct-use scope, no native cache.
 use super::*;
 use crate::research_prelink::{PrelinkedUnit, ResearchObject, ResearchReceipt, UnitFacts};
@@ -467,13 +467,18 @@ pub(crate) fn prelink_module(
         }
     }
     let t = Instant::now();
-    env.passes(&module, c"thinlto-pre-link<O2>")?;
+    env.passes(&module, c"default<O2>")?;
     let optimize_ns = nanos(t);
     verify(&module)?;
     check(cancelled)?;
     let actual = scan(env.context.0, &module)?;
     if actual.defs != original.defs {
         return Err(reject("prelink changed canonical definition set"));
+    }
+    for n in &actual.defs {
+        if unsafe { LLVMGetLinkage(find(&module, n)) } != 0 {
+            return Err(reject("full-O2 canonical definition must remain External"));
+        }
     }
     for (n, sig) in &actual.signatures {
         if let Some(old) = original.signatures.get(n) {
@@ -505,7 +510,7 @@ pub(crate) fn prelink_module(
         foreign.insert(n.clone(), actual.signatures[n].clone());
     }
     let receipt = format!(
-        "{{\"format\":\"zil-research-manual-prelink-unit/1\",\"unit\":{unit},\"llvm_version\":{},\"triple\":{},\"cpu\":\"x86-64\",\"features\":\"\",\"relocation\":\"PIC\",\"code_model\":\"default\",\"pipeline\":\"thinlto-pre-link<O2>\",\"bitcode_kind\":\"ordinary-no-summary\",\"verify_before\":true,\"verify_after\":true,\"current_structured_preflight\":true,\"canonical\":{},\"definitions\":{},\"declarations\":{},\"direct_calls\":{},\"intrinsics\":{},\"bitcode_bytes\":{len},\"preflight_ns\":{preflight_ns},\"builder_ns\":{builder_ns},\"optimize_ns\":{optimize_ns},\"serialize_ns\":{serialize_ns},\"total_ns\":{}}}",
+        "{{\"format\":\"zil-research-manual-prelink-unit/2\",\"unit\":{unit},\"llvm_version\":{},\"triple\":{},\"cpu\":\"x86-64\",\"features\":\"\",\"relocation\":\"PIC\",\"code_model\":\"default\",\"pipeline\":\"default<O2>\",\"bitcode_kind\":\"ordinary-no-summary\",\"verify_before\":true,\"verify_after\":true,\"current_structured_preflight\":true,\"canonical\":{},\"definitions\":{},\"declarations\":{},\"direct_calls\":{},\"intrinsics\":{},\"bitcode_bytes\":{len},\"preflight_ns\":{preflight_ns},\"builder_ns\":{builder_ns},\"optimize_ns\":{optimize_ns},\"serialize_ns\":{serialize_ns},\"total_ns\":{}}}",
         json(crate::LLVM_VERSION),
         json(config.triple),
         names_json(&original.defs),
@@ -659,12 +664,51 @@ mod tests {
                             ),
                         ],
                     )
+                } else if unit == 2 {
+                    let mut f = function("f2", vec![], vec![]);
+                    let mut dead_call = call("f3", vec![]);
+                    dead_call.result = Some("dead_result".into());
+                    f.blocks = Some(vec![
+                        m::Block {
+                            name: "entry".into(),
+                            instructions: vec![inst(
+                                None,
+                                m::Op::CondBranch {
+                                    condition: m::Val::Bool(false),
+                                    yes: "dead".into(),
+                                    no: "done".into(),
+                                },
+                            )],
+                        },
+                        m::Block {
+                            name: "dead".into(),
+                            instructions: vec![dead_call, inst(None, m::Op::Branch("done".into()))],
+                        },
+                        m::Block {
+                            name: "done".into(),
+                            instructions: vec![
+                                call("getchar", vec![]),
+                                inst(
+                                    None,
+                                    m::Op::Return(Some(m::Arg::new(
+                                        m::Ty::Int(32),
+                                        m::Val::Local("result".into()),
+                                    ))),
+                                ),
+                            ],
+                        },
+                    ]);
+                    f
                 } else {
                     constant(&format!("f{unit}"))
                 };
                 let mut items = vec![m::Item::Function(f)];
                 if unit == 0 {
                     items.push(m::Item::Function(constant("f1").declaration()));
+                }
+                if unit == 2 {
+                    items.push(m::Item::Function(constant("f3").declaration()));
+                    items.push(m::Item::Function(constant("getchar").declaration()));
                 }
                 prelink_module(
                     unit,
@@ -678,7 +722,7 @@ mod tests {
             .collect()
     }
     #[test]
-    fn current_eight_units_generate_object_and_private_direct_import() {
+    fn current_eight_units_reuse_full_o2_empty_and_optimize_actual_import() {
         let units = prelinked_fixture();
         let result = compile_prelinked_unit(
             0,
@@ -698,6 +742,43 @@ mod tests {
                 .contains("\"private\":\"zil.import.0.f1\"")
         );
         assert!(result.receipt.to_json().contains("\"required\":[\"f1\"]"));
+        assert!(
+            result
+                .receipt
+                .to_json()
+                .contains("\"postlink_optimization_ran\":true")
+        );
+        assert!(result.object.receipt.optimize_ns > 0);
+        // The original graph has a dead cross-owner f3 call, but the current
+        // full-O2 graph has only a legitimate external getchar call. Nonempty
+        // Allowed and the foreign call must not force a redundant second O2.
+        assert_eq!(
+            units[2].facts.direct_calls["f2"],
+            vec!["getchar".to_owned()]
+        );
+        assert!(
+            units[2]
+                .receipt_json()
+                .contains("\"pipeline\":\"default<O2>\"")
+        );
+        let empty = compile_prelinked_unit(
+            2,
+            &units,
+            &["f3".into()],
+            &config(),
+            FunctionMerging::AfterOptimization,
+            &|| false,
+        )
+        .unwrap();
+        assert!(empty.object.bytes.starts_with(b"\x7fELF"));
+        assert_eq!(empty.object.receipt.optimize_ns, 0);
+        let receipt = empty.receipt.to_json();
+        assert!(receipt.contains("\"postlink_optimization_ran\":false"));
+        assert!(receipt.contains("\"required\":[]"));
+        assert!(receipt.contains("\"allowed\":[\"f3\"]"));
+        assert!(receipt.contains("\"imports\":[]"));
+        assert!(receipt.contains("\"donor_modules\":0"));
+        assert!(receipt.contains("\"postlink_optimize_ns\":0"));
     }
     #[test]
     fn actual_required_without_current_allowed_is_rejected() {
@@ -848,93 +929,106 @@ pub(crate) fn compile_prelinked_unit(
     env.target(&dest, config.triple)?;
     check_sealed(env.context.0, &dest, &units[unit])?;
     let parse_graph_ns = nanos(t);
-    let t = Instant::now();
-    let mut expected = own.clone();
+    let mut changes = Vec::new();
     let mut donor_count = 0;
-    for (i, p) in units.iter().enumerate() {
-        let selected = required
-            .iter()
-            .filter(|n| owners[*n] == i)
-            .cloned()
-            .collect::<BTreeSet<_>>();
-        if selected.is_empty() {
-            continue;
-        }
-        check(cancelled)?;
-        donor_count += 1;
-        let mut donor = env.parse(&p.bytes)?;
-        env.target(&donor, config.triple)?;
-        check_sealed(env.context.0, &donor, p)?;
-        for n in &p.facts.canonical {
-            if !selected.contains(n) {
-                unsafe { LLVMSetLinkage(find(&donor, n), 8) };
+    let postlink_optimization_ran = !required.is_empty();
+    // The sealed producer has already run complete default<O2> this request.
+    // This branch comes only AFTER current graph/owner/Allowed and real parse,
+    // target, sealed-facts and LLVM verification. Foreign calls are permitted;
+    // only actual cross-owner Required decides whether another O2 is needed.
+    let (link_ns, optimize_ns) = if !postlink_optimization_ran {
+        (0, 0)
+    } else {
+        let t = Instant::now();
+        let mut expected = own.clone();
+        for (i, p) in units.iter().enumerate() {
+            let selected = required
+                .iter()
+                .filter(|n| owners[*n] == i)
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            if selected.is_empty() {
+                continue;
+            }
+            check(cancelled)?;
+            donor_count += 1;
+            let mut donor = env.parse(&p.bytes)?;
+            env.target(&donor, config.triple)?;
+            check_sealed(env.context.0, &donor, p)?;
+            for n in &p.facts.canonical {
+                if !selected.contains(n) {
+                    unsafe { LLVMSetLinkage(find(&donor, n), 8) };
+                }
+            }
+            verify(&donor)?;
+            env.passes(&donor, c"globaldce")?;
+            verify(&donor)?;
+            if scan(env.context.0, &donor)?.defs != selected {
+                return Err(reject(
+                    "DCE retained missing/unselected dependency or dropped selected body",
+                ));
+            }
+            // LinkModules consumes Src even on failure: disarm RAII before call.
+            let raw = std::mem::replace(&mut donor.0, ptr::null_mut());
+            if unsafe { LLVMLinkModules2(dest.0, raw) } != 0 {
+                return Err(reject("current donor link failed"));
+            }
+            verify(&dest)?;
+            expected.extend(selected);
+            if scan(env.context.0, &dest)?.defs != expected {
+                return Err(reject("link changed exact own/import definition set"));
             }
         }
-        verify(&donor)?;
-        env.passes(&donor, c"globaldce")?;
-        verify(&donor)?;
-        if scan(env.context.0, &donor)?.defs != selected {
-            return Err(reject(
-                "DCE retained missing/unselected dependency or dropped selected body",
-            ));
+        let link_ns = nanos(t);
+        verify(&dest)?;
+        let before = scan(env.context.0, &dest)?;
+        if before.defs != own.union(&required).cloned().collect() {
+            return Err(reject("assembled definition coverage mismatch"));
         }
-        // LinkModules consumes Src even on failure: disarm RAII before call.
-        let raw = std::mem::replace(&mut donor.0, ptr::null_mut());
-        if unsafe { LLVMLinkModules2(dest.0, raw) } != 0 {
-            return Err(reject("current donor link failed"));
+        // Collect and validate ALL changes before the first mutation. Never add a
+        // canonical declaration, copy attributes, change thresholds or rewrite body.
+        for n in &required {
+            let f = find(&dest, n);
+            let private = format!("zil.import.{unit}.{n}");
+            if f.is_null()
+                || unsafe { LLVMIsDeclaration(f) } != 0
+                || !find(&dest, &private).is_null()
+            {
+                return Err(reject("missing import or private name collision"));
+            }
+            let mut u = unsafe { LLVMGetFirstUse(f) };
+            let mut uses = 0usize;
+            while !u.is_null() {
+                direct_use(f, u)?;
+                uses = uses
+                    .checked_add(1)
+                    .ok_or_else(|| reject("use count overflow"))?;
+                u = unsafe { LLVMGetNextUse(u) };
+            }
+            changes.push((n.clone(), private, f, uses));
+        }
+        for (_, private, f, _) in &changes {
+            unsafe {
+                LLVMSetValueName2(*f, private.as_ptr().cast(), private.len());
+                LLVMSetLinkage(*f, 8)
+            };
+            if name(*f)? != *private {
+                return Err(reject("LLVM silently renamed private import"));
+            }
         }
         verify(&dest)?;
-        expected.extend(selected);
-        if scan(env.context.0, &dest)?.defs != expected {
-            return Err(reject("link changed exact own/import definition set"));
+        let after = scan(env.context.0, &dest)?;
+        let mut private_defs = own.clone();
+        private_defs.extend(changes.iter().map(|(_, p, _, _)| p.clone()));
+        if after.defs != private_defs || required.iter().any(|n| !find(&dest, n).is_null()) {
+            return Err(reject("private definition/declaration invariant failed"));
         }
-    }
-    let link_ns = nanos(t);
-    verify(&dest)?;
-    let before = scan(env.context.0, &dest)?;
-    if before.defs != own.union(&required).cloned().collect() {
-        return Err(reject("assembled definition coverage mismatch"));
-    }
-    // Collect and validate ALL changes before the first mutation. Never add a
-    // canonical declaration, copy attributes, change thresholds or rewrite body.
-    let mut changes = Vec::new();
-    for n in &required {
-        let f = find(&dest, n);
-        let private = format!("zil.import.{unit}.{n}");
-        if f.is_null() || unsafe { LLVMIsDeclaration(f) } != 0 || !find(&dest, &private).is_null() {
-            return Err(reject("missing import or private name collision"));
-        }
-        let mut u = unsafe { LLVMGetFirstUse(f) };
-        let mut uses = 0usize;
-        while !u.is_null() {
-            direct_use(f, u)?;
-            uses = uses
-                .checked_add(1)
-                .ok_or_else(|| reject("use count overflow"))?;
-            u = unsafe { LLVMGetNextUse(u) };
-        }
-        changes.push((n.clone(), private, f, uses));
-    }
-    for (_, private, f, _) in &changes {
-        unsafe {
-            LLVMSetValueName2(*f, private.as_ptr().cast(), private.len());
-            LLVMSetLinkage(*f, 8)
-        };
-        if name(*f)? != *private {
-            return Err(reject("LLVM silently renamed private import"));
-        }
-    }
-    verify(&dest)?;
-    let after = scan(env.context.0, &dest)?;
-    let mut private_defs = own.clone();
-    private_defs.extend(changes.iter().map(|(_, p, _, _)| p.clone()));
-    if after.defs != private_defs || required.iter().any(|n| !find(&dest, n).is_null()) {
-        return Err(reject("private definition/declaration invariant failed"));
-    }
-    check(cancelled)?;
-    let t = Instant::now();
-    env.passes(&dest, c"thinlto<O2>")?;
-    let optimize_ns = nanos(t);
+        check(cancelled)?;
+        let t = Instant::now();
+        env.passes(&dest, c"thinlto<O2>")?;
+        let optimize_ns = nanos(t);
+        (link_ns, optimize_ns)
+    };
     verify(&dest)?;
     check(cancelled)?;
     let t = Instant::now();
@@ -967,9 +1061,9 @@ pub(crate) fn compile_prelinked_unit(
         })
         .collect::<Vec<_>>()
         .join(",");
-    let pipeline = "manual-prelink<O2>|budgeted-direct-imports=private|thinlto<O2>|merge-functions=after|aliases=false";
+    let pipeline = "canonical-full<O2>|budgeted-direct-imports=private|empty-required=emit|nonempty-required=thinlto<O2>|merge-functions=after|aliases=false";
     let receipt = ResearchReceipt(format!(
-        "{{\"format\":\"zil-research-manual-prelink-object/1\",\"unit\":{unit},\"official_thinlto_importer\":false,\"native_cache\":false,\"actual_bitcode_graph_checked\":true,\"required\":{},\"allowed\":{},\"imports\":[{imports}],\"donor_modules\":{donor_count},\"verify_parse_trim_link_private_postlink\":true,\"parse_graph_ns\":{parse_graph_ns},\"trim_link_ns\":{link_ns},\"postlink_optimize_ns\":{optimize_ns},\"emit_ns\":{emit_ns},\"total_ns\":{}}}",
+        "{{\"format\":\"zil-research-manual-prelink-object/2\",\"unit\":{unit},\"official_thinlto_importer\":false,\"native_cache\":false,\"actual_bitcode_graph_checked\":true,\"required\":{},\"allowed\":{},\"imports\":[{imports}],\"donor_modules\":{donor_count},\"actual_required_path_verified\":true,\"parse_graph_ns\":{parse_graph_ns},\"trim_link_ns\":{link_ns},\"postlink_optimization_ran\":{postlink_optimization_ran},\"postlink_optimize_ns\":{optimize_ns},\"emit_ns\":{emit_ns},\"total_ns\":{}}}",
         names_json(&required),
         names_json(&allowed_set),
         nanos(start)
