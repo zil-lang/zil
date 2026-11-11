@@ -12,13 +12,17 @@
     "crates/zil-driver/src/project.rs/session.rs and ct_artifact producer integration",
     "crates/zil-types internal prepared and incremental representations",
     "corresponding budget/source differential tests",
-    "tools/research/reactive-query-graph measurement tools if required"
+    "tools/research/reactive-query-graph measurement tools if required",
+    "crates/zil-ir/src/program.rs: internal shared CoreModule field only, no wire/schema change",
+    "Mechanical Arc conversions in expand/types/ct/driver and corresponding tests",
+    "crates/zil-driver/src/ct_artifact/scalar_materialization.rs: sealed no-op module receipt replay"
   ],
   "boundaries": [
     "No independent Verify kernel weakening, budget increases, default enablement, or main merge",
-    "Public shared representation change requires root explicit scope update after cost diagnosis",
+    "Shared internal Rust representation approved by root from measured assembly bottleneck; wire bytes and current validation unchanged",
     "One heavy build/measurement window with separate targets",
     "All failures retained and fresh-current comparison required"
   ],
-  "exit_gate": "Actual expensive work removal plus complete request paired comparisons against ea0; do not attribute producer/common changes to graph; independent exact source review before delivery."
+  "exit_gate": "Actual expensive work removal plus complete request paired comparisons against ea0; do not attribute producer/common changes to graph; independent exact source review before delivery.",
+  "scope_decision": "Baseline profile: private materialization182.856ms, assembly131.335ms, publication170.726ms. Root expands internal Rust representation write set to retain immutable CoreModule/SourceMap arcs through assembly; serialized schema/version unchanged. Add per-module no-op materializer receipts; current global environment admission and independent Verify remain."
 }
