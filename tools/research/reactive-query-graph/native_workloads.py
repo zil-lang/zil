@@ -122,6 +122,11 @@ def expected_generated(data, modules=8, functions=8, steps=16, label='cold', mix
 def existing(case, label='cold'):
     source = ROOT / ('examples/generics' if case == 'generics' else f'examples/mainline/{case}')
     files = {str(p.relative_to(source)): p.read_text() for p in sorted(source.rglob('*.zil'))}
+    if case == 'ct-selection':
+        # The consumer README/runner define a three-module compact project.
+        # config_wide.zil is a replacement fixture, not an imported module.
+        # Keep exact source-map equality against the actual compiler inputs.
+        del files['config_wide.zil']
     if label == 'positions':
         files = {name: '// Source position edit.\n\n' + value for name, value in files.items()}
     elif label == 'error':
