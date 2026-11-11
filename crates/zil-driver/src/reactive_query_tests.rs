@@ -326,3 +326,180 @@ fn reactive_persistent_content_cache_and_corruption_remain_raw_candidates() {
     successful(&current);
     compare(&restarted, &current, &changed, &options);
 }
+
+// These mixed programs deliberately leave the scalar graph's eligibility
+// envelope. They control whole-program fallback; passing them does not claim
+// that trait solving, specialization, CT selection or owned closures are queries.
+#[test]
+fn fallback_trait_candidate_add_remove_and_generic_instance_sets_match_fresh() {
+    let dir = Directory::new();
+    let options = options();
+    let mut session = CompilationSession::default();
+    const DECLARATIONS: &str = "trait Read{fn read(self:&Self)->i32;}struct Point{value:i32}struct Other{value:i32}fn read<T:Read>(value:&T)->i32{return value.read()}fn identity<T:Copy>(value:T)->T{return value}";
+    const POINT_IMPL: &str = "impl Read for Point{fn read()->i32=>.value}";
+    const OTHER_IMPL: &str = "impl Read for Other{fn read()->i32=>.value}";
+    const POINT: &str = "fn main()->i32{let p=Point{value:7};return identity::<i32>(read(&p))}";
+    const BOTH: &str = "fn main()->i32{let p=Point{value:7};let q=Other{value:9};let flag=identity::<bool>(true);if flag{return read(&p)+read(&q)}return identity::<i32>(0)}";
+    const WIDE: &str =
+        "fn main()->i32{let p=Point{value:7};return read(&p)+i32(identity::<i64>(7))}";
+    for (point_impl, other_impl, entry, rejected) in [
+        (POINT_IMPL, "", POINT, false),
+        // Add an actual impl candidate and both read<Other>/identity<bool>.
+        (POINT_IMPL, OTHER_IMPL, BOTH, false),
+        // Withdraw an impl still required by this exact current call graph.
+        ("", OTHER_IMPL, BOTH, true),
+        (POINT_IMPL, OTHER_IMPL, BOTH, false),
+        // Remove the other candidate and its instances, then change i32->i64.
+        (POINT_IMPL, "", POINT, false),
+        (POINT_IMPL, "", WIDE, false),
+        (POINT_IMPL, "", POINT, false),
+    ] {
+        let main = format!("{DECLARATIONS}\n{point_impl}\n{other_impl}\n{entry}");
+        let project = dir.project(&main, LEFT, RIGHT);
+        let current = session.compile_project(&project, &options);
+        let full = compare(&session, &current, &project, &options);
+        assert_eq!(current.verification_runs, full.verification_runs);
+        assert!(
+            current
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.category != ResultCategory::Unsupported)
+        );
+        if rejected {
+            assert_eq!(
+                current.status,
+                ResultCategory::SafeReject,
+                "{}",
+                current.to_json()
+            );
+            let diagnostic = current
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code == "E-GENERIC-ARGUMENT")
+                .expect("missing current trait obligation must be a named rejection");
+            assert_eq!(diagnostic.phase, Phase::Expand);
+            assert!(
+                diagnostic
+                    .message
+                    .contains("does not satisfy nominal trait bound")
+            );
+            let span = diagnostic
+                .span
+                .expect("trait obligation retains the actual source location");
+            assert_eq!(span.file, project.modules[0].file_id);
+            assert_eq!(current.source_files[&span.file], project.modules[0].path);
+            assert_eq!(current.verification_runs, 0);
+        } else {
+            successful(&current);
+            if let Some(work) = current.function_type_work {
+                assert_eq!(
+                    work.graph.executed, 0,
+                    "mixed nominal program must not claim scalar graph work"
+                );
+                assert_eq!(work.body_key_reuses, 0);
+            } else {
+                // Restoring exact prior source may reuse the whole Types query;
+                // the current Verify and the full TypedProgram oracle still run.
+                assert!(
+                    current
+                        .query_events
+                        .iter()
+                        .any(|event| event.phase == Phase::Types
+                            && event.disposition == QueryDisposition::Reused)
+                );
+                assert_eq!(current.verification_runs, 1);
+            }
+        }
+    }
+}
+
+#[test]
+fn fallback_ct_branch_redirects_actual_calls_with_owned_closure_state() {
+    let dir = Directory::new();
+    let options = options();
+    let mut session = CompilationSession::default();
+    // The resource factory/once consumer follows the existing retained-factory
+    // source contract; CT chooses a different imported runtime callee.
+    const MAIN: &str = "import left\nimport right\nresource Token{n:i32}fn consume(give token:Token)->i32{return token.n}fn make(n:i32)->impl FnOnce()->i32{let token=Token{n};return move ()=>consume(give token)}#if(left.enabled()){fn selected()->i32{return left.value(1)}}else{fn selected()->i32{return right.value(2)}}fn main()->i32{let f=make(5);return f()+selected()}";
+    for (enabled, repeat_once, right) in [
+        (true, false, RIGHT.to_owned()),
+        (false, false, RIGHT.to_owned()),
+        (false, false, RIGHT.replace("x+3", "x+8")),
+        (true, true, RIGHT.to_owned()),
+        (false, false, RIGHT.to_owned()),
+        (true, false, RIGHT.to_owned()),
+    ] {
+        let main = if repeat_once {
+            MAIN.replace("return f()+selected()", "return f()+f()+selected()")
+        } else {
+            MAIN.to_owned()
+        };
+        let left = format!("{LEFT}\npub fn enabled()->bool{{return {enabled};}}");
+        let project = dir.project(&main, &left, &right);
+        let current = session.compile_project(&project, &options);
+        let full = compare(&session, &current, &project, &options);
+        assert_eq!(current.verification_runs, full.verification_runs);
+        assert!(
+            current
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.category != ResultCategory::Unsupported)
+        );
+        if repeat_once {
+            assert_eq!(
+                current.status,
+                ResultCategory::SafeReject,
+                "{}",
+                current.to_json()
+            );
+            assert!(
+                current
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.phase == Phase::Analyze
+                        && diagnostic.code == "E-ANALYZE-IR")
+            );
+            assert_eq!(current.verification_runs, 0);
+        } else {
+            successful(&current);
+            if let Some(work) = current.function_type_work {
+                assert_eq!(work.graph.executed, 0);
+                assert_eq!(work.body_key_reuses, 0);
+            } else {
+                assert!(
+                    current
+                        .query_events
+                        .iter()
+                        .any(|event| event.phase == Phase::Types
+                            && event.disposition == QueryDisposition::Reused)
+                );
+                assert_eq!(current.verification_runs, 1);
+            }
+            let program = typed(&session, &current);
+            assert!(
+                !program.module.closures.is_empty(),
+                "the real resource closure must survive Types"
+            );
+            let selected = program
+                .module
+                .functions
+                .iter()
+                .find(|function| function.name == "selected")
+                .expect("CT emitted the selected ordinary function");
+            let chosen_module = if enabled { ModuleId(1) } else { ModuleId(2) };
+            let target = current
+                .scalar_interfaces
+                .iter()
+                .find(|interface| interface.module == chosen_module)
+                .and_then(|interface| {
+                    interface
+                        .exports
+                        .iter()
+                        .find(|export| export.name == "value")
+                })
+                .expect("current selected import has an exported value function")
+                .function;
+            assert!(selected.blocks.iter().flat_map(|block| &block.instructions).any(|instruction| matches!(instruction.kind, zil_ir::InstructionKind::Call { function, .. } if function == target)), "CT flip must redirect the actual typed call, not just change scheduling events");
+        }
+    }
+}
