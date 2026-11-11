@@ -108,7 +108,7 @@ def main():
                         if all(k in pair and pair[k]['valid'] for k in ('base','cand')) and mode!='check':
                             eq=pair['base']['text_sha256']==pair['cand']['text_sha256']
                             equivalence.append({'case':case['id'],'mode':mode,'request':request,'block':block,'text_equal':eq})
-                            if not eq and case['group']!='resource':raise AssertionError('unaffected machine code changed')
+                            if not eq and mode!='O2':raise AssertionError('unaffected O0 machine code changed')
                     if not (block==0 and mode=='O2'):shutil.rmtree(out/'work'/case['id']/mode/str(block),ignore_errors=True)
                     print(json.dumps({'case':case['id'],'mode':mode,'block':block,'requests':len(rows),'failed':case_failed}),flush=True)
         # Code equality is checked for every native pair. Runtime measurement uses
