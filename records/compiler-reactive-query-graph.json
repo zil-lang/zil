@@ -478,11 +478,11 @@
   },
   "producer_continuation": {
     "task": "G10.5.1.15",
-    "read_goal_sha": "5b5547e5e623ccd30f428e41a3e0ff2811a6b14c",
+    "read_goal_sha": "b298b6986e7106ed76baf421a4fe16b6aaa1ea4d",
     "source_start": "0a529a6247793f63ccd41ff3f65dc97afcbb666c",
     "main": "99035931d358add0eaed6d4535035c38413701dd",
-    "status": "实施中·真实生产者接入与正确性门通过；正在准备A/B/C真实测量",
-    "updated_utc": "2026-11-11T15:26:09.357779+00:00",
+    "status": "实施中·late真实文件路由与成本分区已过正确性门，release构建中，下一真实A/B/C成本重测",
+    "updated_utc": "2026-11-11T15:42:52.326921+00:00",
     "write_set": [
       "crates/zil-syntax/src/**: parser-owned immutable Source provenance and tests",
       "crates/zil-expand/src/**: scalar module Normalize/Restore/Lower products, ordered budget receipts and tests",
@@ -491,7 +491,9 @@
       "crates/zil-driver/src/{project.rs,session.rs,lib.rs,producer_reuse_tests.rs}: real consumer, exclusive request costs and differential tests",
       "crates/zil-cli/src/main.rs: producer experiment flag",
       "tools/research/reactive-query-graph/**",
-      ".task/reactive-query-graph.md"
+      ".task/reactive-query-graph.md",
+      "crates/zil-driver/src/producer_profile_tests.rs: materialization subdivisions and failure timing",
+      "crates/zil-driver/src/ct_artifact/snapshot.rs: scoped removal of discarded Function/Extern deep clones after cost diagnosis; keep all CT budgets, accepted shapes and diagnostics"
     ],
     "root_only_coordination": [
       "Only if necessary: narrow internal crate dependency edges in crate Cargo.toml, Cargo.lock and policy/dependencies.json; root exclusively reviews/writes. No root Cargo.toml, public IR/schema, Verify or backend edits."
@@ -512,11 +514,11 @@
       "requirements": "B must use versions fairly; separate production/Eq/context/inventory/graph/evaluation/backend within same request; preserve current Verify/source binding/first diagnostics/budgets and real native behavior. Freeze source before performance."
     },
     "success_gate": "Unchanged modules actually skip Normalize/Lower, unchanged Core deep comparison drops, CFG execution does not increase, complete fresh-current differential passes; only then extend graph or performance matrix.",
-    "remaining": "尚无本片端到端净收益结论；默认关闭，不合main。下一步同binary成本诊断通过后扩配对规模/O2。",
-    "source_head": "23b3b24b0e1fb52e6dbbb302078095aa44b750bd",
+    "remaining": "大项目接入需r2实际非零Normalize/Lower与版本reuse验证后，才扩大无profile配对check/O2；无本片端到端收益结论。CT无用clone仅认领待测，单独旧A/新A归因，不记图收益。默认关闭，不合main。",
+    "source_head": "28b5ebcd33090d68d4a705d5078cf50eb1061697",
     "validation": {
-      "source": "23b3b24b0e1fb52e6dbbb302078095aa44b750bd",
-      "lib_tests": 341,
+      "source": "28b5ebcd33090d68d4a705d5078cf50eb1061697",
+      "lib_tests": 348,
       "cli_tests": 1,
       "strict_clippy": "workspace/all-targets -D warnings passed",
       "architecture": {
@@ -524,10 +526,10 @@
         "edges": 40,
         "status": "Pass at2a6; following source only type aliases/counter names"
       },
-      "actual_work_gate": "3module equal-width edit: Normalize/Lower3→1,2reused,CoreEq0,B/C both reuse body keys; not a time result",
-      "raw_local": "out/runs/producer-validation-23b3b24; evidence packaging pending",
-      "review_source": "23b3b24b0e1fb52e6dbbb302078095aa44b750bd",
-      "review": "non-author production read review; no semantic blockers, no performance acceptance"
+      "actual_work_gate": "real filesystem io.emit + ordinary CT-like names: module reuse, zero Core Eq; exact work/node N/N−1, orphan pruning and current fresh Typed/Verify passed; real large workload gate pending",
+      "raw_local": "out/runs/producer-validation-28b5ebc; raw evidence packaging pending",
+      "review_source": "a17dc03a2f03e35ee641ef9a410a9f5627e58644 production byte-identical at28b5; independent exact-hash review",
+      "review": "non-author production read review and diagnosis assertion review; no semantic blockers; performance not accepted"
     },
     "preserved_failures": [
       {
@@ -541,6 +543,14 @@
       {
         "source": "2a6b873857ac0e9e1d7175652018508153433a42",
         "issue": "strictClippy needlessOptionborrow; then881 typecomplexity; resolved23b"
+      },
+      {
+        "source": "23b3b24b0e1fb52e6dbbb302078095aa44b750bd",
+        "issue": "native-abc-cost-20x20x16-r1 complete21rows but all producer=null/versionreuse0: ordinary io.emit triggered broad CT filter, coverage failure excluded from producer benefit denominator"
+      },
+      {
+        "source": "a17dc03a2f03e35ee641ef9a410a9f5627e58644",
+        "issue": "new failed-materializer cost test hardcoded SafeReject; actual baselineUnsupported/Ct/E-UNSUPPORTED span0:32..41.16/17passed; fixture and differential retained, exact assertion repaired28b5 then348lib+CLI1 passed"
       }
     ]
   }
