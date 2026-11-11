@@ -1,11 +1,10 @@
 {
   "format": 1,
   "created_utc": "2026-11-11T01:13:36.759319+00:00",
-  "prior_archive": "c43cda662622d81d7a43849ac7bf5266062fc8f7",
+  "prior_archive": "a48374cce53d1018fe52a1c749990db4248f7135",
   "commit_parents": [
-    "c43cda662622d81d7a43849ac7bf5266062fc8f7",
-    "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
-    "1679decf177c9a6eda5a64063c525f06e44e56a2"
+    "a48374cce53d1018fe52a1c749990db4248f7135",
+    "52284449ea652983b16069c71bc8dc1a40a8b802"
   ],
   "commit_tips": [
     "0a8929d4f6126683737d62ab9def1d8e67a784ca",
@@ -61,7 +60,8 @@
     "5aa8057f9cc0bff651fc6a44147b4e6e2dd307de",
     "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56",
     "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
-    "1679decf177c9a6eda5a64063c525f06e44e56a2"
+    "1679decf177c9a6eda5a64063c525f06e44e56a2",
+    "52284449ea652983b16069c71bc8dc1a40a8b802"
   ],
   "local_refs": {},
   "remote_refs": {
@@ -109,7 +109,7 @@
     "refs/heads/task/repeatable-closure-drop": "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071",
     "refs/heads/task/compiler-consolidation": "dafe801c34b709520e50b31fe86f944c3f346da6",
     "refs/heads/task/compiler-composition-validation": "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56",
-    "refs/heads/task/compiler-layout-projection": "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
+    "refs/heads/task/compiler-layout-projection": "52284449ea652983b16069c71bc8dc1a40a8b802",
     "refs/heads/task/compiler-bounded-imports": "1679decf177c9a6eda5a64063c525f06e44e56a2"
   },
   "worktrees": [],
@@ -452,13 +452,16 @@
     },
     {
       "ref": "refs/heads/task/compiler-layout-projection",
-      "head_before_retirement": "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
+      "head_before_retirement": "52284449ea652983b16069c71bc8dc1a40a8b802",
       "source_evidence_head": "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
       "retirement_completed": false,
       "disposition": "rejected",
       "reason": "Not adopted: mixed original screen and only 0.9475% hypothetical weighted gain in the added multi-file matrix; Rust faster in all 16 comparable CLI cells.",
       "archive_is_acceptance": false,
-      "evidence_directory": "research/compiler-multi-edit-20261111"
+      "evidence_directory": "research/compiler-multi-edit-20261111",
+      "recipe_commit": "52284449ea652983b16069c71bc8dc1a40a8b802",
+      "prior_archive": "a48374cce53d1018fe52a1c749990db4248f7135",
+      "remote_ref_snapshot_note": "Planned recipe head, to be published only after this archive; runtime checks exact lease."
     },
     {
       "ref": "refs/heads/task/compiler-bounded-imports",
@@ -629,6 +632,6 @@
       "task/compiler-layout-projection": "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
       "task/compiler-bounded-imports": "1679decf177c9a6eda5a64063c525f06e44e56a2"
     },
-    "retirement_status": "Source and evidence preservation before recipe construction; candidate refs still exist"
+    "retirement_status": "Layout recipe directly preserved before its branch is advanced; bounded source ref remains at 1679."
   }
 }
