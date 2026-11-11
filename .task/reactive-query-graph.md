@@ -1,30 +1,42 @@
-# 响应式编译查询图专项
+# 响应式编译查询图专项：真实生产接入
 
-父范围：goal 的 G10.5.1 编译效率研究。源码分支：`research/reactive-query-graph`。基线：`99035931d358add0eaed6d4535035c38413701dd`。本任务不改写、合并或删除其他编译专项分支。
+父范围：goal G10.5.1.15。分支：`research/reactive-query-graph`。本轮实读 main `99035931d358add0eaed6d4535035c38413701dd`，接续源 `c75c58bf7f564a1ce8049702f9c6ec41c82d1da2`，无需变更基线。其他编译分支保持原样；本轮 goal 认领读回 `a67f6778e1696991cf4b45c8eb12ba2efa86ff43`。
 
-## 本轮交付
+## 当前切片与真实消费者
 
-已核实旧 reverse-index 实现及撤回、CP25-C 和高度调度 JS 适配的范围；已实现并执行整体同步查询图模型；冻结 source blob `98762b26506c0e35ec11072b8d397c845b407eff`，3 个新进程分别通过同一组 2,730 次差分比较。研究源码、说明和精简收据已推送；完整原始样本随对话交付包提供。生产编译接入、Rust 对照和非作者独审未执行，不算生产验收。
+本轮生产增量：zil-db 的稳定 owner 图被 zil-types FunctionSession 真实调用，driver 的 `reactive_queries` / CLI `--reactive-queries` 显式选择。按包/源模块路径/函数名区分节点，compact ModuleId/FunctionId 仍在完整绑定有效性中；不删除旧 QueryKey.input。实际 inputs 是完整上下文、声明签名和经当前不可变 CoreFunction 全量 Eq 证实的正文版本。批量安装 inputs 后按高度求函数 BodyKey 投影，读取实际签名依赖，接现有 CFG/cost/span-rebase 缓存。旧内容键/磁盘 work product 保留。调度图不能携带 Verified 权限。
 
-## 当前写集与保护
+该切片减少可复用函数的正文编码与调用查表；Eq 比较、完整 header/context 构造、Expand、形状检查和后续分析仍存在，不能宣称所有整图工作消失。原 scalar admission 之外仍回到既有完整路径，mixed/trait/CT/resource消费者用于组合控制而非宣称全部细粒度覆盖。源码路径只标识 owner，不单独证明有效性；raw source_fingerprint 不授权复用。普通递归通过签名输入，不误报查询环；尚未把所有真实递归固定点拆入外层图。
 
-本轮写集仅 `tools/research/reactive-query-graph/**`、本任务说明，以及 goal 上独立研究记录。不得修改根 Cargo/锁、阶段 schema、Analyze/Verify 或正在施工的机器后端。任务说明不进入 main，模型不默认接入产品。
+失败可抛弃加速图，保留原内容缓存；driver checkpoint仅共享raw entries Arc、不深克隆整图。预算/首诊断/当前Verify保持；没有缓存接受权限。新增phase timing与每请求真实Types/初始化工作计数，whole-project命中输出null而非旧统计。
 
-## 完整接入合同
+## 写集与协调
 
-研究对象是稳定 QueryOwner + InputVersion + 语义结果分面 + 实际读取的双向 bond + 批量输入 + 按高度传播/去重 + 等值截止 + 动态依赖重绑，而不是向内容版本键再加一个索引。
+认领driver session/project/lib及真实差分测试、Types incremental、zil-db/reactive、CLI flag、tools/research/reactive-query-graph测量器。root单写新增Types→zil-db一条内部依赖：crates/zil-types/Cargo.toml、Cargo.lock、policy/dependencies.json对应边。根Cargo.toml、公共IR/schema、Verify内核及后端未改；policy其他边及LLVM unsafe字段不改。goal独立提交、不合入main。
 
-生产实现需要独立认领 zil-driver/session/project、zil-db 与具体函数查询接入的写集；先核最新 main/goal 及其他作者写集再施工。使用当前函数 Types/Analyze 投影作为已有基础，统一 owner/validity 边界，禁止只删除 QueryKey.input 的哈希。源码/声明/实例/目标/规则/预算/ID映射/诊断位置、否定名称查询和 CT 选择都必须重新建立有效性证据。
+## 已实际核验
 
-语义缓存仍只提供原始候选；当前请求必须经过独立 Verify，不缓存验证权限。递归分析由 SCC 内固定点处理，外层高度队列不能用固定层数阈值代替真实环检测。
+- 当前环境可复用：`source /workspace/scratch/abf690ce880c/toolchain/env.sh`；Rust1.99.1(58cf8f9c35b355199727627d07ae34a4e2846d67)、LLVM/Clang/LLD23.1.4，仓库checker Pass。不是沿用前轮缺工具链结论。
+- 独立baseline worktree `/workspace/scratch/e28839ace920/baseline`，target `/workspace/scratch/e28839ace920/targets/baseline`；release成功，binary SHA256 `64e1ff43bbaa59f786f1cc899b69e707072219a9c0abf0122ce31cd7b77f981d`。
+- baseline真实ZUI语言StoreFields check18.823ms，O2单CGU build115.237ms，输入ASCII3输出DEFHZMNOPK/exit0，两次Verify1。属于环境烟测。
+- 原始zit.ts已取得，SHA256 `8ac65b2ce90c32d1bee9aebe480e2f51bfa560b6f7e9d2633a91fa2732ab6bfb`；原ZIP SHA256 `1ca89da7c6535d6026697866fedae7403e8de2195f040f81f5026e22f29e6ce5`。22个manifest文件及三份冻结结果hash全匹配。私人原始源码没有放入仓库。
+- 最小mixed生成Source全13变体：同baseline双臂26请求（24success+2正确SafeReject）、144native oracle通过。仅测量器正控制，不是性能证据。
+- default预算规模筛选：mixed14×14×16 check888.50ms；scalar20×20×16 check936.16ms，均Verify1。mixed16×16×16、scalar32×32两规模原CT/词法预算失败保留，不进入成功速度分母、不放宽限额。
 
-## 退出条件
+## 本轮验收状态
 
-1. 在真实当前源码上证明减少实际 Types/Analyze 工作量或依赖遍历，不以事件标签变化代替执行减少。
-2. 单点、多点、广泛编辑、签名/布局/trait/CT/泛型/资源/递归场景，以及预算边界、位置变化、取消、错误恢复、驱逐和恢复旧源码，与全量路径逐项对拍。
-3. 端到端 cold/unchanged/edit、内存、机器行为和频率明确的绝对等待收益均验收后，才讨论生产合入；保留全部负结果，不能只用最优稀疏格宣传。
-4. 非作者按精确源码 SHA 复核；不能把本轮模型控制冒称产品测试。
+当前是WIP生产接入，候选尚待精确编译、真实差分、配对性能、非作者独审。旧JS模型与旧模型数字保留于README/receipt，不是当前编译成绩。尚未证明大项目用户等待下降，不合入main、不删除其他分支。
 
-## 恢复入口
+真实原始日志暂位于baseline的 `out/runs/reactive-baseline-{build,smoke}-20261111` 及本树 `out/runs/native-workload-{probe,scale}-20261111-r*`；结束前必须补持久化索引，目前不冒称这些临时路径已备份。
 
-读取本分支 README.md 与 receipt.json；复现 `node tools/research/reactive-query-graph/probe.js --large`。本轮沙盒没有 Rust/LLVM，Git clone DNS 失败；GitHub 核查和推送走连接器，实际运行仅 Node。任务停在“模型已交付，生产接入未执行”，没有后台施工。
+## 下一条恢复命令
+
+读取远端本分支最新SHA与goal G10.5.1.15；创建固定候选SHA的独立validation worktree/target，然后：
+
+```sh
+source /workspace/scratch/abf690ce880c/toolchain/env.sh
+export CARGO_TARGET_DIR=/workspace/scratch/e28839ace920/targets/reactive-validation
+cargo test --locked --offline -p zil-db -p zil-types -p zil-driver --lib -j 4
+```
+
+先解决真实失败，再执行native_measure.py同一候选binary默认legacy/--reactive-queries、相同O2/cache/CGU配对。完整退出条件仍见前轮合同 `e31e7ece:.task/reactive-query-graph.md` 与本轮用户请求；不能以此有限切片关闭父门。停止回复后不承诺后台施工。

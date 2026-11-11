@@ -81,6 +81,9 @@ pub struct CompileOptions {
     pub cache_dir: Option<PathBuf>,
     /// Explicitly trusted local raw TypedProgram cache; never stores Verified.
     pub semantic_cache: Option<PathBuf>,
+    /// Research opt-in: stable semantic query owners and batched propagation.
+    /// This changes raw computation scheduling only, never Verify authority.
+    pub reactive_queries: bool,
     /// Trusted local machine-object cache; independent of source-candidate cache.
     pub object_cache: Option<PathBuf>,
     pub clang: Option<PathBuf>,
@@ -115,6 +118,7 @@ impl Default for CompileOptions {
             scoped_imports: None,
             cache_dir: None,
             semantic_cache: None,
+            reactive_queries: false,
             object_cache: None,
             clang: None,
             optimization: zil_backend_llvm::Optimization::O0,
@@ -186,6 +190,13 @@ pub struct CompileReport {
     pub verification_runs: usize,
     pub source_files: BTreeMap<FileId, String>,
     pub scalar_interfaces: Vec<zil_ir::ScalarInterface>,
+    /// Actual work in this request. A whole-project cache hit reports None,
+    /// rather than copying counters from an earlier request.
+    pub function_type_work: Option<zil_types::FunctionStats>,
+    pub initialization_work: Option<zil_analyze::AnalysisStats>,
+    /// Wall time inside phase queries and current Verify/Lower/codegen. Input
+    /// discovery and final report serialization remain in complete request time.
+    pub phase_timings_ns: BTreeMap<Phase, u128>,
 }
 impl CompileReport {
     fn new(source: &SourceUnit) -> Self {
@@ -204,11 +215,14 @@ impl CompileReport {
             verification_runs: 0,
             source_files: BTreeMap::from([(source.file_id, source.path.clone())]),
             scalar_interfaces: Vec::new(),
+            function_type_work: None,
+            initialization_work: None,
+            phase_timings_ns: BTreeMap::new(),
         }
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}]}}",
+            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"phase_timings_ns\":{{{}}}}}",
             json_string(self.status.as_str()),
             json_string(self.phase.as_str()),
             self.diagnostics
@@ -254,7 +268,27 @@ impl CompileReport {
             self.verification_runs,
             self.source_files.iter().map(|(id, path)| format!("{}:{}", json_string(&id.0.to_string()), json_string(path))).collect::<Vec<_>>().join(","),
             self.scalar_interfaces.iter().map(|interface| format!("{{\"module\":{},\"signature_fingerprint\":{},\"implementation_fingerprint\":{},\"contract_fingerprint\":{},\"result_origins\":{},\"callable_contracts\":{},\"callable_returns\":{},\"exports\":[{}]}}", interface.module.0, json_string(&interface.signature_fingerprint.to_hex()), json_string(&interface.implementation_fingerprint.to_hex()), interface.contract_fingerprint.map_or_else(|| "null".into(), |hash| json_string(&hash.to_hex())), interface.result_origins.as_ref().map_or_else(|| "null".into(), |origins| format!("[{}]", origins.iter().map(|origin| format!("{{\"name\":{},\"parameters\":{:?},\"static_storage\":{}}}", json_string(&origin.name), origin.parameters, origin.static_storage)).collect::<Vec<_>>().join(","))), contracts::callable_json(interface), contracts::callable_return_json(interface), interface.exports.iter().map(|f| json_string(&f.name)).collect::<Vec<_>>().join(","))).collect::<Vec<_>>().join(","),
+            self.frontend_stats_json(),
+            self.phase_timings_ns.iter().map(|(phase, ns)| format!("{}:{}", json_string(phase.as_str()), ns)).collect::<Vec<_>>().join(","),
         )
+    }
+    fn frontend_stats_json(&self) -> String {
+        let types = self
+            .function_type_work
+            .map_or_else(|| "null".into(), |stats| stats.to_json());
+        let analysis = self.initialization_work.map_or_else(
+            || "null".into(),
+            |stats| {
+                format!(
+                    "{{\"executed_functions\":{},\"reused_functions\":{},\"retained_queries\":{}}}",
+                    stats.executed_functions, stats.reused_functions, stats.retained_queries
+                )
+            },
+        );
+        format!("{{\"function_types\":{types},\"initialization\":{analysis}}}")
+    }
+    fn record_phase_time(&mut self, phase: Phase, start: std::time::Instant) {
+        *self.phase_timings_ns.entry(phase).or_default() += start.elapsed().as_nanos();
     }
     fn fail(&mut self, diagnostics: Vec<Diagnostic>) {
         self.status = diagnostics

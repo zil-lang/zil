@@ -3,6 +3,7 @@
 //! cached bytes can manufacture a verifier capability.
 
 mod cache;
+pub mod reactive;
 pub use cache::{ArtifactCache, CacheCorruption, CacheRead, CacheWriteError};
 
 use std::collections::{BTreeMap, BTreeSet};

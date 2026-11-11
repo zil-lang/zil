@@ -1,13 +1,98 @@
 //! Function-scoped raw CFG work products. Nothing here carries Verify authority.
 use super::*;
+use std::cell::RefCell;
+use std::collections::BTreeSet;
 use std::hash::Hash;
 use std::sync::Arc;
 use zil_base::{FileId, Fingerprint, FingerprintBuilder, ModuleId};
+use zil_db::reactive::{GraphError, ReactiveGraph, ReactiveStats};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FunctionStats {
     pub reused_functions: usize,
     pub executed_functions: usize,
+    pub body_key_executions: usize,
+    pub body_key_reuses: usize,
+    pub core_function_eq_comparisons: usize,
+    pub body_key_visited_nodes: usize,
+    pub graph_edges: usize,
+    pub graph: ReactiveStats,
+    pub context_modules_visited: usize,
+    pub context_declarations_hashed: usize,
+    pub context_imports_hashed: usize,
+}
+
+impl FunctionStats {
+    pub fn to_json(&self) -> String {
+        let graph = self.graph;
+        format!(
+            "{{\"reused_functions\":{},\"executed_functions\":{},\"body_key_executions\":{},\"body_key_reuses\":{},\"core_function_eq_comparisons\":{},\"body_key_visited_nodes\":{},\"context_modules_visited\":{},\"context_declarations_hashed\":{},\"context_imports_hashed\":{},\"graph_edges\":{},\"graph\":{{\"executed\":{},\"edge_reads\":{},\"notifications\":{},\"enqueues\":{},\"deduplicated\":{},\"reused_bonds\":{},\"new_bonds\":{},\"removed_bonds\":{},\"rank_visits\":{},\"input_updates\":{},\"retained_nodes\":{},\"retained_edges\":{},\"inventory_visits\":{},\"equal_results\":{},\"changed_results\":{},\"cycle_check_edges\":{},\"validation_edge_reads\":{},\"rank_edge_reads\":{}}}}}",
+            self.reused_functions,
+            self.executed_functions,
+            self.body_key_executions,
+            self.body_key_reuses,
+            self.core_function_eq_comparisons,
+            self.body_key_visited_nodes,
+            self.context_modules_visited,
+            self.context_declarations_hashed,
+            self.context_imports_hashed,
+            self.graph_edges,
+            graph.executed,
+            graph.edge_reads,
+            graph.notifications,
+            graph.enqueues,
+            graph.deduplicated,
+            graph.reused_bonds,
+            graph.new_bonds,
+            graph.removed_bonds,
+            graph.rank_visits,
+            graph.input_updates,
+            graph.retained_nodes,
+            graph.retained_edges,
+            graph.inventory_visits,
+            graph.equal_results,
+            graph.changed_results,
+            graph.cycle_check_edges,
+            graph.validation_edge_reads,
+            graph.rank_edge_reads,
+        )
+    }
+}
+
+/// Semantic identity is supplied separately from compact relocation IDs and
+/// from the evidence that makes a particular projection valid.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct FunctionOwner {
+    project: String,
+    module: String,
+    function: String,
+}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum ProjectionOwner {
+    Context(String),
+    Signature(FunctionOwner),
+    RawBody(FunctionOwner),
+    BodyKey(FunctionOwner),
+}
+#[derive(Clone)]
+struct SourceBinding {
+    module: ModuleId,
+    index: usize,
+    version: Fingerprint,
+}
+#[derive(Clone, Default)]
+struct Projections {
+    graph: ReactiveGraph<ProjectionOwner, Option<Fingerprint>>,
+    // One immutable prior program, shared with the driver's prepared snapshot;
+    // no extra deep CoreFunction clone is made for each evidence comparison.
+    source: Option<PreparedProgram>,
+    bindings: BTreeMap<FunctionOwner, SourceBinding>,
+    owners: BTreeSet<ProjectionOwner>,
+    version: u64,
+}
+struct ReactiveRequest<'a> {
+    state: &'a mut Projections,
+    owners: &'a BTreeMap<ModuleId, (String, String)>,
 }
 
 #[derive(Clone)]
@@ -23,10 +108,20 @@ struct Entry {
 pub struct FunctionSession {
     entries: Arc<BTreeMap<Fingerprint, Arc<Entry>>>,
     stats: FunctionStats,
+    projections: Projections,
 }
 impl FunctionSession {
     pub fn clear(&mut self) {
         *self = Self::default();
+    }
+    /// Transaction rollback needs the prior raw content epoch, not a deep copy
+    /// of the acceleration graph. Rebuilding that graph after failure is safe.
+    pub fn checkpoint(&self) -> Self {
+        Self {
+            entries: self.entries.clone(),
+            stats: self.stats,
+            projections: Projections::default(),
+        }
     }
     pub fn last_stats(&self) -> FunctionStats {
         self.stats
@@ -40,16 +135,59 @@ impl FunctionSession {
         target: &TargetProfile,
         limits: &Limits,
     ) -> CompileResult<TypedProgram> {
+        self.check_prepared_program_inner(prepared, target, limits, None)
+    }
+
+    /// Opt-in semantic owners. These strings only identify nodes: the current
+    /// immutable Core, complete binding context, signature reads and limits
+    /// independently determine whether their previous results remain valid.
+    pub fn check_prepared_program_with_owners(
+        &mut self,
+        prepared: &PreparedProgram,
+        target: &TargetProfile,
+        limits: &Limits,
+        owners: &BTreeMap<ModuleId, (String, String)>,
+    ) -> CompileResult<TypedProgram> {
+        self.check_prepared_program_inner(prepared, target, limits, Some(owners))
+    }
+
+    fn check_prepared_program_inner(
+        &mut self,
+        prepared: &PreparedProgram,
+        target: &TargetProfile,
+        limits: &Limits,
+        owners: Option<&BTreeMap<ModuleId, (String, String)>>,
+    ) -> CompileResult<TypedProgram> {
+        self.stats = FunctionStats::default();
         // Preserve the existing inference/shape path, including all raw limits.
         let inferred;
         let resolved;
+        let graph_eligible;
         let program = if prepared.identity_inference(limits) {
-            resolved = aggregates::resolve_prepared_program(prepared.program(), limits)?;
+            resolved = match aggregates::resolve_prepared_program(prepared.program(), limits) {
+                Ok(resolved) => resolved,
+                Err(error) => {
+                    self.projections = Projections::default();
+                    return Err(error);
+                }
+            };
+            graph_eligible = matches!(resolved, std::borrow::Cow::Borrowed(_));
             &*resolved
         } else {
-            inferred = program::resolve_program_shapes(prepared.program(), limits)?;
+            graph_eligible = false;
+            inferred = match program::resolve_program_shapes(prepared.program(), limits) {
+                Ok(inferred) => inferred,
+                Err(error) => {
+                    self.projections = Projections::default();
+                    return Err(error);
+                }
+            };
             &inferred
         };
+        let owners = owners.filter(|_| graph_eligible);
+        if owners.is_none() {
+            self.projections = Projections::default();
+        }
         let mut next = BTreeMap::new();
         let mut stats = FunctionStats::default();
         let mut reuse = Reuse {
@@ -57,11 +195,22 @@ impl FunctionSession {
             next: &mut next,
             stats: &mut stats,
             keys: None,
+            reactive: owners.map(|owners| ReactiveRequest {
+                state: &mut self.projections,
+                owners,
+            }),
         };
         let result =
             program::check_resolved_program_with_reuse(program, target, limits, Some(&mut reuse));
         if result.is_ok() {
             self.entries = Arc::new(next);
+            if owners.is_some() {
+                self.projections.source = Some(prepared.clone());
+            }
+        } else {
+            // A failed request cannot publish a partial graph epoch. The last
+            // successful raw CFGs remain available through their full keys.
+            self.projections = Projections::default();
         }
         self.stats = stats;
         result
@@ -128,6 +277,7 @@ impl FunctionSession {
             return false;
         };
         self.entries = Arc::new(entries);
+        self.projections = Projections::default();
         self.stats = FunctionStats::default();
         true
     }
@@ -202,6 +352,7 @@ pub(super) struct Reuse<'a> {
     next: &'a mut BTreeMap<Fingerprint, Arc<Entry>>,
     stats: &'a mut FunctionStats,
     keys: Option<BTreeMap<(ModuleId, String), Fingerprint>>,
+    reactive: Option<ReactiveRequest<'a>>,
 }
 impl Reuse<'_> {
     pub(super) fn prepare(
@@ -211,7 +362,10 @@ impl Reuse<'_> {
         target: &TargetProfile,
         limits: &Limits,
     ) {
-        self.keys = keys(program, tables, target, limits);
+        self.keys = match &mut self.reactive {
+            Some(request) => request.keys(program, tables, target, limits, self.stats),
+            None => keys(program, tables, target, limits, self.stats),
+        };
     }
     pub(super) fn get(
         &mut self,
@@ -321,6 +475,229 @@ impl Reuse<'_> {
     }
 }
 
+impl ReactiveRequest<'_> {
+    fn keys(
+        &mut self,
+        program: &CoreProgram,
+        tables: &BTreeMap<ModuleId, BTreeMap<String, Signature>>,
+        target: &TargetProfile,
+        limits: &Limits,
+        stats: &mut FunctionStats,
+    ) -> Option<BTreeMap<(ModuleId, String), Fingerprint>> {
+        match self.try_keys(program, tables, target, limits, stats) {
+            Ok(keys) => keys,
+            Err(_) => {
+                stats.graph = self.state.graph.stats();
+                stats.graph_edges = stats.graph.edge_reads as usize;
+                // Graph metadata never changes language acceptance. An uncertain
+                // identity, removed owner or graph failure takes the old path.
+                *self.state = Projections::default();
+                keys(program, tables, target, limits, stats)
+            }
+        }
+    }
+
+    fn try_keys(
+        &mut self,
+        program: &CoreProgram,
+        tables: &BTreeMap<ModuleId, BTreeMap<String, Signature>>,
+        target: &TargetProfile,
+        limits: &Limits,
+        stats: &mut FunctionStats,
+    ) -> Result<Option<BTreeMap<(ModuleId, String), Fingerprint>>, GraphError> {
+        let Some(context) = key_context(program, tables, target, limits, stats) else {
+            *self.state = Projections::default();
+            return Ok(None);
+        };
+        let mut identities = BTreeSet::new();
+        let mut project = None;
+        for module in &program.modules {
+            let identity = self
+                .owners
+                .get(&module.core.module_id)
+                .ok_or(GraphError::MissingOwner)?;
+            if !identities.insert(identity.clone())
+                || project.as_ref().is_some_and(|prior| prior != &identity.0)
+            {
+                return Err(GraphError::InputQueryConflict);
+            }
+            project = Some(identity.0.clone());
+        }
+        let project = project.ok_or(GraphError::MissingOwner)?;
+        let owner_for = |module: ModuleId, name: &str| -> Result<FunctionOwner, GraphError> {
+            let (project, module) = self.owners.get(&module).ok_or(GraphError::MissingOwner)?;
+            Ok(FunctionOwner {
+                project: project.clone(),
+                module: module.clone(),
+                function: name.to_owned(),
+            })
+        };
+        let context_owner = ProjectionOwner::Context(project);
+        let mut inputs = vec![(context_owner.clone(), Some(context.fingerprint))];
+        let mut live = BTreeSet::from([context_owner.clone()]);
+        let mut bindings = BTreeMap::new();
+        let mut metadata = BTreeMap::new();
+        let prior_modules: BTreeMap<_, _> = self
+            .state
+            .source
+            .as_ref()
+            .map(|source| {
+                source
+                    .program()
+                    .modules
+                    .iter()
+                    .map(|module| (module.core.module_id, module))
+                    .collect()
+            })
+            .unwrap_or_default();
+        for module in &program.modules {
+            for (index, function) in module.core.functions.iter().enumerate() {
+                let owner = owner_for(module.core.module_id, &function.name)?;
+                let signature_owner = ProjectionOwner::Signature(owner.clone());
+                let signature = *context
+                    .declarations
+                    .get(&module.core.module_id)
+                    .and_then(|declarations| declarations.get(&function.name))
+                    .ok_or(GraphError::MissingOwner)?;
+                inputs.push((signature_owner.clone(), Some(signature)));
+                live.insert(signature_owner);
+                if !worthwhile(function) {
+                    continue;
+                }
+                let prior = self.state.bindings.get(&owner).and_then(|binding| {
+                    let previous = prior_modules
+                        .get(&binding.module)?
+                        .core
+                        .functions
+                        .get(binding.index)?;
+                    stats.core_function_eq_comparisons += 1;
+                    (previous == function).then_some(binding.version)
+                });
+                let version = match prior {
+                    Some(version) => version,
+                    None => {
+                        self.state.version =
+                            self.state.version.checked_add(1).ok_or_else(|| {
+                                GraphError::Evaluation("body input version exhausted".into())
+                            })?;
+                        Fingerprint::of(&self.state.version.to_le_bytes())
+                    }
+                };
+                let body_owner = ProjectionOwner::RawBody(owner.clone());
+                inputs.push((body_owner.clone(), Some(version)));
+                live.insert(body_owner);
+                live.insert(ProjectionOwner::BodyKey(owner.clone()));
+                bindings.insert(
+                    owner.clone(),
+                    SourceBinding {
+                        module: module.core.module_id,
+                        index,
+                        version,
+                    },
+                );
+                metadata.insert(owner, (module, function));
+            }
+        }
+        self.state.graph.take_stats();
+        // Install the entire request's inputs before publishing any notification.
+        self.state.graph.set_inputs(inputs)?;
+        for owner in metadata.keys() {
+            self.state
+                .graph
+                .ensure_query(ProjectionOwner::BodyKey(owner.clone()))?;
+        }
+        if live != self.state.owners {
+            self.state.graph.retain(&live)?;
+        }
+        let executed = RefCell::new(FunctionStats::default());
+        let evaluate =
+            |owner: &ProjectionOwner,
+             read: &mut dyn FnMut(&ProjectionOwner) -> Result<Option<Fingerprint>, GraphError>|
+             -> Result<Option<Fingerprint>, GraphError> {
+                let ProjectionOwner::BodyKey(owner) = owner else {
+                    return Err(GraphError::InputQueryConflict);
+                };
+                let (module, function) = metadata.get(owner).ok_or(GraphError::MissingOwner)?;
+                if read(&context_owner)? != Some(context.fingerprint)
+                    || read(&ProjectionOwner::RawBody(owner.clone()))?
+                        != Some(bindings[owner].version)
+                    || read(&ProjectionOwner::Signature(owner.clone()))?
+                        != context
+                            .declarations
+                            .get(&module.core.module_id)
+                            .and_then(|row| row.get(&function.name))
+                            .copied()
+                {
+                    return Err(GraphError::Evaluation(
+                        "projection input differs from current Core".into(),
+                    ));
+                }
+                let mut read_error = None;
+                let mut observe = |module, name: &str| -> Option<()> {
+                    let result = owner_for(module, name)
+                        .and_then(|owner| read(&ProjectionOwner::Signature(owner)));
+                    match result {
+                        Ok(Some(observed))
+                            if Some(&observed)
+                                == context
+                                    .declarations
+                                    .get(&module)
+                                    .and_then(|row| row.get(name)) =>
+                        {
+                            Some(())
+                        }
+                        Ok(_) => {
+                            read_error = Some(GraphError::Evaluation(
+                                "signature differs from current declaration".into(),
+                            ));
+                            None
+                        }
+                        Err(error) => {
+                            read_error = Some(error);
+                            None
+                        }
+                    }
+                };
+                let key = function_key(
+                    module,
+                    function,
+                    tables,
+                    &context,
+                    limits,
+                    &mut executed.borrow_mut(),
+                    Some(&mut observe),
+                );
+                if let Some(error) = read_error {
+                    return Err(error);
+                }
+                Ok(key)
+            };
+        let flushed = self.state.graph.flush(&evaluate);
+        let executed = executed.into_inner();
+        stats.body_key_executions += executed.body_key_executions;
+        stats.body_key_visited_nodes += executed.body_key_visited_nodes;
+        if flushed.is_ok() {
+            stats.body_key_reuses += metadata.len().saturating_sub(executed.body_key_executions);
+        }
+        stats.graph = self.state.graph.stats();
+        stats.graph_edges = stats.graph.edge_reads as usize;
+        flushed?;
+        let mut keys = BTreeMap::new();
+        for (owner, (module, function)) in metadata {
+            if let Some(Some(key)) = self
+                .state
+                .graph
+                .get_current(&ProjectionOwner::BodyKey(owner))
+            {
+                keys.insert((module.core.module_id, function.name.clone()), *key);
+            }
+        }
+        self.state.bindings = bindings;
+        self.state.owners = live;
+        Ok(Some(keys))
+    }
+}
+
 fn scalar(ty: &Type) -> bool {
     matches!(
         ty,
@@ -393,7 +770,33 @@ fn keys(
     tables: &BTreeMap<ModuleId, BTreeMap<String, Signature>>,
     target: &TargetProfile,
     limits: &Limits,
+    stats: &mut FunctionStats,
 ) -> Option<BTreeMap<(ModuleId, String), Fingerprint>> {
+    let context = key_context(program, tables, target, limits, stats)?;
+    let mut keys = BTreeMap::new();
+    for module in &program.modules {
+        for function in &module.core.functions {
+            if let Some(key) = function_key(module, function, tables, &context, limits, stats, None)
+            {
+                keys.insert((module.core.module_id, function.name.clone()), key);
+            }
+        }
+    }
+    Some(keys)
+}
+
+struct KeyContext {
+    fingerprint: Fingerprint,
+    declarations: BTreeMap<ModuleId, BTreeMap<String, Fingerprint>>,
+}
+
+fn key_context(
+    program: &CoreProgram,
+    tables: &BTreeMap<ModuleId, BTreeMap<String, Signature>>,
+    target: &TargetProfile,
+    limits: &Limits,
+    stats: &mut FunctionStats,
+) -> Option<KeyContext> {
     if !program
         .modules
         .iter()
@@ -440,6 +843,7 @@ fn keys(
     // some declarations. Signature contents are a separate observed facet.
     let mut declarations = BTreeMap::new();
     for module in &program.modules {
+        stats.context_modules_visited += 1;
         let core = &module.core;
         if core.schema_version != SCHEMA_VERSION
             || !core.aggregate_templates.is_empty()
@@ -453,11 +857,13 @@ fn keys(
         core.module_id.hash(&mut context);
         module.imports.len().hash(&mut context);
         for import in &module.imports {
+            stats.context_imports_hashed += 1;
             import.alias.hash(&mut context);
             import.module.hash(&mut context);
         }
         core.functions.len().hash(&mut context);
         for f in &core.functions {
+            stats.context_declarations_hashed += 1;
             if f.storage_life.is_some()
                 || f.protocol_contract.is_some()
                 || !f.type_parameters.is_empty()
@@ -507,54 +913,72 @@ fn keys(
                 .insert(f.name.clone(), declaration.digest());
         }
     }
-    let context = context.digest();
-    let mut keys = BTreeMap::new();
-    for module in &program.modules {
-        for f in &module.core.functions {
-            if !worthwhile(f) {
-                continue;
-            }
-            let mut encoder = BodyKey {
-                hash: FingerprintBuilder::new(),
-                origin: f.span,
-                depth: limits.max_call_depth,
-                remaining: limits.max_nodes,
-                module,
-                tables,
-                declarations: &declarations,
-            };
-            encoder.hash.update(&context.0);
-            encoder
-                .hash
-                .update(&declarations.get(&module.core.module_id)?.get(&f.name)?.0);
-            module.core.module_id.hash(&mut encoder.hash);
-            f.name.hash(&mut encoder.hash);
-            if encoder.span(f.span).is_none()
-                || f.parameters.iter().any(|p| encoder.span(p.span).is_none())
-                || encoder.block(&f.body, 0).is_none()
-            {
-                continue;
-            }
-            keys.insert(
-                (module.core.module_id, f.name.clone()),
-                encoder.hash.digest(),
-            );
-        }
-    }
-    Some(keys)
+    Some(KeyContext {
+        fingerprint: context.digest(),
+        declarations,
+    })
 }
 
-struct BodyKey<'a> {
+// Keep the historical byte stream intact. The graph controls whether this
+// projection executes; persistent raw work-product keys retain their meaning.
+fn function_key(
+    module: &ProgramModule,
+    function: &CoreFunction,
+    tables: &BTreeMap<ModuleId, BTreeMap<String, Signature>>,
+    context: &KeyContext,
+    limits: &Limits,
+    stats: &mut FunctionStats,
+    observe: Option<&mut dyn FnMut(ModuleId, &str) -> Option<()>>,
+) -> Option<Fingerprint> {
+    if !worthwhile(function) {
+        return None;
+    }
+    stats.body_key_executions += 1;
+    let mut encoder = BodyKey {
+        hash: FingerprintBuilder::new(),
+        origin: function.span,
+        depth: limits.max_call_depth,
+        remaining: limits.max_nodes,
+        visited: 0,
+        module,
+        tables,
+        declarations: &context.declarations,
+        observe,
+    };
+    encoder.hash.update(&context.fingerprint.0);
+    encoder.hash.update(
+        &context
+            .declarations
+            .get(&module.core.module_id)?
+            .get(&function.name)?
+            .0,
+    );
+    module.core.module_id.hash(&mut encoder.hash);
+    function.name.hash(&mut encoder.hash);
+    let valid = encoder.span(function.span).is_some()
+        && function
+            .parameters
+            .iter()
+            .all(|parameter| encoder.span(parameter.span).is_some())
+        && encoder.block(&function.body, 0).is_some();
+    stats.body_key_visited_nodes += encoder.visited;
+    valid.then(|| encoder.hash.digest())
+}
+
+struct BodyKey<'a, 'o> {
     hash: FingerprintBuilder,
     origin: Span,
     depth: usize,
     remaining: usize,
+    visited: usize,
     module: &'a ProgramModule,
     tables: &'a BTreeMap<ModuleId, BTreeMap<String, Signature>>,
     declarations: &'a BTreeMap<ModuleId, BTreeMap<String, Fingerprint>>,
+    observe: Option<&'o mut dyn FnMut(ModuleId, &str) -> Option<()>>,
 }
-impl BodyKey<'_> {
+impl BodyKey<'_, '_> {
     fn visit(&mut self, depth: usize) -> Option<()> {
+        self.visited += 1;
         self.remaining = self.remaining.checked_sub(1)?;
         (depth <= self.depth).then_some(())
     }
@@ -679,6 +1103,9 @@ impl BodyKey<'_> {
         // import/name tables, including visibility, ID, types and life header.
         // A callee body edit is not a Types dependency of its scalar caller;
         // Analyze and independent Verify still observe the entire current CFG.
+        if let Some(observe) = &mut self.observe {
+            observe(module, name)?;
+        }
         self.hash
             .update(&self.declarations.get(&module)?.get(name)?.0);
         Some(())
@@ -767,5 +1194,218 @@ impl BodyKey<'_> {
             _ => return None,
         }
         Some(())
+    }
+}
+
+#[cfg(test)]
+mod reactive_tests {
+    use super::*;
+    use zil_base::NodeId;
+
+    fn span() -> Span {
+        Span::new(FileId(0), 0, 100)
+    }
+    fn expr(kind: CoreExprKind) -> CoreExpr {
+        CoreExpr {
+            id: NodeId(0),
+            kind,
+            span: span(),
+        }
+    }
+    fn function(index: u32, name: &str, result: CoreExpr) -> CoreFunction {
+        CoreFunction {
+            storage_life: None,
+            call_kind: None,
+            life: None,
+            type_parameters: vec![],
+            state_parameters: vec![],
+            protocol_contract: None,
+            callable_return: None,
+            id: NodeId(index),
+            name: name.into(),
+            callable_parameters: vec![],
+            foreign: None,
+            parameters: vec![],
+            return_type: Type::I32,
+            result_mode: PassingMode::Infer,
+            body: CoreBlock {
+                statements: (0..4)
+                    .map(|i| CoreStatement {
+                        id: NodeId(i),
+                        span: span(),
+                        kind: if i == 3 {
+                            CoreStatementKind::Return(Some(result.clone()))
+                        } else {
+                            CoreStatementKind::Expression(expr(CoreExprKind::Integer(
+                                i.to_string(),
+                            )))
+                        },
+                    })
+                    .collect(),
+                span: span(),
+            },
+            receiver: None,
+            span: span(),
+        }
+    }
+    fn program(literal: &str) -> CoreProgram {
+        let mut leaf = function(0, "leaf", expr(CoreExprKind::Integer(literal.into())));
+        leaf.parameters.push(CoreParameter {
+            name: "x".into(),
+            ty: Type::I32,
+            mode: PassingMode::Infer,
+            span: span(),
+        });
+        let caller = function(
+            1,
+            "caller",
+            expr(CoreExprKind::Call {
+                callee: Box::new(expr(CoreExprKind::Name("leaf".into()))),
+                arguments: vec![expr(CoreExprKind::Integer("42".into()))],
+            }),
+        );
+        let unrelated = function(2, "unrelated", expr(CoreExprKind::Integer("7".into())));
+        CoreProgram {
+            root: ModuleId(0),
+            source_fingerprint: Fingerprint::ZERO,
+            modules: vec![ProgramModule {
+                imports: vec![],
+                exports: vec![NodeId(0), NodeId(1), NodeId(2)],
+                core: CoreModule {
+                    dyn_declarations: vec![],
+                    dyn_interfaces: vec![],
+                    dyn_vtables: vec![],
+                    life_declarations: vec![],
+                    life_instances: vec![],
+                    closure_life_contexts: vec![],
+                    schema_version: SCHEMA_VERSION,
+                    module_id: ModuleId(0),
+                    source_fingerprint: Fingerprint::ZERO,
+                    functions: vec![leaf, caller, unrelated],
+                    aggregates: vec![],
+                    aggregate_templates: vec![],
+                    aggregate_applications: vec![],
+                    enums: vec![],
+                    unsupported: vec![],
+                },
+            }],
+        }
+    }
+    fn owners(module: &str) -> BTreeMap<ModuleId, (String, String)> {
+        BTreeMap::from([(ModuleId(0), ("project/main.zil".into(), module.into()))])
+    }
+    fn check(
+        session: &mut FunctionSession,
+        program: &CoreProgram,
+        graph: bool,
+    ) -> CompileResult<TypedProgram> {
+        let limits = Limits::default();
+        let prepared = infer_program_for_ct(program, &limits)?.into_prepared();
+        if graph {
+            session.check_prepared_program_with_owners(
+                &prepared,
+                &TargetProfile::default(),
+                &limits,
+                &owners("main.zil"),
+            )
+        } else {
+            session.check_prepared_program(&prepared, &TargetProfile::default(), &limits)
+        }
+    }
+    fn same_wire(graph: &FunctionSession, legacy: &FunctionSession) {
+        assert_eq!(
+            graph.encode_work_products(&TargetProfile::default(), &Limits::default()),
+            legacy.encode_work_products(&TargetProfile::default(), &Limits::default())
+        );
+    }
+
+    #[test]
+    fn body_projection_skips_ast_hashes_and_keeps_historical_wire_keys() {
+        let mut graph = FunctionSession::default();
+        let mut legacy = FunctionSession::default();
+        for (literal, executions, reused) in [("4", 3, 0), ("5", 1, 2), ("6", 1, 2)] {
+            let source = program(literal);
+            assert_eq!(
+                check(&mut graph, &source, true),
+                check(&mut legacy, &source, false)
+            );
+            let stats = graph.last_stats();
+            assert_eq!(
+                (stats.body_key_executions, stats.body_key_reuses),
+                (executions, reused)
+            );
+            assert_eq!(stats.graph.executed as usize, executions);
+            assert_eq!(legacy.last_stats().body_key_executions, 3);
+            assert!(stats.body_key_visited_nodes <= legacy.last_stats().body_key_visited_nodes);
+            same_wire(&graph, &legacy);
+        }
+        assert_eq!(graph.last_stats().core_function_eq_comparisons, 3);
+        assert_eq!(graph.last_stats().reused_functions, 2);
+        assert_eq!(graph.last_stats().executed_functions, 1);
+    }
+
+    #[test]
+    fn signature_reads_rebind_and_failed_epoch_cannot_publish_graph_values() {
+        let mut graph = FunctionSession::default();
+        let mut legacy = FunctionSession::default();
+        let mut source = program("4");
+        assert_eq!(
+            check(&mut graph, &source, true),
+            check(&mut legacy, &source, false)
+        );
+        source.modules[0].core.functions[0].parameters[0].name = "renamed".into();
+        assert_eq!(
+            check(&mut graph, &source, true),
+            check(&mut legacy, &source, false)
+        );
+        assert_eq!(graph.last_stats().body_key_executions, 2);
+        assert_eq!(graph.last_stats().body_key_reuses, 1);
+        same_wire(&graph, &legacy);
+        let valid = source.clone();
+        source.modules[0].core.functions[0].name = "missing".into();
+        let result = check(&mut graph, &source, true);
+        assert_eq!(result, check(&mut legacy, &source, false));
+        assert!(result.is_err());
+        assert!(graph.projections.source.is_none());
+        assert_eq!(
+            check(&mut graph, &valid, true),
+            check(&mut legacy, &valid, false)
+        );
+        assert_eq!(graph.last_stats().body_key_executions, 3);
+        assert_eq!(graph.last_stats().reused_functions, 3);
+        same_wire(&graph, &legacy);
+    }
+
+    #[test]
+    fn owners_and_raw_fingerprints_do_not_replace_current_core_evidence() {
+        let mut graph = FunctionSession::default();
+        let source = program("4");
+        check(&mut graph, &source, true).unwrap();
+        // Both source fingerprints deliberately stay ZERO across the edit.
+        let edited = program("8");
+        let actual = check(&mut graph, &edited, true).unwrap();
+        assert_eq!(
+            actual,
+            check(&mut FunctionSession::default(), &edited, false).unwrap()
+        );
+        assert_eq!(graph.last_stats().body_key_executions, 1);
+        let prepared = infer_program_for_ct(&edited, &Limits::default())
+            .unwrap()
+            .into_prepared();
+        let moved = graph
+            .check_prepared_program_with_owners(
+                &prepared,
+                &TargetProfile::default(),
+                &Limits::default(),
+                &owners("moved.zil"),
+            )
+            .unwrap();
+        assert_eq!(moved, actual);
+        assert_eq!(graph.last_stats().body_key_executions, 3);
+        assert_eq!(graph.last_stats().reused_functions, 3);
+        let checkpoint = graph.checkpoint();
+        assert!(Arc::ptr_eq(&checkpoint.entries, &graph.entries));
+        assert!(checkpoint.projections.source.is_none());
+        assert_eq!(checkpoint.projections.graph.stats().retained_nodes, 0);
     }
 }

@@ -251,7 +251,7 @@ impl CompilationSession {
             None => (None, None, None),
         };
         let mut report = prepared_report.unwrap_or_else(|| CompileReport::new(root));
-        let function_checkpoint = self.function_types.clone();
+        let function_checkpoint = self.function_types.checkpoint();
         if let Err(errors) = self.project_pipeline(
             project,
             options,
@@ -951,7 +951,18 @@ impl CompilationSession {
         if let Some(store) = &function_store {
             store.restore(&mut function_types, options);
         }
-        let checkpoint = function_types.clone();
+        let checkpoint = function_types.checkpoint();
+        // Paths identify owners; current immutable Core, binding IDs, complete
+        // limits/target and observed declarations still prove validity inside
+        // FunctionSession. A path or source fingerprint grants no reuse alone.
+        let reactive_owners = options.reactive_queries.then(|| {
+            project
+                .modules
+                .iter()
+                .map(|source| (source.module_id, (root.path.clone(), source.path.clone())))
+                .collect::<BTreeMap<_, _>>()
+        });
+        let mut function_work = None;
         let typed_result = self.query(
             key(Phase::Types, true),
             std::slice::from_ref(&ct_snapshot),
@@ -959,11 +970,25 @@ impl CompilationSession {
             report,
             observer,
             || {
-                function_types
-                    .check_prepared_program(&prepared, &options.target, &options.limits)
-                    .map(|typed| RawSnapshot::ProjectTyped(Arc::new(typed)))
+                let checked = if let Some(owners) = &reactive_owners {
+                    function_types.check_prepared_program_with_owners(
+                        &prepared,
+                        &options.target,
+                        &options.limits,
+                        owners,
+                    )
+                } else {
+                    function_types.check_prepared_program(
+                        &prepared,
+                        &options.target,
+                        &options.limits,
+                    )
+                };
+                function_work = Some(function_types.last_stats());
+                checked.map(|typed| RawSnapshot::ProjectTyped(Arc::new(typed)))
             },
         );
+        report.function_type_work = function_work;
         self.function_types = if typed_result.is_ok() {
             function_types
         } else {

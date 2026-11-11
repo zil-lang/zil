@@ -382,6 +382,7 @@ impl CompilationSession {
         execute: impl FnOnce() -> CompileResult<RawSnapshot>,
         disposition: QueryDisposition,
     ) -> CompileResult<(RawSnapshot, Arc<QuerySnapshot>)> {
+        let query_start = Instant::now();
         options
             .cancellation
             .check(key.phase)
@@ -396,12 +397,14 @@ impl CompilationSession {
                 .map_err(|error| vec![error])?;
             report.cache_hit = true;
             self.touch(&key);
+            report.record_phase_time(key.phase, query_start);
             return Ok((raw, snapshot));
         }
         self.database
             .begin(key.clone())
             .map_err(|error| vec![error])?;
         let result = execute();
+        report.record_phase_time(key.phase, query_start);
         event(key.phase, disposition, report, observer);
         let raw = match result {
             Ok(raw) => raw,
@@ -805,6 +808,7 @@ impl CompilationSession {
         } else {
             let mut analysis = std::mem::take(&mut self.analysis);
             let checkpoint = analysis.clone();
+            let mut initialization_work = None;
             let queried = self.query(
                 analysis_key,
                 std::slice::from_ref(&typed_snapshot),
@@ -812,14 +816,16 @@ impl CompilationSession {
                 report,
                 observer,
                 || {
-                    (if let Some(program) = typed.program() {
+                    let result = if let Some(program) = typed.program() {
                         analysis.analyze_program(program, &options.limits)
                     } else {
                         analysis.analyze(typed.module(), &options.limits)
-                    })
-                    .map(|candidate| RawSnapshot::Candidate(Arc::new(candidate)))
+                    };
+                    initialization_work = Some(analysis.last_stats());
+                    result.map(|candidate| RawSnapshot::Candidate(Arc::new(candidate)))
                 },
             );
+            report.initialization_work = initialization_work;
             self.analysis = if queried.is_ok() {
                 analysis
             } else {
@@ -845,7 +851,9 @@ impl CompilationSession {
             .check(Phase::Verify)
             .map_err(|error| vec![error])?;
         report.verification_runs += 1;
+        let verify_start = Instant::now();
         let verified = typed.verify(candidate, options);
+        report.record_phase_time(Phase::Verify, verify_start);
         event(Phase::Verify, QueryDisposition::Executed, report, observer);
         options
             .cancellation
@@ -873,7 +881,10 @@ impl CompilationSession {
         if options.stop_after == Stage::Verify {
             return Ok(());
         }
-        let lir = zil_lower::lower_view(&verified)?;
+        let lower_start = Instant::now();
+        let lowered = zil_lower::lower_view(&verified);
+        report.record_phase_time(Phase::Lower, lower_start);
+        let lir = lowered?;
         event(Phase::Lower, QueryDisposition::Executed, report, observer);
         options
             .cancellation
@@ -965,13 +976,16 @@ impl CompilationSession {
         // interrupt a linker already running. Outputs stay in a private directory
         // until the last cancellation check and all fallible dumps have finished.
         let stable_names = stable_source.and_then(|source| source.bind(verified.module()));
-        let mut artifact = zil_backend_llvm::build_view_with_cancellation_and_stable_names(
+        let codegen_start = Instant::now();
+        let built = zil_backend_llvm::build_view_with_cancellation_and_stable_names(
             &verified,
             &lir,
             &build,
             &|| options.cancellation.check(Phase::Link).is_err(),
             stable_names.as_deref(),
-        )?;
+        );
+        report.record_phase_time(Phase::Codegen, codegen_start);
+        let mut artifact = built?;
         // Layout work products are optional. Protect their actual destination
         // against every current source and output before publishing any bytes.
         let partition_cache_plan = artifact.pending_partition_cache_path().and_then(|path| {
@@ -1636,3 +1650,7 @@ mod bounded_history_tests {
 #[cfg(test)]
 #[path = "function_incremental_tests.rs"]
 mod function_incremental_tests;
+
+#[cfg(test)]
+#[path = "reactive_query_tests.rs"]
+mod reactive_query_tests;

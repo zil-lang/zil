@@ -1,0 +1,554 @@
+//! Stable-owner reactive queries. Values describe validity; owner keys describe
+//! identity. This graph is an in-memory scheduling aid, not verifier authority.
+//!
+//! Inputs are installed as a batch before any receiver is notified. A changed
+//! value only notifies its direct receivers; equal query results stop the wave.
+//! Evaluators record their actual reads, replacing both sides of obsolete bonds.
+//! An evaluation failure poisons the candidate graph until `clear`: callers must
+//! never recover by observing a successful value from a partially applied batch.
+
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::fmt;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum GraphError {
+    MissingOwner,
+    Cycle,
+    InputQueryConflict,
+    Poisoned,
+    Evaluation(String),
+}
+impl fmt::Display for GraphError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MissingOwner => f.write_str("reactive dependency owner is missing"),
+            Self::Cycle => f.write_str("reactive query dependency cycle"),
+            Self::InputQueryConflict => {
+                f.write_str("reactive owner changed between input and query")
+            }
+            Self::Poisoned => f.write_str("failed reactive candidate must be cleared"),
+            Self::Evaluation(message) => f.write_str(message),
+        }
+    }
+}
+impl std::error::Error for GraphError {}
+
+/// Work counters, excluding evaluator-specific AST/encoding work. Retained
+/// counts are current gauges; other fields count work since the last reset.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ReactiveStats {
+    pub executed: u64,
+    pub equal_results: u64,
+    pub changed_results: u64,
+    pub cycle_check_edges: u64,
+    pub validation_edge_reads: u64,
+    pub rank_edge_reads: u64,
+    pub edge_reads: u64,
+    pub notifications: u64,
+    pub enqueues: u64,
+    pub deduplicated: u64,
+    pub reused_bonds: u64,
+    pub new_bonds: u64,
+    pub removed_bonds: u64,
+    pub rank_visits: u64,
+    pub input_updates: u64,
+    pub inventory_visits: u64,
+    pub retained_nodes: u64,
+    pub retained_edges: u64,
+}
+
+/// The evaluator's immutable environment belongs to the current input batch.
+/// Every value affecting a query must be obtained through `read` (or be covered
+/// by an input read); external mutable state is not tracked by the graph.
+pub trait ReactiveEvaluator<K, V> {
+    fn evaluate(
+        &self,
+        owner: &K,
+        read: &mut dyn FnMut(&K) -> Result<V, GraphError>,
+    ) -> Result<V, GraphError>;
+}
+impl<K, V, F> ReactiveEvaluator<K, V> for F
+where
+    F: Fn(&K, &mut dyn FnMut(&K) -> Result<V, GraphError>) -> Result<V, GraphError>,
+{
+    fn evaluate(
+        &self,
+        owner: &K,
+        read: &mut dyn FnMut(&K) -> Result<V, GraphError>,
+    ) -> Result<V, GraphError> {
+        self(owner, read)
+    }
+}
+
+#[derive(Clone)]
+struct Node<K, V> {
+    input: bool,
+    value: Option<V>,
+    dependencies: BTreeSet<K>,
+    receivers: BTreeSet<K>,
+    active_reads: BTreeSet<K>,
+    height: u64,
+    dirty: bool,
+    active: bool,
+    rank_pending: bool,
+}
+impl<K, V> Node<K, V> {
+    fn new(input: bool, value: Option<V>) -> Self {
+        Self {
+            input,
+            value,
+            dependencies: BTreeSet::new(),
+            receivers: BTreeSet::new(),
+            active_reads: BTreeSet::new(),
+            height: u64::from(!input),
+            dirty: !input,
+            active: false,
+            rank_pending: false,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct ReactiveGraph<K, V> {
+    nodes: BTreeMap<K, Node<K, V>>,
+    // One queue membership per dirty owner. Rank changes move that membership.
+    queue: BTreeSet<(u64, K)>,
+    poisoned: bool,
+    edges: u64,
+    stats: ReactiveStats,
+}
+impl<K, V> Default for ReactiveGraph<K, V> {
+    fn default() -> Self {
+        Self {
+            nodes: BTreeMap::new(),
+            queue: BTreeSet::new(),
+            poisoned: false,
+            edges: 0,
+            stats: ReactiveStats::default(),
+        }
+    }
+}
+
+impl<K: Ord + Clone, V: Clone + Eq> ReactiveGraph<K, V> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    fn ready(&self) -> Result<(), GraphError> {
+        if self.poisoned {
+            Err(GraphError::Poisoned)
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Duplicate owners in a batch use the last supplied value. No evaluator
+    /// runs, and no notification occurs, until the complete batch is installed.
+    pub fn set_inputs(
+        &mut self,
+        inputs: impl IntoIterator<Item = (K, V)>,
+    ) -> Result<(), GraphError> {
+        self.ready()?;
+        let inputs = inputs.into_iter().collect::<BTreeMap<_, _>>();
+        self.stats.inventory_visits += inputs.len() as u64;
+        if inputs
+            .keys()
+            .any(|key| self.nodes.get(key).is_some_and(|n| !n.input))
+        {
+            return Err(GraphError::InputQueryConflict);
+        }
+        let mut changed = Vec::new();
+        for (key, value) in inputs {
+            self.stats.inventory_visits += 1;
+            if let Some(node) = self.nodes.get_mut(&key) {
+                if node.value.as_ref() == Some(&value) {
+                    continue;
+                }
+                node.value = Some(value);
+            } else {
+                self.nodes.insert(key.clone(), Node::new(true, Some(value)));
+            }
+            self.stats.input_updates += 1;
+            changed.push(key);
+        }
+        for key in changed {
+            self.notify(&key);
+        }
+        Ok(())
+    }
+
+    pub fn ensure_query(&mut self, owner: K) -> Result<(), GraphError> {
+        self.ready()?;
+        self.stats.inventory_visits += 1;
+        if let Some(node) = self.nodes.get(&owner) {
+            return if node.input {
+                Err(GraphError::InputQueryConflict)
+            } else {
+                Ok(())
+            };
+        }
+        self.nodes.insert(owner.clone(), Node::new(false, None));
+        self.queue.insert((1, owner));
+        self.stats.enqueues += 1;
+        Ok(())
+    }
+
+    fn enqueue(&mut self, key: &K) {
+        let node = self.nodes.get_mut(key).expect("bond has a live receiver");
+        if node.dirty {
+            self.stats.deduplicated += 1;
+        } else {
+            node.dirty = true;
+            self.queue.insert((node.height, key.clone()));
+            self.stats.enqueues += 1;
+        }
+    }
+
+    fn notify(&mut self, key: &K) {
+        let receivers = self.nodes[key]
+            .receivers
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        for receiver in receivers {
+            self.stats.notifications += 1;
+            // An old bond not yet read by an active evaluator is provisional.
+            // Its later read pulls the current value; it needs no extra run.
+            let node = &self.nodes[&receiver];
+            if !node.active || node.active_reads.contains(key) {
+                self.enqueue(&receiver);
+            }
+        }
+    }
+
+    /// Flush only scheduled owners, in actual dependency-height order.
+    pub fn flush<E: ReactiveEvaluator<K, V> + ?Sized>(
+        &mut self,
+        evaluator: &E,
+    ) -> Result<(), GraphError> {
+        self.ready()?;
+        let result = self.flush_inner(evaluator);
+        if result.is_err() {
+            self.poison();
+        }
+        result
+    }
+
+    fn flush_inner<E: ReactiveEvaluator<K, V> + ?Sized>(
+        &mut self,
+        evaluator: &E,
+    ) -> Result<(), GraphError> {
+        while let Some((_, owner)) = self.queue.first().cloned() {
+            self.ensure_current(&owner, evaluator)?;
+        }
+        Ok(())
+    }
+
+    /// Public reads settle the whole installed input batch before returning.
+    /// Evaluator reads pull their own dependencies instead of running unrelated
+    /// receivers of an unfinished query, which would create false cycles.
+    pub fn read<E: ReactiveEvaluator<K, V> + ?Sized>(
+        &mut self,
+        owner: &K,
+        evaluator: &E,
+    ) -> Result<V, GraphError> {
+        self.flush(evaluator)?;
+        let result = self.ensure_current(owner, evaluator);
+        if result.is_err() {
+            self.poison();
+        }
+        result
+    }
+
+    fn ensure_current<E: ReactiveEvaluator<K, V> + ?Sized>(
+        &mut self,
+        owner: &K,
+        evaluator: &E,
+    ) -> Result<V, GraphError> {
+        let node = self.nodes.get(owner).ok_or(GraphError::MissingOwner)?;
+        if node.active {
+            return Err(GraphError::Cycle);
+        }
+        if node.input {
+            return node.value.clone().ok_or(GraphError::MissingOwner);
+        }
+        // A clean node can still have a scheduled transitive ancestor. Usually
+        // height scheduling has already settled it; dynamic reads may reach
+        // outside that order, so only then inspect the actual dependency path.
+        if !node.dirty
+            && self
+                .queue
+                .first()
+                .is_some_and(|(height, _)| *height < node.height)
+        {
+            let dependencies = node.dependencies.iter().cloned().collect::<Vec<_>>();
+            for dependency in dependencies {
+                self.stats.validation_edge_reads += 1;
+                self.ensure_current(&dependency, evaluator)?;
+            }
+        }
+        if !self.nodes[owner].dirty {
+            return self.nodes[owner]
+                .value
+                .clone()
+                .ok_or(GraphError::MissingOwner);
+        }
+        self.evaluate(owner, evaluator)
+    }
+
+    fn evaluate<E: ReactiveEvaluator<K, V> + ?Sized>(
+        &mut self,
+        owner: &K,
+        evaluator: &E,
+    ) -> Result<V, GraphError> {
+        let node = self.nodes.get_mut(owner).expect("query exists");
+        self.queue.remove(&(node.height, owner.clone()));
+        node.dirty = false;
+        node.active = true;
+        node.active_reads.clear();
+        self.stats.executed += 1;
+        let mut read_error = None;
+        let mut structural_change = false;
+        let result = evaluator.evaluate(owner, &mut |dependency| {
+            self.stats.edge_reads += 1;
+            let result = (|| {
+                let value = self.ensure_current(dependency, evaluator)?;
+                if self.nodes[owner].active_reads.contains(dependency) {
+                    return Ok(value);
+                }
+                if self.nodes[owner].dependencies.contains(dependency) {
+                    // Reuse the actual existing bond and its reverse link.
+                    self.stats.reused_bonds += 1;
+                } else {
+                    // New bonds check the actual read graph. Active queries
+                    // retain old bonds physically, but those bonds do not
+                    // participate before they are read in this evaluation.
+                    if dependency == owner || self.reaches(dependency, owner) {
+                        return Err(GraphError::Cycle);
+                    }
+                    self.nodes
+                        .get_mut(owner)
+                        .expect("query exists")
+                        .dependencies
+                        .insert(dependency.clone());
+                    self.nodes
+                        .get_mut(dependency)
+                        .expect("read dependency exists")
+                        .receivers
+                        .insert(owner.clone());
+                    self.edges += 1;
+                    self.stats.new_bonds += 1;
+                    structural_change = true;
+                }
+                self.nodes
+                    .get_mut(owner)
+                    .expect("query exists")
+                    .active_reads
+                    .insert(dependency.clone());
+                Ok(value)
+            })();
+            if let Err(error) = &result {
+                read_error = Some(error.clone());
+            }
+            result
+        });
+        if let Some(error) = read_error {
+            return Err(error);
+        }
+        let value = result?;
+        let obsolete = self.nodes[owner]
+            .dependencies
+            .difference(&self.nodes[owner].active_reads)
+            .cloned()
+            .collect::<Vec<_>>();
+        structural_change |= !obsolete.is_empty();
+        for dependency in obsolete {
+            self.nodes
+                .get_mut(owner)
+                .expect("query exists")
+                .dependencies
+                .remove(&dependency);
+            self.nodes
+                .get_mut(&dependency)
+                .expect("dependency exists")
+                .receivers
+                .remove(owner);
+            self.edges -= 1;
+            self.stats.removed_bonds += 1;
+        }
+        let node = self.nodes.get_mut(owner).expect("query exists");
+        node.active = false;
+        node.active_reads.clear();
+        if structural_change || node.rank_pending {
+            self.update_heights(owner);
+        }
+        let node = self.nodes.get_mut(owner).expect("query exists");
+        let changed = node.value.as_ref() != Some(&value);
+        node.value = Some(value.clone());
+        if changed {
+            self.stats.changed_results += 1;
+            self.notify(owner);
+        } else {
+            self.stats.equal_results += 1;
+        }
+        Ok(value)
+    }
+
+    // Cycle detection follows actual bonds, with no arbitrary depth threshold.
+    fn reaches(&mut self, from: &K, target: &K) -> bool {
+        if self.nodes[target].receivers.is_empty() {
+            return false;
+        }
+        let mut pending = vec![from.clone()];
+        let mut seen = BTreeSet::new();
+        while let Some(key) = pending.pop() {
+            if &key == target {
+                return true;
+            }
+            if seen.insert(key.clone()) {
+                let node = &self.nodes[&key];
+                let dependencies = if node.active {
+                    &node.active_reads
+                } else {
+                    &node.dependencies
+                };
+                self.stats.cycle_check_edges += dependencies.len() as u64;
+                pending.extend(dependencies.iter().cloned());
+            }
+        }
+        false
+    }
+
+    // Structural changes raise or lower the affected receiver closure. The
+    // queue is local, deduplicated, and independent of numeric graph depth.
+    fn update_heights(&mut self, owner: &K) {
+        let mut pending = VecDeque::from([owner.clone()]);
+        let mut queued = BTreeSet::from([owner.clone()]);
+        while let Some(key) = pending.pop_front() {
+            queued.remove(&key);
+            self.stats.rank_visits += 1;
+            let node = &self.nodes[&key];
+            self.stats.rank_edge_reads += node.dependencies.len() as u64;
+            let height = if node.input {
+                0
+            } else {
+                node.dependencies
+                    .iter()
+                    .map(|dep| self.nodes[dep].height)
+                    .max()
+                    .unwrap_or(0)
+                    + 1
+            };
+            if node.height == height {
+                self.nodes
+                    .get_mut(&key)
+                    .expect("rank owner exists")
+                    .rank_pending = false;
+                continue;
+            }
+            let node = self.nodes.get_mut(&key).expect("rank owner exists");
+            node.rank_pending = false;
+            if node.dirty {
+                self.queue.remove(&(node.height, key.clone()));
+                self.queue.insert((height, key.clone()));
+            }
+            node.height = height;
+            let receivers = node.receivers.iter().cloned().collect::<Vec<_>>();
+            for receiver in receivers {
+                self.stats.rank_edge_reads += 1;
+                if self.nodes[&receiver].active {
+                    self.nodes
+                        .get_mut(&receiver)
+                        .expect("receiver exists")
+                        .rank_pending = true;
+                } else if queued.insert(receiver.clone()) {
+                    pending.push_back(receiver);
+                }
+            }
+        }
+    }
+
+    /// Returns a settled value only. Pending batches may have transitive dirty
+    /// receivers, so the accessor is deliberately unavailable until flush ends.
+    pub fn get_current(&self, owner: &K) -> Option<&V> {
+        if self.poisoned || !self.queue.is_empty() {
+            return None;
+        }
+        self.nodes
+            .get(owner)
+            .filter(|node| !node.active && !node.dirty)?
+            .value
+            .as_ref()
+    }
+
+    /// Remove obsolete inventory owners, sever both bond directions, and dirty
+    /// retained receivers. Their evaluator must stop reading removed owners.
+    /// Call this only when the owner inventory changes, not for ordinary edits.
+    pub fn retain(&mut self, owners: &BTreeSet<K>) -> Result<(), GraphError> {
+        self.ready()?;
+        self.stats.inventory_visits += self.nodes.len() as u64;
+        let removed = self
+            .nodes
+            .keys()
+            .filter(|key| !owners.contains(*key))
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut affected = BTreeSet::new();
+        for key in removed {
+            let node = self.nodes.remove(&key).expect("inventory owner exists");
+            self.queue.remove(&(node.height, key.clone()));
+            self.stats.inventory_visits += (node.dependencies.len() + node.receivers.len()) as u64;
+            for dependency in node.dependencies {
+                if let Some(dependency) = self.nodes.get_mut(&dependency) {
+                    dependency.receivers.remove(&key);
+                }
+                self.edges -= 1;
+                self.stats.removed_bonds += 1;
+            }
+            for receiver in node.receivers {
+                if let Some(receiver_node) = self.nodes.get_mut(&receiver) {
+                    receiver_node.dependencies.remove(&key);
+                    self.edges -= 1;
+                    self.stats.removed_bonds += 1;
+                    affected.insert(receiver);
+                }
+            }
+        }
+        for receiver in affected {
+            if self.nodes.contains_key(&receiver) {
+                self.enqueue(&receiver);
+                self.update_heights(&receiver);
+            }
+        }
+        Ok(())
+    }
+
+    fn poison(&mut self) {
+        self.poisoned = true;
+        self.queue.clear();
+    }
+
+    pub fn clear(&mut self) {
+        self.nodes.clear();
+        self.queue.clear();
+        self.poisoned = false;
+        self.edges = 0;
+    }
+
+    pub fn stats(&self) -> ReactiveStats {
+        ReactiveStats {
+            retained_nodes: self.nodes.len() as u64,
+            retained_edges: self.edges,
+            ..self.stats
+        }
+    }
+
+    pub fn take_stats(&mut self) -> ReactiveStats {
+        let stats = self.stats();
+        self.stats = ReactiveStats::default();
+        stats
+    }
+}
+
+#[cfg(test)]
+mod tests;
