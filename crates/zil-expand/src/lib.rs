@@ -768,9 +768,12 @@ fn expand_program_impl(
                 ),
                 (&remaining, &remaining),
                 Some(&defaults),
-            )?;
+            );
             if let Some(reuse) = reuse.as_deref_mut() {
                 reuse.production(clock);
+            }
+            let expanded = expanded?;
+            if let Some(reuse) = reuse.as_deref_mut() {
                 reuse.save_lower(module.span.file, &remaining, &expanded);
             }
             expanded

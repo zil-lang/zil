@@ -459,6 +459,7 @@ impl CompileReport {
             return "null".into();
         }
         let mut costs = self.driver_timings_ns.clone();
+        let mut overlap_errors = BTreeMap::new();
         for (phase, nanos) in &self.phase_timings_ns {
             costs.insert(phase.as_str(), *nanos);
         }
@@ -483,7 +484,7 @@ impl CompileReport {
             costs.insert("types_other", phase.saturating_sub(measured));
             // Expose inconsistent instrumentation instead of silently accepting it.
             if measured > phase {
-                costs.insert("types_overlap_error", measured - phase);
+                overlap_errors.insert("types", measured - phase);
             }
         }
         if let Some(work) = &self.producer_work {
@@ -500,15 +501,16 @@ impl CompileReport {
             }
             costs.insert("expand_other", phase.saturating_sub(measured));
             if measured > phase {
-                costs.insert("expand_overlap_error", measured - phase);
+                overlap_errors.insert("expand", measured - phase);
             }
         }
         let total = (self.seconds * 1_000_000_000.0) as u128;
         let classified: u128 = costs.values().copied().sum();
         let remainder = total.saturating_sub(classified);
         format!(
-            "{{\"total_ns\":{total},\"classified_ns\":{classified},\"unassigned_ns\":{remainder},\"overlap_ns\":{},\"segments_ns\":{{{}}}}}",
+            "{{\"total_ns\":{total},\"classified_ns\":{classified},\"unassigned_ns\":{remainder},\"overlap_ns\":{},\"overlap_errors_ns\":{{{}}},\"segments_ns\":{{{}}}}}",
             classified.saturating_sub(total),
+            named_timings_json(&overlap_errors),
             named_timings_json(&costs)
         )
     }
@@ -678,6 +680,9 @@ fn read_source(path: &Path, options: &CompileOptions) -> CompileResult<SourceUni
 }
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod producer_profile_tests;
 
 #[cfg(test)]
 mod report_attempt_tests {

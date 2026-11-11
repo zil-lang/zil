@@ -372,25 +372,61 @@ fn producer_expand_and_complete_budget_n_n_minus_one_match_first_fresh_error() {
     let dir = Directory::new();
     let initial = dir.scalar(MAIN, LEFT, RIGHT);
     let changed = dir.scalar(MAIN, &LEFT.replace("x+1", "x+9"), RIGHT);
+    let cheaper = dir.scalar(
+        MAIN,
+        "fn leaf(x:i32)->i32{return x;} pub fn value(x:i32)->i32{if x<3{return leaf(x);}else{return leaf(x+1);}}",
+        RIGHT,
+    );
     // Core isolates Expand's cumulative budget; Verify also checks downstream
     // consumers. Per-segment Normalize/Restore/Lower receipts are tested in Expand.
     for stage in [Stage::Core, Stage::Verify] {
         for nodes in [false, true] {
             let n = budget_boundary(&changed, stage, nodes);
             for graph in [false, true] {
-                let mut session = CompilationSession::default();
-                successful(&session.compile_project(&initial, &options(graph)));
                 for limit in [n, n - 1, n] {
+                    // Limits participate in the producer environment. Warm
+                    // with THIS limit so the edit exercises actual receipts.
                     let mut limited = CompileOptions {
                         stop_after: stage,
                         ..options(graph)
                     };
                     set_budget(&mut limited, nodes, limit);
+                    let parent = if limit == n { &initial } else { &cheaper };
+                    let mut session = CompilationSession::default();
+                    let warm = session.compile_project(parent, &limited);
+                    assert_eq!(
+                        warm.status,
+                        ResultCategory::Success,
+                        "same-limit parent must fit: {}",
+                        warm.to_json()
+                    );
+                    compare(&session, &warm, parent, &limited);
                     let current = session.compile_project(&changed, &limited);
                     compare(&session, &current, &changed, &limited);
                     assert_eq!(current.status == ResultCategory::Success, limit == n);
-                    if limit != n {
+                    if limit == n {
+                        assert!(
+                            current
+                                .producer_work
+                                .as_ref()
+                                .expect("current executed producer")
+                                .receipt_hits
+                                > 0,
+                            "N must reuse actual same-limit receipts"
+                        );
+                    } else {
                         assert!(!current.diagnostics.is_empty());
+                        assert_ne!(
+                            current.input_fingerprint, warm.input_fingerprint,
+                            "failed edit retains its own source identity"
+                        );
+                        let rejected_fingerprint = current.input_fingerprint;
+                        let mut retry_options = limited.clone();
+                        set_budget(&mut retry_options, nodes, n);
+                        let retry = session.compile_project(&changed, &retry_options);
+                        assert_eq!(retry.status, ResultCategory::Success, "{}", retry.to_json());
+                        assert_eq!(retry.input_fingerprint, rejected_fingerprint);
+                        compare(&session, &retry, &changed, &retry_options);
                     }
                     let mut fresh = CompilationSession::default();
                     let current = fresh.compile_project(&changed, &limited);

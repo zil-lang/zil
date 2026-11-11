@@ -308,6 +308,7 @@ pub(super) fn specialize_cached(
     )
     .map_err(|e| vec![e])
 }
+#[allow(clippy::too_many_arguments)] // Preserve original explicit contexts and the private reuse hook.
 fn normalize(
     sources: &[SourceUnit],
     modules: &[&Module],
@@ -522,7 +523,7 @@ fn normalize(
             let cached = reuse
                 .as_deref_mut()
                 .and_then(|reuse| reuse.normalized(source_item.span));
-            let mut item = if let Some(cached) = cached
+            let item = if let Some(cached) = cached
                 && reuse.as_deref_mut().is_some_and(|reuse| {
                     reuse.replay(
                         crate::incremental::Stage::Normalize,
@@ -547,9 +548,12 @@ fn normalize(
                     reuse.assembly(clock);
                 }
                 let clock = reuse.as_deref().and_then(|reuse| reuse.clock());
-                visitor.item(&mut item, &Names::new(), true, 0)?;
+                let result = visitor.item(&mut item, &Names::new(), true, 0);
                 if let Some(reuse) = reuse.as_deref_mut() {
                     reuse.production(clock);
+                }
+                result?;
+                if let Some(reuse) = reuse.as_deref_mut() {
                     reuse.record(
                         crate::incremental::Stage::Normalize,
                         source_item.span,

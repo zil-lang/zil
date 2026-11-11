@@ -282,7 +282,9 @@ impl CompilationSession {
         };
         let mut report = prepared_report.unwrap_or_else(|| CompileReport::new(root));
         report.cost_profiled = options.profile_compilation;
+        let checkpoint_start = cost_start(options.profile_compilation);
         let function_checkpoint = self.function_types.checkpoint();
+        report.record_driver_cost("function_checkpoint", checkpoint_start);
         if let Err(errors) = self.project_pipeline(
             project,
             options,
@@ -744,7 +746,9 @@ impl CompilationSession {
         };
         let mut producer = std::mem::take(&mut self.producer);
         producer.set_cost_profiling(options.profile_compilation);
+        let checkpoint_start = cost_start(options.profile_compilation);
         let producer_checkpoint = options.producer_reuse.then(|| producer.checkpoint());
+        report.record_driver_cost("producer_checkpoint", checkpoint_start);
         let mut producer_work = None;
         let expand_query = self.query(
             key(Phase::Expand, selection_needed || artifact_needed),
@@ -1075,10 +1079,13 @@ impl CompilationSession {
             store.restore(&mut function_types, options);
         }
         report.record_driver_cost("function_cache_read", function_restore_start);
+        let checkpoint_start = cost_start(options.profile_compilation);
         let checkpoint = function_types.checkpoint();
+        report.record_driver_cost("function_checkpoint", checkpoint_start);
         // Paths identify owners; current immutable Core, binding IDs, complete
         // limits/target and observed declarations still prove validity inside
         // FunctionSession. A path or source fingerprint grants no reuse alone.
+        let owner_start = cost_start(options.profile_compilation);
         let reactive_owners = (options.reactive_queries || options.producer_reuse).then(|| {
             project
                 .modules
@@ -1086,6 +1093,7 @@ impl CompilationSession {
                 .map(|source| (source.module_id, (root.path.clone(), source.path.clone())))
                 .collect::<BTreeMap<_, _>>()
         });
+        report.record_driver_cost("owner_binding", owner_start);
         let mut function_work = None;
         let typed_result = self.query(
             key(Phase::Types, true),

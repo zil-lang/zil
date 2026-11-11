@@ -198,6 +198,7 @@ pub(super) struct Prepared {
     pub(super) module: Module,
     pub(super) prelude: origins::CompilerPrelude,
 }
+#[cfg(test)]
 pub(super) fn prepare(
     module: &Module,
     limits: &Limits,
@@ -239,9 +240,12 @@ pub(super) fn prepare_cached(
                 "Option is a reserved built-in type family",
             )]);
         }
-        crate::ct_selection::Visitor::item(&mut probe, item, 0)?;
+        let result = crate::ct_selection::Visitor::item(&mut probe, item, 0);
         if let Some(reuse) = reuse.as_deref_mut() {
             reuse.production(clock);
+        }
+        result?;
+        if let Some(reuse) = reuse.as_deref_mut() {
             reuse.record(
                 crate::incremental::Stage::Prepare,
                 item.span,

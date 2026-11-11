@@ -60,6 +60,57 @@ def row_valid(report, label):
                     for event in report['query_events']) == 1)
 
 
+def validate_cost_profile(report, enabled):
+    """Detailed timers are a partition, with BodyKey nested inside evaluation."""
+    if 'exclusive_costs' not in report:
+        raise ValueError('compiler omitted the explicit cost-profile envelope')
+    costs = report['exclusive_costs']
+    frontend = report.get('frontend_stats', {})
+    if not isinstance(frontend, dict):
+        raise ValueError('invalid frontend cost counters')
+    functions = frontend.get('function_types')
+    for field in ['function_types', 'producer']:
+        counters = frontend.get(field)
+        if counters is not None and (not isinstance(counters, dict) or any(
+                type(value) is not int or value < 0 for key, value in counters.items() if key.endswith('_ns'))):
+            raise ValueError('invalid detailed frontend timing counters')
+    if functions is not None and functions.get('cost_profiled') is not enabled:
+        raise ValueError('Types profiling state differs from the command')
+    if not enabled:
+        if costs is not None:
+            raise ValueError('unprofiled wall run published a detailed cost partition')
+        for field in ['function_types', 'producer']:
+            if any(value != 0 for key, value in (frontend.get(field) or {}).items() if key.endswith('_ns')):
+                raise ValueError('unprofiled wall run collected detailed timers')
+        return
+    expected = {'total_ns', 'classified_ns', 'unassigned_ns', 'overlap_ns', 'segments_ns'}
+    if not isinstance(costs, dict) or set(costs) not in [expected, expected | {'overlap_errors_ns'}]:
+        raise ValueError('missing/invalid exclusive cost partition')
+    overlap_errors = costs.get('overlap_errors_ns', {})
+    if not isinstance(overlap_errors, dict) or any(type(value) is not int or value != 0 for value in overlap_errors.values()):
+        raise ValueError('exclusive phase instrumentation reports overlapping costs')
+    segments = costs['segments_ns']
+    if not isinstance(segments, dict) or any(type(value) is not int or value < 0 for value in segments.values()):
+        raise ValueError('exclusive cost segment is not a nonnegative integer')
+    if any(type(costs[key]) is not int or costs[key] < 0 for key in expected - {'segments_ns'}):
+        raise ValueError('exclusive cost total is not a nonnegative integer')
+    if costs['overlap_ns'] or any('overlap_error' in key for key in segments):
+        raise ValueError('exclusive instrumentation reports overlapping costs')
+    if sum(segments.values()) != costs['classified_ns']:
+        raise ValueError('exclusive segments do not sum to classified cost')
+    if costs['classified_ns'] + costs['unassigned_ns'] != costs['total_ns']:
+        raise ValueError('exclusive classified plus unassigned differs from total')
+    phases = report.get('phase_timings_ns', {})
+    if not isinstance(phases, dict) or any(type(value) is not int or value < 0 for value in phases.values()):
+        raise ValueError('invalid parent phase clocks')
+    for phase in ['types', 'expand']:
+        details = {key: value for key, value in segments.items() if key.startswith(phase + '_')}
+        if details and (phase in segments or sum(details.values()) != phases.get(phase)):
+            raise ValueError(f'{phase} details overlap or do not partition their parent phase')
+    if functions is not None and functions.get('body_key_ns', 0) > functions.get('evaluator_ns', 0):
+        raise ValueError('BodyKey subset exceeds its evaluation parent')
+
+
 def changed_control(case, label, changed, a):
     if label == 'unchanged' and changed:
         raise ValueError('unchanged changed source bytes')
@@ -174,6 +225,7 @@ def main():
                             row.update(worker.request(name))
                             row.update(report_summary(row['resident']))
                             report = row['resident']['report']
+                            validate_cost_profile(report, a.profile_compilation)
                             if set(report['source_files'].values()) != {str(source / name) for name in files}:
                                 raise ValueError('source map does not cover the exact input snapshot')
                             row['valid'] = row_valid(report, label)

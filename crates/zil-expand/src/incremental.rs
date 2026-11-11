@@ -146,6 +146,27 @@ impl ExpandSession {
     ) -> CompileResult<Option<ExpandedProgram>> {
         self.stats = ProducerStats::default();
         let total = self.profiling.then(Instant::now);
+        let result = self.expand_parsed_inner(parsed, imports, limits, target, context);
+        if let Some(start) = total {
+            self.stats.total_ns = nanos(start);
+            // Before production starts, early fallback/errors belong entirely
+            // to source classification and environment preparation.
+            if self.stats.context_ns == 0 {
+                self.stats.context_ns = self.stats.total_ns.saturating_sub(
+                    self.stats.production_ns + self.stats.reuse_ns + self.stats.assembly_ns,
+                );
+            }
+        }
+        result
+    }
+    fn expand_parsed_inner(
+        &mut self,
+        parsed: &[ParsedSource],
+        imports: &[Vec<CoreImport>],
+        limits: &Limits,
+        target: &TargetProfile,
+        context: source_context::SourceIdentityContext<'_>,
+    ) -> CompileResult<Option<ExpandedProgram>> {
         let context_clock = self.profiling.then(Instant::now);
         if parsed.is_empty() || parsed.len() != imports.len() {
             return Ok(None);
@@ -284,9 +305,6 @@ impl ExpandSession {
             .collect();
         self.entries = entries;
         self.environment = Some(environment);
-        if let Some(start) = total {
-            self.stats.total_ns += nanos(start);
-        }
         Ok(Some(ExpandedProgram { modules, revisions }))
     }
 }
@@ -607,3 +625,7 @@ fn scalar(module: &s::Module, limits: &Limits) -> (bool, u64) {
         .all(|item| ct_selection::Visitor::item(&mut scan, item, 0).is_ok());
     (success, scan.nodes)
 }
+
+#[cfg(test)]
+#[path = "incremental_tests.rs"]
+mod tests;

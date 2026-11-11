@@ -3,9 +3,6 @@ use super::*;
 
 /// Walk every type position, including unused definitions, before generic
 /// removal. Header node identities are request-local traversal context only.
-pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) -> CompileResult<()> {
-    validate_cached(module, budget, None)
-}
 pub(super) fn validate_cached(
     module: &s::Module,
     budget: &mut generics::Budget<'_>,
@@ -365,9 +362,12 @@ pub(super) fn validate_cached(
         }
         let before = walk.budget.remaining_limits();
         let clock = reuse.as_deref().and_then(|reuse| reuse.clock());
-        ct_selection::Visitor::item(&mut walk, item, 0)?;
+        let result = ct_selection::Visitor::item(&mut walk, item, 0);
         if let Some(reuse) = reuse.as_deref_mut() {
             reuse.production(clock);
+        }
+        result?;
+        if let Some(reuse) = reuse.as_deref_mut() {
             reuse.record(
                 crate::incremental::Stage::Lifetimes,
                 item.span,

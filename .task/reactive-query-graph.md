@@ -8,6 +8,8 @@ A为现有缓存；B为相同生产者模块复用加直接版本memo；C为相�
 
 本轮构建目录 `/workspace/scratch/e28839ace920/targets/reactive-producer`；一重窗口，源码快照另树验证，构建中不编辑。原始新运行使用唯一 `out/runs/producer-*` 或 `native-abc-*`。重点门：未变模块真实Normalize/Lower执行下降；完整Core递归Eq减少；CFG重算不增加；fresh-current完整Typed/首诊断/span/预算N/N−1/取消与恢复正确。复杂域整体回退不计图收益。普通源码位置/ID等宽与变宽场景单列，不以匹配优化的编辑替换旧失败样本。
 
+首个真实生产者切片已远端冻结 `ea049e8497d9c26fcf567330bc68e6173d4f7563`，独立验证树 `producer-validation-ea049e8`、独立target。实际 `cargo check --locked --offline -p zil-cli -p zil-driver -p zil-expand -p zil-syntax -p zil-types --all-targets` 通过；四crate lib测试155 driver＋77 expand＋35 syntax＋66 types＝333全部通过，零忽略。新增9个driver真实Source差分、3个Types来源/版本测试、2个Syntax密封来源测试已实际执行。三模块等宽编辑实际Normalize/Lower从3减为1、2模块复用，Core递归Eq为0，B和C都复用正文键；这不是性能结论。日志 `out/runs/producer-check-ea049e8`（尚未外部持久化）。后续补分段预算、失败成本和A/B/C统计器，须新冻结后验证，不能复用首版通过计数。
+
 以下是前轮交付，保留其源码和证据身份；本节WIP不能计作通过或净收益。
 
 父任务goal G10.5.1.15；分支`research/reactive-query-graph`。本轮实际main基线`99035931d358add0eaed6d4535035c38413701dd`，从`c75c58bf7f564a1ce8049702f9c6ec41c82d1da2`正常续接，无需rebase/main变更。本轮生产实现、真实测试与测量已经执行；完整跨阶段架构未完成，当前切片没有证明大型净等待收益，默认关闭、不合main。不要把此状态写成整条zit路线失败，也不要把BodyKey局部减少写成大项目提速。

@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 import random
 
-from native_abc_measure import ARMS, CONTRASTS, ORDERS, row_valid
+from native_abc_measure import ARMS, CONTRASTS, ORDERS, row_valid, validate_cost_profile
 from native_measure import pair_validation, transition, validate_response
 from native_summarize import (arm_details, describe, interval, json_safe, metrics, number)
 
@@ -99,6 +99,7 @@ def summarize(directory, seed=20261111, repetitions=20000):
         response = row.get('resident', {})
         try:
             validate_response(response, counts[identity])
+            validate_cost_profile(response['report'], args['profile_compilation'])
             if not row_valid(response['report'], row['request']):
                 errors.append('invalid current compiler result or Verify count')
         except (KeyError, TypeError, ValueError) as error:
