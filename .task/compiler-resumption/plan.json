@@ -1,0 +1,23 @@
+{
+  "started_utc": "2026-11-11T01:52:15.750034+00:00",
+  "baseline": "4ec5e78cfe1f2d0188ddc2502e6b15358f062b71",
+  "resource_local_commit": "29f47a3a17024d2929e850c9fc003c3dd1c779a5",
+  "resource_remote_commit": "136d77b7df304349240413a8e155b0da95e68e10",
+  "resource_tree": "b604914c289753200a7e20c0899ca4907217c6db",
+  "prior_protocol": "467b5ffd791c6aae80cc524b1c23cf7259182661",
+  "protocol_hashes": {
+    "quality.py": "f69a36579f7b4faa7dad81eddcb421cb074c66040da3ef913886b4f149e8542e",
+    "multi_controls.py": "721942722755f47bcfe07a747163acfdd4c38f58fac16eef545be0243857fd02",
+    "multimodule.py": "839c48a5369be93ca0b0af82298627e8b8b76b4d71aefedfe9509dda5d4ba0f3",
+    "controls.py": "90d30caa79d6df8d93ac62963d808155c910805001e2e1528b8b9b7b4fe01a18",
+    "neighbors/corpus.py": "2dfb26675a78e1ad83d72c20fa85d8c8bf8d1bf0d7b3db3ab0e84bf4be994a78",
+    "neighbors/check.py": "6fa71a49c6dd8e523a6e135179a30a84af84dd15f9114ea3904320e0d851a99a",
+    "bench/corpus.py": "2dfb26675a78e1ad83d72c20fa85d8c8bf8d1bf0d7b3db3ab0e84bf4be994a78",
+    "bench/measure.py": "015d9564b63c2e77ae554665012c3fd954804b1485998e4b30f69c03c001ce77"
+  },
+  "metadata_note": "Legacy scripts contain a stale hard-coded baseline label. This receipt records the actual independently built base and candidate; inputs, history, weights, thresholds and round counts remain unchanged.",
+  "acceptance": "Pending actual current measurements and independent review",
+  "prior_failures": "f9dd0bcd3313f6a04ad8883caecd7996f51cd737:.task/composition/runs/42935614289",
+  "archive": "1690cbc2fffd814e35e6021db425f7e730aa6f2c",
+  "new_policy": "Only off/after use resource-helper splitting; before-and-after keeps the original complete import planner; layout keys separate all policies."
+}

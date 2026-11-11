@@ -1,0 +1,448 @@
+{
+  "PR80": {
+    "original_profiles": [
+      {
+        "profile": "interactive/edit",
+        "mean_ms": {
+          "base": 307.3213829884375,
+          "cand": 307.3878526017625
+        },
+        "reduction": -0.0002162869784023691,
+        "seconds_saved_per_1000": -0.06646961332501178
+      },
+      {
+        "profile": "interactive/clean",
+        "mean_ms": {
+          "base": 473.159378460575,
+          "cand": 473.4789000602375
+        },
+        "reduction": -0.0006752938105170081,
+        "seconds_saved_per_1000": -0.3195215996624938
+      },
+      {
+        "profile": "release/edit",
+        "mean_ms": {
+          "base": 571.8667283360376,
+          "cand": 572.0385748025875
+        },
+        "reduction": -0.000300500900008549,
+        "seconds_saved_per_1000": -0.17184646654993685
+      },
+      {
+        "profile": "release/clean",
+        "mean_ms": {
+          "base": 978.6457723521249,
+          "cand": 979.1415698220375
+        },
+        "reduction": -0.0005066158603239668,
+        "seconds_saved_per_1000": -0.4957974699125316
+      }
+    ],
+    "additional_profiles": [
+      {
+        "profile": "additional-O2/edit",
+        "mean_ms": {
+          "base": 241.29674729499996,
+          "cand": 189.9511427925
+        },
+        "reduction": 0.21279028863048377,
+        "saved_ms_per_request": 51.34560450249995
+      },
+      {
+        "profile": "additional-O2/clean",
+        "mean_ms": {
+          "base": 303.7260524475,
+          "cand": 287.42535761
+        },
+        "reduction": 0.05366907022346279,
+        "saved_ms_per_request": 16.300694837500032
+      }
+    ],
+    "worst_primary_compile": [
+      {
+        "case": "shared1024",
+        "mode": "O0",
+        "request": "private",
+        "base_ms": 379.372744,
+        "cand_ms": 389.1447716,
+        "ratio": 1.0257583807865753,
+        "delta_ms": 9.772027600000001
+      },
+      {
+        "case": "shared4096",
+        "mode": "check",
+        "request": "cold",
+        "base_ms": 784.3395928,
+        "cand_ms": 803.8432647999999,
+        "ratio": 1.024866361687001,
+        "delta_ms": 19.503671999999938
+      },
+      {
+        "case": "trait32",
+        "mode": "check",
+        "request": "cold",
+        "base_ms": 15.8138282,
+        "cand_ms": 16.0632556,
+        "ratio": 1.015772739961852,
+        "delta_ms": 0.24942740000000185
+      }
+    ],
+    "worst_additional_compile": [
+      {
+        "case": "pipeline8",
+        "mode": "O2",
+        "request": "cold",
+        "base_ms": 240.7527826,
+        "cand_ms": 265.211236,
+        "ratio": 1.1015915709711095,
+        "delta_ms": 24.458453399999996
+      },
+      {
+        "case": "pipeline16",
+        "mode": "O2",
+        "request": "edit-warm",
+        "base_ms": 73.0762842,
+        "cand_ms": 77.0669126,
+        "ratio": 1.0546090765791838,
+        "delta_ms": 3.9906283999999914
+      },
+      {
+        "case": "pipeline16",
+        "mode": "O2",
+        "request": "restore",
+        "base_ms": 79.1549642,
+        "cand_ms": 82.95676379999999,
+        "ratio": 1.0480298315895138,
+        "delta_ms": 3.8017995999999954
+      }
+    ],
+    "worst_primary_runtime": [
+      {
+        "case": "shared1024/base",
+        "median_ms": {
+          "cand": 244.245688,
+          "base": 242.584724
+        },
+        "ratio": 1.0068469439155616
+      },
+      {
+        "case": "shared4096/private",
+        "median_ms": {
+          "cand": 283.070312,
+          "base": 281.694333
+        },
+        "ratio": 1.004884652755865
+      }
+    ],
+    "worst_active_runtime": [
+      {
+        "case": "active/owned64/private/0",
+        "ratio": 1.092944067896094,
+        "median_ms": {
+          "base": 109.34191100000135,
+          "cand": 119.50459299987415,
+          "rust": 102.00423700007377
+        },
+        "rust90_pass": false,
+        "relative_pass": true
+      },
+      {
+        "case": "active/owned32/private/0",
+        "ratio": 1.0634929516093397,
+        "median_ms": {
+          "base": 42.32236699999703,
+          "cand": 45.00953899992055,
+          "rust": 48.287328000014895
+        },
+        "rust90_pass": true,
+        "relative_pass": true
+      }
+    ],
+    "worst_neighbor_runtime": [
+      {
+        "case": "neighbor/one_hot/64/1",
+        "ratio": 1.0057805690530253,
+        "median_ms": {
+          "base": 15.085193000004438,
+          "cand": 15.172393999819178,
+          "rust": 8.150845999807643
+        },
+        "runtime_gate_pass": false
+      },
+      {
+        "case": "neighbor/one_hot/32/1",
+        "ratio": 1.001969644295012,
+        "median_ms": {
+          "base": 8.392885999910504,
+          "cand": 8.409416999938912,
+          "rust": 4.221769999958269
+        },
+        "runtime_gate_pass": false
+      }
+    ],
+    "worst_multi_runtime": [
+      {
+        "case": "multi/pipeline16/private/0",
+        "ratio": 1.0773846087515102,
+        "median_ms": {
+          "base": 16.513904,
+          "cand": 17.791826,
+          "rust": 29.471929
+        },
+        "rust90_pass": true,
+        "relative_pass": true
+      },
+      {
+        "case": "multi/pipeline8/base/0",
+        "ratio": 1.0729008374551265,
+        "median_ms": {
+          "base": 8.638433,
+          "cand": 9.268182,
+          "rust": 12.717884
+        },
+        "rust90_pass": true,
+        "relative_pass": true
+      }
+    ],
+    "active_rust90_fail_count": 5,
+    "neighbor_combined_fail_count": 10,
+    "all_new_runtime_deltas_pass": true,
+    "full_elf_quality_neighbor_pairs": 20,
+    "full_elf_quality_neighbor_identical": true,
+    "source": {
+      "reference": "467b5ffd791c6aae80cc524b1c23cf7259182661",
+      "tested_source": "e7cc1ea9738caa2e4930b5c0c9be85a11b350c6a",
+      "baseline": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852",
+      "production_candidate": "5679163bc3fefd77221011eab65987935b66fafd",
+      "run": 42927538037,
+      "path": ".task/helper-current/runs/42927538037/"
+    }
+  },
+  "normalized-alone": {
+    "original_profiles": [
+      {
+        "profile": "interactive/edit",
+        "mean_ms": {
+          "base": 192.53049762637502,
+          "cand": 183.67175684592502
+        },
+        "reduction": 0.0460121429574305,
+        "seconds_saved_per_1000": 8.858740780450006
+      },
+      {
+        "profile": "interactive/clean",
+        "mean_ms": {
+          "base": 286.0995652962125,
+          "cand": 281.439496955325
+        },
+        "reduction": 0.016288274804132308,
+        "seconds_saved_per_1000": 4.660068340887506
+      },
+      {
+        "profile": "release/edit",
+        "mean_ms": {
+          "base": 338.9322088815125,
+          "cand": 308.9463012715625
+        },
+        "reduction": 0.08847169677058575,
+        "seconds_saved_per_1000": 29.985907609950004
+      },
+      {
+        "profile": "release/clean",
+        "mean_ms": {
+          "base": 562.0903495493875,
+          "cand": 547.221037827425
+        },
+        "reduction": 0.026453597244433746,
+        "seconds_saved_per_1000": 14.869311721962504
+      }
+    ],
+    "additional_profiles": [
+      {
+        "profile": "additional-O2/edit",
+        "mean_ms": {
+          "base": 150.5472751025,
+          "cand": 103.46547582
+        },
+        "reduction": 0.3127376383959418,
+        "saved_ms_per_request": 47.081799282500015
+      },
+      {
+        "profile": "additional-O2/clean",
+        "mean_ms": {
+          "base": 188.61075495499998,
+          "cand": 120.53298110749996
+        },
+        "reduction": 0.36094322332648776,
+        "saved_ms_per_request": 68.07777384750001
+      }
+    ],
+    "worst_primary_compile": [
+      {
+        "case": "ring768",
+        "mode": "O2",
+        "request": "cold",
+        "base_ms": 1033.5887714,
+        "cand_ms": 1370.5606926,
+        "ratio": 1.3260212673784857,
+        "delta_ms": 336.9719212
+      },
+      {
+        "case": "ring768",
+        "mode": "O2",
+        "request": "private",
+        "base_ms": 529.6728712,
+        "cand_ms": 678.952347,
+        "ratio": 1.28183334264751,
+        "delta_ms": 149.2794758
+      },
+      {
+        "case": "diamond768",
+        "mode": "O2",
+        "request": "cold",
+        "base_ms": 637.6452608,
+        "cand_ms": 658.6741752,
+        "ratio": 1.0329790177905767,
+        "delta_ms": 21.028914400000076
+      }
+    ],
+    "worst_additional_compile": [
+      {
+        "case": "dispatch16",
+        "mode": "O2",
+        "request": "warm",
+        "base_ms": 46.4173154,
+        "cand_ms": 52.856485,
+        "ratio": 1.1387234385381968,
+        "delta_ms": 6.4391696
+      },
+      {
+        "case": "dispatch8",
+        "mode": "check",
+        "request": "private",
+        "base_ms": 22.7246056,
+        "cand_ms": 23.576433,
+        "ratio": 1.0374848045767624,
+        "delta_ms": 0.8518274000000012
+      },
+      {
+        "case": "dispatch16",
+        "mode": "check",
+        "request": "private",
+        "base_ms": 37.5035216,
+        "cand_ms": 38.6238682,
+        "ratio": 1.0298731039700548,
+        "delta_ms": 1.1203465999999977
+      }
+    ],
+    "worst_primary_runtime": [
+      {
+        "case": "owned32/base",
+        "median_ms": {
+          "cand": 43.815718,
+          "base": 40.847144,
+          "rust": 44.144464
+        },
+        "ratio": 1.0726751911957417
+      },
+      {
+        "case": "owned32/private",
+        "median_ms": {
+          "cand": 43.684641,
+          "base": 40.919002,
+          "rust": 44.37391
+        },
+        "ratio": 1.0675881342365094
+      }
+    ],
+    "worst_active_runtime": [
+      {
+        "case": "active/owned64/base/0",
+        "ratio": 1.087143227832019,
+        "median_ms": {
+          "base": 58.35467799988692,
+          "cand": 63.439892999895164,
+          "rust": 48.63417899991873
+        },
+        "rust90_pass": false,
+        "relative_pass": true
+      },
+      {
+        "case": "active/owned32/private/5",
+        "ratio": 1.051190398485664,
+        "median_ms": {
+          "base": 55.56756900000437,
+          "cand": 58.412094999994224,
+          "rust": 60.36935499992069
+        },
+        "rust90_pass": true,
+        "relative_pass": true
+      }
+    ],
+    "worst_neighbor_runtime": [
+      {
+        "case": "neighbor/unentered/64/0",
+        "ratio": 1.001976760221303,
+        "median_ms": {
+          "base": 7.250247000001764,
+          "cand": 7.264578999865989,
+          "rust": 3.461746999846582
+        },
+        "runtime_gate_pass": false
+      },
+      {
+        "case": "neighbor/one_hot/16/1",
+        "ratio": 1.0011531599283288,
+        "median_ms": {
+          "base": 2.6050159999613243,
+          "cand": 2.6080200000251352,
+          "rust": 1.5904069998669002
+        },
+        "runtime_gate_pass": false
+      }
+    ],
+    "worst_multi_runtime": [
+      {
+        "case": "multi/dispatch8/private/0",
+        "ratio": 1.0084899463648607,
+        "median_ms": {
+          "base": 1.058075,
+          "cand": 1.067058,
+          "rust": 1.527783
+        },
+        "rust90_pass": true,
+        "relative_pass": true
+      },
+      {
+        "case": "multi/pipeline8/private/0",
+        "ratio": 1.006197194089026,
+        "median_ms": {
+          "base": 4.562226,
+          "cand": 4.590499,
+          "rust": 6.131702
+        },
+        "rust90_pass": true,
+        "relative_pass": true
+      }
+    ],
+    "active_rust90_fail_count": 6,
+    "neighbor_combined_fail_count": 9,
+    "all_new_runtime_deltas_pass": true,
+    "source": {
+      "reference": "4f29707db7f73689f377624024b9ff991c94a164",
+      "tested_source": "5172f85373345c90d39aea8b8c51fa5e7ad2f632",
+      "baseline": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852",
+      "run": 42934564178,
+      "path": ".task/normalized-merging/runs/42934564178/"
+    }
+  },
+  "notes": [
+    "Historical independent paired runs; absolute times between separate runs are not directly comparable.",
+    "Primary weights are original graph45/trait25/resource30 with unchanged check/O0/O2 and edit/clean request frequencies.",
+    "Additional profiles are mechanical O2-only recomputation with four cases each weighted1/4 and the same request frequencies; never mixed into original aggregate.",
+    "Toolchain Rust1.99.1 LLVM23.1.4; release CLI with repository defaults thinLTO/codegen-units1/panicAbort. CLI benchmark 8CGU/2jobs, after for PR80 both arms; after vs before-and-after for normalized.",
+    "Historical scripts manifest baseline labels are stale099d0af; actual baseline from exact workflow and receipt is2fbf51ef. Keep original evidence and record correction separately.",
+    "Generated runtime relative<=1.10 differs from absolute Rust90 goal; existing false flags remain false.",
+    "Source text/ELF identity does not eliminate system-level noise; it only prevents attributing same-binary timing changes to codegen in that lane."
+  ]
+}
