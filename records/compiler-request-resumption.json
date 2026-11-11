@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "source_base": "4ec5e78cfe1f2d0188ddc2502e6b15358f062b71",
+  "accepted_main": "99035931d358add0eaed6d4535035c38413701dd",
+  "accepted_tree": "1c16744d838064cb1c687ba56ef3a0d17ed3130c",
+  "pr80": {
+    "state": "merged",
+    "source": "f38ed14b2c18c587f01a117f3c8a6d9cc67c4e7b",
+    "scope": "Only explicit incremental O2 plus after",
+    "weighted_multi_edit": {
+      "base_ms": 242.786492,
+      "candidate_ms": 180.181832
+    },
+    "ci_per_toolchain": {
+      "workspace": 6050,
+      "reference": 5935,
+      "text_reference": 70
+    },
+    "complete_protocol_numeric_pass": false,
+    "default_off_same_elf_numeric_failures_preserved": true,
+    "all_workload_rust90": false
+  },
+  "pr84": {
+    "state": "closed_unmerged",
+    "source": "130d3a7cab25603ae42a7fae0c9f63116c858c72",
+    "reason": "Different-code runtime regressions in frozen full suite; no-inline variant restores counterexamples but has no established net compile gain",
+    "no_inline_screen": {
+      "builds": 24,
+      "runtime_samples": 408,
+      "formal_runtime_samples": 360,
+      "cells": 8,
+      "screen_pass": true,
+      "full_acceptance": false
+    }
+  },
+  "archive": "e75ade949d559bd90914df0d40b860af5f283626",
+  "retirement": {
+    "workflow": 42953004081,
+    "success": true,
+    "deleted_refs": [
+      "task/resource-helper-codegen",
+      "task/normalized-function-equivalence"
+    ],
+    "remote_snapshot": [
+      "main",
+      "goal",
+      "archive/source-history",
+      "task/compiler-composition-validation"
+    ]
+  },
+  "evidence_commit": "ccbb7164a9ab4d41befc5c68e6ddbd1029b0f914",
+  "evidence_path": ".task/compiler-resumption/runs/20261111-current",
+  "raw_evidence_library_file_id": "libfile_fde3_f-423835f961488191ba4183d1944bab00_bd147c3485448191a9df16b3c3cea7dd",
+  "next_scope": {
+    "baseline": "99035931d358add0eaed6d4535035c38413701dd",
+    "worktree": "/workspace/scratch/abf690ce880c/profile",
+    "status": "Building temporary exact-CLI stage instrumentation; not a production optimization",
+    "shared_graph_wait_contribution_pct": 54.28,
+    "diagnostic_only": true
+  },
+  "parent_gates_closed": false
+}
