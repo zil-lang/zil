@@ -4,9 +4,9 @@
     "G10.5.1.13",
     "G10.5.1.14"
   ],
-  "updated_utc": "2026-11-11T10:10:04.520285+00:00",
-  "read_goal": "534f065836faaa5553a82f05396a2890facfa004",
-  "status": "Three implemented candidates screened; no production adoption; complete-visibility mechanism control in preparation",
+  "updated_utc": "2026-11-11T10:55:40.351449+00:00",
+  "read_goal": "112e4d107aa35be1a61f9da7b57a618a10482978",
+  "status": "Four implemented candidates completed NoGo; actual inline-cost mechanism isolated; bounded private-postlink candidate being implemented",
   "baseline": {
     "sha": "99035931d358add0eaed6d4535035c38413701dd",
     "tree": "1c16744d838064cb1c687ba56ef3a0d17ed3130c",
@@ -135,5 +135,93 @@
     "raw": "out/next-optimization/builder-screen-9f0",
     "adopted": false
   },
-  "source_history_status": "Remote task heads retain source; fixed archive and new raw bundle checkpoint pending completion of current bounded control."
+  "source_history_status": "All four remote candidate heads retained; fixed archive text checkpoint being refreshed, raw durable bundle and safe retirement pending. Old composition branch remains archived and absent.",
+  "thinlto_complete": {
+    "sha": "2549cbec8e1f3096d4c8c8a960459c83095ad13d",
+    "tree": "ebb993128355fed8228627c6d7b37d5cb0a90d45",
+    "protocol_sha256": "5b0ff104485ba18c34db170716ead50cc438bfc3b8c8ebc1c1d1266876946728",
+    "raw": "out/next-optimization/thin-complete-runtime-v1",
+    "status": "NoGo",
+    "counts": {
+      "clean_compilations": 6,
+      "native_total": 54,
+      "native_formal": 36
+    },
+    "all_outputs_valid": true,
+    "runtime": [
+      {
+        "case": "n64/base",
+        "means_ms": {
+          "A": 103.41009883333334,
+          "B": 167.32851466666668,
+          "R": 399.3266893333333
+        },
+        "ratios": {
+          "B_over_A": 1.6181061284580245,
+          "R_over_B": 2.3864832011975228
+        },
+        "gate_pass": false
+      },
+      {
+        "case": "n256/base",
+        "means_ms": {
+          "A": 315.31648816666666,
+          "B": 648.3262215,
+          "R": 1531.3600221666666
+        },
+        "ratios": {
+          "B_over_A": 2.0561126545254256,
+          "R_over_B": 2.3620208027736953
+        },
+        "gate_pass": false
+      }
+    ],
+    "required_actual_AE": [
+      56,
+      224
+    ],
+    "original_source_cost": [
+      35777,
+      144449
+    ],
+    "original_allowed_copy_cost": [
+      31360,
+      125440
+    ],
+    "budget_raised": false,
+    "release": "Pass",
+    "proof_tests": 5,
+    "no_native_feature_check": "Pass",
+    "independent_review": "research/thinlto-complete-visibility/result-review.md",
+    "review_sha256": "7658c8b0267101d554d99d67cc9feb6a3970f8794481ed4b8144c8dc75df3e9d",
+    "raw_files_rehashed": 1192,
+    "process_attempts": 196,
+    "adopted": false,
+    "compile_speed_claim": false,
+    "inline_diagnostic": {
+      "raw": "out/next-optimization/thin-complete-inline-diagnostic-n64-v1",
+      "native_executions": 0,
+      "performance_sample": false,
+      "relinks": 1,
+      "actual_remarks": {
+        "TooCostly": 168,
+        "Inlined": 9,
+        "NoDefinition": 5
+      },
+      "mechanism": "Actual AE import bodies retain ranges but miss local sole-call LastCallToStaticBonus=15000; same-owner Internal inlines. Reported 565/562 may be early-stopped cost, not justification to raise threshold.",
+      "report": "research/thinlto-complete-visibility/inline-diagnostic-report.md",
+      "sha256": "713dd070cd361f946927f30052d9481c8812dd521355a661726b90276101791d"
+    }
+  },
+  "private_postlink": {
+    "status": "Being implemented; not built or tested",
+    "scope": "Fresh-cache research only; original complete Allowed/cost/owner proof; exact direct-callee-use only; rename actual AE imports to private Internal before standard ThinLTOPostLink O2; no body, threshold or alwaysinline change",
+    "reason": "Reuse prelink work while preserving original ZIL private-copy policy; no claim that Blaze uses Internal imports",
+    "cache_boundary": "LLVM LTO key omits pass-plugin bytes/config; never reuse prior native cache in this control",
+    "runtime_gate_unchanged": {
+      "B_over_A_max": 1.1,
+      "R_over_B_min": 0.9
+    },
+    "production_adoption": false
+  }
 }
