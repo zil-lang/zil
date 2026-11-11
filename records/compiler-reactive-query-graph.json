@@ -2,33 +2,29 @@
   "date": "2026-11-11",
   "parent_scope": "G10.5.1",
   "research": "stable-owner reactive query graph",
-  "read_goal_sha": "80117ff0dcadaa0829d9a4b226b741ae478f5f1b",
+  "read_goal_sha": "1434986e0d435c64e46e967a9a5460a1a7fede69",
   "source_base": "99035931d358add0eaed6d4535035c38413701dd",
   "source_branch": "research/reactive-query-graph",
-  "source_head": "0a529a6247793f63ccd41ff3f65dc97afcbb666c",
+  "source_head": "a6e6587dff31e72f5bb26f13dbf53b3162903243",
   "probe_commit": "1735a305ccfff2c95ac2658b6c2ca427dc9eb392",
   "probe_blob": "98762b26506c0e35ec11072b8d397c845b407eff",
   "probe_sha256": "a657bfe2c05b16be3dea346ec6afee2f9470ce14a820f1606b876b97fae94c57",
   "delivered": [
-    "historical reverse-index implementation and withdrawal verified",
-    "prior CP25-C and height-adaptation scope verified",
-    "synchronous stable-owner/bidirectional-bond/height-dedup/equality-barrier model",
-    "three fresh Node processes each passing the same 2730 differential comparisons",
-    "512/4096/16384-function-shaped model windows against strengthened pull and indexed-invalidation baselines",
-    "positive, adverse, superseded and timed-out measurement identities retained",
-    "actual stable-owner BodyKey graph integrated in Types/driver/CLI with current independent Verify",
-    "234 selected db/types/driver library tests and1CLI resident test pass",
-    "six paired blocks each for real large scalar O2 andcheck, raw negative results retained",
-    "large rich native fallback and five existing O0/O2 consumers, finite50-edit session and non-author raw review",
-    "complete versioned raw archive with per-file manifest hashes, including every first failure"
+    "Actual sealed Source-to-module producer reuse with ordered budget receipts and complete fresh-current differential tests",
+    "Unchanged Normalize/Restore/Lower and actual AST/SourceMap copy work removed; private1module/multi3; CoreEq0; CFGsameA",
+    "Latest12e357lib+CLI1/strictClippy/release and non-author exact source/log review completed",
+    "Previous ea0 check/O2 six balanced ABC blocks completed;1620native; independent raw/statistics review; no overall net gain",
+    "Latest12e check completed306rows/162measured/0invalid; independent raw review blocked; actual console projection saved remotely",
+    "All production source/tests/harness pushed; interruption/recovery record pushed; latest large raw archive update NOT completed"
   ],
   "not_run": [
-    "complete Source-to-semantic stable producer provenance and module Normalize/Lower graph",
-    "general per-facet trait/instantiation/effect/SCC integration and asynchronous overlapping publication",
-    "full workspace/product/runtime integration gates",
-    "main promotion: current performance acceptance failed to demonstrate net gain"
+    "Latest12e native completion/current rich and real-consumer native controls are unconfirmed or not executed",
+    "Latest12e default-off versus main, long session,40module native breadth and1/8CGU controls not completed",
+    "General per-facet negative names/candidates, CT/instantiation/analysis SCC retraction and asynchronous publication",
+    "Full product/runtime/main integration gates and accepted overall net waiting reduction",
+    "Post7b2 late raw external archive update; unavailable local evidence must be recovered or rerun"
   ],
-  "scope_state": "进行中：真实生产切片已验证并持久化；大项目净收益未成立，完整架构和main门未完成，默认关闭",
+  "scope_state": "环境阻塞：真实上游产物/版本与SourceMap共享已实现并冻结；357lib＋CLI1/Clippy/release通过。净收益未接受；最新native完成情况未知，后期raw未外部备份。默认关闭，不合main。",
   "evidence": {
     "readme": "https://github.com/zil-lang/zil/blob/0a529a6247793f63ccd41ff3f65dc97afcbb666c/tools/research/reactive-query-graph/README.md",
     "receipt": "https://github.com/zil-lang/zil/blob/0a529a6247793f63ccd41ff3f65dc97afcbb666c/tools/research/reactive-query-graph/receipt.json",
@@ -406,7 +402,7 @@
       },
       "edit_cpu_seconds": {
         "baseline": 27.73,
-        "candidate": 28.0
+        "candidate": 28
       },
       "final_rss_kib": {
         "baseline": 452568,
@@ -462,7 +458,8 @@
       "Measured large O2/check net gain not established; check and failure-recovery regressions retained",
       "No sealed Source-to-Core producer version chain or stage-order budget/first-diagnostic receipts for module work reuse",
       "Full cross-stage/instantiation/SCC/async and complete product integration gates not completed"
-    ]
+    ],
+    "historical_stage": "Prior BodyKey-only production slice; current producer state is producer_continuation, not these old remaining/working-state fields."
   },
   "prior_model_status": {
     "source_head": "e31e7eceee15f4e703eb81731c88d8a8578fe68f",
@@ -478,11 +475,11 @@
   },
   "producer_continuation": {
     "task": "G10.5.1.15",
-    "read_goal_sha": "f3d5197372ce1737ad06e97888d8c9846674e3d2",
+    "read_goal_sha": "1434986e0d435c64e46e967a9a5460a1a7fede69",
     "source_start": "0a529a6247793f63ccd41ff3f65dc97afcbb666c",
     "main": "99035931d358add0eaed6d4535035c38413701dd",
-    "status": "进行中·SourceMap真实共享冻结，357lib＋CLI1与严格Clippy通过，release与新等待门进行中",
-    "updated_utc": "2026-11-11T17:03:04.521003+00:00",
+    "status": "阻塞·执行环境不可用；真实共享工作门通过，最新端到端与原始证据持久化未完成",
+    "updated_utc": "2026-11-11 17:15:51 UTC",
     "write_set": [
       "crates/zil-syntax/src/**: parser-owned immutable Source provenance and tests",
       "crates/zil-expand/src/**: scalar module Normalize/Restore/Lower products, ordered budget receipts and tests",
@@ -515,8 +512,8 @@
       "requirements": "B must use versions fairly; separate production/Eq/context/inventory/graph/evaluation/backend within same request; preserve current Verify/source binding/first diagnostics/budgets and real native behavior. Freeze source before performance."
     },
     "success_gate": "Unchanged modules actually skip Normalize/Lower, unchanged Core deep comparison drops, CFG execution does not increase, complete fresh-current differential passes; only then extend graph or performance matrix.",
-    "remaining": "ea0六顺序check/O2各306row/162measured均完成，O2 1620native通过；收益/回退保留，C-B未证明图净收益。新12e共享未变SourceMap、保持完整artifact及原费用序，不能沿用ea0时间。新release后先r6实际mapclone门，再配对与native；默认关闭、不合main。",
-    "source_head": "12e648af1f50ffcb18fc32b8f4dc50a680900182",
+    "remaining": "恢复实际环境并先保全后期raw；核未知O2-r1完整性/进程，再用新run身份补当前native与独审。继续Core/材料化/发布重复工作消除须与已另认领incremental-demand接续协调；B/C均未满足采用门，默认关闭、不合main。",
+    "source_head": "a6e6587dff31e72f5bb26f13dbf53b3162903243",
     "validation": {
       "source": "12e648af1f50ffcb18fc32b8f4dc50a680900182",
       "lib_tests": 357,
@@ -528,10 +525,28 @@
       },
       "cli_tests": 1,
       "strict_clippy": "workspace/all-targets -D warnings passed",
-      "release": "running",
+      "release": "passed; frozenbinary actual hash reread by non-author",
       "raw_local": "out/runs/producer-validation-12e648a",
-      "review": "non-author READY complete actual map/fees/ownership reviewed; exact frozen binding pending",
-      "native": "new source not yet run"
+      "review": "non-author exact12e source blob binding and actual357+CLI1/strictClippy/release logs confirmed before environment loss",
+      "native": "Latest12eO2-r1 launched but completion/native results unknown; no completed result credited. Prior ea0 native is separate.",
+      "binary_sha256": "c64da5a70a938a21811c52b95f2ccc946599315fbf5b615896d35d74b58e65b6",
+      "actual_work_gate": "r6 actual21rows/12measured/0invalid,currentVerify1; B/CprivateLower1,mapclone1/7346entries;multi3,mapclone3/22038;shared22maps147191entries;Coreclone22,CoreEq0,CFG5/6sameA; profile n1 not performance acceptance",
+      "latest_check": {
+        "source": "12e648af1f50ffcb18fc32b8f4dc50a680900182",
+        "run": "native-abc-map-20x20x16-check-r1",
+        "blocks": 6,
+        "rows": 306,
+        "measured": 162,
+        "invalid": 0,
+        "independent_review": "blocked before first read",
+        "console_projection": "tools/research/reactive-query-graph/interruption-checkpoint-20261111.json",
+        "paired_mean_saved_A_minus_C_ms": {
+          "private": 32.6,
+          "multi": -172.726,
+          "broad": -429.656
+        },
+        "performance_accepted": false
+      }
     },
     "preserved_failures": [
       {
@@ -602,8 +617,9 @@
       "sha256": "ae533035eee20c532b22b3d6797c45ab3331d97d811e0d291d4644112051defc",
       "manifest_sha256": "030eaa500ac176f809d4f30476b826cb35c1ffadddec55bfa0b64c7e7d0d3568",
       "all_entries_read_back_hash_verified": true,
-      "boundary": "Version0 only includes completed raw through7b2 red beforef7/89; ea0/new SourceMap results not yet durable. Final must replace same file after completed windows.",
-      "private_zit_included": false
+      "boundary": "Version0 only completed through7b2 red. No later ea0/12e raw was uploaded before environment loss. Remote receipt/checkpoint stores summaries and console wall projection only, not full raw.",
+      "private_zit_included": false,
+      "latest_raw_backup": "NOT_COMPLETED"
     },
     "previous_native_control": {
       "source": "89ae96d62acb97d577e96b6e5d3fd90a56f99e8c",
@@ -628,7 +644,21 @@
       },
       "multi_O2_A_to_C_saved_ms": -275.55,
       "acceptance": "no overall net gain; C-B private CI crosses0; same-request ELF/LLVM equality only, crossblock LLVM source fingerprint differs; check regressions retained",
-      "long_session": "50unique editsB/C capacity32 cache-none completed102requests+5fresh; native0; independently reviewing"
+      "long_session": "completed independently reviewed102requests/5fresh publicJSON; B/CfinalRSS551292/554756KiB,secondhalf+112/+188KiB;native0; finite correlated sequence, not no-leak proof",
+      "independent_review": "full raw check/O2 numeric aggregates+27contrasts each and1620native oracle independently verified before environment loss",
+      "weighted_C_minus_A_saved_seconds_per100": {
+        "check": {
+          "human": -6.515,
+          "LLM": -0.517,
+          "cold_broad": -15.196
+        },
+        "O2": {
+          "human": 5.836,
+          "LLM": -15.646,
+          "cold_broad": -3.596
+        },
+        "boundary": "predeclared hypotheses, not user frequencies; O2humanCIcross0,LLMregression retained"
+      }
     },
     "previous_ast_validation": {
       "source": "ea0ce45741fde0082b6c92173b7480b167c888d4",
@@ -649,6 +679,40 @@
       "native": {
         "status": "new ea0 native pending; prior89 native separately identified"
       }
+    },
+    "production_source": "12e648af1f50ffcb18fc32b8f4dc50a680900182",
+    "interruption": {
+      "error": "exec-server transport disconnected; recovery timed out45s; environment unavailable; readonly pwd then No usable execution environment",
+      "source_recovery": "a6e6587dff31e72f5bb26f13dbf53b3162903243",
+      "source_production": "12e648af1f50ffcb18fc32b8f4dc50a680900182",
+      "last_local_source_head": "12e648af1f50ffcb18fc32b8f4dc50a680900182",
+      "last_local_source_state": "clean before loss; no known unique unpushed production code; remote-only documentation not yet ff locally",
+      "unpublished": "late out/runs raw, reviews and local summaries after archivev0, now inaccessible",
+      "inflight": "native-abc-map-20x20x16-O2-r1/session77850 state unknown; no completion credited or background promise",
+      "first_command_after_recovery": "ps -eo pid,etimes,args | rg 'native_abc_measure|native_long_session|cargo|rustc|zil-producer'",
+      "next": "Preserve completed raw and partial run state first; if O2 summary complete, independently analyze; otherwise newr2 identity, same frozen12e binary/config, single heavy window."
+    },
+    "documentation": {
+      "source_commit": "a6e6587dff31e72f5bb26f13dbf53b3162903243",
+      "receipt": "tools/research/reactive-query-graph/receipt.json",
+      "readme": "tools/research/reactive-query-graph/README.md",
+      "resume": ".task/reactive-query-graph.md",
+      "checkpoint": "tools/research/reactive-query-graph/interruption-checkpoint-20261111.json",
+      "all_four_remote_readback_equal": true
     }
-  }
+  },
+  "latest_production_source": "12e648af1f50ffcb18fc32b8f4dc50a680900182",
+  "prior_delivered_before_producer": [
+    "historical reverse-index implementation and withdrawal verified",
+    "prior CP25-C and height-adaptation scope verified",
+    "synchronous stable-owner/bidirectional-bond/height-dedup/equality-barrier model",
+    "three fresh Node processes each passing the same 2730 differential comparisons",
+    "512/4096/16384-function-shaped model windows against strengthened pull and indexed-invalidation baselines",
+    "positive, adverse, superseded and timed-out measurement identities retained",
+    "actual stable-owner BodyKey graph integrated in Types/driver/CLI with current independent Verify",
+    "234 selected db/types/driver library tests and1CLI resident test pass",
+    "six paired blocks each for real large scalar O2 andcheck, raw negative results retained",
+    "large rich native fallback and five existing O0/O2 consumers, finite50-edit session and non-author raw review",
+    "complete versioned raw archive with per-file manifest hashes, including every first failure"
+  ]
 }
