@@ -11,8 +11,8 @@ use zil_ir::LirModule;
 use zil_ir::LirView;
 use zil_llvm_api::model::{Function, Item, Module, Op, Val};
 
-/// Early function merging needs the original complete-call visibility. Helper
-/// splitting is available when merging is disabled or runs after optimization.
+/// Helper splitting is coupled to explicit post-optimization function merging.
+/// Default and early merging retain the original complete-call visibility.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum CallImportPolicy {
     Disabled,
@@ -23,10 +23,10 @@ impl CallImportPolicy {
     pub(crate) fn for_incremental_o2(enabled: bool, merging: FunctionMerging) -> Self {
         if !enabled {
             Self::Disabled
-        } else if merging == FunctionMerging::BeforeAndAfter {
-            Self::Complete
-        } else {
+        } else if merging == FunctionMerging::AfterOptimization {
             Self::ResourceHelpers
+        } else {
+            Self::Complete
         }
     }
 }
