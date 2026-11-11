@@ -18,6 +18,10 @@ A为现有缓存；B为相同生产者模块复用加直接版本memo；C为相�
 
 `a17dc03a2f03e35ee641ef9a410a9f5627e58644` late路由已远端冻结，独审按6个production文件hash绑定。首次driver producer_实际16通过/1失败：新增失败计时测试把未支持Type CT输入误写为SafeReject/E-CT-SOURCE；main990真实CLI确认应为Unsupported/E-UNSUPPORTED、Ct、file0:32..41。完整fresh行为对拍及新增IO路由/预算/剪枝tests已通过，错误期望单独修正后须新SHA重跑。保留`out/runs/producer-validation-a17dc03`首次测试日志和baseline诊断；初次未加载LLVM环境的probe InfraError也保留，加载既有env后成功取得诊断，不能说工具链缺失。
 
+`28b5ebcd33090d68d4a705d5078cf50eb1061697`实际348lib＋CLI1、严格Clippy、release通过；binary SHA256 `059dc2848d99fd7d7d904786e645205628b865c63e582da3174d784b1b60d1cc`，冻结副本`/workspace/scratch/e28839ace920/binaries/zil-producer-28b5ebc`。r2同20×20×16、21请求均语义与当前Verify有效；equal-width实际Normalize/Lower22→1、21复用、version400/CoreEq0，但原private+1字节和multi仍lower22/reuse0，工作范围门未全过。其单blockprofile只能诊断：private约A714/B1133/C1126ms；equal-widthproducer assembly约250ms、production约6ms，不能挑eq-width一次快样本宣称性能成功。原始完整报告/Source/scripts在`out/runs/native-abc-cost-20x20x16-r2`。正在查剩余额度全Eq造成失效与复制组装，未扩正式性能矩阵。
+
+另在goal `bc7d69e60b92c5860f5ee55b4f92bb4b81ff5ba4`独立认领`ct_artifact/snapshot.rs`：plain_item原先对Function/Extern完整深clone后返回None，freeze_shapes两遍都执行。候选仅在clone之前排除不进入形状快照的item kind，不删除任何Budget操作/诊断/接受的shape。该公共材料化优化独立冻结、旧A/新A对照；其收益不得归入生产者或图。需要真实generic shape/field/layout/alias测试和原生组合门，当前尚未验证。
+
 以下是前轮交付，保留其源码和证据身份；本节WIP不能计作通过或净收益。
 
 父任务goal G10.5.1.15；分支`research/reactive-query-graph`。本轮实际main基线`99035931d358add0eaed6d4535035c38413701dd`，从`c75c58bf7f564a1ce8049702f9c6ec41c82d1da2`正常续接，无需rebase/main变更。本轮生产实现、真实测试与测量已经执行；完整跨阶段架构未完成，当前切片没有证明大型净等待收益，默认关闭、不合main。不要把此状态写成整条zit路线失败，也不要把BodyKey局部减少写成大项目提速。

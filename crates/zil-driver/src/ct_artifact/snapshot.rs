@@ -69,6 +69,15 @@ fn plain_type(ty: &s::TypeRef) -> bool {
 }
 
 fn plain_item(item: &s::Item) -> Option<s::Item> {
+    // Function and extern bodies never enter a shape snapshot. Reject their
+    // kinds before cloning: both shape-selection passes would discard the
+    // complete copy, without consulting or charging a budget.
+    if !matches!(
+        item.kind,
+        ItemKind::Import(_) | ItemKind::Aggregate(_) | ItemKind::Enum(_) | ItemKind::TypeAlias(_)
+    ) {
+        return None;
+    }
     let mut item = item.clone();
     match &mut item.kind {
         ItemKind::Import(_) => Some(item),
