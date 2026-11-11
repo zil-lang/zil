@@ -1,9 +1,9 @@
 {
   "format": 1,
   "task": "G10.5.1.14",
-  "updated_utc": "2026-11-11 08:07:09 UTC",
-  "read_goal": "634762b59c1f03451bde47de7e07d0f29f00ed41",
-  "status": "Both optimization candidates not adopted; complete baseline-only concurrency diagnosis and durable archival/retirement",
+  "updated_utc": "2026-11-11T08:46:39Z",
+  "read_goal": "acdeb7db04b796bf080ec527f1089b857e0c9431",
+  "status": "Experiments completed without adoption; baseline concurrency diagnosed; full evidence archived and experimental refs retired. Compiler-efficiency objective remains open.",
   "baseline": {
     "sha": "99035931d358add0eaed6d4535035c38413701dd",
     "tree": "1c16744d838064cb1c687ba56ef3a0d17ed3130c"
@@ -211,6 +211,109 @@
         "Rust_over_B": 2.2405537372683284
       },
       "decision": "Do not adopt; Rust90 success cannot compensate for 61.6%–112.3% runtime regression from main. Candidate compile/concurrency screens not prepared or executed."
+    },
+    "retirement": {
+      "completed": true,
+      "source_preserved": true,
+      "receipt": {
+        "format": 1,
+        "observed_utc": "2026-11-11 08:42:46 UTC",
+        "repository": "zil-lang/zil",
+        "workflow_receipt": {
+          "started_utc": "2026-11-11T08:41:19.844180+00:00",
+          "target": "refs/heads/task/compiler-bounded-imports",
+          "expected": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
+          "run": 42988998893,
+          "prior_archive": "a018e25431dc74a5d56e7e2df9ecf75b9f179717",
+          "archive": "5c97386cef5a337c432fc7f1351dfcc22a0c02e6",
+          "returncode": 0,
+          "stdout": "To https://github.com/zil-lang/zil\n-\t:refs/heads/task/compiler-bounded-imports\t[deleted]\nDone\n",
+          "stderr": "",
+          "verified_absent": true,
+          "status": "Completed exact archived self retirement"
+        },
+        "post_run_readback": {
+          "target_ref": "refs/heads/task/compiler-bounded-imports",
+          "http_status": 404,
+          "verified_absent": true,
+          "archive": "5c97386cef5a337c432fc7f1351dfcc22a0c02e6"
+        },
+        "source_evidence_head": "1679decf177c9a6eda5a64063c525f06e44e56a2",
+        "run": {
+          "id": 42988998893,
+          "url": "https://github.com/zil-lang/zil/actions/runs/42988998893",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
+          "event": "push"
+        },
+        "job": {
+          "id": 130416969841,
+          "name": "retire",
+          "status": "completed",
+          "conclusion": "success",
+          "run_id": 42988998893,
+          "logs_url": null,
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1
+            },
+            {
+              "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2
+            },
+            {
+              "name": "Verify immutable archive and exact branch lease, then retire only this branch",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3
+            },
+            {
+              "name": "Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4
+            },
+            {
+              "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 8
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 9
+            }
+          ]
+        },
+        "artifact": {
+          "id": 13840842014,
+          "name": "compiler-retirement-42988998893",
+          "size_in_bytes": 483,
+          "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13840842014",
+          "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13840842014/zip",
+          "expired": false,
+          "created_at": "2026-11-11T08:41:27Z",
+          "expires_at": "2026-12-11T08:41:26Z",
+          "updated_at": "2026-11-11T08:41:27Z",
+          "digest": "sha256:ea5bd5752ef502d3bff918ceaeb1b607c81f1c7f824be5a9854c0a651f807ae1",
+          "workflow_run": {
+            "id": 42988998893,
+            "repository_id": 1433889316,
+            "head_repository_id": 1433889316,
+            "head_branch": "task/compiler-bounded-imports",
+            "head_sha": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247"
+          }
+        },
+        "interpretation": "Exact archived experimental ref retired; source and runtime NoGo retained. No production adoption."
+      }
     }
   },
   "continuity": {
@@ -293,7 +396,9 @@
       ],
       "finding": "Complete AE previously failed to fully restore branch quality and had higher diagnostic optimizer cost. Real Internal clones preserve non-inlining IPO implementations. Historical functional diagnostic evidence, not relabeled as a new formal window.",
       "selected_historical_commit": "b9e566e02cf69b217a2d47c2377340771b02f161"
-    }
+    },
+    "evaluated_mechanism_result": "a60 projected layout keys did not reduce the dominant imported-body optimization invalidation scope; measured hypothetical weighted saving was only 0.9475% with mixed cells and larger retained regressions. Not adopted.",
+    "remaining_engineering_constraint": "A next optimization must show actual work removed while preserving cross-leaf IPO/SIMD/range proofs and the existing runtime gate. No new single-flight, shared cross-process cache, finer optimization unit or batch scheduling implementation is delivered by this experiment."
   },
   "measurement": {
     "batch_axis": "One snapshot changes 1/4/16/64 files with multiple function bodies in each; once per snapshot full O2 request, no edit-by-edit Rust strawman.",
@@ -307,7 +412,7 @@
       "retain failures, long tails, cold CPU and RSS"
     ],
     "pilot": "64 files, 16 changed files times two function bodies, one baseline full O2 request: current Verify=1, eight builder units, expected native output 860a0000. Functional smoke only, no performance claim.",
-    "status": "Completed and preserved prior a60 after protocol. New bounded candidate requires separately frozen own-arm clean code identity and full native quality before new compilation/concurrency screens; no old protocol relabeling.",
+    "status": "Both candidates not adopted. The bounded runtime gate failed completely and its downstream compiler/concurrency screens were not prepared or executed. Unchanged-main A/A plus Rust concurrency completed independently.",
     "first_multifile_harness_failure": {
       "status": "Preserved",
       "candidate_requests_executed": 0,
@@ -404,7 +509,7 @@
       "decision": "If runtime gate fails, stop expansion; never change cost32 or sample selection after seeing outcomes"
     },
     "main_concurrency": {
-      "status": "Running; independent unchanged-main diagnosis, no optimization adoption",
+      "status": "Completed; independently audited unchanged-main diagnosis, no optimization adoption",
       "protocol_sha256": "770d5805601c87ed08e220b8ba1aa7ab95684fac32f29bc8524edede7954d25b",
       "script_sha256": "79f9befbbca74b88383547ce352794bc8b79ea5f9dc391ce78a22942b4129919",
       "sources": {
@@ -438,7 +543,1106 @@
       ],
       "expected_final_batches": 36,
       "expected_compile_requests_with_clean_and_seed": 252,
-      "meaning": "Same-binary A/A positions quantify observed variation; compare current main to Rust separately; not a continuation or bypass of failed1679 candidate."
+      "meaning": "Same-binary A/A positions quantify observed variation; compare current main to Rust separately; not a continuation or bypass of failed1679 candidate.",
+      "result": {
+        "audit_sha256": "d87f188d8eefc8b6013869e9e116ab18d412ccc14582cc4d79f9241ee1803afc",
+        "counts": {
+          "complete_batch_attempts": 204,
+          "native_IO_records": 756,
+          "current_ZIL_Verify": 168,
+          "current_full_preflight_units": 1344,
+          "ZIL_artifact_files_rehashed": 224,
+          "oracle_compilations": 84,
+          "seed_compilations": 84,
+          "ZIL_final_same_ELF_and_material_IR_to_own_binary_clean": 56,
+          "final_children": 84,
+          "final_batches": 36,
+          "rust_compilations": 84,
+          "Rust_final_ELF_equal_to_clean": 0,
+          "Rust_final_ELF_different_from_clean": 28
+        },
+        "unit_receipt_kinds": {
+          "builder": 1036,
+          "object-cache": 308
+        },
+        "cells": [
+          {
+            "files": 256,
+            "edited_files": 16,
+            "concurrency": 1,
+            "jobs_per_task": 4,
+            "arms": {
+              "A": {
+                "batches": 2,
+                "tasks": 2,
+                "batch_wall_ms": [
+                  4417.480798,
+                  4226.580187
+                ],
+                "mean_batch_wall_ms": 4322.0304925,
+                "mean_sum_cpu_ms": 4888.68,
+                "sum_cpu_ms": [
+                  5005.329,
+                  4772.031
+                ],
+                "mean_task_launch_to_reap_ms": 4321.871082,
+                "task_launch_to_reap_ms": [
+                  4417.329049,
+                  4226.413115
+                ],
+                "mean_task_batch_start_to_reap_ms": 4321.986787,
+                "task_batch_start_to_reap_ms": [
+                  4417.438154,
+                  4226.53542
+                ],
+                "throughput_tasks_per_second": 0.23137273134358852,
+                "RSS_individual_process_kib": [
+                  405668,
+                  410848
+                ]
+              },
+              "B": {
+                "batches": 2,
+                "tasks": 2,
+                "batch_wall_ms": [
+                  4164.831988,
+                  4792.756143
+                ],
+                "mean_batch_wall_ms": 4478.7940655,
+                "mean_sum_cpu_ms": 5123.0505,
+                "sum_cpu_ms": [
+                  4719.639,
+                  5526.462
+                ],
+                "mean_task_launch_to_reap_ms": 4478.5536485,
+                "task_launch_to_reap_ms": [
+                  4164.487479,
+                  4792.619818
+                ],
+                "mean_task_batch_start_to_reap_ms": 4478.7599740000005,
+                "task_batch_start_to_reap_ms": [
+                  4164.808202,
+                  4792.711746
+                ],
+                "throughput_tasks_per_second": 0.22327438711749809,
+                "RSS_individual_process_kib": [
+                  405804,
+                  405972
+                ]
+              },
+              "R": {
+                "batches": 2,
+                "tasks": 2,
+                "batch_wall_ms": [
+                  1356.720728,
+                  1303.024091
+                ],
+                "mean_batch_wall_ms": 1329.8724095,
+                "mean_sum_cpu_ms": 3355.6859999999997,
+                "sum_cpu_ms": [
+                  3472.714,
+                  3238.658
+                ],
+                "mean_task_launch_to_reap_ms": 1329.6572855,
+                "task_launch_to_reap_ms": [
+                  1356.477843,
+                  1302.836728
+                ],
+                "mean_task_batch_start_to_reap_ms": 1329.826055,
+                "task_batch_start_to_reap_ms": [
+                  1356.70174,
+                  1302.95037
+                ],
+                "throughput_tasks_per_second": 0.7519518360231083,
+                "RSS_individual_process_kib": [
+                  212896,
+                  213080
+                ]
+              },
+              "current-main": {
+                "batches": 4,
+                "tasks": 4,
+                "batch_wall_ms": [
+                  4417.480798,
+                  4164.831988,
+                  4792.756143,
+                  4226.580187
+                ],
+                "mean_batch_wall_ms": 4400.412279,
+                "mean_sum_cpu_ms": 5005.86525,
+                "sum_cpu_ms": [
+                  5005.329,
+                  4719.639,
+                  5526.462,
+                  4772.031
+                ],
+                "mean_task_launch_to_reap_ms": 4400.21236525,
+                "task_launch_to_reap_ms": [
+                  4417.329049,
+                  4164.487479,
+                  4792.619818,
+                  4226.413115
+                ],
+                "mean_task_batch_start_to_reap_ms": 4400.3733805,
+                "task_batch_start_to_reap_ms": [
+                  4417.438154,
+                  4164.808202,
+                  4792.711746,
+                  4226.53542
+                ],
+                "throughput_tasks_per_second": 0.22725143386502217,
+                "RSS_individual_process_kib": [
+                  405668,
+                  405804,
+                  405972,
+                  410848
+                ]
+              }
+            },
+            "AA_B_over_A": 1.0362708160601901,
+            "AA_drift_percent": 3.6270816060190114,
+            "current_main_over_Rust_wall": 3.3088980924526807
+          },
+          {
+            "files": 256,
+            "edited_files": 16,
+            "concurrency": 2,
+            "jobs_per_task": 2,
+            "arms": {
+              "A": {
+                "batches": 2,
+                "tasks": 4,
+                "batch_wall_ms": [
+                  5496.311226,
+                  5384.01582
+                ],
+                "mean_batch_wall_ms": 5440.163522999999,
+                "mean_sum_cpu_ms": 12221.718499999999,
+                "sum_cpu_ms": [
+                  12584.626,
+                  11858.811
+                ],
+                "mean_task_launch_to_reap_ms": 5392.035899,
+                "task_launch_to_reap_ms": [
+                  5496.137563,
+                  5476.204537,
+                  5216.683459,
+                  5379.118037
+                ],
+                "mean_task_batch_start_to_reap_ms": 5394.36964275,
+                "task_batch_start_to_reap_ms": [
+                  5496.280339,
+                  5480.453785,
+                  5216.755317,
+                  5383.98913
+                ],
+                "throughput_tasks_per_second": 0.3676360079149041,
+                "RSS_individual_process_kib": [
+                  404856,
+                  405128,
+                  405228,
+                  405840
+                ]
+              },
+              "B": {
+                "batches": 2,
+                "tasks": 4,
+                "batch_wall_ms": [
+                  4893.854042,
+                  5285.769694
+                ],
+                "mean_batch_wall_ms": 5089.811868,
+                "mean_sum_cpu_ms": 11416.105,
+                "sum_cpu_ms": [
+                  11057.245,
+                  11774.965
+                ],
+                "mean_task_launch_to_reap_ms": 5061.57583275,
+                "task_launch_to_reap_ms": [
+                  4893.761402,
+                  4885.569691,
+                  5284.436474,
+                  5182.535764
+                ],
+                "mean_task_batch_start_to_reap_ms": 5065.903206,
+                "task_batch_start_to_reap_ms": [
+                  4893.835023,
+                  4891.427323,
+                  5285.736824,
+                  5192.613654
+                ],
+                "throughput_tasks_per_second": 0.3929418320103614,
+                "RSS_individual_process_kib": [
+                  405172,
+                  405508,
+                  405324,
+                  405880
+                ]
+              },
+              "R": {
+                "batches": 2,
+                "tasks": 4,
+                "batch_wall_ms": [
+                  2339.442409,
+                  1996.510274
+                ],
+                "mean_batch_wall_ms": 2167.9763415,
+                "mean_sum_cpu_ms": 6847.8240000000005,
+                "sum_cpu_ms": [
+                  7485.74,
+                  6209.908
+                ],
+                "mean_task_launch_to_reap_ms": 2152.4999629999998,
+                "task_launch_to_reap_ms": [
+                  2339.29067,
+                  2290.278375,
+                  1991.536325,
+                  1988.894482
+                ],
+                "mean_task_batch_start_to_reap_ms": 2155.28356225,
+                "task_batch_start_to_reap_ms": [
+                  2339.41017,
+                  2293.508235,
+                  1991.724979,
+                  1996.490865
+                ],
+                "throughput_tasks_per_second": 0.9225192921691299,
+                "RSS_individual_process_kib": [
+                  197832,
+                  197432,
+                  196580,
+                  197184
+                ]
+              },
+              "current-main": {
+                "batches": 4,
+                "tasks": 8,
+                "batch_wall_ms": [
+                  5496.311226,
+                  4893.854042,
+                  5285.769694,
+                  5384.01582
+                ],
+                "mean_batch_wall_ms": 5264.9876955,
+                "mean_sum_cpu_ms": 11818.91175,
+                "sum_cpu_ms": [
+                  12584.626,
+                  11057.245,
+                  11774.965,
+                  11858.811
+                ],
+                "mean_task_launch_to_reap_ms": 5226.805865875,
+                "task_launch_to_reap_ms": [
+                  5496.137563,
+                  5476.204537,
+                  4893.761402,
+                  4885.569691,
+                  5284.436474,
+                  5182.535764,
+                  5216.683459,
+                  5379.118037
+                ],
+                "mean_task_batch_start_to_reap_ms": 5230.1364243749995,
+                "task_batch_start_to_reap_ms": [
+                  5496.280339,
+                  5480.453785,
+                  4893.835023,
+                  4891.427323,
+                  5285.736824,
+                  5192.613654,
+                  5216.755317,
+                  5383.98913
+                ],
+                "throughput_tasks_per_second": 0.37986793429914484,
+                "RSS_individual_process_kib": [
+                  404856,
+                  405128,
+                  405172,
+                  405508,
+                  405324,
+                  405880,
+                  405228,
+                  405840
+                ]
+              }
+            },
+            "AA_B_over_A": 0.9355990580947102,
+            "AA_drift_percent": -6.440094190528978,
+            "current_main_over_Rust_wall": 2.428526361065919
+          },
+          {
+            "files": 256,
+            "edited_files": 16,
+            "concurrency": 4,
+            "jobs_per_task": 1,
+            "arms": {
+              "A": {
+                "batches": 2,
+                "tasks": 8,
+                "batch_wall_ms": [
+                  6591.701752,
+                  6485.986344
+                ],
+                "mean_batch_wall_ms": 6538.844048,
+                "mean_sum_cpu_ms": 25235.2129995,
+                "sum_cpu_ms": [
+                  25340.648,
+                  25129.777999
+                ],
+                "mean_task_launch_to_reap_ms": 6323.007718875,
+                "task_launch_to_reap_ms": [
+                  6187.905056,
+                  6295.087839,
+                  6578.015637,
+                  6326.80058,
+                  6289.978848,
+                  6371.910278,
+                  6474.623581,
+                  6059.739932
+                ],
+                "mean_task_batch_start_to_reap_ms": 6332.399053,
+                "task_batch_start_to_reap_ms": [
+                  6188.00684,
+                  6304.164394,
+                  6591.67367,
+                  6343.824207,
+                  6290.235295,
+                  6381.313727,
+                  6485.95024,
+                  6074.024051
+                ],
+                "throughput_tasks_per_second": 0.6117289188481958,
+                "RSS_individual_process_kib": [
+                  397452,
+                  398340,
+                  397480,
+                  397728,
+                  397476,
+                  398272,
+                  397572,
+                  398084
+                ]
+              },
+              "B": {
+                "batches": 2,
+                "tasks": 8,
+                "batch_wall_ms": [
+                  5593.918278,
+                  6014.696607
+                ],
+                "mean_batch_wall_ms": 5804.3074424999995,
+                "mean_sum_cpu_ms": 22499.6334995,
+                "sum_cpu_ms": [
+                  22009.348,
+                  22989.918999
+                ],
+                "mean_task_launch_to_reap_ms": 5637.4726835,
+                "task_launch_to_reap_ms": [
+                  5424.466643,
+                  5464.615501,
+                  5584.372038,
+                  5579.532565,
+                  5709.350043,
+                  5690.657475,
+                  6007.785185,
+                  5639.002018
+                ],
+                "mean_task_batch_start_to_reap_ms": 5643.5945305,
+                "task_batch_start_to_reap_ms": [
+                  5424.669088,
+                  5468.239103,
+                  5593.909024,
+                  5591.414596,
+                  5709.458998,
+                  5694.694763,
+                  6014.669025,
+                  5651.701647
+                ],
+                "throughput_tasks_per_second": 0.6891433714746753,
+                "RSS_individual_process_kib": [
+                  397592,
+                  398720,
+                  397532,
+                  397824,
+                  396892,
+                  397628,
+                  397812,
+                  396548
+                ]
+              },
+              "R": {
+                "batches": 2,
+                "tasks": 8,
+                "batch_wall_ms": [
+                  3011.218134,
+                  4271.14074
+                ],
+                "mean_batch_wall_ms": 3641.179437,
+                "mean_sum_cpu_ms": 14158.962999,
+                "sum_cpu_ms": [
+                  11597.276998,
+                  16720.649
+                ],
+                "mean_task_launch_to_reap_ms": 3548.859433125,
+                "task_launch_to_reap_ms": [
+                  2863.642347,
+                  3006.330186,
+                  2992.305155,
+                  2768.172996,
+                  4169.612223,
+                  4263.550169,
+                  4262.098551,
+                  4065.163838
+                ],
+                "mean_task_batch_start_to_reap_ms": 3555.46495775,
+                "task_batch_start_to_reap_ms": [
+                  2863.768387,
+                  3011.210252,
+                  3000.386677,
+                  2779.417906,
+                  4169.745544,
+                  4267.989068,
+                  4271.124917,
+                  4080.076911
+                ],
+                "throughput_tasks_per_second": 1.0985451470350045,
+                "RSS_individual_process_kib": [
+                  196416,
+                  194916,
+                  195016,
+                  195008,
+                  196540,
+                  195328,
+                  195852,
+                  195248
+                ]
+              },
+              "current-main": {
+                "batches": 4,
+                "tasks": 16,
+                "batch_wall_ms": [
+                  6591.701752,
+                  5593.918278,
+                  6014.696607,
+                  6485.986344
+                ],
+                "mean_batch_wall_ms": 6171.57574525,
+                "mean_sum_cpu_ms": 23867.423249500003,
+                "sum_cpu_ms": [
+                  25340.648,
+                  22009.348,
+                  22989.918999,
+                  25129.777999
+                ],
+                "mean_task_launch_to_reap_ms": 5980.2402011875,
+                "task_launch_to_reap_ms": [
+                  6187.905056,
+                  6295.087839,
+                  6578.015637,
+                  6326.80058,
+                  5424.466643,
+                  5464.615501,
+                  5584.372038,
+                  5579.532565,
+                  5709.350043,
+                  5690.657475,
+                  6007.785185,
+                  5639.002018,
+                  6289.978848,
+                  6371.910278,
+                  6474.623581,
+                  6059.739932
+                ],
+                "mean_task_batch_start_to_reap_ms": 5987.99679175,
+                "task_batch_start_to_reap_ms": [
+                  6188.00684,
+                  6304.164394,
+                  6591.67367,
+                  6343.824207,
+                  5424.669088,
+                  5468.239103,
+                  5593.909024,
+                  5591.414596,
+                  5709.458998,
+                  5694.694763,
+                  6014.669025,
+                  5651.701647,
+                  6290.235295,
+                  6381.313727,
+                  6485.95024,
+                  6074.024051
+                ],
+                "throughput_tasks_per_second": 0.6481326917325174,
+                "RSS_individual_process_kib": [
+                  397452,
+                  398340,
+                  397480,
+                  397728,
+                  397592,
+                  398720,
+                  397532,
+                  397824,
+                  396892,
+                  397628,
+                  397812,
+                  396548,
+                  397476,
+                  398272,
+                  397572,
+                  398084
+                ]
+              }
+            },
+            "AA_B_over_A": 0.8876656791157652,
+            "AA_drift_percent": -11.233432088423479,
+            "current_main_over_Rust_wall": 1.6949386461258324
+          },
+          {
+            "files": 256,
+            "edited_files": 64,
+            "concurrency": 1,
+            "jobs_per_task": 4,
+            "arms": {
+              "A": {
+                "batches": 2,
+                "tasks": 2,
+                "batch_wall_ms": [
+                  5064.997272,
+                  4889.230003
+                ],
+                "mean_batch_wall_ms": 4977.1136375,
+                "mean_sum_cpu_ms": 6198.9375,
+                "sum_cpu_ms": [
+                  6320.869,
+                  6077.006
+                ],
+                "mean_task_launch_to_reap_ms": 4976.9587195,
+                "task_launch_to_reap_ms": [
+                  5064.865694,
+                  4889.051745
+                ],
+                "mean_task_batch_start_to_reap_ms": 4977.0809185,
+                "task_batch_start_to_reap_ms": [
+                  5064.957873,
+                  4889.203964
+                ],
+                "throughput_tasks_per_second": 0.20091966405297895,
+                "RSS_individual_process_kib": [
+                  421252,
+                  419204
+                ]
+              },
+              "B": {
+                "batches": 2,
+                "tasks": 2,
+                "batch_wall_ms": [
+                  4643.629066,
+                  4893.101435
+                ],
+                "mean_batch_wall_ms": 4768.3652505,
+                "mean_sum_cpu_ms": 6000.638499500001,
+                "sum_cpu_ms": [
+                  5915.194,
+                  6086.082999
+                ],
+                "mean_task_launch_to_reap_ms": 4767.814047,
+                "task_launch_to_reap_ms": [
+                  4643.450517,
+                  4892.177577
+                ],
+                "mean_task_batch_start_to_reap_ms": 4768.29198,
+                "task_batch_start_to_reap_ms": [
+                  4643.563157,
+                  4893.020803
+                ],
+                "throughput_tasks_per_second": 0.209715478464059,
+                "RSS_individual_process_kib": [
+                  418884,
+                  421696
+                ]
+              },
+              "R": {
+                "batches": 2,
+                "tasks": 2,
+                "batch_wall_ms": [
+                  1374.580549,
+                  1300.160127
+                ],
+                "mean_batch_wall_ms": 1337.3703380000002,
+                "mean_sum_cpu_ms": 3641.1549999999997,
+                "sum_cpu_ms": [
+                  3533.71,
+                  3748.6
+                ],
+                "mean_task_launch_to_reap_ms": 1337.213221,
+                "task_launch_to_reap_ms": [
+                  1374.43527,
+                  1299.991172
+                ],
+                "mean_task_batch_start_to_reap_ms": 1337.3420205000002,
+                "task_batch_start_to_reap_ms": [
+                  1374.562642,
+                  1300.121399
+                ],
+                "throughput_tasks_per_second": 0.747736039589058,
+                "RSS_individual_process_kib": [
+                  217000,
+                  217372
+                ]
+              },
+              "current-main": {
+                "batches": 4,
+                "tasks": 4,
+                "batch_wall_ms": [
+                  5064.997272,
+                  4643.629066,
+                  4893.101435,
+                  4889.230003
+                ],
+                "mean_batch_wall_ms": 4872.739444,
+                "mean_sum_cpu_ms": 6099.78799975,
+                "sum_cpu_ms": [
+                  6320.869,
+                  5915.194,
+                  6086.082999,
+                  6077.006
+                ],
+                "mean_task_launch_to_reap_ms": 4872.38638325,
+                "task_launch_to_reap_ms": [
+                  5064.865694,
+                  4643.450517,
+                  4892.177577,
+                  4889.051745
+                ],
+                "mean_task_batch_start_to_reap_ms": 4872.68644925,
+                "task_batch_start_to_reap_ms": [
+                  5064.957873,
+                  4643.563157,
+                  4893.020803,
+                  4889.203964
+                ],
+                "throughput_tasks_per_second": 0.2052233679827351,
+                "RSS_individual_process_kib": [
+                  421252,
+                  418884,
+                  421696,
+                  419204
+                ]
+              }
+            },
+            "AA_B_over_A": 0.9580583442123588,
+            "AA_drift_percent": -4.194165578764119,
+            "current_main_over_Rust_wall": 3.6435228938059483
+          },
+          {
+            "files": 256,
+            "edited_files": 64,
+            "concurrency": 2,
+            "jobs_per_task": 2,
+            "arms": {
+              "A": {
+                "batches": 2,
+                "tasks": 4,
+                "batch_wall_ms": [
+                  5577.233972,
+                  5403.982606
+                ],
+                "mean_batch_wall_ms": 5490.608289,
+                "mean_sum_cpu_ms": 12992.2265,
+                "sum_cpu_ms": [
+                  13323.59,
+                  12660.863
+                ],
+                "mean_task_launch_to_reap_ms": 5468.64839,
+                "task_launch_to_reap_ms": [
+                  5577.09271,
+                  5503.939882,
+                  5394.556607,
+                  5399.004361
+                ],
+                "mean_task_batch_start_to_reap_ms": 5471.71634225,
+                "task_batch_start_to_reap_ms": [
+                  5577.201704,
+                  5510.975427,
+                  5394.726203,
+                  5403.962035
+                ],
+                "throughput_tasks_per_second": 0.36425836532663275,
+                "RSS_individual_process_kib": [
+                  412932,
+                  414044,
+                  413172,
+                  414500
+                ]
+              },
+              "B": {
+                "batches": 2,
+                "tasks": 4,
+                "batch_wall_ms": [
+                  5570.726085,
+                  5028.06972
+                ],
+                "mean_batch_wall_ms": 5299.397902500001,
+                "mean_sum_cpu_ms": 12535.2015,
+                "sum_cpu_ms": [
+                  12978.759,
+                  12091.644
+                ],
+                "mean_task_launch_to_reap_ms": 5263.8721015,
+                "task_launch_to_reap_ms": [
+                  5570.5901,
+                  5459.08467,
+                  5001.301949,
+                  5024.511687
+                ],
+                "mean_task_batch_start_to_reap_ms": 5265.4344089999995,
+                "task_batch_start_to_reap_ms": [
+                  5570.687667,
+                  5461.580562,
+                  5001.436462,
+                  5028.032945
+                ],
+                "throughput_tasks_per_second": 0.37740136460719365,
+                "RSS_individual_process_kib": [
+                  413640,
+                  413828,
+                  413928,
+                  413896
+                ]
+              },
+              "R": {
+                "batches": 2,
+                "tasks": 4,
+                "batch_wall_ms": [
+                  2580.487996,
+                  2125.985745
+                ],
+                "mean_batch_wall_ms": 2353.2368705,
+                "mean_sum_cpu_ms": 7299.678,
+                "sum_cpu_ms": [
+                  7523.974,
+                  7075.382
+                ],
+                "mean_task_launch_to_reap_ms": 2281.442794,
+                "task_launch_to_reap_ms": [
+                  2580.127172,
+                  2314.051945,
+                  2125.824922,
+                  2105.767137
+                ],
+                "mean_task_batch_start_to_reap_ms": 2283.32225425,
+                "task_batch_start_to_reap_ms": [
+                  2580.238049,
+                  2318.279706,
+                  2125.958834,
+                  2108.812428
+                ],
+                "throughput_tasks_per_second": 0.8498931939541868,
+                "RSS_individual_process_kib": [
+                  201632,
+                  202316,
+                  200288,
+                  201608
+                ]
+              },
+              "current-main": {
+                "batches": 4,
+                "tasks": 8,
+                "batch_wall_ms": [
+                  5577.233972,
+                  5570.726085,
+                  5028.06972,
+                  5403.982606
+                ],
+                "mean_batch_wall_ms": 5395.00309575,
+                "mean_sum_cpu_ms": 12763.714,
+                "sum_cpu_ms": [
+                  13323.59,
+                  12978.759,
+                  12091.644,
+                  12660.863
+                ],
+                "mean_task_launch_to_reap_ms": 5366.26024575,
+                "task_launch_to_reap_ms": [
+                  5577.09271,
+                  5503.939882,
+                  5570.5901,
+                  5459.08467,
+                  5001.301949,
+                  5024.511687,
+                  5394.556607,
+                  5399.004361
+                ],
+                "mean_task_batch_start_to_reap_ms": 5368.575375625,
+                "task_batch_start_to_reap_ms": [
+                  5577.201704,
+                  5510.975427,
+                  5570.687667,
+                  5461.580562,
+                  5001.436462,
+                  5028.032945,
+                  5394.726203,
+                  5403.962035
+                ],
+                "throughput_tasks_per_second": 0.37071341100351396,
+                "RSS_individual_process_kib": [
+                  412932,
+                  414044,
+                  413640,
+                  413828,
+                  413928,
+                  413896,
+                  413172,
+                  414500
+                ]
+              }
+            },
+            "AA_B_over_A": 0.9651750085900184,
+            "AA_drift_percent": -3.482499140998163,
+            "current_main_over_Rust_wall": 2.292588206219847
+          },
+          {
+            "files": 256,
+            "edited_files": 64,
+            "concurrency": 4,
+            "jobs_per_task": 1,
+            "arms": {
+              "A": {
+                "batches": 2,
+                "tasks": 8,
+                "batch_wall_ms": [
+                  7404.649815,
+                  7570.579205
+                ],
+                "mean_batch_wall_ms": 7487.614509999999,
+                "mean_sum_cpu_ms": 29154.8585,
+                "sum_cpu_ms": [
+                  28790.44,
+                  29519.277
+                ],
+                "mean_task_launch_to_reap_ms": 7305.660517125,
+                "task_launch_to_reap_ms": [
+                  7378.000243,
+                  6804.593574,
+                  7283.019059,
+                  7390.248883,
+                  7201.781954,
+                  7456.132356,
+                  7565.811544,
+                  7365.696524
+                ],
+                "mean_task_batch_start_to_reap_ms": 7312.122319875,
+                "task_batch_start_to_reap_ms": [
+                  7378.115657,
+                  6812.373714,
+                  7294.326107,
+                  7404.622574,
+                  7201.88541,
+                  7458.994192,
+                  7570.553457,
+                  7376.107448
+                ],
+                "throughput_tasks_per_second": 0.5342155361574564,
+                "RSS_individual_process_kib": [
+                  404008,
+                  405432,
+                  406004,
+                  406304,
+                  404884,
+                  405572,
+                  405360,
+                  406428
+                ]
+              },
+              "B": {
+                "batches": 2,
+                "tasks": 8,
+                "batch_wall_ms": [
+                  8524.010344,
+                  7910.163098
+                ],
+                "mean_batch_wall_ms": 8217.086721,
+                "mean_sum_cpu_ms": 31072.3715,
+                "sum_cpu_ms": [
+                  32378.788,
+                  29765.955
+                ],
+                "mean_task_launch_to_reap_ms": 7787.5097588749995,
+                "task_launch_to_reap_ms": [
+                  8313.169239,
+                  7622.930765,
+                  7993.840192,
+                  8510.108632,
+                  7098.058222,
+                  7448.176005,
+                  7899.724207,
+                  7414.070809
+                ],
+                "mean_task_batch_start_to_reap_ms": 7793.9309838750005,
+                "task_batch_start_to_reap_ms": [
+                  8313.287668,
+                  7625.976989,
+                  8005.021973,
+                  8523.694087,
+                  7098.496202,
+                  7452.621338,
+                  7907.110655,
+                  7425.238959
+                ],
+                "throughput_tasks_per_second": 0.48679053000346206,
+                "RSS_individual_process_kib": [
+                  405020,
+                  405484,
+                  405676,
+                  405476,
+                  403848,
+                  405568,
+                  406752,
+                  406320
+                ]
+              },
+              "R": {
+                "batches": 2,
+                "tasks": 8,
+                "batch_wall_ms": [
+                  4392.211184,
+                  3771.796675
+                ],
+                "mean_batch_wall_ms": 4082.0039294999997,
+                "mean_sum_cpu_ms": 15625.130498999999,
+                "sum_cpu_ms": [
+                  17119.745998,
+                  14130.515
+                ],
+                "mean_task_launch_to_reap_ms": 3918.7324036249997,
+                "task_launch_to_reap_ms": [
+                  4298.595721,
+                  4275.187083,
+                  4381.639168,
+                  4207.878913,
+                  3460.717419,
+                  3767.699637,
+                  3494.921916,
+                  3463.219372
+                ],
+                "mean_task_batch_start_to_reap_ms": 3925.0387943749997,
+                "task_batch_start_to_reap_ms": [
+                  4298.716753,
+                  4279.171692,
+                  4392.181038,
+                  4221.864326,
+                  3460.827706,
+                  3771.77314,
+                  3502.132389,
+                  3473.643311
+                ],
+                "throughput_tasks_per_second": 0.979910864635046,
+                "RSS_individual_process_kib": [
+                  197092,
+                  197400,
+                  197924,
+                  197024,
+                  196368,
+                  196472,
+                  197756,
+                  197496
+                ]
+              },
+              "current-main": {
+                "batches": 4,
+                "tasks": 16,
+                "batch_wall_ms": [
+                  7404.649815,
+                  8524.010344,
+                  7910.163098,
+                  7570.579205
+                ],
+                "mean_batch_wall_ms": 7852.3506155,
+                "mean_sum_cpu_ms": 30113.614999999998,
+                "sum_cpu_ms": [
+                  28790.44,
+                  32378.788,
+                  29765.955,
+                  29519.277
+                ],
+                "mean_task_launch_to_reap_ms": 7546.585138,
+                "task_launch_to_reap_ms": [
+                  7378.000243,
+                  6804.593574,
+                  7283.019059,
+                  7390.248883,
+                  8313.169239,
+                  7622.930765,
+                  7993.840192,
+                  8510.108632,
+                  7098.058222,
+                  7448.176005,
+                  7899.724207,
+                  7414.070809,
+                  7201.781954,
+                  7456.132356,
+                  7565.811544,
+                  7365.696524
+                ],
+                "mean_task_batch_start_to_reap_ms": 7553.026651875,
+                "task_batch_start_to_reap_ms": [
+                  7378.115657,
+                  6812.373714,
+                  7294.326107,
+                  7404.622574,
+                  8313.287668,
+                  7625.976989,
+                  8005.021973,
+                  8523.694087,
+                  7098.496202,
+                  7452.621338,
+                  7907.110655,
+                  7425.238959,
+                  7201.88541,
+                  7458.994192,
+                  7570.553457,
+                  7376.107448
+                ],
+                "throughput_tasks_per_second": 0.5094016041647803,
+                "RSS_individual_process_kib": [
+                  404008,
+                  405432,
+                  406004,
+                  406304,
+                  405020,
+                  405484,
+                  405676,
+                  405476,
+                  403848,
+                  405568,
+                  406752,
+                  406320,
+                  404884,
+                  405572,
+                  405360,
+                  406428
+                ]
+              }
+            },
+            "AA_B_over_A": 1.0974238470778326,
+            "AA_drift_percent": 9.742384707783259,
+            "current_main_over_Rust_wall": 1.923650920263035
+          }
+        ],
+        "limitations": [
+          "A and B are identical-binary repetition controls; their difference is not an optimization.",
+          "c=1/2/4 changes work count under fixed total four CPUs; batch walls do not compare equal work.",
+          "Throughput is total completed tasks divided by summed batch wall, not mean of individual reciprocal times.",
+          "RSS is wait4 individual-process high-water observation, not aggregate concurrent peak; launcher/fork high-water floor may affect it.",
+          "Rust clean vs incremental ELF differences are observed and allowed by the frozen protocol, not silently reported equal.",
+          "Native IO is captured in JSON records; separate native invocation stdout files were not produced by this protocol.",
+          "Seed binaries and source bytes were overwritten by final; original records verified but those past artifacts cannot be rehashed.",
+          "One block: four pooled main batches and two Rust batches per cell; no causal or general workload claim."
+        ],
+        "all_functional_outputs_valid": true,
+        "source_and_binary_A_equals_B": true,
+        "all_six_cells_Rust_compiler_faster": true
+      }
     }
   },
   "blaze": {
@@ -548,7 +1752,7 @@
     },
     "conclusion": "Exact archived research branch retired successfully; source history retained; main and goal unchanged. No production acceptance implied."
   },
-  "general_claim": "All-dimensional Rust superiority remains a target, not an established result. Prior negative quality and whole-distribution results remain unchanged.",
+  "general_claim": "All-dimensional Rust superiority and substantial multi-edit/concurrent compilation gains remain unmet targets. The new corpus has Rust faster in all 16 comparable CLI cells and all six baseline concurrency cells. Both compiler candidates were rejected; main remains 99035931.",
   "previous_candidates": [
     {
       "branch": "task/compiler-layout-projection",
@@ -700,18 +1904,450 @@
         "runtime_gate_executed": false,
         "original_eight_workload_matrix_executed": false,
         "other_prepared_protocols": "off v2 and concurrency 1e542a1a not executed; preserved explicitly as prepared, no zero-execution Pass"
+      },
+      "retirement": {
+        "completed": true,
+        "source_preserved": true,
+        "receipt": {
+          "format": 1,
+          "observed_utc": "2026-11-11 08:39:40 UTC",
+          "repository": "zil-lang/zil",
+          "workflow_receipt": {
+            "started_utc": "2026-11-11T08:38:33.674345+00:00",
+            "target": "refs/heads/task/compiler-layout-projection",
+            "expected": "52284449ea652983b16069c71bc8dc1a40a8b802",
+            "run": 42988640504,
+            "prior_archive": "a48374cce53d1018fe52a1c749990db4248f7135",
+            "archive": "a018e25431dc74a5d56e7e2df9ecf75b9f179717",
+            "returncode": 0,
+            "stdout": "To https://github.com/zil-lang/zil\n-\t:refs/heads/task/compiler-layout-projection\t[deleted]\nDone\n",
+            "stderr": "",
+            "verified_absent": true,
+            "status": "Completed exact archived self retirement"
+          },
+          "post_run_readback": {
+            "target_ref": "refs/heads/task/compiler-layout-projection",
+            "http_status": 404,
+            "verified_absent": true,
+            "archive": "a018e25431dc74a5d56e7e2df9ecf75b9f179717"
+          },
+          "source_evidence_head": "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
+          "run": {
+            "id": 42988640504,
+            "url": "https://github.com/zil-lang/zil/actions/runs/42988640504",
+            "status": "completed",
+            "conclusion": "success",
+            "head_sha": "52284449ea652983b16069c71bc8dc1a40a8b802",
+            "event": "push"
+          },
+          "job": {
+            "id": 130415780442,
+            "name": "retire",
+            "status": "completed",
+            "conclusion": "success",
+            "run_id": 42988640504,
+            "logs_url": null,
+            "steps": [
+              {
+                "name": "Set up job",
+                "status": "completed",
+                "conclusion": "success",
+                "number": 1
+              },
+              {
+                "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                "status": "completed",
+                "conclusion": "success",
+                "number": 2
+              },
+              {
+                "name": "Verify immutable archive and exact branch lease, then retire only this branch",
+                "status": "completed",
+                "conclusion": "success",
+                "number": 3
+              },
+              {
+                "name": "Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+                "status": "completed",
+                "conclusion": "success",
+                "number": 4
+              },
+              {
+                "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                "status": "completed",
+                "conclusion": "success",
+                "number": 8
+              },
+              {
+                "name": "Complete job",
+                "status": "completed",
+                "conclusion": "success",
+                "number": 9
+              }
+            ]
+          },
+          "artifact": {
+            "id": 13839909829,
+            "name": "compiler-retirement-42988640504",
+            "size_in_bytes": 485,
+            "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13839909829",
+            "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13839909829/zip",
+            "expired": false,
+            "created_at": "2026-11-11T08:38:40Z",
+            "expires_at": "2026-12-11T08:38:40Z",
+            "updated_at": "2026-11-11T08:38:40Z",
+            "digest": "sha256:c4e864c36e4eb8386a01cff06453abaadd3c53eb3913511c51a2c346f96d1465",
+            "workflow_run": {
+              "id": 42988640504,
+              "repository_id": 1433889316,
+              "head_repository_id": 1433889316,
+              "head_branch": "task/compiler-layout-projection",
+              "head_sha": "52284449ea652983b16069c71bc8dc1a40a8b802"
+            }
+          },
+          "interpretation": "Exact archived experimental ref retired; source and negative evidence retained. No production adoption."
+        }
       }
     }
   ],
   "raw_checkpoint": {
     "library_file_id": "libfile_fde3_f-543f5b7d390481918a9a3fc3e4099f2b_bd147c3485448191a9df16b3c3cea7dd",
-    "file_id": "file_000000004dc081f59de23a8d6b9f8438",
+    "file_id": "file_00000000fdac81f88d403752dbfa6ba3",
     "filename": "zil-multi-edit-raw-evidence-20261111.tar.gz",
-    "version": 0,
-    "bytes": 685685,
-    "sha256": "9162ca3fb141e6c8fab9f57b7062dfa7b4dc29b94791183f1c7c4c9203845144",
-    "entries": 1045,
-    "scope": "First projection negative screen, first harness parse failure, corrected functional pilots; no generated binaries/IR/caches or repository-backed source."
+    "version": 1,
+    "bytes": 20657285,
+    "sha256": "6058113ae324218f7e159c7f9fc35be71408e7bebf5210ce79d00554863fe330",
+    "entries": 6223,
+    "raw_files": 6212,
+    "logical_key_artifacts": 10,
+    "unique_key_artifacts": 8,
+    "scope": "All retained original controls and first failures, complete a60 after multi-file matrix, complete 1679 runtime NoGo with selected native counterexamples, and complete main990 A/A + Rust concurrency plus independent raw audits. Source/scripts/reports are in fixed Git archive; later retirement receipts are separate Git records."
   },
-  "archival_status": "Preparing durable raw evidence and source archive; experimental refs remain until exact ancestry and evidence preservation verified."
+  "archival_status": "Completed: fixed archive/source-history retains exact source histories, scripts, reports, raw evidence identity and successful retirement receipts. No experimental ref remains and no candidate entered main.",
+  "raw_checkpoint_previous_versions": [
+    {
+      "library_file_id": "libfile_fde3_f-543f5b7d390481918a9a3fc3e4099f2b_bd147c3485448191a9df16b3c3cea7dd",
+      "file_id": "file_000000004dc081f59de23a8d6b9f8438",
+      "filename": "zil-multi-edit-raw-evidence-20261111.tar.gz",
+      "version": 0,
+      "bytes": 685685,
+      "sha256": "9162ca3fb141e6c8fab9f57b7062dfa7b4dc29b94791183f1c7c4c9203845144",
+      "entries": 1045,
+      "scope": "First projection negative screen, first harness parse failure, corrected functional pilots; no generated binaries/IR/caches or repository-backed source."
+    }
+  ],
+  "experiment_retirements": {
+    "layout": {
+      "format": 1,
+      "observed_utc": "2026-11-11 08:39:40 UTC",
+      "repository": "zil-lang/zil",
+      "workflow_receipt": {
+        "started_utc": "2026-11-11T08:38:33.674345+00:00",
+        "target": "refs/heads/task/compiler-layout-projection",
+        "expected": "52284449ea652983b16069c71bc8dc1a40a8b802",
+        "run": 42988640504,
+        "prior_archive": "a48374cce53d1018fe52a1c749990db4248f7135",
+        "archive": "a018e25431dc74a5d56e7e2df9ecf75b9f179717",
+        "returncode": 0,
+        "stdout": "To https://github.com/zil-lang/zil\n-\t:refs/heads/task/compiler-layout-projection\t[deleted]\nDone\n",
+        "stderr": "",
+        "verified_absent": true,
+        "status": "Completed exact archived self retirement"
+      },
+      "post_run_readback": {
+        "target_ref": "refs/heads/task/compiler-layout-projection",
+        "http_status": 404,
+        "verified_absent": true,
+        "archive": "a018e25431dc74a5d56e7e2df9ecf75b9f179717"
+      },
+      "source_evidence_head": "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
+      "run": {
+        "id": 42988640504,
+        "url": "https://github.com/zil-lang/zil/actions/runs/42988640504",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "52284449ea652983b16069c71bc8dc1a40a8b802",
+        "event": "push"
+      },
+      "job": {
+        "id": 130415780442,
+        "name": "retire",
+        "status": "completed",
+        "conclusion": "success",
+        "run_id": 42988640504,
+        "logs_url": null,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2
+          },
+          {
+            "name": "Verify immutable archive and exact branch lease, then retire only this branch",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3
+          },
+          {
+            "name": "Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9
+          }
+        ]
+      },
+      "artifact": {
+        "id": 13839909829,
+        "name": "compiler-retirement-42988640504",
+        "size_in_bytes": 485,
+        "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13839909829",
+        "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13839909829/zip",
+        "expired": false,
+        "created_at": "2026-11-11T08:38:40Z",
+        "expires_at": "2026-12-11T08:38:40Z",
+        "updated_at": "2026-11-11T08:38:40Z",
+        "digest": "sha256:c4e864c36e4eb8386a01cff06453abaadd3c53eb3913511c51a2c346f96d1465",
+        "workflow_run": {
+          "id": 42988640504,
+          "repository_id": 1433889316,
+          "head_repository_id": 1433889316,
+          "head_branch": "task/compiler-layout-projection",
+          "head_sha": "52284449ea652983b16069c71bc8dc1a40a8b802"
+        }
+      },
+      "interpretation": "Exact archived experimental ref retired; source and negative evidence retained. No production adoption."
+    },
+    "bounded": {
+      "format": 1,
+      "observed_utc": "2026-11-11 08:42:46 UTC",
+      "repository": "zil-lang/zil",
+      "workflow_receipt": {
+        "started_utc": "2026-11-11T08:41:19.844180+00:00",
+        "target": "refs/heads/task/compiler-bounded-imports",
+        "expected": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
+        "run": 42988998893,
+        "prior_archive": "a018e25431dc74a5d56e7e2df9ecf75b9f179717",
+        "archive": "5c97386cef5a337c432fc7f1351dfcc22a0c02e6",
+        "returncode": 0,
+        "stdout": "To https://github.com/zil-lang/zil\n-\t:refs/heads/task/compiler-bounded-imports\t[deleted]\nDone\n",
+        "stderr": "",
+        "verified_absent": true,
+        "status": "Completed exact archived self retirement"
+      },
+      "post_run_readback": {
+        "target_ref": "refs/heads/task/compiler-bounded-imports",
+        "http_status": 404,
+        "verified_absent": true,
+        "archive": "5c97386cef5a337c432fc7f1351dfcc22a0c02e6"
+      },
+      "source_evidence_head": "1679decf177c9a6eda5a64063c525f06e44e56a2",
+      "run": {
+        "id": 42988998893,
+        "url": "https://github.com/zil-lang/zil/actions/runs/42988998893",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
+        "event": "push"
+      },
+      "job": {
+        "id": 130416969841,
+        "name": "retire",
+        "status": "completed",
+        "conclusion": "success",
+        "run_id": 42988998893,
+        "logs_url": null,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2
+          },
+          {
+            "name": "Verify immutable archive and exact branch lease, then retire only this branch",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3
+          },
+          {
+            "name": "Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9
+          }
+        ]
+      },
+      "artifact": {
+        "id": 13840842014,
+        "name": "compiler-retirement-42988998893",
+        "size_in_bytes": 483,
+        "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13840842014",
+        "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13840842014/zip",
+        "expired": false,
+        "created_at": "2026-11-11T08:41:27Z",
+        "expires_at": "2026-12-11T08:41:26Z",
+        "updated_at": "2026-11-11T08:41:27Z",
+        "digest": "sha256:ea5bd5752ef502d3bff918ceaeb1b607c81f1c7f824be5a9854c0a651f807ae1",
+        "workflow_run": {
+          "id": 42988998893,
+          "repository_id": 1433889316,
+          "head_repository_id": 1433889316,
+          "head_branch": "task/compiler-bounded-imports",
+          "head_sha": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247"
+        }
+      },
+      "interpretation": "Exact archived experimental ref retired; source and runtime NoGo retained. No production adoption."
+    },
+    "independent_final_readback": {
+      "format": 1,
+      "readback_utc": "2026-11-11T08:44:02.881Z",
+      "decision": "Both exact archived task refs retired; three retired refs absent; main and goal unchanged at final pre-F snapshot",
+      "scope": "Independent GET-only readback; no raw/benchmark/source reread or remote mutation",
+      "refs": {
+        "main": "99035931d358add0eaed6d4535035c38413701dd",
+        "goal": "acdeb7db04b796bf080ec527f1089b857e0c9431",
+        "archive": "5c97386cef5a337c432fc7f1351dfcc22a0c02e6"
+      },
+      "complete_branch_list": [
+        {
+          "name": "archive/source-history",
+          "sha": "5c97386cef5a337c432fc7f1351dfcc22a0c02e6"
+        },
+        {
+          "name": "goal",
+          "sha": "acdeb7db04b796bf080ec527f1089b857e0c9431"
+        },
+        {
+          "name": "main",
+          "sha": "99035931d358add0eaed6d4535035c38413701dd"
+        }
+      ],
+      "retired_refs": [
+        {
+          "ref": "refs/heads/task/compiler-composition-validation",
+          "http_status": 404,
+          "error_code": "NOT_FOUND",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/ref/heads/task/compiler-composition-validation"
+        },
+        {
+          "ref": "refs/heads/task/compiler-layout-projection",
+          "http_status": 404,
+          "error_code": "NOT_FOUND",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/ref/heads/task/compiler-layout-projection"
+        },
+        {
+          "ref": "refs/heads/task/compiler-bounded-imports",
+          "http_status": 404,
+          "error_code": "NOT_FOUND",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/ref/heads/task/compiler-bounded-imports"
+        }
+      ],
+      "runs": [
+        {
+          "name": "layout",
+          "id": 42988640504,
+          "job_id": 130415780442,
+          "head_sha": "52284449ea652983b16069c71bc8dc1a40a8b802",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/zil-lang/zil/actions/runs/42988640504",
+          "actual_receipt_from_job_logs": {
+            "started_utc": "2026-11-11T08:38:33.674345+00:00",
+            "target": "refs/heads/task/compiler-layout-projection",
+            "expected": "52284449ea652983b16069c71bc8dc1a40a8b802",
+            "run": 42988640504,
+            "prior_archive": "a48374cce53d1018fe52a1c749990db4248f7135",
+            "archive": "a018e25431dc74a5d56e7e2df9ecf75b9f179717",
+            "returncode": 0,
+            "stdout": "To https://github.com/zil-lang/zil\n-\t:refs/heads/task/compiler-layout-projection\t[deleted]\nDone\n",
+            "stderr": "",
+            "verified_absent": true,
+            "status": "Completed exact archived self retirement"
+          },
+          "local_receipt_matches_actual_log": true
+        },
+        {
+          "name": "bounded",
+          "id": 42988998893,
+          "job_id": 130416969841,
+          "head_sha": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/zil-lang/zil/actions/runs/42988998893",
+          "actual_receipt_from_job_logs": {
+            "started_utc": "2026-11-11T08:41:19.844180+00:00",
+            "target": "refs/heads/task/compiler-bounded-imports",
+            "expected": "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247",
+            "run": 42988998893,
+            "prior_archive": "a018e25431dc74a5d56e7e2df9ecf75b9f179717",
+            "archive": "5c97386cef5a337c432fc7f1351dfcc22a0c02e6",
+            "returncode": 0,
+            "stdout": "To https://github.com/zil-lang/zil\n-\t:refs/heads/task/compiler-bounded-imports\t[deleted]\nDone\n",
+            "stderr": "",
+            "verified_absent": true,
+            "status": "Completed exact archived self retirement"
+          },
+          "local_receipt_matches_actual_log": true
+        }
+      ],
+      "root_local_receipts_match_actual_job_logs": true,
+      "pre_final_archive_snapshot": true,
+      "interpretation": "Archive/goal may subsequently be advanced by root to record these completed retirements; this snapshot does not claim those later writes."
+    }
+  },
+  "archive": {
+    "branch": "archive/source-history",
+    "sha": "93adb1e7aec44bce6e93fcce237dbf77ec2b7aa4",
+    "tree": "3f975574bb29845b84555172c7517def01c1ec97",
+    "evidence_preservation_sha": "a48374cce53d1018fe52a1c749990db4248f7135",
+    "directory": "research/compiler-multi-edit-20261111",
+    "archived_file_count": 67,
+    "archived_content_verified_against_Git_blob_ids": true,
+    "raw_library_version": 1,
+    "main_unchanged": "99035931d358add0eaed6d4535035c38413701dd",
+    "remaining_remote_branches": [
+      "archive/source-history",
+      "goal",
+      "main"
+    ],
+    "goal_record_parent": "acdeb7db04b796bf080ec527f1089b857e0c9431",
+    "archive_is_acceptance": false
+  }
 }
