@@ -272,8 +272,24 @@ fn failed_materializer_call_keeps_elapsed_cost_and_current_diagnostic() {
         let fresh = CompilationSession::default().compile_path(&path, &options(0, false));
         same_behavior(&report, &fresh);
         same_behavior(&disabled, &fresh);
-        assert_eq!(report.status, ResultCategory::SafeReject);
-        assert!(report.diagnostics.iter().any(|diagnostic| diagnostic.phase == Phase::Ct && diagnostic.code == "E-CT-SOURCE"));
+        // The baseline rejects this unsupported Type-valued pure query. This
+        // checks error-cost accounting, not successful producer coverage.
+        assert_eq!(report.status, ResultCategory::Unsupported);
+        assert_eq!(report.phase, Phase::Ct);
+        assert_eq!(report.diagnostics.len(), 1);
+        let diagnostic = &report.diagnostics[0];
+        assert_eq!(diagnostic.phase, Phase::Ct);
+        assert_eq!(diagnostic.category, ResultCategory::Unsupported);
+        assert_eq!(diagnostic.code, "E-UNSUPPORTED");
+        assert_eq!(diagnostic.message, "return type Named(\"Type\")");
+        assert_eq!(
+            diagnostic.span,
+            Some(zil_base::Span::new(FileId(0), 32, 41))
+        );
+        assert_eq!(
+            diagnostic.notes,
+            vec!["while compiling a pure #(...) query".to_owned()]
+        );
         assert_eq!(report.verification_runs, 0);
         assert!(
             report.materialization_ns > 0,

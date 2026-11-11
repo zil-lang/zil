@@ -16,6 +16,8 @@ A为现有缓存；B为相同生产者模块复用加直接版本memo；C为相�
 
 首个20×20×16真实大Source成本运行`out/runs/native-abc-cost-20x20x16-r1`完成21请求（12measured＋9prep），但所有A/B/C均producer=null、version reuse0：普通IO函数名emit触发旧宽泛CT候选筛选，新切片被绕过。保留原结果为接入覆盖失败，不计生产者性能成功。下一WIP修late路由：仍执行全部原materialize_scoped、剪枝及预算；sealed scalar分类结合实际top-level保留/import/runtime phase条件，随后允许Unavailable上下文复用普通模块产物。默认关不扫描新guard；新增同请求materialization_ns是Expand子计时，不能与Expand父计时相加。新增真实文件入口和CT-like普通名称、冷预算N/N−1/失败修复及成本互斥检查，尚待新冻结后实际测试。
 
+`a17dc03a2f03e35ee641ef9a410a9f5627e58644` late路由已远端冻结，独审按6个production文件hash绑定。首次driver producer_实际16通过/1失败：新增失败计时测试把未支持Type CT输入误写为SafeReject/E-CT-SOURCE；main990真实CLI确认应为Unsupported/E-UNSUPPORTED、Ct、file0:32..41。完整fresh行为对拍及新增IO路由/预算/剪枝tests已通过，错误期望单独修正后须新SHA重跑。保留`out/runs/producer-validation-a17dc03`首次测试日志和baseline诊断；初次未加载LLVM环境的probe InfraError也保留，加载既有env后成功取得诊断，不能说工具链缺失。
+
 以下是前轮交付，保留其源码和证据身份；本节WIP不能计作通过或净收益。
 
 父任务goal G10.5.1.15；分支`research/reactive-query-graph`。本轮实际main基线`99035931d358add0eaed6d4535035c38413701dd`，从`c75c58bf7f564a1ce8049702f9c6ec41c82d1da2`正常续接，无需rebase/main变更。本轮生产实现、真实测试与测量已经执行；完整跨阶段架构未完成，当前切片没有证明大型净等待收益，默认关闭、不合main。不要把此状态写成整条zit路线失败，也不要把BodyKey局部减少写成大项目提速。
