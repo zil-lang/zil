@@ -1,11 +1,10 @@
 {
   "format": 1,
   "created_utc": "2026-11-11T01:13:36.759319+00:00",
-  "prior_archive": "e75ade949d559bd90914df0d40b860af5f283626",
+  "prior_archive": "c6a629877009a408f7c15f56389d50f6358b5162",
   "commit_parents": [
-    "e75ade949d559bd90914df0d40b860af5f283626",
-    "2222699d7382c6c2d986c256cbc7610329cd421c",
-    "5aa8057f9cc0bff651fc6a44147b4e6e2dd307de"
+    "c6a629877009a408f7c15f56389d50f6358b5162",
+    "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56"
   ],
   "commit_tips": [
     "0a8929d4f6126683737d62ab9def1d8e67a784ca",
@@ -58,7 +57,8 @@
     "e19e35a9177b491b595f085fc77836a963856382",
     "13c53cf315d0eaa0512424707bcb0ed60c6f8e33",
     "2222699d7382c6c2d986c256cbc7610329cd421c",
-    "5aa8057f9cc0bff651fc6a44147b4e6e2dd307de"
+    "5aa8057f9cc0bff651fc6a44147b4e6e2dd307de",
+    "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56"
   ],
   "local_refs": {},
   "remote_refs": {
@@ -104,7 +104,8 @@
     "refs/heads/task/static-byte-closure-cleanup": "fbbdc1f6e643858cf181e3c1a67960223e50fd99",
     "refs/heads/task/helper-current-main-validation": "467b5ffd791c6aae80cc524b1c23cf7259182661",
     "refs/heads/task/repeatable-closure-drop": "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071",
-    "refs/heads/task/compiler-consolidation": "dafe801c34b709520e50b31fe86f944c3f346da6"
+    "refs/heads/task/compiler-consolidation": "dafe801c34b709520e50b31fe86f944c3f346da6",
+    "refs/heads/task/compiler-composition-validation": "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56"
   },
   "worktrees": [],
   "missing_commit_objects": [],
@@ -433,6 +434,14 @@
         ".task/compiler-consolidation/final-receipt.json"
       ],
       "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/compiler-composition-validation",
+      "head_before_retirement": "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56",
+      "source_evidence_head": "5aa8057f9cc0bff651fc6a44147b4e6e2dd307de",
+      "retirement_completed": false,
+      "reason": "Composition experiments, profiling and rejected candidates have immutable archival parents; accepted production is already in main. This final guarded workflow only retires its own archived ref.",
+      "archive_is_acceptance": false
     }
   ],
   "research_sources": [
@@ -567,5 +576,5 @@
       "decision": "Profile completed; worker-owned candidate not adopted; source, raw records and all negative values preserved"
     }
   },
-  "updated_utc": "2026-11-11 03:50:46 UTC"
+  "updated_utc": "2026-11-11 06:29:08 UTC"
 }
