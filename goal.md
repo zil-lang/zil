@@ -514,7 +514,7 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G10.5.1 | 编译效率复核、加权性能与真实覆盖扩展 | 进行中 | P1 | Chat编译专项 | PR65/70/75/76/78/79/80已合；PR80仅显式after的有限资源分区。PR84停止采用，两个旧生产ref已归档删除；仅保留一个研究入口。真实CLI关键路径已定位，新机器unit所有权候选84请求未证净收益并归档，当前无待合生产候选。见[本轮交付与路径修正](records/compiler-request-resumption.json)；一般增量与全场景Rust90父门开放。 |
+| G10.5.1 | 编译效率复核、加权性能与真实覆盖扩展 | 进行中 | P1 | Chat编译专项 | PR65/70/75/76/78/79/80已合；PR80仅显式after的有限资源分区。PR84及worker拥有unit候选未采用，composition旧研究ref已归档删除。新多点修改专项G10.5.1.14仅保留一个具体施工入口；当前未声称全方位Rust占优。见[多点接续记录](records/compiler-multi-edit-continuation.json)及[此前交付](records/compiler-request-resumption.json)；一般增量与全场景Rust90父门开放。 |
 | G10.5.1.1 | 可选完整导入超预算时保持普通分区及生效决策 | 已合入 | — | Chat直接复核 | PR65@906940ea已合maine69091059；三生产文件与main2293逐blob相同，build.md长期规则及必要回归已保留。后来数组预算旧pin已由PR69修正，main2293三CI成功。旧实验tipda1e9412完整归档3ad41515后清理，历史失败不改写。 |
 | G10.5.1.2 | 单次构图回退索引复用与复杂调用图/trait/资源覆盖 | 实验完成·未采用 | P1 | 编译专项·20261109 | 候选49889241、交付929417b0，1764完整编译/1470正式、3780输出、504原生代码段一致、252运行通过。四加权净变化-0.09%/+0.57%/+0.06%/+0.37%，绝对不足1.3ms/请求，Hold不合入。首轮测量器失败与修正保留；原版bitmaps/syn/regex-automata仅Rust参考，大型等价应用仍缺。 |
 | G10.5.1.3 | 标量Types签名依赖分面及主线Rust对照 | 已合入 | — | Chat直接复核 · PR70 | PR70/cadc656c已合main21b1feef；两个原受测blob及incremental-types机制说明已核。官方/研究LLVM同树workspace5864/0、reference5750/0、text70/0、严格检查与原生分配失败控制通过；主线仅多出PR71测试恢复，完整保留。历史加权0.18%–0.37%不夸大，见[合入收据](records/compiler-signature-merge.json)。 |
@@ -528,6 +528,7 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 | G10.5.1.11 | 显式增量O2的资源helper分区与多模块私有编辑 | 已合入·有限阶段 | — | Chat编译专项 · PR80 | main99035931/tree1c16744；双工具链各6050/5935/70过，固定multi16运行格过，编辑242.79→180.18ms（25.79%）。原八项未证整体提速、multi冷CPU+23.59%、无修改回退及同ELF计时false均保留；不关闭通用父门。[收据](records/compiler-request-resumption.json)。 |
 | G10.5.1.12 | 前置规范化与函数等价合并 | 未采用·已归档 | — | — | PR84关闭，旧130d不同码运行退化13%–24%；去额外inline新变体24构建/408运行反例筛通过，但单次编译诊断未保留大图收益，不投入全矩阵或放宽门。原源码/补丁/正负证据在固定archive e75ade94，生产ref已删除。 |
 | G10.5.1.13 | 完整请求关键路径与对象命中后的重复工作 | 进行中 | P1 | Chat编译专项 · root | 真实CLI三请求/同ELF已定位：shared4096全命中仍568.76ms，机器lower104.70ms、两规划扫描63.07ms、整图key46.00ms，worker后串行析构69.98ms；Verify/预检保持。单文件worker拥有unit候选9e15/发布2222699d同treeba2a完成84请求、42ELF对及252输出，2job大图暖均值618.65→788.60ms，未建立收益，停止且固定archive c6a62987保全；未扩测或合入。后续先证可消除的实际工作，计时补丁仅研究。 |
+| G10.5.1.14 | 多点批量修改、并发候选及精确分区结构复用 | 施工·待验收 | P1 | Chat编译专项 · root | 当前main99035931基线；候选b5dbe03d/tree08f873e只改分区key及必要反例，v2投影绑定实际placement依赖、重放当前body，Verify/完整预检不省。先核历史排除CP084与reverse-index重复失败路线，再执行固定多文件多点完整O2/Rust对照；源码独审、编译和性能门尚未完成，不提前认定收益。[记录](records/compiler-multi-edit-continuation.json)。 |
 
 </details>
 

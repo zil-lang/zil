@@ -1,0 +1,171 @@
+{
+  "format": 1,
+  "task": "G10.5.1.14",
+  "updated_utc": "2026-11-11 06:39:23 UTC",
+  "read_goal": "3c4b6d6a6ec2e56aad9f60fd2018c6ddf30b6b68",
+  "status": "Implementation frozen; independent source review, build and performance acceptance pending",
+  "baseline": {
+    "sha": "99035931d358add0eaed6d4535035c38413701dd",
+    "tree": "1c16744d838064cb1c687ba56ef3a0d17ed3130c"
+  },
+  "candidate": {
+    "branch": "task/compiler-layout-projection",
+    "sha": "b5dbe03d38ed3c7c9f11547c5d074b2f0f96aec8",
+    "local_author_commit": "8c098a50820976234663c92239c59206d543ae1a",
+    "identical_tree": "08f873e1ff1c49a788723baf852b545186d74232",
+    "write_set": [
+      "crates/zil-backend-llvm/src/machine_cgu/layout.rs",
+      "crates/zil-backend-llvm/src/machine_cgu/layout/tests.rs"
+    ],
+    "mechanism": "Replace whole machine body hashing for partition recipes with ordered actual placement inputs. Replay current bodies; keep current declaration and full per-unit machine validation; isolate protocol v2.",
+    "acceptance": false
+  },
+  "continuity": {
+    "old_cloud_workspace": "Not mounted in this runtime; restored exact remote source and pinned toolchains",
+    "toolchains": {
+      "rust": "1.99.1",
+      "llvm": "23.1.4",
+      "checker": "Pass",
+      "baseline_release_build": "Pass"
+    },
+    "first_failure": "Offline build dependency rustc_apfloat absent in new Cargo cache; fetched locked dependencies through ordinary network, then offline release build passed."
+  },
+  "path_correction": {
+    "already_batched": "Driver already compiles one final project snapshot after collecting all changed files; do not count this existing behavior as a new feature.",
+    "rejected_repeats": [
+      {
+        "name": "CP084 absent producer shortcut",
+        "evidence": "8255079de:docs/research/084/RESULTS.md",
+        "reason": "Already rejected after 672 retained real requests including multi-file workloads; no new basis to repeat."
+      },
+      {
+        "name": "reverse dependency index",
+        "evidence": "bc66c2eae and 8255079de:changes/research-reactive-key-attribution.md",
+        "reason": "Matched 840-request/420-pair ablation including 64,512,1024 modules failed to establish net benefit."
+      }
+    ],
+    "new_mechanism": "Historical layout receipt key hashes all machine body operands; projected keys were not found in prior failed experiments."
+  },
+  "measurement": {
+    "batch_axis": "One snapshot changes 1/4/16/64 files with multiple function bodies in each; once per snapshot full O2 request, no edit-by-edit Rust strawman.",
+    "concurrent_axis": "Independent candidates from one base measured separately; independent outputs/cache directories, bounded shared CPU budget.",
+    "mandatory": [
+      "fresh independent Verify",
+      "fresh complete native-unit preflight",
+      "full default O2 pipeline",
+      "original >=90% Rust runtime target and <=10% relative runtime regression gate",
+      "fixed predeclared request frequencies and absolute complete wait weighting",
+      "retain failures, long tails, cold CPU and RSS"
+    ],
+    "pilot": "64 files, 16 changed files times two function bodies, one baseline full O2 request: current Verify=1, eight builder units, expected native output 860a0000. Functional smoke only, no performance claim.",
+    "status": "Protocol preparation; no candidate measurement yet"
+  },
+  "blaze": {
+    "commit": "ccd4a6f31f0ad10a97b10941802bc9bd3f91d37a",
+    "primary_files": [
+      "docs/v2/plan.md",
+      "crates/blaze-api/src/lib.rs",
+      "crates/blaze-api/src/session.rs",
+      "crates/blaze-codegen/src/flight.rs"
+    ],
+    "distinction": "Commit/Edit batches and BestOf parallel check/test exist. Current per-function single-flight exists. None is evidence of ZIL full-O2 advantage or Blaze v2 advertised speedup."
+  },
+  "branch_retirement": {
+    "format": 1,
+    "verification": "Independent readback via GitHub connector; no remote mutations performed",
+    "verified_at_utc": "2026-11-11T06:32:05.357Z",
+    "repository": "zil-lang/zil",
+    "workflow_receipt": {
+      "started_utc": "2026-11-11T06:30:30.360406+00:00",
+      "target": "refs/heads/task/compiler-composition-validation",
+      "expected": "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56",
+      "run": 42972887557,
+      "prior_archive": "c6a629877009a408f7c15f56389d50f6358b5162",
+      "archive": "c43cda662622d81d7a43849ac7bf5266062fc8f7",
+      "returncode": 0,
+      "stdout": "To https://github.com/zil-lang/zil\n-\t:refs/heads/task/compiler-composition-validation\t[deleted]\nDone\n",
+      "stderr": "",
+      "verified_absent": true,
+      "status": "Completed exact archived self retirement"
+    },
+    "independent_readback": {
+      "target_ref": {
+        "url": "https://api.github.com/repos/zil-lang/zil/git/ref/heads/task/compiler-composition-validation",
+        "http_status": 404,
+        "error_code": "NOT_FOUND",
+        "verified_absent": true
+      },
+      "branch_listing": {
+        "url": "https://api.github.com/repos/zil-lang/zil/branches?per_page=100",
+        "names": [
+          "archive/source-history",
+          "goal",
+          "main"
+        ],
+        "target_absent": true
+      },
+      "archive": {
+        "sha": "c43cda662622d81d7a43849ac7bf5266062fc8f7",
+        "url": "https://github.com/zil-lang/zil/commit/c43cda662622d81d7a43849ac7bf5266062fc8f7",
+        "parents": [
+          "c6a629877009a408f7c15f56389d50f6358b5162",
+          "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56"
+        ],
+        "preserved_recipe": {
+          "sha": "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56",
+          "parent": "5aa8057f9cc0bff651fc6a44147b4e6e2dd307de",
+          "url": "https://github.com/zil-lang/zil/commit/1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56"
+        },
+        "prior_archive_parents": [
+          "e75ade949d559bd90914df0d40b860af5f283626",
+          "2222699d7382c6c2d986c256cbc7610329cd421c",
+          "5aa8057f9cc0bff651fc6a44147b4e6e2dd307de"
+        ],
+        "manifest": {
+          "url": "https://github.com/zil-lang/zil/blob/c43cda662622d81d7a43849ac7bf5266062fc8f7/manifest.json",
+          "parents_match": true,
+          "recipe_tip_included": true,
+          "exact_deleted_ref_recorded": true,
+          "missing_commit_objects": []
+        }
+      },
+      "main": {
+        "sha": "99035931d358add0eaed6d4535035c38413701dd",
+        "unchanged": true,
+        "url": "https://github.com/zil-lang/zil/commit/99035931d358add0eaed6d4535035c38413701dd"
+      },
+      "goal": {
+        "sha": "3c4b6d6a6ec2e56aad9f60fd2018c6ddf30b6b68",
+        "unchanged": true,
+        "url": "https://github.com/zil-lang/zil/commit/3c4b6d6a6ec2e56aad9f60fd2018c6ddf30b6b68"
+      }
+    },
+    "actions": {
+      "run": {
+        "id": 42972887557,
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56",
+        "url": "https://github.com/zil-lang/zil/actions/runs/42972887557"
+      },
+      "job": {
+        "id": 130365220208,
+        "name": "retire",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/zil-lang/zil/actions/runs/42972887557/job/130365220208",
+        "receipt_source": "Printed runtime JSON extracted from downloaded job logs"
+      },
+      "artifact": {
+        "id": 13834161854,
+        "name": "compiler-retirement-42972887557",
+        "bytes": 485,
+        "sha256": "4006bda9230a8db7e66483942aba84671fee8c831a1f4f0adb5f0b4d85affefe",
+        "url": "https://github.com/zil-lang/zil/actions/runs/42972887557/artifacts/13834161854",
+        "expired": false
+      }
+    },
+    "conclusion": "Exact archived research branch retired successfully; source history retained; main and goal unchanged. No production acceptance implied."
+  },
+  "general_claim": "All-dimensional Rust superiority remains a target, not an established result. Prior negative quality and whole-distribution results remain unchanged."
+}
