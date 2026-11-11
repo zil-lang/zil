@@ -28,6 +28,10 @@ A为现有缓存；B为相同生产者模块复用加直接版本memo；C为相�
 
 共用CT复制小片f632的6block旧A/新A、60row/36measured真实check：均值节省cold26.713ms，private−11.898ms，multi−18.380ms，所有配对95%探索区间跨0；未证明净收益，native0。保留`native-ct-copy-isolation-20x20x16-check-r1`，不算图收益，不继续扩大此微小切片的无效矩阵。
 
+`f7defd7cfbaf7ad8d963db2e9fda41bbec73efeb`预算需求片实际352lib＋CLI1全过，强真实IO变宽/批量门、当前Verify和raw预算反例通过；严格Clippy仅let_and_return失败，后续仅直接返回表达式修正。release尚未生成，因此不以旧binary冒充预算片测量。日志`out/runs/producer-validation-f7defd7`。
+
+阶段证据已实际持久化：Library `libfile_fde3_f-11852a3f427881918ed8650db66dc3f3_bd147c3485448191a9df16b3c3cea7dd`，current_version_number=0；[zil-producer-compiler-evidence-20261111.zip](https://chatgpt.com/library?file_id=libfile_fde3_f-11852a3f427881918ed8650db66dc3f3_bd147c3485448191a9df16b3c3cea7dd&account_id=personal)，90983519字节、1084条目，ZIP SHA256 `ae533035eee20c532b22b3d6797c45ab3331d97d811e0d291d4644112051defc`，MANIFEST `030eaa500ac176f809d4f30476b826cb35c1ffadddec55bfa0b64c7e7d0d3568`。逐条读回hash验证；截至7b2d1fe的完成原始运行/首失败/源码输入/脚本/独审均在包中，不含私人zit。该checkpoint早于f7运行；后续结果须更新同文件新版本，不能称已备份新运行。
+
 以下是前轮交付，保留其源码和证据身份；本节WIP不能计作通过或净收益。
 
 父任务goal G10.5.1.15；分支`research/reactive-query-graph`。本轮实际main基线`99035931d358add0eaed6d4535035c38413701dd`，从`c75c58bf7f564a1ce8049702f9c6ec41c82d1da2`正常续接，无需rebase/main变更。本轮生产实现、真实测试与测量已经执行；完整跨阶段架构未完成，当前切片没有证明大型净等待收益，默认关闭、不合main。不要把此状态写成整条zit路线失败，也不要把BodyKey局部减少写成大项目提速。

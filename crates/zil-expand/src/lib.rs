@@ -786,8 +786,7 @@ fn expand_program_impl(
             if let Some(reuse) = reuse.as_deref_mut() {
                 reuse.production(clock);
             }
-            let expanded = expanded?;
-            expanded
+            expanded?
         };
         // New member constraints share the project's actual remaining allowance.
         remaining.max_analysis_steps = remaining
