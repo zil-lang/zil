@@ -1,9 +1,10 @@
 {
   "format": 1,
-  "created_utc": "2026-11-11T01:13:23.940148+00:00",
-  "prior_archive": "a4850392c17a6673dfc9538ae5341c7baacf57d8",
+  "created_utc": "2026-11-11T01:13:31.243538+00:00",
+  "prior_archive": "cc82e27f9367805a1a0c9c7fe095d4241491efa7",
   "commit_parents": [
-    "a4850392c17a6673dfc9538ae5341c7baacf57d8"
+    "cc82e27f9367805a1a0c9c7fe095d4241491efa7",
+    "dafe801c34b709520e50b31fe86f944c3f346da6"
   ],
   "commit_tips": [
     "0a8929d4f6126683737d62ab9def1d8e67a784ca",
@@ -49,7 +50,8 @@
     "07af3468db6828f0c1e4b9276169a35013fde318",
     "fbbdc1f6e643858cf181e3c1a67960223e50fd99",
     "467b5ffd791c6aae80cc524b1c23cf7259182661",
-    "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071"
+    "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071",
+    "dafe801c34b709520e50b31fe86f944c3f346da6"
   ],
   "local_refs": {},
   "remote_refs": {
@@ -94,7 +96,8 @@
     "refs/heads/task/resident-memory-validation": "07af3468db6828f0c1e4b9276169a35013fde318",
     "refs/heads/task/static-byte-closure-cleanup": "fbbdc1f6e643858cf181e3c1a67960223e50fd99",
     "refs/heads/task/helper-current-main-validation": "467b5ffd791c6aae80cc524b1c23cf7259182661",
-    "refs/heads/task/repeatable-closure-drop": "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071"
+    "refs/heads/task/repeatable-closure-drop": "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071",
+    "refs/heads/task/compiler-consolidation": "dafe801c34b709520e50b31fe86f944c3f346da6"
   },
   "worktrees": [],
   "missing_commit_objects": [],
@@ -410,6 +413,17 @@
       "evidence_refs": [
         "42930165591",
         "PR83"
+      ],
+      "archive_is_acceptance": false
+    },
+    {
+      "ref": "refs/heads/task/compiler-consolidation",
+      "head_before_retirement": "dafe801c34b709520e50b31fe86f944c3f346da6",
+      "retirement_completed": false,
+      "reason": "Branch audit and guarded retirement complete; no compiler implementation pending on this temporary branch.",
+      "disposition": "completed-coordination",
+      "evidence_refs": [
+        ".task/compiler-consolidation/final-receipt.json"
       ],
       "archive_is_acceptance": false
     }
