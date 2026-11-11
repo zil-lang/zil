@@ -59,7 +59,33 @@
     "main already has resident, function, analysis, semantic and object caches; do not describe it as an uncached baseline.",
     "main lacks optional research counters/profile fields; validate its actual public report and current Verify without inventing work data.",
     "Rust language checks are not equivalent to Zil independent Verify. Cross-language ratios do not prove equivalent assurance or code quality.",
-    "Rust and Zil measurements from separate windows are descriptive distributions, not matched-block causal confidence intervals."
+    "Rust and Zil measurements from separate windows are descriptive distributions, not matched-block causal confidence intervals.",
+    "Environment lacks /proc/<pid>/task/<pid>/children. Legacy tree_* samples only see the root process and must not be presented as process-tree memory. Zil memory analysis may use explicit resident rss_kib/peak_kib; Rust wait4 maxrss has largest-process semantics. No cross-language memory advantage claim."
   ],
-  "candidate_source": "60cd8f20e3b6ceedccfc460c7c261f1aa5136f18"
+  "candidate_source": "0601b9786d0fe683b4321f0d086230e5be027602",
+  "rust": {
+    "modules": 20,
+    "functions": 20,
+    "steps": 16,
+    "blocks": 6,
+    "requests": [
+      "cold",
+      "unchanged",
+      "private",
+      "multi",
+      "broad",
+      "restore",
+      "error",
+      "recovery"
+    ],
+    "io": "Matching libc getchar/putchar FFI; independent six-input binary-output oracle",
+    "controlled": [
+      "cargo check (dev incremental=true, codegen-units=1); six complete blocks"
+    ],
+    "normal_incremental_cgu_control": "cargo build (opt-level=2 incremental=true codegen-units=256 jobs=1), six blocks; does not represent release default incremental=false",
+    "cache_boundary": "Fresh target for each mode/block; preserve target for edits and source mtimes for unchanged bytes; no dependencies; warm OS caches not flushed",
+    "timing_boundary": "Whole Cargo process request including startup; separate window from resident Zil; distributions and descriptive median ratios, no paired cross-language confidence interval",
+    "formal_o2": "cargo build (opt-level=2 incremental=true codegen-units=256 jobs=1); six complete blocks",
+    "single_cgu_diagnostic": "Originally planned six blocks of check and O2; stopped incomplete after O2 cold took 282785.789ms. Preserve 19 completed rows, 48 native executions and interrupted private request. No formal speed or CI claim; stronger normal incremental CGU256 O2 retained."
+  }
 }
