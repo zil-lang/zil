@@ -1,0 +1,3739 @@
+{
+  "status": "Complete finite neighbor coverage",
+  "runtime_gate_pass": false,
+  "compile_requests": 30,
+  "runtime_requests": 480,
+  "cells": [
+    {
+      "variant": "unentered",
+      "n": 8,
+      "depth": 0,
+      "median_ms": {
+        "base": 2.639000000044689,
+        "cand": 2.6268080000591,
+        "rust": 1.7631640000672633
+      },
+      "values_ms": {
+        "base": [
+          2.6423460001296917,
+          2.652045999866459,
+          2.6261259999955655,
+          2.6010390001829364,
+          2.650542000083078,
+          2.599296999960643,
+          2.6368059998276294,
+          2.639000000044689,
+          2.645592000135366
+        ],
+        "cand": [
+          2.6057390000460146,
+          2.646273999971527,
+          2.6492490001146507,
+          2.6712500000485306,
+          2.557429000034972,
+          2.6268080000591,
+          2.5813530000959872,
+          2.6301339999008633,
+          2.6185619999523624
+        ],
+        "rust": [
+          1.7631640000672633,
+          1.7917769998803124,
+          1.701990000128717,
+          1.856738000014957,
+          1.7463819999647967,
+          1.774394999983997,
+          1.7663099999936094,
+          1.756771999907869,
+          1.7074899999443005
+        ]
+      },
+      "latency_ratio": 0.9953800682131934,
+      "rust_throughput_ratio": 0.6712192135959668,
+      "runtime_gate_pass": false
+    },
+    {
+      "variant": "unentered",
+      "n": 16,
+      "depth": 0,
+      "median_ms": {
+        "base": 4.3347690000246075,
+        "cand": 4.334258999961094,
+        "rust": 2.568368999845916
+      },
+      "values_ms": {
+        "base": [
+          4.327366000097754,
+          4.340590000083466,
+          4.323557999896366,
+          4.361628999959066,
+          4.3119269998896925,
+          4.3347690000246075,
+          4.3320539998603635,
+          4.359534999821335,
+          4.339126999866494
+        ],
+        "cand": [
+          4.412774000002173,
+          4.341140999940762,
+          4.334258999961094,
+          4.346159999840893,
+          4.287621000003128,
+          4.331092000029457,
+          4.305864999878395,
+          4.0810680000049615,
+          4.349866999973528
+        ],
+        "rust": [
+          2.6748170000701066,
+          2.4860959999841725,
+          2.379488000087804,
+          2.7227660000335163,
+          2.568368999845916,
+          2.5129579998974805,
+          2.6685249999900407,
+          2.4909159999424446,
+          2.5975329999710084
+        ]
+      },
+      "latency_ratio": 0.9998823466571088,
+      "rust_throughput_ratio": 0.59257395551788,
+      "runtime_gate_pass": false
+    },
+    {
+      "variant": "unentered",
+      "n": 32,
+      "depth": 0,
+      "median_ms": {
+        "base": 7.796827000220219,
+        "cand": 7.785285999943881,
+        "rust": 3.9443240000309743
+      },
+      "values_ms": {
+        "base": [
+          7.828114999938407,
+          7.8424920000088605,
+          7.84250200013048,
+          7.790655999997398,
+          7.844147000014345,
+          7.791887999928804,
+          7.471042000133821,
+          7.796827000220219,
+          7.785345999991478
+        ],
+        "cand": [
+          7.834266999907413,
+          8.228147999943758,
+          7.800663999887547,
+          7.779385000048933,
+          7.80116500004624,
+          7.785285999943881,
+          7.143945000052554,
+          7.781740000154969,
+          7.782680999980585
+        ],
+        "rust": [
+          4.0619820001666085,
+          4.509373000018968,
+          3.79649999990761,
+          4.1719569999258965,
+          3.933034000056068,
+          3.7300259998573893,
+          3.8588849999996455,
+          4.077141000152551,
+          3.9443240000309743
+        ]
+      },
+      "latency_ratio": 0.9985197824350839,
+      "rust_throughput_ratio": 0.5066382917800845,
+      "runtime_gate_pass": false
+    },
+    {
+      "variant": "unentered",
+      "n": 64,
+      "depth": 0,
+      "median_ms": {
+        "base": 15.192712000043684,
+        "cand": 15.222016000052463,
+        "rust": 8.757142000149543
+      },
+      "values_ms": {
+        "base": [
+          14.454701999966346,
+          15.434251000215227,
+          15.246361999970759,
+          14.303059999974721,
+          14.12410800003272,
+          15.305432000104702,
+          15.192712000043684,
+          14.082820999874457,
+          15.26079900008881
+        ],
+        "cand": [
+          15.33754100000806,
+          15.205997000066418,
+          14.434204000053796,
+          14.59991199999422,
+          15.258635000009235,
+          15.481519000104527,
+          15.240480999864303,
+          15.222016000052463,
+          15.206457999966005
+        ],
+        "rust": [
+          8.757142000149543,
+          8.594741000024442,
+          10.544099999833634,
+          9.258723000129976,
+          8.295724999925369,
+          10.043811000059577,
+          8.582115999843154,
+          9.216405000188388,
+          8.153681000067081
+        ]
+      },
+      "latency_ratio": 1.0019288195556326,
+      "rust_throughput_ratio": 0.5752944945084384,
+      "runtime_gate_pass": false
+    },
+    {
+      "variant": "one_hot",
+      "n": 16,
+      "depth": 1,
+      "median_ms": {
+        "base": 4.983113999969646,
+        "cand": 4.9811699998372205,
+        "rust": 3.1449699999939185
+      },
+      "values_ms": {
+        "base": [
+          4.999954999902911,
+          4.994544000055612,
+          4.98199100002239,
+          4.975499000011041,
+          4.983113999969646,
+          4.993222999928548,
+          4.982041000175741,
+          4.98009800003274,
+          4.993984000066121
+        ],
+        "cand": [
+          4.9811699998372205,
+          4.950022999992143,
+          5.0278859998798,
+          4.987198999970133,
+          4.95956899999328,
+          4.966943999988871,
+          5.008279999856313,
+          4.973875999894517,
+          4.993613000124242
+        ],
+        "rust": [
+          3.2676179998816224,
+          3.0778860000282293,
+          3.163805999975011,
+          3.1196830000226328,
+          2.8281720001359645,
+          3.2863030000953586,
+          3.085389000034411,
+          3.3026030000655737,
+          3.1449699999939185
+        ]
+      },
+      "latency_ratio": 0.9996098824685854,
+      "rust_throughput_ratio": 0.6313717460148304,
+      "runtime_gate_pass": false
+    },
+    {
+      "variant": "one_hot",
+      "n": 16,
+      "depth": 6,
+      "median_ms": {
+        "base": 5.685679000180244,
+        "cand": 5.6716120000146475,
+        "rust": 4.266172999905393
+      },
+      "values_ms": {
+        "base": [
+          5.707027999960701,
+          5.73142299981555,
+          5.691198000022268,
+          5.677022000099896,
+          5.480217000012999,
+          5.604747999996107,
+          5.6819520000317425,
+          5.685679000180244,
+          5.685929000037504
+        ],
+        "cand": [
+          5.678855000041949,
+          5.660530999875846,
+          5.678935000105412,
+          5.665972000088004,
+          5.669398000009096,
+          5.6716120000146475,
+          5.711426000061692,
+          5.496156000162955,
+          5.6735650000518945
+        ],
+        "rust": [
+          4.311896999979581,
+          4.212462999930722,
+          4.266172999905393,
+          4.236196000192649,
+          4.239433000066128,
+          4.241655999976501,
+          4.426891000093747,
+          4.331503999992492,
+          4.280548999986422
+        ]
+      },
+      "latency_ratio": 0.99752588913916,
+      "rust_throughput_ratio": 0.7521976115246204,
+      "runtime_gate_pass": false
+    },
+    {
+      "variant": "one_hot",
+      "n": 32,
+      "depth": 1,
+      "median_ms": {
+        "base": 8.392885999910504,
+        "cand": 8.409416999938912,
+        "rust": 4.221769999958269
+      },
+      "values_ms": {
+        "base": [
+          8.400900000196998,
+          8.403524999948786,
+          8.365453999886086,
+          8.460491000050752,
+          7.932811000046058,
+          8.36111700004949,
+          8.415997999918545,
+          8.360094000181562,
+          8.392885999910504
+        ],
+        "cand": [
+          8.440273999894998,
+          8.377185999961512,
+          8.409416999938912,
+          8.370474000003014,
+          8.392774999947505,
+          8.42689900014193,
+          8.367176999854564,
+          8.420354000008956,
+          8.411479999949734
+        ],
+        "rust": [
+          4.303751999941596,
+          4.169884000020829,
+          4.430586999887964,
+          4.124308999962523,
+          4.0041849999852275,
+          4.221769999958269,
+          4.314792000059242,
+          4.476803999978074,
+          4.211701000031098
+        ]
+      },
+      "latency_ratio": 1.001969644295012,
+      "rust_throughput_ratio": 0.5020288564580562,
+      "runtime_gate_pass": false
+    },
+    {
+      "variant": "one_hot",
+      "n": 32,
+      "depth": 6,
+      "median_ms": {
+        "base": 9.090820999972493,
+        "cand": 9.094098000105078,
+        "rust": 5.017528000053062
+      },
+      "values_ms": {
+        "base": [
+          9.108192999974563,
+          9.162876000118558,
+          9.090820999972493,
+          8.767360999854645,
+          9.631795999894166,
+          9.082325000008495,
+          9.074931999975888,
+          9.201015999906303,
+          9.083576999955767
+        ],
+        "cand": [
+          9.072026000012556,
+          9.094338000068092,
+          9.094098000105078,
+          9.08028200001354,
+          9.090590999903725,
+          9.142497000084404,
+          9.107662999895183,
+          9.091101999956663,
+          9.153878999995868
+        ],
+        "rust": [
+          4.962084999988292,
+          4.983023000022513,
+          5.090022000104,
+          5.186801000036212,
+          5.035120999991705,
+          5.017528000053062,
+          4.891843999985213,
+          4.8847820000901265,
+          5.151836999857551
+        ]
+      },
+      "latency_ratio": 1.0003604735075737,
+      "rust_throughput_ratio": 0.5517345425566216,
+      "runtime_gate_pass": false
+    },
+    {
+      "variant": "one_hot",
+      "n": 64,
+      "depth": 1,
+      "median_ms": {
+        "base": 15.085193000004438,
+        "cand": 15.172393999819178,
+        "rust": 8.150845999807643
+      },
+      "values_ms": {
+        "base": [
+          15.062090000128592,
+          15.114467000103105,
+          15.051301000085004,
+          15.076014999976906,
+          15.160313000023962,
+          14.890522000087003,
+          15.085193000004438,
+          15.277440000090792,
+          15.116962000092826
+        ],
+        "cand": [
+          15.14665700005935,
+          15.474856000082582,
+          15.14161799991598,
+          15.185769000026994,
+          15.116270999897097,
+          15.146195999932388,
+          15.172393999819178,
+          15.581313999973645,
+          15.176321999888387
+        ],
+        "rust": [
+          8.667255000091245,
+          7.769217000031858,
+          8.626789000118151,
+          7.847431999834953,
+          8.13177000009091,
+          8.150845999807643,
+          7.739893000007214,
+          8.314188999975158,
+          8.770967999907953
+        ]
+      },
+      "latency_ratio": 1.0057805690530253,
+      "rust_throughput_ratio": 0.5372155508158293,
+      "runtime_gate_pass": false
+    },
+    {
+      "variant": "one_hot",
+      "n": 64,
+      "depth": 6,
+      "median_ms": {
+        "base": 15.86610300000757,
+        "cand": 15.890738000052806,
+        "rust": 9.576133000109621
+      },
+      "values_ms": {
+        "base": [
+          15.19559799999115,
+          15.844473000015569,
+          15.953184999943915,
+          15.856714999927135,
+          16.431814000043232,
+          16.501722999919366,
+          15.874868999844693,
+          15.125367999871742,
+          15.86610300000757
+        ],
+        "cand": [
+          16.013065999914033,
+          15.993189000027996,
+          15.023628000108147,
+          15.890738000052806,
+          16.097993999892424,
+          15.742091999982222,
+          15.96368400009851,
+          15.069413999981407,
+          15.70564500002547
+        ],
+        "rust": [
+          9.490924999909112,
+          9.576133000109621,
+          9.58193399992524,
+          9.09183299995675,
+          10.043721000101868,
+          9.354540000003908,
+          10.107349999998405,
+          10.086089999958858,
+          9.35894899998857
+        ]
+      },
+      "latency_ratio": 1.0015526812125968,
+      "rust_throughput_ratio": 0.6026235534232456,
+      "runtime_gate_pass": false
+    },
+    {
+      "variant": "unused_definitions",
+      "n": 16,
+      "depth": 1,
+      "median_ms": {
+        "base": 1.9041670000206068,
+        "cand": 1.8946580000829272,
+        "rust": 2.369419999922684
+      },
+      "values_ms": {
+        "base": [
+          1.9142249998367333,
+          1.9213580001178343,
+          1.9023119998564653,
+          1.8873249998705433,
+          1.897131999839985,
+          1.9041670000206068,
+          1.8965919998663594,
+          1.9551510001747374,
+          1.9318069998917053
+        ],
+        "cand": [
+          1.8844900000658527,
+          1.8940269999347947,
+          1.9437000000834814,
+          1.913263000005827,
+          1.9091750000370666,
+          1.8822249999175256,
+          1.9265870000708674,
+          1.8859429999338317,
+          1.8946580000829272
+        ],
+        "rust": [
+          2.351555999894117,
+          2.236884000012651,
+          2.4871780001376464,
+          2.369419999922684,
+          2.4091960001442203,
+          2.4620720000712026,
+          2.3279929998807347,
+          2.462001999901986,
+          2.249828999993042
+        ]
+      },
+      "latency_ratio": 0.9950062153489811,
+      "rust_throughput_ratio": 1.2505792601192283,
+      "runtime_gate_pass": true
+    },
+    {
+      "variant": "unused_definitions",
+      "n": 16,
+      "depth": 6,
+      "median_ms": {
+        "base": 3.2772950000889978,
+        "cand": 3.2783680001102766,
+        "rust": 3.742749999901207
+      },
+      "values_ms": {
+        "base": [
+          3.288296999926388,
+          3.3045560001028207,
+          3.2772950000889978,
+          3.2760939998297545,
+          3.263060000108453,
+          3.2837179999205546,
+          3.2806829999572074,
+          3.2441139999264124,
+          3.274692000104551
+        ],
+        "cand": [
+          3.2840590001796954,
+          3.2723169999826496,
+          3.295320000006541,
+          3.2783680001102766,
+          3.342105999990963,
+          3.310708000071827,
+          3.266435999876194,
+          3.277926999999181,
+          3.2715549998556526
+        ],
+        "rust": [
+          3.7290249999841762,
+          3.7372910001067794,
+          3.7274009998782276,
+          3.7688590000470867,
+          3.71879599993008,
+          3.744113000038851,
+          3.742749999901207,
+          3.7480500000128814,
+          3.7496129998544347
+        ]
+      },
+      "latency_ratio": 1.000327404161435,
+      "rust_throughput_ratio": 1.1416503576704353,
+      "runtime_gate_pass": true
+    },
+    {
+      "variant": "unused_definitions",
+      "n": 32,
+      "depth": 1,
+      "median_ms": {
+        "base": 1.9208670000807615,
+        "cand": 1.9165290000273671,
+        "rust": 2.4569329998485046
+      },
+      "values_ms": {
+        "base": [
+          1.9227210000281048,
+          1.9016119999832881,
+          1.8996169999354606,
+          1.9536380000317877,
+          1.901029999999082,
+          1.973627000097622,
+          1.9349629999396711,
+          1.9129919999159029,
+          1.9208670000807615
+        ],
+        "cand": [
+          1.9258770000760705,
+          1.8989459999829705,
+          1.9130120001591422,
+          1.8935770001462515,
+          1.9165290000273671,
+          1.934402000188129,
+          1.9437690000358998,
+          1.910978999831059,
+          1.94212599990351
+        ],
+        "rust": [
+          2.30057199996736,
+          2.458424999986164,
+          2.3932850001529005,
+          2.4569329998485046,
+          2.5503760000447073,
+          2.2645049998573086,
+          2.458364999938567,
+          2.4812379999730183,
+          2.4525840001388133
+        ]
+      },
+      "latency_ratio": 0.9977416447608232,
+      "rust_throughput_ratio": 1.2819701657597775,
+      "runtime_gate_pass": true
+    },
+    {
+      "variant": "unused_definitions",
+      "n": 32,
+      "depth": 6,
+      "median_ms": {
+        "base": 3.2972839999274584,
+        "cand": 3.300057999922501,
+        "rust": 3.7516170000344573
+      },
+      "values_ms": {
+        "base": [
+          3.294126999890068,
+          3.2617270001082943,
+          3.249593999953504,
+          3.3275090002007346,
+          3.2972839999274584,
+          3.305337000028885,
+          4.1902820000814245,
+          3.2908109999425506,
+          3.3024429999386484
+        ],
+        "cand": [
+          3.256186999806232,
+          3.3485100000234524,
+          3.2609350000711856,
+          3.3415349998904276,
+          3.2592130000921316,
+          3.2966510000278504,
+          3.3086939999975584,
+          3.312921999850005,
+          3.300057999922501
+        ],
+        "rust": [
+          3.7762999997994484,
+          3.755264000119496,
+          3.743261000181519,
+          3.719948000025397,
+          3.730146999942008,
+          3.689550999979474,
+          3.7599820000195905,
+          3.7516170000344573,
+          3.808982999998989
+        ]
+      },
+      "latency_ratio": 1.0008412984732598,
+      "rust_throughput_ratio": 1.1368336556880396,
+      "runtime_gate_pass": true
+    },
+    {
+      "variant": "unused_definitions",
+      "n": 64,
+      "depth": 1,
+      "median_ms": {
+        "base": 1.915067000027193,
+        "cand": 1.9002690000888833,
+        "rust": 2.4023609998948814
+      },
+      "values_ms": {
+        "base": [
+          1.920755999890389,
+          1.9904170001154853,
+          1.9445509999513888,
+          1.8970529999933206,
+          1.8892579998919246,
+          1.915067000027193,
+          1.9185819999165687,
+          1.8910919998234021,
+          1.9137629999477213
+        ],
+        "cand": [
+          1.923742000144557,
+          1.9386900000881724,
+          1.890670999955546,
+          1.9173000000591855,
+          1.882545999933427,
+          1.9002690000888833,
+          1.9364869999662915,
+          1.8896789999871544,
+          1.8963120000989875
+        ],
+        "rust": [
+          2.281236000044373,
+          2.5327939999897353,
+          2.5022059999173507,
+          2.4023609998948814,
+          2.3900280000361818,
+          2.4477669999214413,
+          2.256720000104906,
+          2.487879999989673,
+          2.291203999902791
+        ]
+      },
+      "latency_ratio": 0.992272855237911,
+      "rust_throughput_ratio": 1.264221539046584,
+      "runtime_gate_pass": true
+    },
+    {
+      "variant": "unused_definitions",
+      "n": 64,
+      "depth": 6,
+      "median_ms": {
+        "base": 3.282836999915162,
+        "cand": 3.2854209998731676,
+        "rust": 3.743962000044121
+      },
+      "values_ms": {
+        "base": [
+          3.283646999989287,
+          3.2835479998993833,
+          3.282836999915162,
+          3.2615969998914807,
+          3.326324999989083,
+          3.3079629999974713,
+          3.243624000106138,
+          3.274540999882447,
+          3.2521689997793146
+        ],
+        "cand": [
+          3.264732999923581,
+          3.3007399999860354,
+          3.3002079999278067,
+          3.2854209998731676,
+          3.2487629998740886,
+          3.2639010000821145,
+          3.2966119999855437,
+          3.268379000019195,
+          3.2894580001538998
+        ],
+        "rust": [
+          3.7445540001499467,
+          3.710781000108909,
+          3.7496029999601888,
+          3.743962000044121,
+          3.7501930000871653,
+          3.7370500001543405,
+          3.746136000017941,
+          3.7377609999111883,
+          3.7269920001108403
+        ]
+      },
+      "latency_ratio": 1.0007871240509574,
+      "rust_throughput_ratio": 1.139568414577205,
+      "runtime_gate_pass": true
+    }
+  ],
+  "builds": [
+    {
+      "variant": "unentered",
+      "n": 8,
+      "arm": "base",
+      "valid": true,
+      "source_sha256": "b046b3707c60a7d879a898473f009463bcfc4ed5e6f043ad382bd35ce5010209",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/current-neighbors/unentered/8/base/app",
+          "llvm": "/home/runner/work/_temp/current-neighbors/unentered/8/base/app.ll"
+        },
+        "input_fingerprint": "6fa966b137479af836d2dc4bd02ce65032f444fdace7c11dcb34b327a52e269e",
+        "seconds": 0.107148266,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/current-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/current-neighbors/unentered/8/base/.zil-driver-43236-0/.zil-build-43236-0/unit-0.o",
+            "/home/runner/work/_temp/current-neighbors/unentered/8/base/.zil-driver-43236-0/.zil-build-43236-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/current-neighbors/unentered/8/base/.zil-driver-43236-0/.zil-build-43236-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 8160,
+              "input_kind": "builder",
+              "preflight_ns": 1203455,
+              "builder_ns": 1969307,
+              "parse_ns": 0,
+              "optimize_ns": 36916918,
+              "emit_ns": 31175247,
+              "total_ns": 72029727
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 26279,
+              "builder_ns": 90479,
+              "parse_ns": 0,
+              "optimize_ns": 1319520,
+              "emit_ns": 1416320,
+              "total_ns": 3277797
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/current-neighbors/unentered/8/base/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "b046b3707c60a7d879a898473f009463bcfc4ed5e6f043ad382bd35ce5010209",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "variant": "unentered",
+      "n": 8,
+      "arm": "cand",
+      "valid": true,
+      "source_sha256": "b046b3707c60a7d879a898473f009463bcfc4ed5e6f043ad382bd35ce5010209",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/current-neighbors/unentered/8/cand/app",
+          "llvm": "/home/runner/work/_temp/current-neighbors/unentered/8/cand/app.ll"
+        },
+        "input_fingerprint": "d57912bd6a2d25e67b5c091eb24f1685be62581080eb2ddd8983f4d5332748cd",
+        "seconds": 0.105445525,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/current-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/current-neighbors/unentered/8/cand/.zil-driver-43241-0/.zil-build-43241-0/unit-0.o",
+            "/home/runner/work/_temp/current-neighbors/unentered/8/cand/.zil-driver-43241-0/.zil-build-43241-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/current-neighbors/unentered/8/cand/.zil-driver-43241-0/.zil-build-43241-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 8160,
+              "input_kind": "builder",
+              "preflight_ns": 1190771,
+              "builder_ns": 1972282,
+              "parse_ns": 0,
+              "optimize_ns": 36120880,
+              "emit_ns": 30940912,
+              "total_ns": 70958799
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 25627,
+              "builder_ns": 89285,
+              "parse_ns": 0,
+              "optimize_ns": 1290918,
+              "emit_ns": 1362991,
+              "total_ns": 3188660
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/current-neighbors/unentered/8/cand/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "b046b3707c60a7d879a898473f009463bcfc4ed5e6f043ad382bd35ce5010209",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "variant": "unentered",
+      "n": 8,
+      "arm": "rust",
+      "valid": true,
+      "source_sha256": "f107cd45b832c3576b848899f5c925dc8f36a413392f5be213b9fe543b906ceb",
+      "report": null
+    },
+    {
+      "variant": "unentered",
+      "n": 16,
+      "arm": "base",
+      "valid": true,
+      "source_sha256": "c9cc5f645e6df469d1a70f4177d08a531e0c27daf12e587359e16f7b10b0c8c3",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/current-neighbors/unentered/16/base/app",
+          "llvm": "/home/runner/work/_temp/current-neighbors/unentered/16/base/app.ll"
+        },
+        "input_fingerprint": "43cb9b1c907822f55b1c0a2a9a60b94b811bc1cc045f8bb509c0a76a46725e12",
+        "seconds": 0.206851819,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/current-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/current-neighbors/unentered/16/base/.zil-driver-43299-0/.zil-build-43299-0/unit-0.o",
+            "/home/runner/work/_temp/current-neighbors/unentered/16/base/.zil-driver-43299-0/.zil-build-43299-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/current-neighbors/unentered/16/base/.zil-driver-43299-0/.zil-build-43299-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 16096,
+              "input_kind": "builder",
+              "preflight_ns": 2161113,
+              "builder_ns": 2567157,
+              "parse_ns": 0,
+              "optimize_ns": 93173759,
+              "emit_ns": 64523780,
+              "total_ns": 163436644
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 33462,
+              "builder_ns": 99765,
+              "parse_ns": 0,
+              "optimize_ns": 1349446,
+              "emit_ns": 1373160,
+              "total_ns": 3258381
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/current-neighbors/unentered/16/base/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "c9cc5f645e6df469d1a70f4177d08a531e0c27daf12e587359e16f7b10b0c8c3",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "variant": "unentered",
+      "n": 16,
+      "arm": "cand",
+      "valid": true,
+      "source_sha256": "c9cc5f645e6df469d1a70f4177d08a531e0c27daf12e587359e16f7b10b0c8c3",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/current-neighbors/unentered/16/cand/app",
+          "llvm": "/home/runner/work/_temp/current-neighbors/unentered/16/cand/app.ll"
+        },
+        "input_fingerprint": "e5f540096776cc01d49137154634779515025423cf6fafbcee4f641cb1f82bf3",
+        "seconds": 0.209333007,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/current-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/current-neighbors/unentered/16/cand/.zil-driver-43304-0/.zil-build-43304-0/unit-0.o",
+            "/home/runner/work/_temp/current-neighbors/unentered/16/cand/.zil-driver-43304-0/.zil-build-43304-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/current-neighbors/unentered/16/cand/.zil-driver-43304-0/.zil-build-43304-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 16096,
+              "input_kind": "builder",
+              "preflight_ns": 2160211,
+              "builder_ns": 2618372,
+              "parse_ns": 0,
+              "optimize_ns": 93892963,
+              "emit_ns": 65220744,
+              "total_ns": 164905812
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 33912,
+              "builder_ns": 105736,
+              "parse_ns": 0,
+              "optimize_ns": 1359965,
+              "emit_ns": 1385272,
+              "total_ns": 3317961
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/current-neighbors/unentered/16/cand/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "c9cc5f645e6df469d1a70f4177d08a531e0c27daf12e587359e16f7b10b0c8c3",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "variant": "unentered",
+      "n": 16,
+      "arm": "rust",
+      "valid": true,
+      "source_sha256": "6d9f434ada288f03af9d435d749b4616df2699ebbd163ca09d3a970774bf31a5",
+      "report": null
+    },
+    {
+      "variant": "unentered",
+      "n": 32,
+      "arm": "base",
+      "valid": true,
+      "source_sha256": "a67a8e1c8e742c7f366f71e6bae3d80af9f703c9d12c6ee1e5a68c8b88f362c2",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/current-neighbors/unentered/32/base/app",
+          "llvm": "/home/runner/work/_temp/current-neighbors/unentered/32/base/app.ll"
+        },
+        "input_fingerprint": "8aa1c51962484a4e7f7cace80c2dc06e91df7a6e26ecfe98192230fd52402fb5",
+        "seconds": 0.507507999,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/current-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/current-neighbors/unentered/32/base/.zil-driver-43362-0/.zil-build-43362-0/unit-0.o",
+            "/home/runner/work/_temp/current-neighbors/unentered/32/base/.zil-driver-43362-0/.zil-build-43362-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/current-neighbors/unentered/32/base/.zil-driver-43362-0/.zil-build-43362-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 35680,
+              "input_kind": "builder",
+              "preflight_ns": 3803122,
+              "builder_ns": 3911011,
+              "parse_ns": 0,
+              "optimize_ns": 256833737,
+              "emit_ns": 179262280,
+              "total_ns": 445448464
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 55032,
+              "builder_ns": 119271,
+              "parse_ns": 0,
+              "optimize_ns": 1348363,
+              "emit_ns": 1399489,
+              "total_ns": 3354329
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/current-neighbors/unentered/32/base/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "a67a8e1c8e742c7f366f71e6bae3d80af9f703c9d12c6ee1e5a68c8b88f362c2",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "variant": "unentered",
+      "n": 32,
+      "arm": "cand",
+      "valid": true,
+      "source_sha256": "a67a8e1c8e742c7f366f71e6bae3d80af9f703c9d12c6ee1e5a68c8b88f362c2",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/current-neighbors/unentered/32/cand/app",
+          "llvm": "/home/runner/work/_temp/current-neighbors/unentered/32/cand/app.ll"
+        },
+        "input_fingerprint": "c7ecabfcd9ed7a1bca7e38ce9f5e7fcc54b4ee30f104cd36a8096120ca047473",
+        "seconds": 0.506468888,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/current-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/current-neighbors/unentered/32/cand/.zil-driver-43367-0/.zil-build-43367-0/unit-0.o",
+            "/home/runner/work/_temp/current-neighbors/unentered/32/cand/.zil-driver-43367-0/.zil-build-43367-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/current-neighbors/unentered/32/cand/.zil-driver-43367-0/.zil-build-43367-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 35680,
+              "input_kind": "builder",
+              "preflight_ns": 3663152,
+              "builder_ns": 3868684,
+              "parse_ns": 0,
+              "optimize_ns": 258950057,
+              "emit_ns": 177491502,
+              "total_ns": 445452330
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 70621,
+              "builder_ns": 120875,
+              "parse_ns": 0,
+              "optimize_ns": 1278584,
+              "emit_ns": 1336432,
+              "total_ns": 3205953
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/current-neighbors/unentered/32/cand/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "a67a8e1c8e742c7f366f71e6bae3d80af9f703c9d12c6ee1e5a68c8b88f362c2",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "variant": "unentered",
+      "n": 32,
+      "arm": "rust",
+      "valid": true,
+      "source_sha256": "e9db1d669f18312e4930480f6fe0c64a5d0dea5b25c222ea3aa0e3749a0f6b69",
+      "report": null
+    },
+    {
+      "variant": "unentered",
+      "n": 64,
+      "arm": "base",
+      "valid": true,
+      "source_sha256": "c6071b7ffe932a31305454a01817c66836e175d63d46ef3fbc7f02c9b9516c74",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/current-neighbors/unentered/64/base/app",
+          "llvm": "/home/runner/work/_temp/current-neighbors/unentered/64/base/app.ll"
+        },
+        "input_fingerprint": "7d4675995c379c37db4911b90c12e69700f8de18dbb318f6719cfb416b0e355c",
+        "seconds": 1.625846114,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/current-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/current-neighbors/unentered/64/base/.zil-driver-43425-0/.zil-build-43425-0/unit-0.o",
+            "/home/runner/work/_temp/current-neighbors/unentered/64/base/.zil-driver-43425-0/.zil-build-43425-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/current-neighbors/unentered/64/base/.zil-driver-43425-0/.zil-build-43425-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 59120,
+              "input_kind": "builder",
+              "preflight_ns": 6182590,
+              "builder_ns": 7536764,
+              "parse_ns": 0,
+              "optimize_ns": 934520738,
+              "emit_ns": 538875031,
+              "total_ns": 1490160129
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 60152,
+              "builder_ns": 159296,
+              "parse_ns": 0,
+              "optimize_ns": 1344276,
+              "emit_ns": 1351860,
+              "total_ns": 3123420
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/current-neighbors/unentered/64/base/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "c6071b7ffe932a31305454a01817c66836e175d63d46ef3fbc7f02c9b9516c74",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "variant": "unentered",
+      "n": 64,
+      "arm": "cand",
+      "valid": true,
+      "source_sha256": "c6071b7ffe932a31305454a01817c66836e175d63d46ef3fbc7f02c9b9516c74",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/current-neighbors/unentered/64/cand/app",
+          "llvm": "/home/runner/work/_temp/current-neighbors/unentered/64/cand/app.ll"
+        },
+        "input_fingerprint": "f129eb8f2a62b85caab9f214919b430dc9244ff3fcc66609684d0c9b6d13191f",
+        "seconds": 1.627699608,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/current-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/current-neighbors/unentered/64/cand/.zil-driver-43430-0/.zil-build-43430-0/unit-0.o",
+            "/home/runner/work/_temp/current-neighbors/unentered/64/cand/.zil-driver-43430-0/.zil-build-43430-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/current-neighbors/unentered/64/cand/.zil-driver-43430-0/.zil-build-43430-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 59120,
+              "input_kind": "builder",
+              "preflight_ns": 6198541,
+              "builder_ns": 7493967,
+              "parse_ns": 0,
+              "optimize_ns": 937424246,
+              "emit_ns": 538777077,
+              "total_ns": 1492954603
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 69269,
+              "builder_ns": 160478,
+              "parse_ns": 0,
+              "optimize_ns": 1309592,
+              "emit_ns": 1388829,
+              "total_ns": 3220831
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/current-neighbors/unentered/64/cand/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "c6071b7ffe932a31305454a01817c66836e175d63d46ef3fbc7f02c9b9516c74",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "variant": "unentered",
+      "n": 64,
+      "arm": "rust",
+      "valid": true,
+      "source_sha256": "882c7672f996ba8c1a9b9ce36e7662dc69c1c2aa3479c1e05776bc9f23ed2b5f",
+      "report": null
+    },
+    {
+      "variant": "one_hot",
+      "n": 16,
+      "arm": "base",
+      "valid": true,
+      "source_sha256": "be25d5215dc74e2184a97d36db2f91ed451ff9374c8c820a46e8cf15aefe65ae",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/current-neighbors/one_hot/16/base/app",
+          "llvm": "/home/runner/work/_temp/current-neighbors/one_hot/16/base/app.ll"
+        },
+        "input_fingerprint": "228a2571b7c29ca28fcccfc38c825df9f903086a3adb7d45d5aeb9f349b08632",
+        "seconds": 0.075985153,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/current-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/current-neighbors/one_hot/16/base/.zil-driver-43488-0/.zil-build-43488-0/unit-0.o",
+            "/home/runner/work/_temp/current-neighbors/one_hot/16/base/.zil-driver-43488-0/.zil-build-43488-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/current-neighbors/one_hot/16/base/.zil-driver-43488-0/.zil-build-43488-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 4464,
+              "input_kind": "builder",
+              "preflight_ns": 1934693,
+              "builder_ns": 2441143,
+              "parse_ns": 0,
+              "optimize_ns": 18191421,
+              "emit_ns": 13177170,
+              "total_ns": 36540985
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 32931,
+              "builder_ns": 102430,
+              "parse_ns": 0,
+              "optimize_ns": 1365255,
+              "emit_ns": 1398347,
+              "total_ns": 3314115
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/current-neighbors/one_hot/16/base/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "be25d5215dc74e2184a97d36db2f91ed451ff9374c8c820a46e8cf15aefe65ae",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "variant": "one_hot",
+      "n": 16,
+      "arm": "cand",
+      "valid": true,
+      "source_sha256": "be25d5215dc74e2184a97d36db2f91ed451ff9374c8c820a46e8cf15aefe65ae",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/current-neighbors/one_hot/16/cand/app",
+          "llvm": "/home/runner/work/_temp/current-neighbors/one_hot/16/cand/app.ll"
+        },
+        "input_fingerprint": "f37f8db3714d334e7dc1e8f78c52ff07610856bb9f445790be3ce8f5d5ef93f1",
+        "seconds": 0.074933259,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/current-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/current-neighbors/one_hot/16/cand/.zil-driver-43493-0/.zil-build-43493-0/unit-0.o",
+            "/home/runner/work/_temp/current-neighbors/one_hot/16/cand/.zil-driver-43493-0/.zil-build-43493-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/current-neighbors/one_hot/16/cand/.zil-driver-43493-0/.zil-build-43493-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 4464,
+              "input_kind": "builder",
+              "preflight_ns": 1893816,
+              "builder_ns": 2469395,
+              "parse_ns": 0,
+              "optimize_ns": 17942709,
+              "emit_ns": 13199191,
+              "total_ns": 36367504
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 33612,
+              "builder_ns": 100116,
+              "parse_ns": 0,
+              "optimize_ns": 1330661,
+              "emit_ns": 1405901,
+              "total_ns": 3302332
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/current-neighbors/one_hot/16/cand/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "be25d5215dc74e2184a97d36db2f91ed451ff9374c8c820a46e8cf15aefe65ae",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "variant": "one_hot",
+      "n": 16,
+      "arm": "rust",
+      "valid": true,
+      "source_sha256": "b92e6523b8be2518c2628752383888c931c595f46525728ff7b7ebd237856732",
+      "report": null
+    },
+    {
+      "variant": "one_hot",
+      "n": 32,
+      "arm": "base",
+      "valid": true,
+      "source_sha256": "67567e6515aea0259f5b0cc7db39be823d77b0af1de78590e6ca79df30e9a486",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/current-neighbors/one_hot/32/base/app",
+          "llvm": "/home/runner/work/_temp/current-neighbors/one_hot/32/base/app.ll"
+        },
+        "input_fingerprint": "0fcd2c5914d487b5dd04a028a76f830e47743fc4cd8146cdb1ed6fb0233821cb",
+        "seconds": 0.104172056,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/current-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/current-neighbors/one_hot/32/base/.zil-driver-43581-0/.zil-build-43581-0/unit-0.o",
+            "/home/runner/work/_temp/current-neighbors/one_hot/32/base/.zil-driver-43581-0/.zil-build-43581-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/current-neighbors/one_hot/32/base/.zil-driver-43581-0/.zil-build-43581-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 6912,
+              "input_kind": "builder",
+              "preflight_ns": 3567675,
+              "builder_ns": 3570861,
+              "parse_ns": 0,
+              "optimize_ns": 26478930,
+              "emit_ns": 19048693,
+              "total_ns": 53781611
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 47348,
+              "builder_ns": 129531,
+              "parse_ns": 0,
+              "optimize_ns": 1401442,
+              "emit_ns": 1442570,
+              "total_ns": 3456558
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/current-neighbors/one_hot/32/base/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "67567e6515aea0259f5b0cc7db39be823d77b0af1de78590e6ca79df30e9a486",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "variant": "one_hot",
+      "n": 32,
+      "arm": "cand",
+      "valid": true,
+      "source_sha256": "67567e6515aea0259f5b0cc7db39be823d77b0af1de78590e6ca79df30e9a486",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/current-neighbors/one_hot/32/cand/app",
+          "llvm": "/home/runner/work/_temp/current-neighbors/one_hot/32/cand/app.ll"
+        },
+        "input_fingerprint": "a0423018a72654108ccf023af7bf88af80e09204f643346dadae3d4ae249ffe7",
+        "seconds": 0.10209035,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/current-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/current-neighbors/one_hot/32/cand/.zil-driver-43586-0/.zil-build-43586-0/unit-0.o",
+            "/home/runner/work/_temp/current-neighbors/one_hot/32/cand/.zil-driver-43586-0/.zil-build-43586-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/current-neighbors/one_hot/32/cand/.zil-driver-43586-0/.zil-build-43586-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 6912,
+              "input_kind": "builder",
+              "preflight_ns": 3384344,
+              "builder_ns": 3503446,
+              "parse_ns": 0,
+              "optimize_ns": 26467539,
+              "emit_ns": 18863890,
+              "total_ns": 53188840
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 45454,
+              "builder_ns": 120263,
+              "parse_ns": 0,
+              "optimize_ns": 1306286,
+              "emit_ns": 1375805,
+              "total_ns": 3271956
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/current-neighbors/one_hot/32/cand/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "67567e6515aea0259f5b0cc7db39be823d77b0af1de78590e6ca79df30e9a486",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "variant": "one_hot",
+      "n": 32,
+      "arm": "rust",
+      "valid": true,
+      "source_sha256": "56bd4cec64a4934bf7c53aa7c9aa5ab3584e950bca96d744728aad22ed5e39d7",
+      "report": null
+    },
+    {
+      "variant": "one_hot",
+      "n": 64,
+      "arm": "base",
+      "valid": true,
+      "source_sha256": "17275159585456cdb6569eb3b19018e76ff43effde7eede4602b8c149fe871f4",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/current-neighbors/one_hot/64/base/app",
+          "llvm": "/home/runner/work/_temp/current-neighbors/one_hot/64/base/app.ll"
+        },
+        "input_fingerprint": "2b24a776182e3ea5619eaafd12a8f78897b13a8094f905fd8f9b0889ba574cf3",
+        "seconds": 0.160232688,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/current-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/current-neighbors/one_hot/64/base/.zil-driver-43674-0/.zil-build-43674-0/unit-0.o",
+            "/home/runner/work/_temp/current-neighbors/one_hot/64/base/.zil-driver-43674-0/.zil-build-43674-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/current-neighbors/one_hot/64/base/.zil-driver-43674-0/.zil-build-43674-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 11808,
+              "input_kind": "builder",
+              "preflight_ns": 5599808,
+              "builder_ns": 6772757,
+              "parse_ns": 0,
+              "optimize_ns": 43988565,
+              "emit_ns": 30761052,
+              "total_ns": 88907570
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 79468,
+              "builder_ns": 176758,
+              "parse_ns": 0,
+              "optimize_ns": 1399258,
+              "emit_ns": 1416410,
+              "total_ns": 3536707
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/current-neighbors/one_hot/64/base/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "17275159585456cdb6569eb3b19018e76ff43effde7eede4602b8c149fe871f4",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "variant": "one_hot",
+      "n": 64,
+      "arm": "cand",
+      "valid": true,
+      "source_sha256": "17275159585456cdb6569eb3b19018e76ff43effde7eede4602b8c149fe871f4",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/current-neighbors/one_hot/64/cand/app",
+          "llvm": "/home/runner/work/_temp/current-neighbors/one_hot/64/cand/app.ll"
+        },
+        "input_fingerprint": "5b86037e29289596eb370e39da515f4e8214cd5192e14ec2454c9ebbdd88523d",
+        "seconds": 0.159019526,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/current-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/current-neighbors/one_hot/64/cand/.zil-driver-43679-0/.zil-build-43679-0/unit-0.o",
+            "/home/runner/work/_temp/current-neighbors/one_hot/64/cand/.zil-driver-43679-0/.zil-build-43679-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/current-neighbors/one_hot/64/cand/.zil-driver-43679-0/.zil-build-43679-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 11808,
+              "input_kind": "builder",
+              "preflight_ns": 5429563,
+              "builder_ns": 6614383,
+              "parse_ns": 0,
+              "optimize_ns": 43699208,
+              "emit_ns": 30718734,
+              "total_ns": 88021023
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 69369,
+              "builder_ns": 159997,
+              "parse_ns": 0,
+              "optimize_ns": 1325581,
+              "emit_ns": 1374533,
+              "total_ns": 3368295
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/current-neighbors/one_hot/64/cand/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "17275159585456cdb6569eb3b19018e76ff43effde7eede4602b8c149fe871f4",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "variant": "one_hot",
+      "n": 64,
+      "arm": "rust",
+      "valid": true,
+      "source_sha256": "9189089a6d64b847927c7ba9b3e79de1ceb288d03e5585ec7633390b822ac136",
+      "report": null
+    },
+    {
+      "variant": "unused_definitions",
+      "n": 16,
+      "arm": "base",
+      "valid": true,
+      "source_sha256": "556d69b6f220c600b1dd050bb2f1bd5929a6d091de934075d6528edd1734308c",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/current-neighbors/unused_definitions/16/base/app",
+          "llvm": "/home/runner/work/_temp/current-neighbors/unused_definitions/16/base/app.ll"
+        },
+        "input_fingerprint": "1850b5b2c3fdb43ac861335aa348daf3f1ba3aebf177016541f9abdd59eb412f",
+        "seconds": 0.0722142,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/current-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/current-neighbors/unused_definitions/16/base/.zil-driver-43771-0/.zil-build-43771-0/unit-0.o",
+            "/home/runner/work/_temp/current-neighbors/unused_definitions/16/base/.zil-driver-43771-0/.zil-build-43771-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/current-neighbors/unused_definitions/16/base/.zil-driver-43771-0/.zil-build-43771-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 3976,
+              "input_kind": "builder",
+              "preflight_ns": 1774475,
+              "builder_ns": 2412019,
+              "parse_ns": 0,
+              "optimize_ns": 14601295,
+              "emit_ns": 12998808,
+              "total_ns": 32558050
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 32139,
+              "builder_ns": 103151,
+              "parse_ns": 0,
+              "optimize_ns": 1387797,
+              "emit_ns": 1396013,
+              "total_ns": 3327119
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/current-neighbors/unused_definitions/16/base/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "556d69b6f220c600b1dd050bb2f1bd5929a6d091de934075d6528edd1734308c",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "variant": "unused_definitions",
+      "n": 16,
+      "arm": "cand",
+      "valid": true,
+      "source_sha256": "556d69b6f220c600b1dd050bb2f1bd5929a6d091de934075d6528edd1734308c",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/current-neighbors/unused_definitions/16/cand/app",
+          "llvm": "/home/runner/work/_temp/current-neighbors/unused_definitions/16/cand/app.ll"
+        },
+        "input_fingerprint": "03aea001a1e9ef7becd3adcec5216bb11113365468b9952623cf80419c8c1e5c",
+        "seconds": 0.070648333,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/current-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/current-neighbors/unused_definitions/16/cand/.zil-driver-43776-0/.zil-build-43776-0/unit-0.o",
+            "/home/runner/work/_temp/current-neighbors/unused_definitions/16/cand/.zil-driver-43776-0/.zil-build-43776-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/current-neighbors/unused_definitions/16/cand/.zil-driver-43776-0/.zil-build-43776-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 3976,
+              "input_kind": "builder",
+              "preflight_ns": 1759418,
+              "builder_ns": 2246401,
+              "parse_ns": 0,
+              "optimize_ns": 14314121,
+              "emit_ns": 12879998,
+              "total_ns": 31918713
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 57026,
+              "builder_ns": 101319,
+              "parse_ns": 0,
+              "optimize_ns": 1280327,
+              "emit_ns": 1356189,
+              "total_ns": 3190674
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/current-neighbors/unused_definitions/16/cand/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "556d69b6f220c600b1dd050bb2f1bd5929a6d091de934075d6528edd1734308c",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "variant": "unused_definitions",
+      "n": 16,
+      "arm": "rust",
+      "valid": true,
+      "source_sha256": "febcca82d7e7029a24cf021ffc11938200dec101d5ca6e60dd3cf44188d986c5",
+      "report": null
+    },
+    {
+      "variant": "unused_definitions",
+      "n": 32,
+      "arm": "base",
+      "valid": true,
+      "source_sha256": "710e211a96792d0dc747f4217c63110e84f510615853db8cf3b74f6ecb59087e",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/current-neighbors/unused_definitions/32/base/app",
+          "llvm": "/home/runner/work/_temp/current-neighbors/unused_definitions/32/base/app.ll"
+        },
+        "input_fingerprint": "012bfbe3c8c79d4f3a1f127c1c9f613b4629c4524da17e06876c87cfbd3babbf",
+        "seconds": 0.093349016,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/current-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/current-neighbors/unused_definitions/32/base/.zil-driver-43864-0/.zil-build-43864-0/unit-0.o",
+            "/home/runner/work/_temp/current-neighbors/unused_definitions/32/base/.zil-driver-43864-0/.zil-build-43864-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/current-neighbors/unused_definitions/32/base/.zil-driver-43864-0/.zil-build-43864-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 5928,
+              "input_kind": "builder",
+              "preflight_ns": 3382151,
+              "builder_ns": 3436742,
+              "parse_ns": 0,
+              "optimize_ns": 18903924,
+              "emit_ns": 18461192,
+              "total_ns": 45229480
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 45594,
+              "builder_ns": 127417,
+              "parse_ns": 0,
+              "optimize_ns": 1349176,
+              "emit_ns": 1392636,
+              "total_ns": 3388843
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/current-neighbors/unused_definitions/32/base/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "710e211a96792d0dc747f4217c63110e84f510615853db8cf3b74f6ecb59087e",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "variant": "unused_definitions",
+      "n": 32,
+      "arm": "cand",
+      "valid": true,
+      "source_sha256": "710e211a96792d0dc747f4217c63110e84f510615853db8cf3b74f6ecb59087e",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/current-neighbors/unused_definitions/32/cand/app",
+          "llvm": "/home/runner/work/_temp/current-neighbors/unused_definitions/32/cand/app.ll"
+        },
+        "input_fingerprint": "63351567193fd39f8b96e1e2998ba68c7860144f24a9b1bceabeff2151ff2e38",
+        "seconds": 0.093241397,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/current-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/current-neighbors/unused_definitions/32/cand/.zil-driver-43869-0/.zil-build-43869-0/unit-0.o",
+            "/home/runner/work/_temp/current-neighbors/unused_definitions/32/cand/.zil-driver-43869-0/.zil-build-43869-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/current-neighbors/unused_definitions/32/cand/.zil-driver-43869-0/.zil-build-43869-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 5928,
+              "input_kind": "builder",
+              "preflight_ns": 3344711,
+              "builder_ns": 3257870,
+              "parse_ns": 0,
+              "optimize_ns": 18964596,
+              "emit_ns": 18528697,
+              "total_ns": 45107804
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 45274,
+              "builder_ns": 118751,
+              "parse_ns": 0,
+              "optimize_ns": 1366077,
+              "emit_ns": 1383840,
+              "total_ns": 3326928
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/current-neighbors/unused_definitions/32/cand/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "710e211a96792d0dc747f4217c63110e84f510615853db8cf3b74f6ecb59087e",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "variant": "unused_definitions",
+      "n": 32,
+      "arm": "rust",
+      "valid": true,
+      "source_sha256": "887020ea13b156187b837f4901ac1fde1930f474382e547caab0b7c603475e72",
+      "report": null
+    },
+    {
+      "variant": "unused_definitions",
+      "n": 64,
+      "arm": "base",
+      "valid": true,
+      "source_sha256": "97b457274c4189593a6e9c4a861718ff5845716b09f84d3e000cdc9360b00d2b",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/current-neighbors/unused_definitions/64/base/app",
+          "llvm": "/home/runner/work/_temp/current-neighbors/unused_definitions/64/base/app.ll"
+        },
+        "input_fingerprint": "f24a647859eeef083bb9c6d61ea5a4de4658f2b534c457ccf93aa4d86b9c8104",
+        "seconds": 0.138926045,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/current-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/current-neighbors/unused_definitions/64/base/.zil-driver-43957-0/.zil-build-43957-0/unit-0.o",
+            "/home/runner/work/_temp/current-neighbors/unused_definitions/64/base/.zil-driver-43957-0/.zil-build-43957-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/current-neighbors/unused_definitions/64/base/.zil-driver-43957-0/.zil-build-43957-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 9832,
+              "input_kind": "builder",
+              "preflight_ns": 5154712,
+              "builder_ns": 6117691,
+              "parse_ns": 0,
+              "optimize_ns": 27458099,
+              "emit_ns": 29878494,
+              "total_ns": 70102709
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 70651,
+              "builder_ns": 167180,
+              "parse_ns": 0,
+              "optimize_ns": 1366949,
+              "emit_ns": 1362871,
+              "total_ns": 3418688
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/current-neighbors/unused_definitions/64/base/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "97b457274c4189593a6e9c4a861718ff5845716b09f84d3e000cdc9360b00d2b",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "variant": "unused_definitions",
+      "n": 64,
+      "arm": "cand",
+      "valid": true,
+      "source_sha256": "97b457274c4189593a6e9c4a861718ff5845716b09f84d3e000cdc9360b00d2b",
+      "report": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "artifacts": {
+          "executable": "/home/runner/work/_temp/current-neighbors/unused_definitions/64/cand/app",
+          "llvm": "/home/runner/work/_temp/current-neighbors/unused_definitions/64/cand/app.ll"
+        },
+        "input_fingerprint": "d44ffdc037396ab49c78ceabbd3094dd28a9f479590fd0200afa1a9c3382821d",
+        "seconds": 0.13767558,
+        "cache_hit": false,
+        "commands": [
+          [
+            "/home/runner/work/_temp/current-llvm/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/current-neighbors/unused_definitions/64/cand/.zil-driver-43962-0/.zil-build-43962-0/unit-0.o",
+            "/home/runner/work/_temp/current-neighbors/unused_definitions/64/cand/.zil-driver-43962-0/.zil-build-43962-0/unit-1.o",
+            "-o",
+            "/home/runner/work/_temp/current-neighbors/unused_definitions/64/cand/.zil-driver-43962-0/.zil-build-43962-0/program"
+          ]
+        ],
+        "native_codegen": {
+          "backend": "llvm-api",
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 9832,
+              "input_kind": "builder",
+              "preflight_ns": 5182492,
+              "builder_ns": 5982018,
+              "parse_ns": 0,
+              "optimize_ns": 27249752,
+              "emit_ns": 29632938,
+              "total_ns": 69506931
+            },
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>|merge-functions=after|aliases=false",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 480,
+              "input_kind": "builder",
+              "preflight_ns": 70050,
+              "builder_ns": 163343,
+              "parse_ns": 0,
+              "optimize_ns": 1359815,
+              "emit_ns": 1391965,
+              "total_ns": 3482978
+            }
+          ],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 8,
+          "actual_units": 2,
+          "jobs": 2,
+          "fallback": null,
+          "task_abis": []
+        },
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          },
+          {
+            "phase": "lower",
+            "disposition": "executed"
+          },
+          {
+            "phase": "link",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/home/runner/work/_temp/current-neighbors/unused_definitions/64/cand/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+            "implementation_fingerprint": "97b457274c4189593a6e9c4a861718ff5845716b09f84d3e000cdc9360b00d2b",
+            "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "variant": "unused_definitions",
+      "n": 64,
+      "arm": "rust",
+      "valid": true,
+      "source_sha256": "e8e0030e77ad1237a983998e1bbf282983081bdbdf560acf00baa35b85f2b94a",
+      "report": null
+    }
+  ],
+  "scope": "additional common empty/mostly-inactive neighbors; separate from unchanged original weighted protocol"
+}

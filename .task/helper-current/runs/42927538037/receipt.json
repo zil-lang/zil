@@ -1,0 +1,31 @@
+{
+  "baseline": "2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852",
+  "production_candidate": "5679163bc3fefd77221011eab65987935b66fafd",
+  "production_tree": "88d779eeddc2fbd88e71f01a9df58fe883fcb991",
+  "source": "e7cc1ea9738caa2e4930b5c0c9be85a11b350c6a",
+  "recipe": "e7cc1ea9738caa2e4930b5c0c9be85a11b350c6a",
+  "historical_negative_weights_retained": 42860429989,
+  "status_before_preservation": "success",
+  "note": "historical scripts retain prior baseline labels; this receipt and exact binaries record actual current-main baseline",
+  "files": {
+    "raw.tar.gz": "cb82a760b6e9bea102fd686874a11e062e661dcd50d089f574a9db39a422a6c4",
+    "omitted-elf.json": "5de4204a1ea27d1e1bec4580e441db9b4610e6d8af686b7c5e3717d4af9fd598",
+    "multi/manifest.json": "3cedbccc1d70640a8e7dfe44e42a76fffcf8ec5a75060fd0275af4d9f3a72d12",
+    "multi/runtime.jsonl": "eca2c8eaeeefe4fc346d635ef491811b31e1e1e0864d268a9371896cda08e048",
+    "multi/rows.jsonl": "66880cb968afee1bcf2c01ad3a5bec181bd1960437efdd03e2bdb58ca8c54f0f",
+    "multi/summary.json": "5b34f26ecf4cf7f19a831f3093bfa3f0e089492d239288c02353df082fc20260",
+    "neighbors/summary.json": "410d79eca610155e7ce2518f19fa4ad8c441d99c57a3d2616f95f6522f324d19",
+    "multi-controls/summary.json": "52dc558ed3ec10294dad20c0603dbdf18792bc374ecba780f0e3eff89b5bd78b",
+    "primary/failures.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "primary/manifest.json": "d200749b22daba2c981ce3bd23362afe556393f299e4bcfa6d504cab6416574d",
+    "primary/runtime.jsonl": "8ef5bdb764a0792c7c5d1ab0facd61ec6ded2268f8ad5afb1e02c8fb1db8d812",
+    "primary/equivalence.json": "8993067a3c36761d7a07434566a5370584e2294890a9802ecde89b6fd8063404",
+    "primary/rows.jsonl": "4b2513d566b0e3dd39383feaae47b56e496417d2a912df826f32510d99a09f87",
+    "primary/summary.json": "1f97008d43a3ff82efbc664f189d7b6fb069420ae9c0042a06afa8a3f21906f6",
+    "primary/cells.json": "f017cb235c8914946f7b05a3f1f26e70f969f0cc8ce9ed16a120986bc17f62f6",
+    "controls/summary.json": "7b4c4e3a0003152c9492d19ef5709896a5de6251fdb0c57e007b26bc85f89f30",
+    "quality/summary.json": "6784bc10d6b3c4c1f4518828dbcc1a7a35da7b1e20a68f4fcd25de1903492ea6"
+  },
+  "main_modified": false,
+  "external_ai_review": false
+}
