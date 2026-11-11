@@ -1,0 +1,98 @@
+name: Compiler branch consolidation audit
+on:
+  push:
+    branches: [task/compiler-consolidation]
+    paths: [.github/workflows/compiler-consolidation-audit.yml]
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Read full commit ancestry without downloading historical build artifacts
+        run: |
+          set -euo pipefail
+          git config remote.origin.promisor true
+          git config remote.origin.partialclonefilter blob:none
+          git fetch --unshallow --filter=blob:none --no-tags origin '+refs/heads/*:refs/remotes/origin/*'
+      - name: Freeze current refs and read each branch's actual disposition and evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import subprocess as s,json,os,pathlib,datetime,hashlib,re
+          P=pathlib.Path;out=P(os.environ['RUNNER_TEMP'])/'compiler-audit';out.mkdir();repo='zil-lang/zil'
+          def run(*args,check=True):return s.run(args,check=check,capture_output=True,text=True)
+          def api(path):return json.loads(run('gh','api',f'repos/{repo}/'+path).stdout)
+          def pages(path):
+              result=[]
+              for page in range(1,30):
+                  data=api(path+('&' if '?' in path else '?')+f'per_page=100&page={page}')
+                  assert isinstance(data,list)
+                  result+=data
+                  if len(data)<100:return result
+              raise RuntimeError('pagination not exhausted')
+          branches=pages('branches');refs={b['name']:b['commit']['sha'] for b in branches};main=refs['main'];archive=refs['archive/source-history'];prs=pages('pulls?state=open')
+          active=[]
+          for status in ['in_progress','queued','waiting','requested','pending']:
+              for page in range(1,5):
+                  result=api(f'actions/runs?status={status}&per_page=100&page={page}')['workflow_runs']
+                  active += [{k:r.get(k) for k in ['id','name','head_branch','head_sha','status','conclusion','event','created_at','updated_at']} for r in result]
+                  if len(result)<100:break
+          active=list({r['id']:r for r in active}.values())
+          compact_pr=[]
+          for pr in prs:
+              info=api('pulls/'+str(pr['number']));record={k:info.get(k) for k in ['number','title','body','state','draft','merged','mergeable','mergeable_state','merge_commit_sha','created_at','updated_at']}
+              record.update(head=info['head']['ref'],head_sha=info['head']['sha'],base_sha=info['base']['sha'])
+              record['runs']=[{k:r.get(k) for k in ['id','name','head_sha','status','conclusion','event']} for r in api('actions/runs?head_sha='+record['head_sha']+'&per_page=30')['workflow_runs']]
+              compact_pr.append(record)
+              (out/f'pr{pr["number"]}.patch').write_text(run('git','diff',main,record['head_sha'],'--','crates','docs','spec','validation').stdout)
+          records=[]
+          for name,head in refs.items():
+              local=run('git','rev-parse','refs/remotes/origin/'+name,check=False)
+              if local.returncode or local.stdout.strip()!=head:run('git','fetch','--filter=blob:none','--no-tags','origin',head)
+              base=run('git','merge-base',main,head,check=False).stdout.strip()
+              record={'branch':name,'sha':head,'base':base,'main_contains_head':run('git','merge-base','--is-ancestor',head,main,check=False).returncode==0,'archive_contains_head':run('git','merge-base','--is-ancestor',head,archive,check=False).returncode==0,'commit':json.loads(run('git','show','-s','--format={"subject":"%f","committed_at":"%cI","tree":"%T"}',head).stdout),'active_runs':[r for r in active if r['head_branch']==name]}
+              if name.startswith('task/') and base:
+                  paths=run('git','diff','--name-status',base,head).stdout.splitlines()
+                  record['own_changed_paths']=paths
+                  record['own_production_paths']=[p for p in paths if not p.split('\t')[-1].startswith(('.task/','.github/workflows/'))]
+                  folder=out/'branches'/name.replace('/','__');folder.mkdir(parents=True)
+                  files=run('git','ls-tree','-r','--name-only',head,'--','.task','docs/guide','spec').stdout.splitlines()
+                  evidence=[p for p in files if p.startswith('.task/') and (p.endswith(('/RESULTS.md','/PLAN.md','/RESEARCH.md','/receipt.json','/summary.json')) or p.endswith('.md') and 'RESULT' in p)]
+                  record['evidence_files']=evidence
+                  for path in evidence:
+                      data=run('git','show',head+':'+path).stdout
+                      if len(data.encode())>8*1024*1024:continue
+                      dest=folder/path;dest.parent.mkdir(parents=True,exist_ok=True);dest.write_text(data)
+                  if name in [p['head'] for p in compact_pr]:
+                      for item in record['own_production_paths']:
+                          path=item.split('\t')[-1]
+                          if not path.endswith(('.rs','.md','.json','.toml')) or item.startswith('D\t'):continue
+                          dest=folder/path;dest.parent.mkdir(parents=True,exist_ok=True);dest.write_text(run('git','show',head+':'+path).stdout)
+                  recent=api('actions/runs?branch='+name.replace('/','%2F')+'&per_page=5')['workflow_runs']
+                  record['recent_runs']=[{k:r.get(k) for k in ['id','name','head_sha','status','conclusion','created_at','updated_at']} for r in recent]
+              records.append(record)
+          for ref,path,dest in [('goal','goal.md','goal.md'),('goal','workflow.md','workflow.md'),('goal','coordination/delivery.md','delivery.md')]:
+              r=run('git','show',refs[ref]+':'+path,check=False)
+              if r.returncode==0:(out/dest).write_text(r.stdout)
+          (out/'archive-files.txt').write_text(run('git','ls-tree','-r','--name-only',archive).stdout)
+          audit={'observed_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'refs':refs,'branch_count':len(refs),'active_runs':active,'pull_requests':compact_pr,'branches':records,'main_modified':False,'branches_deleted':[]}
+          (out/'audit.json').write_text(json.dumps(audit,ensure_ascii=False,indent=2)+'\n')
+          (out/'sha256.json').write_text(json.dumps({str(p.relative_to(out)):hashlib.sha256(p.read_bytes()).hexdigest() for p in out.rglob('*') if p.is_file()},indent=2)+'\n')
+          print(json.dumps({'main':main,'branches':len(refs),'open_prs':[(p['number'],p['head'],p['head_sha'][:8]) for p in compact_pr],'active_runs':active},ensure_ascii=False,indent=2))
+          PY
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: compiler-consolidation-audit-${{ github.run_id }}
+          path: ${{ runner.temp }}/compiler-audit
+          retention-days: 30
