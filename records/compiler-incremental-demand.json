@@ -1,28 +1,179 @@
 {
-  "date": "2026-11-12",
+  "date": "2026-11-11",
   "task": "G10.5.1.15",
-  "status": "new branch baseline and cost diagnosis; no new performance claim",
-  "read_goal_sha": "45707c01b7a35cfb78f1b576fa9cd24a324e345b",
-  "base": "ea0ce45741fde0082b6c92173b7480b167c888d4",
+  "status": "research delivered: local-edit check and ordinary CGU16 O2 gains; general incremental/Rust parity goal remains open",
+  "read_goal_sha": "83c8a14a43cbd0ea4828d34535e43156c3e717d4",
+  "previous_status": "new branch baseline and cost diagnosis; no new performance claim",
   "branch": "research/incremental-demand-propagation",
-  "worktree": "/workspace/zil-incremental",
-  "authorization": "User requests new branch continuing incremental compilation research from latest research branch and previous ideas. Existing branch remains untouched.",
-  "write_scope": [
-    "crates/zil-expand/src/incremental.rs and module assembly",
-    "crates/zil-driver/src/project.rs/session.rs and ct_artifact producer integration",
-    "crates/zil-types internal prepared and incremental representations",
-    "corresponding budget/source differential tests",
-    "tools/research/reactive-query-graph measurement tools if required",
-    "crates/zil-ir/src/program.rs: internal shared CoreModule field only, no wire/schema change",
-    "Mechanical Arc conversions in expand/types/ct/driver and corresponding tests",
-    "crates/zil-driver/src/ct_artifact/scalar_materialization.rs: sealed no-op module receipt replay"
+  "delivery_source": "c1ae85aa839e6e5c7f7e517ee66362bc839d9017",
+  "measured_and_independently_reviewed_compiler": "0601b9786d0fe683b4321f0d086230e5be027602",
+  "historical_start": "ea0ce45741fde0082b6c92173b7480b167c888d4",
+  "formal_baseline_main": "99035931d358add0eaed6d4535035c38413701dd",
+  "authorization": "User requested a new branch and implementation; then explicitly required comparison with actual main and Rust, not another active worker. Main remains untouched; research flags default off.",
+  "report": "https://github.com/zil-lang/zil/blob/c1ae85aa839e6e5c7f7e517ee66362bc839d9017/tools/research/incremental-demand/README.md",
+  "results": "https://github.com/zil-lang/zil/blob/c1ae85aa839e6e5c7f7e517ee66362bc839d9017/tools/research/incremental-demand/results.json",
+  "implementation": [
+    "Shared immutable CoreModule and SourceMap Arcs through producer assembly with explicit COW; no wire schema/version change.",
+    "Sealed scalar materializer receipts replay exact logical work/temp ledger; current environment admission, original failure order, budgets and independent Verify remain.",
+    "Query-history identity regression fixed; inherited default-worker stack regression against main fixed using private heap storage/frame separation without changing stack/depth/budgets/assertions."
   ],
-  "boundaries": [
-    "No independent Verify kernel weakening, budget increases, default enablement, or main merge",
-    "Shared internal Rust representation approved by root from measured assembly bottleneck; wire bytes and current validation unchanged",
-    "One heavy build/measurement window with separate targets",
-    "All failures retained and fresh-current comparison required"
+  "toolchains": {
+    "Zil": "rustc 1.99.1, LLVM 23.1.4",
+    "Rust": "rustc 1.99.1, LLVM 23.1.1"
+  },
+  "binary_sha256": {
+    "main": "cbdb63c2b4f4488d2de47f20f1563903864aa478603a2b66848e31972edbca04",
+    "candidate": "dc71a5969ee500fa10114f52afa973da94634bf4ebf92407d519617abdc741fa"
+  },
+  "workload": "22 files / 498620 Zil bytes / 425 declarations / 6400 arithmetic steps; 6 paired blocks, eight named-parent requests, cacheall, default budgets, 1 codegen job; same live-input binary IO algorithm in Rust.",
+  "main_comparisons": {
+    "main_newB_check": {
+      "private": {
+        "main_median_ms": 1130.0716284999999,
+        "new_median_ms": 511.929942,
+        "paired_geometric_new_over_main": 0.5161650823059554,
+        "paired_mean_saved_ms_CI95": [
+          266.346583,
+          700.3511120000001
+        ]
+      },
+      "multi": {
+        "main_median_ms": 1173.432983,
+        "new_median_ms": 539.3363925,
+        "paired_geometric_new_over_main": 0.5108215032769083,
+        "paired_mean_saved_ms_CI95": [
+          455.17286349999995,
+          650.2179098333332
+        ]
+      }
+    },
+    "main_newB_O2_CGU1": {
+      "private": {
+        "main_median_ms": 10566.8742765,
+        "new_median_ms": 8733.928176000001,
+        "paired_geometric_new_over_main": 0.8542577094090005,
+        "paired_mean_saved_ms_CI95": [
+          -228.32345499999974,
+          3791.693960166667
+        ]
+      },
+      "multi": {
+        "main_median_ms": 8305.0077455,
+        "new_median_ms": 10833.883504000001,
+        "paired_geometric_new_over_main": 1.2278350391697386,
+        "paired_mean_saved_ms_CI95": [
+          -4313.071775,
+          -2.1330666666669154
+        ]
+      }
+    },
+    "main_newB_O2_plain_CGU16": {
+      "private": {
+        "main_median_ms": 2315.860087,
+        "new_median_ms": 1574.231635,
+        "paired_geometric_new_over_main": 0.7217286969494513,
+        "paired_mean_saved_ms_CI95": [
+          283.0736898333333,
+          1290.0289396666667
+        ]
+      },
+      "multi": {
+        "main_median_ms": 2786.372472,
+        "new_median_ms": 2040.100458,
+        "paired_geometric_new_over_main": 0.7733201080061681,
+        "paired_mean_saved_ms_CI95": [
+          272.9412382125001,
+          1094.5354436666669
+        ]
+      }
+    }
+  },
+  "Rust_median_ms": {
+    "check_private": 279.6491495,
+    "check_multi": 282.343091,
+    "O2_CGU256_private": 666.1357005,
+    "O2_CGU256_multi": 1425.1899335
+  },
+  "correctness_counts": {
+    "primary_matrix_rows": 933,
+    "primary_native": 1236,
+    "fresh_checks": 5,
+    "plain_CGU16_rows": 180,
+    "plain_CGU16_native": 936,
+    "Rust_complete_rows": 180,
+    "Rust_native": 936,
+    "paired_ELF_and_LLVM_equal_primary": 78,
+    "paired_ELF_and_LLVM_equal_plain_CGU16": 78
+  },
+  "exact_source_validation": {
+    "workspace_lib_passed": 1654,
+    "llvm_api_generic_passed": 214,
+    "strict_workspace_all_targets_clippy": "pass",
+    "fmt": "pass",
+    "release_build": "pass",
+    "raw_root": "/workspace/zil-incremental-validation/out/runs",
+    "run_names": [
+      "final-lib-r2",
+      "final-generics-llvm",
+      "final-clippy-r2",
+      "final-release-r2"
+    ]
+  },
+  "earlier_full_workspace": {
+    "passed": 6119,
+    "failed": 1,
+    "sole_failure": "original default-worker stack test, main passes; fixed and revalidated in final LLVM API generic suite",
+    "final_full_workspace_rerun": false
+  },
+  "independent_review_receipts": {
+    "out/final-source-and-tools-review.json": {
+      "sha256": "7c34737f9a63e13a216ae4c44d1338d475403f81c8a2157f5f52f2c531deb06a"
+    },
+    "out/final-independent-review.json": {
+      "sha256": "f6971f01e6b047c76ddc75fc05da52813c2f1637ad941212493114980074e40e"
+    },
+    "out/rust-independent-review.json": {
+      "sha256": "f50eca5d121f64265e2d1ae8bf2de49ce1dbe0f2992d39da04349f635fb92796"
+    },
+    "out/plain-cgu16-independent-review.json": {
+      "sha256": "7b544ac9985cb9bb878d134b69c49024149a44fe43872576cf4ed8f01e547d67"
+    },
+    "out/final-delivery-review.json": {
+      "sha256": "7529de15be4c4aafff404d20a5949fe4fcce75e91b4cec5904fc479f7cac2413"
+    }
+  },
+  "raw_evidence": {
+    "root": "/workspace/zil-incremental/out/runs",
+    "primary": "main-matrix-r1",
+    "Rust": [
+      "rust-main-check-r2",
+      "rust-main-cgu256-r1"
+    ],
+    "ordinary_CGU16": "main-plain-o2-cgu16-r1",
+    "validation": "/workspace/zil-incremental-validation/out/runs",
+    "static": "out/runs/final-delivery-static-r1",
+    "archive": "out/evidence-archives/incremental-demand-final/evidence.tar.gz",
+    "archive_status": "created; complete gzip/tar stream re-read verified every source member SHA256 and size, manifests, required evidence and both compiler binaries",
+    "archive_sha256": "c5a4aa47e569018bdb3d61a4887bf45184f3d678097086effe259b6c2493e65e",
+    "archive_compressed_bytes": 344676918,
+    "archive_source_files": 120249,
+    "archive_manifest_sha256": "cac3163891622adbf09927f115d063f38825817226eefe4d00079c129576f6e9",
+    "archive_verification": "out/evidence-archives/incremental-demand-final/verification.json",
+    "archive_verifier_sha256": "979a83a3b6316da2fae5bc2d4aa8e146936ce69227c07734d31e3d45368f8f69",
+    "persistence": "Source, compact results and reproduction tools pushed to Git. Full raw archive is local to this workspace; no external raw upload claimed."
+  },
+  "retained_negative_evidence": [
+    "Primary O2 CGU1 multi-edit regresses: median8305→10834ms, mean-savedCI[-4313,-2]ms; private CI crosses zero.",
+    "Graph B-to-C benefit unproven; cold/unchanged/restore and broad/small controls retained.",
+    "Rust CGU1 O2 stopped incomplete after282786ms cold; existing Zil incremental-o2/CGU16 stopped after12rows/72native, private14/16hits but dirty-unit emit>100s. No accepted speed claim from either incomplete run."
   ],
-  "exit_gate": "Actual expensive work removal plus complete request paired comparisons against ea0; do not attribute producer/common changes to graph; independent exact source review before delivery.",
-  "scope_decision": "Baseline profile: private materialization182.856ms, assembly131.335ms, publication170.726ms. Root expands internal Rust representation write set to retain immutable CoreModule/SourceMap arcs through assembly; serialized schema/version unchanged. Add per-module no-op materializer receipts; current global environment admission and independent Verify remain."
+  "limits": [
+    "Whole-branch vs actual-main effect; cannot attribute all difference solely to this continuation. Main already has substantial caches.",
+    "Only sealed scalar+IO fast domain; richer-domain fallback correctness is not broad incremental support.",
+    "Rust fresh Cargo process vs resident Zil, separate windows, different assurance/LLVM versions/partitioning; descriptive median ratios only.",
+    "Six-block exploratory paired mean-saved-ms CI, not geometric-ratio CI/p95 or language-wide claim.",
+    "Legacy tree RSS sampler observes root only; use explicit Zil resident RSS/HWM, no Rust memory advantage claim. Long-session entry/source bounds are not byte/leak proofs.",
+    "No Verify weakening, budget increases, new backend production change, main merge or default enablement."
+  ],
+  "remaining": "Cache publication plus global Analyze/Verify/context work remains; native backend partition/emit and general incremental/Rust parity gates remain open."
 }
