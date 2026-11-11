@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "tasks": [
+    "G10.5.1.13",
+    "G10.5.1.14"
+  ],
+  "updated_utc": "2026-11-11T09:30:38.217802+00:00",
+  "read_goal": "c33ace5ab78814760c7f65cee230b7b898ce4078",
+  "status": "Implementation in progress; no new performance result or adoption",
+  "baseline": {
+    "sha": "99035931d358add0eaed6d4535035c38413701dd",
+    "tree": "1c16744d838064cb1c687ba56ef3a0d17ed3130c",
+    "binary_sha256": "64e1ff43bbaa59f786f1cc899b69e707072219a9c0abf0122ce31cd7b77f981d"
+  },
+  "environment": {
+    "restored": true,
+    "reason": "Workspace directories and toolchain were reclaimed; restored exact git refs and evidence, not old measurements as new results",
+    "rust": "1.99.1",
+    "llvm": "23.1.4",
+    "timing_cpus": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "single_heavy_window": true
+  },
+  "candidate": {
+    "branch": "task/compiler-structured-emission",
+    "parent": "99035931d358add0eaed6d4535035c38413701dd",
+    "status": "authoring",
+    "mechanism": "Build machine items directly while lowering each function; remove temporary Event tape and second traversal while retaining Code compatibility, copy admission and delayed structural error priority. Builder insertion-point caching evaluated separately.",
+    "acceptance": false
+  },
+  "external_sources": {
+    "rust_measured": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+    "rust_current": "9de746938314271db6dbb62dc3b4f07288d07d54",
+    "llvm": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+    "blaze_current": "ae1a7a7a1771c1658173ee4829392c40b4f1d4cc",
+    "blaze_prior": "ccd4a6f31f0ad10a97b10941802bc9bd3f91d37a",
+    "blaze_relevant_source_delta": "No change between prior and current pins; new review, not upstream new breakthrough"
+  },
+  "thinlto": {
+    "status": "research-only prototype preparation",
+    "scope": "Canonical owner/declaration partition plus actual clang23 ThinLTO prelink and lld23 imports/cache; first pure multi-file runtime screen. Distinct pipeline, no equivalence or product implementation claim.",
+    "admission": "Current Verify and legal partition; unchanged per-case runtime regression gate <=1.10 before compile-performance expansion"
+  },
+  "single_flight": {
+    "implemented": false,
+    "finding": "Existing warm c4 old-key overlap was entirely already-hit; all actual builder-miss keys distinct. Cold shared-cache opportunities need a separate workload. Per-CGU leases across complete-request publication can deadlock; no naive blocking implementation."
+  },
+  "unchanged_constraints": [
+    "No deleted imports merely to win compile time",
+    "Full O2 and current independent Verify/preflight",
+    "No revised old NoGo decisions",
+    "Exact source review and real output identity before adoption",
+    "Main keeps production assets; fixed archive keeps experiments; no task reports merged to main"
+  ],
+  "previous_record": "records/compiler-multi-edit-continuation.json"
+}
