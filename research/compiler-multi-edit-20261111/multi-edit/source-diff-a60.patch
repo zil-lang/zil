@@ -1,0 +1,458 @@
+diff --git a/crates/zil-backend-llvm/src/machine_cgu/layout.rs b/crates/zil-backend-llvm/src/machine_cgu/layout.rs
+index bc2ba2fe1197222a1e4e7ba8ffdb58917c990cea..15504b8e9751bd76a96ba9dc19c279f60be3af1c 100644
+--- a/crates/zil-backend-llvm/src/machine_cgu/layout.rs
++++ b/crates/zil-backend-llvm/src/machine_cgu/layout.rs
+@@ -1,4 +1,4 @@
+-//! Private exact-input work products. These recipes are not validation evidence:
++//! Private partition-input work products. These recipes are not validation evidence:
+ //! current declaration and complete native-unit preflight remain in the caller.
+ use super::{CallImportPolicy, distribute_item, rewrite_direct_calls};
+ use crate::EntryPoint;
+@@ -11,10 +11,10 @@ use std::path::{Path, PathBuf};
+ use std::sync::atomic::{AtomicU64, Ordering};
+ use zil_base::Fingerprint;
+ use zil_ir::{InstructionKind, LirView};
+-use zil_llvm_api::model::{Item, Linkage, Module};
++use zil_llvm_api::model::{Item, Linkage, Module, Op, Val};
+ 
+-const MAGIC: &[u8; 8] = b"ZILCGU01";
+-const DIRECTORY: &str = "partition-layout-v1";
++const MAGIC: &[u8; 8] = b"ZILCGU02";
++const DIRECTORY: &str = "partition-layout-v2";
+ const MAX_ITEMS: usize = 262_144;
+ const MAX_UNITS: usize = 256;
+ const MAX_REFS: usize = 1_048_576;
+@@ -410,6 +410,46 @@ impl Cache {
+     }
+ }
+ 
++// Preserve every symbol occurrence without constructing the planner's owned
++// sets. Order, repetition and container shape may conservatively distinguish
++// equivalent reference sets; no planner-visible reference can disappear.
++fn hash_symbols(value: &Val, state: &mut BufferedHasher) {
++    match value {
++        Val::Global(name) => {
++            0u8.hash(state);
++            name.hash(state);
++        }
++        Val::Array(args) => {
++            1u8.hash(state);
++            args.len().hash(state);
++            for arg in args {
++                hash_symbols(&arg.value, state);
++            }
++            2u8.hash(state);
++        }
++        Val::Gep { ptr, indices, .. } => {
++            3u8.hash(state);
++            indices.len().hash(state);
++            hash_symbols(ptr, state);
++            for arg in indices {
++                hash_symbols(&arg.value, state);
++            }
++            4u8.hash(state);
++        }
++        Val::Local(_)
++        | Val::Int(_)
++        | Val::F32(_)
++        | Val::F64(_)
++        | Val::Bool(_)
++        | Val::Null
++        | Val::Zero
++        | Val::Undef
++        | Val::Poison
++        | Val::Bytes(_)
++        | Val::Invalid(_) => {}
++    }
++}
++
+ fn action_key(
+     module: &Module,
+     lir: &LirView<'_>,
+@@ -446,7 +486,7 @@ fn action_key(
+     lir.module_id.hash(&mut state);
+     lir.functions.len().hash(&mut state);
+     // Exact projection of every LIR field read by the partition planner. The
+-    // complete machine model below binds bodies/types/linkage independently.
++    // machine projection below binds the remaining ordinary-planner inputs.
+     for function in lir.functions {
+         function.id.hash(&mut state);
+         function.name.hash(&mut state);
+@@ -477,7 +517,80 @@ fn action_key(
+         items,
+     } = module;
+     triple.hash(&mut state);
+-    items.hash(&mut state);
++    // Recipes contain item indices, not bodies. The ordinary planner observes
++    // symbol references, direct calls, linkage and block/instruction cost; it
++    // never inspects arithmetic operands or SSA/block names. Keep signatures,
++    // attributes and global/type headers conservatively bound. Replay always
++    // takes those and every body from this request's model. Declaration checks
++    // and full native-unit preflight still run on the current model.
++    // Resource-helper planning runs before this cache; a successful helper
++    // recipe never uses this ordinary-planner key.
++    items.len().hash(&mut state);
++    for item in items {
++        match item {
++            Item::NamedType(name, fields) => {
++                0u8.hash(&mut state);
++                name.hash(&mut state);
++                fields.hash(&mut state);
++            }
++            Item::Function(function) => {
++                1u8.hash(&mut state);
++                let zil_llvm_api::model::Function {
++                    name,
++                    linkage,
++                    signature,
++                    attrs,
++                    blocks,
++                } = function;
++                name.hash(&mut state);
++                linkage.hash(&mut state);
++                signature.hash(&mut state);
++                attrs.hash(&mut state);
++                blocks.is_some().hash(&mut state);
++                blocks.as_ref().map(Vec::len).hash(&mut state);
++                function.cost().hash(&mut state);
++                for instruction in blocks.iter().flatten().flat_map(|b| &b.instructions) {
++                    // Direct-call membership is distinct from observing the
++                    // same symbol as an address. Keep the shared operand walk.
++                    if let Op::Call {
++                        callee: Val::Global(name),
++                        ..
++                    } = &instruction.op
++                    {
++                        5u8.hash(&mut state);
++                        name.hash(&mut state);
++                    }
++                    for value in instruction.op.values() {
++                        hash_symbols(value, &mut state);
++                    }
++                }
++                6u8.hash(&mut state);
++            }
++            Item::Global(global) => {
++                2u8.hash(&mut state);
++                let zil_llvm_api::model::Global {
++                    name,
++                    linkage,
++                    ty,
++                    initializer,
++                    constant,
++                    unnamed_addr,
++                    alignment,
++                } = global;
++                name.hash(&mut state);
++                linkage.hash(&mut state);
++                ty.hash(&mut state);
++                initializer.is_some().hash(&mut state);
++                constant.hash(&mut state);
++                unnamed_addr.hash(&mut state);
++                alignment.hash(&mut state);
++                if let Some(value) = initializer {
++                    hash_symbols(value, &mut state);
++                }
++                6u8.hash(&mut state);
++            }
++        }
++    }
+     Some(state.digest())
+ }
+ 
+diff --git a/crates/zil-backend-llvm/src/machine_cgu/layout/tests.rs b/crates/zil-backend-llvm/src/machine_cgu/layout/tests.rs
+index 41690718a8f33596d5b1617649629f397dd15d28..0cd2d49b157fbc4fbbf1d9fbe05e63f6fe00a4aa 100644
+--- a/crates/zil-backend-llvm/src/machine_cgu/layout/tests.rs
++++ b/crates/zil-backend-llvm/src/machine_cgu/layout/tests.rs
+@@ -257,6 +257,291 @@ fn layout_key_binds_current_model_planning_projection_and_policy() {
+     );
+ }
+ 
++fn projection_key(module: &Module, source: &LirModule, count: usize) -> Fingerprint {
++    action_key(
++        module,
++        &source.as_view(),
++        EntryPoint::None,
++        count,
++        true,
++        CallImportPolicy::Complete,
++        Fingerprint::of(b"projection-test-compiler"),
++    )
++    .unwrap()
++}
++
++#[test]
++fn layout_projection_reuses_multi_body_edits_but_replays_every_current_operand() {
++    let directory = Directory::new();
++    let (mut module, source) = fixture();
++    for item in &mut module.items[3..5] {
++        let Item::Function(function) = item else {
++            unreachable!()
++        };
++        function.blocks.as_mut().unwrap()[0].instructions.insert(
++            0,
++            Inst::new(
++                Some("constant".into()),
++                Op::Freeze(Arg::new(Ty::Int(32), Val::Int(7))),
++            ),
++        );
++    }
++    zil_llvm_api::validate_module(&module).unwrap();
++    let (_, layout) = planned(&module, &source);
++    let key = projection_key(&module, &source, 2);
++    let cache = || Cache {
++        root: directory.0.clone(),
++        key,
++    };
++    cache().pending(&layout).unwrap().pin().unwrap().commit();
++    let mut changed = module.clone();
++    for (offset, item) in changed.items[3..5].iter_mut().enumerate() {
++        let Item::Function(function) = item else {
++            unreachable!()
++        };
++        function.blocks.as_mut().unwrap()[0].instructions[0].op =
++            Op::Freeze(Arg::new(Ty::Int(32), Val::Int(100 + offset as i128)));
++    }
++    let Item::Global(global) = &mut changed.items[6] else {
++        unreachable!()
++    };
++    global.initializer = Some(Val::Int(99));
++    zil_llvm_api::validate_module(&changed).unwrap();
++    assert_ne!(changed, module);
++    assert_eq!(projection_key(&changed, &source, 2), key);
++    let loaded = cache().load(&changed, &source.as_view(), 2).unwrap();
++    let current = loaded.replay(changed.clone());
++    let (uncached, _) = planned(&changed, &source);
++    assert_eq!(current, uncached.units);
++    assert_ne!(current, layout.replay(module));
++    for unit in &current {
++        zil_llvm_api::validate_module(unit).unwrap();
++    }
++    // Body types are not placement inputs. Reusing the recipe must still
++    // present a malformed current instruction to the native-unit preflight.
++    let Item::Function(function) = &mut changed.items[3] else {
++        unreachable!()
++    };
++    function.blocks.as_mut().unwrap()[0].instructions[0].op =
++        Op::Freeze(Arg::new(Ty::Int(0), Val::Int(7)));
++    assert_eq!(projection_key(&changed, &source, 2), key);
++    let invalid = cache()
++        .load(&changed, &source.as_view(), 2)
++        .unwrap()
++        .replay(changed.clone());
++    let (uncached, _) = planned(&changed, &source);
++    assert_eq!(invalid, uncached.units);
++    assert!(
++        invalid
++            .iter()
++            .any(|unit| zil_llvm_api::validate_module(unit).is_err())
++    );
++}
++
++#[test]
++fn layout_projection_binds_address_direct_call_linkage_and_definition_changes() {
++    let (mut module, source) = fixture();
++    let Item::Function(caller) = &mut module.items[3] else {
++        unreachable!()
++    };
++    caller.blocks.as_mut().unwrap()[0].instructions.insert(
++        0,
++        Inst::new(
++            Some("fp".into()),
++            Op::Freeze(Arg::new(Ty::Ptr, Val::Global("zil.fn.1".into()))),
++        ),
++    );
++    zil_llvm_api::validate_module(&module).unwrap();
++    let key = projection_key(&module, &source, 2);
++    let variants: [fn(&mut Module); 5] = [
++        |m| {
++            let Item::Function(f) = &mut m.items[3] else {
++                unreachable!()
++            };
++            let Op::Call { callee, .. } = &mut f.blocks.as_mut().unwrap()[0].instructions[1].op
++            else {
++                unreachable!()
++            };
++            *callee = Val::Local("fp".into());
++        },
++        |m| {
++            let Item::Function(f) = &mut m.items[3] else {
++                unreachable!()
++            };
++            f.blocks.as_mut().unwrap()[0].instructions[0].op =
++                Op::Freeze(Arg::new(Ty::Ptr, Val::Global("foreign".into())));
++        },
++        |m| {
++            let Item::Function(f) = &mut m.items[4] else {
++                unreachable!()
++            };
++            f.linkage = Linkage::AvailableExternally;
++        },
++        |m| {
++            let Item::Function(f) = &mut m.items[4] else {
++                unreachable!()
++            };
++            *f = f.declaration();
++        },
++        |m| {
++            let Item::Global(g) = &mut m.items[6] else {
++                unreachable!()
++            };
++            g.linkage = Linkage::External;
++        },
++    ];
++    for change in variants {
++        let mut changed = module.clone();
++        change(&mut changed);
++        assert_ne!(projection_key(&changed, &source, 2), key);
++    }
++    let mut addressed = module.clone();
++    addressed.items.push(Item::Global(Global {
++        name: "address".into(),
++        linkage: Linkage::External,
++        ty: Ty::Ptr,
++        initializer: Some(Val::Global("state".into())),
++        constant: false,
++        unnamed_addr: false,
++        alignment: 8,
++    }));
++    let key = projection_key(&addressed, &source, 2);
++    let Item::Global(g) = addressed.items.last_mut().unwrap() else {
++        unreachable!()
++    };
++    g.initializer = Some(Val::Global("zil.fn.1".into()));
++    assert_ne!(projection_key(&addressed, &source, 2), key);
++
++    addressed.items.push(Item::Global(Global {
++        name: "nested".into(),
++        linkage: Linkage::External,
++        ty: Ty::array(1, Ty::array(1, Ty::Ptr)),
++        initializer: Some(Val::Array(vec![Arg::new(
++            Ty::array(1, Ty::Ptr),
++            Val::Array(vec![Arg::new(
++                Ty::Ptr,
++                Val::Gep {
++                    ty: Ty::Int(32),
++                    ptr: Box::new(Val::Global("state".into())),
++                    indices: vec![Arg::new(Ty::Int(64), Val::Int(0))],
++                },
++            )]),
++        )])),
++        constant: true,
++        unnamed_addr: false,
++        alignment: 8,
++    }));
++    zil_llvm_api::validate_module(&addressed).unwrap();
++    let key = projection_key(&addressed, &source, 2);
++    let Item::Global(g) = addressed.items.last_mut().unwrap() else {
++        unreachable!()
++    };
++    let Some(Val::Array(outer)) = &mut g.initializer else {
++        unreachable!()
++    };
++    let Val::Array(inner) = &mut outer[0].value else {
++        unreachable!()
++    };
++    let Val::Gep { indices, .. } = &mut inner[0].value else {
++        unreachable!()
++    };
++    // Scalar GEP indices cannot affect placement, but a deeply nested global
++    // pointer must remain visible through both array levels and the GEP.
++    indices[0].value = Val::Int(1);
++    assert_eq!(projection_key(&addressed, &source, 2), key);
++    let Item::Global(g) = addressed.items.last_mut().unwrap() else {
++        unreachable!()
++    };
++    let Some(Val::Array(outer)) = &mut g.initializer else {
++        unreachable!()
++    };
++    let Val::Array(inner) = &mut outer[0].value else {
++        unreachable!()
++    };
++    let Val::Gep { ptr, .. } = &mut inner[0].value else {
++        unreachable!()
++    };
++    *ptr = Box::new(Val::Global("address".into()));
++    assert_ne!(projection_key(&addressed, &source, 2), key);
++}
++
++#[test]
++fn layout_projection_binds_complete_import_cost_threshold() {
++    let (mut module, mut source) = fixture();
++    module.items = vec![
++        Item::Function(function("zil.fn.0", Some("zil.fn.2"))),
++        Item::Function(function("zil.fn.1", Some("zil.fn.2"))),
++        Item::Function(function("zil.fn.2", None)),
++    ];
++    for (index, f) in source.functions.iter_mut().enumerate() {
++        f.span.file = FileId(index as u32);
++    }
++    let mut layout = None;
++    let plan = partition_view_recorded(
++        module.clone(),
++        &source.as_view(),
++        EntryPoint::None,
++        3,
++        true,
++        true,
++        &mut layout,
++    );
++    assert_eq!(plan.fallback, None);
++    let layout = layout.unwrap();
++    assert_eq!(
++        layout.units.iter().map(|u| u.imports.len()).sum::<usize>(),
++        2
++    );
++    let key = projection_key(&module, &source, 3);
++    let Item::Function(leaf) = &mut module.items[2] else {
++        unreachable!()
++    };
++    for index in 0..5 {
++        leaf.blocks.as_mut().unwrap()[0].instructions.insert(
++            0,
++            Inst::new(
++                Some(format!("extra{index}")),
++                Op::Freeze(Arg::new(Ty::Int(32), Val::Int(index))),
++            ),
++        );
++    }
++    zil_llvm_api::validate_module(&module).unwrap();
++    assert_ne!(projection_key(&module, &source, 3), key);
++    assert!(!layout.valid(&module, &source.as_view(), 3));
++    let mut rejected = None;
++    let original = super::super::partition_view_once(
++        module.clone(),
++        &source.as_view(),
++        EntryPoint::None,
++        3,
++        true,
++        true,
++        &mut rejected,
++    );
++    assert_eq!(
++        original.fallback,
++        Some("complete O2 call closure exceeds total copy cost")
++    );
++    let ordinary = super::super::partition_view(
++        module.clone(),
++        &source.as_view(),
++        EntryPoint::None,
++        3,
++        true,
++        false,
++    );
++    let current = partition_view_recorded(
++        module,
++        &source.as_view(),
++        EntryPoint::None,
++        3,
++        true,
++        true,
++        &mut rejected,
++    );
++    assert_eq!(current.units, ordinary.units);
++}
++
+ #[test]
+ fn layout_records_are_bounded_and_require_complete_current_ownership() {
+     let (module, source) = fixture();

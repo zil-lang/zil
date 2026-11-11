@@ -1,10 +1,11 @@
 {
   "format": 1,
   "created_utc": "2026-11-11T01:13:36.759319+00:00",
-  "prior_archive": "c6a629877009a408f7c15f56389d50f6358b5162",
+  "prior_archive": "c43cda662622d81d7a43849ac7bf5266062fc8f7",
   "commit_parents": [
-    "c6a629877009a408f7c15f56389d50f6358b5162",
-    "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56"
+    "c43cda662622d81d7a43849ac7bf5266062fc8f7",
+    "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
+    "1679decf177c9a6eda5a64063c525f06e44e56a2"
   ],
   "commit_tips": [
     "0a8929d4f6126683737d62ab9def1d8e67a784ca",
@@ -58,7 +59,9 @@
     "13c53cf315d0eaa0512424707bcb0ed60c6f8e33",
     "2222699d7382c6c2d986c256cbc7610329cd421c",
     "5aa8057f9cc0bff651fc6a44147b4e6e2dd307de",
-    "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56"
+    "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56",
+    "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
+    "1679decf177c9a6eda5a64063c525f06e44e56a2"
   ],
   "local_refs": {},
   "remote_refs": {
@@ -105,7 +108,9 @@
     "refs/heads/task/helper-current-main-validation": "467b5ffd791c6aae80cc524b1c23cf7259182661",
     "refs/heads/task/repeatable-closure-drop": "71d36d72fcdaacc8d73ccdf1eb9ac23d217d7071",
     "refs/heads/task/compiler-consolidation": "dafe801c34b709520e50b31fe86f944c3f346da6",
-    "refs/heads/task/compiler-composition-validation": "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56"
+    "refs/heads/task/compiler-composition-validation": "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56",
+    "refs/heads/task/compiler-layout-projection": "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
+    "refs/heads/task/compiler-bounded-imports": "1679decf177c9a6eda5a64063c525f06e44e56a2"
   },
   "worktrees": [],
   "missing_commit_objects": [],
@@ -439,9 +444,31 @@
       "ref": "refs/heads/task/compiler-composition-validation",
       "head_before_retirement": "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56",
       "source_evidence_head": "5aa8057f9cc0bff651fc6a44147b4e6e2dd307de",
-      "retirement_completed": false,
+      "retirement_completed": true,
       "reason": "Composition experiments, profiling and rejected candidates have immutable archival parents; accepted production is already in main. This final guarded workflow only retires its own archived ref.",
-      "archive_is_acceptance": false
+      "archive_is_acceptance": false,
+      "completed_run": 42972887557,
+      "completion_receipt": "research/compiler-multi-edit-20261111/raw-evidence.json -> raw/multi-edit/retirement-receipt.json"
+    },
+    {
+      "ref": "refs/heads/task/compiler-layout-projection",
+      "head_before_retirement": "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
+      "source_evidence_head": "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
+      "retirement_completed": false,
+      "disposition": "rejected",
+      "reason": "Not adopted: mixed original screen and only 0.9475% hypothetical weighted gain in the added multi-file matrix; Rust faster in all 16 comparable CLI cells.",
+      "archive_is_acceptance": false,
+      "evidence_directory": "research/compiler-multi-edit-20261111"
+    },
+    {
+      "ref": "refs/heads/task/compiler-bounded-imports",
+      "head_before_retirement": "1679decf177c9a6eda5a64063c525f06e44e56a2",
+      "source_evidence_head": "1679decf177c9a6eda5a64063c525f06e44e56a2",
+      "retirement_completed": false,
+      "disposition": "rejected",
+      "reason": "NoGo: all eight native runtime cases regressed 61.6%–112.3% from main and failed the unchanged 10% quality gate.",
+      "archive_is_acceptance": false,
+      "evidence_directory": "research/compiler-multi-edit-20261111"
     }
   ],
   "research_sources": [
@@ -576,5 +603,32 @@
       "decision": "Profile completed; worker-owned candidate not adopted; source, raw records and all negative values preserved"
     }
   },
-  "updated_utc": "2026-11-11 06:29:08 UTC"
+  "updated_utc": "2026-11-11 08:31:45 UTC",
+  "compiler_multi_edit_20261111": {
+    "directory": "research/compiler-multi-edit-20261111",
+    "main": "99035931d358add0eaed6d4535035c38413701dd",
+    "goal_at_preservation": "acdeb7db04b796bf080ec527f1089b857e0c9431",
+    "source_heads": {
+      "layout": "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
+      "bounded": "1679decf177c9a6eda5a64063c525f06e44e56a2"
+    },
+    "source_trees": {
+      "layout": "d260d616a23af8f9c716fbe26c38c200e0eeeb5f",
+      "bounded": "1e599b1bc2f0f6a0c438088a30faee9ff4018271"
+    },
+    "source_decision": "Both candidates not adopted; no main update",
+    "evidence_pointer": "research/compiler-multi-edit-20261111/raw-evidence.json",
+    "raw_sha256": "6058113ae324218f7e159c7f9fc35be71408e7bebf5210ce79d00554863fe330",
+    "raw_library_version": 1,
+    "concurrency_protocol_sha256": "770d5805601c87ed08e220b8ba1aa7ab95684fac32f29bc8524edede7954d25b",
+    "concurrency_scope": "Unchanged main A/A plus Rust; 36 final batches, 252 total compiles, 756 captured native I/O; no optimization-candidate claim",
+    "observed_refs": {
+      "main": "99035931d358add0eaed6d4535035c38413701dd",
+      "goal": "acdeb7db04b796bf080ec527f1089b857e0c9431",
+      "archive/source-history": "c43cda662622d81d7a43849ac7bf5266062fc8f7",
+      "task/compiler-layout-projection": "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
+      "task/compiler-bounded-imports": "1679decf177c9a6eda5a64063c525f06e44e56a2"
+    },
+    "retirement_status": "Source and evidence preservation before recipe construction; candidate refs still exist"
+  }
 }

@@ -1,0 +1,61 @@
+{
+  "format": "zil-multi-edit-raw-evidence-pointer/1",
+  "library_file_id": "libfile_fde3_f-543f5b7d390481918a9a3fc3e4099f2b_bd147c3485448191a9df16b3c3cea7dd",
+  "library_version": 1,
+  "url": "https://chatgpt.com/library?file_id=libfile_fde3_f-543f5b7d390481918a9a3fc3e4099f2b_bd147c3485448191a9df16b3c3cea7dd&account_id=personal",
+  "filename": "zil-multi-edit-raw-evidence-20261111.tar.gz",
+  "sha256": "6058113ae324218f7e159c7f9fc35be71408e7bebf5210ce79d00554863fe330",
+  "bytes": 20657285,
+  "raw_files": 6212,
+  "logical_key_artifacts": 10,
+  "unique_key_artifacts": 8,
+  "tar_entries": 6223,
+  "integrity": {
+    "path": "/workspace/scratch/abf690ce880c/out/multi-edit/zil-multi-edit-raw-evidence-20261111.tar.gz",
+    "sha256": "6058113ae324218f7e159c7f9fc35be71408e7bebf5210ce79d00554863fe330",
+    "bytes": 20657285,
+    "tar_entries": 6223,
+    "verified_payloads": 6220,
+    "raw_files": 6212,
+    "logical_key_artifacts": 10,
+    "gates": {
+      "complete": true,
+      "batches": 36,
+      "final_children": 84,
+      "source_identities": {
+        "A": "99035931d358add0eaed6d4535035c38413701dd",
+        "B": "99035931d358add0eaed6d4535035c38413701dd"
+      },
+      "meaning": "Main A/A reference only; no candidate improvement claim"
+    },
+    "runtime": {
+      "complete": true,
+      "status": "Failed",
+      "decision": "NoGo",
+      "counts": {
+        "clean_compilations": 24,
+        "native_total": 216,
+        "native_formal": 144
+      },
+      "source_claims": {
+        "A": "99035931d358add0eaed6d4535035c38413701dd",
+        "B": "1679decf177c9a6eda5a64063c525f06e44e56a2"
+      },
+      "meaning": "All functional outputs valid; runtime quality gate failed; not incomplete"
+    },
+    "not_executed_scopes": [
+      "a60 prepared off-policy and candidate-concurrency matrices: not executed after mixed screening",
+      "1679 post-runtime compilation and concurrency screens: forbidden after runtime NoGo",
+      "available_externally replacement: history audit only, no new implementation or measurement",
+      "Rejected candidates original eight-case full weighted acceptance rerun",
+      "Rejected candidates full workspace/reference/text/remote-CI product acceptance"
+    ]
+  },
+  "scope_note": "Complete raw evidence through the main concurrency audit. Source code, scripts and reports are in this Git archive. Later retirement receipts will be recorded separately here; no later receipt is claimed to be inside this frozen tar.",
+  "previous_version": {
+    "version": 0,
+    "sha256": "9162ca3fb141e6c8fab9f57b7062dfa7b4dc29b94791183f1c7c4c9203845144",
+    "scope": "Earlier e9 screen and fixture-repair checkpoint only; superseded for complete experimental evidence."
+  }
+}
+
