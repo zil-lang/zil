@@ -1,0 +1,38 @@
+{
+  "date": "2026-11-11",
+  "base_commit": "99035931d358add0eaed6d4535035c38413701dd",
+  "source_commit": "1735a305ccfff2c95ac2658b6c2ca427dc9eb392",
+  "source_sha256": "a657bfe2c05b16be3dea346ec6afee2f9470ce14a820f1606b876b97fae94c57",
+  "source_git_blob": "98762b26506c0e35ec11072b8d397c845b407eff",
+  "zit_reference_sha256": "8ac65b2ce90c32d1bee9aebe480e2f51bfa560b6f7e9d2633a91fa2732ab6bfb",
+  "runtime": "Node v22.16.0",
+  "scope": "Synthetic synchronous scalar query graph; NOT ZIL compiler performance",
+  "controls_per_process": {"passed": true, "differential_comparisons": 2730, "input_batches": 1310, "deep_chain": 1200, "dynamic_reversals": 600, "random_dynamic_dags": 200},
+  "sampling": {"fresh_processes": 3, "warmup_requests_per_cell": 2, "measured_requests_per_cell": 9, "sizes_functions": [512,4096,16384], "summary": "median of three process medians; order alternates within each process"},
+  "raw_results": [
+    {"file": "frozen-1.json", "sha256": "26aa5d1c87fc92a672a7ba1b3f4e5bdedf714d16ea2fcc4325f801dac32fdd76"},
+    {"file": "frozen-2.json", "sha256": "79a0fa34c67ba8319ece2a1ffd9c58187ad039648c1cae44c2cd508925964d57"},
+    {"file": "frozen-3-retry.json", "sha256": "c3859b59e68a377f77d3a9321cb769e69585cdf2010eae6112fea2d9b09974e4"}
+  ],
+  "raw_result_delivery": "Full JSON samples, preliminary excluded runs and source are in the conversation delivery bundle; source and this receipt are persisted on the research branch.",
+  "large_model": [
+    {"scenario":"unchanged","nodes":114948,"edges":180480,"median_ms":{"height":0.000251,"pull":0.000241,"invalidate":0.000261},"executed":{"height":0,"pull":0,"invalidate":0},"pull_dependency_checks":0},
+    {"scenario":"private-one","nodes":114948,"edges":180480,"median_ms":{"height":0.052147,"pull":11.440182,"invalidate":0.111345},"executed":{"height":8,"pull":8,"invalidate":12},"pull_dependency_checks":180158},
+    {"scenario":"private-64","nodes":114948,"edges":180480,"median_ms":{"height":0.303901,"pull":7.661241,"invalidate":0.351672},"executed":{"height":386,"pull":386,"invalidate":390},"pull_dependency_checks":179906},
+    {"scenario":"comment-only","nodes":114948,"edges":180480,"median_ms":{"height":0.004757,"pull":10.505534,"invalidate":0.131115},"executed":{"height":1,"pull":1,"invalidate":12},"pull_dependency_checks":180480},
+    {"scenario":"namespace-fanout","nodes":114948,"edges":180480,"median_ms":{"height":46.384470,"pull":47.007906,"invalidate":52.621259},"executed":{"height":49409,"pull":49409,"invalidate":49409},"pull_dependency_checks":131329},
+    {"scenario":"all-bodies","nodes":114948,"edges":180480,"median_ms":{"height":130.655978,"pull":100.605484,"invalidate":151.636540},"executed":{"height":98561,"pull":98561,"invalidate":98561},"pull_dependency_checks":98561},
+    {"scenario":"dynamic-switch","nodes":114948,"edges":196864,"median_ms":{"height":26.385225,"pull":32.764564,"invalidate":28.272266},"executed":{"height":16641,"pull":16641,"invalidate":16641},"pull_dependency_checks":164097}
+  ],
+  "excluded_runs": {
+    "first-run.json": "initial invalidate comparator redundantly validated clean ancestors; not used",
+    "large-run.json": "same superseded comparator; not used",
+    "strengthened-baselines.json": "earlier source without extra topology tests",
+    "final-run.json": "earlier source with rank traversal on every evaluation",
+    "structural-rank-only.json": "preliminary run; not used in frozen summary",
+    "frozen-3.json": "60-second outer multi-process timeout; empty output, not counted; independently rerun as frozen-3-retry.json"
+  },
+  "not_run": ["production Source/Types/Analyze/Verify integration", "LLVM/linker and native correctness", "Rust comparison", "compiler RSS", "representative workload weighting", "independent review"],
+  "limitations": ["fixed node inventory and roots", "no automatic SCC extraction", "no concurrency or asynchronous publication", "no persistent cache or eviction", "SCC control is an explicit local monotone solver", "failure restores source inputs and cold-rebuilds instead of fine-grained rollback", "JIT/GC and within-process shared state remain timing limitations"],
+  "acceptance": "Research model only; production default unchanged"
+}
