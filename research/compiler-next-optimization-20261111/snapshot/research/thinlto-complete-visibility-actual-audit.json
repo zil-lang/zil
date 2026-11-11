@@ -1,0 +1,1909 @@
+{
+  "format": "independent-thin-complete-actual-visibility-audit/1",
+  "protocol_sha256": "5b0ff104485ba18c34db170716ead50cc438bfc3b8c8ebc1c1d1266876946728",
+  "method": "derived from existing actual import LLVM text and current Rust proof; no compiler/native/tool execution",
+  "cases": {
+    "n64/base": {
+      "original_source_cost": 35777,
+      "original_allowed_copy_cost": 31360,
+      "units": [
+        {
+          "unit": 0,
+          "canonical_count": 68,
+          "allowed_count": 504,
+          "allowed_copy_cost": 31360,
+          "required_count": 56,
+          "actual_AE_count": 56,
+          "actual_AE_original_name_cost": 3136,
+          "actual_import_IR_block_instruction_count": 9699,
+          "actual_import_IR_sha256": "a83f8cc9153e98bb60a3282f8003e2c3a3c98418e607ed90d8c0a8a9a1330cff",
+          "actual_AE": [
+            {
+              "name": "zil.fn.104",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 209
+            },
+            {
+              "name": "zil.fn.113",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.122",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 172
+            },
+            {
+              "name": "zil.fn.131",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 137
+            },
+            {
+              "name": "zil.fn.14",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.140",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 199
+            },
+            {
+              "name": "zil.fn.158",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 159
+            },
+            {
+              "name": "zil.fn.167",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 126
+            },
+            {
+              "name": "zil.fn.176",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 195
+            },
+            {
+              "name": "zil.fn.185",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 180
+            },
+            {
+              "name": "zil.fn.194",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 144
+            },
+            {
+              "name": "zil.fn.203",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.212",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.23",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 172
+            },
+            {
+              "name": "zil.fn.230",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 139
+            },
+            {
+              "name": "zil.fn.239",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 201
+            },
+            {
+              "name": "zil.fn.248",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 192
+            },
+            {
+              "name": "zil.fn.257",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 159
+            },
+            {
+              "name": "zil.fn.266",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 126
+            },
+            {
+              "name": "zil.fn.275",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 198
+            },
+            {
+              "name": "zil.fn.284",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 177
+            },
+            {
+              "name": "zil.fn.302",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.311",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 199
+            },
+            {
+              "name": "zil.fn.32",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 137
+            },
+            {
+              "name": "zil.fn.320",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 172
+            },
+            {
+              "name": "zil.fn.329",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 142
+            },
+            {
+              "name": "zil.fn.338",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 201
+            },
+            {
+              "name": "zil.fn.347",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 192
+            },
+            {
+              "name": "zil.fn.356",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 159
+            },
+            {
+              "name": "zil.fn.374",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 195
+            },
+            {
+              "name": "zil.fn.383",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 177
+            },
+            {
+              "name": "zil.fn.392",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 144
+            },
+            {
+              "name": "zil.fn.401",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.41",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 195
+            },
+            {
+              "name": "zil.fn.410",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 197
+            },
+            {
+              "name": "zil.fn.419",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 168
+            },
+            {
+              "name": "zil.fn.428",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 142
+            },
+            {
+              "name": "zil.fn.446",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 192
+            },
+            {
+              "name": "zil.fn.455",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 161
+            },
+            {
+              "name": "zil.fn.464",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 126
+            },
+            {
+              "name": "zil.fn.473",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 195
+            },
+            {
+              "name": "zil.fn.482",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 177
+            },
+            {
+              "name": "zil.fn.491",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 148
+            },
+            {
+              "name": "zil.fn.50",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 188
+            },
+            {
+              "name": "zil.fn.500",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.518",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 166
+            },
+            {
+              "name": "zil.fn.527",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 133
+            },
+            {
+              "name": "zil.fn.536",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.545",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 192
+            },
+            {
+              "name": "zil.fn.554",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 161
+            },
+            {
+              "name": "zil.fn.563",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 126
+            },
+            {
+              "name": "zil.fn.572",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 199
+            },
+            {
+              "name": "zil.fn.59",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 159
+            },
+            {
+              "name": "zil.fn.68",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 126
+            },
+            {
+              "name": "zil.fn.86",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 177
+            },
+            {
+              "name": "zil.fn.95",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 144
+            }
+          ]
+        },
+        {
+          "unit": 1,
+          "canonical_count": 72,
+          "allowed_count": 0,
+          "allowed_copy_cost": 0,
+          "required_count": 0,
+          "actual_AE_count": 0,
+          "actual_AE_original_name_cost": 0,
+          "actual_import_IR_block_instruction_count": 0,
+          "actual_import_IR_sha256": "f6865250e55c57aa6c7566b71f82eebb70fac66811f8a7ab89d1388fd345487e",
+          "actual_AE": []
+        },
+        {
+          "unit": 2,
+          "canonical_count": 72,
+          "allowed_count": 0,
+          "allowed_copy_cost": 0,
+          "required_count": 0,
+          "actual_AE_count": 0,
+          "actual_AE_original_name_cost": 0,
+          "actual_import_IR_block_instruction_count": 0,
+          "actual_import_IR_sha256": "f320acb828598c4237e02e6d1ade481b0348a728714e8cf44a7f58b3b165cd23",
+          "actual_AE": []
+        },
+        {
+          "unit": 3,
+          "canonical_count": 72,
+          "allowed_count": 0,
+          "allowed_copy_cost": 0,
+          "required_count": 0,
+          "actual_AE_count": 0,
+          "actual_AE_original_name_cost": 0,
+          "actual_import_IR_block_instruction_count": 0,
+          "actual_import_IR_sha256": "c7e11585a349247a0a6f22e6ad4a73138cf288b76e2da4ab5e39a0486665197e",
+          "actual_AE": []
+        },
+        {
+          "unit": 4,
+          "canonical_count": 72,
+          "allowed_count": 0,
+          "allowed_copy_cost": 0,
+          "required_count": 0,
+          "actual_AE_count": 0,
+          "actual_AE_original_name_cost": 0,
+          "actual_import_IR_block_instruction_count": 0,
+          "actual_import_IR_sha256": "c0171e11dfe60efd44a86ead33e9ccd4bd0faa3ffdcff281008f9be41eb43e10",
+          "actual_AE": []
+        },
+        {
+          "unit": 5,
+          "canonical_count": 72,
+          "allowed_count": 0,
+          "allowed_copy_cost": 0,
+          "required_count": 0,
+          "actual_AE_count": 0,
+          "actual_AE_original_name_cost": 0,
+          "actual_import_IR_block_instruction_count": 0,
+          "actual_import_IR_sha256": "4dddc46686f42ca5c29ab96e3a0e96317c4f03df5ec73fd7e6be7bbd939ff0d4",
+          "actual_AE": []
+        },
+        {
+          "unit": 6,
+          "canonical_count": 72,
+          "allowed_count": 0,
+          "allowed_copy_cost": 0,
+          "required_count": 0,
+          "actual_AE_count": 0,
+          "actual_AE_original_name_cost": 0,
+          "actual_import_IR_block_instruction_count": 0,
+          "actual_import_IR_sha256": "e2dda254a016f5eb7ffa4c4b898c4edd206c931c52a8e536e0b26f6ae4bf21c5",
+          "actual_AE": []
+        },
+        {
+          "unit": 7,
+          "canonical_count": 72,
+          "allowed_count": 0,
+          "allowed_copy_cost": 0,
+          "required_count": 0,
+          "actual_AE_count": 0,
+          "actual_AE_original_name_cost": 0,
+          "actual_import_IR_block_instruction_count": 0,
+          "actual_import_IR_sha256": "82a939f49dea14f6ee47fc96e3312d685963db3ee129811f1fb2fe1f629450ba",
+          "actual_AE": []
+        }
+      ],
+      "known_no_body_diagnostics": [
+        {
+          "symbol": "getchar",
+          "reason": "None",
+          "raw": "Error importing module: Failed to import function getchar due to None"
+        }
+      ],
+      "raw_link_receipt": "out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/1794393172220145301-73/receipt.json"
+    },
+    "n256/base": {
+      "original_source_cost": 144449,
+      "original_allowed_copy_cost": 125440,
+      "units": [
+        {
+          "unit": 0,
+          "canonical_count": 284,
+          "allowed_count": 2016,
+          "allowed_copy_cost": 125440,
+          "required_count": 224,
+          "actual_AE_count": 224,
+          "actual_AE_original_name_cost": 12544,
+          "actual_import_IR_block_instruction_count": 38938,
+          "actual_import_IR_sha256": "c023a93c6f38fdb9464296c7c6ccdf1180bcf52758089aaf089a5bd90f05d21d",
+          "actual_AE": [
+            {
+              "name": "zil.fn.1004",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 199
+            },
+            {
+              "name": "zil.fn.1022",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 137
+            },
+            {
+              "name": "zil.fn.1031",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 199
+            },
+            {
+              "name": "zil.fn.104",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 209
+            },
+            {
+              "name": "zil.fn.1040",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 184
+            },
+            {
+              "name": "zil.fn.1049",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 157
+            },
+            {
+              "name": "zil.fn.1058",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 122
+            },
+            {
+              "name": "zil.fn.1067",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.1076",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 182
+            },
+            {
+              "name": "zil.fn.1094",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 201
+            },
+            {
+              "name": "zil.fn.1103",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.1112",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 170
+            },
+            {
+              "name": "zil.fn.1121",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 137
+            },
+            {
+              "name": "zil.fn.113",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.1130",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 199
+            },
+            {
+              "name": "zil.fn.1139",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 187
+            },
+            {
+              "name": "zil.fn.1148",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 155
+            },
+            {
+              "name": "zil.fn.1166",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.1175",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 178
+            },
+            {
+              "name": "zil.fn.1184",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 152
+            },
+            {
+              "name": "zil.fn.1193",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 209
+            },
+            {
+              "name": "zil.fn.1202",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.1211",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 170
+            },
+            {
+              "name": "zil.fn.122",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 172
+            },
+            {
+              "name": "zil.fn.1220",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 137
+            },
+            {
+              "name": "zil.fn.1238",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 184
+            },
+            {
+              "name": "zil.fn.1247",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 159
+            },
+            {
+              "name": "zil.fn.1256",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 126
+            },
+            {
+              "name": "zil.fn.1265",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.1274",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 175
+            },
+            {
+              "name": "zil.fn.1283",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 146
+            },
+            {
+              "name": "zil.fn.1292",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 209
+            },
+            {
+              "name": "zil.fn.131",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 137
+            },
+            {
+              "name": "zil.fn.1310",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 172
+            },
+            {
+              "name": "zil.fn.1319",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 139
+            },
+            {
+              "name": "zil.fn.1328",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.1337",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 184
+            },
+            {
+              "name": "zil.fn.1346",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 159
+            },
+            {
+              "name": "zil.fn.1355",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 126
+            },
+            {
+              "name": "zil.fn.1364",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 201
+            },
+            {
+              "name": "zil.fn.1382",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 144
+            },
+            {
+              "name": "zil.fn.1391",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.14",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.140",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 199
+            },
+            {
+              "name": "zil.fn.1400",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.1409",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 174
+            },
+            {
+              "name": "zil.fn.1418",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 139
+            },
+            {
+              "name": "zil.fn.1427",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.1436",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 192
+            },
+            {
+              "name": "zil.fn.1454",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 126
+            },
+            {
+              "name": "zil.fn.1463",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 199
+            },
+            {
+              "name": "zil.fn.1472",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 173
+            },
+            {
+              "name": "zil.fn.1481",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 144
+            },
+            {
+              "name": "zil.fn.1490",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.1499",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.1508",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 172
+            },
+            {
+              "name": "zil.fn.1526",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 201
+            },
+            {
+              "name": "zil.fn.1535",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 192
+            },
+            {
+              "name": "zil.fn.1544",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 159
+            },
+            {
+              "name": "zil.fn.1553",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 126
+            },
+            {
+              "name": "zil.fn.1562",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 199
+            },
+            {
+              "name": "zil.fn.1571",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 176
+            },
+            {
+              "name": "zil.fn.158",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 159
+            },
+            {
+              "name": "zil.fn.1580",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 144
+            },
+            {
+              "name": "zil.fn.1598",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 199
+            },
+            {
+              "name": "zil.fn.1607",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 168
+            },
+            {
+              "name": "zil.fn.1616",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 142
+            },
+            {
+              "name": "zil.fn.1625",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.1634",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 192
+            },
+            {
+              "name": "zil.fn.1643",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 159
+            },
+            {
+              "name": "zil.fn.1652",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 126
+            },
+            {
+              "name": "zil.fn.167",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 126
+            },
+            {
+              "name": "zil.fn.1670",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 173
+            },
+            {
+              "name": "zil.fn.1679",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 148
+            },
+            {
+              "name": "zil.fn.1688",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.1697",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 199
+            },
+            {
+              "name": "zil.fn.1706",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 164
+            },
+            {
+              "name": "zil.fn.1715",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 135
+            },
+            {
+              "name": "zil.fn.1724",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.1742",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 161
+            },
+            {
+              "name": "zil.fn.1751",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 128
+            },
+            {
+              "name": "zil.fn.176",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 195
+            },
+            {
+              "name": "zil.fn.1760",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.1769",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 177
+            },
+            {
+              "name": "zil.fn.1778",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 148
+            },
+            {
+              "name": "zil.fn.1787",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.1796",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 202
+            },
+            {
+              "name": "zil.fn.1814",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 133
+            },
+            {
+              "name": "zil.fn.1823",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.1832",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 192
+            },
+            {
+              "name": "zil.fn.1841",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 164
+            },
+            {
+              "name": "zil.fn.185",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 180
+            },
+            {
+              "name": "zil.fn.1850",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 128
+            },
+            {
+              "name": "zil.fn.1859",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.1868",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 181
+            },
+            {
+              "name": "zil.fn.1886",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 199
+            },
+            {
+              "name": "zil.fn.1895",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 199
+            },
+            {
+              "name": "zil.fn.1904",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 162
+            },
+            {
+              "name": "zil.fn.1913",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 137
+            },
+            {
+              "name": "zil.fn.1922",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.1931",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 192
+            },
+            {
+              "name": "zil.fn.194",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 144
+            },
+            {
+              "name": "zil.fn.1940",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 162
+            },
+            {
+              "name": "zil.fn.1958",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 201
+            },
+            {
+              "name": "zil.fn.1967",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 181
+            },
+            {
+              "name": "zil.fn.1976",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 148
+            },
+            {
+              "name": "zil.fn.1985",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 199
+            },
+            {
+              "name": "zil.fn.1994",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 199
+            },
+            {
+              "name": "zil.fn.2003",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 162
+            },
+            {
+              "name": "zil.fn.2012",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 137
+            },
+            {
+              "name": "zil.fn.203",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.2030",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 188
+            },
+            {
+              "name": "zil.fn.2039",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 158
+            },
+            {
+              "name": "zil.fn.2048",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 132
+            },
+            {
+              "name": "zil.fn.2057",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.2066",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 181
+            },
+            {
+              "name": "zil.fn.2075",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 148
+            },
+            {
+              "name": "zil.fn.2084",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.2102",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 166
+            },
+            {
+              "name": "zil.fn.2111",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 137
+            },
+            {
+              "name": "zil.fn.212",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.2120",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 200
+            },
+            {
+              "name": "zil.fn.2129",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 188
+            },
+            {
+              "name": "zil.fn.2138",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 153
+            },
+            {
+              "name": "zil.fn.2147",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 122
+            },
+            {
+              "name": "zil.fn.2156",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.2174",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 150
+            },
+            {
+              "name": "zil.fn.2183",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 201
+            },
+            {
+              "name": "zil.fn.2192",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.2201",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 166
+            },
+            {
+              "name": "zil.fn.2210",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 137
+            },
+            {
+              "name": "zil.fn.2219",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 199
+            },
+            {
+              "name": "zil.fn.2228",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 191
+            },
+            {
+              "name": "zil.fn.2246",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 122
+            },
+            {
+              "name": "zil.fn.2255",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.2264",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 182
+            },
+            {
+              "name": "zil.fn.2273",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 154
+            },
+            {
+              "name": "zil.fn.2282",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 201
+            },
+            {
+              "name": "zil.fn.2291",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.23",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 172
+            },
+            {
+              "name": "zil.fn.230",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 139
+            },
+            {
+              "name": "zil.fn.2300",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 170
+            },
+            {
+              "name": "zil.fn.239",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 201
+            },
+            {
+              "name": "zil.fn.248",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 192
+            },
+            {
+              "name": "zil.fn.257",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 159
+            },
+            {
+              "name": "zil.fn.266",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 126
+            },
+            {
+              "name": "zil.fn.275",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 198
+            },
+            {
+              "name": "zil.fn.284",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 177
+            },
+            {
+              "name": "zil.fn.302",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.311",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 199
+            },
+            {
+              "name": "zil.fn.32",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 137
+            },
+            {
+              "name": "zil.fn.320",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 172
+            },
+            {
+              "name": "zil.fn.329",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 142
+            },
+            {
+              "name": "zil.fn.338",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 201
+            },
+            {
+              "name": "zil.fn.347",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 192
+            },
+            {
+              "name": "zil.fn.356",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 159
+            },
+            {
+              "name": "zil.fn.374",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 195
+            },
+            {
+              "name": "zil.fn.383",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 177
+            },
+            {
+              "name": "zil.fn.392",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 144
+            },
+            {
+              "name": "zil.fn.401",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.41",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 195
+            },
+            {
+              "name": "zil.fn.410",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 197
+            },
+            {
+              "name": "zil.fn.419",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 168
+            },
+            {
+              "name": "zil.fn.428",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 142
+            },
+            {
+              "name": "zil.fn.446",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 192
+            },
+            {
+              "name": "zil.fn.455",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 161
+            },
+            {
+              "name": "zil.fn.464",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 126
+            },
+            {
+              "name": "zil.fn.473",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 195
+            },
+            {
+              "name": "zil.fn.482",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 177
+            },
+            {
+              "name": "zil.fn.491",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 148
+            },
+            {
+              "name": "zil.fn.50",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 188
+            },
+            {
+              "name": "zil.fn.500",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.518",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 166
+            },
+            {
+              "name": "zil.fn.527",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 133
+            },
+            {
+              "name": "zil.fn.536",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.545",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 192
+            },
+            {
+              "name": "zil.fn.554",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 161
+            },
+            {
+              "name": "zil.fn.563",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 126
+            },
+            {
+              "name": "zil.fn.572",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 199
+            },
+            {
+              "name": "zil.fn.59",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 159
+            },
+            {
+              "name": "zil.fn.590",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 148
+            },
+            {
+              "name": "zil.fn.599",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.608",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 195
+            },
+            {
+              "name": "zil.fn.617",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 168
+            },
+            {
+              "name": "zil.fn.626",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 133
+            },
+            {
+              "name": "zil.fn.635",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.644",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 192
+            },
+            {
+              "name": "zil.fn.662",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 128
+            },
+            {
+              "name": "zil.fn.671",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 201
+            },
+            {
+              "name": "zil.fn.68",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 126
+            },
+            {
+              "name": "zil.fn.680",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 181
+            },
+            {
+              "name": "zil.fn.689",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 148
+            },
+            {
+              "name": "zil.fn.698",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 199
+            },
+            {
+              "name": "zil.fn.707",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 199
+            },
+            {
+              "name": "zil.fn.716",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 166
+            },
+            {
+              "name": "zil.fn.734",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.743",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 188
+            },
+            {
+              "name": "zil.fn.752",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 162
+            },
+            {
+              "name": "zil.fn.761",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 132
+            },
+            {
+              "name": "zil.fn.770",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 205
+            },
+            {
+              "name": "zil.fn.779",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 181
+            },
+            {
+              "name": "zil.fn.788",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 148
+            },
+            {
+              "name": "zil.fn.806",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 195
+            },
+            {
+              "name": "zil.fn.815",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 166
+            },
+            {
+              "name": "zil.fn.824",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 137
+            },
+            {
+              "name": "zil.fn.833",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.842",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 186
+            },
+            {
+              "name": "zil.fn.851",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 157
+            },
+            {
+              "name": "zil.fn.86",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 177
+            },
+            {
+              "name": "zil.fn.860",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 132
+            },
+            {
+              "name": "zil.fn.878",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 181
+            },
+            {
+              "name": "zil.fn.887",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 150
+            },
+            {
+              "name": "zil.fn.896",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.905",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 195
+            },
+            {
+              "name": "zil.fn.914",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 166
+            },
+            {
+              "name": "zil.fn.923",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 137
+            },
+            {
+              "name": "zil.fn.932",
+              "owner_unit": 7,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 200
+            },
+            {
+              "name": "zil.fn.95",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 144
+            },
+            {
+              "name": "zil.fn.950",
+              "owner_unit": 1,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 155
+            },
+            {
+              "name": "zil.fn.959",
+              "owner_unit": 2,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 122
+            },
+            {
+              "name": "zil.fn.968",
+              "owner_unit": 3,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            },
+            {
+              "name": "zil.fn.977",
+              "owner_unit": 4,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 182
+            },
+            {
+              "name": "zil.fn.986",
+              "owner_unit": 5,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 150
+            },
+            {
+              "name": "zil.fn.995",
+              "owner_unit": 6,
+              "original_machine_function_cost": 56,
+              "actual_import_IR_block_instruction_count": 203
+            }
+          ]
+        },
+        {
+          "unit": 1,
+          "canonical_count": 288,
+          "allowed_count": 0,
+          "allowed_copy_cost": 0,
+          "required_count": 0,
+          "actual_AE_count": 0,
+          "actual_AE_original_name_cost": 0,
+          "actual_import_IR_block_instruction_count": 0,
+          "actual_import_IR_sha256": "b2c0dcab9b0fb8f16d16f98767e5bc2ee2295b89660423cc3aea06600139bcd4",
+          "actual_AE": []
+        },
+        {
+          "unit": 2,
+          "canonical_count": 288,
+          "allowed_count": 0,
+          "allowed_copy_cost": 0,
+          "required_count": 0,
+          "actual_AE_count": 0,
+          "actual_AE_original_name_cost": 0,
+          "actual_import_IR_block_instruction_count": 0,
+          "actual_import_IR_sha256": "9daac2bbd8ec7b67ff4004c95c3c173f7c3c339ca43d8cf5c187ab6e2eb5afd5",
+          "actual_AE": []
+        },
+        {
+          "unit": 3,
+          "canonical_count": 288,
+          "allowed_count": 0,
+          "allowed_copy_cost": 0,
+          "required_count": 0,
+          "actual_AE_count": 0,
+          "actual_AE_original_name_cost": 0,
+          "actual_import_IR_block_instruction_count": 0,
+          "actual_import_IR_sha256": "09f53c36d1ee43a3789eafb4e3519572ad3f9bbbed5eddd77f33ca64c170ebe6",
+          "actual_AE": []
+        },
+        {
+          "unit": 4,
+          "canonical_count": 288,
+          "allowed_count": 0,
+          "allowed_copy_cost": 0,
+          "required_count": 0,
+          "actual_AE_count": 0,
+          "actual_AE_original_name_cost": 0,
+          "actual_import_IR_block_instruction_count": 0,
+          "actual_import_IR_sha256": "0ac34ad611b401dccc3993b98236b9826ce96b6dbdda6954e04b8f59e9fe3ec3",
+          "actual_AE": []
+        },
+        {
+          "unit": 5,
+          "canonical_count": 288,
+          "allowed_count": 0,
+          "allowed_copy_cost": 0,
+          "required_count": 0,
+          "actual_AE_count": 0,
+          "actual_AE_original_name_cost": 0,
+          "actual_import_IR_block_instruction_count": 0,
+          "actual_import_IR_sha256": "e9f033f7956737b24e53e113e0cced402f3b8d32ea37d2ae20a9398362d5318c",
+          "actual_AE": []
+        },
+        {
+          "unit": 6,
+          "canonical_count": 288,
+          "allowed_count": 0,
+          "allowed_copy_cost": 0,
+          "required_count": 0,
+          "actual_AE_count": 0,
+          "actual_AE_original_name_cost": 0,
+          "actual_import_IR_block_instruction_count": 0,
+          "actual_import_IR_sha256": "21c5e386efcf2291d8fa8688bf3422caf9abc26ef9589d6058c4cefad2337a87",
+          "actual_AE": []
+        },
+        {
+          "unit": 7,
+          "canonical_count": 288,
+          "allowed_count": 0,
+          "allowed_copy_cost": 0,
+          "required_count": 0,
+          "actual_AE_count": 0,
+          "actual_AE_original_name_cost": 0,
+          "actual_import_IR_block_instruction_count": 0,
+          "actual_import_IR_sha256": "0713e811e8565e4c4b2647d20b7280fe25c0598b1a7172bdf13b3485a8c34ffd",
+          "actual_AE": []
+        }
+      ],
+      "known_no_body_diagnostics": [
+        {
+          "symbol": "getchar",
+          "reason": "None",
+          "raw": "Error importing module: Failed to import function getchar due to None"
+        }
+      ],
+      "raw_link_receipt": "out/next-optimization/thin-complete-runtime-v1/n256/base/compile-B/wrapper/1794393191038087586-215/receipt.json"
+    }
+  }
+}

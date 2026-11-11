@@ -1,0 +1,172 @@
+{
+  "format": "zil-next-optimization-retirement-readonly-snapshot/1",
+  "observed_utc": "2026-11-11 10:43:17 UTC",
+  "remote_mutations": false,
+  "branches": {
+    "per_page": 100,
+    "rows": [
+      {
+        "name": "archive/source-history",
+        "sha": "93adb1e7aec44bce6e93fcce237dbf77ec2b7aa4"
+      },
+      {
+        "name": "goal",
+        "sha": "112e4d107aa35be1a61f9da7b57a618a10482978"
+      },
+      {
+        "name": "main",
+        "sha": "99035931d358add0eaed6d4535035c38413701dd"
+      },
+      {
+        "name": "task/compiler-builder-position",
+        "sha": "9f0deb4c4142d0fff2ef622442518fc1d7a65d5c"
+      },
+      {
+        "name": "task/compiler-structured-emission",
+        "sha": "ee0cc45261dbfadf25dce567f0fc1fa0b4d4b6f5"
+      },
+      {
+        "name": "task/compiler-thinlto-complete-visibility",
+        "sha": "2549cbec8e1f3096d4c8c8a960459c83095ad13d"
+      },
+      {
+        "name": "task/compiler-thinlto-prototype",
+        "sha": "eb5b150903b67d8b9011f6adc2d3ac67b1c419a6"
+      }
+    ],
+    "url": "https://api.github.com/repos/zil-lang/zil/branches?per_page=100"
+  },
+  "archive": {
+    "sha": "93adb1e7aec44bce6e93fcce237dbf77ec2b7aa4",
+    "url": "https://api.github.com/repos/zil-lang/zil/git/ref/heads/archive/source-history",
+    "purpose": "current old archive only; not the new round A0"
+  },
+  "composition": {
+    "ref": "refs/heads/task/compiler-composition-validation",
+    "ref_http_status": 404,
+    "ref_error": {
+      "message": "Not Found",
+      "documentation_url": "https://docs.github.com/rest/git/refs#get-a-reference",
+      "status": "404"
+    },
+    "ref_url": "https://api.github.com/repos/zil-lang/zil/git/ref/heads/task/compiler-composition-validation",
+    "absent_from_branch_listing": true,
+    "source_evidence_head": "5aa8057f9cc0bff651fc6a44147b4e6e2dd307de",
+    "retirement_workflow_head": "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56",
+    "completed_run": {
+      "id": 42972887557,
+      "head_sha": "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56",
+      "head_branch": "task/compiler-composition-validation",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/zil-lang/zil/actions/runs/42972887557"
+    }
+  },
+  "open_prs": {
+    "count": 0,
+    "url": "https://api.github.com/repos/zil-lang/zil/pulls?state=open&per_page=100"
+  },
+  "active_run_states": {
+    "queued": {
+      "total_count": 0,
+      "inspected": 0,
+      "rows": [],
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/runs?status=queued&per_page=100"
+    },
+    "in_progress": {
+      "total_count": 0,
+      "inspected": 0,
+      "rows": [],
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/runs?status=in_progress&per_page=100"
+    },
+    "waiting": {
+      "total_count": 0,
+      "inspected": 0,
+      "rows": [],
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/runs?status=waiting&per_page=100"
+    },
+    "requested": {
+      "total_count": 0,
+      "inspected": 0,
+      "rows": [],
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/runs?status=requested&per_page=100"
+    },
+    "pending": {
+      "total_count": 0,
+      "inspected": 0,
+      "rows": [],
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/runs?status=pending&per_page=100"
+    },
+    "action_required": {
+      "total_count": 0,
+      "inspected": 0,
+      "rows": [],
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/runs?status=action_required&per_page=100"
+    }
+  },
+  "archive_parent_graph": {
+    "5c97386cef5a337c432fc7f1351dfcc22a0c02e6": {
+      "parents": [
+        "a018e25431dc74a5d56e7e2df9ecf75b9f179717",
+        "69a0aeb3cbd1f7cf7f992315f9bb1b33b9a73247"
+      ],
+      "tree": "b1f2eb0248af2ab2008580c95f9c945b56c2d2e1",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/commits/5c97386cef5a337c432fc7f1351dfcc22a0c02e6",
+      "subject": "archive: preserve exact bounded experiment retirement recipe and prior completion receipt"
+    },
+    "a018e25431dc74a5d56e7e2df9ecf75b9f179717": {
+      "parents": [
+        "a48374cce53d1018fe52a1c749990db4248f7135",
+        "52284449ea652983b16069c71bc8dc1a40a8b802"
+      ],
+      "tree": "0473ff363458ed61acacc9d33c252bbf76095f7b",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/commits/a018e25431dc74a5d56e7e2df9ecf75b9f179717",
+      "subject": "archive: preserve exact layout experiment retirement recipe"
+    },
+    "a48374cce53d1018fe52a1c749990db4248f7135": {
+      "parents": [
+        "c43cda662622d81d7a43849ac7bf5266062fc8f7",
+        "a60ccf924b43c1ac0ef98b9b0f3d1c270c5789bf",
+        "1679decf177c9a6eda5a64063c525f06e44e56a2"
+      ],
+      "tree": "cef7de0efdd467580e37821a4ac39f02dc3a9312",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/commits/a48374cce53d1018fe52a1c749990db4248f7135",
+      "subject": "archive: preserve rejected multi-edit candidates and complete comparative evidence"
+    },
+    "c43cda662622d81d7a43849ac7bf5266062fc8f7": {
+      "parents": [
+        "c6a629877009a408f7c15f56389d50f6358b5162",
+        "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56"
+      ],
+      "tree": "e44d277fb81974f3e0c133374cfcbce9d00f804a",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/commits/c43cda662622d81d7a43849ac7bf5266062fc8f7",
+      "subject": "archive: preserve compiler composition retirement recipe before ref removal"
+    },
+    "c6a629877009a408f7c15f56389d50f6358b5162": {
+      "parents": [
+        "e75ade949d559bd90914df0d40b860af5f283626",
+        "2222699d7382c6c2d986c256cbc7610329cd421c",
+        "5aa8057f9cc0bff651fc6a44147b4e6e2dd307de"
+      ],
+      "tree": "e0e228ae04bff086783e53c389fe4354dbb3166a",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/commits/c6a629877009a408f7c15f56389d50f6358b5162",
+      "subject": "archive: preserve rejected request-cost source and complete stage evidence"
+    },
+    "5aa8057f9cc0bff651fc6a44147b4e6e2dd307de": {
+      "parents": [
+        "ac7eb249e0edde2f3d68204387926050a45570e1"
+      ],
+      "tree": "6cb45d4e3d532a8d88c37b9a1ae6c30a6eefb583",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/commits/5aa8057f9cc0bff651fc6a44147b4e6e2dd307de",
+      "subject": "research: record exact CLI phases and stop worker-owned unit candidate"
+    },
+    "93adb1e7aec44bce6e93fcce237dbf77ec2b7aa4": {
+      "parents": [
+        "5c97386cef5a337c432fc7f1351dfcc22a0c02e6"
+      ],
+      "tree": "3f975574bb29845b84555172c7517def01c1ec97",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/commits/93adb1e7aec44bce6e93fcce237dbf77ec2b7aa4"
+    }
+  },
+  "note": "Read-only snapshot, not deletion authorization or a replacement for execution-time original guards."
+}

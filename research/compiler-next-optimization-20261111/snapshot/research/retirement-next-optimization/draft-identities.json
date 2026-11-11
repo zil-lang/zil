@@ -1,0 +1,88 @@
+{
+  "format": "zil-next-optimization-retirement-drafts/1",
+  "drafts_only": true,
+  "remote_mutations": false,
+  "git_add_or_commit": false,
+  "workflow_executed": false,
+  "success_template": {
+    "commit": "1dfd8b5303041a7fe0e5fbd77fe5efdc8ddd4a56",
+    "path": ".github/workflows/compiler-resumption-retire.yml",
+    "git_blob": "346a4db8d8223c71ee50cac0c85f7ce972d12354",
+    "sha256": "68ea8a721246cb764c43277ea52f249c9b54ffab42f7784934273ffd840b2411",
+    "bytes": 6723
+  },
+  "current_archive_not_A0": "93adb1e7aec44bce6e93fcce237dbf77ec2b7aa4",
+  "requires_root_evidence_persistence_and_new_A0": true,
+  "recipe_install_path": ".github/workflows/compiler-resumption-retire.yml",
+  "EXPECTED": "GITHUB_SHA at actual run, never guessed in draft",
+  "drafts": [
+    {
+      "order": 1,
+      "branch": "task/compiler-structured-emission",
+      "OLD": "ee0cc45261dbfadf25dce567f0fc1fa0b4d4b6f5",
+      "draft": "compiler-structured-emission-retire.yml",
+      "sha256": "8c82943d987fd0e59670e8f1d64790d120c1c7595645553165c503c26b7389b3",
+      "bytes": 6739,
+      "unresolved_PRIOR_ARCHIVE": "__ROOT_SET_A0_AFTER_THIS_ROUND_EVIDENCE_PRESERVATION__",
+      "inverse_replacement_counts": [
+        1,
+        2,
+        1,
+        1
+      ],
+      "inverse_bytes_equal_success_template": true,
+      "embedded_python_ast_parse": true
+    },
+    {
+      "order": 2,
+      "branch": "task/compiler-builder-position",
+      "OLD": "9f0deb4c4142d0fff2ef622442518fc1d7a65d5c",
+      "draft": "compiler-builder-position-retire.yml",
+      "sha256": "00d083ef9b1f271e609e433e055818406408704cd9fae72e9c5471e0942bf275",
+      "bytes": 6719,
+      "unresolved_PRIOR_ARCHIVE": "__ROOT_SET_A1_AFTER_STRUCTURED_RETIREMENT__",
+      "inverse_replacement_counts": [
+        1,
+        2,
+        1,
+        1
+      ],
+      "inverse_bytes_equal_success_template": true,
+      "embedded_python_ast_parse": true
+    },
+    {
+      "order": 3,
+      "branch": "task/compiler-thinlto-prototype",
+      "OLD": "eb5b150903b67d8b9011f6adc2d3ac67b1c419a6",
+      "draft": "compiler-thinlto-prototype-retire.yml",
+      "sha256": "65336698d38665919ee39f889ce5343e944908149fde00cf73fa94f6942aca3e",
+      "bytes": 6719,
+      "unresolved_PRIOR_ARCHIVE": "__ROOT_SET_A2_AFTER_BUILDER_RETIREMENT__",
+      "inverse_replacement_counts": [
+        1,
+        2,
+        1,
+        1
+      ],
+      "inverse_bytes_equal_success_template": true,
+      "embedded_python_ast_parse": true
+    },
+    {
+      "order": 4,
+      "branch": "task/compiler-thinlto-complete-visibility",
+      "OLD": "2549cbec8e1f3096d4c8c8a960459c83095ad13d",
+      "draft": "compiler-thinlto-complete-visibility-retire.yml",
+      "sha256": "6ed875b575bae8d30d3ed30d768889f1e8ac75a263afda8513a815969ce9168e",
+      "bytes": 6757,
+      "unresolved_PRIOR_ARCHIVE": "__ROOT_SET_A3_AFTER_DEFAULT_THINLTO_RETIREMENT__",
+      "inverse_replacement_counts": [
+        1,
+        2,
+        1,
+        1
+      ],
+      "inverse_bytes_equal_success_template": true,
+      "embedded_python_ast_parse": true
+    }
+  ]
+}

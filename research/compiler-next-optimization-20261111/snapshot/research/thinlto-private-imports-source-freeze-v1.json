@@ -1,0 +1,19 @@
+{
+  "files": {
+    "PrivateImports.cpp": "a22e5004b5f99150ae197ffa88f406eafb2136c796d5d3cc651a8fc97cc99623",
+    "README.md": "19bb44100b34b08aa8d1e17d25770c31bd94b7bb2aa5010c54ecfcabffa9e9bb",
+    "clang_wrapper.py": "b1127a35c81a4d1712e24b1c08d68b693b71bbabb1aae296c5a293ac2db48979",
+    "common.py": "d8780ed7faf17e7c9cc17ce0f3bf01e5a3cfd012ee59d6bd8b3d4bfc0f7cb2ce",
+    "hook_checks.py": "532bb71f9d5275f118aa6a6c029829554d059fccc5ce682759d5cf935d81d242",
+    "prepare.py": "4ce3cf7271ec496acebfb9261a7d5c358ef3b0c9cbe56da6ea29fb5f3d22ed7a",
+    "processes.py": "ac8cbab5aaa2c2b50a891f5dac28c392dbe5228da6d517749af1b13645abbe04",
+    "run.py": "4ac460515dcf79c5d76acf002c683a60c8f767f8309304a1b5a4dc15ab4a832c",
+    "vendor/fixture.py": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+    "vendor/prepare_runtime.py": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+    "vendor/runtime_fixture.py": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+    "vendor/runtime_gate.py": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+    "vendor/screen.py": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3",
+    "visibility.py": "bbd583f3f948f4292c5a484c37b3e8ebd24213d414fcbcab11b890a8eaedde21"
+  },
+  "status": "source frozen for independent review; not built or run"
+}

@@ -1,0 +1,5 @@
+{
+  "source": "README.md before root replaced only its status paragraph after the completed run",
+  "verification": "exact prior prefreeze/4 SHA256 match; no guessed unmatched content accepted",
+  "sha256": "f4a9f1a6d3a3e9937b2082b1957c44edfec129824b65ec4690050ce0e41a5fc8"
+}

@@ -1,0 +1,185 @@
+{
+  "status": "Pass",
+  "cases": [
+    {
+      "case": "normal",
+      "result": {
+        "command": [
+          "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+          "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/mock-zil.py",
+          "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/mock-wrapper.py",
+          "/workspace/scratch/abf690ce880c/research/thinlto-prototype",
+          "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/tool.py",
+          "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/normal/pids.json",
+          "normal",
+          "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/normal/inner",
+          "5"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "exception": null,
+        "cpu_ms": 115.469,
+        "rss_kib": 10240,
+        "wall_ms": 115.781783,
+        "reaped": true,
+        "scope": "owned-request-session",
+        "cleanup": [
+          {
+            "action": "owned-request-group-empty",
+            "group": 6
+          }
+        ],
+        "owned_group": 6,
+        "residual_descendants": false
+      },
+      "pid_receipt": {
+        "tool": 8,
+        "group": 6
+      },
+      "process_states_after_return": {
+        "tool": "absent"
+      },
+      "live_tool_or_grandchild_remaining": false,
+      "inner_raw_exists": true,
+      "inner_raw": {
+        "command": [
+          "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+          "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/tool.py",
+          "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/normal/pids.json",
+          "normal"
+        ],
+        "exit": 0,
+        "timeout": false,
+        "exception": null,
+        "cpu_ms": 29.256999999999998,
+        "rss_kib": 9472,
+        "wall_ms": 29.970672,
+        "reaped": true,
+        "scope": "inherited-owned-ZIL-group",
+        "cleanup": [],
+        "owned_group": 6,
+        "residual_descendants": false
+      }
+    },
+    {
+      "case": "outer-timeout",
+      "result": {
+        "command": [
+          "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+          "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/mock-zil.py",
+          "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/mock-wrapper.py",
+          "/workspace/scratch/abf690ce880c/research/thinlto-prototype",
+          "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/tool.py",
+          "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/outer-timeout/pids.json",
+          "sleep",
+          "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/outer-timeout/inner",
+          "10"
+        ],
+        "exit": -9,
+        "timeout": true,
+        "exception": {
+          "type": "TimeoutError",
+          "message": "frozen process deadline"
+        },
+        "cpu_ms": 19.717,
+        "rss_kib": 10368,
+        "wall_ms": 500.800453,
+        "reaped": true,
+        "scope": "owned-request-session",
+        "cleanup": [
+          {
+            "action": "SIGKILL-owned-request-group",
+            "group": 9
+          }
+        ],
+        "owned_group": 9,
+        "residual_descendants": false,
+        "caught_exception": "TimeoutError('frozen process deadline')"
+      },
+      "pid_receipt": {
+        "tool": 11,
+        "grandchild": 12,
+        "group": 9
+      },
+      "process_states_after_return": {
+        "tool": "absent",
+        "grandchild": "absent"
+      },
+      "live_tool_or_grandchild_remaining": false,
+      "inner_raw_exists": false
+    },
+    {
+      "case": "inner-timeout",
+      "result": {
+        "command": [
+          "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+          "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/mock-zil.py",
+          "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/mock-wrapper.py",
+          "/workspace/scratch/abf690ce880c/research/thinlto-prototype",
+          "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/tool.py",
+          "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/inner-timeout/pids.json",
+          "sleep",
+          "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/inner-timeout/inner",
+          "0.5"
+        ],
+        "exit": -9,
+        "timeout": false,
+        "exception": null,
+        "cpu_ms": 34.54,
+        "rss_kib": 10368,
+        "wall_ms": 601.235256,
+        "reaped": true,
+        "scope": "owned-request-session",
+        "cleanup": [
+          {
+            "action": "SIGKILL-owned-request-group",
+            "group": 13
+          }
+        ],
+        "owned_group": 13,
+        "residual_descendants": true
+      },
+      "pid_receipt": {
+        "tool": 15,
+        "grandchild": 16,
+        "group": 13
+      },
+      "process_states_after_return": {
+        "tool": "absent",
+        "grandchild": "absent"
+      },
+      "live_tool_or_grandchild_remaining": false,
+      "inner_raw_exists": true,
+      "inner_raw": {
+        "command": [
+          "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+          "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/tool.py",
+          "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/inner-timeout/pids.json",
+          "sleep"
+        ],
+        "exit": null,
+        "timeout": true,
+        "exception": {
+          "type": "TimeoutError",
+          "message": "frozen process deadline"
+        },
+        "cpu_ms": null,
+        "rss_kib": null,
+        "wall_ms": 500.898949,
+        "reaped": false,
+        "scope": "inherited-owned-ZIL-group",
+        "cleanup": [
+          {
+            "action": "SIGKILL-inherited-owned-request-group-after-raw",
+            "group": 13,
+            "parent": 13,
+            "direct_parent_session_leader_verified": true
+          }
+        ],
+        "owned_group": 13,
+        "residual_descendants": false
+      }
+    }
+  ],
+  "scope": "sleep process ownership only; no compiler or runtime fixture"
+}

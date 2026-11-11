@@ -1,0 +1,11 @@
+# Builder插入块复用的非作者静态复核
+
+复核对象是远端9f0deb4c4142d0fff2ef622442518fc1d7a65d5c，tree257a29612531576af3f9fcf1f703fb824970f695，parent main990；与作者本地78e300443e162bbb963b809e1066b9bd08197a77相同tree。root未编写此源码，逐行复核两文件差分，未将源码等价论证冒充性能验收。
+
+生产差分只新增请求内block_handles，并在原schedule中检查current_block后定位。块创建、名字和插入次序不变；handle仍由当前LLVM Module拥有，Vec只借用，不跨线程、不延长Module生命周期。name map继续服务Branch、CondBranch与Phi前驱。Phi预建结束后current_block=None，第一条普通指令始终定位；后续只有连续相同block省去定位，每次返回旧block仍重新设置。完整搜索本文件，emit各opcode均不改变builder插入点；常量折叠可以不生成指令，但不使插入点离开当前block。若未来加入改动插入点的opcode，必须同步使此局部缓存失效。
+
+原schedule、emit参数和顺序、每256step取消检查、Phi回边填充及错误路径保持；没有改变Verify、preflight、ABI、导入、优化管线或对象缓存身份。Vec按已验证blocks顺序索引，schedule来自本请求完整私有preflight，不接收外部任意索引。
+
+新增原生fixture同时含实际Load/Store/条件分支、常量折叠、跨块依赖及返回旧块的调度；手工FIFO推导block序列0,2,0,0,0,1,2,0,1,2,1，11条schedule指令9段，仅省2次定位。原O0/O2循环Phi、非法SSA、取消和text-reference等测试仍保留。其执行结果由独立构建日志报告，本静态报告不预记Pass。
+
+静态结论：无阻断，可进入既定功能与完整请求screen。收益上限仅object miss builder阶段。此前另一候选84请求raw的baseline builder累计354.77ms，而完整wall34171.08ms；阶段时间不是同一条关键路径且不得直接相减，但足以说明该小改动不可能解决整体LLVM优化和emit的主要成本。不能用减少FFI调用次数独立作为采用依据。

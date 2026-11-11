@@ -1,0 +1,460 @@
+{
+  "format": "zil-thinlto-existing-bitcode-decode/1",
+  "scope": "llvm-dis only; no compilation/native/timing",
+  "protocol": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-protocol-v1/protocol.json",
+  "protocol_sha256": "b5eeba53b6b79b07f825591a6026c3bd568e5a7925fab9744d19a7e603ed514b",
+  "llvm_dis": {
+    "path": "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+    "sha256": "92e804fc2769513feb6ef10c4a1c0dcbd7914b1d141e25ea0d55e903d3864024"
+  },
+  "files": [
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/007-unit-0.o.3.import.bc",
+      "source_sha256": "d274a4481cb6e5a63a833afc475623d1aed305951c2d4207cc5080c9b9b19075",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-0.o.3.import.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-0.o.3.import.ll",
+      "output_sha256": "0a3d14b9dbb64073b8db5f8ff8d2ba62d83c682b07cc33c448ab76256ab20d60",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/007-unit-0.o.3.import.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-0.o.3.import.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/008-unit-0.o.4.opt.bc",
+      "source_sha256": "1e2fc0e0f8d30e63ef01674d7348575ad3259bb52cf4ecfee16bff07290686eb",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-0.o.4.opt.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-0.o.4.opt.ll",
+      "output_sha256": "e036c6866601ac96e1a5eaca9a3b9d13598607334fec687ad27132fc64c6975c",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/008-unit-0.o.4.opt.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-0.o.4.opt.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/016-unit-1.o.3.import.bc",
+      "source_sha256": "4afd0f5cebc0ce7a43de0120f61dcf68a377593b3f7393ae893b109b37e26efd",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-1.o.3.import.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-1.o.3.import.ll",
+      "output_sha256": "19d8df0183552257a540d3f4c831d0f48e8304f3e863eed726cb5a7eef5c8c49",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/016-unit-1.o.3.import.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-1.o.3.import.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/017-unit-1.o.4.opt.bc",
+      "source_sha256": "589b08cfa0947322bffef68c42320b684d957778f47079debff3587ea23605bf",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-1.o.4.opt.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-1.o.4.opt.ll",
+      "output_sha256": "6f675f761362f778fcc368cb07076379666b70f4c0592d682c07b6ebbd7a0839",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/017-unit-1.o.4.opt.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-1.o.4.opt.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/025-unit-2.o.3.import.bc",
+      "source_sha256": "2c969e0fbed0210b381aa63b047fc339c34b60e3a9291190185170a3081210ce",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-2.o.3.import.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-2.o.3.import.ll",
+      "output_sha256": "daafd20e0e9ed3f3a7e634498bfc6ba2de80107dd589fbefa8f9cf5448100076",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/025-unit-2.o.3.import.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-2.o.3.import.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/026-unit-2.o.4.opt.bc",
+      "source_sha256": "995ac4849854939b39a765bcd426acffa11409c834395062056f423f422a7338",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-2.o.4.opt.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-2.o.4.opt.ll",
+      "output_sha256": "11b413c07628e9713c0dc860ede2aed994e7c12229dcd03c076d5ce8fa509a20",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/026-unit-2.o.4.opt.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-2.o.4.opt.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/034-unit-3.o.3.import.bc",
+      "source_sha256": "853d7c13de57beebb1500e3dcb80063321153af02be518b226028d857569cdf6",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-3.o.3.import.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-3.o.3.import.ll",
+      "output_sha256": "d217b7228c74925364590077345db6c4ec8d581ecac065c423fff89ea9e3eaed",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/034-unit-3.o.3.import.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-3.o.3.import.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/035-unit-3.o.4.opt.bc",
+      "source_sha256": "656e6e53aecf9fac9584f717b38477f3fa27c17dfb65fb797b0d7b4e008e8d57",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-3.o.4.opt.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-3.o.4.opt.ll",
+      "output_sha256": "1f8c1a421a9e5dac477ce4b65baaf4432217f4b890705b8398ddf90d44eeacd4",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/035-unit-3.o.4.opt.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-3.o.4.opt.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/043-unit-4.o.3.import.bc",
+      "source_sha256": "8135df962e5b0a7f65d541f469d09f5a122caa234d82669039578453cfeedffc",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-4.o.3.import.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-4.o.3.import.ll",
+      "output_sha256": "6e9cdcb3d0e40e70d700211723ca713ef6cdad7d3ba4cde76ec6aaa6e2468d77",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/043-unit-4.o.3.import.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-4.o.3.import.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/044-unit-4.o.4.opt.bc",
+      "source_sha256": "342aa45d39661a188b40e23b076b5b260d42adf2132bfce651efa3f0a69b0476",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-4.o.4.opt.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-4.o.4.opt.ll",
+      "output_sha256": "0a9bf8974cecdcad8c9680ee08542de8b2dcbb64cd43be427f06f5e0193e7622",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/044-unit-4.o.4.opt.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-4.o.4.opt.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/052-unit-5.o.3.import.bc",
+      "source_sha256": "6a21d1864b9efd4baff575ef81ddb9db184cfae4f1a6b143c1bc7b221225d59b",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-5.o.3.import.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-5.o.3.import.ll",
+      "output_sha256": "bbdb67b5b8c022614b10251f225553b8c07a5fac2d1a447ccf614a493a0e5717",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/052-unit-5.o.3.import.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-5.o.3.import.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/053-unit-5.o.4.opt.bc",
+      "source_sha256": "bb901a6bf2b681264ca8ff95ce68f4ea5b61dee29b825f8f60354f5dc0629b02",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-5.o.4.opt.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-5.o.4.opt.ll",
+      "output_sha256": "7b0277037938c04a89260bb6cf22d1f54601b75b06b30c01e20577abe98a2e5b",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/053-unit-5.o.4.opt.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-5.o.4.opt.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/061-unit-6.o.3.import.bc",
+      "source_sha256": "af0c14a53ecb8817711be51d316d304e04c0bea4703720f6480d7ac27abb6be8",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-6.o.3.import.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-6.o.3.import.ll",
+      "output_sha256": "0247c9848a48b40bfdef80e7b97bcf06c8c3ee7b489516ac89572f1ecf47a6ec",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/061-unit-6.o.3.import.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-6.o.3.import.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/062-unit-6.o.4.opt.bc",
+      "source_sha256": "6af56cc861bd95bb1dce2b4103c76f3a5c1cf50899675f7bd915794ba8332946",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-6.o.4.opt.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-6.o.4.opt.ll",
+      "output_sha256": "701c240943af2eb5409c9c3c46735eee1e09591d90ff20e4d0b7a1f7fe4fe3c0",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/062-unit-6.o.4.opt.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-6.o.4.opt.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/070-unit-7.o.3.import.bc",
+      "source_sha256": "039a22e67ac0211342d581d9d10a4e5985cfe1b3fde6ff9fcc46626cb73d5ac6",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-7.o.3.import.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-7.o.3.import.ll",
+      "output_sha256": "a4fd6d6aa4edc5c8e91a87f045d2d6a5e4161ce8678f8dfa296946ec9a8d3e12",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/070-unit-7.o.3.import.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-7.o.3.import.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/071-unit-7.o.4.opt.bc",
+      "source_sha256": "d0cca192827d5cf9e35acbb96aec12ebda160567c30a58ba19a070c172b9c90b",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-7.o.4.opt.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-7.o.4.opt.ll",
+      "output_sha256": "8b95756b5263fd2f53efb84bfd4a1869fba5acb5dca8568ad9df4eae1d1618b7",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/saved/071-unit-7.o.4.opt.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n64/unit-7.o.4.opt.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/007-unit-0.o.3.import.bc",
+      "source_sha256": "5fa2736335c59022fe1667e02205fcf586469742d00bbc9c6b880344420d3eea",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/.zil-driver-146-0/.zil-build-146-0/unit-0.o.3.import.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-0.o.3.import.ll",
+      "output_sha256": "a806cff3dfda468ec716b42edb3ccc9eaf578faa7c78d1d88bccf585161e0878",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/007-unit-0.o.3.import.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-0.o.3.import.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/008-unit-0.o.4.opt.bc",
+      "source_sha256": "5a535f75bcbf548f50ecf6ea1addf29c4154300defde0087f4b1061545e85130",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/.zil-driver-146-0/.zil-build-146-0/unit-0.o.4.opt.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-0.o.4.opt.ll",
+      "output_sha256": "619476abbeba12c31d3181352867acb058bba6cfcce92b23bcab39f470bd74a3",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/008-unit-0.o.4.opt.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-0.o.4.opt.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/016-unit-1.o.3.import.bc",
+      "source_sha256": "7acb07e8ba8e559df74a3e2b6701235b69e5a9e083b8c4435cb9e16ff88fdac4",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/.zil-driver-146-0/.zil-build-146-0/unit-1.o.3.import.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-1.o.3.import.ll",
+      "output_sha256": "9e7d578a53e2296e7482892ec0c5a0e4508d55a6cd22be48d650de1a30a5378c",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/016-unit-1.o.3.import.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-1.o.3.import.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/017-unit-1.o.4.opt.bc",
+      "source_sha256": "61e1671b3a49fdf8066d706d143ce95a49a0f63940596c3137b4274af7cb43c6",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/.zil-driver-146-0/.zil-build-146-0/unit-1.o.4.opt.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-1.o.4.opt.ll",
+      "output_sha256": "7a537b877bc50bfaf6968c8addbb747d756fee2774b5bd29b7ab2641c22f014c",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/017-unit-1.o.4.opt.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-1.o.4.opt.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/025-unit-2.o.3.import.bc",
+      "source_sha256": "56a8a29e338b18b6036980d60ab34057075f3ac76f496ab66bcbe957636cffc5",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/.zil-driver-146-0/.zil-build-146-0/unit-2.o.3.import.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-2.o.3.import.ll",
+      "output_sha256": "cde766f0e679e775936a4dbbd581e280298a398d29be1a84d16e8e46a3add405",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/025-unit-2.o.3.import.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-2.o.3.import.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/026-unit-2.o.4.opt.bc",
+      "source_sha256": "ee1c98c41564856f622a86c49e05c7d699dc781e79e555109d9f517dc628a09a",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/.zil-driver-146-0/.zil-build-146-0/unit-2.o.4.opt.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-2.o.4.opt.ll",
+      "output_sha256": "bd538f48344479a8aba66a058bdbcf6c2c19a3943db4ae24f33468639aaaa210",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/026-unit-2.o.4.opt.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-2.o.4.opt.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/034-unit-3.o.3.import.bc",
+      "source_sha256": "757cd76735168d39a8a3cc51d914b705c447b3279465df8c255e98f71198754a",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/.zil-driver-146-0/.zil-build-146-0/unit-3.o.3.import.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-3.o.3.import.ll",
+      "output_sha256": "ff9129578c000a1881431444579f761a03a419af131b878886c58176b3496f94",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/034-unit-3.o.3.import.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-3.o.3.import.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/035-unit-3.o.4.opt.bc",
+      "source_sha256": "2126fa3f49ea73493e18e902e601b1b4e2dd774a709409b2d1675e7433a3d58e",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/.zil-driver-146-0/.zil-build-146-0/unit-3.o.4.opt.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-3.o.4.opt.ll",
+      "output_sha256": "af9d2fc19124a0a7d58b9440d326b99b0d3fd1d15fe16aecee82b6cff9145bd9",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/035-unit-3.o.4.opt.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-3.o.4.opt.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/043-unit-4.o.3.import.bc",
+      "source_sha256": "52b17ca086a374a69de93347e2ccfc50a99e2debe9509acf5b25474345a526d3",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/.zil-driver-146-0/.zil-build-146-0/unit-4.o.3.import.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-4.o.3.import.ll",
+      "output_sha256": "70fef6b2d896536533ef2927d11648a3d9d4648853b5e5ec749b64a7c537afcf",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/043-unit-4.o.3.import.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-4.o.3.import.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/044-unit-4.o.4.opt.bc",
+      "source_sha256": "0315557ea963ee0754b551c4559317d01ce38c3178f3569a3bae1dbf78f35570",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/.zil-driver-146-0/.zil-build-146-0/unit-4.o.4.opt.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-4.o.4.opt.ll",
+      "output_sha256": "0ac0b1aecfe83c79fe627346c8fabf22a65c65a8c14b7066eaf562116623d725",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/044-unit-4.o.4.opt.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-4.o.4.opt.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/052-unit-5.o.3.import.bc",
+      "source_sha256": "4d6f5b81a67b45d4b7119c8b3b71a56bb9d1bde017de4928f6de66da86723e60",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/.zil-driver-146-0/.zil-build-146-0/unit-5.o.3.import.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-5.o.3.import.ll",
+      "output_sha256": "e4d3bb9c76312a69330bbbb8c69f25bae2864df4869cd070b44058fb0591aeba",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/052-unit-5.o.3.import.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-5.o.3.import.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/053-unit-5.o.4.opt.bc",
+      "source_sha256": "a4a41090515425dd5902acda4bf87334e7e45325099f32d192710ed305e55d16",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/.zil-driver-146-0/.zil-build-146-0/unit-5.o.4.opt.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-5.o.4.opt.ll",
+      "output_sha256": "a8a26adec85ec155ddca949578c0b7ebb8ff32c9862e6ae2eff51fd87f108b41",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/053-unit-5.o.4.opt.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-5.o.4.opt.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/061-unit-6.o.3.import.bc",
+      "source_sha256": "5b288da669d7003ea24dc322be56d274801855137d0579fc9d5f0235dabb442c",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/.zil-driver-146-0/.zil-build-146-0/unit-6.o.3.import.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-6.o.3.import.ll",
+      "output_sha256": "0595bb982c27c2605aa517e49b95a06890a885d0be8318dfe139cb878707625a",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/061-unit-6.o.3.import.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-6.o.3.import.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/062-unit-6.o.4.opt.bc",
+      "source_sha256": "ee446eb44b05334148d700eb7e4f44efe27e513991843d9a1a5e2887256156c5",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/.zil-driver-146-0/.zil-build-146-0/unit-6.o.4.opt.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-6.o.4.opt.ll",
+      "output_sha256": "17b6b44e7763b9c2ac08dd7936c219765e92f335d8597c075292c4ba65a91eb2",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/062-unit-6.o.4.opt.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-6.o.4.opt.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/070-unit-7.o.3.import.bc",
+      "source_sha256": "becd9a08fbf35b733773409f9523f0afeea8af3b124c082ab9bcc0fe629bedca",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/.zil-driver-146-0/.zil-build-146-0/unit-7.o.3.import.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-7.o.3.import.ll",
+      "output_sha256": "738c1e2181b85cdbfac8a243d0b32874570ab0c4d5a87ec0b4e574dc3b73673f",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/070-unit-7.o.3.import.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-7.o.3.import.ll"
+      ],
+      "exit": 0
+    },
+    {
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/071-unit-7.o.4.opt.bc",
+      "source_sha256": "309f39845028395d4b839c9599297ba075fb34fdd2224fc38dd1d53870366357",
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/.zil-driver-146-0/.zil-build-146-0/unit-7.o.4.opt.bc",
+      "output": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-7.o.4.opt.ll",
+      "output_sha256": "b397be5a74f05255f52db444e03f0305ffe2f435f65fe37f4ca7a8b244150147",
+      "argv": [
+        "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+        "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n256/base/compile-B/wrapper/1794391004603983865-199/saved/071-unit-7.o.4.opt.bc",
+        "-o",
+        "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/n256/unit-7.o.4.opt.ll"
+      ],
+      "exit": 0
+    }
+  ]
+}

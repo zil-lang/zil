@@ -1,0 +1,43 @@
+{
+  "format": "zil-thinlto-one-relink-diagnostic-attempt/1",
+  "status": "completed",
+  "argv": [
+    "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/clang",
+    "--target=x86_64-unknown-linux-gnu",
+    "-O2",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-0.o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-1.o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-2.o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-3.o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-4.o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-5.o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-6.o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-7.o",
+    "-o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/program",
+    "-flto=thin",
+    "-fuse-ld=lld",
+    "--ld-path=/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/ld.lld",
+    "-march=x86-64",
+    "-fPIC",
+    "-pie",
+    "-Wl,--lto-O2,--lto-CGO2,--plugin-opt=mcpu=x86-64,--thinlto-jobs=2,--threads=2,--icf=none,--save-temps",
+    "-Wl,--thinlto-emit-imports-files,--thinlto-emit-index-files",
+    "-Wl,--mllvm=-enable-merge-functions=true,--mllvm=-mergefunc-use-aliases=false",
+    "-Wl,--mllvm=-force-import-all=true",
+    "-Wl,--thinlto-cache-dir=/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/native-cache",
+    "-Wl,--opt-remarks-filename,/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml,--opt-remarks-passes,inline"
+  ],
+  "actual_affinity": [
+    0,
+    1
+  ],
+  "diagnostic_plan_sha256": "11703d7de0fa04226f699d44f134140dc59da83d63a9183dc788063118bed111",
+  "started_utc": "2026-11-11T10:40:31.490144+00:00",
+  "exit": 0,
+  "timeout": false,
+  "native_executed": false,
+  "formal_sample": false,
+  "pid": 6,
+  "ended_utc": "2026-11-11T10:40:31.807613+00:00"
+}

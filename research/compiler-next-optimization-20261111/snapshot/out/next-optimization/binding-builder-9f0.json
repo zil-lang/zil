@@ -1,0 +1,10 @@
+{
+  "source_commit": "9f0deb4c4142d0fff2ef622442518fc1d7a65d5c",
+  "source_tree": "257a29612531576af3f9fcf1f703fb824970f695",
+  "checkout": "/workspace/scratch/abf690ce880c/builder-validation",
+  "binary": "/workspace/scratch/abf690ce880c/targets/builder-9f0/release/zil",
+  "binary_sha256": "91ce84672bf8e3554876d46c3fb1d8ed4a8c013cad628f2a80c88f5df0e985f4",
+  "build_log": "/workspace/scratch/abf690ce880c/out/next-optimization/build-builder-9f0.log",
+  "build_log_sha256": "2564d857d21ad959ec23eb0496510ef414619e57624a1527bb13a24a176c9183",
+  "release_build_status": "Pass"
+}

@@ -1,0 +1,42 @@
+{
+  "format": "zil-thinlto-script-prefreeze/4",
+  "status": "not-prepared-no-N64-N256-compile-or-native-run",
+  "source_commit": "eb5b150903b67d8b9011f6adc2d3ac67b1c419a6",
+  "source_tree": "1da99d09dbeb53e59f8df4572f4bc5d010ff5929",
+  "fixed_cases": [
+    "n64/base",
+    "n256/base"
+  ],
+  "iterations": 100000,
+  "counts": {
+    "clean_compilations": 6,
+    "native_total": 54,
+    "native_formal": 36
+  },
+  "gates": {
+    "B_over_A_max": 1.1,
+    "R_over_B_min": 0.9
+  },
+  "files": {
+    "README.md": "f4a9f1a6d3a3e9937b2082b1957c44edfec129824b65ec4690050ce0e41a5fc8",
+    "clang_wrapper.py": "447420ba7c6538040e2518c0096b9bfa0b8ac7cb1c02b6b3aac86695f249db8d",
+    "common.py": "0c2365a939040be32188cfcc9d67accc12834599b47e31c34ba610adeb4e6154",
+    "prepare.py": "e72cbc51e96466e697c1e00fe71706763221d0889de2542f817c15a76e47d2cc",
+    "process-scope-pilot/mock-wrapper.py": "c9a78b98805de394404b113d056da9e670092126d680749eb9fa5a28ed2af8dc",
+    "process-scope-pilot/mock-zil.py": "fa2f6422729326da4e780e8e77e92f583141cdc211e610500cba4d5d866e61d3",
+    "process-scope-pilot/tool.py": "111d254478e9bd7a7ed2f33c22e6c7447651e68cc578a2f81bf0bcb6ca394ecc",
+    "processes.py": "ac8cbab5aaa2c2b50a891f5dac28c392dbe5228da6d517749af1b13645abbe04",
+    "run.py": "75c28fd4c7c95817ad790d171e5979b5acf6a95930ca7900115f19f420a62b6d",
+    "vendor/fixture.py": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+    "vendor/prepare_runtime.py": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+    "vendor/runtime_fixture.py": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+    "vendor/runtime_gate.py": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+    "vendor/screen.py": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3",
+    "pilot-2unit-v1/result.json": "0264b78d33737797103b6dd5b045a7f36e77094c6fa957b6792405ff25e023b5",
+    "pilot-2unit-v1/attempts.json": "36e9bdbcd812bdff6252d1223d7e7b3eb6ea9aeb6a1f01844018d6565ffb795b",
+    "pilot-2unit-v2/result.json": "7311f98fab8ed83d0cc6240d6653c0684eee8e467d334592f21987a7a9772288",
+    "pilot-2unit-v2/attempts.json": "aff76f9157be9bb2a7f2c03ef0357775dca1bb795b172c9c1567f6aab542b74a",
+    "argv0-probes/result.json": "b2854e24955265f183b03e9e865a786b02a0add17c31b90389aba7bf7a02348b",
+    "process-scope-pilot/result.json": "b01b6ea2a69b9cfc4226d7b93e5237f28f1c33fafadb03bec399cdc951762ae1"
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "format": "zil-one-inline-diagnostic-report-evidence/1",
+  "native_executed": false,
+  "formal_performance_sample": false,
+  "one_link_attempt": true,
+  "exit": 0,
+  "cpu_affinity": [
+    0,
+    1
+  ],
+  "files": [
+    {
+      "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/diagnostic-plan.json",
+      "sha256": "11703d7de0fa04226f699d44f134140dc59da83d63a9183dc788063118bed111",
+      "bytes": 11508
+    },
+    {
+      "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/process-attempt.json",
+      "sha256": "67fd1537b8cc657c89e8897e68ab21fab0eaffaa456f371c8613c004ed20cec0",
+      "bytes": 2393
+    },
+    {
+      "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/stderr",
+      "sha256": "d1add7323606ef2adbd1aae9263d081aeae20078e2aea799d889e93003efe729",
+      "bytes": 70
+    },
+    {
+      "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.1.",
+      "sha256": "e4699549df689de6baa764fcd2e7c8acea4675d7a6438aeb2b8a5e157143fda4",
+      "bytes": 77666
+    },
+    {
+      "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/parsed-inline-remarks.json",
+      "sha256": "573d61569d79969d50b0724ec7410a163f9145a8a1e4fd1adf6fa4dbb1ba0708",
+      "bytes": 68510
+    },
+    {
+      "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/formal-shape-comparison.json",
+      "sha256": "0dcb0d05415d3d4ffa8ec284050063cb770d0327b1f62c6add1491d5d3b61961",
+      "bytes": 821
+    }
+  ],
+  "formal_shape_equal_except_module_id": true
+}

@@ -1,0 +1,9 @@
+{
+  "time_utc": "2026-11-11T11:07:00Z",
+  "operation": "first private protocol prepare exec launch",
+  "error": "exec-server transport disconnected; failed to create unified exec process",
+  "execution_status": "not launched",
+  "followup": "pwd succeeded; private-protocol-v1 directory confirmed absent before new successful prepare",
+  "successful_protocol_sha256": "208adf6f5a3e904182afdaf1ef1c6b30a173fb559400ab14d05b2f59e4803a44",
+  "compile_or_native_runs": 0
+}

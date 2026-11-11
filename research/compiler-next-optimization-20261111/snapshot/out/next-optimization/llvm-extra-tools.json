@@ -1,0 +1,13 @@
+{
+  "archive_sha256": "efdd1dbd089b99bfcfcde7b8eb1236163f2e88df5a981cca4f783ec9cb5e0378",
+  "tools": {
+    "llvm-bcanalyzer": {
+      "sha256": "c6e18594e83f24f23d82425f7f50877bb65c1f7eb26546aea98a64a764f24b6b",
+      "version": "LLVM (http://llvm.org/):\n  LLVM version 23.1.4\n  Optimized build.\n"
+    },
+    "llvm-dis": {
+      "sha256": "92e804fc2769513feb6ef10c4a1c0dcbd7914b1d141e25ea0d55e903d3864024",
+      "version": "LLVM (http://llvm.org/):\n  LLVM version 23.1.4\n  Optimized build.\n"
+    }
+  }
+}

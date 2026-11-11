@@ -1,0 +1,2891 @@
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.14
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.23
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.32
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '520'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.41
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.50
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.59
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '550'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.68
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '505'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Passed
+Pass:            inline
+Name:            Inlined
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.77
+  - String:          ''' inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''''
+  - String:          ' with '
+  - String:          '(cost='
+  - Cost:            '-14500'
+  - String:          ', threshold='
+  - Threshold:       '337'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.86
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.95
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '530'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.104
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.113
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.122
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.131
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '520'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.140
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Passed
+Pass:            inline
+Name:            Inlined
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.149
+  - String:          ''' inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''''
+  - String:          ' with '
+  - String:          '(cost='
+  - Cost:            '-14505'
+  - String:          ', threshold='
+  - Threshold:       '337'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.158
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '550'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.167
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '505'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.176
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.185
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.194
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '530'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.203
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.212
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Passed
+Pass:            inline
+Name:            Inlined
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.221
+  - String:          ''' inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''''
+  - String:          ' with '
+  - String:          '(cost='
+  - Cost:            '-14495'
+  - String:          ', threshold='
+  - Threshold:       '337'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.230
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '525'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.239
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.248
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.257
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '550'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.266
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '505'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.275
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.284
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Passed
+Pass:            inline
+Name:            Inlined
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.293
+  - String:          ''' inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''''
+  - String:          ' with '
+  - String:          '(cost='
+  - Cost:            '-14510'
+  - String:          ', threshold='
+  - Threshold:       '337'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.302
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.311
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.320
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.329
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '545'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.338
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.347
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.356
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '550'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Passed
+Pass:            inline
+Name:            Inlined
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.365
+  - String:          ''' inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''''
+  - String:          ' with '
+  - String:          '(cost='
+  - Cost:            '-14505'
+  - String:          ', threshold='
+  - Threshold:       '337'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.374
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.383
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.392
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '530'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.401
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.410
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.419
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.428
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '545'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Passed
+Pass:            inline
+Name:            Inlined
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.437
+  - String:          ''' inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''''
+  - String:          ' with '
+  - String:          '(cost='
+  - Cost:            '-14510'
+  - String:          ', threshold='
+  - Threshold:       '337'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.446
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.455
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '555'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.464
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '505'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.473
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.482
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.491
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '535'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.500
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Passed
+Pass:            inline
+Name:            Inlined
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.509
+  - String:          ''' inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''''
+  - String:          ' with '
+  - String:          '(cost='
+  - Cost:            '-14500'
+  - String:          ', threshold='
+  - Threshold:       '337'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.518
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.527
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '515'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.536
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.545
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.554
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '555'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.563
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '505'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.2
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.572
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.2
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+Function:        zil.fn.5
+Args:
+  - Callee:          getchar
+  - String:          ' will not be inlined into '
+  - Caller:          zil.fn.5
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+Function:        zil.fn.5
+Args:
+  - Callee:          putchar
+  - String:          ' will not be inlined into '
+  - Caller:          zil.fn.5
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+Function:        zil.fn.5
+Args:
+  - Callee:          putchar
+  - String:          ' will not be inlined into '
+  - Caller:          zil.fn.5
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+Function:        zil.fn.5
+Args:
+  - Callee:          putchar
+  - String:          ' will not be inlined into '
+  - Caller:          zil.fn.5
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+Function:        zil.fn.5
+Args:
+  - Callee:          putchar
+  - String:          ' will not be inlined into '
+  - Caller:          zil.fn.5
+  - String:          ' because its definition is unavailable'
+...
+--- !Passed
+Pass:            inline
+Name:            Inlined
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.2
+  - String:          ''' inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''''
+  - String:          ' with '
+  - String:          '(cost='
+  - Cost:            '-9675'
+  - String:          ', threshold='
+  - Threshold:       '337'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.572
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.563
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '505'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.554
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '555'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.545
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.536
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.527
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '515'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.518
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.500
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.491
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '535'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.482
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.473
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.464
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '505'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.455
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '555'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.446
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.428
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '545'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.419
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.410
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.401
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.392
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '530'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.383
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.374
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.356
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '550'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.347
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.338
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.329
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '545'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.320
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.311
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.302
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.284
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.275
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.266
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '505'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.257
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '550'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.248
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.239
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.230
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '525'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.212
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.203
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.194
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '530'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.185
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.176
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.167
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '505'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.158
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '550'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.140
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.131
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '520'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.122
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.113
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.104
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.95
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '530'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.86
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.68
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '505'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.59
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '550'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.50
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.41
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.32
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '520'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.23
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        zil.fn.5
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.14
+  - String:          ''' not inlined into '''
+  - Caller:          zil.fn.5
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Passed
+Pass:            inline
+Name:            Inlined
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.5
+  - String:          ''' inlined into '''
+  - Caller:          main
+  - String:          ''''
+  - String:          ' with '
+  - String:          '(cost='
+  - Cost:            '-9410'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.572
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.563
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '505'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.554
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '555'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.545
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.536
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.527
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '515'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.518
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.500
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.491
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '535'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.482
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.473
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.464
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '505'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.455
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '555'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.446
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.428
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '545'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.419
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.410
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.401
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.392
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '530'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.383
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.374
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.356
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '550'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.347
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.338
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.329
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '545'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.320
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.311
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.302
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.284
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.275
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.266
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '505'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.257
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '550'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.248
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.239
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.230
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '525'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.212
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.203
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.194
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '530'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.185
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.176
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.167
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '505'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.158
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '550'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.140
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.131
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '520'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.122
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.113
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.104
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.95
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '530'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.86
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.68
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '505'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.59
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '550'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.50
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.41
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.32
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '520'
+  - String:          ', threshold='
+  - Threshold:       '225'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.23
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...
+--- !Missed
+Pass:            inline
+Name:            TooCostly
+Function:        main
+Args:
+  - String:          ''''
+  - Callee:          zil.fn.14
+  - String:          ''' not inlined into '''
+  - Caller:          main
+  - String:          ''' because too costly to inline '
+  - String:          '(cost='
+  - Cost:            '565'
+  - String:          ', threshold='
+  - Threshold:       '562'
+  - String:          ')'
+...

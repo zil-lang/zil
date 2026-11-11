@@ -1,0 +1,14 @@
+{
+  "source_commit": "ee0cc45261dbfadf25dce567f0fc1fa0b4d4b6f5",
+  "source_tree": "ad37913cf49a1bfec28e66e7abdcf225dbcafed5",
+  "checkout": "/workspace/scratch/abf690ce880c/structured-validation",
+  "binary": "/workspace/scratch/abf690ce880c/targets/structured-ee0/release/zil",
+  "binary_sha256": "adf69c444bb689e961f7dc404d75e6da0f7aec1e597b3f557919cdaf0bce8043",
+  "build_log": "/workspace/scratch/abf690ce880c/out/next-optimization/build-structured-ee0.log",
+  "build_log_sha256": "3090db89418fe650a21e671497f398904b1c2c47f57a5564669ced5cf0847f89",
+  "toolchain": {
+    "rust": "1.99.1",
+    "llvm": "23.1.4"
+  },
+  "release_build_status": "Pass"
+}

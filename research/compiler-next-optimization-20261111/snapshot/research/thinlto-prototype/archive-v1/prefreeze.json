@@ -1,0 +1,32 @@
+{
+  "format": "zil-thinlto-script-prefreeze/1",
+  "status": "not-prepared-not-run",
+  "source_commit": "eb5b150903b67d8b9011f6adc2d3ac67b1c419a6",
+  "source_tree": "1da99d09dbeb53e59f8df4572f4bc5d010ff5929",
+  "fixed_cases": [
+    "n64/base",
+    "n256/base"
+  ],
+  "iterations": 100000,
+  "counts": {
+    "clean_compilations": 6,
+    "native_total": 54,
+    "native_formal": 36
+  },
+  "gates": {
+    "B_over_A_max": 1.1,
+    "R_over_B_min": 0.9
+  },
+  "files": {
+    "README.md": "55da3defd58bdc548fc52779c5d37673c9974435afe82322e07739b5b0113fa4",
+    "clang_wrapper.py": "2e6bbaf482e351aa8430280c3dab1af562401f52b5256e2d5c699c40e6a2f88a",
+    "common.py": "85f7a83689e917d0819e091cf4f00dc61f40268795dea689c426a57f726fb64c",
+    "prepare.py": "e72cbc51e96466e697c1e00fe71706763221d0889de2542f817c15a76e47d2cc",
+    "run.py": "697fc1fab18412a67e4c3bfa85fd77b483d592125189fb3da40321cc2596088b",
+    "vendor/fixture.py": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+    "vendor/prepare_runtime.py": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+    "vendor/runtime_fixture.py": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+    "vendor/runtime_gate.py": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+    "vendor/screen.py": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3"
+  }
+}

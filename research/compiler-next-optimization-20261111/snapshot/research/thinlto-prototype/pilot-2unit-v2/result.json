@@ -1,0 +1,20 @@
+{
+  "status": "Pass",
+  "native_executed": false,
+  "performance_sample": false,
+  "postopt_files": [
+    "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/entry.o.4.opt.bc",
+    "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/leaf.o.4.opt.bc"
+  ],
+  "actual_import_files": {
+    "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/entry.o.imports": [
+      "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/leaf.o"
+    ],
+    "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/leaf.o.imports": []
+  },
+  "cache_files": [
+    "llvmcache-0D21C49F336A9A091DCF2B62A102C0D7386F01C0",
+    "llvmcache-EFDB333003EBDFBC81B640270D0D98D2223256A5",
+    "llvmcache.timestamp"
+  ]
+}

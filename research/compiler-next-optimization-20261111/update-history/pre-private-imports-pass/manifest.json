@@ -1,0 +1,1748 @@
+{
+  "format": "zil-compiler-next-optimization-text-archive/1",
+  "created_utc": "2026-11-11T10:24:33.972103+00:00",
+  "archive_base_commit": "93adb1e7aec44bce6e93fcce237dbf77ec2b7aa4",
+  "status": "local-text-snapshot-not-staged-or-committed",
+  "source_root": "/workspace/scratch/abf690ce880c",
+  "identities": [
+    {
+      "name": "main990",
+      "remote_commit": "99035931d358add0eaed6d4535035c38413701dd",
+      "tree": "1c16744d838064cb1c687ba56ef3a0d17ed3130c",
+      "status": "unchanged-baseline"
+    },
+    {
+      "name": "structured-emission",
+      "remote_commit": "ee0cc45261dbfadf25dce567f0fc1fa0b4d4b6f5",
+      "author_local_commit": "924076ca11c75e88bb1bcb9df98c58d0dae1bbd2",
+      "tree": "ad37913cf49a1bfec28e66e7abdcf225dbcafed5",
+      "author_remote_relation": "same-tree-different-commit",
+      "status": "NoGo-not-adopted",
+      "reason": "84-request screen complete; no compile benefit established"
+    },
+    {
+      "name": "builder-position",
+      "remote_commit": "9f0deb4c4142d0fff2ef622442518fc1d7a65d5c",
+      "author_local_commit": "78e300443e162bbb963b809e1066b9bd08197a77",
+      "tree": "257a29612531576af3f9fcf1f703fb824970f695",
+      "author_remote_relation": "same-tree-different-commit",
+      "status": "NoGo-not-adopted",
+      "reason": "84-request screen complete; no complete-request or builder phase benefit established"
+    },
+    {
+      "name": "thinlto-default",
+      "remote_commit": "eb5b150903b67d8b9011f6adc2d3ac67b1c419a6",
+      "author_local_commit": "e2e3ce1bc17cb16feafe38ebcf40c60229e2e922",
+      "tree": "1da99d09dbeb53e59f8df4572f4bc5d010ff5929",
+      "author_remote_relation": "same-tree-different-commit",
+      "status": "NoGo-runtime",
+      "reason": "n64 B/A 1.7357655313; n256 2.0076492560; all outputs correct, both exceed 1.10"
+    },
+    {
+      "name": "thinlto-complete-visibility",
+      "remote_commit": "2549cbec8e1f3096d4c8c8a960459c83095ad13d",
+      "author_local_commit": "49979808c9f50afea2646242c68776fa376c7e60",
+      "tree": "ebb993128355fed8228627c6d7b37d5cb0a90d45",
+      "parent": "eb5b150903b67d8b9011f6adc2d3ac67b1c419a6",
+      "author_remote_relation": "same-tree-different-commit",
+      "status": "NoGo-runtime-complete-visibility-proven",
+      "result": {
+        "counts": {
+          "clean_compilations": 6,
+          "native_total": 54,
+          "native_formal": 36
+        },
+        "all_outputs_correct": true,
+        "B_over_A": [
+          1.6181061284580245,
+          2.0561126545254256
+        ],
+        "R_over_B": [
+          2.3864832011975228,
+          2.3620208027736953
+        ],
+        "Required_ActualAdded_AE": [
+          56,
+          224
+        ],
+        "protocol_sha256": "5b0ff104485ba18c34db170716ead50cc438bfc3b8c8ebc1c1d1266876946728"
+      },
+      "binary_sha256": "fdfe6cea83286475582ce5b9063e9d84a9371b584baf99920193689f5e93d3e4",
+      "evidence": [
+        "snapshot/out/next-optimization/binding-thin-complete-2549.json",
+        "snapshot/out/next-optimization/build-thin-complete-2549.log",
+        "snapshot/out/next-optimization/test-thin-complete-proof-2549.log",
+        "snapshot/out/next-optimization/check-thin-complete-reference-2549.log"
+      ]
+    }
+  ],
+  "completed_scopes": {
+    "structured_screen": {
+      "requests": 84,
+      "pairs": 42,
+      "native_outputs": 252,
+      "decision": "NoGo"
+    },
+    "builder_screen": {
+      "requests": 84,
+      "pairs": 42,
+      "native_outputs": 252,
+      "decision": "NoGo"
+    },
+    "thin_default": {
+      "clean_compilations": 6,
+      "native_total": 54,
+      "native_formal": 36,
+      "decision": "NoGo"
+    },
+    "thin_complete_static_gates": {
+      "release_build": "Pass",
+      "proof_tests": {
+        "passed": 5,
+        "failed": 0,
+        "ignored": 0
+      },
+      "nonnative_check": "Pass",
+      "native_executed": true,
+      "quality_protocol_run": "complete-NoGo",
+      "not_performance_result": false
+    },
+    "thin_complete": {
+      "clean_compilations": 6,
+      "native_total": 54,
+      "native_formal": 36,
+      "process_attempts": 196,
+      "actual_required_imported": [
+        56,
+        224
+      ],
+      "decision": "NoGo",
+      "raw_files_audited_unchanged": 1192
+    },
+    "inline_diagnostic": {
+      "link_attempts": 1,
+      "native_executed": false,
+      "formal_performance_sample": false,
+      "remarks": {
+        "TooCostly": 168,
+        "Inlined": 9,
+        "NoDefinition": 5
+      },
+      "plan_sha256": "11703d7de0fa04226f699d44f134140dc59da83d63a9183dc788063118bed111"
+    }
+  },
+  "not_executed_or_pending": [
+    "no full original weighted matrix for either S/B candidate",
+    "no Rust/runtime gate added to S/B diagnostic screen",
+    "no widened default-Thin matrix after 2case NoGo",
+    "source refs not retired by this text-copy task",
+    "private-import pass experiment in progress: source/protocol/results/review not yet archived",
+    "raw package persistence and final archive commit not completed",
+    "retirement drafts only; PRIOR placeholders unresolved and refs not deleted by this task"
+  ],
+  "raw_evidence": {
+    "status": "pending-root-package-and-persistence",
+    "archive_path": null,
+    "sha256": null,
+    "bytes": null,
+    "roots": [
+      "out/next-optimization",
+      "research/thinlto-prototype/pilot-2unit-v1",
+      "research/thinlto-prototype/pilot-2unit-v2",
+      "research/thinlto-prototype/process-scope-pilot",
+      "research/thinlto-prototype/argv0-probes",
+      "research/thinlto-prototype/decoded-default-v1",
+      "research/thinlto-complete-visibility/decoded-strict-v1",
+      "out/next-optimization/thin-complete-inline-diagnostic-n64-v1"
+    ],
+    "excluded_from_this_text_snapshot": [
+      "ELF/objects/BC/decoded LLVM text",
+      "full stdout/stderr/process raw logs",
+      "semantic/object/native caches",
+      "frozen tool binaries",
+      "generated ZIL/Rust corpus sources",
+      "entire Blaze upstream checkout"
+    ],
+    "small_first_failure_raw_exception": "pilot-2unit-v1 stdout/stderr and leaf.prelink.ll are copied as small first-failure evidence; all full runs/BC/ELF remain pending",
+    "text_diagnostic_exception": "Small inline remarks/parsed records/plan/attempt/shape and artifact-index copied; no BC/ELF/decoded LLVM text or caches"
+  },
+  "historical_thin_script_versions": [
+    {
+      "version": "archive-v1",
+      "status": "metadata-and-available-bytes-preserved",
+      "available": [
+        {
+          "name": "clang_wrapper.py",
+          "sha256": "2e6bbaf482e351aa8430280c3dab1af562401f52b5256e2d5c699c40e6a2f88a",
+          "archived_at": "snapshot/research/thinlto-prototype/archive-v1/clang_wrapper.py.txt"
+        },
+        {
+          "name": "prepare.py",
+          "sha256": "e72cbc51e96466e697c1e00fe71706763221d0889de2542f817c15a76e47d2cc",
+          "archived_at": "snapshot/research/thinlto-prototype/prepare.py"
+        },
+        {
+          "name": "vendor/fixture.py",
+          "sha256": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+          "archived_at": "snapshot/research/thinlto-prototype/vendor/fixture.py"
+        },
+        {
+          "name": "vendor/prepare_runtime.py",
+          "sha256": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+          "archived_at": "snapshot/research/thinlto-prototype/vendor/prepare_runtime.py"
+        },
+        {
+          "name": "vendor/runtime_fixture.py",
+          "sha256": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+          "archived_at": "snapshot/research/thinlto-prototype/vendor/runtime_fixture.py"
+        },
+        {
+          "name": "vendor/runtime_gate.py",
+          "sha256": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+          "archived_at": "snapshot/research/thinlto-prototype/vendor/runtime_gate.py"
+        },
+        {
+          "name": "vendor/screen.py",
+          "sha256": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3",
+          "archived_at": "snapshot/research/thinlto-prototype/vendor/screen.py"
+        }
+      ],
+      "historical_bytes_not_located": [
+        {
+          "name": "README.md",
+          "sha256": "55da3defd58bdc548fc52779c5d37673c9974435afe82322e07739b5b0113fa4"
+        },
+        {
+          "name": "common.py",
+          "sha256": "85f7a83689e917d0819e091cf4f00dc61f40268795dea689c426a57f726fb64c"
+        },
+        {
+          "name": "run.py",
+          "sha256": "697fc1fab18412a67e4c3bfa85fd77b483d592125189fb3da40321cc2596088b"
+        }
+      ]
+    },
+    {
+      "version": "archive-v2",
+      "status": "metadata-and-available-bytes-preserved",
+      "available": [
+        {
+          "name": "prepare.py",
+          "sha256": "e72cbc51e96466e697c1e00fe71706763221d0889de2542f817c15a76e47d2cc",
+          "archived_at": "snapshot/research/thinlto-prototype/prepare.py"
+        },
+        {
+          "name": "vendor/fixture.py",
+          "sha256": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+          "archived_at": "snapshot/research/thinlto-prototype/vendor/fixture.py"
+        },
+        {
+          "name": "vendor/prepare_runtime.py",
+          "sha256": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+          "archived_at": "snapshot/research/thinlto-prototype/vendor/prepare_runtime.py"
+        },
+        {
+          "name": "vendor/runtime_fixture.py",
+          "sha256": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+          "archived_at": "snapshot/research/thinlto-prototype/vendor/runtime_fixture.py"
+        },
+        {
+          "name": "vendor/runtime_gate.py",
+          "sha256": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+          "archived_at": "snapshot/research/thinlto-prototype/vendor/runtime_gate.py"
+        },
+        {
+          "name": "vendor/screen.py",
+          "sha256": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3",
+          "archived_at": "snapshot/research/thinlto-prototype/vendor/screen.py"
+        },
+        {
+          "name": "pilot-2unit-v1/result.json",
+          "sha256": "0264b78d33737797103b6dd5b045a7f36e77094c6fa957b6792405ff25e023b5",
+          "archived_at": "snapshot/research/thinlto-prototype/pilot-2unit-v1/result.json"
+        },
+        {
+          "name": "pilot-2unit-v1/attempts.json",
+          "sha256": "36e9bdbcd812bdff6252d1223d7e7b3eb6ea9aeb6a1f01844018d6565ffb795b",
+          "archived_at": "snapshot/research/thinlto-prototype/pilot-2unit-v1/attempts.json"
+        },
+        {
+          "name": "pilot-2unit-v2/result.json",
+          "sha256": "7311f98fab8ed83d0cc6240d6653c0684eee8e467d334592f21987a7a9772288",
+          "archived_at": "snapshot/research/thinlto-prototype/pilot-2unit-v2/result.json"
+        },
+        {
+          "name": "pilot-2unit-v2/attempts.json",
+          "sha256": "aff76f9157be9bb2a7f2c03ef0357775dca1bb795b172c9c1567f6aab542b74a",
+          "archived_at": "snapshot/research/thinlto-prototype/pilot-2unit-v2/attempts.json"
+        }
+      ],
+      "historical_bytes_not_located": [
+        {
+          "name": "README.md",
+          "sha256": "70410b9750a0861d1a274d42f8b4b97258f475b2b95cc48ac9c02af786a38445"
+        },
+        {
+          "name": "clang_wrapper.py",
+          "sha256": "56fc30690203a640da988c4d378c509e1d9120a62051c2814ce32f757d2840b4"
+        },
+        {
+          "name": "common.py",
+          "sha256": "85f7a83689e917d0819e091cf4f00dc61f40268795dea689c426a57f726fb64c"
+        },
+        {
+          "name": "run.py",
+          "sha256": "4268d772bd0bfbd436c84c44bdd87a421ee6f50121af587072f5712163c7b964"
+        }
+      ]
+    },
+    {
+      "version": "archive-v3",
+      "status": "metadata-and-available-bytes-preserved",
+      "available": [
+        {
+          "name": "prepare.py",
+          "sha256": "e72cbc51e96466e697c1e00fe71706763221d0889de2542f817c15a76e47d2cc",
+          "archived_at": "snapshot/research/thinlto-prototype/prepare.py"
+        },
+        {
+          "name": "vendor/fixture.py",
+          "sha256": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+          "archived_at": "snapshot/research/thinlto-prototype/vendor/fixture.py"
+        },
+        {
+          "name": "vendor/prepare_runtime.py",
+          "sha256": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+          "archived_at": "snapshot/research/thinlto-prototype/vendor/prepare_runtime.py"
+        },
+        {
+          "name": "vendor/runtime_fixture.py",
+          "sha256": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+          "archived_at": "snapshot/research/thinlto-prototype/vendor/runtime_fixture.py"
+        },
+        {
+          "name": "vendor/runtime_gate.py",
+          "sha256": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+          "archived_at": "snapshot/research/thinlto-prototype/vendor/runtime_gate.py"
+        },
+        {
+          "name": "vendor/screen.py",
+          "sha256": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3",
+          "archived_at": "snapshot/research/thinlto-prototype/vendor/screen.py"
+        },
+        {
+          "name": "pilot-2unit-v1/result.json",
+          "sha256": "0264b78d33737797103b6dd5b045a7f36e77094c6fa957b6792405ff25e023b5",
+          "archived_at": "snapshot/research/thinlto-prototype/pilot-2unit-v1/result.json"
+        },
+        {
+          "name": "pilot-2unit-v1/attempts.json",
+          "sha256": "36e9bdbcd812bdff6252d1223d7e7b3eb6ea9aeb6a1f01844018d6565ffb795b",
+          "archived_at": "snapshot/research/thinlto-prototype/pilot-2unit-v1/attempts.json"
+        },
+        {
+          "name": "pilot-2unit-v2/result.json",
+          "sha256": "7311f98fab8ed83d0cc6240d6653c0684eee8e467d334592f21987a7a9772288",
+          "archived_at": "snapshot/research/thinlto-prototype/pilot-2unit-v2/result.json"
+        },
+        {
+          "name": "pilot-2unit-v2/attempts.json",
+          "sha256": "aff76f9157be9bb2a7f2c03ef0357775dca1bb795b172c9c1567f6aab542b74a",
+          "archived_at": "snapshot/research/thinlto-prototype/pilot-2unit-v2/attempts.json"
+        },
+        {
+          "name": "argv0-probes/result.json",
+          "sha256": "b2854e24955265f183b03e9e865a786b02a0add17c31b90389aba7bf7a02348b",
+          "archived_at": "snapshot/research/thinlto-prototype/argv0-probes/result.json"
+        }
+      ],
+      "historical_bytes_not_located": [
+        {
+          "name": "README.md",
+          "sha256": "2d5c580cc0cc20bf44bcb1736f49c732165e68b034c11a2642fa6a1dfe5b3ef2"
+        },
+        {
+          "name": "clang_wrapper.py",
+          "sha256": "56fc30690203a640da988c4d378c509e1d9120a62051c2814ce32f757d2840b4"
+        },
+        {
+          "name": "common.py",
+          "sha256": "ccb83c63c19e5676a28421452af23adcab1eceff9c36eb895aac1be64cce7513"
+        },
+        {
+          "name": "run.py",
+          "sha256": "4268d772bd0bfbd436c84c44bdd87a421ee6f50121af587072f5712163c7b964"
+        }
+      ]
+    },
+    {
+      "version": "prefreeze-v4-documents",
+      "status": "exact-README-recovered-and-prefreeze-hash-verified",
+      "historical_bytes_not_located": [],
+      "available": [
+        {
+          "name": "README.md",
+          "sha256": "f4a9f1a6d3a3e9937b2082b1957c44edfec129824b65ec4690050ce0e41a5fc8",
+          "archived_at": "snapshot/research/thinlto-prototype/archive-v4/README.md"
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "source_path": null,
+      "sha256": "12ff9f3cbdf4a63cf5e68b6e7a8d139113bcebdce1a81ca625f62bec5cf45ce3",
+      "bytes": 7976,
+      "role": "archive-recovery-index"
+    },
+    {
+      "path": "snapshot/out/next-optimization/binding-builder-9f0.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/binding-builder-9f0.json",
+      "sha256": "7327a0c9f3baed545be5e0ad9200b40818faee5d86f9392ca3655f84ca16a39e",
+      "bytes": 579,
+      "source_mtime_ns": 1794390610525155520
+    },
+    {
+      "path": "snapshot/out/next-optimization/binding-main990.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/binding-main990.json",
+      "sha256": "a2613c636671f86ee55f82dd49b7395e741455f5d9c2d72b349f6bffb1f98936",
+      "bytes": 621,
+      "source_mtime_ns": 1794389874494698444
+    },
+    {
+      "path": "snapshot/out/next-optimization/binding-structured-ee0.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/binding-structured-ee0.json",
+      "sha256": "f934af9749bc06be55078887d4db5368df08ff033a9709f05c38f5ce5c92001c",
+      "bytes": 653,
+      "source_mtime_ns": 1794389874617010528
+    },
+    {
+      "path": "snapshot/out/next-optimization/binding-thin-complete-2549.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/binding-thin-complete-2549.json",
+      "sha256": "5ed1b725e1a987d7a9bdd90e9645f08343ffe17e181b119c8cc4b689703e5267",
+      "bytes": 664,
+      "source_mtime_ns": 1794392515204091749,
+      "role": "strict-2549-build-binding-or-completed-static-gate-log"
+    },
+    {
+      "path": "snapshot/out/next-optimization/binding-thinlto-eb5.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/binding-thinlto-eb5.json",
+      "sha256": "0baebab2e7b54be26684e98a14d47cc8c92096f927a546668026d39440bb17a8",
+      "bytes": 644,
+      "source_mtime_ns": 1794390312388437168
+    },
+    {
+      "path": "snapshot/out/next-optimization/build-thin-complete-2549.log",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/build-thin-complete-2549.log",
+      "sha256": "3a2e99ee9fd58a1ba7b5f52b7ce251deb0b8a557a3c24dcf9978c53ea0876c8d",
+      "bytes": 1911,
+      "source_mtime_ns": 1794392488567845104,
+      "role": "strict-2549-build-binding-or-completed-static-gate-log"
+    },
+    {
+      "path": "snapshot/out/next-optimization/builder-9f0-plan.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/builder-9f0-plan.json",
+      "sha256": "484fd8bf27c5616d61bead1785f8aac2b1bd7e839b010806628e94ca3af3242e",
+      "bytes": 13604,
+      "source_mtime_ns": 1794390633780771311
+    },
+    {
+      "path": "snapshot/out/next-optimization/builder-9f0-plan.json.attempt.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/builder-9f0-plan.json.attempt.json",
+      "sha256": "6d88901a9cbf8626e4735f253512af92ece713a79dab2448b6e4d37a3e7d245d",
+      "bytes": 237,
+      "source_mtime_ns": 1794390634467251106
+    },
+    {
+      "path": "snapshot/out/next-optimization/builder-screen-9f0/completion.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/builder-screen-9f0/completion.json",
+      "sha256": "7538db2ce2d0385d2458c8964c1edd96e16a3aff7fc0c6de4534e272786695f4",
+      "bytes": 206,
+      "source_mtime_ns": 1794390711869103342
+    },
+    {
+      "path": "snapshot/out/next-optimization/builder-screen-9f0/failures.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/builder-screen-9f0/failures.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "bytes": 3,
+      "source_mtime_ns": 1794390711868529037
+    },
+    {
+      "path": "snapshot/out/next-optimization/builder-screen-9f0/summary.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/builder-screen-9f0/summary.json",
+      "sha256": "6cff1a9a7c2659177f7f448704d8b6bb47c5fdff1f45adcf145d1ea2585d3f68",
+      "bytes": 18212,
+      "source_mtime_ns": 1794390711868400142
+    },
+    {
+      "path": "snapshot/out/next-optimization/check-thin-complete-reference-2549.log",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/check-thin-complete-reference-2549.log",
+      "sha256": "2a053acb0b97404e0200b23f856a948a6e77574f5ea9cdbc62372e32a6d93387",
+      "bytes": 973,
+      "source_mtime_ns": 1794392567293268256,
+      "role": "strict-2549-build-binding-or-completed-static-gate-log"
+    },
+    {
+      "path": "snapshot/out/next-optimization/llvm-extra-tools.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/llvm-extra-tools.json",
+      "sha256": "05758383b15eecda50d88f7add77dc6d5e3a0889eaf4f807260dc5dfc137f1bc",
+      "bytes": 511,
+      "source_mtime_ns": 1794389883466403417
+    },
+    {
+      "path": "snapshot/out/next-optimization/structured-ee0-plan.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/structured-ee0-plan.json",
+      "sha256": "6fb22be8b6c199e40cb7f6a2370f6ea7b9055c0f02d81ad7a92cf48acda5ff2c",
+      "bytes": 13610,
+      "source_mtime_ns": 1794389892419318724
+    },
+    {
+      "path": "snapshot/out/next-optimization/structured-ee0-plan.json.attempt.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/structured-ee0-plan.json.attempt.json",
+      "sha256": "b48a03151c2b73db7e7ccfa75b55bed6541d3a90b2a97f99e83c06918992a7ea",
+      "bytes": 240,
+      "source_mtime_ns": 1794389919286052416
+    },
+    {
+      "path": "snapshot/out/next-optimization/structured-screen-ee0/completion.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/structured-screen-ee0/completion.json",
+      "sha256": "250618c99ca69f4d77cad2f68027e7aac2d108d330817831f9653a0968dfcf49",
+      "bytes": 206,
+      "source_mtime_ns": 1794389993328416528
+    },
+    {
+      "path": "snapshot/out/next-optimization/structured-screen-ee0/failures.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/structured-screen-ee0/failures.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "bytes": 3,
+      "source_mtime_ns": 1794389993328133401
+    },
+    {
+      "path": "snapshot/out/next-optimization/structured-screen-ee0/summary.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/structured-screen-ee0/summary.json",
+      "sha256": "5e3e203cf27d14ba41b9e1ed7fc6c5f7772880a114a5423524fd4e38edfcf842",
+      "bytes": 18275,
+      "source_mtime_ns": 1794389993327994592
+    },
+    {
+      "path": "snapshot/out/next-optimization/test-thin-complete-proof-2549.log",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/test-thin-complete-proof-2549.log",
+      "sha256": "71ee8949232a65ba3cca0212df34a5daf1b11d5ef7b466e01d1dcd5efacfe7ab",
+      "bytes": 1770,
+      "source_mtime_ns": 1794392554533037978,
+      "role": "strict-2549-build-binding-or-completed-static-gate-log"
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/artifact-index.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/artifact-index.json",
+      "sha256": "5ed9939008d66d3bf29a7e18fe202d15f7491dc84a961482758eeb62d4d65473",
+      "bytes": 17673,
+      "source_mtime_ns": 1794393631816639414,
+      "source_read_before_after_sha256": "5ed9939008d66d3bf29a7e18fe202d15f7491dc84a961482758eeb62d4d65473"
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/diagnostic-plan.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/diagnostic-plan.json",
+      "sha256": "11703d7de0fa04226f699d44f134140dc59da83d63a9183dc788063118bed111",
+      "bytes": 11508,
+      "source_mtime_ns": 1794393601256938847,
+      "source_read_before_after_sha256": "11703d7de0fa04226f699d44f134140dc59da83d63a9183dc788063118bed111"
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/formal-shape-comparison.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/formal-shape-comparison.json",
+      "sha256": "0dcb0d05415d3d4ffa8ec284050063cb770d0327b1f62c6add1491d5d3b61961",
+      "bytes": 821,
+      "source_mtime_ns": 1794393742180741065,
+      "source_read_before_after_sha256": "0dcb0d05415d3d4ffa8ec284050063cb770d0327b1f62c6add1491d5d3b61961"
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "source_mtime_ns": 1794393631507420595,
+      "source_read_before_after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.1.",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.1.",
+      "sha256": "e4699549df689de6baa764fcd2e7c8acea4675d7a6438aeb2b8a5e157143fda4",
+      "bytes": 77666,
+      "source_mtime_ns": 1794393631632767545,
+      "source_read_before_after_sha256": "e4699549df689de6baa764fcd2e7c8acea4675d7a6438aeb2b8a5e157143fda4"
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.2.",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.2.",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "source_mtime_ns": 1794393631569758666,
+      "source_read_before_after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.3.",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.3.",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "source_mtime_ns": 1794393631744665555,
+      "source_read_before_after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.4.",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.4.",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "source_mtime_ns": 1794393631633225585,
+      "source_read_before_after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.5.",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.5.",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "source_mtime_ns": 1794393631513973963,
+      "source_read_before_after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.6.",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.6.",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "source_mtime_ns": 1794393631677274489,
+      "source_read_before_after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.7.",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.7.",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "source_mtime_ns": 1794393631687599786,
+      "source_read_before_after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.8.",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.8.",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "source_mtime_ns": 1794393631623712723,
+      "source_read_before_after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/parsed-inline-remarks.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/parsed-inline-remarks.json",
+      "sha256": "573d61569d79969d50b0724ec7410a163f9145a8a1e4fd1adf6fa4dbb1ba0708",
+      "bytes": 68510,
+      "source_mtime_ns": 1794393705778098228,
+      "source_read_before_after_sha256": "573d61569d79969d50b0724ec7410a163f9145a8a1e4fd1adf6fa4dbb1ba0708"
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/process-attempt.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/process-attempt.json",
+      "sha256": "67fd1537b8cc657c89e8897e68ab21fab0eaffaa456f371c8613c004ed20cec0",
+      "bytes": 2393,
+      "source_mtime_ns": 1794393631807802417,
+      "source_read_before_after_sha256": "67fd1537b8cc657c89e8897e68ab21fab0eaffaa456f371c8613c004ed20cec0"
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/stderr",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/stderr",
+      "sha256": "d1add7323606ef2adbd1aae9263d081aeae20078e2aea799d889e93003efe729",
+      "bytes": 70,
+      "source_mtime_ns": 1794393631509126668,
+      "source_read_before_after_sha256": "d1add7323606ef2adbd1aae9263d081aeae20078e2aea799d889e93003efe729"
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/stdout",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "source_mtime_ns": 1794393631490433717,
+      "source_read_before_after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-complete-protocol-v1/protocol.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-protocol-v1/protocol.json",
+      "sha256": "5b0ff104485ba18c34db170716ead50cc438bfc3b8c8ebc1c1d1266876946728",
+      "bytes": 127914,
+      "source_mtime_ns": 1794393072911960164,
+      "source_read_before_after_sha256": "5b0ff104485ba18c34db170716ead50cc438bfc3b8c8ebc1c1d1266876946728"
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-complete-runtime-v1/execution-manifest.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/execution-manifest.json",
+      "sha256": "cf736886a28b5c5102f713409d2c768491340d94f07c74a0222d7f99a630ce23",
+      "bytes": 133,
+      "source_mtime_ns": 1794393218378332720,
+      "source_read_before_after_sha256": "cf736886a28b5c5102f713409d2c768491340d94f07c74a0222d7f99a630ce23"
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-complete-runtime-v1/protocol.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/protocol.json",
+      "sha256": "5b0ff104485ba18c34db170716ead50cc438bfc3b8c8ebc1c1d1266876946728",
+      "bytes": 127914,
+      "source_mtime_ns": 1794393072911960164,
+      "source_read_before_after_sha256": "5b0ff104485ba18c34db170716ead50cc438bfc3b8c8ebc1c1d1266876946728"
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-complete-runtime-v1/summary.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/summary.json",
+      "sha256": "f113dce59c12dffb1ea89e031342ed3df5e626a03afd9908a741a1f05f7b1ee2",
+      "bytes": 7571,
+      "source_mtime_ns": 1794393218378120790,
+      "source_read_before_after_sha256": "f113dce59c12dffb1ea89e031342ed3df5e626a03afd9908a741a1f05f7b1ee2"
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-protocol-v1/protocol.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-protocol-v1/protocol.json",
+      "sha256": "b5eeba53b6b79b07f825591a6026c3bd568e5a7925fab9744d19a7e603ed514b",
+      "bytes": 127973,
+      "source_mtime_ns": 1794390793754856157
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-runtime-v1/execution-manifest.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/execution-manifest.json",
+      "sha256": "d04022d31dddfe7b63dc788d8f9153bdf2780d178e26f0d89c0d83400b18f706",
+      "bytes": 133,
+      "source_mtime_ns": 1794391032907606768
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-runtime-v1/protocol.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/protocol.json",
+      "sha256": "b5eeba53b6b79b07f825591a6026c3bd568e5a7925fab9744d19a7e603ed514b",
+      "bytes": 127973,
+      "source_mtime_ns": 1794390793754856157
+    },
+    {
+      "path": "snapshot/out/next-optimization/thin-runtime-v1/summary.json",
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/summary.json",
+      "sha256": "4abd046f2da5349a9f7deb89106e2301eed336d1b3f498158a29060acdb4784f",
+      "bytes": 7598,
+      "source_mtime_ns": 1794391032907297773
+    },
+    {
+      "path": "snapshot/research/blaze-next.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/blaze-next.md",
+      "sha256": "b66313d7a771bf4a84318948e938f8a39fc6dc59226c3e9f2ee58bd184ce4b75",
+      "bytes": 18693,
+      "source_mtime_ns": 1794389410398823945
+    },
+    {
+      "path": "snapshot/research/builder-position/recompute-result.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/builder-position/recompute-result.py",
+      "sha256": "b81f5fe0d0647c44b220352850c92652209aaaa73e2054f8a0f4fef7c15aef8b",
+      "bytes": 7391,
+      "source_mtime_ns": 1794391034353604263
+    },
+    {
+      "path": "snapshot/research/builder-position/result-review.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/builder-position/result-review.md",
+      "sha256": "7f11c8809f2dfb41c6fcbd6ba4da83b87299ffbc98f3347cf713aaae1d871275",
+      "bytes": 6675,
+      "source_mtime_ns": 1794391138350965067
+    },
+    {
+      "path": "snapshot/research/builder-position/source-review.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/builder-position/source-review.md",
+      "sha256": "4c2c233bb419fcb6507ea2c3a228854f22afdaec8a44ab90ebb63e30feb24e9f",
+      "bytes": 2094,
+      "source_mtime_ns": 1794390610102146297
+    },
+    {
+      "path": "snapshot/research/retirement-next-optimization/README.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/retirement-next-optimization/README.md",
+      "sha256": "33e60ae3979c1b050a7c6eff9a0f547362c9b1bd81c2bc84a9ca98221984b10c",
+      "bytes": 6851,
+      "source_mtime_ns": 1794393892337297928,
+      "source_read_before_after_sha256": "33e60ae3979c1b050a7c6eff9a0f547362c9b1bd81c2bc84a9ca98221984b10c"
+    },
+    {
+      "path": "snapshot/research/retirement-next-optimization/compiler-builder-position-retire.yml",
+      "source_path": "/workspace/scratch/abf690ce880c/research/retirement-next-optimization/compiler-builder-position-retire.yml",
+      "sha256": "00d083ef9b1f271e609e433e055818406408704cd9fae72e9c5471e0942bf275",
+      "bytes": 6719,
+      "source_mtime_ns": 1794393799008401955,
+      "source_read_before_after_sha256": "00d083ef9b1f271e609e433e055818406408704cd9fae72e9c5471e0942bf275"
+    },
+    {
+      "path": "snapshot/research/retirement-next-optimization/compiler-structured-emission-retire.yml",
+      "source_path": "/workspace/scratch/abf690ce880c/research/retirement-next-optimization/compiler-structured-emission-retire.yml",
+      "sha256": "8c82943d987fd0e59670e8f1d64790d120c1c7595645553165c503c26b7389b3",
+      "bytes": 6739,
+      "source_mtime_ns": 1794393799007402508,
+      "source_read_before_after_sha256": "8c82943d987fd0e59670e8f1d64790d120c1c7595645553165c503c26b7389b3"
+    },
+    {
+      "path": "snapshot/research/retirement-next-optimization/compiler-thinlto-complete-visibility-retire.yml",
+      "source_path": "/workspace/scratch/abf690ce880c/research/retirement-next-optimization/compiler-thinlto-complete-visibility-retire.yml",
+      "sha256": "6ed875b575bae8d30d3ed30d768889f1e8ac75a263afda8513a815969ce9168e",
+      "bytes": 6757,
+      "source_mtime_ns": 1794393799010336342,
+      "source_read_before_after_sha256": "6ed875b575bae8d30d3ed30d768889f1e8ac75a263afda8513a815969ce9168e"
+    },
+    {
+      "path": "snapshot/research/retirement-next-optimization/compiler-thinlto-prototype-retire.yml",
+      "source_path": "/workspace/scratch/abf690ce880c/research/retirement-next-optimization/compiler-thinlto-prototype-retire.yml",
+      "sha256": "65336698d38665919ee39f889ce5343e944908149fde00cf73fa94f6942aca3e",
+      "bytes": 6719,
+      "source_mtime_ns": 1794393799009333249,
+      "source_read_before_after_sha256": "65336698d38665919ee39f889ce5343e944908149fde00cf73fa94f6942aca3e"
+    },
+    {
+      "path": "snapshot/research/retirement-next-optimization/draft-freeze.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/retirement-next-optimization/draft-freeze.json",
+      "sha256": "83b62077fa68a84a7ccfc8fec805280ff83af0e926fa9329ac126d0133585b55",
+      "bytes": 943,
+      "source_mtime_ns": 1794393892721693935,
+      "source_read_before_after_sha256": "83b62077fa68a84a7ccfc8fec805280ff83af0e926fa9329ac126d0133585b55"
+    },
+    {
+      "path": "snapshot/research/retirement-next-optimization/draft-identities.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/retirement-next-optimization/draft-identities.json",
+      "sha256": "cb1e2fece1a007552561db85bbc79312b9e39135c7bc3c8b176d8dea48014cf9",
+      "bytes": 3060,
+      "source_mtime_ns": 1794393799010605488,
+      "source_read_before_after_sha256": "cb1e2fece1a007552561db85bbc79312b9e39135c7bc3c8b176d8dea48014cf9"
+    },
+    {
+      "path": "snapshot/research/retirement-next-optimization/remote-readback.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/retirement-next-optimization/remote-readback.json",
+      "sha256": "d81374954e40fd04d453ac738dfcec485f593071574540f03ba94d4fb0661bc9",
+      "bytes": 6735,
+      "source_mtime_ns": 1794393798567608898,
+      "source_read_before_after_sha256": "d81374954e40fd04d453ac738dfcec485f593071574540f03ba94d4fb0661bc9"
+    },
+    {
+      "path": "snapshot/research/retirement-next-optimization/template-success.yml",
+      "source_path": "/workspace/scratch/abf690ce880c/research/retirement-next-optimization/template-success.yml",
+      "sha256": "68ea8a721246cb764c43277ea52f249c9b54ffab42f7784934273ffd840b2411",
+      "bytes": 6723,
+      "source_mtime_ns": 1794393799001734006,
+      "source_read_before_after_sha256": "68ea8a721246cb764c43277ea52f249c9b54ffab42f7784934273ffd840b2411"
+    },
+    {
+      "path": "snapshot/research/retirement-next-optimization-independent-review.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/retirement-next-optimization-independent-review.md",
+      "sha256": "14c89e9b774a009f75991191d9f681890d21e26a76b00f6d73c46bfa25db411d",
+      "bytes": 5887,
+      "source_mtime_ns": 1794394157142068963,
+      "source_read_before_after_sha256": "14c89e9b774a009f75991191d9f681890d21e26a76b00f6d73c46bfa25db411d"
+    },
+    {
+      "path": "snapshot/research/rust-next.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/rust-next.md",
+      "sha256": "5910a68b766d2723c97ac41ceca341fc79e83c4bc8be625b102faa1feee7235f",
+      "bytes": 19762,
+      "source_mtime_ns": 1794389488178273351
+    },
+    {
+      "path": "snapshot/research/structured-emission/corpus.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/structured-emission/corpus.py",
+      "sha256": "2dfb26675a78e1ad83d72c20fa85d8c8bf8d1bf0d7b3db3ab0e84bf4be994a78",
+      "bytes": 7977,
+      "source_mtime_ns": 1794389499695629325
+    },
+    {
+      "path": "snapshot/research/structured-emission/protocol-review.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/structured-emission/protocol-review.md",
+      "sha256": "50d681b448e26a3bc5b9988c0e893e646d232915c66cd2da3012e1d3c2133f7a",
+      "bytes": 7701,
+      "source_mtime_ns": 1794390005600080384
+    },
+    {
+      "path": "snapshot/research/structured-emission/recompute-result.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/structured-emission/recompute-result.py",
+      "sha256": "e60e81672665a28f5adf0d1436142604edc200681632d33b852e689968b705ed",
+      "bytes": 6959,
+      "source_mtime_ns": 1794390321713601004
+    },
+    {
+      "path": "snapshot/research/structured-emission/result-review.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/structured-emission/result-review.md",
+      "sha256": "ec1d8be776d3faa31dabcc78e627b578ea0ec9dc7d4f8a750c36c4065db5e809",
+      "bytes": 6704,
+      "source_mtime_ns": 1794390321718230495
+    },
+    {
+      "path": "snapshot/research/structured-emission/screen.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/structured-emission/screen.py",
+      "sha256": "301a2fa5a6e4a0947f8664f67ce4b2049a1a9ef72635fc32d1847e85360edb0a",
+      "bytes": 17753,
+      "source_mtime_ns": 1794389499696253696
+    },
+    {
+      "path": "snapshot/research/structured-emission/source-review.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/structured-emission/source-review.md",
+      "sha256": "23cead12e91f1044858428b563a3fcfb33003becef7c15145f8852f74d134bb7",
+      "bytes": 5693,
+      "source_mtime_ns": 1794389774199436450
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-result-recompute.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-result-recompute.py",
+      "sha256": "2dcf6fa055770fcfbb20db4e4a568f2ff2514b4fc828ade257aed4ec8ec7b327",
+      "bytes": 17075,
+      "source_mtime_ns": 1794393531805363216,
+      "source_read_before_after_sha256": "2dcf6fa055770fcfbb20db4e4a568f2ff2514b4fc828ade257aed4ec8ec7b327"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/README.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/README.md",
+      "sha256": "82e8ba043a8dcf1c4bd14915abf88feab1804381a87e67b67cd04950f300ad47",
+      "bytes": 7858,
+      "source_mtime_ns": 1794392848822344489,
+      "source_read_before_after_sha256": "82e8ba043a8dcf1c4bd14915abf88feab1804381a87e67b67cd04950f300ad47"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/clang_wrapper.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/clang_wrapper.py",
+      "sha256": "aed889bb0c519e8690cc663e61b32f1125ed648dd145e992a8e81172b7449792",
+      "bytes": 10074,
+      "source_mtime_ns": 1794392915991557436,
+      "source_read_before_after_sha256": "aed889bb0c519e8690cc663e61b32f1125ed648dd145e992a8e81172b7449792"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/common.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/common.py",
+      "sha256": "11362ea37fe4dcd975d06db7c0e76159b9f914b3b3e581a55d3383760c6712b1",
+      "bytes": 4739,
+      "source_mtime_ns": 1794392628446369064,
+      "source_read_before_after_sha256": "11362ea37fe4dcd975d06db7c0e76159b9f914b3b3e581a55d3383760c6712b1"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/decoded-strict-v1/decoded-index.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/decoded-strict-v1/decoded-index.json",
+      "sha256": "2d924fa0a4b1f1523ef99e202ec43999e855830cb52440307293b77e48cc3e7a",
+      "bytes": 35754,
+      "source_mtime_ns": 1794393360305320315,
+      "source_read_before_after_sha256": "2d924fa0a4b1f1523ef99e202ec43999e855830cb52440307293b77e48cc3e7a"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/decoded-strict-v1/ir-analysis.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/decoded-strict-v1/ir-analysis.json",
+      "sha256": "5d4fe1f0b03dd2b2d3dd89730869f537ceae5e0442e9745b39bc2775a7deceb7",
+      "bytes": 39537,
+      "source_mtime_ns": 1794393385607697905,
+      "source_read_before_after_sha256": "5d4fe1f0b03dd2b2d3dd89730869f537ceae5e0442e9745b39bc2775a7deceb7"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/decoded-strict-v1/prelink-shape-analysis.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/decoded-strict-v1/prelink-shape-analysis.json",
+      "sha256": "e313739f090e9a4dbd092dd6ac8b9707381049a59b46155e0d5b47b0f6d8a778",
+      "bytes": 8552,
+      "source_mtime_ns": 1794393518140180032,
+      "source_read_before_after_sha256": "e313739f090e9a4dbd092dd6ac8b9707381049a59b46155e0d5b47b0f6d8a778"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/inline-diagnostic-evidence.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/inline-diagnostic-evidence.json",
+      "sha256": "8c03e161ff4788d088455cb0d2f639b2e144b302d0e7768572b60bcc98476d90",
+      "bytes": 1997,
+      "source_mtime_ns": 1794393882895863851,
+      "source_read_before_after_sha256": "8c03e161ff4788d088455cb0d2f639b2e144b302d0e7768572b60bcc98476d90"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/inline-diagnostic-report.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/inline-diagnostic-report.md",
+      "sha256": "713dd070cd361f946927f30052d9481c8812dd521355a661726b90276101791d",
+      "bytes": 7340,
+      "source_mtime_ns": 1794393882895932805,
+      "source_read_before_after_sha256": "713dd070cd361f946927f30052d9481c8812dd521355a661726b90276101791d"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/parser-existing-default-selfcheck/n256.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/parser-existing-default-selfcheck/n256.json",
+      "sha256": "d0e5d34494640ece9f6ea524d43d584e66bedf55d7b5c0d8b32f72467acb78ff",
+      "bytes": 59992,
+      "source_mtime_ns": 1794392699012740377,
+      "source_read_before_after_sha256": "d0e5d34494640ece9f6ea524d43d584e66bedf55d7b5c0d8b32f72467acb78ff"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/parser-existing-default-selfcheck/n64.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/parser-existing-default-selfcheck/n64.json",
+      "sha256": "54e320b56c3a15e0eaeffb838d10ff9ec4ae4e2a6de16e620f4e5186ecf714cb",
+      "bytes": 15922,
+      "source_mtime_ns": 1794392698215626195,
+      "source_read_before_after_sha256": "54e320b56c3a15e0eaeffb838d10ff9ec4ae4e2a6de16e620f4e5186ecf714cb"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/parser-existing-default-selfcheck/result.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/parser-existing-default-selfcheck/result.json",
+      "sha256": "f97506dc00af6c26b9dc9a57bc1f19790ab344408ea1fce01684403816f7c034",
+      "bytes": 87809,
+      "source_mtime_ns": 1794392699013764681,
+      "source_read_before_after_sha256": "f97506dc00af6c26b9dc9a57bc1f19790ab344408ea1fce01684403816f7c034"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/prefreeze.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/prefreeze.json",
+      "sha256": "ebe4fc9d30ecf77b261d846497b7c863260e21b94f655c6d0d748f4cac6e262f",
+      "bytes": 1726,
+      "source_mtime_ns": 1794392916391819290,
+      "source_read_before_after_sha256": "ebe4fc9d30ecf77b261d846497b7c863260e21b94f655c6d0d748f4cac6e262f"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/prepare.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/prepare.py",
+      "sha256": "26cd637132ecab66c6b6d742ba1acf6ddb790fb919126cfa9756c576f03fa187",
+      "bytes": 2766,
+      "source_mtime_ns": 1794392629270383918,
+      "source_read_before_after_sha256": "26cd637132ecab66c6b6d742ba1acf6ddb790fb919126cfa9756c576f03fa187"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/processes.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/processes.py",
+      "sha256": "ac8cbab5aaa2c2b50a891f5dac28c392dbe5228da6d517749af1b13645abbe04",
+      "bytes": 4188,
+      "source_mtime_ns": 1794392520898468430,
+      "source_read_before_after_sha256": "ac8cbab5aaa2c2b50a891f5dac28c392dbe5228da6d517749af1b13645abbe04"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/result-review.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/result-review.md",
+      "sha256": "7658c8b0267101d554d99d67cc9feb6a3970f8794481ed4b8144c8dc75df3e9d",
+      "bytes": 10340,
+      "source_mtime_ns": 1794393869367442187,
+      "source_read_before_after_sha256": "7658c8b0267101d554d99d67cc9feb6a3970f8794481ed4b8144c8dc75df3e9d"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/root-protocol-review.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/root-protocol-review.md",
+      "sha256": "e10017753e9c281458ea8463121beb5ea9d20d9fd8031e3afa254edaf1d30ffd",
+      "bytes": 2026,
+      "source_mtime_ns": 1794393068705624765,
+      "source_read_before_after_sha256": "e10017753e9c281458ea8463121beb5ea9d20d9fd8031e3afa254edaf1d30ffd"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/run.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/run.py",
+      "sha256": "381010f84ff537cc2afead0f1864624fe2a8e88260e36b05a2afde79af4237ce",
+      "bytes": 12430,
+      "source_mtime_ns": 1794392630362403593,
+      "source_read_before_after_sha256": "381010f84ff537cc2afead0f1864624fe2a8e88260e36b05a2afde79af4237ce"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/source-review.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/source-review.md",
+      "sha256": "e7086c082c132bd2cd1578de75affe1b30a20eddb05593ff36d652a51e8e8271",
+      "bytes": 9892,
+      "source_mtime_ns": 1794392420963843064,
+      "source_read_before_after_sha256": "e7086c082c132bd2cd1578de75affe1b30a20eddb05593ff36d652a51e8e8271"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/strict-default-ir-comparison.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/strict-default-ir-comparison.md",
+      "sha256": "85670cd49ca14358ef1224aaba710667645e473f04f32b27184b2815544c67db",
+      "bytes": 5077,
+      "source_mtime_ns": 1794393563467309543,
+      "source_read_before_after_sha256": "85670cd49ca14358ef1224aaba710667645e473f04f32b27184b2815544c67db"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/vendor/fixture.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/vendor/fixture.py",
+      "sha256": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+      "bytes": 7327,
+      "source_mtime_ns": 1794392520903442521,
+      "source_read_before_after_sha256": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/vendor/prepare_runtime.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/vendor/prepare_runtime.py",
+      "sha256": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+      "bytes": 4682,
+      "source_mtime_ns": 1794392520908429627,
+      "source_read_before_after_sha256": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/vendor/runtime_fixture.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/vendor/runtime_fixture.py",
+      "sha256": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+      "bytes": 4693,
+      "source_mtime_ns": 1794392520905039849,
+      "source_read_before_after_sha256": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/vendor/runtime_gate.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/vendor/runtime_gate.py",
+      "sha256": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+      "bytes": 17727,
+      "source_mtime_ns": 1794392520906704399,
+      "source_read_before_after_sha256": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/vendor/screen.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/vendor/screen.py",
+      "sha256": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3",
+      "bytes": 31550,
+      "source_mtime_ns": 1794392520910516858,
+      "source_read_before_after_sha256": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility/visibility.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/visibility.py",
+      "sha256": "bbd583f3f948f4292c5a484c37b3e8ebd24213d414fcbcab11b890a8eaedde21",
+      "bytes": 11524,
+      "source_mtime_ns": 1794392522148452048,
+      "source_read_before_after_sha256": "bbd583f3f948f4292c5a484c37b3e8ebd24213d414fcbcab11b890a8eaedde21"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility-actual-audit.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-actual-audit.json",
+      "sha256": "06ed83dc004869d5785c5f6b0b955d2b3d28a7cc59d70a9c0fef293f7a38f049",
+      "bytes": 67195,
+      "source_mtime_ns": 1794393705771852574,
+      "source_read_before_after_sha256": "06ed83dc004869d5785c5f6b0b955d2b3d28a7cc59d70a9c0fef293f7a38f049"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility-history/v1/README.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/README.md",
+      "sha256": "82e8ba043a8dcf1c4bd14915abf88feab1804381a87e67b67cd04950f300ad47",
+      "bytes": 7858,
+      "source_mtime_ns": 1794392848822344489,
+      "source_read_before_after_sha256": "82e8ba043a8dcf1c4bd14915abf88feab1804381a87e67b67cd04950f300ad47"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility-history/v1/clang_wrapper.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/clang_wrapper.py",
+      "sha256": "628b048a0a1a18f3d037c9abb81a4a8f6eed59a978dec8a0be654532d822b983",
+      "bytes": 10052,
+      "source_mtime_ns": 1794392631190418516,
+      "source_read_before_after_sha256": "628b048a0a1a18f3d037c9abb81a4a8f6eed59a978dec8a0be654532d822b983"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility-history/v1/common.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/common.py",
+      "sha256": "11362ea37fe4dcd975d06db7c0e76159b9f914b3b3e581a55d3383760c6712b1",
+      "bytes": 4739,
+      "source_mtime_ns": 1794392628446369064,
+      "source_read_before_after_sha256": "11362ea37fe4dcd975d06db7c0e76159b9f914b3b3e581a55d3383760c6712b1"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility-history/v1/parser-existing-default-selfcheck/n256.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/parser-existing-default-selfcheck/n256.json",
+      "sha256": "d0e5d34494640ece9f6ea524d43d584e66bedf55d7b5c0d8b32f72467acb78ff",
+      "bytes": 59992,
+      "source_mtime_ns": 1794392699012740377,
+      "source_read_before_after_sha256": "d0e5d34494640ece9f6ea524d43d584e66bedf55d7b5c0d8b32f72467acb78ff"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility-history/v1/parser-existing-default-selfcheck/n64.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/parser-existing-default-selfcheck/n64.json",
+      "sha256": "54e320b56c3a15e0eaeffb838d10ff9ec4ae4e2a6de16e620f4e5186ecf714cb",
+      "bytes": 15922,
+      "source_mtime_ns": 1794392698215626195,
+      "source_read_before_after_sha256": "54e320b56c3a15e0eaeffb838d10ff9ec4ae4e2a6de16e620f4e5186ecf714cb"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility-history/v1/parser-existing-default-selfcheck/result.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/parser-existing-default-selfcheck/result.json",
+      "sha256": "f97506dc00af6c26b9dc9a57bc1f19790ab344408ea1fce01684403816f7c034",
+      "bytes": 87809,
+      "source_mtime_ns": 1794392699013764681,
+      "source_read_before_after_sha256": "f97506dc00af6c26b9dc9a57bc1f19790ab344408ea1fce01684403816f7c034"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility-history/v1/prefreeze.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/prefreeze.json",
+      "sha256": "9d588d0ce1c89c49448a4b171f2502345095414e4a539504275688f3334645a4",
+      "bytes": 1726,
+      "source_mtime_ns": 1794392849288371142,
+      "source_read_before_after_sha256": "9d588d0ce1c89c49448a4b171f2502345095414e4a539504275688f3334645a4"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility-history/v1/prepare.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/prepare.py",
+      "sha256": "26cd637132ecab66c6b6d742ba1acf6ddb790fb919126cfa9756c576f03fa187",
+      "bytes": 2766,
+      "source_mtime_ns": 1794392629270383918,
+      "source_read_before_after_sha256": "26cd637132ecab66c6b6d742ba1acf6ddb790fb919126cfa9756c576f03fa187"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility-history/v1/processes.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/processes.py",
+      "sha256": "ac8cbab5aaa2c2b50a891f5dac28c392dbe5228da6d517749af1b13645abbe04",
+      "bytes": 4188,
+      "source_mtime_ns": 1794392520898468430,
+      "source_read_before_after_sha256": "ac8cbab5aaa2c2b50a891f5dac28c392dbe5228da6d517749af1b13645abbe04"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility-history/v1/run.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/run.py",
+      "sha256": "381010f84ff537cc2afead0f1864624fe2a8e88260e36b05a2afde79af4237ce",
+      "bytes": 12430,
+      "source_mtime_ns": 1794392630362403593,
+      "source_read_before_after_sha256": "381010f84ff537cc2afead0f1864624fe2a8e88260e36b05a2afde79af4237ce"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility-history/v1/source-review.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/source-review.md",
+      "sha256": "e7086c082c132bd2cd1578de75affe1b30a20eddb05593ff36d652a51e8e8271",
+      "bytes": 9892,
+      "source_mtime_ns": 1794392420963843064,
+      "source_read_before_after_sha256": "e7086c082c132bd2cd1578de75affe1b30a20eddb05593ff36d652a51e8e8271"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility-history/v1/vendor/fixture.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/vendor/fixture.py",
+      "sha256": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+      "bytes": 7327,
+      "source_mtime_ns": 1794392520903442521,
+      "source_read_before_after_sha256": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility-history/v1/vendor/prepare_runtime.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/vendor/prepare_runtime.py",
+      "sha256": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+      "bytes": 4682,
+      "source_mtime_ns": 1794392520908429627,
+      "source_read_before_after_sha256": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility-history/v1/vendor/runtime_fixture.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/vendor/runtime_fixture.py",
+      "sha256": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+      "bytes": 4693,
+      "source_mtime_ns": 1794392520905039849,
+      "source_read_before_after_sha256": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility-history/v1/vendor/runtime_gate.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/vendor/runtime_gate.py",
+      "sha256": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+      "bytes": 17727,
+      "source_mtime_ns": 1794392520906704399,
+      "source_read_before_after_sha256": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility-history/v1/vendor/screen.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/vendor/screen.py",
+      "sha256": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3",
+      "bytes": 31550,
+      "source_mtime_ns": 1794392520910516858,
+      "source_read_before_after_sha256": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility-history/v1/visibility.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/visibility.py",
+      "sha256": "bbd583f3f948f4292c5a484c37b3e8ebd24213d414fcbcab11b890a8eaedde21",
+      "bytes": 11524,
+      "source_mtime_ns": 1794392522148452048,
+      "source_read_before_after_sha256": "bbd583f3f948f4292c5a484c37b3e8ebd24213d414fcbcab11b890a8eaedde21"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility-history/v1-fix.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1-fix.json",
+      "sha256": "08ceb6ed87aecec8eb3e1f422117eed8413034a50752d5a38b3ffb7524fa06da",
+      "bytes": 631,
+      "source_mtime_ns": 1794392916392267446,
+      "source_read_before_after_sha256": "08ceb6ed87aecec8eb3e1f422117eed8413034a50752d5a38b3ffb7524fa06da"
+    },
+    {
+      "path": "snapshot/research/thinlto-complete-visibility-python-review.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-python-review.md",
+      "sha256": "6bce31e2839db8413b66c350e0fb06bf02c1de73dbb088ff486f9a49eff367cb",
+      "bytes": 8338,
+      "source_mtime_ns": 1794393313250438341,
+      "source_read_before_after_sha256": "6bce31e2839db8413b66c350e0fb06bf02c1de73dbb088ff486f9a49eff367cb"
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/README.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/README.md",
+      "sha256": "bb577572727efd4e95dafbb12c189641412b0c89541da81956fa800e113c20cd",
+      "bytes": 8290,
+      "source_mtime_ns": 1794392044682024083
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/archive-v1/clang_wrapper.py.txt",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/archive-v1/clang_wrapper.py.txt",
+      "sha256": "2e6bbaf482e351aa8430280c3dab1af562401f52b5256e2d5c699c40e6a2f88a",
+      "bytes": 6669,
+      "source_mtime_ns": 1794390236352372385
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/archive-v1/prefreeze.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/archive-v1/prefreeze.json",
+      "sha256": "abafb079956f274dcb66971a8f1d005d5a427e2943c4717559dbbc038a06c540",
+      "bytes": 1384,
+      "source_mtime_ns": 1794390236350434574
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/archive-v2/prefreeze.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/archive-v2/prefreeze.json",
+      "sha256": "a881e950591c5b94fe495eb2b45abee7c2e04279d514d08f70b3acb84b111597",
+      "bytes": 1822,
+      "source_mtime_ns": 1794390436837972029
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/archive-v3/prefreeze.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/archive-v3/prefreeze.json",
+      "sha256": "c574820b7d2db13f687634de0b74aedbf8be56e760ec96b7ac0ddd7594503aaf",
+      "bytes": 1922,
+      "source_mtime_ns": 1794390701413302918
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/archive-v4/README.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/archive-v4/README.md",
+      "sha256": "f4a9f1a6d3a3e9937b2082b1957c44edfec129824b65ec4690050ce0e41a5fc8",
+      "bytes": 7857,
+      "source_mtime_ns": 1794392782714183099,
+      "role": "exact-hash-verified-v4-document-restoration"
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/archive-v4/restoration.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/archive-v4/restoration.json",
+      "sha256": "c8ba8bf1c30f962ea94ef763acb18efe56a9967689b619582282270f71c2d613",
+      "bytes": 276,
+      "source_mtime_ns": 1794392782714532816,
+      "role": "exact-hash-verified-v4-document-restoration"
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/argv0-probes/result.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/argv0-probes/result.json",
+      "sha256": "b2854e24955265f183b03e9e865a786b02a0add17c31b90389aba7bf7a02348b",
+      "bytes": 1315,
+      "source_mtime_ns": 1794390450577951761
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/clang_wrapper.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/clang_wrapper.py",
+      "sha256": "447420ba7c6538040e2518c0096b9bfa0b8ac7cb1c02b6b3aac86695f249db8d",
+      "bytes": 6826,
+      "source_mtime_ns": 1794390575421604490
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/common.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/common.py",
+      "sha256": "0c2365a939040be32188cfcc9d67accc12834599b47e31c34ba610adeb4e6154",
+      "bytes": 4514,
+      "source_mtime_ns": 1794390574585589689
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/decoded-default-v1/decoded-index.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/decoded-index.json",
+      "sha256": "403375b09a384a9e21e58c6602d1314578fa3513926aebfd6f3960f7e3426e89",
+      "bytes": 34298,
+      "source_mtime_ns": 1794391471646596865
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/decoded-default-v1/ir-analysis.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/decoded-default-v1/ir-analysis.json",
+      "sha256": "17af1ffb662bb238421b1bfac573b0602b04f4f0d75986bb1c8affa99aa0e3c3",
+      "bytes": 32147,
+      "source_mtime_ns": 1794391728798988836
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/independent-review.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/independent-review.md",
+      "sha256": "aaefb4d6d34d1f75e7ab80efb107a6c1c8f93dd7c3d6419fb58614470d299bbf",
+      "bytes": 7780,
+      "source_mtime_ns": 1794391034297862393
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/llvm-mechanism-audit.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/llvm-mechanism-audit.md",
+      "sha256": "5b861f1d062f9b3a672601d31a3e73a6a561d68a96da72b45c96470d38105471",
+      "bytes": 33960,
+      "source_mtime_ns": 1794391868634545697
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/n64-existing-text-audit.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/n64-existing-text-audit.json",
+      "sha256": "4adf9d74c0fa706d49ecccec8e5eae64d64080d10595e4d31533376d404cf4a4",
+      "bytes": 13637,
+      "source_mtime_ns": 1794391246276284204
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/pilot-2unit-v1/attempts.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v1/attempts.json",
+      "sha256": "36e9bdbcd812bdff6252d1223d7e7b3eb6ea9aeb6a1f01844018d6565ffb795b",
+      "bytes": 2218,
+      "source_mtime_ns": 1794390174719982818
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/pilot-2unit-v1/entry.ll",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v1/entry.ll",
+      "sha256": "1a42e2b3299e3bcb3ede7e8d148598c85f7169013e70f3a0b9c6a19432f086cd",
+      "bytes": 131,
+      "source_mtime_ns": 1794390174617094001
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/pilot-2unit-v1/leaf-dis.stderr",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v1/leaf-dis.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "source_mtime_ns": 1794390174719375277,
+      "role": "legacy-two-unit-v1-first-failure-small-raw"
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/pilot-2unit-v1/leaf-dis.stdout",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v1/leaf-dis.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "source_mtime_ns": 1794390174719375277,
+      "role": "legacy-two-unit-v1-first-failure-small-raw"
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/pilot-2unit-v1/leaf-prelink.stderr",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v1/leaf-prelink.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "source_mtime_ns": 1794390174698662958,
+      "role": "legacy-two-unit-v1-first-failure-small-raw"
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/pilot-2unit-v1/leaf-prelink.stdout",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v1/leaf-prelink.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "source_mtime_ns": 1794390174698662958,
+      "role": "legacy-two-unit-v1-first-failure-small-raw"
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/pilot-2unit-v1/leaf-summary.stderr",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v1/leaf-summary.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "source_mtime_ns": 1794390174714855777,
+      "role": "legacy-two-unit-v1-first-failure-small-raw"
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/pilot-2unit-v1/leaf-summary.stdout",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v1/leaf-summary.stdout",
+      "sha256": "933a34ec300dc60285c7e215d0adfdaf14af0e377b77d789caafc9ab469a9664",
+      "bytes": 20932,
+      "source_mtime_ns": 1794390174714855777,
+      "role": "legacy-two-unit-v1-first-failure-small-raw"
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/pilot-2unit-v1/leaf-verify-input.stderr",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v1/leaf-verify-input.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "source_mtime_ns": 1794390174658662236,
+      "role": "legacy-two-unit-v1-first-failure-small-raw"
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/pilot-2unit-v1/leaf-verify-input.stdout",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v1/leaf-verify-input.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "source_mtime_ns": 1794390174658662236,
+      "role": "legacy-two-unit-v1-first-failure-small-raw"
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/pilot-2unit-v1/leaf-verify-prelink.stderr",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v1/leaf-verify-prelink.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "source_mtime_ns": 1794390174706663102,
+      "role": "legacy-two-unit-v1-first-failure-small-raw"
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/pilot-2unit-v1/leaf-verify-prelink.stdout",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v1/leaf-verify-prelink.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "source_mtime_ns": 1794390174706663102,
+      "role": "legacy-two-unit-v1-first-failure-small-raw"
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/pilot-2unit-v1/leaf.ll",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v1/leaf.ll",
+      "sha256": "26dd1ca73180049bc8ed6332c8a906c1386bd9688848d95b3a9f2b908d43d43d",
+      "bytes": 108,
+      "source_mtime_ns": 1794390174616924325
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/pilot-2unit-v1/leaf.prelink.ll",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v1/leaf.prelink.ll",
+      "sha256": "fe7c219745bfa8433bad9a32ef269dc6fbf06dce08827bca430775b36802325f",
+      "bytes": 1347,
+      "source_mtime_ns": 1794390174719375277,
+      "role": "legacy-two-unit-v1-first-failure-small-raw"
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/pilot-2unit-v1/result.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v1/result.json",
+      "sha256": "0264b78d33737797103b6dd5b045a7f36e77094c6fa957b6792405ff25e023b5",
+      "bytes": 119,
+      "source_mtime_ns": 1794390174724631037
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/pilot-2unit-v2/attempts.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/attempts.json",
+      "sha256": "aff76f9157be9bb2a7f2c03ef0357775dca1bb795b172c9c1567f6aab542b74a",
+      "bytes": 6333,
+      "source_mtime_ns": 1794390263266923072
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/pilot-2unit-v2/entry.ll",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/entry.ll",
+      "sha256": "1a42e2b3299e3bcb3ede7e8d148598c85f7169013e70f3a0b9c6a19432f086cd",
+      "bytes": 131,
+      "source_mtime_ns": 1794390174617094001
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/pilot-2unit-v2/leaf.ll",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/leaf.ll",
+      "sha256": "26dd1ca73180049bc8ed6332c8a906c1386bd9688848d95b3a9f2b908d43d43d",
+      "bytes": 108,
+      "source_mtime_ns": 1794390174616924325
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/pilot-2unit-v2/result.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/result.json",
+      "sha256": "7311f98fab8ed83d0cc6240d6653c0684eee8e467d334592f21987a7a9772288",
+      "bytes": 794,
+      "source_mtime_ns": 1794390263267691265
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/prefreeze.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/prefreeze.json",
+      "sha256": "8b03ff1f30e33a56880c735b3a711c38186dadb2df9f25c5c375a97a37bdc2a6",
+      "bytes": 2438,
+      "source_mtime_ns": 1794390701456211624
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/prepare.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/prepare.py",
+      "sha256": "e72cbc51e96466e697c1e00fe71706763221d0889de2542f817c15a76e47d2cc",
+      "bytes": 2600,
+      "source_mtime_ns": 1794390002603556098
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/process-scope-pilot/mock-wrapper.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/mock-wrapper.py",
+      "sha256": "c9a78b98805de394404b113d056da9e670092126d680749eb9fa5a28ed2af8dc",
+      "bytes": 275,
+      "source_mtime_ns": 1794390620142267597
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/process-scope-pilot/mock-zil.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/mock-zil.py",
+      "sha256": "fa2f6422729326da4e780e8e77e92f583141cdc211e610500cba4d5d866e61d3",
+      "bytes": 112,
+      "source_mtime_ns": 1794390620142198973
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/process-scope-pilot/result.json",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/result.json",
+      "sha256": "b01b6ea2a69b9cfc4226d7b93e5237f28f1c33fafadb03bec399cdc951762ae1",
+      "bytes": 6503,
+      "source_mtime_ns": 1794390621363142532
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/process-scope-pilot/tool.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/process-scope-pilot/tool.py",
+      "sha256": "111d254478e9bd7a7ed2f33c22e6c7447651e68cc578a2f81bf0bcb6ca394ecc",
+      "bytes": 338,
+      "source_mtime_ns": 1794390620142319986
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/processes.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/processes.py",
+      "sha256": "ac8cbab5aaa2c2b50a891f5dac28c392dbe5228da6d517749af1b13645abbe04",
+      "bytes": 4188,
+      "source_mtime_ns": 1794390573753574957
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/result-review.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/result-review.md",
+      "sha256": "f3f87b045531f1bd766794b05a3b3331e25928e111f2542bcc52ee0112d9ce3d",
+      "bytes": 9160,
+      "source_mtime_ns": 1794391756479245542
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/run.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/run.py",
+      "sha256": "75c28fd4c7c95817ad790d171e5979b5acf6a95930ca7900115f19f420a62b6d",
+      "bytes": 12133,
+      "source_mtime_ns": 1794390576248820843
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/vendor/fixture.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/vendor/fixture.py",
+      "sha256": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+      "bytes": 7327,
+      "source_mtime_ns": 1794389797114842983
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/vendor/prepare_runtime.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/vendor/prepare_runtime.py",
+      "sha256": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+      "bytes": 4682,
+      "source_mtime_ns": 1794389797121427988
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/vendor/runtime_fixture.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/vendor/runtime_fixture.py",
+      "sha256": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+      "bytes": 4693,
+      "source_mtime_ns": 1794389797116351608
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/vendor/runtime_gate.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/vendor/runtime_gate.py",
+      "sha256": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+      "bytes": 17727,
+      "source_mtime_ns": 1794389797118114125
+    },
+    {
+      "path": "snapshot/research/thinlto-prototype/vendor/screen.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-prototype/vendor/screen.py",
+      "sha256": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3",
+      "bytes": 31550,
+      "source_mtime_ns": 1794389797119857324
+    },
+    {
+      "path": "snapshot/research/thinlto-result-recompute.py",
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-result-recompute.py",
+      "sha256": "1a5b1ff9c50badb4a0bfec0b145e3dfb87726d48c14274768b478be2730e8305",
+      "bytes": 11866,
+      "source_mtime_ns": 1794391598056343993
+    },
+    {
+      "path": "snapshot/research/warm-request-redundancy-audit.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/warm-request-redundancy-audit.md",
+      "sha256": "78ae3e79d61a6e9a7b57ab9e33fd6a4cb6d500f7fe90a298f05d9a47976d51f4",
+      "bytes": 7381,
+      "source_mtime_ns": 1794391770455492312
+    },
+    {
+      "path": "snapshot/research/zil-next-audit.md",
+      "source_path": "/workspace/scratch/abf690ce880c/research/zil-next-audit.md",
+      "sha256": "806c9655279af26d1f912a48085e849c6ee57fe82558309219b8481707946eeb",
+      "bytes": 12740,
+      "source_mtime_ns": 1794389748478929044
+    },
+    {
+      "path": "source-copy-receipt.json",
+      "source_path": null,
+      "role": "archive-index-or-copy-receipt",
+      "sha256": "80e0dec2727f1017992bdc961560d7932c16b9e5970a1371a73c7df1c3c40096",
+      "bytes": 43279
+    },
+    {
+      "path": "update-history/pre-strict-complete/README.md",
+      "source_path": null,
+      "role": "preserved-archive-history",
+      "sha256": "0fe8ee29729414b8a6649f95db12c3f92690033d4d204453b0d68bd1697d308b",
+      "bytes": 4448
+    },
+    {
+      "path": "update-history/pre-strict-complete/SHA256SUMS",
+      "source_path": null,
+      "role": "preserved-archive-history",
+      "sha256": "d6638369687f712b09851362e26b30f366fec1db874c1ed486693720f59ab56a",
+      "bytes": 11744
+    },
+    {
+      "path": "update-history/pre-strict-complete/manifest.json",
+      "source_path": null,
+      "role": "preserved-archive-history",
+      "sha256": "b4be01e3e7871fdd649c30fdc65749c6da95bd5a16f88d9ed62f223be941a188",
+      "bytes": 50636
+    },
+    {
+      "path": "update-history/pre-strict-complete/snapshot/research/thinlto-complete-visibility/clang_wrapper.py",
+      "source_path": null,
+      "role": "preserved-archive-history",
+      "sha256": "628b048a0a1a18f3d037c9abb81a4a8f6eed59a978dec8a0be654532d822b983",
+      "bytes": 10052
+    }
+  ],
+  "formal_thin_python_recovery": {
+    "status": "all-actual-run-protocol-scripts-present-and-hash-equal",
+    "count": 13,
+    "files": [
+      {
+        "name": "clang_wrapper.py",
+        "sha256": "447420ba7c6538040e2518c0096b9bfa0b8ac7cb1c02b6b3aac86695f249db8d",
+        "archived_at": "snapshot/research/thinlto-prototype/clang_wrapper.py"
+      },
+      {
+        "name": "common.py",
+        "sha256": "0c2365a939040be32188cfcc9d67accc12834599b47e31c34ba610adeb4e6154",
+        "archived_at": "snapshot/research/thinlto-prototype/common.py"
+      },
+      {
+        "name": "prepare.py",
+        "sha256": "e72cbc51e96466e697c1e00fe71706763221d0889de2542f817c15a76e47d2cc",
+        "archived_at": "snapshot/research/thinlto-prototype/prepare.py"
+      },
+      {
+        "name": "process-scope-pilot/mock-wrapper.py",
+        "sha256": "c9a78b98805de394404b113d056da9e670092126d680749eb9fa5a28ed2af8dc",
+        "archived_at": "snapshot/research/thinlto-prototype/process-scope-pilot/mock-wrapper.py"
+      },
+      {
+        "name": "process-scope-pilot/mock-zil.py",
+        "sha256": "fa2f6422729326da4e780e8e77e92f583141cdc211e610500cba4d5d866e61d3",
+        "archived_at": "snapshot/research/thinlto-prototype/process-scope-pilot/mock-zil.py"
+      },
+      {
+        "name": "process-scope-pilot/tool.py",
+        "sha256": "111d254478e9bd7a7ed2f33c22e6c7447651e68cc578a2f81bf0bcb6ca394ecc",
+        "archived_at": "snapshot/research/thinlto-prototype/process-scope-pilot/tool.py"
+      },
+      {
+        "name": "processes.py",
+        "sha256": "ac8cbab5aaa2c2b50a891f5dac28c392dbe5228da6d517749af1b13645abbe04",
+        "archived_at": "snapshot/research/thinlto-prototype/processes.py"
+      },
+      {
+        "name": "run.py",
+        "sha256": "75c28fd4c7c95817ad790d171e5979b5acf6a95930ca7900115f19f420a62b6d",
+        "archived_at": "snapshot/research/thinlto-prototype/run.py"
+      },
+      {
+        "name": "vendor/fixture.py",
+        "sha256": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+        "archived_at": "snapshot/research/thinlto-prototype/vendor/fixture.py"
+      },
+      {
+        "name": "vendor/prepare_runtime.py",
+        "sha256": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+        "archived_at": "snapshot/research/thinlto-prototype/vendor/prepare_runtime.py"
+      },
+      {
+        "name": "vendor/runtime_fixture.py",
+        "sha256": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+        "archived_at": "snapshot/research/thinlto-prototype/vendor/runtime_fixture.py"
+      },
+      {
+        "name": "vendor/runtime_gate.py",
+        "sha256": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+        "archived_at": "snapshot/research/thinlto-prototype/vendor/runtime_gate.py"
+      },
+      {
+        "name": "vendor/screen.py",
+        "sha256": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3",
+        "archived_at": "snapshot/research/thinlto-prototype/vendor/screen.py"
+      }
+    ],
+    "historical_v4_readme": {
+      "status": "exact-prefreeze-hash-restored",
+      "sha256": "f4a9f1a6d3a3e9937b2082b1957c44edfec129824b65ec4690050ce0e41a5fc8",
+      "archived_at": "snapshot/research/thinlto-prototype/archive-v4/README.md",
+      "restoration_metadata": "snapshot/research/thinlto-prototype/archive-v4/restoration.json"
+    }
+  },
+  "updated_utc": "2026-11-11T10:58:59.910132+00:00",
+  "archive_phase": "in-progress-strict-NoGo-and-inline-diagnostic-private-import-experiment-pending",
+  "strict_versions": {
+    "v1": {
+      "prefreeze_sha256": "9d588d0ce1c89c49448a4b171f2502345095414e4a539504275688f3334645a4",
+      "status": "not-executed-variable-shadowing-defect-preserved",
+      "root": "snapshot/research/thinlto-complete-visibility-history/v1"
+    },
+    "v2": {
+      "prefreeze_sha256": "ebe4fc9d30ecf77b261d846497b7c863260e21b94f655c6d0d748f4cac6e262f",
+      "status": "formal-run-complete-NoGo",
+      "root": "snapshot/research/thinlto-complete-visibility"
+    }
+  },
+  "source_copy_receipt": "source-copy-receipt.json",
+  "file_count_excluding_manifest_and_sums": 167
+}

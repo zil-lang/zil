@@ -1,0 +1,11 @@
+{
+  "format": "zil-inline-diagnostic-formal-shape-comparison/1",
+  "diagnostic_bitcode": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-0.o.4.opt.bc",
+  "diagnostic_bitcode_sha256": "bb4dc61727ead379cc417e293dc27243f4b4a8b617db97b8bbce728a4abdc83f",
+  "diagnostic_ir": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/unit-0.o.4.opt.ll",
+  "diagnostic_ir_sha256": "dfe0fbd3a7f6719d9c85c29e407d3dd50537b39a656c1eccdd0388866f3c050b",
+  "formal_ir": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/decoded-strict-v1/n64/unit-0.o.4.opt.ll",
+  "formal_ir_sha256": "080ddc53e4280fedf7a4995b49a95f96bfdcad4e20b523b6b52e48f78a531598",
+  "equal_except_module_id_comment": true,
+  "raw_ir_equal": false
+}

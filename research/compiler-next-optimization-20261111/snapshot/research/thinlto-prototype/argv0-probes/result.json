@@ -1,0 +1,42 @@
+[
+  {
+    "name": "ld.lld",
+    "command": [
+      "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/ld.lld",
+      "--version"
+    ],
+    "resolved_executable": "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/lld",
+    "exit": 0,
+    "compilation_or_native_fixture_executed": false
+  },
+  {
+    "name": "generic-lld-control",
+    "command": [
+      "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/lld",
+      "--version"
+    ],
+    "resolved_executable": "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/lld",
+    "exit": 1,
+    "compilation_or_native_fixture_executed": false
+  },
+  {
+    "name": "clang",
+    "command": [
+      "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/clang",
+      "--version"
+    ],
+    "resolved_executable": "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/clang-23",
+    "exit": 0,
+    "compilation_or_native_fixture_executed": false
+  },
+  {
+    "name": "rustc-real",
+    "command": [
+      "/workspace/scratch/abf690ce880c/toolchain/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+      "-vV"
+    ],
+    "resolved_executable": "/workspace/scratch/abf690ce880c/toolchain/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+    "exit": 0,
+    "compilation_or_native_fixture_executed": false
+  }
+]

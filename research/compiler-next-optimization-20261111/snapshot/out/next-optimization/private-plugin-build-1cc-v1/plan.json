@@ -1,0 +1,38 @@
+{
+  "command": [
+    "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/clang++",
+    "-std=c++17",
+    "-O2",
+    "-shared",
+    "-fPIC",
+    "-fno-exceptions",
+    "-fno-rtti",
+    "-D_GLIBCXX_USE_CXX11_ABI=1",
+    "-I/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/include",
+    "-MMD",
+    "-MF",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-build-1cc-v1/dependencies.d",
+    "/workspace/scratch/abf690ce880c/private-plugin-validation/research/compiler-thinlto-private-imports/PrivateImports.cpp",
+    "-o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-build-1cc-v1/PrivateImports.so",
+    "-ldl"
+  ],
+  "source_commit": "1cc866a08bac100012e41726067711c94caf1899",
+  "source_tree": "910d281b288b9266f67c92ae9891b3b9290d16d2",
+  "source": {
+    "path": "/workspace/scratch/abf690ce880c/private-plugin-validation/research/compiler-thinlto-private-imports/PrivateImports.cpp",
+    "sha256": "a22e5004b5f99150ae197ffa88f406eafb2136c796d5d3cc651a8fc97cc99623"
+  },
+  "compiler": {
+    "path": "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/clang++",
+    "sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67"
+  },
+  "cpu_affinity": [
+    0,
+    1
+  ],
+  "recipe": {
+    "path": "/workspace/scratch/abf690ce880c/research/private-plugin-build.py",
+    "sha256": "aee5c4c66fcfedb4e92314833a7a405ca8652a0dcef628d9e5082a2774178e2a"
+  }
+}

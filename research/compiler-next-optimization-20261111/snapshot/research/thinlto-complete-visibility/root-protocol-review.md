@@ -1,0 +1,11 @@
+# 根集成者对严格完整可见性 v2 的独立协议审查
+
+源码2549/tree ebb993已独立源码审查，release、5项proof控制、无native check均通过。本人不是该候选或Python脚本作者，已读取visibility.py、wrapper、common、prepare、run全部新增路径；processes及五vendor的原字节复用沿用已有独审。
+
+v1静读发现link finally将originals字典覆盖成Path列表，会令实际post-import校验必失败；该阻断发生在任何新prepare/compiler/native之前，v1完整字节已留在ROOT外history/v1。v2仅重命名finally临时变量为saved_original_paths，已逐行核对原dict不再被覆盖。冻结文件全部逐SHA匹配prefreeze/2；wrapper保留可执行权限。
+
+当前源预算证明先于wrapper工具执行。实际input、prelink BC、dis文本与link输入逐字节绑定；prelink Required由八单元真实调用图得出，不能用原helper名单冒充本阶段需求。post-import先LLVM验证再解码，要求必需body在definitions中、所有新定义及AE受原Allowed界限；unknown/name/state/address保守失败。成本回算按原输入renderer的一行一instruction与block计，不能用于一般LLVM文本。已有旧实物只读自检只证明reader能得56/224并拒绝空import，其synthetic Allowed明确不当成新的Rust能力。
+
+固定两case、100k、六排列、6clean/54native/36formal、1.10及0.90门保持；所有样本保留；完整当前Verify/原model/实际unit与LLVM验证层次分开。binding使用实际Rust路径和ld.lld调用路径；private process group拥有关系与原经过控制的代码同字节。额外proof、反复工具hash和文本检查的compile wall只作诊断。限定pure输入之外不作任何产品正确性或净编译收益结论。
+
+结论：v2可生成协议并提交另一非作者核对精确protocol，当前未执行新候选的编译/native。真实工具输出若不在reader有限支持域，保留Incomplete，不将其归为runtime NoGo或修改门限补过。

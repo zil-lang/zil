@@ -1,0 +1,148 @@
+{
+  "format": "zil-thinlto-one-relink-inline-diagnostic/1",
+  "status": "prepared-not-run",
+  "source_run": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/1794393172220145301-73/receipt.json",
+  "source_receipt_sha256": "aa813ba2833219d930aeea366d0e4d178d817d2b94d2e6499b77396e42b2622d",
+  "cpus": [
+    0,
+    1
+  ],
+  "formal_sample": false,
+  "native_execution": false,
+  "optimization_or_threshold_changes": false,
+  "added_diagnostic_options": [
+    "--opt-remarks-filename",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml",
+    "--opt-remarks-passes",
+    "inline"
+  ],
+  "original_argv": [
+    "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/clang",
+    "--target=x86_64-unknown-linux-gnu",
+    "-O2",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-0.o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-1.o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-2.o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-3.o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-4.o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-5.o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-6.o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-7.o",
+    "-o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/program",
+    "-flto=thin",
+    "-fuse-ld=lld",
+    "--ld-path=/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/ld.lld",
+    "-march=x86-64",
+    "-fPIC",
+    "-pie",
+    "-Wl,--lto-O2,--lto-CGO2,--plugin-opt=mcpu=x86-64,--thinlto-jobs=2,--threads=2,--icf=none,--save-temps",
+    "-Wl,--thinlto-emit-imports-files,--thinlto-emit-index-files",
+    "-Wl,--mllvm=-enable-merge-functions=true,--mllvm=-mergefunc-use-aliases=false",
+    "-Wl,--mllvm=-force-import-all=true",
+    "-Wl,--thinlto-cache-dir=/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/native-cache"
+  ],
+  "argv": [
+    "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/clang",
+    "--target=x86_64-unknown-linux-gnu",
+    "-O2",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-0.o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-1.o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-2.o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-3.o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-4.o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-5.o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-6.o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-7.o",
+    "-o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/program",
+    "-flto=thin",
+    "-fuse-ld=lld",
+    "--ld-path=/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/ld.lld",
+    "-march=x86-64",
+    "-fPIC",
+    "-pie",
+    "-Wl,--lto-O2,--lto-CGO2,--plugin-opt=mcpu=x86-64,--thinlto-jobs=2,--threads=2,--icf=none,--save-temps",
+    "-Wl,--thinlto-emit-imports-files,--thinlto-emit-index-files",
+    "-Wl,--mllvm=-enable-merge-functions=true,--mllvm=-mergefunc-use-aliases=false",
+    "-Wl,--mllvm=-force-import-all=true",
+    "-Wl,--thinlto-cache-dir=/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/native-cache",
+    "-Wl,--opt-remarks-filename,/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml,--opt-remarks-passes,inline"
+  ],
+  "input_claims": [
+    {
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-0.o",
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/1794393171372240879-62/prelink.thin.bc",
+      "restored": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-0.o",
+      "sha256": "1f62cffb80dd896987b18b2d732a5b922b264c997d801cec2d08da7b47fd9044",
+      "bytes": 52748,
+      "receipt": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/1794393171372240879-62/receipt.json",
+      "receipt_sha256": "598e4592d8232018405d8c4bac080b7ca7dad8d12c25e7275317d8a3623d8f57"
+    },
+    {
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-1.o",
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/1794393168355635980-25/prelink.thin.bc",
+      "restored": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-1.o",
+      "sha256": "6f0fa06f6ac96f1bb0bf5c4e3ad1b064fc6de805dee818735ed804c54f7f4927",
+      "bytes": 49512,
+      "receipt": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/1794393168355635980-25/receipt.json",
+      "receipt_sha256": "ec8dd43221288de5d47feb026144f2a8d4eb6f4109d182948e61afd209050ac4"
+    },
+    {
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-2.o",
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/1794393168371719247-26/prelink.thin.bc",
+      "restored": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-2.o",
+      "sha256": "c3418b67fba27c0449ec94d419ed4e2f987cd3a01b4c761f59d74598f52ca238",
+      "bytes": 48140,
+      "receipt": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/1794393168371719247-26/receipt.json",
+      "receipt_sha256": "ae4577714dea06d1e60a59289434391833b6dddf5009de8ae318ee57e1dc54af"
+    },
+    {
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-3.o",
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/1794393169379908753-37/prelink.thin.bc",
+      "restored": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-3.o",
+      "sha256": "d9d62b893b3ade007b39d650f986344229cbe2fa197ce96df7dcfc408701a911",
+      "bytes": 48888,
+      "receipt": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/1794393169379908753-37/receipt.json",
+      "receipt_sha256": "e3382e706f2ca2f5ac9acd1cb9ba050dbf084ddf8e4408b9a0f5cee95a1c02e4"
+    },
+    {
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-4.o",
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/1794393169358826970-38/prelink.thin.bc",
+      "restored": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-4.o",
+      "sha256": "82665ce9acb38d2fb7648afa0ade6ca44f8ee59379b922c2ef50a1da20c5cdd8",
+      "bytes": 49800,
+      "receipt": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/1794393169358826970-38/receipt.json",
+      "receipt_sha256": "166ee27dc7e2e9c2470b4ef5c11714c4f68a65909f11b0d66a113cb976f8d2fb"
+    },
+    {
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-5.o",
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/1794393170439113316-48/prelink.thin.bc",
+      "restored": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-5.o",
+      "sha256": "d251834be79b92dbcffd3d8802848c987419f183193527b15ceb217185d2d314",
+      "bytes": 48608,
+      "receipt": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/1794393170439113316-48/receipt.json",
+      "receipt_sha256": "65752b9da1ed096e60ab0aa5bbc6cd3db3bf70d7e242ce3441a40c8016f583b7"
+    },
+    {
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-6.o",
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/1794393170314065042-50/prelink.thin.bc",
+      "restored": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-6.o",
+      "sha256": "1dc0298816556d97dc7913a1b3da72a1e1bdb96a99d046f42954d77778957164",
+      "bytes": 48432,
+      "receipt": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/1794393170314065042-50/receipt.json",
+      "receipt_sha256": "586116267591f4db918abb4c11e6ecc3079b0a50681d48776193e179f827ccfa"
+    },
+    {
+      "original": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/.zil-driver-20-0/.zil-build-20-0/unit-7.o",
+      "source": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/1794393171152520193-56/prelink.thin.bc",
+      "restored": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inputs/unit-7.o",
+      "sha256": "c9482375e860752f487d1d0b3012150514a2556668ae10d04850ab15b815a6bb",
+      "bytes": 49216,
+      "receipt": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/1794393171152520193-56/receipt.json",
+      "receipt_sha256": "28ff52b048ecf8c14c4c6e675a372c36574fbf6d930e3c4d4ddfda3617f693f7"
+    }
+  ],
+  "timeout_seconds": 600,
+  "attempt_policy": "one link only; no retry on failure; no native"
+}

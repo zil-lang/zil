@@ -1,0 +1,472 @@
+{
+  "format": "zil-text-snapshot-copy-receipt/1",
+  "phase": "private-imports-runtime-Pass-next-identity-dedup-preparing",
+  "read_only_sources": true,
+  "source_count": 51,
+  "all_sources_before_after_equal": true,
+  "original_archive_payload_preserved": true,
+  "preserved_replaced_payload": [],
+  "previous_copy_receipt": "update-history/pre-private-imports-pass/source-copy-receipt.json",
+  "compiler_llvm_native_executed": false,
+  "copies": [
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-build-1cc-v1/binding.json",
+      "archive_path": "snapshot/out/next-optimization/private-plugin-build-1cc-v1/binding.json",
+      "bytes": 2432,
+      "before_sha256": "056e812dbb270f07c40abf9658fa6ef3007ed76bc8f5869941ed49322fdcf2a9",
+      "after_sha256": "056e812dbb270f07c40abf9658fa6ef3007ed76bc8f5869941ed49322fdcf2a9",
+      "archive_sha256": "056e812dbb270f07c40abf9658fa6ef3007ed76bc8f5869941ed49322fdcf2a9",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-build-1cc-v1/build/process-attempt.json",
+      "archive_path": "snapshot/out/next-optimization/private-plugin-build-1cc-v1/build/process-attempt.json",
+      "bytes": 1005,
+      "before_sha256": "9d08f7d10cb680caed8b8ca923631ace8a21427ea047e9cb1e6425ff560f0e1b",
+      "after_sha256": "9d08f7d10cb680caed8b8ca923631ace8a21427ea047e9cb1e6425ff560f0e1b",
+      "archive_sha256": "9d08f7d10cb680caed8b8ca923631ace8a21427ea047e9cb1e6425ff560f0e1b",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-build-1cc-v1/build/stderr",
+      "archive_path": "snapshot/out/next-optimization/private-plugin-build-1cc-v1/build/stderr",
+      "bytes": 0,
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-build-1cc-v1/build/stdout",
+      "archive_path": "snapshot/out/next-optimization/private-plugin-build-1cc-v1/build/stdout",
+      "bytes": 0,
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-build-1cc-v1/dependencies.d",
+      "archive_path": "snapshot/out/next-optimization/private-plugin-build-1cc-v1/dependencies.d",
+      "bytes": 23032,
+      "before_sha256": "d140226103d783040c18ebc2f2e274b14a13a53aeaaae11e95a580c2d693152c",
+      "after_sha256": "d140226103d783040c18ebc2f2e274b14a13a53aeaaae11e95a580c2d693152c",
+      "archive_sha256": "d140226103d783040c18ebc2f2e274b14a13a53aeaaae11e95a580c2d693152c",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-build-1cc-v1/dynamic-dependencies/process-attempt.json",
+      "archive_path": "snapshot/out/next-optimization/private-plugin-build-1cc-v1/dynamic-dependencies/process-attempt.json",
+      "bytes": 474,
+      "before_sha256": "6ec8a0eff0cfdc12a2814a2223cea4e0ec96bfe5db54ac69ad4d334b6b869353",
+      "after_sha256": "6ec8a0eff0cfdc12a2814a2223cea4e0ec96bfe5db54ac69ad4d334b6b869353",
+      "archive_sha256": "6ec8a0eff0cfdc12a2814a2223cea4e0ec96bfe5db54ac69ad4d334b6b869353",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-build-1cc-v1/dynamic-dependencies/stderr",
+      "archive_path": "snapshot/out/next-optimization/private-plugin-build-1cc-v1/dynamic-dependencies/stderr",
+      "bytes": 0,
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-build-1cc-v1/dynamic-dependencies/stdout",
+      "archive_path": "snapshot/out/next-optimization/private-plugin-build-1cc-v1/dynamic-dependencies/stdout",
+      "bytes": 1517,
+      "before_sha256": "c2f9bc7ceafa16e4df1b3b974b883a61698ac91621ec203d5d111ff8fbba19f1",
+      "after_sha256": "c2f9bc7ceafa16e4df1b3b974b883a61698ac91621ec203d5d111ff8fbba19f1",
+      "archive_sha256": "c2f9bc7ceafa16e4df1b3b974b883a61698ac91621ec203d5d111ff8fbba19f1",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-build-1cc-v1/plan.json",
+      "archive_path": "snapshot/out/next-optimization/private-plugin-build-1cc-v1/plan.json",
+      "bytes": 1438,
+      "before_sha256": "367ae2898cfc18d809a02394f971b90db385715ae892723c5807e88425a72ee0",
+      "after_sha256": "367ae2898cfc18d809a02394f971b90db385715ae892723c5807e88425a72ee0",
+      "archive_sha256": "367ae2898cfc18d809a02394f971b90db385715ae892723c5807e88425a72ee0",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-controls-v1/build/process-attempt.json",
+      "archive_path": "snapshot/out/next-optimization/private-plugin-controls-v1/build/process-attempt.json",
+      "bytes": 875,
+      "before_sha256": "5e4a2d8bc3d8a153dd7030ba20e2d82178c039b546d2c2766e1cc3d03342b6fb",
+      "after_sha256": "5e4a2d8bc3d8a153dd7030ba20e2d82178c039b546d2c2766e1cc3d03342b6fb",
+      "archive_sha256": "5e4a2d8bc3d8a153dd7030ba20e2d82178c039b546d2c2766e1cc3d03342b6fb",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-controls-v1/build/stderr",
+      "archive_path": "snapshot/out/next-optimization/private-plugin-controls-v1/build/stderr",
+      "bytes": 0,
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-controls-v1/build/stdout",
+      "archive_path": "snapshot/out/next-optimization/private-plugin-controls-v1/build/stdout",
+      "bytes": 0,
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-controls-v1/controls/process-attempt.json",
+      "archive_path": "snapshot/out/next-optimization/private-plugin-controls-v1/controls/process-attempt.json",
+      "bytes": 705,
+      "before_sha256": "688c852af9239823d318a06fb75c2a84e4bec65128ef031728d55a55e0f9def8",
+      "after_sha256": "688c852af9239823d318a06fb75c2a84e4bec65128ef031728d55a55e0f9def8",
+      "archive_sha256": "688c852af9239823d318a06fb75c2a84e4bec65128ef031728d55a55e0f9def8",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-controls-v1/controls/stderr",
+      "archive_path": "snapshot/out/next-optimization/private-plugin-controls-v1/controls/stderr",
+      "bytes": 0,
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-controls-v1/controls/stdout",
+      "archive_path": "snapshot/out/next-optimization/private-plugin-controls-v1/controls/stdout",
+      "bytes": 212,
+      "before_sha256": "2bff2088c8938139f6c5b0804e16586fd938b77f4745f416ba1476aef4f10155",
+      "after_sha256": "2bff2088c8938139f6c5b0804e16586fd938b77f4745f416ba1476aef4f10155",
+      "archive_sha256": "2bff2088c8938139f6c5b0804e16586fd938b77f4745f416ba1476aef4f10155",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-controls-v1/empty.ll",
+      "archive_path": "snapshot/out/next-optimization/private-plugin-controls-v1/empty.ll",
+      "bytes": 50,
+      "before_sha256": "e02760893d6b4faebfeeb0642cebb2bea5478068e2cd9e3cc8d2c68caedd5fcd",
+      "after_sha256": "e02760893d6b4faebfeeb0642cebb2bea5478068e2cd9e3cc8d2c68caedd5fcd",
+      "archive_sha256": "e02760893d6b4faebfeeb0642cebb2bea5478068e2cd9e3cc8d2c68caedd5fcd",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-controls-v1/plan.json",
+      "archive_path": "snapshot/out/next-optimization/private-plugin-controls-v1/plan.json",
+      "bytes": 1400,
+      "before_sha256": "84a77d7ef68d630a1d74b582e6fbe2cb884bd6c21e23814e5bd748339fee26c7",
+      "after_sha256": "84a77d7ef68d630a1d74b582e6fbe2cb884bd6c21e23814e5bd748339fee26c7",
+      "archive_sha256": "84a77d7ef68d630a1d74b582e6fbe2cb884bd6c21e23814e5bd748339fee26c7",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-controls-v1/summary.json",
+      "archive_path": "snapshot/out/next-optimization/private-plugin-controls-v1/summary.json",
+      "bytes": 1337,
+      "before_sha256": "e23f14d32d0c2fa281ba77d6d051057094de4be05c38c6122d5ac863d9ff495a",
+      "after_sha256": "e23f14d32d0c2fa281ba77d6d051057094de4be05c38c6122d5ac863d9ff495a",
+      "archive_sha256": "e23f14d32d0c2fa281ba77d6d051057094de4be05c38c6122d5ac863d9ff495a",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-prepare-launch-interruption.json",
+      "archive_path": "snapshot/out/next-optimization/private-prepare-launch-interruption.json",
+      "bytes": 468,
+      "before_sha256": "76c5fb04386ad3739d1ceb0c985ec82fe63dda610d05ff297a9eb2c48f750abd",
+      "after_sha256": "76c5fb04386ad3739d1ceb0c985ec82fe63dda610d05ff297a9eb2c48f750abd",
+      "archive_sha256": "76c5fb04386ad3739d1ceb0c985ec82fe63dda610d05ff297a9eb2c48f750abd",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-protocol-v1/protocol.json",
+      "archive_path": "snapshot/out/next-optimization/private-protocol-v1/protocol.json",
+      "bytes": 128674,
+      "before_sha256": "208adf6f5a3e904182afdaf1ef1c6b30a173fb559400ab14d05b2f59e4803a44",
+      "after_sha256": "208adf6f5a3e904182afdaf1ef1c6b30a173fb559400ab14d05b2f59e4803a44",
+      "archive_sha256": "208adf6f5a3e904182afdaf1ef1c6b30a173fb559400ab14d05b2f59e4803a44",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-runtime-v1/execution-manifest.json",
+      "archive_path": "snapshot/out/next-optimization/private-runtime-v1/execution-manifest.json",
+      "bytes": 133,
+      "before_sha256": "df36609dc2303761e197cf2615a7706fbd0f42e615668fd651a57eb23e6e4c45",
+      "after_sha256": "df36609dc2303761e197cf2615a7706fbd0f42e615668fd651a57eb23e6e4c45",
+      "archive_sha256": "df36609dc2303761e197cf2615a7706fbd0f42e615668fd651a57eb23e6e4c45",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-runtime-v1/protocol.json",
+      "archive_path": "snapshot/out/next-optimization/private-runtime-v1/protocol.json",
+      "bytes": 128674,
+      "before_sha256": "208adf6f5a3e904182afdaf1ef1c6b30a173fb559400ab14d05b2f59e4803a44",
+      "after_sha256": "208adf6f5a3e904182afdaf1ef1c6b30a173fb559400ab14d05b2f59e4803a44",
+      "archive_sha256": "208adf6f5a3e904182afdaf1ef1c6b30a173fb559400ab14d05b2f59e4803a44",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-runtime-v1/summary.json",
+      "archive_path": "snapshot/out/next-optimization/private-runtime-v1/summary.json",
+      "bytes": 7569,
+      "before_sha256": "3b12a25e3e354941c97ad28c920306ce576dda232b5be708606192fc9496d44c",
+      "after_sha256": "3b12a25e3e354941c97ad28c920306ce576dda232b5be708606192fc9496d44c",
+      "archive_sha256": "3b12a25e3e354941c97ad28c920306ce576dda232b5be708606192fc9496d44c",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/next-evidence-pack.py",
+      "archive_path": "snapshot/research/next-evidence-pack.py",
+      "bytes": 16164,
+      "before_sha256": "a388188f1131302fc53aa173a5bbfa4cc7eac5a284ae31159cf1232a15c17790",
+      "after_sha256": "a388188f1131302fc53aa173a5bbfa4cc7eac5a284ae31159cf1232a15c17790",
+      "archive_sha256": "a388188f1131302fc53aa173a5bbfa4cc7eac5a284ae31159cf1232a15c17790",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/private-compile-cost-audit.md",
+      "archive_path": "snapshot/research/private-compile-cost-audit.md",
+      "bytes": 10683,
+      "before_sha256": "847c441eda7976599b508507c1bcc5ac4b0efa7243dfd30990203eb9978ff6a9",
+      "after_sha256": "847c441eda7976599b508507c1bcc5ac4b0efa7243dfd30990203eb9978ff6a9",
+      "archive_sha256": "847c441eda7976599b508507c1bcc5ac4b0efa7243dfd30990203eb9978ff6a9",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/private-compile-cost-evidence.json",
+      "archive_path": "snapshot/research/private-compile-cost-evidence.json",
+      "bytes": 39766,
+      "before_sha256": "abc35dbdac229b6e3aacedbdd7752bb35daa5ac96a9caed08637c456c8720b92",
+      "after_sha256": "abc35dbdac229b6e3aacedbdd7752bb35daa5ac96a9caed08637c456c8720b92",
+      "archive_sha256": "abc35dbdac229b6e3aacedbdd7752bb35daa5ac96a9caed08637c456c8720b92",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/private-plugin-build.py",
+      "archive_path": "snapshot/research/private-plugin-build.py",
+      "bytes": 3512,
+      "before_sha256": "aee5c4c66fcfedb4e92314833a7a405ca8652a0dcef628d9e5082a2774178e2a",
+      "after_sha256": "aee5c4c66fcfedb4e92314833a7a405ca8652a0dcef628d9e5082a2774178e2a",
+      "archive_sha256": "aee5c4c66fcfedb4e92314833a7a405ca8652a0dcef628d9e5082a2774178e2a",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports/PrivateImports.cpp",
+      "archive_path": "snapshot/research/thinlto-private-imports/PrivateImports.cpp",
+      "bytes": 20367,
+      "before_sha256": "a22e5004b5f99150ae197ffa88f406eafb2136c796d5d3cc651a8fc97cc99623",
+      "after_sha256": "a22e5004b5f99150ae197ffa88f406eafb2136c796d5d3cc651a8fc97cc99623",
+      "archive_sha256": "a22e5004b5f99150ae197ffa88f406eafb2136c796d5d3cc651a8fc97cc99623",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports/README.md",
+      "archive_path": "snapshot/research/thinlto-private-imports/README.md",
+      "bytes": 3224,
+      "before_sha256": "19bb44100b34b08aa8d1e17d25770c31bd94b7bb2aa5010c54ecfcabffa9e9bb",
+      "after_sha256": "19bb44100b34b08aa8d1e17d25770c31bd94b7bb2aa5010c54ecfcabffa9e9bb",
+      "archive_sha256": "19bb44100b34b08aa8d1e17d25770c31bd94b7bb2aa5010c54ecfcabffa9e9bb",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports/clang_wrapper.py",
+      "archive_path": "snapshot/research/thinlto-private-imports/clang_wrapper.py",
+      "bytes": 10626,
+      "before_sha256": "b1127a35c81a4d1712e24b1c08d68b693b71bbabb1aae296c5a293ac2db48979",
+      "after_sha256": "b1127a35c81a4d1712e24b1c08d68b693b71bbabb1aae296c5a293ac2db48979",
+      "archive_sha256": "b1127a35c81a4d1712e24b1c08d68b693b71bbabb1aae296c5a293ac2db48979",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports/common.py",
+      "archive_path": "snapshot/research/thinlto-private-imports/common.py",
+      "bytes": 5696,
+      "before_sha256": "d8780ed7faf17e7c9cc17ce0f3bf01e5a3cfd012ee59d6bd8b3d4bfc0f7cb2ce",
+      "after_sha256": "d8780ed7faf17e7c9cc17ce0f3bf01e5a3cfd012ee59d6bd8b3d4bfc0f7cb2ce",
+      "archive_sha256": "d8780ed7faf17e7c9cc17ce0f3bf01e5a3cfd012ee59d6bd8b3d4bfc0f7cb2ce",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports/hook_checks.py",
+      "archive_path": "snapshot/research/thinlto-private-imports/hook_checks.py",
+      "bytes": 8167,
+      "before_sha256": "532bb71f9d5275f118aa6a6c029829554d059fccc5ce682759d5cf935d81d242",
+      "after_sha256": "532bb71f9d5275f118aa6a6c029829554d059fccc5ce682759d5cf935d81d242",
+      "archive_sha256": "532bb71f9d5275f118aa6a6c029829554d059fccc5ce682759d5cf935d81d242",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports/prefreeze.json",
+      "archive_path": "snapshot/research/thinlto-private-imports/prefreeze.json",
+      "bytes": 2097,
+      "before_sha256": "1545636266d6a69a6a7048e67c3299594b6af35669d8d519951a41b30d5d0599",
+      "after_sha256": "1545636266d6a69a6a7048e67c3299594b6af35669d8d519951a41b30d5d0599",
+      "archive_sha256": "1545636266d6a69a6a7048e67c3299594b6af35669d8d519951a41b30d5d0599",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports/prepare.py",
+      "archive_path": "snapshot/research/thinlto-private-imports/prepare.py",
+      "bytes": 3053,
+      "before_sha256": "4ce3cf7271ec496acebfb9261a7d5c358ef3b0c9cbe56da6ea29fb5f3d22ed7a",
+      "after_sha256": "4ce3cf7271ec496acebfb9261a7d5c358ef3b0c9cbe56da6ea29fb5f3d22ed7a",
+      "archive_sha256": "4ce3cf7271ec496acebfb9261a7d5c358ef3b0c9cbe56da6ea29fb5f3d22ed7a",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports/processes.py",
+      "archive_path": "snapshot/research/thinlto-private-imports/processes.py",
+      "bytes": 4188,
+      "before_sha256": "ac8cbab5aaa2c2b50a891f5dac28c392dbe5228da6d517749af1b13645abbe04",
+      "after_sha256": "ac8cbab5aaa2c2b50a891f5dac28c392dbe5228da6d517749af1b13645abbe04",
+      "archive_sha256": "ac8cbab5aaa2c2b50a891f5dac28c392dbe5228da6d517749af1b13645abbe04",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports/result-review.json",
+      "archive_path": "snapshot/research/thinlto-private-imports/result-review.json",
+      "bytes": 282456,
+      "before_sha256": "d3528dd4cac59d4824bc67e298b9f09ddcf0a000b27c7f66f6e7f426e31fb427",
+      "after_sha256": "d3528dd4cac59d4824bc67e298b9f09ddcf0a000b27c7f66f6e7f426e31fb427",
+      "archive_sha256": "d3528dd4cac59d4824bc67e298b9f09ddcf0a000b27c7f66f6e7f426e31fb427",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports/result-review.md",
+      "archive_path": "snapshot/research/thinlto-private-imports/result-review.md",
+      "bytes": 8870,
+      "before_sha256": "80ecaca190a8e6bcc27269b31bca7fb969238703e6c1505b555d2470e36a1538",
+      "after_sha256": "80ecaca190a8e6bcc27269b31bca7fb969238703e6c1505b555d2470e36a1538",
+      "archive_sha256": "80ecaca190a8e6bcc27269b31bca7fb969238703e6c1505b555d2470e36a1538",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports/run.py",
+      "archive_path": "snapshot/research/thinlto-private-imports/run.py",
+      "bytes": 12676,
+      "before_sha256": "4ac460515dcf79c5d76acf002c683a60c8f767f8309304a1b5a4dc15ab4a832c",
+      "after_sha256": "4ac460515dcf79c5d76acf002c683a60c8f767f8309304a1b5a4dc15ab4a832c",
+      "archive_sha256": "4ac460515dcf79c5d76acf002c683a60c8f767f8309304a1b5a4dc15ab4a832c",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports/vendor/fixture.py",
+      "archive_path": "snapshot/research/thinlto-private-imports/vendor/fixture.py",
+      "bytes": 7327,
+      "before_sha256": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+      "after_sha256": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+      "archive_sha256": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports/vendor/prepare_runtime.py",
+      "archive_path": "snapshot/research/thinlto-private-imports/vendor/prepare_runtime.py",
+      "bytes": 4682,
+      "before_sha256": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+      "after_sha256": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+      "archive_sha256": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports/vendor/runtime_fixture.py",
+      "archive_path": "snapshot/research/thinlto-private-imports/vendor/runtime_fixture.py",
+      "bytes": 4693,
+      "before_sha256": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+      "after_sha256": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+      "archive_sha256": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports/vendor/runtime_gate.py",
+      "archive_path": "snapshot/research/thinlto-private-imports/vendor/runtime_gate.py",
+      "bytes": 17727,
+      "before_sha256": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+      "after_sha256": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+      "archive_sha256": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports/vendor/screen.py",
+      "archive_path": "snapshot/research/thinlto-private-imports/vendor/screen.py",
+      "bytes": 31550,
+      "before_sha256": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3",
+      "after_sha256": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3",
+      "archive_sha256": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports/visibility.py",
+      "archive_path": "snapshot/research/thinlto-private-imports/visibility.py",
+      "bytes": 11524,
+      "before_sha256": "bbd583f3f948f4292c5a484c37b3e8ebd24213d414fcbcab11b890a8eaedde21",
+      "after_sha256": "bbd583f3f948f4292c5a484c37b3e8ebd24213d414fcbcab11b890a8eaedde21",
+      "archive_sha256": "bbd583f3f948f4292c5a484c37b3e8ebd24213d414fcbcab11b890a8eaedde21",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports-controls/PrivateImportsControls.cpp",
+      "archive_path": "snapshot/research/thinlto-private-imports-controls/PrivateImportsControls.cpp",
+      "bytes": 4084,
+      "before_sha256": "83e11d0106de5e5418f407358fb66e5f4c028028ce24f4a4e39844b64c689be0",
+      "after_sha256": "83e11d0106de5e5418f407358fb66e5f4c028028ce24f4a4e39844b64c689be0",
+      "archive_sha256": "83e11d0106de5e5418f407358fb66e5f4c028028ce24f4a4e39844b64c689be0",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports-controls/README.md",
+      "archive_path": "snapshot/research/thinlto-private-imports-controls/README.md",
+      "bytes": 1671,
+      "before_sha256": "c5057c31447ee48760373bcae739362b05b1af8d21befcca060dff606357ca2e",
+      "after_sha256": "c5057c31447ee48760373bcae739362b05b1af8d21befcca060dff606357ca2e",
+      "archive_sha256": "c5057c31447ee48760373bcae739362b05b1af8d21befcca060dff606357ca2e",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports-controls/api-boundary.md",
+      "archive_path": "snapshot/research/thinlto-private-imports-controls/api-boundary.md",
+      "bytes": 6657,
+      "before_sha256": "ee11a11c3b03558e25d7be48ebf430d501a06954aa6944f2e9c93e9ca67275f7",
+      "after_sha256": "ee11a11c3b03558e25d7be48ebf430d501a06954aa6944f2e9c93e9ca67275f7",
+      "archive_sha256": "ee11a11c3b03558e25d7be48ebf430d501a06954aa6944f2e9c93e9ca67275f7",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports-cpp-review.md",
+      "archive_path": "snapshot/research/thinlto-private-imports-cpp-review.md",
+      "bytes": 6771,
+      "before_sha256": "6339c706055ee32a557b1ad7402d35d991d194fbaf7940901126535f7bdab6dd",
+      "after_sha256": "6339c706055ee32a557b1ad7402d35d991d194fbaf7940901126535f7bdab6dd",
+      "archive_sha256": "6339c706055ee32a557b1ad7402d35d991d194fbaf7940901126535f7bdab6dd",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports-design-review.md",
+      "archive_path": "snapshot/research/thinlto-private-imports-design-review.md",
+      "bytes": 13960,
+      "before_sha256": "d8511e8846fdc270b34c24dfe3fbc1f92a7485163ae1082d5f1640bd24ef006f",
+      "after_sha256": "d8511e8846fdc270b34c24dfe3fbc1f92a7485163ae1082d5f1640bd24ef006f",
+      "archive_sha256": "d8511e8846fdc270b34c24dfe3fbc1f92a7485163ae1082d5f1640bd24ef006f",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports-python-review.md",
+      "archive_path": "snapshot/research/thinlto-private-imports-python-review.md",
+      "bytes": 12709,
+      "before_sha256": "4c8b744ac23a8e7178b3897a7cdf64d1f4d26ccb33f23f395c9d0c13bd6c0f95",
+      "after_sha256": "4c8b744ac23a8e7178b3897a7cdf64d1f4d26ccb33f23f395c9d0c13bd6c0f95",
+      "archive_sha256": "4c8b744ac23a8e7178b3897a7cdf64d1f4d26ccb33f23f395c9d0c13bd6c0f95",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-private-imports-source-freeze-v1.json",
+      "archive_path": "snapshot/research/thinlto-private-imports-source-freeze-v1.json",
+      "bytes": 1366,
+      "before_sha256": "bb3c573475b29825c9a1a10e0d975488d7e6740eadea13dba4ef898475a6b738",
+      "after_sha256": "bb3c573475b29825c9a1a10e0d975488d7e6740eadea13dba4ef898475a6b738",
+      "archive_sha256": "bb3c573475b29825c9a1a10e0d975488d7e6740eadea13dba4ef898475a6b738",
+      "source_unchanged": true
+    }
+  ]
+}

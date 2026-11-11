@@ -1,0 +1,23 @@
+{
+  "command": [
+    "readelf",
+    "-d",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-build-1cc-v1/PrivateImports.so"
+  ],
+  "exit": 0,
+  "timeout": false,
+  "exception": null,
+  "cpu_ms": 1.449,
+  "rss_kib": 287488,
+  "wall_ms": 2.190343,
+  "reaped": true,
+  "scope": "owned-request-session",
+  "cleanup": [
+    {
+      "action": "owned-request-group-empty",
+      "group": 19
+    }
+  ],
+  "owned_group": 19,
+  "residual_descendants": false
+}

@@ -1,0 +1,14 @@
+{
+  "source_commit": "99035931d358add0eaed6d4535035c38413701dd",
+  "source_tree": "1c16744d838064cb1c687ba56ef3a0d17ed3130c",
+  "checkout": "/workspace/scratch/abf690ce880c/zil",
+  "binary": "/workspace/scratch/abf690ce880c/targets/main990/release/zil",
+  "binary_sha256": "64e1ff43bbaa59f786f1cc899b69e707072219a9c0abf0122ce31cd7b77f981d",
+  "build_log": "/workspace/scratch/abf690ce880c/out/next-optimization/build-main990.log",
+  "build_log_sha256": "b13e11044ca443fd1a7ba6f08674b4d09238c851cb35aa398e921bd07ef2ad10",
+  "toolchain": {
+    "rust": "1.99.1",
+    "llvm": "23.1.4"
+  },
+  "release_build_status": "Pass"
+}

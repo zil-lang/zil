@@ -1,0 +1,14 @@
+{
+  "source_commit": "2549cbec8e1f3096d4c8c8a960459c83095ad13d",
+  "source_tree": "ebb993128355fed8228627c6d7b37d5cb0a90d45",
+  "checkout": "/workspace/scratch/abf690ce880c/thin-complete-validation",
+  "binary": "/workspace/scratch/abf690ce880c/targets/thin-complete-2549/release/zil",
+  "binary_sha256": "fdfe6cea83286475582ce5b9063e9d84a9371b584baf99920193689f5e93d3e4",
+  "build_log": "/workspace/scratch/abf690ce880c/out/next-optimization/build-thin-complete-2549.log",
+  "build_log_sha256": "3a2e99ee9fd58a1ba7b5f52b7ce251deb0b8a557a3c24dcf9978c53ea0876c8d",
+  "toolchain": {
+    "rust": "1.99.1",
+    "llvm": "23.1.4"
+  },
+  "release_build_status": "Pass"
+}

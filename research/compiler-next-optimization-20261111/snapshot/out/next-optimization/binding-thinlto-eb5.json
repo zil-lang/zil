@@ -1,0 +1,14 @@
+{
+  "source_commit": "eb5b150903b67d8b9011f6adc2d3ac67b1c419a6",
+  "source_tree": "1da99d09dbeb53e59f8df4572f4bc5d010ff5929",
+  "checkout": "/workspace/scratch/abf690ce880c/thinlto-validation",
+  "binary": "/workspace/scratch/abf690ce880c/targets/thinlto-eb5/release/zil",
+  "binary_sha256": "aa2b07720075a401e9488ce95d89ff328beee47a58a1f9e63b2625ad57d8b2fd",
+  "build_log": "/workspace/scratch/abf690ce880c/out/next-optimization/build-thinlto-eb5.log",
+  "build_log_sha256": "d30b65033d082120d767da8810cc640b9635149294f3139d7d206402bf9f8977",
+  "toolchain": {
+    "rust": "1.99.1",
+    "llvm": "23.1.4"
+  },
+  "release_build_status": "Pass"
+}

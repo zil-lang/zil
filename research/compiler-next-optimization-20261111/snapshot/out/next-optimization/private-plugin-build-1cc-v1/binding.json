@@ -1,0 +1,53 @@
+{
+  "status": "Pass",
+  "source_commit": "1cc866a08bac100012e41726067711c94caf1899",
+  "source_tree": "910d281b288b9266f67c92ae9891b3b9290d16d2",
+  "source": {
+    "path": "/workspace/scratch/abf690ce880c/private-plugin-validation/research/compiler-thinlto-private-imports/PrivateImports.cpp",
+    "sha256": "a22e5004b5f99150ae197ffa88f406eafb2136c796d5d3cc651a8fc97cc99623"
+  },
+  "compiler": {
+    "path": "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/clang++",
+    "sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67"
+  },
+  "plugin": {
+    "path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-build-1cc-v1/PrivateImports.so",
+    "sha256": "585a84701033e21669a2465df4007150e1fddf36df1acdab3165c48a16734cf6"
+  },
+  "build_log": {
+    "path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-build-1cc-v1/build/process-attempt.json",
+    "sha256": "9d08f7d10cb680caed8b8ca923631ace8a21427ea047e9cb1e6425ff560f0e1b"
+  },
+  "stdout": {
+    "path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-build-1cc-v1/build/stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "stderr": {
+    "path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-build-1cc-v1/build/stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "plan": {
+    "path": "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-build-1cc-v1/plan.json",
+    "sha256": "367ae2898cfc18d809a02394f971b90db385715ae892723c5807e88425a72ee0"
+  },
+  "command": [
+    "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/clang++",
+    "-std=c++17",
+    "-O2",
+    "-shared",
+    "-fPIC",
+    "-fno-exceptions",
+    "-fno-rtti",
+    "-D_GLIBCXX_USE_CXX11_ABI=1",
+    "-I/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/include",
+    "-MMD",
+    "-MF",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-build-1cc-v1/dependencies.d",
+    "/workspace/scratch/abf690ce880c/private-plugin-validation/research/compiler-thinlto-private-imports/PrivateImports.cpp",
+    "-o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-build-1cc-v1/PrivateImports.so",
+    "-ldl"
+  ],
+  "links_second_libLLVM": false,
+  "sdk_archive_sha256": "efdd1dbd089b99bfcfcde7b8eb1236163f2e88df5a981cca4f783ec9cb5e0378"
+}

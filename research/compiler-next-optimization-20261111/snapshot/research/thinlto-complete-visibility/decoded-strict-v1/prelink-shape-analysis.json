@@ -1,0 +1,198 @@
+{
+  "format": "zil-thinlto-prelink-shape-existing-evidence/1",
+  "scope": "existing source/IR only; no optimizer/linker/native execution",
+  "cases": {
+    "n64": [
+      {
+        "name": "zil.fn.14",
+        "input": {
+          "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/1794393168355635980-25/input.ll",
+          "sha256": "d5d341b5aedbb394ea269f705036cf497f532a4351b3b53acb5edde73f689e22"
+        },
+        "prelink_ir": {
+          "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/1794393168355635980-25/prelink.ll",
+          "sha256": "d0b5e4386ef71c0a708c99e607f8f46def10ddd8636223af7b799a6431142672"
+        },
+        "stages": {
+          "input": {
+            "header": "define i32 @zil.fn.14(i32 %arg.0) {",
+            "instruction_lines": 45,
+            "source_calls": [
+              "zil.fn.6",
+              "zil.fn.7",
+              "zil.fn.8",
+              "zil.fn.9",
+              "zil.fn.10",
+              "zil.fn.11",
+              "zil.fn.12",
+              "zil.fn.13"
+            ],
+            "body_sha256": "a0d581b8a9515b3b790d2d387e277c65121862c9acdb65d027cf9d89cc322266"
+          },
+          "prelink": {
+            "header": "define range(i32 -2000, 2001) i32 @zil.fn.14(i32 %arg.0) local_unnamed_addr #2 !guid !9 {",
+            "instruction_lines": 178,
+            "source_calls": [],
+            "body_sha256": "4136dd89cdefa9bd0a40e144e87d2f76f09b8888260d875a8f35018a74cf9286"
+          },
+          "import": {
+            "header": "define available_externally range(i32 -2000, 2001) i32 @zil.fn.14(i32 %arg.0) local_unnamed_addr #3 !guid !11 {",
+            "instruction_lines": 178,
+            "source_calls": [],
+            "body_sha256": "4136dd89cdefa9bd0a40e144e87d2f76f09b8888260d875a8f35018a74cf9286"
+          }
+        },
+        "prelink_body_bytes_equal_imported_body_bytes": true,
+        "postopt_declaration": [
+          "declare range(i32 -2000, 2001) i32 @zil.fn.14(i32) local_unnamed_addr #4"
+        ],
+        "postopt_call_lines": [
+          "  %v.3.i.i = tail call i32 @zil.fn.14(i32 range(i32 -250, 251) %v.15.i)"
+        ]
+      },
+      {
+        "name": "zil.fn.23",
+        "input": {
+          "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/1794393168371719247-26/input.ll",
+          "sha256": "538ff4a91e3efc3197006bfe37feaf84374a54a2993638cf76cfd2399541781f"
+        },
+        "prelink_ir": {
+          "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n64/base/compile-B/wrapper/1794393168371719247-26/prelink.ll",
+          "sha256": "c5075a98d3245c73a68cf67ab737331fb0effdbbf5182c58fe4bc1ba34700940"
+        },
+        "stages": {
+          "input": {
+            "header": "define i32 @zil.fn.23(i32 %arg.0) {",
+            "instruction_lines": 45,
+            "source_calls": [
+              "zil.fn.15",
+              "zil.fn.16",
+              "zil.fn.17",
+              "zil.fn.18",
+              "zil.fn.19",
+              "zil.fn.20",
+              "zil.fn.21",
+              "zil.fn.22"
+            ],
+            "body_sha256": "66eed8c61263e6e8fa660b6f415846a9a1e80ad60cfdc4a8c3991440053649aa"
+          },
+          "prelink": {
+            "header": "define range(i32 -2000, 2001) i32 @zil.fn.23(i32 %arg.0) local_unnamed_addr #2 !guid !9 {",
+            "instruction_lines": 156,
+            "source_calls": [],
+            "body_sha256": "80f5dc915b66b39b4e12c159f015ca99309f67b8e3c9dff24cb7fcaaf178e39b"
+          },
+          "import": {
+            "header": "define available_externally range(i32 -2000, 2001) i32 @zil.fn.23(i32 %arg.0) local_unnamed_addr #3 !guid !19 {",
+            "instruction_lines": 156,
+            "source_calls": [],
+            "body_sha256": "80f5dc915b66b39b4e12c159f015ca99309f67b8e3c9dff24cb7fcaaf178e39b"
+          }
+        },
+        "prelink_body_bytes_equal_imported_body_bytes": true,
+        "postopt_declaration": [
+          "declare range(i32 -2000, 2001) i32 @zil.fn.23(i32) local_unnamed_addr #4"
+        ],
+        "postopt_call_lines": [
+          "  %v.7.i.i = tail call i32 @zil.fn.23(i32 range(i32 -250, 251) %v.15.i)"
+        ]
+      }
+    ],
+    "n256": [
+      {
+        "name": "zil.fn.23",
+        "input": {
+          "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n256/base/compile-B/wrapper/1794393187798796697-177/input.ll",
+          "sha256": "183825e8fca4601418dbffa09032c928bd9099f0630365bbfc2966fa44d8f5c9"
+        },
+        "prelink_ir": {
+          "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n256/base/compile-B/wrapper/1794393187798796697-177/prelink.ll",
+          "sha256": "650459734a4fa052974ea1f59700402ed41fe85d3e7e834626cd0ccadc2865d8"
+        },
+        "stages": {
+          "input": {
+            "header": "define i32 @zil.fn.23(i32 %arg.0) {",
+            "instruction_lines": 45,
+            "source_calls": [
+              "zil.fn.15",
+              "zil.fn.16",
+              "zil.fn.17",
+              "zil.fn.18",
+              "zil.fn.19",
+              "zil.fn.20",
+              "zil.fn.21",
+              "zil.fn.22"
+            ],
+            "body_sha256": "66eed8c61263e6e8fa660b6f415846a9a1e80ad60cfdc4a8c3991440053649aa"
+          },
+          "prelink": {
+            "header": "define range(i32 -2000, 2001) i32 @zil.fn.23(i32 %arg.0) local_unnamed_addr #2 !guid !9 {",
+            "instruction_lines": 156,
+            "source_calls": [],
+            "body_sha256": "80f5dc915b66b39b4e12c159f015ca99309f67b8e3c9dff24cb7fcaaf178e39b"
+          },
+          "import": {
+            "header": "define available_externally range(i32 -2000, 2001) i32 @zil.fn.23(i32 %arg.0) local_unnamed_addr #3 !guid !67 {",
+            "instruction_lines": 156,
+            "source_calls": [],
+            "body_sha256": "80f5dc915b66b39b4e12c159f015ca99309f67b8e3c9dff24cb7fcaaf178e39b"
+          }
+        },
+        "prelink_body_bytes_equal_imported_body_bytes": true,
+        "postopt_declaration": [
+          "declare range(i32 -2000, 2001) i32 @zil.fn.23(i32) local_unnamed_addr #4"
+        ],
+        "postopt_call_lines": [
+          "  %v.7.i.i = tail call i32 @zil.fn.23(i32 range(i32 -250, 251) %v.15.i)"
+        ]
+      },
+      {
+        "name": "zil.fn.14",
+        "input": {
+          "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n256/base/compile-B/wrapper/1794393186771140585-168/input.ll",
+          "sha256": "d2fd19e900ca1bfcda8c0e66bab4316a2b79b5ba27888e297dfb1efff83f99a5"
+        },
+        "prelink_ir": {
+          "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/n256/base/compile-B/wrapper/1794393186771140585-168/prelink.ll",
+          "sha256": "b55be12f56c24947d4285f045a8236eb1c410ce0335a11eb9f02c4abff6d4638"
+        },
+        "stages": {
+          "input": {
+            "header": "define i32 @zil.fn.14(i32 %arg.0) {",
+            "instruction_lines": 45,
+            "source_calls": [
+              "zil.fn.6",
+              "zil.fn.7",
+              "zil.fn.8",
+              "zil.fn.9",
+              "zil.fn.10",
+              "zil.fn.11",
+              "zil.fn.12",
+              "zil.fn.13"
+            ],
+            "body_sha256": "a0d581b8a9515b3b790d2d387e277c65121862c9acdb65d027cf9d89cc322266"
+          },
+          "prelink": {
+            "header": "define range(i32 -2000, 2001) i32 @zil.fn.14(i32 %arg.0) local_unnamed_addr #2 !guid !9 {",
+            "instruction_lines": 178,
+            "source_calls": [],
+            "body_sha256": "4136dd89cdefa9bd0a40e144e87d2f76f09b8888260d875a8f35018a74cf9286"
+          },
+          "import": {
+            "header": "define available_externally range(i32 -2000, 2001) i32 @zil.fn.14(i32 %arg.0) local_unnamed_addr #3 !guid !35 {",
+            "instruction_lines": 178,
+            "source_calls": [],
+            "body_sha256": "4136dd89cdefa9bd0a40e144e87d2f76f09b8888260d875a8f35018a74cf9286"
+          }
+        },
+        "prelink_body_bytes_equal_imported_body_bytes": true,
+        "postopt_declaration": [
+          "declare range(i32 -2000, 2001) i32 @zil.fn.14(i32) local_unnamed_addr #4"
+        ],
+        "postopt_call_lines": [
+          "  %v.3.i.i = tail call i32 @zil.fn.14(i32 range(i32 -250, 251) %v.15.i)"
+        ]
+      }
+    ]
+  }
+}

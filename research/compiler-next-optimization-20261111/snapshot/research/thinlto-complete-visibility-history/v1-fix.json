@@ -1,0 +1,14 @@
+{
+  "kind": "static-review-fix-before-any-new-compile",
+  "old_prefreeze_sha256": "9d588d0ce1c89c49448a4b171f2502345095414e4a539504275688f3334645a4",
+  "new_prefreeze_sha256": "ebe4fc9d30ecf77b261d846497b7c863260e21b94f655c6d0d748f4cac6e262f",
+  "changes": [
+    {
+      "path": "clang_wrapper.py",
+      "old": "628b048a0a1a18f3d037c9abb81a4a8f6eed59a978dec8a0be654532d822b983",
+      "new": "aed889bb0c519e8690cc663e61b32f1125ed648dd145e992a8e81172b7449792"
+    }
+  ],
+  "full_prior_tree_saved_at": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1",
+  "new_candidate_compiles_or_native_runs": 0
+}

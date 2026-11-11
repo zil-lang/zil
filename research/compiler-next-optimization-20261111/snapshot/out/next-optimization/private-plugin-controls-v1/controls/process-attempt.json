@@ -1,0 +1,25 @@
+{
+  "command": [
+    "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/opt",
+    "--load-pass-plugin=/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-controls-v1/PrivateImportsControls.so",
+    "-passes=zil-private-imports-controls",
+    "-disable-output",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-controls-v1/empty.ll"
+  ],
+  "exit": 0,
+  "timeout": false,
+  "exception": null,
+  "cpu_ms": 7.556,
+  "rss_kib": 286208,
+  "wall_ms": 7.85552,
+  "reaped": true,
+  "scope": "owned-request-session",
+  "cleanup": [
+    {
+      "action": "owned-request-group-empty",
+      "group": 9
+    }
+  ],
+  "owned_group": 9,
+  "residual_descendants": false
+}

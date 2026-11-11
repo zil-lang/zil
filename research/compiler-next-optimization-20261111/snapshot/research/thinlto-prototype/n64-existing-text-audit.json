@@ -1,0 +1,513 @@
+{
+  "format": "zil-thinlto-n64-readonly-text-audit/1",
+  "scope": "existing receipts/prelink.ll only; no tools/compiler/native executed; no .3/.4 decode yet",
+  "thin_link_receipts": [
+    {
+      "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390984581631432-73/receipt.json",
+      "sha256": "13cb0b800cffe7456d83424f004a5c7e5eecd252147184ff222a873346f4323e",
+      "actual_imports": {
+        "064-unit-6.o.imports": [],
+        "046-unit-4.o.imports": [],
+        "037-unit-3.o.imports": [],
+        "055-unit-5.o.imports": [],
+        "010-unit-0.o.imports": [],
+        "019-unit-1.o.imports": [],
+        "073-unit-7.o.imports": [],
+        "028-unit-2.o.imports": []
+      },
+      "cache_was_initially_empty": true
+    }
+  ],
+  "prelink_summaries": [
+    {
+      "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390980171325501-26/prelink.ll",
+      "sha256": "9eb446579a4740d3a8c90a69db181e1678b0222b84aa9580de074782a5bb82f4",
+      "leaf_value_summaries": [
+        {
+          "name": "zil.fn.527",
+          "insts": 127,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.383",
+          "insts": 159,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.167",
+          "insts": 122,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.23",
+          "insts": 156,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.311",
+          "insts": 175,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.95",
+          "insts": 135,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.239",
+          "insts": 177,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.455",
+          "insts": 148,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390980234908920-25/prelink.ll",
+      "sha256": "c327d5d464b38834a7243589c0f4a7970e2f0ec801853147cb19d9a630f147ee",
+      "leaf_value_summaries": [
+        {
+          "name": "zil.fn.230",
+          "insts": 132,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.518",
+          "insts": 151,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.158",
+          "insts": 146,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.374",
+          "insts": 172,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.14",
+          "insts": 178,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.446",
+          "insts": 170,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.302",
+          "insts": 178,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.86",
+          "insts": 159,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390981409561290-34/prelink.ll",
+      "sha256": "7cc938f970424f2fdfc3eb6984dc5dee66e088b9169a295e39f648477d57126b",
+      "leaf_value_summaries": [
+        {
+          "name": "zil.fn.248",
+          "insts": 170,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.104",
+          "insts": 184,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.32",
+          "insts": 130,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.320",
+          "insts": 156,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.392",
+          "insts": 135,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.464",
+          "insts": 122,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.176",
+          "insts": 172,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.536",
+          "insts": 178,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390981564313140-38/prelink.ll",
+      "sha256": "f3dfe236f6198ca2af008d1535d0bd81a6dca00dc720e9de55879d0daebefdea",
+      "leaf_value_summaries": [
+        {
+          "name": "zil.fn.113",
+          "insts": 178,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.257",
+          "insts": 146,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.545",
+          "insts": 170,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.185",
+          "insts": 162,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.401",
+          "insts": 178,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.41",
+          "insts": 172,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.329",
+          "insts": 135,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.473",
+          "insts": 172,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390982339720934-44/prelink.ll",
+      "sha256": "5442210820a20fe983397d262f66a236d4af6d2f26b5c241f3fbe3d755d48891",
+      "leaf_value_summaries": [
+        {
+          "name": "zil.fn.194",
+          "insts": 135,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.554",
+          "insts": 148,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.50",
+          "insts": 167,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.482",
+          "insts": 159,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.266",
+          "insts": 122,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.122",
+          "insts": 156,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.338",
+          "insts": 177,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.410",
+          "insts": 174,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390982537672935-50/prelink.ll",
+      "sha256": "ae1fc191bf0699dd02da10a3000a53dbf93b252f5e2cd692c6d7f01890c68b77",
+      "leaf_value_summaries": [
+        {
+          "name": "zil.fn.563",
+          "insts": 122,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.275",
+          "insts": 175,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.203",
+          "insts": 178,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.419",
+          "insts": 153,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.59",
+          "insts": 146,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.131",
+          "insts": 130,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.491",
+          "insts": 138,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.347",
+          "insts": 170,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390983457208834-56/prelink.ll",
+      "sha256": "93990c1b48b94daa297f747aacc6299e771b2d2fc8c66747a3be28cd214166b6",
+      "leaf_value_summaries": [
+        {
+          "name": "zil.fn.140",
+          "insts": 175,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.212",
+          "insts": 178,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.68",
+          "insts": 122,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.356",
+          "insts": 146,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.572",
+          "insts": 175,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.284",
+          "insts": 159,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.428",
+          "insts": 135,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.500",
+          "insts": 178,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-runtime-v1/n64/base/compile-B/wrapper/1794390983653607383-62/prelink.ll",
+      "sha256": "e11a46c5cb53068e09a25ac83deb531ff22cd06417456f51c16675563a4b58a5",
+      "leaf_value_summaries": [
+        {
+          "name": "zil.fn.221",
+          "insts": 158,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.149",
+          "insts": 170,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.77",
+          "insts": 177,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.365",
+          "insts": 122,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.509",
+          "insts": 174,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.437",
+          "insts": 178,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        },
+        {
+          "name": "zil.fn.293",
+          "insts": 135,
+          "not_eligible": "0",
+          "no_inline": "0",
+          "always_inline": "0"
+        }
+      ]
+    }
+  ],
+  "leaf_value_count": 63
+}

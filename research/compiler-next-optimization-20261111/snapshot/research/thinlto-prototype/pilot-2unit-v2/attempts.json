@@ -1,0 +1,232 @@
+[
+  {
+    "name": "leaf-verify-input",
+    "command": [
+      "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/opt",
+      "-passes=verify",
+      "-disable-output",
+      "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/leaf.ll"
+    ],
+    "exit": 0,
+    "elapsed_ns_diagnostic_only": 26742973,
+    "affinity": [
+      0,
+      1
+    ]
+  },
+  {
+    "name": "leaf-prelink",
+    "command": [
+      "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/clang",
+      "--target=x86_64-unknown-linux-gnu",
+      "-x",
+      "ir",
+      "-O2",
+      "-c",
+      "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/leaf.ll",
+      "-o",
+      "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/leaf.o",
+      "-flto=thin",
+      "-march=x86-64",
+      "-fPIC",
+      "-mllvm",
+      "-enable-merge-functions=true",
+      "-mllvm",
+      "-mergefunc-use-aliases=false"
+    ],
+    "exit": 0,
+    "elapsed_ns_diagnostic_only": 31649161,
+    "affinity": [
+      0,
+      1
+    ]
+  },
+  {
+    "name": "leaf-verify-prelink",
+    "command": [
+      "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/opt",
+      "-passes=verify",
+      "-disable-output",
+      "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/leaf.o"
+    ],
+    "exit": 0,
+    "elapsed_ns_diagnostic_only": 9185709,
+    "affinity": [
+      0,
+      1
+    ]
+  },
+  {
+    "name": "leaf-summary",
+    "command": [
+      "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-bcanalyzer",
+      "-dump",
+      "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/leaf.o"
+    ],
+    "exit": 0,
+    "elapsed_ns_diagnostic_only": 3011061,
+    "affinity": [
+      0,
+      1
+    ]
+  },
+  {
+    "name": "leaf-dis",
+    "command": [
+      "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+      "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/leaf.o",
+      "-o",
+      "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/leaf.prelink.ll"
+    ],
+    "exit": 0,
+    "elapsed_ns_diagnostic_only": 4711019,
+    "affinity": [
+      0,
+      1
+    ]
+  },
+  {
+    "name": "entry-verify-input",
+    "command": [
+      "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/opt",
+      "-passes=verify",
+      "-disable-output",
+      "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/entry.ll"
+    ],
+    "exit": 0,
+    "elapsed_ns_diagnostic_only": 7419377,
+    "affinity": [
+      0,
+      1
+    ]
+  },
+  {
+    "name": "entry-prelink",
+    "command": [
+      "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/clang",
+      "--target=x86_64-unknown-linux-gnu",
+      "-x",
+      "ir",
+      "-O2",
+      "-c",
+      "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/entry.ll",
+      "-o",
+      "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/entry.o",
+      "-flto=thin",
+      "-march=x86-64",
+      "-fPIC",
+      "-mllvm",
+      "-enable-merge-functions=true",
+      "-mllvm",
+      "-mergefunc-use-aliases=false"
+    ],
+    "exit": 0,
+    "elapsed_ns_diagnostic_only": 17177769,
+    "affinity": [
+      0,
+      1
+    ]
+  },
+  {
+    "name": "entry-verify-prelink",
+    "command": [
+      "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/opt",
+      "-passes=verify",
+      "-disable-output",
+      "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/entry.o"
+    ],
+    "exit": 0,
+    "elapsed_ns_diagnostic_only": 7235475,
+    "affinity": [
+      0,
+      1
+    ]
+  },
+  {
+    "name": "entry-summary",
+    "command": [
+      "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-bcanalyzer",
+      "-dump",
+      "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/entry.o"
+    ],
+    "exit": 0,
+    "elapsed_ns_diagnostic_only": 2428576,
+    "affinity": [
+      0,
+      1
+    ]
+  },
+  {
+    "name": "entry-dis",
+    "command": [
+      "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/llvm-dis",
+      "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/entry.o",
+      "-o",
+      "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/entry.prelink.ll"
+    ],
+    "exit": 0,
+    "elapsed_ns_diagnostic_only": 2199943,
+    "affinity": [
+      0,
+      1
+    ]
+  },
+  {
+    "name": "link",
+    "command": [
+      "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/clang",
+      "--target=x86_64-unknown-linux-gnu",
+      "-O2",
+      "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/entry.o",
+      "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/leaf.o",
+      "-o",
+      "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/program",
+      "-flto=thin",
+      "-fuse-ld=lld",
+      "--ld-path=/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/ld.lld",
+      "-march=x86-64",
+      "-fPIC",
+      "-pie",
+      "-Wl,--lto-O2,--lto-CGO2,--plugin-opt=mcpu=x86-64,--thinlto-jobs=2,--threads=2,--icf=none,--save-temps",
+      "-Wl,--thinlto-emit-imports-files,--thinlto-emit-index-files",
+      "-Wl,--mllvm=-enable-merge-functions=true,--mllvm=-mergefunc-use-aliases=false",
+      "-Wl,--thinlto-cache-dir=/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/native-cache"
+    ],
+    "exit": 0,
+    "elapsed_ns_diagnostic_only": 73424106,
+    "affinity": [
+      0,
+      1
+    ]
+  },
+  {
+    "name": "verify-post-0",
+    "command": [
+      "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/opt",
+      "-passes=verify",
+      "-disable-output",
+      "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/entry.o.4.opt.bc"
+    ],
+    "exit": 0,
+    "elapsed_ns_diagnostic_only": 7310963,
+    "affinity": [
+      0,
+      1
+    ]
+  },
+  {
+    "name": "verify-post-1",
+    "command": [
+      "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/opt",
+      "-passes=verify",
+      "-disable-output",
+      "/workspace/scratch/abf690ce880c/research/thinlto-prototype/pilot-2unit-v2/leaf.o.4.opt.bc"
+    ],
+    "exit": 0,
+    "elapsed_ns_diagnostic_only": 5637371,
+    "affinity": [
+      0,
+      1
+    ]
+  }
+]

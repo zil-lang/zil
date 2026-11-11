@@ -1,0 +1,36 @@
+{
+  "command": [
+    "/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/bin/clang++",
+    "-std=c++17",
+    "-O2",
+    "-shared",
+    "-fPIC",
+    "-fno-exceptions",
+    "-fno-rtti",
+    "-D_GLIBCXX_USE_CXX11_ABI=1",
+    "-I/workspace/scratch/abf690ce880c/toolchain/llvm-23.1.4/include",
+    "-MMD",
+    "-MF",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-build-1cc-v1/dependencies.d",
+    "/workspace/scratch/abf690ce880c/private-plugin-validation/research/compiler-thinlto-private-imports/PrivateImports.cpp",
+    "-o",
+    "/workspace/scratch/abf690ce880c/out/next-optimization/private-plugin-build-1cc-v1/PrivateImports.so",
+    "-ldl"
+  ],
+  "exit": 0,
+  "timeout": false,
+  "exception": null,
+  "cpu_ms": 3864.007,
+  "rss_kib": 373564,
+  "wall_ms": 3932.563063,
+  "reaped": true,
+  "scope": "owned-request-session",
+  "cleanup": [
+    {
+      "action": "owned-request-group-empty",
+      "group": 16
+    }
+  ],
+  "owned_group": 16,
+  "residual_descendants": false
+}

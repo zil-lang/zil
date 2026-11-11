@@ -1,0 +1,14 @@
+{
+  "format": "zil-next-optimization-retirement-draft-freeze/1",
+  "drafts_only": true,
+  "files": {
+    "README.md": "33e60ae3979c1b050a7c6eff9a0f547362c9b1bd81c2bc84a9ca98221984b10c",
+    "compiler-builder-position-retire.yml": "00d083ef9b1f271e609e433e055818406408704cd9fae72e9c5471e0942bf275",
+    "compiler-structured-emission-retire.yml": "8c82943d987fd0e59670e8f1d64790d120c1c7595645553165c503c26b7389b3",
+    "compiler-thinlto-complete-visibility-retire.yml": "6ed875b575bae8d30d3ed30d768889f1e8ac75a263afda8513a815969ce9168e",
+    "compiler-thinlto-prototype-retire.yml": "65336698d38665919ee39f889ce5343e944908149fde00cf73fa94f6942aca3e",
+    "draft-identities.json": "cb1e2fece1a007552561db85bbc79312b9e39135c7bc3c8b176d8dea48014cf9",
+    "remote-readback.json": "d81374954e40fd04d453ac738dfcec485f593071574540f03ba94d4fb0661bc9",
+    "template-success.yml": "68ea8a721246cb764c43277ea52f249c9b54ffab42f7784934273ffd840b2411"
+  }
+}

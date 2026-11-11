@@ -1,0 +1,697 @@
+{
+  "format": "zil-text-snapshot-copy-receipt/1",
+  "read_only_sources": true,
+  "source_count": 76,
+  "all_sources_before_after_equal": true,
+  "compiler_llvm_native_executed": false,
+  "original_archive_payload_preserved": true,
+  "preserved_replaced_payload": [
+    "update-history/pre-strict-complete/snapshot/research/thinlto-complete-visibility/clang_wrapper.py"
+  ],
+  "copies": [
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/artifact-index.json",
+      "archive_path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/artifact-index.json",
+      "bytes": 17673,
+      "before_sha256": "5ed9939008d66d3bf29a7e18fe202d15f7491dc84a961482758eeb62d4d65473",
+      "after_sha256": "5ed9939008d66d3bf29a7e18fe202d15f7491dc84a961482758eeb62d4d65473",
+      "archive_sha256": "5ed9939008d66d3bf29a7e18fe202d15f7491dc84a961482758eeb62d4d65473",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/diagnostic-plan.json",
+      "archive_path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/diagnostic-plan.json",
+      "bytes": 11508,
+      "before_sha256": "11703d7de0fa04226f699d44f134140dc59da83d63a9183dc788063118bed111",
+      "after_sha256": "11703d7de0fa04226f699d44f134140dc59da83d63a9183dc788063118bed111",
+      "archive_sha256": "11703d7de0fa04226f699d44f134140dc59da83d63a9183dc788063118bed111",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/formal-shape-comparison.json",
+      "archive_path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/formal-shape-comparison.json",
+      "bytes": 821,
+      "before_sha256": "0dcb0d05415d3d4ffa8ec284050063cb770d0327b1f62c6add1491d5d3b61961",
+      "after_sha256": "0dcb0d05415d3d4ffa8ec284050063cb770d0327b1f62c6add1491d5d3b61961",
+      "archive_sha256": "0dcb0d05415d3d4ffa8ec284050063cb770d0327b1f62c6add1491d5d3b61961",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml",
+      "archive_path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml",
+      "bytes": 0,
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.1.",
+      "archive_path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.1.",
+      "bytes": 77666,
+      "before_sha256": "e4699549df689de6baa764fcd2e7c8acea4675d7a6438aeb2b8a5e157143fda4",
+      "after_sha256": "e4699549df689de6baa764fcd2e7c8acea4675d7a6438aeb2b8a5e157143fda4",
+      "archive_sha256": "e4699549df689de6baa764fcd2e7c8acea4675d7a6438aeb2b8a5e157143fda4",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.2.",
+      "archive_path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.2.",
+      "bytes": 0,
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.3.",
+      "archive_path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.3.",
+      "bytes": 0,
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.4.",
+      "archive_path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.4.",
+      "bytes": 0,
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.5.",
+      "archive_path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.5.",
+      "bytes": 0,
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.6.",
+      "archive_path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.6.",
+      "bytes": 0,
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.7.",
+      "archive_path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.7.",
+      "bytes": 0,
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.8.",
+      "archive_path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/inline-remarks.yaml.thin.8.",
+      "bytes": 0,
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/parsed-inline-remarks.json",
+      "archive_path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/parsed-inline-remarks.json",
+      "bytes": 68510,
+      "before_sha256": "573d61569d79969d50b0724ec7410a163f9145a8a1e4fd1adf6fa4dbb1ba0708",
+      "after_sha256": "573d61569d79969d50b0724ec7410a163f9145a8a1e4fd1adf6fa4dbb1ba0708",
+      "archive_sha256": "573d61569d79969d50b0724ec7410a163f9145a8a1e4fd1adf6fa4dbb1ba0708",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/process-attempt.json",
+      "archive_path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/process-attempt.json",
+      "bytes": 2393,
+      "before_sha256": "67fd1537b8cc657c89e8897e68ab21fab0eaffaa456f371c8613c004ed20cec0",
+      "after_sha256": "67fd1537b8cc657c89e8897e68ab21fab0eaffaa456f371c8613c004ed20cec0",
+      "archive_sha256": "67fd1537b8cc657c89e8897e68ab21fab0eaffaa456f371c8613c004ed20cec0",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/stderr",
+      "archive_path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/stderr",
+      "bytes": 70,
+      "before_sha256": "d1add7323606ef2adbd1aae9263d081aeae20078e2aea799d889e93003efe729",
+      "after_sha256": "d1add7323606ef2adbd1aae9263d081aeae20078e2aea799d889e93003efe729",
+      "archive_sha256": "d1add7323606ef2adbd1aae9263d081aeae20078e2aea799d889e93003efe729",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/stdout",
+      "archive_path": "snapshot/out/next-optimization/thin-complete-inline-diagnostic-n64-v1/stdout",
+      "bytes": 0,
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-protocol-v1/protocol.json",
+      "archive_path": "snapshot/out/next-optimization/thin-complete-protocol-v1/protocol.json",
+      "bytes": 127914,
+      "before_sha256": "5b0ff104485ba18c34db170716ead50cc438bfc3b8c8ebc1c1d1266876946728",
+      "after_sha256": "5b0ff104485ba18c34db170716ead50cc438bfc3b8c8ebc1c1d1266876946728",
+      "archive_sha256": "5b0ff104485ba18c34db170716ead50cc438bfc3b8c8ebc1c1d1266876946728",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/execution-manifest.json",
+      "archive_path": "snapshot/out/next-optimization/thin-complete-runtime-v1/execution-manifest.json",
+      "bytes": 133,
+      "before_sha256": "cf736886a28b5c5102f713409d2c768491340d94f07c74a0222d7f99a630ce23",
+      "after_sha256": "cf736886a28b5c5102f713409d2c768491340d94f07c74a0222d7f99a630ce23",
+      "archive_sha256": "cf736886a28b5c5102f713409d2c768491340d94f07c74a0222d7f99a630ce23",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/protocol.json",
+      "archive_path": "snapshot/out/next-optimization/thin-complete-runtime-v1/protocol.json",
+      "bytes": 127914,
+      "before_sha256": "5b0ff104485ba18c34db170716ead50cc438bfc3b8c8ebc1c1d1266876946728",
+      "after_sha256": "5b0ff104485ba18c34db170716ead50cc438bfc3b8c8ebc1c1d1266876946728",
+      "archive_sha256": "5b0ff104485ba18c34db170716ead50cc438bfc3b8c8ebc1c1d1266876946728",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/out/next-optimization/thin-complete-runtime-v1/summary.json",
+      "archive_path": "snapshot/out/next-optimization/thin-complete-runtime-v1/summary.json",
+      "bytes": 7571,
+      "before_sha256": "f113dce59c12dffb1ea89e031342ed3df5e626a03afd9908a741a1f05f7b1ee2",
+      "after_sha256": "f113dce59c12dffb1ea89e031342ed3df5e626a03afd9908a741a1f05f7b1ee2",
+      "archive_sha256": "f113dce59c12dffb1ea89e031342ed3df5e626a03afd9908a741a1f05f7b1ee2",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/retirement-next-optimization/README.md",
+      "archive_path": "snapshot/research/retirement-next-optimization/README.md",
+      "bytes": 6851,
+      "before_sha256": "33e60ae3979c1b050a7c6eff9a0f547362c9b1bd81c2bc84a9ca98221984b10c",
+      "after_sha256": "33e60ae3979c1b050a7c6eff9a0f547362c9b1bd81c2bc84a9ca98221984b10c",
+      "archive_sha256": "33e60ae3979c1b050a7c6eff9a0f547362c9b1bd81c2bc84a9ca98221984b10c",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/retirement-next-optimization/compiler-builder-position-retire.yml",
+      "archive_path": "snapshot/research/retirement-next-optimization/compiler-builder-position-retire.yml",
+      "bytes": 6719,
+      "before_sha256": "00d083ef9b1f271e609e433e055818406408704cd9fae72e9c5471e0942bf275",
+      "after_sha256": "00d083ef9b1f271e609e433e055818406408704cd9fae72e9c5471e0942bf275",
+      "archive_sha256": "00d083ef9b1f271e609e433e055818406408704cd9fae72e9c5471e0942bf275",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/retirement-next-optimization/compiler-structured-emission-retire.yml",
+      "archive_path": "snapshot/research/retirement-next-optimization/compiler-structured-emission-retire.yml",
+      "bytes": 6739,
+      "before_sha256": "8c82943d987fd0e59670e8f1d64790d120c1c7595645553165c503c26b7389b3",
+      "after_sha256": "8c82943d987fd0e59670e8f1d64790d120c1c7595645553165c503c26b7389b3",
+      "archive_sha256": "8c82943d987fd0e59670e8f1d64790d120c1c7595645553165c503c26b7389b3",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/retirement-next-optimization/compiler-thinlto-complete-visibility-retire.yml",
+      "archive_path": "snapshot/research/retirement-next-optimization/compiler-thinlto-complete-visibility-retire.yml",
+      "bytes": 6757,
+      "before_sha256": "6ed875b575bae8d30d3ed30d768889f1e8ac75a263afda8513a815969ce9168e",
+      "after_sha256": "6ed875b575bae8d30d3ed30d768889f1e8ac75a263afda8513a815969ce9168e",
+      "archive_sha256": "6ed875b575bae8d30d3ed30d768889f1e8ac75a263afda8513a815969ce9168e",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/retirement-next-optimization/compiler-thinlto-prototype-retire.yml",
+      "archive_path": "snapshot/research/retirement-next-optimization/compiler-thinlto-prototype-retire.yml",
+      "bytes": 6719,
+      "before_sha256": "65336698d38665919ee39f889ce5343e944908149fde00cf73fa94f6942aca3e",
+      "after_sha256": "65336698d38665919ee39f889ce5343e944908149fde00cf73fa94f6942aca3e",
+      "archive_sha256": "65336698d38665919ee39f889ce5343e944908149fde00cf73fa94f6942aca3e",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/retirement-next-optimization/draft-freeze.json",
+      "archive_path": "snapshot/research/retirement-next-optimization/draft-freeze.json",
+      "bytes": 943,
+      "before_sha256": "83b62077fa68a84a7ccfc8fec805280ff83af0e926fa9329ac126d0133585b55",
+      "after_sha256": "83b62077fa68a84a7ccfc8fec805280ff83af0e926fa9329ac126d0133585b55",
+      "archive_sha256": "83b62077fa68a84a7ccfc8fec805280ff83af0e926fa9329ac126d0133585b55",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/retirement-next-optimization/draft-identities.json",
+      "archive_path": "snapshot/research/retirement-next-optimization/draft-identities.json",
+      "bytes": 3060,
+      "before_sha256": "cb1e2fece1a007552561db85bbc79312b9e39135c7bc3c8b176d8dea48014cf9",
+      "after_sha256": "cb1e2fece1a007552561db85bbc79312b9e39135c7bc3c8b176d8dea48014cf9",
+      "archive_sha256": "cb1e2fece1a007552561db85bbc79312b9e39135c7bc3c8b176d8dea48014cf9",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/retirement-next-optimization/remote-readback.json",
+      "archive_path": "snapshot/research/retirement-next-optimization/remote-readback.json",
+      "bytes": 6735,
+      "before_sha256": "d81374954e40fd04d453ac738dfcec485f593071574540f03ba94d4fb0661bc9",
+      "after_sha256": "d81374954e40fd04d453ac738dfcec485f593071574540f03ba94d4fb0661bc9",
+      "archive_sha256": "d81374954e40fd04d453ac738dfcec485f593071574540f03ba94d4fb0661bc9",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/retirement-next-optimization/template-success.yml",
+      "archive_path": "snapshot/research/retirement-next-optimization/template-success.yml",
+      "bytes": 6723,
+      "before_sha256": "68ea8a721246cb764c43277ea52f249c9b54ffab42f7784934273ffd840b2411",
+      "after_sha256": "68ea8a721246cb764c43277ea52f249c9b54ffab42f7784934273ffd840b2411",
+      "archive_sha256": "68ea8a721246cb764c43277ea52f249c9b54ffab42f7784934273ffd840b2411",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/retirement-next-optimization-independent-review.md",
+      "archive_path": "snapshot/research/retirement-next-optimization-independent-review.md",
+      "bytes": 5887,
+      "before_sha256": "14c89e9b774a009f75991191d9f681890d21e26a76b00f6d73c46bfa25db411d",
+      "after_sha256": "14c89e9b774a009f75991191d9f681890d21e26a76b00f6d73c46bfa25db411d",
+      "archive_sha256": "14c89e9b774a009f75991191d9f681890d21e26a76b00f6d73c46bfa25db411d",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-result-recompute.py",
+      "archive_path": "snapshot/research/thinlto-complete-result-recompute.py",
+      "bytes": 17075,
+      "before_sha256": "2dcf6fa055770fcfbb20db4e4a568f2ff2514b4fc828ade257aed4ec8ec7b327",
+      "after_sha256": "2dcf6fa055770fcfbb20db4e4a568f2ff2514b4fc828ade257aed4ec8ec7b327",
+      "archive_sha256": "2dcf6fa055770fcfbb20db4e4a568f2ff2514b4fc828ade257aed4ec8ec7b327",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/README.md",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/README.md",
+      "bytes": 7858,
+      "before_sha256": "82e8ba043a8dcf1c4bd14915abf88feab1804381a87e67b67cd04950f300ad47",
+      "after_sha256": "82e8ba043a8dcf1c4bd14915abf88feab1804381a87e67b67cd04950f300ad47",
+      "archive_sha256": "82e8ba043a8dcf1c4bd14915abf88feab1804381a87e67b67cd04950f300ad47",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/clang_wrapper.py",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/clang_wrapper.py",
+      "bytes": 10074,
+      "before_sha256": "aed889bb0c519e8690cc663e61b32f1125ed648dd145e992a8e81172b7449792",
+      "after_sha256": "aed889bb0c519e8690cc663e61b32f1125ed648dd145e992a8e81172b7449792",
+      "archive_sha256": "aed889bb0c519e8690cc663e61b32f1125ed648dd145e992a8e81172b7449792",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/common.py",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/common.py",
+      "bytes": 4739,
+      "before_sha256": "11362ea37fe4dcd975d06db7c0e76159b9f914b3b3e581a55d3383760c6712b1",
+      "after_sha256": "11362ea37fe4dcd975d06db7c0e76159b9f914b3b3e581a55d3383760c6712b1",
+      "archive_sha256": "11362ea37fe4dcd975d06db7c0e76159b9f914b3b3e581a55d3383760c6712b1",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/decoded-strict-v1/decoded-index.json",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/decoded-strict-v1/decoded-index.json",
+      "bytes": 35754,
+      "before_sha256": "2d924fa0a4b1f1523ef99e202ec43999e855830cb52440307293b77e48cc3e7a",
+      "after_sha256": "2d924fa0a4b1f1523ef99e202ec43999e855830cb52440307293b77e48cc3e7a",
+      "archive_sha256": "2d924fa0a4b1f1523ef99e202ec43999e855830cb52440307293b77e48cc3e7a",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/decoded-strict-v1/ir-analysis.json",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/decoded-strict-v1/ir-analysis.json",
+      "bytes": 39537,
+      "before_sha256": "5d4fe1f0b03dd2b2d3dd89730869f537ceae5e0442e9745b39bc2775a7deceb7",
+      "after_sha256": "5d4fe1f0b03dd2b2d3dd89730869f537ceae5e0442e9745b39bc2775a7deceb7",
+      "archive_sha256": "5d4fe1f0b03dd2b2d3dd89730869f537ceae5e0442e9745b39bc2775a7deceb7",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/decoded-strict-v1/prelink-shape-analysis.json",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/decoded-strict-v1/prelink-shape-analysis.json",
+      "bytes": 8552,
+      "before_sha256": "e313739f090e9a4dbd092dd6ac8b9707381049a59b46155e0d5b47b0f6d8a778",
+      "after_sha256": "e313739f090e9a4dbd092dd6ac8b9707381049a59b46155e0d5b47b0f6d8a778",
+      "archive_sha256": "e313739f090e9a4dbd092dd6ac8b9707381049a59b46155e0d5b47b0f6d8a778",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/inline-diagnostic-evidence.json",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/inline-diagnostic-evidence.json",
+      "bytes": 1997,
+      "before_sha256": "8c03e161ff4788d088455cb0d2f639b2e144b302d0e7768572b60bcc98476d90",
+      "after_sha256": "8c03e161ff4788d088455cb0d2f639b2e144b302d0e7768572b60bcc98476d90",
+      "archive_sha256": "8c03e161ff4788d088455cb0d2f639b2e144b302d0e7768572b60bcc98476d90",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/inline-diagnostic-report.md",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/inline-diagnostic-report.md",
+      "bytes": 7340,
+      "before_sha256": "713dd070cd361f946927f30052d9481c8812dd521355a661726b90276101791d",
+      "after_sha256": "713dd070cd361f946927f30052d9481c8812dd521355a661726b90276101791d",
+      "archive_sha256": "713dd070cd361f946927f30052d9481c8812dd521355a661726b90276101791d",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/parser-existing-default-selfcheck/n256.json",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/parser-existing-default-selfcheck/n256.json",
+      "bytes": 59992,
+      "before_sha256": "d0e5d34494640ece9f6ea524d43d584e66bedf55d7b5c0d8b32f72467acb78ff",
+      "after_sha256": "d0e5d34494640ece9f6ea524d43d584e66bedf55d7b5c0d8b32f72467acb78ff",
+      "archive_sha256": "d0e5d34494640ece9f6ea524d43d584e66bedf55d7b5c0d8b32f72467acb78ff",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/parser-existing-default-selfcheck/n64.json",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/parser-existing-default-selfcheck/n64.json",
+      "bytes": 15922,
+      "before_sha256": "54e320b56c3a15e0eaeffb838d10ff9ec4ae4e2a6de16e620f4e5186ecf714cb",
+      "after_sha256": "54e320b56c3a15e0eaeffb838d10ff9ec4ae4e2a6de16e620f4e5186ecf714cb",
+      "archive_sha256": "54e320b56c3a15e0eaeffb838d10ff9ec4ae4e2a6de16e620f4e5186ecf714cb",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/parser-existing-default-selfcheck/result.json",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/parser-existing-default-selfcheck/result.json",
+      "bytes": 87809,
+      "before_sha256": "f97506dc00af6c26b9dc9a57bc1f19790ab344408ea1fce01684403816f7c034",
+      "after_sha256": "f97506dc00af6c26b9dc9a57bc1f19790ab344408ea1fce01684403816f7c034",
+      "archive_sha256": "f97506dc00af6c26b9dc9a57bc1f19790ab344408ea1fce01684403816f7c034",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/prefreeze.json",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/prefreeze.json",
+      "bytes": 1726,
+      "before_sha256": "ebe4fc9d30ecf77b261d846497b7c863260e21b94f655c6d0d748f4cac6e262f",
+      "after_sha256": "ebe4fc9d30ecf77b261d846497b7c863260e21b94f655c6d0d748f4cac6e262f",
+      "archive_sha256": "ebe4fc9d30ecf77b261d846497b7c863260e21b94f655c6d0d748f4cac6e262f",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/prepare.py",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/prepare.py",
+      "bytes": 2766,
+      "before_sha256": "26cd637132ecab66c6b6d742ba1acf6ddb790fb919126cfa9756c576f03fa187",
+      "after_sha256": "26cd637132ecab66c6b6d742ba1acf6ddb790fb919126cfa9756c576f03fa187",
+      "archive_sha256": "26cd637132ecab66c6b6d742ba1acf6ddb790fb919126cfa9756c576f03fa187",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/processes.py",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/processes.py",
+      "bytes": 4188,
+      "before_sha256": "ac8cbab5aaa2c2b50a891f5dac28c392dbe5228da6d517749af1b13645abbe04",
+      "after_sha256": "ac8cbab5aaa2c2b50a891f5dac28c392dbe5228da6d517749af1b13645abbe04",
+      "archive_sha256": "ac8cbab5aaa2c2b50a891f5dac28c392dbe5228da6d517749af1b13645abbe04",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/result-review.md",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/result-review.md",
+      "bytes": 10340,
+      "before_sha256": "7658c8b0267101d554d99d67cc9feb6a3970f8794481ed4b8144c8dc75df3e9d",
+      "after_sha256": "7658c8b0267101d554d99d67cc9feb6a3970f8794481ed4b8144c8dc75df3e9d",
+      "archive_sha256": "7658c8b0267101d554d99d67cc9feb6a3970f8794481ed4b8144c8dc75df3e9d",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/root-protocol-review.md",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/root-protocol-review.md",
+      "bytes": 2026,
+      "before_sha256": "e10017753e9c281458ea8463121beb5ea9d20d9fd8031e3afa254edaf1d30ffd",
+      "after_sha256": "e10017753e9c281458ea8463121beb5ea9d20d9fd8031e3afa254edaf1d30ffd",
+      "archive_sha256": "e10017753e9c281458ea8463121beb5ea9d20d9fd8031e3afa254edaf1d30ffd",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/run.py",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/run.py",
+      "bytes": 12430,
+      "before_sha256": "381010f84ff537cc2afead0f1864624fe2a8e88260e36b05a2afde79af4237ce",
+      "after_sha256": "381010f84ff537cc2afead0f1864624fe2a8e88260e36b05a2afde79af4237ce",
+      "archive_sha256": "381010f84ff537cc2afead0f1864624fe2a8e88260e36b05a2afde79af4237ce",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/source-review.md",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/source-review.md",
+      "bytes": 9892,
+      "before_sha256": "e7086c082c132bd2cd1578de75affe1b30a20eddb05593ff36d652a51e8e8271",
+      "after_sha256": "e7086c082c132bd2cd1578de75affe1b30a20eddb05593ff36d652a51e8e8271",
+      "archive_sha256": "e7086c082c132bd2cd1578de75affe1b30a20eddb05593ff36d652a51e8e8271",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/strict-default-ir-comparison.md",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/strict-default-ir-comparison.md",
+      "bytes": 5077,
+      "before_sha256": "85670cd49ca14358ef1224aaba710667645e473f04f32b27184b2815544c67db",
+      "after_sha256": "85670cd49ca14358ef1224aaba710667645e473f04f32b27184b2815544c67db",
+      "archive_sha256": "85670cd49ca14358ef1224aaba710667645e473f04f32b27184b2815544c67db",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/vendor/fixture.py",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/vendor/fixture.py",
+      "bytes": 7327,
+      "before_sha256": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+      "after_sha256": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+      "archive_sha256": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/vendor/prepare_runtime.py",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/vendor/prepare_runtime.py",
+      "bytes": 4682,
+      "before_sha256": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+      "after_sha256": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+      "archive_sha256": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/vendor/runtime_fixture.py",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/vendor/runtime_fixture.py",
+      "bytes": 4693,
+      "before_sha256": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+      "after_sha256": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+      "archive_sha256": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/vendor/runtime_gate.py",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/vendor/runtime_gate.py",
+      "bytes": 17727,
+      "before_sha256": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+      "after_sha256": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+      "archive_sha256": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/vendor/screen.py",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/vendor/screen.py",
+      "bytes": 31550,
+      "before_sha256": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3",
+      "after_sha256": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3",
+      "archive_sha256": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility/visibility.py",
+      "archive_path": "snapshot/research/thinlto-complete-visibility/visibility.py",
+      "bytes": 11524,
+      "before_sha256": "bbd583f3f948f4292c5a484c37b3e8ebd24213d414fcbcab11b890a8eaedde21",
+      "after_sha256": "bbd583f3f948f4292c5a484c37b3e8ebd24213d414fcbcab11b890a8eaedde21",
+      "archive_sha256": "bbd583f3f948f4292c5a484c37b3e8ebd24213d414fcbcab11b890a8eaedde21",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-actual-audit.json",
+      "archive_path": "snapshot/research/thinlto-complete-visibility-actual-audit.json",
+      "bytes": 67195,
+      "before_sha256": "06ed83dc004869d5785c5f6b0b955d2b3d28a7cc59d70a9c0fef293f7a38f049",
+      "after_sha256": "06ed83dc004869d5785c5f6b0b955d2b3d28a7cc59d70a9c0fef293f7a38f049",
+      "archive_sha256": "06ed83dc004869d5785c5f6b0b955d2b3d28a7cc59d70a9c0fef293f7a38f049",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/README.md",
+      "archive_path": "snapshot/research/thinlto-complete-visibility-history/v1/README.md",
+      "bytes": 7858,
+      "before_sha256": "82e8ba043a8dcf1c4bd14915abf88feab1804381a87e67b67cd04950f300ad47",
+      "after_sha256": "82e8ba043a8dcf1c4bd14915abf88feab1804381a87e67b67cd04950f300ad47",
+      "archive_sha256": "82e8ba043a8dcf1c4bd14915abf88feab1804381a87e67b67cd04950f300ad47",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/clang_wrapper.py",
+      "archive_path": "snapshot/research/thinlto-complete-visibility-history/v1/clang_wrapper.py",
+      "bytes": 10052,
+      "before_sha256": "628b048a0a1a18f3d037c9abb81a4a8f6eed59a978dec8a0be654532d822b983",
+      "after_sha256": "628b048a0a1a18f3d037c9abb81a4a8f6eed59a978dec8a0be654532d822b983",
+      "archive_sha256": "628b048a0a1a18f3d037c9abb81a4a8f6eed59a978dec8a0be654532d822b983",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/common.py",
+      "archive_path": "snapshot/research/thinlto-complete-visibility-history/v1/common.py",
+      "bytes": 4739,
+      "before_sha256": "11362ea37fe4dcd975d06db7c0e76159b9f914b3b3e581a55d3383760c6712b1",
+      "after_sha256": "11362ea37fe4dcd975d06db7c0e76159b9f914b3b3e581a55d3383760c6712b1",
+      "archive_sha256": "11362ea37fe4dcd975d06db7c0e76159b9f914b3b3e581a55d3383760c6712b1",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/parser-existing-default-selfcheck/n256.json",
+      "archive_path": "snapshot/research/thinlto-complete-visibility-history/v1/parser-existing-default-selfcheck/n256.json",
+      "bytes": 59992,
+      "before_sha256": "d0e5d34494640ece9f6ea524d43d584e66bedf55d7b5c0d8b32f72467acb78ff",
+      "after_sha256": "d0e5d34494640ece9f6ea524d43d584e66bedf55d7b5c0d8b32f72467acb78ff",
+      "archive_sha256": "d0e5d34494640ece9f6ea524d43d584e66bedf55d7b5c0d8b32f72467acb78ff",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/parser-existing-default-selfcheck/n64.json",
+      "archive_path": "snapshot/research/thinlto-complete-visibility-history/v1/parser-existing-default-selfcheck/n64.json",
+      "bytes": 15922,
+      "before_sha256": "54e320b56c3a15e0eaeffb838d10ff9ec4ae4e2a6de16e620f4e5186ecf714cb",
+      "after_sha256": "54e320b56c3a15e0eaeffb838d10ff9ec4ae4e2a6de16e620f4e5186ecf714cb",
+      "archive_sha256": "54e320b56c3a15e0eaeffb838d10ff9ec4ae4e2a6de16e620f4e5186ecf714cb",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/parser-existing-default-selfcheck/result.json",
+      "archive_path": "snapshot/research/thinlto-complete-visibility-history/v1/parser-existing-default-selfcheck/result.json",
+      "bytes": 87809,
+      "before_sha256": "f97506dc00af6c26b9dc9a57bc1f19790ab344408ea1fce01684403816f7c034",
+      "after_sha256": "f97506dc00af6c26b9dc9a57bc1f19790ab344408ea1fce01684403816f7c034",
+      "archive_sha256": "f97506dc00af6c26b9dc9a57bc1f19790ab344408ea1fce01684403816f7c034",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/prefreeze.json",
+      "archive_path": "snapshot/research/thinlto-complete-visibility-history/v1/prefreeze.json",
+      "bytes": 1726,
+      "before_sha256": "9d588d0ce1c89c49448a4b171f2502345095414e4a539504275688f3334645a4",
+      "after_sha256": "9d588d0ce1c89c49448a4b171f2502345095414e4a539504275688f3334645a4",
+      "archive_sha256": "9d588d0ce1c89c49448a4b171f2502345095414e4a539504275688f3334645a4",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/prepare.py",
+      "archive_path": "snapshot/research/thinlto-complete-visibility-history/v1/prepare.py",
+      "bytes": 2766,
+      "before_sha256": "26cd637132ecab66c6b6d742ba1acf6ddb790fb919126cfa9756c576f03fa187",
+      "after_sha256": "26cd637132ecab66c6b6d742ba1acf6ddb790fb919126cfa9756c576f03fa187",
+      "archive_sha256": "26cd637132ecab66c6b6d742ba1acf6ddb790fb919126cfa9756c576f03fa187",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/processes.py",
+      "archive_path": "snapshot/research/thinlto-complete-visibility-history/v1/processes.py",
+      "bytes": 4188,
+      "before_sha256": "ac8cbab5aaa2c2b50a891f5dac28c392dbe5228da6d517749af1b13645abbe04",
+      "after_sha256": "ac8cbab5aaa2c2b50a891f5dac28c392dbe5228da6d517749af1b13645abbe04",
+      "archive_sha256": "ac8cbab5aaa2c2b50a891f5dac28c392dbe5228da6d517749af1b13645abbe04",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/run.py",
+      "archive_path": "snapshot/research/thinlto-complete-visibility-history/v1/run.py",
+      "bytes": 12430,
+      "before_sha256": "381010f84ff537cc2afead0f1864624fe2a8e88260e36b05a2afde79af4237ce",
+      "after_sha256": "381010f84ff537cc2afead0f1864624fe2a8e88260e36b05a2afde79af4237ce",
+      "archive_sha256": "381010f84ff537cc2afead0f1864624fe2a8e88260e36b05a2afde79af4237ce",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/source-review.md",
+      "archive_path": "snapshot/research/thinlto-complete-visibility-history/v1/source-review.md",
+      "bytes": 9892,
+      "before_sha256": "e7086c082c132bd2cd1578de75affe1b30a20eddb05593ff36d652a51e8e8271",
+      "after_sha256": "e7086c082c132bd2cd1578de75affe1b30a20eddb05593ff36d652a51e8e8271",
+      "archive_sha256": "e7086c082c132bd2cd1578de75affe1b30a20eddb05593ff36d652a51e8e8271",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/vendor/fixture.py",
+      "archive_path": "snapshot/research/thinlto-complete-visibility-history/v1/vendor/fixture.py",
+      "bytes": 7327,
+      "before_sha256": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+      "after_sha256": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+      "archive_sha256": "b4d588232df9b0d41d8877adcf99c712a90cb8f931adcf991dce85510ca7f314",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/vendor/prepare_runtime.py",
+      "archive_path": "snapshot/research/thinlto-complete-visibility-history/v1/vendor/prepare_runtime.py",
+      "bytes": 4682,
+      "before_sha256": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+      "after_sha256": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+      "archive_sha256": "d0b6adf39d403fd80d6d8dfd11891d18735a10a7b39586f6f6c9c290ffc05808",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/vendor/runtime_fixture.py",
+      "archive_path": "snapshot/research/thinlto-complete-visibility-history/v1/vendor/runtime_fixture.py",
+      "bytes": 4693,
+      "before_sha256": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+      "after_sha256": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+      "archive_sha256": "cddd3ae272f5a316a383cb17c472e08823e7af63cbd52304e3160693820f4154",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/vendor/runtime_gate.py",
+      "archive_path": "snapshot/research/thinlto-complete-visibility-history/v1/vendor/runtime_gate.py",
+      "bytes": 17727,
+      "before_sha256": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+      "after_sha256": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+      "archive_sha256": "702829ad5358c8482a6f0a25d2456f0f71969edf97713c81724b47e777911568",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/vendor/screen.py",
+      "archive_path": "snapshot/research/thinlto-complete-visibility-history/v1/vendor/screen.py",
+      "bytes": 31550,
+      "before_sha256": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3",
+      "after_sha256": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3",
+      "archive_sha256": "8cc25d67e4e575f4fb4b0a2f0035c82e1904d96c4309f52d608b3b6bb77612c3",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1/visibility.py",
+      "archive_path": "snapshot/research/thinlto-complete-visibility-history/v1/visibility.py",
+      "bytes": 11524,
+      "before_sha256": "bbd583f3f948f4292c5a484c37b3e8ebd24213d414fcbcab11b890a8eaedde21",
+      "after_sha256": "bbd583f3f948f4292c5a484c37b3e8ebd24213d414fcbcab11b890a8eaedde21",
+      "archive_sha256": "bbd583f3f948f4292c5a484c37b3e8ebd24213d414fcbcab11b890a8eaedde21",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-history/v1-fix.json",
+      "archive_path": "snapshot/research/thinlto-complete-visibility-history/v1-fix.json",
+      "bytes": 631,
+      "before_sha256": "08ceb6ed87aecec8eb3e1f422117eed8413034a50752d5a38b3ffb7524fa06da",
+      "after_sha256": "08ceb6ed87aecec8eb3e1f422117eed8413034a50752d5a38b3ffb7524fa06da",
+      "archive_sha256": "08ceb6ed87aecec8eb3e1f422117eed8413034a50752d5a38b3ffb7524fa06da",
+      "source_unchanged": true
+    },
+    {
+      "source_path": "/workspace/scratch/abf690ce880c/research/thinlto-complete-visibility-python-review.md",
+      "archive_path": "snapshot/research/thinlto-complete-visibility-python-review.md",
+      "bytes": 8338,
+      "before_sha256": "6bce31e2839db8413b66c350e0fb06bf02c1de73dbb088ff486f9a49eff367cb",
+      "after_sha256": "6bce31e2839db8413b66c350e0fb06bf02c1de73dbb088ff486f9a49eff367cb",
+      "archive_sha256": "6bce31e2839db8413b66c350e0fb06bf02c1de73dbb088ff486f9a49eff367cb",
+      "source_unchanged": true
+    }
+  ]
+}
