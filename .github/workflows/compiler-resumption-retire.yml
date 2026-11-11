@@ -1,0 +1,32 @@
+name: Retire archived compiler research refs
+on:
+  push:
+    branches: [task/compiler-composition-validation]
+    paths: [.github/workflows/compiler-resumption-retire.yml]
+permissions:
+  contents: write
+  actions: read
+  pull-requests: read
+concurrency:
+  group: compiler-branch-retirement
+  cancel-in-progress: false
+jobs:
+  retire:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Check archive, exact heads and active work before leased deletion
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .task/compiler-resumption/retire.py
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: compiler-retirement-${{ github.run_id }}
+          path: ${{ runner.temp }}/compiler-retirement/receipt.json
+          retention-days: 30
+          if-no-files-found: error

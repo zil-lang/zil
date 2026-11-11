@@ -1,0 +1,721 @@
+{
+  "complete": true,
+  "compile_requests": 24,
+  "native_output_checks": 432,
+  "runtime_requests": 384,
+  "runtime_formal_requests": 336,
+  "calibration_requests": 56,
+  "quality": [
+    {
+      "case": "dispatch8",
+      "snapshot": "base",
+      "depth": 0,
+      "median_ms": {
+        "base": 1.819386,
+        "cand": 1.784142,
+        "rust": 2.233679
+      },
+      "values_ms": {
+        "base": [
+          1.8814,
+          1.819386,
+          1.62359,
+          1.972909,
+          1.655127,
+          1.655938,
+          1.836963
+        ],
+        "cand": [
+          1.653224,
+          2.588551,
+          1.667677,
+          1.867439,
+          1.755935,
+          1.816312,
+          1.784142
+        ],
+        "rust": [
+          2.024762,
+          2.080412,
+          3.749209,
+          2.233679,
+          2.320275,
+          2.281596,
+          2.034131
+        ]
+      },
+      "candidate_latency_ratio": 0.9806286296585771,
+      "delta_pass": true,
+      "base_rust90_pass": true,
+      "rust90_pass": true,
+      "new_rust90_regression": false
+    },
+    {
+      "case": "dispatch8",
+      "snapshot": "base",
+      "depth": 11,
+      "median_ms": {
+        "base": 4.980424,
+        "cand": 5.022398,
+        "rust": 5.542475
+      },
+      "values_ms": {
+        "base": [
+          5.14251,
+          4.61462,
+          4.774353,
+          4.980424,
+          5.380161,
+          5.359894,
+          4.937449
+        ],
+        "cand": [
+          5.022398,
+          5.019479,
+          5.108278,
+          5.055052,
+          6.072875,
+          4.67983,
+          4.941115
+        ],
+        "rust": [
+          5.71678,
+          5.318602,
+          5.542475,
+          5.338337,
+          5.983629,
+          5.821128,
+          5.215821
+        ]
+      },
+      "candidate_latency_ratio": 1.0084277965088915,
+      "delta_pass": true,
+      "base_rust90_pass": true,
+      "rust90_pass": true,
+      "new_rust90_regression": false
+    },
+    {
+      "case": "dispatch8",
+      "snapshot": "private",
+      "depth": 0,
+      "median_ms": {
+        "base": 1.626524,
+        "cand": 1.685042,
+        "rust": 1.995513
+      },
+      "values_ms": {
+        "base": [
+          1.698814,
+          1.600685,
+          1.551871,
+          1.568316,
+          1.660235,
+          1.626524,
+          1.732795
+        ],
+        "cand": [
+          2.062585,
+          1.555136,
+          1.542867,
+          1.751223,
+          1.98009,
+          1.66343,
+          1.685042
+        ],
+        "rust": [
+          2.103837,
+          1.995513,
+          1.93411,
+          1.950684,
+          1.904515,
+          2.152611,
+          2.121234
+        ]
+      },
+      "candidate_latency_ratio": 1.035977335717149,
+      "delta_pass": true,
+      "base_rust90_pass": true,
+      "rust90_pass": true,
+      "new_rust90_regression": false
+    },
+    {
+      "case": "dispatch8",
+      "snapshot": "private",
+      "depth": 11,
+      "median_ms": {
+        "base": 4.911655,
+        "cand": 4.875029,
+        "rust": 5.651531
+      },
+      "values_ms": {
+        "base": [
+          4.911655,
+          4.817207,
+          4.663434,
+          4.903122,
+          5.014737,
+          5.263683,
+          4.948861
+        ],
+        "cand": [
+          5.024101,
+          4.615386,
+          4.765619,
+          5.325937,
+          5.083119,
+          4.815545,
+          4.875029
+        ],
+        "rust": [
+          5.500312,
+          5.428023,
+          5.489276,
+          5.726775,
+          5.651531,
+          5.726514,
+          5.772765
+        ]
+      },
+      "candidate_latency_ratio": 0.9925430430272485,
+      "delta_pass": true,
+      "base_rust90_pass": true,
+      "rust90_pass": true,
+      "new_rust90_regression": false
+    },
+    {
+      "case": "pipeline8",
+      "snapshot": "base",
+      "depth": 0,
+      "median_ms": {
+        "base": 6.399253,
+        "cand": 6.499685,
+        "rust": 8.889376
+      },
+      "values_ms": {
+        "base": [
+          7.254089,
+          6.618395,
+          6.252591,
+          6.250227,
+          6.616783,
+          6.26495,
+          6.399253
+        ],
+        "cand": [
+          6.499685,
+          6.456415,
+          6.51543,
+          6.287134,
+          6.510772,
+          6.485364,
+          6.550673
+        ],
+        "rust": [
+          8.889376,
+          9.178048,
+          8.952461,
+          8.728612,
+          10.08725,
+          8.628852,
+          8.82623
+        ]
+      },
+      "candidate_latency_ratio": 1.0156943318227925,
+      "delta_pass": true,
+      "base_rust90_pass": true,
+      "rust90_pass": true,
+      "new_rust90_regression": false
+    },
+    {
+      "case": "pipeline8",
+      "snapshot": "base",
+      "depth": 11,
+      "median_ms": {
+        "base": 32.328103,
+        "cand": 32.193884,
+        "rust": 36.856742
+      },
+      "values_ms": {
+        "base": [
+          31.298513,
+          31.135377,
+          30.968229,
+          36.475533,
+          32.328103,
+          32.443503,
+          33.947355
+        ],
+        "cand": [
+          31.773917,
+          31.499641,
+          30.571722,
+          33.626314,
+          32.287433,
+          32.193884,
+          32.885948
+        ],
+        "rust": [
+          35.14682,
+          35.286227,
+          62.230048,
+          36.149089,
+          37.854435,
+          37.63531,
+          36.856742
+        ]
+      },
+      "candidate_latency_ratio": 0.9958482253041572,
+      "delta_pass": true,
+      "base_rust90_pass": true,
+      "rust90_pass": true,
+      "new_rust90_regression": false
+    },
+    {
+      "case": "pipeline8",
+      "snapshot": "private",
+      "depth": 0,
+      "median_ms": {
+        "base": 6.557418,
+        "cand": 6.678748,
+        "rust": 9.918034
+      },
+      "values_ms": {
+        "base": [
+          6.469688,
+          6.557418,
+          6.392354,
+          6.748391,
+          6.813658,
+          6.765386,
+          6.482288
+        ],
+        "cand": [
+          6.84186,
+          6.416951,
+          6.859616,
+          6.344383,
+          6.678748,
+          6.65298,
+          6.715822
+        ],
+        "rust": [
+          9.57088,
+          9.346352,
+          9.944704,
+          11.619718,
+          9.481969,
+          9.918034,
+          10.472916
+        ]
+      },
+      "candidate_latency_ratio": 1.0185027094505794,
+      "delta_pass": true,
+      "base_rust90_pass": true,
+      "rust90_pass": true,
+      "new_rust90_regression": false
+    },
+    {
+      "case": "pipeline8",
+      "snapshot": "private",
+      "depth": 11,
+      "median_ms": {
+        "base": 32.186874,
+        "cand": 32.344218,
+        "rust": 38.207667
+      },
+      "values_ms": {
+        "base": [
+          50.009111,
+          36.566368,
+          32.172834,
+          32.186874,
+          33.889255,
+          31.047838,
+          31.617616
+        ],
+        "cand": [
+          38.208409,
+          32.344218,
+          32.910927,
+          32.847362,
+          30.898562,
+          30.815799,
+          31.312479
+        ],
+        "rust": [
+          40.828808,
+          41.459513,
+          38.851201,
+          36.441834,
+          36.516249,
+          35.09547,
+          38.207667
+        ]
+      },
+      "candidate_latency_ratio": 1.0048884523548325,
+      "delta_pass": true,
+      "base_rust90_pass": true,
+      "rust90_pass": true,
+      "new_rust90_regression": false
+    },
+    {
+      "case": "dispatch16",
+      "snapshot": "base",
+      "depth": 0,
+      "median_ms": {
+        "base": 1.908155,
+        "cand": 2.016546,
+        "rust": 2.760486
+      },
+      "values_ms": {
+        "base": [
+          2.219817,
+          1.93871,
+          1.730192,
+          1.69529,
+          1.908155,
+          2.091237,
+          1.845272
+        ],
+        "cand": [
+          2.09418,
+          2.069293,
+          1.822419,
+          2.016546,
+          1.723852,
+          2.110725,
+          1.980742
+        ],
+        "rust": [
+          2.876139,
+          2.484148,
+          2.634831,
+          2.958841,
+          2.760486,
+          3.015365,
+          2.426712
+        ]
+      },
+      "candidate_latency_ratio": 1.0568040856219751,
+      "delta_pass": true,
+      "base_rust90_pass": true,
+      "rust90_pass": true,
+      "new_rust90_regression": false
+    },
+    {
+      "case": "dispatch16",
+      "snapshot": "base",
+      "depth": 11,
+      "median_ms": {
+        "base": 5.047973,
+        "cand": 4.935668,
+        "rust": 5.963089
+      },
+      "values_ms": {
+        "base": [
+          5.14057,
+          4.804053,
+          5.01215,
+          6.242818,
+          5.047973,
+          5.59236,
+          4.906174
+        ],
+        "cand": [
+          4.935668,
+          5.447996,
+          4.808399,
+          4.861056,
+          5.377352,
+          5.157546,
+          4.859015
+        ],
+        "rust": [
+          5.62675,
+          6.056567,
+          5.963089,
+          6.374928,
+          6.264154,
+          5.583306,
+          5.583807
+        ]
+      },
+      "candidate_latency_ratio": 0.9777524562829476,
+      "delta_pass": true,
+      "base_rust90_pass": true,
+      "rust90_pass": true,
+      "new_rust90_regression": false
+    },
+    {
+      "case": "dispatch16",
+      "snapshot": "private",
+      "depth": 0,
+      "median_ms": {
+        "base": 1.829429,
+        "cand": 1.818057,
+        "rust": 2.574417
+      },
+      "values_ms": {
+        "base": [
+          1.857941,
+          1.785273,
+          1.946703,
+          1.785463,
+          1.741027,
+          1.829429,
+          2.665817
+        ],
+        "cand": [
+          1.674019,
+          1.841186,
+          1.818057,
+          1.657729,
+          2.106919,
+          1.698264,
+          2.036545
+        ],
+        "rust": [
+          2.574417,
+          2.68205,
+          2.878972,
+          2.367325,
+          2.598557,
+          2.555654,
+          2.302099
+        ]
+      },
+      "candidate_latency_ratio": 0.9937838527759209,
+      "delta_pass": true,
+      "base_rust90_pass": true,
+      "rust90_pass": true,
+      "new_rust90_regression": false
+    },
+    {
+      "case": "dispatch16",
+      "snapshot": "private",
+      "depth": 11,
+      "median_ms": {
+        "base": 5.047087,
+        "cand": 4.83628,
+        "rust": 5.789763
+      },
+      "values_ms": {
+        "base": [
+          4.899474,
+          5.222042,
+          5.181481,
+          5.236283,
+          4.900055,
+          5.047087,
+          4.885023
+        ],
+        "cand": [
+          4.973184,
+          5.058245,
+          4.969292,
+          4.755696,
+          4.736343,
+          4.789922,
+          4.83628
+        ],
+        "rust": [
+          6.151838,
+          5.727655,
+          6.014274,
+          5.75149,
+          6.134272,
+          5.789763,
+          5.720505
+        ]
+      },
+      "candidate_latency_ratio": 0.9582319464673384,
+      "delta_pass": true,
+      "base_rust90_pass": true,
+      "rust90_pass": true,
+      "new_rust90_regression": false
+    },
+    {
+      "case": "pipeline16",
+      "snapshot": "base",
+      "depth": 0,
+      "median_ms": {
+        "base": 13.295978,
+        "cand": 15.507934,
+        "rust": 24.394347
+      },
+      "values_ms": {
+        "base": [
+          12.561498,
+          13.070501,
+          12.820181,
+          15.667522,
+          14.284429,
+          13.503058,
+          13.295978
+        ],
+        "cand": [
+          13.734145,
+          20.723162,
+          15.977065,
+          24.245701,
+          14.559047,
+          15.507934,
+          14.785882
+        ],
+        "rust": [
+          23.102445,
+          24.394347,
+          23.530683,
+          63.732144,
+          25.147162,
+          25.152743,
+          23.888061
+        ]
+      },
+      "candidate_latency_ratio": 1.1663627903114762,
+      "delta_pass": false,
+      "base_rust90_pass": true,
+      "rust90_pass": true,
+      "new_rust90_regression": false
+    },
+    {
+      "case": "pipeline16",
+      "snapshot": "base",
+      "depth": 11,
+      "median_ms": {
+        "base": 67.816716,
+        "cand": 67.842083,
+        "rust": 85.729717
+      },
+      "values_ms": {
+        "base": [
+          67.816716,
+          73.726529,
+          69.103088,
+          63.42592,
+          80.982177,
+          65.372662,
+          66.367186
+        ],
+        "cand": [
+          67.68477,
+          72.547069,
+          71.763908,
+          65.733723,
+          67.842083,
+          72.379221,
+          67.597871
+        ],
+        "rust": [
+          85.729717,
+          81.728504,
+          86.5817,
+          80.087004,
+          95.427907,
+          100.146073,
+          80.904727
+        ]
+      },
+      "candidate_latency_ratio": 1.0003740523206697,
+      "delta_pass": true,
+      "base_rust90_pass": true,
+      "rust90_pass": true,
+      "new_rust90_regression": false
+    },
+    {
+      "case": "pipeline16",
+      "snapshot": "private",
+      "depth": 0,
+      "median_ms": {
+        "base": 13.456943,
+        "cand": 14.732365,
+        "rust": 24.169227
+      },
+      "values_ms": {
+        "base": [
+          13.746869,
+          13.524763,
+          17.492837,
+          13.33296,
+          13.282615,
+          13.121706,
+          13.456943
+        ],
+        "cand": [
+          14.321846,
+          14.991498,
+          14.903107,
+          14.746525,
+          14.732365,
+          14.165034,
+          14.294616
+        ],
+        "rust": [
+          24.169227,
+          24.340311,
+          27.399167,
+          27.463261,
+          23.195462,
+          24.050171,
+          23.859728
+        ]
+      },
+      "candidate_latency_ratio": 1.0947779893249157,
+      "delta_pass": true,
+      "base_rust90_pass": true,
+      "rust90_pass": true,
+      "new_rust90_regression": false
+    },
+    {
+      "case": "pipeline16",
+      "snapshot": "private",
+      "depth": 11,
+      "median_ms": {
+        "base": 63.316861,
+        "cand": 64.513508,
+        "rust": 77.676117
+      },
+      "values_ms": {
+        "base": [
+          64.509662,
+          63.260611,
+          63.86314,
+          63.316861,
+          62.866393,
+          64.965411,
+          61.850413
+        ],
+        "cand": [
+          64.513508,
+          70.491482,
+          75.181583,
+          63.362738,
+          63.288038,
+          76.214088,
+          61.925955
+        ],
+        "rust": [
+          76.527151,
+          76.71522,
+          77.676117,
+          75.608285,
+          78.043371,
+          78.023834,
+          78.892409
+        ]
+      },
+      "candidate_latency_ratio": 1.0188993418356604,
+      "delta_pass": true,
+      "base_rust90_pass": true,
+      "rust90_pass": true,
+      "new_rust90_regression": false
+    }
+  ],
+  "quality_complete": true,
+  "no_new_runtime_regression": false,
+  "rust90_all": true,
+  "no_new_rust90_crossing": true,
+  "failures": [],
+  "weighted_in_original_protocol": false,
+  "acceptance": "Independent exact-source review required; failed gates remain failed"
+}

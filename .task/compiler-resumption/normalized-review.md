@@ -6,6 +6,8 @@
 
 独立规范化方案有继续施工和有限采用价值，建议作为现有显式 `--function-merging before-and-after` 的实现候选验收；不默认开启，不宣称一般程序都会变快。当前 PR84 的无约束组合不可接受：其包含 PR80 的资源 helper 分区，组合产生了四个新增超过 10% 的运行退化格。先建立按显式优化策略划分的兼容边界，再对精确组合复核。
 
+后续 off 补测又发现真实运行越门，因此本文最初 off/after 都采用 helper 分区的建议已被收紧：**只有显式 after 采用新 helper 分区，默认 off 和 before-and-after 都保留旧完整调用闭包规划**。后文保留最初静审及其源码身份，末节记录新反例和修订，不把后续失败改写为原方案已通过。
+
 这里的“递归样例慢 28.2%”指 **编译私有编辑的延迟**，不是生成程序的运行退化。两者必须分别呈现。
 
 ## 源码和证据身份
@@ -80,3 +82,21 @@ ring 的私有编辑缓存命中均为 3/4，增加的时间不是失效范围�
 后续可筛选“前缀只暴露便于等价比较的小实现，完整 O2 保留默认内联政策”，但不能把它当作本轮已经完成的小修复。LLVM23 库有 `LLVMPassBuilderOptionsSetInlinerThreshold` 导出；孤立 `cgscc(inline)` 的 advisor 可能直接使用默认 InlineParams，因此简单设置该选项未必影响早期 sweep，必须用实际 IR/remarks 证明参数生效。如果拆成两次 LLVMRunPasses，需要计入分析缓存丢失的成本，并将两阶段、阈值和末尾默认策略全部纳入对象缓存身份。
 
 初筛可保留原 ring、shared4096、owned32、相同/不同 handler 与串联负载，固定原低负载和深负载运行门。不要直接新增“递归就换算法”的未经证明策略，不加永久 noinline，不降低完整 O2 的运行质量。本轮先完成可验收的两种显式策略；下一项以实际 pass 计时和代码增长原因决定，而不是继续盲扫管线。
+
+## 本轮兼容边界与承接复核
+
+资源分区作者冻结源码 `29f47a3a17024d2929e850c9fc003c3dd1c779a5`，tree `b604914c289753200a7e20c0899ca4907217c6db`；远端发布 `136d77b7df304349240413a8e155b0da95e68e10` 已 fetch 并核对 tree 逐字相同。非作者静审未见阻断：唯一生产调用以 `CallImportPolicy::for_incremental_o2` 选择 off/after 的 `ResourceHelpers` 与 before-and-after 的 `Complete`，O0/非 incremental O2 为 `Disabled`。Complete 跳过 helper recipe，旧完整闭包 recorder、普通分区回退和复制预算均未改变；策略枚举直接进入布局 action key，未改变任何当前验证要求。
+
+新增资源 fixture 测试检查真实计划：off/after 为 3 单元，before-and-after 与旧完整闭包的 2 单元计划完全相同，并验证各机器模块。另一个测试实际发布布局缓存，检查策略不同不能误命中、切回原 key 仍命中。这些是源码及测试设计复核，不冒充本轮测试执行或生成程序的运行验收。
+
+已在独立 normalized 工作树承接远端资源候选，形成本地合并提交 `51abb96f5bbed9f89824d5f914aa49d4c0bc6dea`，tree `d1273ceea8427e21c315002eb68c20ce3c2080d9`，父提交为原 PR84 `e19e35a9177b491b595f085fc77836a963856382` 与资源发布 `136d77b7df304349240413a8e155b0da95e68e10`。相对资源发布仅保留原规范化 4 文件；其中两个实现文件和 CLI 测试与原 PR84 blob 完全相同，仅补充 function-merging 指南的策略选择、独立衡量收益、递归编译代价。指南将没有额外低阈值保证的“轻量内联”改称“早期内联”，没有修改实际 pipeline。
+
+本地 `cargo fmt --all -- --check`、合并索引与工作树 `git diff --check` 通过，工作树清洁。没有启动 Cargo 构建、测试或 benchmark；本轮构建、明确 before-and-after 消费者及原运行质量门由根集成者对实际发布 tree 继续执行。此静审接受不替代上述实际验收。
+
+## Off 新反例与 OnlyAfter 修订
+
+根集成者对资源发布 `136d77b7df304349240413a8e155b0da95e68e10` 补跑关闭函数合并的有限质量矩阵，数据保留于 `/workspace/scratch/beabdcf5ebf4/evidence/resource-off/`。实读测量脚本、命令与对象收据，确认实际使用 `--function-merging off` 和 `default<O2>`，没有将 after 成绩误标。24 次构建、432 次短输出检查、384 次计时运行（336 正式）完成；16 格中 pipeline16/base/depth0 的候选中位 15.507934 ms、基线 13.295978 ms，增加 16.6363%，违反原 10% 门。Rust90 全部通过不能抵消该失败；原失败保持 false。
+
+资源作者据此将候选收紧为 `d0b2eeeb466f8e7d5d4edca5c59265727da78254`、tree `1c16744d838064cb1c687ba56ef3a0d17ed3130c`。精确 diff 仅 4 文件各 10 行增删：启用 incremental O2 时仅 `AfterOptimization` 选择 `ResourceHelpers`；函数合并 off 和 before-and-after 都选择 `Complete`，未启用 incremental O2 时仍是 `Disabled`。真实分区测试相应要求 off/before 与原 2 单元计划完全相同，after 为 3 单元；缓存身份、预算、回退与验证未改。非作者静审未见阻断，但不代替修订候选的实际验收。
+
+资源远端发布为 `f38ed14b2c18c587f01a117f3c8a6d9cc67c4e7b`，已 fetch 核对上述 tree 相同。normalized 已合并该远端提交并同步指南，最终本地提交 `4cc1226bd7e652201cfb37d992f4bb13988db42a`，tree `4f60d438f30724ed979f62fe3d08904faee07b8b`，父为上一轮 `51abb96f5bbed9f89824d5f914aa49d4c0bc6dea` 与资源远端 `f38ed14b2c18c587f01a117f3c8a6d9cc67c4e7b`。相对新资源发布仍仅原规范化四文件；规范化的两个实现及 CLI 测试与原 `e19e35a9` 完全无差异，指南明确 OnlyAfter 边界。再次执行 `cargo fmt --all -- --check` 与 `git diff --check` 通过，工作树清洁，未运行任何构建、测试或 benchmark。原 d127 tree 不作为最终候选；原 off 失败证据不删改。

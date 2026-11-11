@@ -15,15 +15,21 @@ def main():
     parser.add_argument('--candidate', type=Path, required=True)
     parser.add_argument('--repo', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--kind', choices=['resource', 'normalized'], default='resource')
     args = parser.parse_args()
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
-    protocol = Path(__file__).resolve().parent / 'protocols/helper-current'
+    here = Path(__file__).resolve().parent
+    protocol = (here / 'protocols/helper-current' if args.kind == 'resource'
+                else here.parent / 'normalized-merging')
     repo = args.repo.resolve()
-    identity = json.loads((protocol.parent.parent / 'plan.json').read_text())
+    identity = json.loads((here / 'plan.json').read_text())
     tree = subprocess.check_output(['git', '-C', repo, 'rev-parse', 'HEAD^{tree}'], text=True).strip()
-    assert tree == identity['resource_tree'], (tree, identity['resource_tree'])
+    expected_tree = identity[args.kind + '_tree']
+    assert tree == expected_tree, (tree, expected_tree)
     identity.update(
+        comparison=args.kind,
+        actual_baseline=identity['baseline'] if args.kind == 'resource' else identity['resource_remote_commit'],
         actual_tree=tree,
         binaries={name: {'path': str(path.resolve()), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
                   for name, path in [('base', args.base), ('candidate', args.candidate)]},
@@ -34,9 +40,13 @@ def main():
         (out / 'receipt.json').write_text(json.dumps(identity, indent=2) + '\n')
     save()
     try:
-        for name, script in [('multi', 'multimodule.py'), ('primary', 'bench/measure.py'),
-                             ('multi-controls', 'multi_controls.py'), ('controls', 'controls.py'),
-                             ('quality', 'quality.py'), ('neighbors', 'neighbors/check.py')]:
+        phases = [('multi', 'multimodule.py'), ('primary', 'bench/measure.py')]
+        if args.kind == 'resource':
+            phases += [('multi-controls', 'multi_controls.py')]
+        phases += [('controls', 'controls.py'), ('quality', 'quality.py'), ('neighbors', 'neighbors/check.py')]
+        if args.kind == 'normalized':
+            phases += [('holdout', '../normalized-consumers/holdout.py')]
+        for name, script in phases:
             command = ['python3', str(protocol / script), '--base', str(args.base.resolve()),
                        '--candidate', str(args.candidate.resolve()), '--out', str(out / name)]
             if name in ('multi', 'primary'):

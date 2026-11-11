@@ -1,9 +1,9 @@
 {
   "started_utc": "2026-11-11T01:52:15.750034+00:00",
   "baseline": "4ec5e78cfe1f2d0188ddc2502e6b15358f062b71",
-  "resource_local_commit": "29f47a3a17024d2929e850c9fc003c3dd1c779a5",
-  "resource_remote_commit": "136d77b7df304349240413a8e155b0da95e68e10",
-  "resource_tree": "b604914c289753200a7e20c0899ca4907217c6db",
+  "resource_local_commit": "d0b2eeeb466f8e7d5d4edca5c59265727da78254",
+  "resource_remote_commit": "f38ed14b2c18c587f01a117f3c8a6d9cc67c4e7b",
+  "resource_tree": "1c16744d838064cb1c687ba56ef3a0d17ed3130c",
   "prior_protocol": "467b5ffd791c6aae80cc524b1c23cf7259182661",
   "protocol_hashes": {
     "quality.py": "f69a36579f7b4faa7dad81eddcb421cb074c66040da3ef913886b4f149e8542e",
@@ -19,5 +19,24 @@
   "acceptance": "Pending actual current measurements and independent review",
   "prior_failures": "f9dd0bcd3313f6a04ad8883caecd7996f51cd737:.task/composition/runs/42935614289",
   "archive": "1690cbc2fffd814e35e6021db425f7e730aa6f2c",
-  "new_policy": "Only off/after use resource-helper splitting; before-and-after keeps the original complete import planner; layout keys separate all policies."
+  "new_policy": "Only explicit after uses resource-helper splitting; default off and before-and-after keep original complete import planner; layout keys separate policies.",
+  "normalized_local_commit": "4cc1226bd7e652201cfb37d992f4bb13988db42a",
+  "normalized_remote_commit": "130d3a7cab25603ae42a7fae0c9f63116c858c72",
+  "normalized_tree": "4f60d438f30724ed979f62fe3d08904faee07b8b",
+  "normalized_comparison": "resource explicit after atf38ed versus normalized before-and-after at130d3; actual source-compatible policies, not addition of old percentages",
+  "failed_default_off": {
+    "candidate": "136d77b7df304349240413a8e155b0da95e68e10",
+    "complete": true,
+    "builds": 24,
+    "output_checks": 432,
+    "runtime_requests": 384,
+    "new_runtime_failure": "pipeline16/base/depth0 +16.636%, 13.295978ms to15.507934ms",
+    "adopted": false,
+    "followup": "Restrict ResourceHelpers to explicit AfterOptimization; default off and before keep Complete"
+  },
+  "state_control": "Original composed State/Store source and independent scenarios; each policy now explicitly activates incremental-o2; only policy argv and its reported pipeline assertion differ from frozen normalized state consumer.",
+  "state_protocol_hashes": {
+    "resource_state.py": "24245ee899613fb64b39c92284a1b7b787d70a008a988774e364dc9dba6048b4",
+    "normalized_state.py": "9d1e9299f36b1ee014f4afb31678a592b3318997de27e4ca0cae65235d8c688d"
+  }
 }
