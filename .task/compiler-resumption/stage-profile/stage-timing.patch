@@ -1,0 +1,348 @@
+--- a/crates/zil-base/src/lib.rs
++++ b/crates/zil-base/src/lib.rs
+@@ -1,6 +1,37 @@
+ #![forbid(unsafe_code)]
+ 
+ //! Stable identities, diagnostics, limits, and byte-compatible SHA-256 fingerprints.
++
++// Temporary diagnostics only; remove this patch after profiling.
++#[doc(hidden)]
++pub mod __stage_profile {
++    use std::{io::Write, sync::OnceLock, time::Instant};
++    static ENABLED: OnceLock<bool> = OnceLock::new();
++    static EPOCH: OnceLock<Instant> = OnceLock::new();
++    fn enabled() -> bool { *ENABLED.get_or_init(|| std::env::var_os("ZIL_PROFILE_STAGE_TIMING").is_some()) }
++    fn now() -> u128 { EPOCH.get_or_init(Instant::now).elapsed().as_nanos() }
++    pub struct Span(Option<(String, u128)>);
++    pub fn span(name: &str) -> Span {
++        Span(enabled().then(|| (name.to_owned(), now())))
++    }
++    pub fn event(phase: &str, disposition: &str) {
++        if enabled() {
++            let at = now();
++            let _ = writeln!(std::io::stderr().lock(), "{{\"zil_profile\":1,\"kind\":\"event\",\"pid\":{},\"thread\":\"{:?}\",\"phase\":{},\"disposition\":{},\"at_ns\":{at}}}", std::process::id(), std::thread::current().id(), crate::json_string(phase), crate::json_string(disposition));
++        }
++    }
++    impl Drop for Span {
++        fn drop(&mut self) {
++            if let Some((name, start)) = &self.0 {
++                let end = now();
++                let _ = writeln!(std::io::stderr().lock(), "{{\"zil_profile\":1,\"kind\":\"span\",\"pid\":{},\"thread\":\"{:?}\",\"name\":{},\"start_ns\":{start},\"end_ns\":{end},\"wall_ns\":{}}}", std::process::id(), std::thread::current().id(), crate::json_string(name), end-start);
++            }
++        }
++    }
++}
++#[doc(hidden)]
++#[macro_export]
++macro_rules! __profile_timed { ($name:expr, $expression:expr) => {{ let _profile_span = $crate::__stage_profile::span($name); $expression }}; }
+ 
+ pub mod numeric;
+ 
+--- a/crates/zil-driver/src/project.rs
++++ b/crates/zil-driver/src/project.rs
+@@ -229,6 +229,7 @@
+         observer: &mut dyn FnMut(&QueryEvent),
+         loaded: Option<LoadedProject>,
+     ) -> CompileReport {
++        let _profile_total = zil_base::__stage_profile::span("driver.project_request.total");
+         let start = Instant::now();
+         let mut effective_options = options.clone();
+         if let Some(lock) = &options.syntax_lock {
+@@ -308,6 +309,7 @@
+         path: &Path,
+         options: &CompileOptions,
+     ) -> CompileReport {
++        let _profile_total = zil_base::__stage_profile::span("driver.path.total");
+         let start = Instant::now();
+         let mut effective_options = options.clone();
+         if let Some(manifest) = &options.project {
+@@ -347,7 +349,7 @@
+                     LoadedProject::Parsed(Vec::new())
+                 })
+         } else {
+-            load_sources(&mut project, path, options, self)
++            zil_base::__profile_timed!("driver.filesystem_discovery", load_sources(&mut project, path, options, self))
+         };
+         let discovery_pending = match &loaded {
+             Ok(LoadedProject::Parsed(syntax)) if options.stop_after != Stage::Parse => options
+@@ -362,7 +364,7 @@
+                 self.compile_source(&project.modules[0], options)
+             }
+             Ok(parsed) => {
+-                self.compile_project_request(&project, options, &mut |_| {}, Some(parsed))
++                self.compile_project_request(&project, options, &mut |event| zil_base::__stage_profile::event(event.phase.as_str(), event.disposition.as_str()), Some(parsed))
+             }
+             Err(errors) => {
+                 let mut report = CompileReport::new(&project.modules[0]);
+@@ -394,6 +396,7 @@
+         loaded_syntax: Option<&[LoadedSyntax]>,
+         preloaded_semantic: Option<(TypedProgram, CandidatePlan)>,
+     ) -> CompileResult<()> {
++        let _profile_pipeline = zil_base::__stage_profile::span("driver.project_pipeline.total");
+         options
+             .cancellation
+             .check(Phase::Driver)
+@@ -1585,10 +1588,10 @@
+         )?;
+         let reused = cached.is_some();
+         let parsed = cached.unwrap_or_else(|| {
+-            Arc::new(zil_syntax::parse_with_limits(
++            Arc::new(zil_base::__profile_timed!("driver.discovery.parse", zil_syntax::parse_with_limits(
+                 &project.modules[index],
+                 &parse_limits,
+-            ))
++            )))
+         });
+         if !parsed.diagnostics.is_empty() {
+             return Err(parsed.diagnostics.clone());
+--- a/crates/zil-driver/src/semantic_cache.rs
++++ b/crates/zil-driver/src/semantic_cache.rs
+@@ -57,6 +57,7 @@
+     }
+ 
+     pub(super) fn load(&self, options: &CompileOptions) -> Option<(TypedProgram, CandidatePlan)> {
++        let _profile_restore = zil_base::__stage_profile::span("driver.semantic_cache.restore");
+         if !private_directory(&self.root, false) {
+             return None;
+         }
+--- a/crates/zil-driver/src/session.rs
++++ b/crates/zil-driver/src/session.rs
+@@ -382,6 +382,7 @@
+         execute: impl FnOnce() -> CompileResult<RawSnapshot>,
+         disposition: QueryDisposition,
+     ) -> CompileResult<(RawSnapshot, Arc<QuerySnapshot>)> {
++        let _profile_query = zil_base::__stage_profile::span(&format!("driver.query.{}", key.phase.as_str()));
+         options
+             .cancellation
+             .check(key.phase)
+@@ -845,7 +846,7 @@
+             .check(Phase::Verify)
+             .map_err(|error| vec![error])?;
+         report.verification_runs += 1;
+-        let verified = typed.verify(candidate, options);
++        let verified = zil_base::__profile_timed!("driver.verify", typed.verify(candidate, options));
+         event(Phase::Verify, QueryDisposition::Executed, report, observer);
+         options
+             .cancellation
+@@ -873,7 +874,7 @@
+         if options.stop_after == Stage::Verify {
+             return Ok(());
+         }
+-        let lir = zil_lower::lower_view(&verified)?;
++        let lir = zil_base::__profile_timed!("driver.lower", zil_lower::lower_view(&verified))?;
+         event(Phase::Lower, QueryDisposition::Executed, report, observer);
+         options
+             .cancellation
+@@ -987,7 +988,7 @@
+         if let Err(error) = options.cancellation.check(Phase::Link) {
+             return Err(vec![error]);
+         }
+-        let llvm = fs::read_to_string(&artifact.llvm_ir)
++        let llvm = zil_base::__profile_timed!("driver.llvm_sidecar.readback", fs::read_to_string(&artifact.llvm_ir))
+             .map_err(|error| infra("E-ARTIFACT-IO", error.to_string()))?;
+         report.phase = Phase::Link;
+         artifacts.dump(report, options, "llvm", &llvm)?;
+@@ -1004,7 +1005,7 @@
+             )
+         })?;
+         artifacts.validate()?;
+-        let mut artifact = publication.commit(artifact, &options.cancellation)?;
++        let mut artifact = zil_base::__profile_timed!("driver.artifact.publish", publication.commit(artifact, &options.cancellation))?;
+         // Only complete successful requests populate the machine cache. The
+         // permission/capability for this request is never serialized or reused.
+         // Observer callbacks and artifact publication can change path aliases.
+@@ -1015,7 +1016,7 @@
+         {
+             artifact.discard_partition_cache();
+         }
+-        artifact.commit_object_cache();
++        zil_base::__profile_timed!("driver.object_cache.commit", artifact.commit_object_cache());
+         report.artifacts.insert("llvm".into(), artifact.llvm_ir);
+         report
+             .artifacts
+--- a/crates/zil-backend-llvm/src/build.rs
++++ b/crates/zil-backend-llvm/src/build.rs
+@@ -214,6 +214,7 @@
+     cancelled: &(dyn Fn() -> bool + Sync),
+     stable_names: Option<&[(FunctionId, String)]>,
+ ) -> CompileResult<BuildArtifact> {
++    let _profile_build = zil_base::__stage_profile::span("backend.total");
+     check_cancelled(cancelled)?;
+     if options.emit.entry == EntryPoint::None {
+         return Err(vec![Diagnostic::error(
+@@ -249,7 +250,7 @@
+         )]);
+     }
+     let (mut machine, collected_closed, mut task_work) =
+-        crate::emit::lower_view_with_closed_scalar_policy_and_jobs(
++        zil_base::__profile_timed!("backend.machine_lower", crate::emit::lower_view_with_closed_scalar_policy_and_jobs(
+             verified,
+             lir,
+             &options.emit,
+@@ -258,14 +259,14 @@
+                 && options.backend == NativeBackend::LlvmApi
+                 && options.codegen.units >= 2,
+             options.codegen.jobs,
+-        )?;
+-    let mut task_abis = crate::task_abi::derive(verified, &machine, &mut task_work)?;
++        ))?;
++    let mut task_abis = zil_base::__profile_timed!("backend.task_abi", crate::task_abi::derive(verified, &machine, &mut task_work))?;
+     // The opt-in O2 strategy contracts strict checked-add chains before
+     // scalar evaluation. Each nonempty plan validates its complete unchanged
+     // input before mutation. Ordinary O2 skips both passes.
+     if options.optimization == Optimization::O2 && options.incremental_o2 {
+-        crate::machine_checked_add_chain::fold_checked_add_chains(&mut machine);
+-        crate::machine_scalar::fold_known_leaf_calls(&mut machine, lir);
++        zil_base::__profile_timed!("backend.checked_add_chain", crate::machine_checked_add_chain::fold_checked_add_chains(&mut machine));
++        zil_base::__profile_timed!("backend.scalar_fold", crate::machine_scalar::fold_known_leaf_calls(&mut machine, lir));
+     }
+     let mut stable = if options.closed_executable
+         && options.backend == NativeBackend::LlvmApi
+@@ -305,7 +306,7 @@
+     // Diagnostic/reference output only. Each nonempty transform plan requires
+     // complete original-model preflight. Existing per-unit API preflight still runs
+     // immediately before its LLVMBuilder calls and cannot be bypassed.
+-    let llvm = machine.to_text();
++    let llvm = zil_base::__profile_timed!("backend.diagnostic_render", machine.to_text());
+     let mut pending_layout = None;
+     let (mut plan, stable_candidates, stable_diagnostic) = if let Some(stable) = stable {
+         let trace =
+@@ -465,7 +466,7 @@
+     let ir_path = staging.0.join("module.ll");
+     let executable_path = staging.0.join("program");
+     let object_path = staging.0.join("module.obj");
+-    fs::write(&ir_path, llvm.as_bytes())
++    zil_base::__profile_timed!("backend.diagnostic_write", fs::write(&ir_path, llvm.as_bytes()))
+         .map_err(|error| io_error("write LLVM IR", &ir_path, error))?;
+ 
+     let optimization = match options.optimization {
+@@ -632,6 +633,7 @@
+     cache: Option<&PreparedCache>,
+     cancelled: &(dyn Fn() -> bool + Sync),
+ ) -> CompileResult<Vec<UnitResult>> {
++    let _profile_units = zil_base::__stage_profile::span("backend.object_workers.wall");
+     let mut schedule = (0..inputs.len()).collect::<Vec<_>>();
+     schedule.sort_by_key(|id| {
+         (
+@@ -768,6 +770,7 @@
+     cache: Option<&PreparedCache>,
+     cancelled: &(dyn Fn() -> bool + Sync),
+ ) -> CompileResult<UnitResult> {
++    let _profile_unit = zil_base::__stage_profile::span("backend.object_unit.total");
+     use zil_llvm_api::{Config, Optimization as ApiOpt};
+     let config = Config {
+         triple: target,
+@@ -784,7 +787,7 @@
+             // A hit is not a native Builder invocation. Current machine checks
+             // still run, independently of the checks performed by the producer.
+             let t = std::time::Instant::now();
+-            zil_llvm_api::validate_module(&unit.module).map_err(api_error)?;
++            zil_base::__profile_timed!("backend.current_object_preflight", zil_llvm_api::validate_module(&unit.module)).map_err(api_error)?;
+             lookup.preflight_ns = crate::object_cache::elapsed_ns(t);
+             check_cancelled(cancelled)?;
+             fs::write(&unit.object, &bytes)
+@@ -825,7 +828,7 @@
+         // The old object is raw cached data. Check the entire current model,
+         // including unchanged definitions, before deriving any current product.
+         let t = std::time::Instant::now();
+-        zil_llvm_api::validate_module(&unit.module).map_err(api_error)?;
++        zil_base::__profile_timed!("backend.current_object_preflight", zil_llvm_api::validate_module(&unit.module)).map_err(api_error)?;
+         let current_preflight = crate::object_cache::elapsed_ns(t);
+         check_cancelled(cancelled)?;
+         match zil_llvm_api::compile_module_with_function_merging(
+@@ -981,6 +984,7 @@
+ }
+ 
+ fn run_command(command: &mut Command, code: &str) -> CompileResult<Vec<String>> {
++    let _profile_external = zil_base::__stage_profile::span("backend.external_tool.wall");
+     let recorded = std::iter::once(command.get_program().to_string_lossy().into_owned())
+         .chain(
+             command
+--- a/crates/zil-backend-llvm/src/machine_cgu.rs
++++ b/crates/zil-backend-llvm/src/machine_cgu.rs
+@@ -172,6 +172,7 @@
+     imports: CallImportPolicy,
+     cache_root: Option<&std::path::Path>,
+ ) -> (Plan, Option<layout::Pending>) {
++    let _profile_partition = zil_base::__stage_profile::span("backend.partition.total");
+     // Shared helper code alone must not force otherwise independent resource
+     // modules into one object. Keep full helper visibility, bounded small source
+     // imports, identity-bearing local components and the original copy bound.
+--- a/crates/zil-backend-llvm/src/machine_cgu/layout.rs
++++ b/crates/zil-backend-llvm/src/machine_cgu/layout.rs
+@@ -38,6 +38,7 @@
+ impl Layout {
+     /// Both the original planner and a checked receipt use this exact emitter.
+     pub(super) fn replay(&self, module: Module) -> Vec<Module> {
++        let _profile_replay = zil_base::__stage_profile::span("backend.layout.replay");
+         let mut remaining = vec![0usize; module.items.len()];
+         let mut prototypes = BTreeMap::new();
+         for unit in &self.units {
+@@ -371,6 +372,7 @@
+         })
+     }
+     pub(super) fn load(&self, module: &Module, lir: &LirView<'_>, count: usize) -> Option<Layout> {
++        let _profile_load = zil_base::__stage_profile::span("backend.layout.load_validate");
+         private_existing(&self.root).ok()?;
+         let directory = self.root.join(DIRECTORY);
+         private_existing(&directory).ok()?;
+@@ -419,6 +421,7 @@
+     imports: CallImportPolicy,
+     compiler: Fingerprint,
+ ) -> Option<Fingerprint> {
++    let _profile_key = zil_base::__stage_profile::span("backend.layout.whole_input_key");
+     if !(2..=MAX_UNITS).contains(&count) || module.items.len() > MAX_ITEMS {
+         return None;
+     }
+--- a/crates/zil-backend-llvm/src/object_cache.rs
++++ b/crates/zil-backend-llvm/src/object_cache.rs
+@@ -298,6 +298,7 @@
+     }
+ }
+ fn machine_key(namespace: Fingerprint, module: &Module) -> Fingerprint {
++    let _profile_key = zil_base::__stage_profile::span("backend.object.action_key");
+     let mut state = BufferedHasher::new();
+     namespace.hash(&mut state);
+     // Exhaustive destructuring forces future Module fields to be considered.
+--- a/crates/zil-backend-llvm/src/machine_scalar.rs
++++ b/crates/zil-backend-llvm/src/machine_scalar.rs
+@@ -572,7 +572,7 @@
+         return 0;
+     }
+     let summaries = summary::plan(module, sources, &replacements);
+-    if zil_llvm_api::validate_module(module).is_err() {
++    if zil_base::__profile_timed!("backend.transform.full_preflight", zil_llvm_api::validate_module(module)).is_err() {
+         // No mutation occurred, including on malformed original models. Leave
+         // the existing diagnostic/backend path and per-unit preflight intact.
+         return 0;
+@@ -596,7 +596,7 @@
+ #[cfg(test)]
+ fn fold_leaf_only_with_sources(module: &mut Module, sources: &BTreeSet<String>) -> usize {
+     let replacements = plan_with_sources(module, sources);
+-    if replacements.is_empty() || zil_llvm_api::validate_module(module).is_err() {
++    if replacements.is_empty() || zil_base::__profile_timed!("backend.transform.full_preflight", zil_llvm_api::validate_module(module)).is_err() {
+         return 0;
+     }
+     let count = replacements.len();
+--- a/crates/zil-backend-llvm/src/machine_checked_add_chain.rs
++++ b/crates/zil-backend-llvm/src/machine_checked_add_chain.rs
+@@ -577,7 +577,7 @@
+             (!chains.is_empty()).then_some(FunctionPlan { item, chains })
+         })
+         .collect::<Vec<_>>();
+-    if plans.is_empty() || zil_llvm_api::validate_module(module).is_err() {
++    if plans.is_empty() || zil_base::__profile_timed!("backend.transform.full_preflight", zil_llvm_api::validate_module(module)).is_err() {
+         return 0;
+     }
+     let mut removed_checks = 0;
+--- a/crates/zil-backend-llvm/src/machine_stable_identity.rs
++++ b/crates/zil-backend-llvm/src/machine_stable_identity.rs
+@@ -463,7 +463,7 @@
+     }
+     work.spend(1)?;
+     // No renamed/filtered/sorted model has existed before this full check.
+-    zil_llvm_api::validate_module(module).ok()?;
++    zil_base::__profile_timed!("backend.transform.full_preflight", zil_llvm_api::validate_module(module)).ok()?;
+     work.spend(1)?;
+     Some(Prepared {
+         names,

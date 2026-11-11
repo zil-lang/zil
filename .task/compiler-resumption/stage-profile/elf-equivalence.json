@@ -1,0 +1,74 @@
+{
+  "note": "Backup executable mode corrected for execution only; file contents were not changed. Profile versus prior base ELF is byte-identical.",
+  "rows": [
+    {
+      "request": "cold",
+      "elf_sha256": "4416136b98fab77da920c7a5e0f66b20e2524e484133044e11705ede4aa3b360",
+      "full_elf_equal": true,
+      "size": 1006272,
+      "probes": [
+        {
+          "input_hex": "01000001",
+          "equal": true,
+          "stdout_hex": "a8c5"
+        },
+        {
+          "input_hex": "1d020002",
+          "equal": true,
+          "stdout_hex": "a09c"
+        },
+        {
+          "input_hex": "fb050003",
+          "equal": true,
+          "stdout_hex": "aa34"
+        }
+      ]
+    },
+    {
+      "request": "warm",
+      "elf_sha256": "4416136b98fab77da920c7a5e0f66b20e2524e484133044e11705ede4aa3b360",
+      "full_elf_equal": true,
+      "size": 1006272,
+      "probes": [
+        {
+          "input_hex": "01000001",
+          "equal": true,
+          "stdout_hex": "a8c5"
+        },
+        {
+          "input_hex": "1d020002",
+          "equal": true,
+          "stdout_hex": "a09c"
+        },
+        {
+          "input_hex": "fb050003",
+          "equal": true,
+          "stdout_hex": "aa34"
+        }
+      ]
+    },
+    {
+      "request": "private",
+      "elf_sha256": "30f04a0611cb59be0e4254b1bde5b4c35aeedb6f7c48c28bab50b9386fe675d6",
+      "full_elf_equal": true,
+      "size": 1006272,
+      "probes": [
+        {
+          "input_hex": "01000001",
+          "equal": true,
+          "stdout_hex": "b027"
+        },
+        {
+          "input_hex": "1d020002",
+          "equal": true,
+          "stdout_hex": "7d92"
+        },
+        {
+          "input_hex": "fb050003",
+          "equal": true,
+          "stdout_hex": "d9c3"
+        }
+      ]
+    }
+  ]
+}

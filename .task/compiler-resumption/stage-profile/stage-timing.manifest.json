@@ -1,0 +1,52 @@
+{
+  "repo": "/workspace/scratch/beabdcf5ebf4/resource",
+  "patch_sha256": "94c3d25f6a3c46f217bbea96e74988792e1209e540418bf8a20d682caecf2419",
+  "files": {
+    "crates/zil-base/src/lib.rs": {
+      "before_sha256": "244009ae3ae9684926c9daefe3e51df57a950c86b9dd22d2ef840f0ea141db4b",
+      "after_sha256": "71f1fb982c86226a1be5f46a8a49d65a67e81634dfef317931a6d63654f9dc88"
+    },
+    "crates/zil-driver/src/project.rs": {
+      "before_sha256": "485254bdc2baf24dfb3a1dd69e50fadd0e4eea4dc0836c3096ddb7d73b785305",
+      "after_sha256": "74c0f3fcc6af1f21d8b0c1ff387835a6476cf411b6b055a1e328cdcd43e4d60d"
+    },
+    "crates/zil-driver/src/semantic_cache.rs": {
+      "before_sha256": "e898944a1d90012224d558c335281e2d502305420b095cab891a27a11c9bbf35",
+      "after_sha256": "797b66f23f308757e7d434ec69b358515a7e88c8a1a0f719a3fbb626941fd153"
+    },
+    "crates/zil-driver/src/session.rs": {
+      "before_sha256": "ab210687372c276da51a632b6d0a01e7bceaa02835bd9cc452ab63b533ddf9c4",
+      "after_sha256": "cc6196c38bc6101796417e20546f62dda11056c4dde4e59986cf6a6fc489bb36"
+    },
+    "crates/zil-backend-llvm/src/build.rs": {
+      "before_sha256": "4cebe01d5659b61f650d0aa78fd329591f31452518df4e8efa3a625ea77ecdb7",
+      "after_sha256": "97990fe6223d56c5c61345a53808e352591f7680adca0871bace238e6a8a963f"
+    },
+    "crates/zil-backend-llvm/src/machine_cgu.rs": {
+      "before_sha256": "5e42c07970af8ef638bfbd091e5cbb6bc736fd2d25c63e42e20f95800d069221",
+      "after_sha256": "585b4dc2f48961dcb56ddf3d12fab2aa0e81390caf56402b54fc62d8dccd383b"
+    },
+    "crates/zil-backend-llvm/src/machine_cgu/layout.rs": {
+      "before_sha256": "010bf7fd5b077c16e43cda74082dfdd7f9273346e77bdfc3fc7623792c63547b",
+      "after_sha256": "5638578fccc2065a32f8877658bb0b6ec4a61b1b27297a48b1c225cf88497540"
+    },
+    "crates/zil-backend-llvm/src/object_cache.rs": {
+      "before_sha256": "882e32f299990da82b8f7d7105844230af43627fa6c9e51ba8a0756e9e2fd92a",
+      "after_sha256": "2939c28a5433a849085015a239565e1b60fb65b49e9edbd050aea9d2366cad19"
+    },
+    "crates/zil-backend-llvm/src/machine_scalar.rs": {
+      "before_sha256": "ac9fb2d89bb399ebaa604e7339fc5c81643c53c512f4de7162102ed96ae7e5d3",
+      "after_sha256": "cf087fe1edf343e2acef21a18ba709c4858c08cdc67a66649e453d8209467fb2"
+    },
+    "crates/zil-backend-llvm/src/machine_checked_add_chain.rs": {
+      "before_sha256": "62acbc7234d70d3a1369034ac2a6b86b74ed90c39c20faae171d7a5a8214038d",
+      "after_sha256": "5bdc79c1bc255c51f128a1942239527c0e41d746bce908919dfd3a16ba6927f1"
+    },
+    "crates/zil-backend-llvm/src/machine_stable_identity.rs": {
+      "before_sha256": "20fe1eb136ed90cfc5c25fb00137ad00df1129581619e0061b6291a1ccf41aa5",
+      "after_sha256": "cc4773f2f05e89ac108ebee16477060bc0438be2e0ea6b6109bbdb67fd1f6158"
+    }
+  },
+  "executed_builds": 0,
+  "executed_benchmarks": 0
+}

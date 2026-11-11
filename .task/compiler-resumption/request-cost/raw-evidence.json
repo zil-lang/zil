@@ -1,0 +1,11 @@
+{
+  "library_file_id": "libfile_fde3_f-07fc3294c7f48191822564a4a82f48ba_bd147c3485448191a9df16b3c3cea7dd",
+  "file_id": "file_000000003b788230a343944d2d62c4dc",
+  "filename": "request-cost-raw-evidence.tar.gz",
+  "version": 0,
+  "bytes": 395661,
+  "sha256": "500e41c04674dcd96792473bfac2125b6d14a0d64c34c56923b0d1dc37fca720",
+  "entries": 1047,
+  "scope": "Original per-request JSON/stdout/stderr/native I/O, pinned corpus and model, profile instrumentation and raw spans, source patch and review. Generated ELF/sidecars, cache directories and host binaries are excluded; hashes and byte equality remain recorded.",
+  "download_url": "https://chatgpt.com/library?file_id=libfile_fde3_f-07fc3294c7f48191822564a4a82f48ba_bd147c3485448191a9df16b3c3cea7dd&account_id=personal"
+}

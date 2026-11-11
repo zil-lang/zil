@@ -1,0 +1,136 @@
+diff --git a/crates/zil-backend-llvm/src/build.rs b/crates/zil-backend-llvm/src/build.rs
+index 798d86baae..751ce5b65d 100644
+--- a/crates/zil-backend-llvm/src/build.rs
++++ b/crates/zil-backend-llvm/src/build.rs
+@@ -2,7 +2,8 @@ use std::fs;
+ use std::io;
+ use std::path::{Path, PathBuf};
+ use std::process::Command;
+-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
++use std::sync::Mutex;
++use std::sync::atomic::{AtomicU64, Ordering};
+ 
+ use zil_base::{CompileResult, Diagnostic, Phase, ResultCategory};
+ use zil_ir::{FunctionId, LirModule, LirView};
+@@ -533,14 +534,16 @@ pub fn build_view_with_cancellation_and_stable_names(
+             })
+             .collect::<CompileResult<Vec<_>>>()?;
+         let compiled = compile_units(
+-            &inputs,
++            inputs,
+             &lir.target.triple,
+             optimization,
+             options,
+             cache.as_ref(),
+             cancelled,
+         )?;
+-        for result in compiled {
++        let mut objects = Vec::with_capacity(compiled.len());
++        for (object, result) in compiled {
++            objects.push(object);
+             commands.extend(result.commands);
+             if let Some(receipt) = result.receipt {
+                 codegen.object_reports.push(receipt);
+@@ -552,10 +555,7 @@ pub fn build_view_with_cancellation_and_stable_names(
+                 pending_cache.objects.push(pending);
+             }
+         }
+-        inputs
+-            .into_iter()
+-            .map(|unit| unit.object)
+-            .collect::<Vec<_>>()
++        objects
+     };
+     check_cancelled(cancelled)?;
+     if let Some(config) = &options.windows {
+@@ -625,19 +625,19 @@ struct UnitResult {
+ }
+ 
+ fn compile_units(
+-    inputs: &[UnitInput],
++    inputs: Vec<UnitInput>,
+     target: &str,
+     optimization: &str,
+     options: &BuildOptions,
+     cache: Option<&PreparedCache>,
+     cancelled: &(dyn Fn() -> bool + Sync),
+-) -> CompileResult<Vec<UnitResult>> {
+-    let mut schedule = (0..inputs.len()).collect::<Vec<_>>();
+-    schedule.sort_by_key(|id| {
++) -> CompileResult<Vec<(PathBuf, UnitResult)>> {
++    let jobs = options.codegen.jobs.min(inputs.len());
++    let mut schedule = inputs.into_iter().enumerate().collect::<Vec<_>>();
++    schedule.sort_by_key(|(id, unit)| {
+         (
+             std::cmp::Reverse(
+-                inputs[*id]
+-                    .module
++                unit.module
+                     .items
+                     .iter()
+                     .map(|item| match item {
+@@ -649,22 +649,22 @@ fn compile_units(
+             *id,
+         )
+     });
+-    let next = AtomicUsize::new(0);
++    let next = Mutex::new(schedule.into_iter());
+     let results = std::thread::scope(|scope| {
+-        let workers = (0..options.codegen.jobs.min(inputs.len()))
++        let workers = (0..jobs)
+             .map(|_| {
+-                let schedule = &schedule;
+                 let next = &next;
+                 scope.spawn(move || {
+                     let mut results = Vec::new();
+                     loop {
+-                        let slot = next.fetch_add(1, Ordering::Relaxed);
+-                        let Some(&id) = schedule.get(slot) else {
++                        // Only move the next job under the lock. Compilation and
++                        // destruction of its owned machine model stay on this worker.
++                        let job = next.lock().unwrap_or_else(|e| e.into_inner()).next();
++                        let Some((id, unit)) = job else {
+                             break;
+                         };
+-                        let result = check_cancelled(cancelled).and_then(|()| {
+-                            let unit = &inputs[id];
+-                            match options.backend {
++                        let result =
++                            check_cancelled(cancelled).and_then(|()| match options.backend {
+                                 NativeBackend::Clang => {
+                                     let mut command = Command::new(&options.clang);
+                                     command
+@@ -689,16 +689,15 @@ fn compile_units(
+                                     })
+                                 }
+                                 NativeBackend::LlvmApi => compile_api_unit(
+-                                    unit,
++                                    &unit,
+                                     target,
+                                     options.optimization,
+                                     options.function_merging,
+                                     cache,
+                                     cancelled,
+                                 ),
+-                            }
+-                        });
+-                        results.push((id, result));
++                            });
++                        results.push((id, unit.object, result));
+                     }
+                     results
+                 })
+@@ -719,8 +718,11 @@ fn compile_units(
+         }
+     })?;
+     let mut results = results;
+-    results.sort_by_key(|(id, _)| *id);
+-    results.into_iter().map(|(_, result)| result).collect()
++    results.sort_by_key(|(id, _, _)| *id);
++    results
++        .into_iter()
++        .map(|(_, object, result)| result.map(|result| (object, result)))
++        .collect()
+ }
+ 
+ fn check_cancelled(cancelled: &(dyn Fn() -> bool + Sync)) -> CompileResult<()> {

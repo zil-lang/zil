@@ -1,0 +1,645 @@
+{
+  "schema": "owned-machine-unit-lifetime-screen-v1",
+  "created_utc": "2026-11-11T03:41:19.714324+00:00",
+  "script": {
+    "path": "/workspace/scratch/abf690ce880c/out/profile/screen_owned_units.py",
+    "sha256": "301a2fa5a6e4a0947f8664f67ce4b2049a1a9ef72635fc32d1847e85360edb0a"
+  },
+  "candidate_source": "9e15ab226b5c0e95f18b1e1a7d1d2517dc646850/treeba2a08e59c67339b1420e47480d2055ef81d1021",
+  "baseline_source": "main99035931/tree1c16744d838064cb1c687ba56ef3a0d17ed3130c; local d0b2eeeb466f8e7d5d4edca5c59265727da78254",
+  "tools": {
+    "base": {
+      "path": "/workspace/scratch/beabdcf5ebf4/target-resource/release/zil",
+      "sha256": "aafc969f277684cfc1e678dd6064bcdc13ed46fa80db04a2a213cda1dbfadeff"
+    },
+    "cand": {
+      "path": "/workspace/scratch/abf690ce880c/target-request-cost/release/zil",
+      "sha256": "17f9fb7a5fb3b3ce91729b976a943a7583fed864a2f8ee62be6caffb2e2e0203"
+    },
+    "clang": {
+      "path": "/workspace/scratch/bc028477130e/toolchain/llvm-23.1.4/bin/clang-23",
+      "sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67"
+    }
+  },
+  "model": {
+    "path": "/workspace/scratch/beabdcf5ebf4/audit-acceptance/helper-current/bench/corpus.py",
+    "sha256": "2dfb26675a78e1ad83d72c20fa85d8c8bf8d1bf0d7b3db3ab0e84bf4be994a78"
+  },
+  "sources": {
+    "shared4096": {
+      "base": {
+        "path": "/workspace/scratch/beabdcf5ebf4/evidence/resource-acceptance/primary/corpus/shared4096/base/zil/main.zil",
+        "sha256": "616d7c07ed736e8d191e29c2040d308947fe7db69ebdb8e06bb8b391c54d3af6",
+        "bytes": 628141
+      },
+      "private": {
+        "path": "/workspace/scratch/beabdcf5ebf4/evidence/resource-acceptance/primary/corpus/shared4096/private/zil/main.zil",
+        "sha256": "a37c8680a03706adf5be42363cfea0445c1c505b413c0f204f6feda30b9631fe",
+        "bytes": 628141
+      }
+    },
+    "shared1024": {
+      "base": {
+        "path": "/workspace/scratch/beabdcf5ebf4/evidence/resource-acceptance/primary/corpus/shared1024/base/zil/main.zil",
+        "sha256": "65ef7b19c3341f2f8edabede0aa09c3e65aecc9cac7045ca34f2cc8454fd6b94",
+        "bytes": 154797
+      },
+      "private": {
+        "path": "/workspace/scratch/beabdcf5ebf4/evidence/resource-acceptance/primary/corpus/shared1024/private/zil/main.zil",
+        "sha256": "002712543ff730487c1b3ea97a41d06e0de7d7dbb3f9be56536269d65b786ff2",
+        "bytes": 154797
+      }
+    },
+    "owned8": {
+      "base": {
+        "path": "/workspace/scratch/beabdcf5ebf4/evidence/resource-acceptance/primary/corpus/owned8/base/zil/main.zil",
+        "sha256": "f11e34aef863a115e8eddd6be1efe6a6d22ef73b3c80a4db06905ca4d0392dc3",
+        "bytes": 3989
+      },
+      "private": {
+        "path": "/workspace/scratch/beabdcf5ebf4/evidence/resource-acceptance/primary/corpus/owned8/private/zil/main.zil",
+        "sha256": "1028b5d73c4495a65d770edc5d01912e83ba1150df7c5ddc10a4f9938208bb02",
+        "bytes": 3989
+      }
+    }
+  },
+  "oracles": {
+    "shared4096": {
+      "base": {
+        "01000001": "a8c5",
+        "1d020002": "a09c",
+        "fb050003": "aa34"
+      },
+      "private": {
+        "01000001": "b027",
+        "1d020002": "7d92",
+        "fb050003": "d9c3"
+      }
+    },
+    "shared1024": {
+      "base": {
+        "01000001": "cde4",
+        "1d020002": "4649",
+        "fb050003": "ff18"
+      },
+      "private": {
+        "01000001": "b286",
+        "1d020002": "0bad",
+        "fb050003": "aa49"
+      }
+    },
+    "owned8": {
+      "base": {
+        "01000001": "4900",
+        "1d020002": "1a00",
+        "fb050003": "df00"
+      },
+      "private": {
+        "01000001": "4d00",
+        "1d020002": "b300",
+        "fb050003": "6500"
+      }
+    }
+  },
+  "inputs_hex": [
+    "01000001",
+    "1d020002",
+    "fb050003"
+  ],
+  "cpus": [
+    0,
+    1
+  ],
+  "seed": 20261111,
+  "out": "/workspace/scratch/abf690ce880c/out/request-cost/screen",
+  "pairs": [
+    {
+      "pair": 0,
+      "case": "shared4096",
+      "jobs": 2,
+      "request": "cold",
+      "snapshot": "base",
+      "repetition": 0,
+      "arms": [
+        "cand",
+        "base"
+      ]
+    },
+    {
+      "pair": 1,
+      "case": "shared4096",
+      "jobs": 2,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 0,
+      "arms": [
+        "base",
+        "cand"
+      ]
+    },
+    {
+      "pair": 2,
+      "case": "shared4096",
+      "jobs": 2,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 1,
+      "arms": [
+        "cand",
+        "base"
+      ]
+    },
+    {
+      "pair": 3,
+      "case": "shared4096",
+      "jobs": 2,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 2,
+      "arms": [
+        "base",
+        "cand"
+      ]
+    },
+    {
+      "pair": 4,
+      "case": "shared4096",
+      "jobs": 2,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 3,
+      "arms": [
+        "cand",
+        "base"
+      ]
+    },
+    {
+      "pair": 5,
+      "case": "shared4096",
+      "jobs": 2,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 4,
+      "arms": [
+        "base",
+        "cand"
+      ]
+    },
+    {
+      "pair": 6,
+      "case": "shared4096",
+      "jobs": 2,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 5,
+      "arms": [
+        "cand",
+        "base"
+      ]
+    },
+    {
+      "pair": 7,
+      "case": "shared4096",
+      "jobs": 2,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 6,
+      "arms": [
+        "base",
+        "cand"
+      ]
+    },
+    {
+      "pair": 8,
+      "case": "shared4096",
+      "jobs": 2,
+      "request": "private",
+      "snapshot": "private",
+      "repetition": 0,
+      "arms": [
+        "cand",
+        "base"
+      ]
+    },
+    {
+      "pair": 9,
+      "case": "shared4096",
+      "jobs": 2,
+      "request": "edit-warm",
+      "snapshot": "private",
+      "repetition": 0,
+      "arms": [
+        "base",
+        "cand"
+      ]
+    },
+    {
+      "pair": 10,
+      "case": "shared4096",
+      "jobs": 2,
+      "request": "edit-warm",
+      "snapshot": "private",
+      "repetition": 1,
+      "arms": [
+        "cand",
+        "base"
+      ]
+    },
+    {
+      "pair": 11,
+      "case": "shared4096",
+      "jobs": 2,
+      "request": "edit-warm",
+      "snapshot": "private",
+      "repetition": 2,
+      "arms": [
+        "base",
+        "cand"
+      ]
+    },
+    {
+      "pair": 12,
+      "case": "shared1024",
+      "jobs": 2,
+      "request": "cold",
+      "snapshot": "base",
+      "repetition": 0,
+      "arms": [
+        "cand",
+        "base"
+      ]
+    },
+    {
+      "pair": 13,
+      "case": "shared1024",
+      "jobs": 2,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 0,
+      "arms": [
+        "base",
+        "cand"
+      ]
+    },
+    {
+      "pair": 14,
+      "case": "shared1024",
+      "jobs": 2,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 1,
+      "arms": [
+        "cand",
+        "base"
+      ]
+    },
+    {
+      "pair": 15,
+      "case": "shared1024",
+      "jobs": 2,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 2,
+      "arms": [
+        "base",
+        "cand"
+      ]
+    },
+    {
+      "pair": 16,
+      "case": "shared1024",
+      "jobs": 2,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 3,
+      "arms": [
+        "cand",
+        "base"
+      ]
+    },
+    {
+      "pair": 17,
+      "case": "shared1024",
+      "jobs": 2,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 4,
+      "arms": [
+        "base",
+        "cand"
+      ]
+    },
+    {
+      "pair": 18,
+      "case": "shared1024",
+      "jobs": 2,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 5,
+      "arms": [
+        "cand",
+        "base"
+      ]
+    },
+    {
+      "pair": 19,
+      "case": "shared1024",
+      "jobs": 2,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 6,
+      "arms": [
+        "base",
+        "cand"
+      ]
+    },
+    {
+      "pair": 20,
+      "case": "shared1024",
+      "jobs": 2,
+      "request": "private",
+      "snapshot": "private",
+      "repetition": 0,
+      "arms": [
+        "cand",
+        "base"
+      ]
+    },
+    {
+      "pair": 21,
+      "case": "shared1024",
+      "jobs": 2,
+      "request": "edit-warm",
+      "snapshot": "private",
+      "repetition": 0,
+      "arms": [
+        "base",
+        "cand"
+      ]
+    },
+    {
+      "pair": 22,
+      "case": "shared1024",
+      "jobs": 2,
+      "request": "edit-warm",
+      "snapshot": "private",
+      "repetition": 1,
+      "arms": [
+        "cand",
+        "base"
+      ]
+    },
+    {
+      "pair": 23,
+      "case": "shared1024",
+      "jobs": 2,
+      "request": "edit-warm",
+      "snapshot": "private",
+      "repetition": 2,
+      "arms": [
+        "base",
+        "cand"
+      ]
+    },
+    {
+      "pair": 24,
+      "case": "owned8",
+      "jobs": 2,
+      "request": "cold",
+      "snapshot": "base",
+      "repetition": 0,
+      "arms": [
+        "cand",
+        "base"
+      ]
+    },
+    {
+      "pair": 25,
+      "case": "owned8",
+      "jobs": 2,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 0,
+      "arms": [
+        "base",
+        "cand"
+      ]
+    },
+    {
+      "pair": 26,
+      "case": "owned8",
+      "jobs": 2,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 1,
+      "arms": [
+        "cand",
+        "base"
+      ]
+    },
+    {
+      "pair": 27,
+      "case": "owned8",
+      "jobs": 2,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 2,
+      "arms": [
+        "base",
+        "cand"
+      ]
+    },
+    {
+      "pair": 28,
+      "case": "owned8",
+      "jobs": 2,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 3,
+      "arms": [
+        "cand",
+        "base"
+      ]
+    },
+    {
+      "pair": 29,
+      "case": "owned8",
+      "jobs": 2,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 4,
+      "arms": [
+        "base",
+        "cand"
+      ]
+    },
+    {
+      "pair": 30,
+      "case": "owned8",
+      "jobs": 2,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 5,
+      "arms": [
+        "cand",
+        "base"
+      ]
+    },
+    {
+      "pair": 31,
+      "case": "owned8",
+      "jobs": 2,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 6,
+      "arms": [
+        "base",
+        "cand"
+      ]
+    },
+    {
+      "pair": 32,
+      "case": "owned8",
+      "jobs": 2,
+      "request": "private",
+      "snapshot": "private",
+      "repetition": 0,
+      "arms": [
+        "cand",
+        "base"
+      ]
+    },
+    {
+      "pair": 33,
+      "case": "owned8",
+      "jobs": 2,
+      "request": "edit-warm",
+      "snapshot": "private",
+      "repetition": 0,
+      "arms": [
+        "base",
+        "cand"
+      ]
+    },
+    {
+      "pair": 34,
+      "case": "owned8",
+      "jobs": 2,
+      "request": "edit-warm",
+      "snapshot": "private",
+      "repetition": 1,
+      "arms": [
+        "cand",
+        "base"
+      ]
+    },
+    {
+      "pair": 35,
+      "case": "owned8",
+      "jobs": 2,
+      "request": "edit-warm",
+      "snapshot": "private",
+      "repetition": 2,
+      "arms": [
+        "base",
+        "cand"
+      ]
+    },
+    {
+      "pair": 36,
+      "case": "shared4096",
+      "jobs": 1,
+      "request": "cold",
+      "snapshot": "base",
+      "repetition": 0,
+      "arms": [
+        "cand",
+        "base"
+      ]
+    },
+    {
+      "pair": 37,
+      "case": "shared4096",
+      "jobs": 1,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 0,
+      "arms": [
+        "base",
+        "cand"
+      ]
+    },
+    {
+      "pair": 38,
+      "case": "shared4096",
+      "jobs": 1,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 1,
+      "arms": [
+        "cand",
+        "base"
+      ]
+    },
+    {
+      "pair": 39,
+      "case": "shared4096",
+      "jobs": 1,
+      "request": "warm",
+      "snapshot": "base",
+      "repetition": 2,
+      "arms": [
+        "base",
+        "cand"
+      ]
+    },
+    {
+      "pair": 40,
+      "case": "shared4096",
+      "jobs": 1,
+      "request": "private",
+      "snapshot": "private",
+      "repetition": 0,
+      "arms": [
+        "cand",
+        "base"
+      ]
+    },
+    {
+      "pair": 41,
+      "case": "shared4096",
+      "jobs": 1,
+      "request": "edit-warm",
+      "snapshot": "private",
+      "repetition": 0,
+      "arms": [
+        "base",
+        "cand"
+      ]
+    }
+  ],
+  "compile_requests": 84,
+  "configuration": {
+    "backend": "llvm-api",
+    "opt": "O2",
+    "codegen_units": 8,
+    "incremental_o2": true,
+    "function_merging": "after",
+    "semantic_cache": true,
+    "object_cache": true,
+    "boundary": "fresh CLI process through complete output/publication; OS caches retained"
+  },
+  "screen_decision": {
+    "all_84_requests_required": true,
+    "current_verification_runs": 1,
+    "complete_elf_equality_required": true,
+    "sidecar": "preserve raw; require exact equality except the single verified-fingerprint comment when raw differs",
+    "three_short_output_oracles_required": true,
+    "cache_topology_parity_required": true,
+    "compile_regression_warning_ratio": 1.1,
+    "interpretation": "fixed screen only; retain all values and any regression; no repeated runtime timing, Rust arm, weighted aggregate, or automatic adoption"
+  },
+  "timeout_seconds": 300,
+  "prior_failures": "All prior protocol results remain unchanged; a new screen cannot overwrite their decisions",
+  "attempt_policy": "Exactly one run. Interruptions consume the attempt. Never overwrite raw, alter this plan, or add repetitions after observing results."
+}

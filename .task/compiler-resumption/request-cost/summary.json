@@ -1,0 +1,817 @@
+{
+  "schema": "owned-machine-unit-lifetime-screen-v1",
+  "complete": true,
+  "compile_requests": 84,
+  "expected_compile_requests": 84,
+  "valid_requests": 84,
+  "pairs": 42,
+  "expected_pairs": 42,
+  "all_elf_equal": true,
+  "all_sidecar_material_equal": true,
+  "all_cache_topology_equal": true,
+  "native_output_checks": 252,
+  "expected_native_output_checks": 252,
+  "failures": [],
+  "cells": [
+    {
+      "case": "shared4096",
+      "jobs": 2,
+      "request": "cold",
+      "arms": {
+        "base": {
+          "n": 1,
+          "expected_n": 1,
+          "mean_ms": 6500.27424,
+          "median_ms": 6500.27424,
+          "values_ms": [
+            6500.27424
+          ],
+          "cpu_values_ms": [
+            11020.025
+          ],
+          "rss_values_kib": [
+            560704
+          ]
+        },
+        "cand": {
+          "n": 1,
+          "expected_n": 1,
+          "mean_ms": 7515.93919,
+          "median_ms": 7515.93919,
+          "values_ms": [
+            7515.93919
+          ],
+          "cpu_values_ms": [
+            12656.713
+          ],
+          "rss_values_kib": [
+            547096
+          ]
+        }
+      },
+      "saved_ms": -1015.6649500000003,
+      "candidate_ratio": 1.1562495538649766,
+      "over_10pct": true
+    },
+    {
+      "case": "shared4096",
+      "jobs": 2,
+      "request": "warm",
+      "arms": {
+        "base": {
+          "n": 7,
+          "expected_n": 7,
+          "mean_ms": 618.6458741428571,
+          "median_ms": 635.97795,
+          "values_ms": [
+            636.522056,
+            635.97795,
+            542.813087,
+            601.5254,
+            648.281021,
+            665.141488,
+            600.260117
+          ],
+          "cpu_values_ms": [
+            776.0290000000001,
+            786.549,
+            644.651,
+            761.922,
+            758.203,
+            802.275,
+            732.165
+          ],
+          "rss_values_kib": [
+            312676,
+            312676,
+            312676,
+            312676,
+            312676,
+            312676,
+            312676
+          ]
+        },
+        "cand": {
+          "n": 7,
+          "expected_n": 7,
+          "mean_ms": 788.5961885714286,
+          "median_ms": 900.032868,
+          "values_ms": [
+            555.4037,
+            954.311952,
+            900.032868,
+            562.490226,
+            600.818755,
+            1038.034176,
+            909.081643
+          ],
+          "cpu_values_ms": [
+            728.6550000000001,
+            1353.1529999999998,
+            1022.3679999999999,
+            698.7789999999999,
+            773.1700000000001,
+            1164.742,
+            1264.485
+          ],
+          "rss_values_kib": [
+            312676,
+            312676,
+            312676,
+            312676,
+            312676,
+            312676,
+            312676
+          ]
+        }
+      },
+      "saved_ms": -169.95031442857146,
+      "candidate_ratio": 1.274713404763331,
+      "over_10pct": true
+    },
+    {
+      "case": "shared4096",
+      "jobs": 2,
+      "request": "private",
+      "arms": {
+        "base": {
+          "n": 1,
+          "expected_n": 1,
+          "mean_ms": 4670.546021,
+          "median_ms": 4670.546021,
+          "values_ms": [
+            4670.546021
+          ],
+          "cpu_values_ms": [
+            4804.488
+          ],
+          "rss_values_kib": [
+            521520
+          ]
+        },
+        "cand": {
+          "n": 1,
+          "expected_n": 1,
+          "mean_ms": 4866.974628,
+          "median_ms": 4866.974628,
+          "values_ms": [
+            4866.974628
+          ],
+          "cpu_values_ms": [
+            5113.821
+          ],
+          "rss_values_kib": [
+            483428
+          ]
+        }
+      },
+      "saved_ms": -196.42860699999983,
+      "candidate_ratio": 1.0420568828819596,
+      "over_10pct": false
+    },
+    {
+      "case": "shared4096",
+      "jobs": 2,
+      "request": "edit-warm",
+      "arms": {
+        "base": {
+          "n": 3,
+          "expected_n": 3,
+          "mean_ms": 575.409744,
+          "median_ms": 569.781905,
+          "values_ms": [
+            566.804947,
+            569.781905,
+            589.64238
+          ],
+          "cpu_values_ms": [
+            706.1709999999999,
+            698.156,
+            701.3029999999999
+          ],
+          "rss_values_kib": [
+            312676,
+            312676,
+            312676
+          ]
+        },
+        "cand": {
+          "n": 3,
+          "expected_n": 3,
+          "mean_ms": 693.545252,
+          "median_ms": 733.000709,
+          "values_ms": [
+            493.852992,
+            733.000709,
+            853.782055
+          ],
+          "cpu_values_ms": [
+            627.781,
+            868.9019999999999,
+            970.7209999999999
+          ],
+          "rss_values_kib": [
+            312676,
+            312676,
+            312676
+          ]
+        }
+      },
+      "saved_ms": -118.13550799999996,
+      "candidate_ratio": 1.2053067561539241,
+      "over_10pct": true
+    },
+    {
+      "case": "shared1024",
+      "jobs": 2,
+      "request": "cold",
+      "arms": {
+        "base": {
+          "n": 1,
+          "expected_n": 1,
+          "mean_ms": 1191.485207,
+          "median_ms": 1191.485207,
+          "values_ms": [
+            1191.485207
+          ],
+          "cpu_values_ms": [
+            1935.148
+          ],
+          "rss_values_kib": [
+            312676
+          ]
+        },
+        "cand": {
+          "n": 1,
+          "expected_n": 1,
+          "mean_ms": 908.891847,
+          "median_ms": 908.891847,
+          "values_ms": [
+            908.891847
+          ],
+          "cpu_values_ms": [
+            1531.0529999999999
+          ],
+          "rss_values_kib": [
+            312676
+          ]
+        }
+      },
+      "saved_ms": 282.59335999999996,
+      "candidate_ratio": 0.7628226029666518,
+      "over_10pct": false
+    },
+    {
+      "case": "shared1024",
+      "jobs": 2,
+      "request": "warm",
+      "arms": {
+        "base": {
+          "n": 7,
+          "expected_n": 7,
+          "mean_ms": 153.05652214285715,
+          "median_ms": 150.050967,
+          "values_ms": [
+            153.812803,
+            168.575026,
+            162.713594,
+            147.239396,
+            150.050967,
+            144.900995,
+            144.102874
+          ],
+          "cpu_values_ms": [
+            180.36699999999996,
+            188.00699999999998,
+            188.93899999999996,
+            175.78,
+            178.941,
+            167.523,
+            166.387
+          ],
+          "rss_values_kib": [
+            312676,
+            312676,
+            312676,
+            312676,
+            312676,
+            312676,
+            312676
+          ]
+        },
+        "cand": {
+          "n": 7,
+          "expected_n": 7,
+          "mean_ms": 201.890553,
+          "median_ms": 151.487824,
+          "values_ms": [
+            147.814243,
+            162.930117,
+            158.524463,
+            135.318072,
+            505.753895,
+            151.405257,
+            151.487824
+          ],
+          "cpu_values_ms": [
+            183.357,
+            197.648,
+            192.17999999999998,
+            160.91699999999997,
+            574.648,
+            188.82100000000003,
+            181.91199999999998
+          ],
+          "rss_values_kib": [
+            312676,
+            312676,
+            312676,
+            312676,
+            312676,
+            312676,
+            312676
+          ]
+        }
+      },
+      "saved_ms": -48.834030857142864,
+      "candidate_ratio": 1.319058803724568,
+      "over_10pct": true
+    },
+    {
+      "case": "shared1024",
+      "jobs": 2,
+      "request": "private",
+      "arms": {
+        "base": {
+          "n": 1,
+          "expected_n": 1,
+          "mean_ms": 997.740854,
+          "median_ms": 997.740854,
+          "values_ms": [
+            997.740854
+          ],
+          "cpu_values_ms": [
+            1000.0279999999999
+          ],
+          "rss_values_kib": [
+            312676
+          ]
+        },
+        "cand": {
+          "n": 1,
+          "expected_n": 1,
+          "mean_ms": 656.812504,
+          "median_ms": 656.812504,
+          "values_ms": [
+            656.812504
+          ],
+          "cpu_values_ms": [
+            683.425
+          ],
+          "rss_values_kib": [
+            312676
+          ]
+        }
+      },
+      "saved_ms": 340.92835,
+      "candidate_ratio": 0.6582996991320954,
+      "over_10pct": false
+    },
+    {
+      "case": "shared1024",
+      "jobs": 2,
+      "request": "edit-warm",
+      "arms": {
+        "base": {
+          "n": 3,
+          "expected_n": 3,
+          "mean_ms": 164.17612333333335,
+          "median_ms": 163.048875,
+          "values_ms": [
+            163.048875,
+            158.496993,
+            170.982502
+          ],
+          "cpu_values_ms": [
+            191.233,
+            192.357,
+            202.14999999999998
+          ],
+          "rss_values_kib": [
+            312676,
+            312676,
+            312676
+          ]
+        },
+        "cand": {
+          "n": 3,
+          "expected_n": 3,
+          "mean_ms": 166.58617533333333,
+          "median_ms": 148.306255,
+          "values_ms": [
+            209.866704,
+            148.306255,
+            141.585567
+          ],
+          "cpu_values_ms": [
+            236.89899999999997,
+            184.60100000000003,
+            174.218
+          ],
+          "rss_values_kib": [
+            312676,
+            312676,
+            312676
+          ]
+        }
+      },
+      "saved_ms": -2.410051999999979,
+      "candidate_ratio": 1.0146796741881081,
+      "over_10pct": false
+    },
+    {
+      "case": "owned8",
+      "jobs": 2,
+      "request": "cold",
+      "arms": {
+        "base": {
+          "n": 1,
+          "expected_n": 1,
+          "mean_ms": 119.018281,
+          "median_ms": 119.018281,
+          "values_ms": [
+            119.018281
+          ],
+          "cpu_values_ms": [
+            116.41699999999999
+          ],
+          "rss_values_kib": [
+            312676
+          ]
+        },
+        "cand": {
+          "n": 1,
+          "expected_n": 1,
+          "mean_ms": 108.732543,
+          "median_ms": 108.732543,
+          "values_ms": [
+            108.732543
+          ],
+          "cpu_values_ms": [
+            107.077
+          ],
+          "rss_values_kib": [
+            312676
+          ]
+        }
+      },
+      "saved_ms": 10.285737999999995,
+      "candidate_ratio": 0.9135785031208777,
+      "over_10pct": false
+    },
+    {
+      "case": "owned8",
+      "jobs": 2,
+      "request": "warm",
+      "arms": {
+        "base": {
+          "n": 7,
+          "expected_n": 7,
+          "mean_ms": 59.54139528571429,
+          "median_ms": 35.259967,
+          "values_ms": [
+            34.618789,
+            34.137757,
+            34.701456,
+            202.771137,
+            36.596281,
+            35.259967,
+            38.70438
+          ],
+          "cpu_values_ms": [
+            33.867000000000004,
+            33.353,
+            33.855999999999995,
+            196.873,
+            35.82,
+            34.974,
+            37.586999999999996
+          ],
+          "rss_values_kib": [
+            312676,
+            312676,
+            312676,
+            312676,
+            312676,
+            312676,
+            312676
+          ]
+        },
+        "cand": {
+          "n": 7,
+          "expected_n": 7,
+          "mean_ms": 52.09149642857143,
+          "median_ms": 36.820436,
+          "values_ms": [
+            33.217424,
+            36.820436,
+            34.911162,
+            139.566348,
+            46.826392,
+            36.885013,
+            36.4137
+          ],
+          "cpu_values_ms": [
+            32.38,
+            36.631,
+            34.30499999999999,
+            133.88400000000001,
+            46.448,
+            37.023,
+            35.46
+          ],
+          "rss_values_kib": [
+            312676,
+            312676,
+            312676,
+            312676,
+            312676,
+            312676,
+            312676
+          ]
+        }
+      },
+      "saved_ms": 7.4498988571428555,
+      "candidate_ratio": 0.874878665147266,
+      "over_10pct": false
+    },
+    {
+      "case": "owned8",
+      "jobs": 2,
+      "request": "private",
+      "arms": {
+        "base": {
+          "n": 1,
+          "expected_n": 1,
+          "mean_ms": 109.029532,
+          "median_ms": 109.029532,
+          "values_ms": [
+            109.029532
+          ],
+          "cpu_values_ms": [
+            108.151
+          ],
+          "rss_values_kib": [
+            312676
+          ]
+        },
+        "cand": {
+          "n": 1,
+          "expected_n": 1,
+          "mean_ms": 137.685816,
+          "median_ms": 137.685816,
+          "values_ms": [
+            137.685816
+          ],
+          "cpu_values_ms": [
+            136.671
+          ],
+          "rss_values_kib": [
+            312676
+          ]
+        }
+      },
+      "saved_ms": -28.656283999999985,
+      "candidate_ratio": 1.262830477892907,
+      "over_10pct": true
+    },
+    {
+      "case": "owned8",
+      "jobs": 2,
+      "request": "edit-warm",
+      "arms": {
+        "base": {
+          "n": 3,
+          "expected_n": 3,
+          "mean_ms": 36.10248,
+          "median_ms": 36.35936,
+          "values_ms": [
+            32.880441,
+            36.35936,
+            39.067639
+          ],
+          "cpu_values_ms": [
+            32.22899999999999,
+            35.488,
+            38.853
+          ],
+          "rss_values_kib": [
+            312676,
+            312676,
+            312676
+          ]
+        },
+        "cand": {
+          "n": 3,
+          "expected_n": 3,
+          "mean_ms": 39.92873633333333,
+          "median_ms": 36.770734,
+          "values_ms": [
+            46.437486,
+            36.770734,
+            36.577989
+          ],
+          "cpu_values_ms": [
+            45.041,
+            34.07299999999999,
+            35.482
+          ],
+          "rss_values_kib": [
+            312676,
+            312676,
+            312676
+          ]
+        }
+      },
+      "saved_ms": -3.8262563333333333,
+      "candidate_ratio": 1.105983199307453,
+      "over_10pct": true
+    },
+    {
+      "case": "shared4096",
+      "jobs": 1,
+      "request": "cold",
+      "arms": {
+        "base": {
+          "n": 1,
+          "expected_n": 1,
+          "mean_ms": 9458.827589,
+          "median_ms": 9458.827589,
+          "values_ms": [
+            9458.827589
+          ],
+          "cpu_values_ms": [
+            9425.479
+          ],
+          "rss_values_kib": [
+            520296
+          ]
+        },
+        "cand": {
+          "n": 1,
+          "expected_n": 1,
+          "mean_ms": 9977.481449,
+          "median_ms": 9977.481449,
+          "values_ms": [
+            9977.481449
+          ],
+          "cpu_values_ms": [
+            9955.304
+          ],
+          "rss_values_kib": [
+            518680
+          ]
+        }
+      },
+      "saved_ms": -518.6538600000003,
+      "candidate_ratio": 1.054832785048663,
+      "over_10pct": false
+    },
+    {
+      "case": "shared4096",
+      "jobs": 1,
+      "request": "warm",
+      "arms": {
+        "base": {
+          "n": 3,
+          "expected_n": 3,
+          "mean_ms": 764.9534083333333,
+          "median_ms": 711.228699,
+          "values_ms": [
+            711.228699,
+            689.869477,
+            893.762049
+          ],
+          "cpu_values_ms": [
+            707.921,
+            686.848,
+            878.7499999999999
+          ],
+          "rss_values_kib": [
+            312676,
+            312676,
+            312676
+          ]
+        },
+        "cand": {
+          "n": 3,
+          "expected_n": 3,
+          "mean_ms": 704.2647430000001,
+          "median_ms": 709.865841,
+          "values_ms": [
+            722.078834,
+            709.865841,
+            680.849554
+          ],
+          "cpu_values_ms": [
+            721.251,
+            707.12,
+            677.7359999999999
+          ],
+          "rss_values_kib": [
+            312676,
+            312676,
+            312676
+          ]
+        }
+      },
+      "saved_ms": 60.68866533333323,
+      "candidate_ratio": 0.9206635794125545,
+      "over_10pct": false
+    },
+    {
+      "case": "shared4096",
+      "jobs": 1,
+      "request": "private",
+      "arms": {
+        "base": {
+          "n": 1,
+          "expected_n": 1,
+          "mean_ms": 4874.430111,
+          "median_ms": 4874.430111,
+          "values_ms": [
+            4874.430111
+          ],
+          "cpu_values_ms": [
+            4843.59
+          ],
+          "rss_values_kib": [
+            504644
+          ]
+        },
+        "cand": {
+          "n": 1,
+          "expected_n": 1,
+          "mean_ms": 5059.970759,
+          "median_ms": 5059.970759,
+          "values_ms": [
+            5059.970759
+          ],
+          "cpu_values_ms": [
+            5020.9839999999995
+          ],
+          "rss_values_kib": [
+            502864
+          ]
+        }
+      },
+      "saved_ms": -185.54064800000015,
+      "candidate_ratio": 1.0380640698040362,
+      "over_10pct": false
+    },
+    {
+      "case": "shared4096",
+      "jobs": 1,
+      "request": "edit-warm",
+      "arms": {
+        "base": {
+          "n": 1,
+          "expected_n": 1,
+          "mean_ms": 678.990731,
+          "median_ms": 678.990731,
+          "values_ms": [
+            678.990731
+          ],
+          "cpu_values_ms": [
+            678.5749999999999
+          ],
+          "rss_values_kib": [
+            312676
+          ]
+        },
+        "cand": {
+          "n": 1,
+          "expected_n": 1,
+          "mean_ms": 995.334123,
+          "median_ms": 995.334123,
+          "values_ms": [
+            995.334123
+          ],
+          "cpu_values_ms": [
+            961.268
+          ],
+          "rss_values_kib": [
+            312676
+          ]
+        }
+      },
+      "saved_ms": -316.343392,
+      "candidate_ratio": 1.4659023717954112,
+      "over_10pct": true
+    }
+  ],
+  "interrupted": null,
+  "classification": "Fixed diagnostic screen; not the original weighted matrix and not an adoption decision",
+  "rerun_allowed": false,
+  "prior_failures_unchanged": true
+}

@@ -1,0 +1,330 @@
+{
+  "purpose": "single-history diagnostic attribution, not speedup acceptance",
+  "source_tree": "1c16744d838064cb1c687ba56ef3a0d17ed3130c",
+  "raw_root": "/workspace/scratch/abf690ce880c/out/profile/shared4096-first",
+  "requests": [
+    {
+      "request": "cold",
+      "outer_ms": 6881.664888,
+      "main_thread_inclusive_ms": {
+        "driver.semantic_cache.restore": 0.000811,
+        "driver.discovery.parse": 72.350232,
+        "driver.filesystem_discovery": 75.135114,
+        "driver.query.parse": 0.017696,
+        "driver.query.expand": 203.268841,
+        "driver.query.ct": 57.048468,
+        "driver.query.types": 294.703326,
+        "driver.query.analyze": 76.031901,
+        "driver.verify": 85.507795,
+        "driver.lower": 7.776338,
+        "backend.machine_lower": 585.916858,
+        "backend.task_abi": 0.000491,
+        "backend.checked_add_chain": 25.466468,
+        "backend.scalar_fold": 36.149358,
+        "backend.diagnostic_render": 57.236796,
+        "backend.layout.whole_input_key": 46.261914,
+        "backend.layout.load_validate": 1.441763,
+        "backend.layout.replay": 14.21744,
+        "backend.partition.total": 138.031374,
+        "backend.diagnostic_write": 18.993448,
+        "backend.object_workers.wall": 4747.656985,
+        "backend.external_tool.wall": 60.135395,
+        "backend.total": 5749.815686,
+        "driver.llvm_sidecar.readback": 1.577495,
+        "driver.artifact.publish": 0.259194,
+        "driver.object_cache.commit": 4.861375,
+        "driver.project_pipeline.total": 6686.937238,
+        "driver.project_request.total": 6687.381355,
+        "driver.path.total": 6762.587775
+      },
+      "actual_units": 8,
+      "cache": {
+        "requested": true,
+        "enabled": true,
+        "hits": 0,
+        "misses": 8,
+        "corrupt": 0,
+        "stored": 8,
+        "write_failures": 0,
+        "key_ns": 68184180,
+        "lookup_ns": 1228389,
+        "current_preflight_ns": 0,
+        "disabled_reason": null
+      },
+      "transform_full_preflight_count": 0,
+      "objects": [
+        {
+          "input_kind": "builder",
+          "object_bytes": 455344,
+          "optimize_ms": 2295.473309,
+          "emit_ms": 1159.180781
+        },
+        {
+          "input_kind": "builder",
+          "object_bytes": 130544,
+          "optimize_ms": 265.657556,
+          "emit_ms": 417.8679
+        },
+        {
+          "input_kind": "builder",
+          "object_bytes": 130544,
+          "optimize_ms": 208.787699,
+          "emit_ms": 412.223506
+        },
+        {
+          "input_kind": "builder",
+          "object_bytes": 130568,
+          "optimize_ms": 470.744447,
+          "emit_ms": 429.631489
+        },
+        {
+          "input_kind": "builder",
+          "object_bytes": 130800,
+          "optimize_ms": 218.962155,
+          "emit_ms": 465.467253
+        },
+        {
+          "input_kind": "builder",
+          "object_bytes": 130800,
+          "optimize_ms": 254.654458,
+          "emit_ms": 622.743572
+        },
+        {
+          "input_kind": "builder",
+          "object_bytes": 130800,
+          "optimize_ms": 448.054859,
+          "emit_ms": 409.771367
+        },
+        {
+          "input_kind": "builder",
+          "object_bytes": 130800,
+          "optimize_ms": 231.375812,
+          "emit_ms": 426.948553
+        }
+      ]
+    },
+    {
+      "request": "warm",
+      "outer_ms": 568.756898,
+      "main_thread_inclusive_ms": {
+        "driver.semantic_cache.restore": 44.481509,
+        "driver.filesystem_discovery": 46.198951,
+        "driver.query.types": 0.02035,
+        "driver.query.analyze": 0.007692,
+        "driver.verify": 55.673162,
+        "driver.lower": 4.56125,
+        "backend.machine_lower": 104.696442,
+        "backend.task_abi": 0.00019,
+        "backend.checked_add_chain": 26.791464,
+        "backend.scalar_fold": 36.277107,
+        "backend.diagnostic_render": 36.729417,
+        "backend.layout.whole_input_key": 45.998264,
+        "backend.layout.load_validate": 0.512037,
+        "backend.layout.replay": 4.37233,
+        "backend.partition.total": 51.080856,
+        "backend.diagnostic_write": 1.998428,
+        "backend.object_workers.wall": 69.577829,
+        "backend.external_tool.wall": 28.975962,
+        "backend.total": 430.588299,
+        "driver.llvm_sidecar.readback": 1.348135,
+        "driver.artifact.publish": 0.050475,
+        "driver.object_cache.commit": 0.000721,
+        "driver.project_pipeline.total": 493.866036,
+        "driver.project_request.total": 494.229403,
+        "driver.path.total": 540.498988
+      },
+      "actual_units": 8,
+      "cache": {
+        "requested": true,
+        "enabled": true,
+        "hits": 8,
+        "misses": 0,
+        "corrupt": 0,
+        "stored": 0,
+        "write_failures": 0,
+        "key_ns": 46396191,
+        "lookup_ns": 1304263,
+        "current_preflight_ns": 77077277,
+        "disabled_reason": null
+      },
+      "transform_full_preflight_count": 0,
+      "objects": [
+        {
+          "input_kind": "object-cache",
+          "object_bytes": 455344,
+          "optimize_ms": 0.0,
+          "emit_ms": 0.0
+        },
+        {
+          "input_kind": "object-cache",
+          "object_bytes": 130544,
+          "optimize_ms": 0.0,
+          "emit_ms": 0.0
+        },
+        {
+          "input_kind": "object-cache",
+          "object_bytes": 130544,
+          "optimize_ms": 0.0,
+          "emit_ms": 0.0
+        },
+        {
+          "input_kind": "object-cache",
+          "object_bytes": 130568,
+          "optimize_ms": 0.0,
+          "emit_ms": 0.0
+        },
+        {
+          "input_kind": "object-cache",
+          "object_bytes": 130800,
+          "optimize_ms": 0.0,
+          "emit_ms": 0.0
+        },
+        {
+          "input_kind": "object-cache",
+          "object_bytes": 130800,
+          "optimize_ms": 0.0,
+          "emit_ms": 0.0
+        },
+        {
+          "input_kind": "object-cache",
+          "object_bytes": 130800,
+          "optimize_ms": 0.0,
+          "emit_ms": 0.0
+        },
+        {
+          "input_kind": "object-cache",
+          "object_bytes": 130800,
+          "optimize_ms": 0.0,
+          "emit_ms": 0.0
+        }
+      ]
+    },
+    {
+      "request": "private",
+      "outer_ms": 5218.02525,
+      "main_thread_inclusive_ms": {
+        "driver.semantic_cache.restore": 0.008302,
+        "driver.discovery.parse": 82.264895,
+        "driver.filesystem_discovery": 84.837382,
+        "driver.query.parse": 0.016395,
+        "driver.query.expand": 456.006633,
+        "driver.query.ct": 62.480969,
+        "driver.query.types": 101.285528,
+        "driver.query.analyze": 45.459208,
+        "driver.verify": 65.729807,
+        "driver.lower": 6.4867,
+        "backend.machine_lower": 120.90228,
+        "backend.task_abi": 0.000311,
+        "backend.checked_add_chain": 22.501942,
+        "backend.scalar_fold": 30.333001,
+        "backend.diagnostic_render": 38.995582,
+        "backend.layout.whole_input_key": 43.851708,
+        "backend.layout.load_validate": 0.585197,
+        "backend.layout.replay": 4.478298,
+        "backend.partition.total": 110.353447,
+        "backend.diagnostic_write": 6.3645,
+        "backend.object_workers.wall": 3518.363207,
+        "backend.external_tool.wall": 99.388034,
+        "backend.total": 4029.398551,
+        "driver.llvm_sidecar.readback": 2.025097,
+        "driver.artifact.publish": 0.137313,
+        "driver.object_cache.commit": 1.695039,
+        "driver.project_pipeline.total": 4991.585832,
+        "driver.project_request.total": 4991.994636,
+        "driver.path.total": 5076.883695
+      },
+      "actual_units": 8,
+      "cache": {
+        "requested": true,
+        "enabled": true,
+        "hits": 7,
+        "misses": 1,
+        "corrupt": 0,
+        "stored": 1,
+        "write_failures": 0,
+        "key_ns": 43127335,
+        "lookup_ns": 1191893,
+        "current_preflight_ns": 48784558,
+        "disabled_reason": null
+      },
+      "transform_full_preflight_count": 0,
+      "objects": [
+        {
+          "input_kind": "builder",
+          "object_bytes": 455344,
+          "optimize_ms": 2274.439336,
+          "emit_ms": 1166.517262
+        },
+        {
+          "input_kind": "object-cache",
+          "object_bytes": 130544,
+          "optimize_ms": 0.0,
+          "emit_ms": 0.0
+        },
+        {
+          "input_kind": "object-cache",
+          "object_bytes": 130544,
+          "optimize_ms": 0.0,
+          "emit_ms": 0.0
+        },
+        {
+          "input_kind": "object-cache",
+          "object_bytes": 130568,
+          "optimize_ms": 0.0,
+          "emit_ms": 0.0
+        },
+        {
+          "input_kind": "object-cache",
+          "object_bytes": 130800,
+          "optimize_ms": 0.0,
+          "emit_ms": 0.0
+        },
+        {
+          "input_kind": "object-cache",
+          "object_bytes": 130800,
+          "optimize_ms": 0.0,
+          "emit_ms": 0.0
+        },
+        {
+          "input_kind": "object-cache",
+          "object_bytes": 130800,
+          "optimize_ms": 0.0,
+          "emit_ms": 0.0
+        },
+        {
+          "input_kind": "object-cache",
+          "object_bytes": 130800,
+          "optimize_ms": 0.0,
+          "emit_ms": 0.0
+        }
+      ]
+    }
+  ],
+  "facts": [
+    "Warm has 8 current object hits and zero LLVM builder/optimize/emit.",
+    "No transform.full_preflight spans occurred in all three requests: checked-chain/scalar timers measured unsuccessful planning scans, not additional whole-model preflight.",
+    "The same main-thread worker-return to external-link gap is 69.706/69.976/73.979ms for cold/warm/private; root independently localized it to serial UnitInput destruction.",
+    "Private has 7 hits/1 miss; the single 455344-byte miss accounts for optimize2274.439ms plus emit1166.517ms.",
+    "Sidecar reread is only1.348ms warm and is not a priority standalone optimization."
+  ],
+  "limitations": [
+    "One request per history: no confidence interval, no speedup claim, no weighted matrix completion.",
+    "Observer intervals are completion intervals, not exclusive phases.",
+    "Object per-phase sums cannot be subtracted from complete request wall; actual worker wall is separately measured.",
+    "Cold/private pipeline residual206/221ms includes cache serialization/save and other non-instrumented work; not individually attributed.",
+    "Instrumentation adds stderr and timestamp overhead; current probe ELF equality covers these three snapshots only.",
+    "Compiler process startup/teardown/JSON outside driver.path.total remain in outer wall and are not separately timed."
+  ],
+  "identity_and_output_evidence": "/workspace/scratch/abf690ce880c/out/profile/shared4096-first/elf-equivalence.json",
+  "raw_sha256": {
+    "cold/record.json": "eb5435f60aeb8560fe3b61082ee01fb5773cb92f952ba5de04419ad7778b97f0",
+    "cold/stdout": "c53e71885e9a8160d9206f1c5b4df47e102cd8896d7316bcfd48088127aba159",
+    "cold/stderr": "3ae4de46c19e77be5ab5e463076008ea270a076894ffd67dbe2cde79b5cff6c1",
+    "warm/record.json": "794ee839c1968ccae8697be73ca21fa3cba098203c501559569f0c60fa329cc7",
+    "warm/stdout": "4d7cc4732236b01632d721ceb37219b5834198239c019bb2d7c55e2551117165",
+    "warm/stderr": "0497564d7d7160e8c1c9adaa0f5f50e411c4f7cb4b7aed35a6d5d76543782304",
+    "private/record.json": "f1464655ea571c7abf6847cfaa104e9ad8be181905140484e53f104a7df46d0a",
+    "private/stdout": "06f85bca06070690da6622747e16fc150b78b9f8ee83506c13854da1b1e7909e",
+    "private/stderr": "22babf2c18a3f397d63c001b1e9351fec9343bad260b39b0ed192e06b2b825a4"
+  }
+}

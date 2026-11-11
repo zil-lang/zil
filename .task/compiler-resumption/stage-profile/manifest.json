@@ -1,0 +1,25 @@
+{
+  "purpose": "fixed three-request diagnostic history, not performance acceptance",
+  "cli": "/workspace/scratch/abf690ce880c/target-profile/release/zil",
+  "cli_sha256": "e2c445ce1560d397dc8594f9704ba90ece98ffd8094d3b9da5e078c35a1ff91a",
+  "clang": "/workspace/scratch/bc028477130e/toolchain/llvm-23.1.4/bin/clang-23",
+  "clang_sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67",
+  "source_hashes": {
+    "base": "616d7c07ed736e8d191e29c2040d308947fe7db69ebdb8e06bb8b391c54d3af6",
+    "private": "a37c8680a03706adf5be42363cfea0445c1c505b413c0f204f6feda30b9631fe"
+  },
+  "cpus": [
+    0,
+    1
+  ],
+  "history": [
+    "cold/base",
+    "warm/base",
+    "private/private"
+  ],
+  "source_paths": {
+    "base": "/workspace/scratch/beabdcf5ebf4/evidence/resource-acceptance/primary/corpus/shared4096/base/zil/main.zil",
+    "private": "/workspace/scratch/beabdcf5ebf4/evidence/resource-acceptance/primary/corpus/shared4096/private/zil/main.zil"
+  },
+  "object_phase_times": "individual inclusive wall spans; do not sum and subtract from request wall"
+}

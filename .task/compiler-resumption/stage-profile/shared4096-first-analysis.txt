@@ -1,0 +1,139 @@
+
+cold outer_wall_ms 6881.665 spans 46
+main thread spans: inclusive_ms / own_thread_uncovered_ms (nested interval unions, no parallel subtraction)
+driver.path.total                              6762.588 /      0.071
+driver.filesystem_discovery                      75.135 /      2.784
+driver.semantic_cache.restore                     0.001 /      0.001
+driver.discovery.parse                           72.350 /     72.350
+driver.project_request.total                   6687.381 /      0.444
+driver.project_pipeline.total                  6686.937 /    206.068
+driver.semantic_cache.restore                     0.001 /      0.001
+driver.query.parse                                0.018 /      0.018
+driver.query.expand                             203.269 /    203.269
+driver.query.ct                                  57.048 /     57.048
+driver.query.types                              294.703 /    294.703
+driver.query.analyze                             76.032 /     76.032
+driver.verify                                    85.508 /     85.508
+driver.lower                                      7.776 /      7.776
+backend.total                                  5749.816 /     80.229
+backend.machine_lower                           585.917 /    585.917
+backend.task_abi                                  0.000 /      0.000
+backend.checked_add_chain                        25.466 /     25.466
+backend.scalar_fold                              36.149 /     36.149
+backend.diagnostic_render                        57.237 /     57.237
+backend.partition.total                         138.031 /     76.110
+backend.layout.whole_input_key                   46.262 /     46.262
+backend.layout.load_validate                      1.442 /      1.442
+backend.layout.replay                            14.217 /     14.217
+backend.diagnostic_write                         18.993 /     18.993
+backend.object_workers.wall                    4747.657 /   4747.657
+backend.external_tool.wall                       60.135 /     60.135
+driver.llvm_sidecar.readback                      1.577 /      1.577
+driver.artifact.publish                           0.259 /      0.259
+driver.object_cache.commit                        4.861 /      4.861
+object unit sum_ms / union_wall_ms 9192.833 4746.499
+units/cache 8 {'requested': True, 'enabled': True, 'hits': 0, 'misses': 8, 'corrupt': 0, 'stored': 8, 'write_failures': 0, 'key_ns': 68184180, 'lookup_ns': 1228389, 'current_preflight_ns': 0, 'disabled_reason': None}
+object reports preflight_ns sum_ms 115.314 (inclusive per-object diagnostic only)
+object reports builder_ns sum_ms 161.296 (inclusive per-object diagnostic only)
+object reports optimize_ns sum_ms 4393.71 (inclusive per-object diagnostic only)
+object reports emit_ns sum_ms 4343.834 (inclusive per-object diagnostic only)
+observer completion intervals (not exclusive phase timings):
+parse executed 76.867
+expand executed 204.557
+ct executed 57.058
+types executed 294.807
+analyze executed 75.732
+verify executed 86.112
+lower executed 7.817
+link executed 5750.314
+after-last-event until path return ms 209.324
+
+warm outer_wall_ms 568.757 spans 49
+main thread spans: inclusive_ms / own_thread_uncovered_ms (nested interval unions, no parallel subtraction)
+driver.path.total                               540.499 /      0.071
+driver.filesystem_discovery                      46.199 /      1.717
+driver.semantic_cache.restore                    44.482 /     44.482
+driver.project_request.total                    494.229 /      0.363
+driver.project_pipeline.total                   493.866 /      1.616
+driver.query.types                                0.020 /      0.020
+driver.query.analyze                              0.008 /      0.008
+driver.verify                                    55.673 /     55.673
+driver.lower                                      4.561 /      4.561
+backend.total                                   430.588 /     74.461
+backend.machine_lower                           104.696 /    104.696
+backend.task_abi                                  0.000 /      0.000
+backend.checked_add_chain                        26.791 /     26.791
+backend.scalar_fold                              36.277 /     36.277
+backend.diagnostic_render                        36.729 /     36.729
+backend.partition.total                          51.081 /      0.198
+backend.layout.whole_input_key                   45.998 /     45.998
+backend.layout.load_validate                      0.512 /      0.512
+backend.layout.replay                             4.372 /      4.372
+backend.diagnostic_write                          1.998 /      1.998
+backend.object_workers.wall                      69.578 /     69.578
+backend.external_tool.wall                       28.976 /     28.976
+driver.llvm_sidecar.readback                      1.348 /      1.348
+driver.artifact.publish                           0.050 /      0.050
+driver.object_cache.commit                        0.001 /      0.001
+object unit sum_ms / union_wall_ms 127.416 68.196
+units/cache 8 {'requested': True, 'enabled': True, 'hits': 8, 'misses': 0, 'corrupt': 0, 'stored': 0, 'write_failures': 0, 'key_ns': 46396191, 'lookup_ns': 1304263, 'current_preflight_ns': 77077277, 'disabled_reason': None}
+object reports preflight_ns sum_ms 77.077 (inclusive per-object diagnostic only)
+object reports builder_ns sum_ms 0.0 (inclusive per-object diagnostic only)
+object reports optimize_ns sum_ms 0.0 (inclusive per-object diagnostic only)
+object reports emit_ns sum_ms 0.0 (inclusive per-object diagnostic only)
+observer completion intervals (not exclusive phase timings):
+types reused 47.796
+analyze reused 0.023
+verify executed 55.724
+lower executed 4.596
+link executed 430.786
+after-last-event until path return ms 1.573
+
+private outer_wall_ms 5218.025 spans 53
+main thread spans: inclusive_ms / own_thread_uncovered_ms (nested interval unions, no parallel subtraction)
+driver.path.total                              5076.884 /      0.052
+driver.filesystem_discovery                      84.837 /      2.569
+driver.semantic_cache.restore                     0.004 /      0.004
+driver.discovery.parse                           82.265 /     82.265
+driver.project_request.total                   4991.995 /      0.409
+driver.project_pipeline.total                  4991.586 /    220.856
+driver.semantic_cache.restore                     0.008 /      0.008
+driver.query.parse                                0.016 /      0.016
+driver.query.expand                             456.007 /    456.007
+driver.query.ct                                  62.481 /     62.481
+driver.query.types                              101.286 /    101.286
+driver.query.analyze                             45.459 /     45.459
+driver.verify                                    65.730 /     65.730
+driver.lower                                      6.487 /      6.487
+backend.total                                  4029.399 /     82.196
+backend.machine_lower                           120.902 /    120.902
+backend.task_abi                                  0.000 /      0.000
+backend.checked_add_chain                        22.502 /     22.502
+backend.scalar_fold                              30.333 /     30.333
+backend.diagnostic_render                        38.996 /     38.996
+backend.partition.total                         110.353 /     61.438
+backend.layout.whole_input_key                   43.852 /     43.852
+backend.layout.load_validate                      0.585 /      0.585
+backend.layout.replay                             4.478 /      4.478
+backend.diagnostic_write                          6.364 /      6.364
+backend.object_workers.wall                    3518.363 /   3518.363
+backend.external_tool.wall                       99.388 /     99.388
+driver.llvm_sidecar.readback                      2.025 /      2.025
+driver.artifact.publish                           0.137 /      0.137
+driver.object_cache.commit                        1.695 /      1.695
+object unit sum_ms / union_wall_ms 3605.395 3516.263
+units/cache 8 {'requested': True, 'enabled': True, 'hits': 7, 'misses': 1, 'corrupt': 0, 'stored': 1, 'write_failures': 0, 'key_ns': 43127335, 'lookup_ns': 1191893, 'current_preflight_ns': 48784558, 'disabled_reason': None}
+object reports preflight_ns sum_ms 64.269 (inclusive per-object diagnostic only)
+object reports builder_ns sum_ms 20.749 (inclusive per-object diagnostic only)
+object reports optimize_ns sum_ms 2274.439 (inclusive per-object diagnostic only)
+object reports emit_ns sum_ms 1166.517 (inclusive per-object diagnostic only)
+observer completion intervals (not exclusive phase timings):
+parse executed 86.713
+expand executed 456.757
+ct executed 63.203
+types executed 134.4
+analyze executed 45.47
+verify executed 65.984
+lower executed 6.525
+link executed 4030.744
+after-last-event until path return ms 187.087

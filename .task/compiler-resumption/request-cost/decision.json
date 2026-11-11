@@ -1,0 +1,35 @@
+{
+  "decision": "Not adopted; preserve source and evidence; no further sampling or CI for this candidate",
+  "baseline_commit": "99035931d358add0eaed6d4535035c38413701dd",
+  "baseline_tree": "1c16744d838064cb1c687ba56ef3a0d17ed3130c",
+  "local_candidate": "9e15ab226b5c0e95f18b1e1a7d1d2517dc646850",
+  "preserved_candidate": "2222699d7382c6c2d986c256cbc7610329cd421c",
+  "candidate_tree": "ba2a08e59c67339b1420e47480d2055ef81d1021",
+  "changed_files": ["crates/zil-backend-llvm/src/build.rs"],
+  "change": "Workers own each machine unit and release it after compilation; ordering, verification, LLVM pipeline and publication remain unchanged",
+  "source_review": "Accepted by independent non-author review at the exact source blob",
+  "release_build": "Passed",
+  "format_and_diff_checks": "Passed",
+  "fixed_screen": {
+    "plan_sha256": "6bc170ead70d0c6edcd6c3243d7e587f52358c646a7aac11f5f0b522e5665e96",
+    "requests": 84,
+    "current_verify_one": 84,
+    "elf_equal_pairs": 42,
+    "sidecar_raw_equal_pairs": 0,
+    "sidecar_difference": "Only the verified-fingerprint comment on line two; all remaining bytes equal in 42 pairs",
+    "cache_topology_equal_pairs": 42,
+    "native_output_checks": 252,
+    "functional_failures": 0,
+    "weighted_protocol_complete": false,
+    "performance_accepted": false
+  },
+  "reason": "Two-worker shared4096 warm mean increased from 618.646ms to 788.596ms and edit-warm from 575.410ms to 693.545ms; process CPU also increased. Shared1024 warm mean increased from 153.057ms to 201.891ms, with its median nearly unchanged. Every preregistered observation is retained; no acceptable net benefit was established.",
+  "limits": [
+    "Cold and private each have one observation per arm; they do not establish a stable causal regression or speedup",
+    "No causal attribution to allocator behavior, locking, scheduler or environment was established",
+    "RSS observations have little discrimination and do not establish a memory advantage",
+    "No full workspace regression, remote CI, new native runtime speed measurement or original weighted matrix was run after the failed-benefit screen",
+    "This rejection does not alter the accepted PR80 scope or any prior numeric failure"
+  ],
+  "next_work": "Use the measured current-request cost breakdown to identify work that can actually be removed while retaining independent Verify and complete current machine preflight; do not expand LLVM pass permutations or resample this candidate to seek a positive result"
+}
