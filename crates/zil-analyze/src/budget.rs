@@ -738,7 +738,7 @@ fn local_value(
         super::resources::product::admit_owned(module, ty, budget)
     } else if let Some(payload) = super::dynamic_store::product_protocol_payload(ty) {
         super::dynamic_store::product_element(payload, budget).map(|_| false)
-    } else if super::stored_flow::pure_inline(module, ty, budget)? {
+    } else if super::stored_flow::shared_compound(module,ty,budget)? || super::stored_flow::pure_inline(module, ty, budget)? {
         Ok(false)
     } else if let Type::Address {
         inner,
