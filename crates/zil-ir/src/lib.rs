@@ -909,6 +909,9 @@ pub enum CoreAggregateArgument {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreFunction {
+    /// Original Definition scope copied from actual Source/Origins for this owner.
+    /// This is identity/position data, never a borrowing or builtin capability.
+    pub source_scope: Option<CoreFunctionSourceScope>,
     /// Raw relation; each kernel separately checks complete actual CFG/targets.
     pub storage_life: Option<StorageLifeContract>,
     /// Source declaration, or None for body-derived selection. Never an effect proof.

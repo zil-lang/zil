@@ -70,6 +70,7 @@ fn graph(edges: &[Vec<usize>], writers: usize) -> CoreModule {
                     }));
                 }
                 CoreFunction {
+                    source_scope: None,
                     storage_life: None,
                     call_kind: None,
                     life: None,

@@ -352,6 +352,7 @@ impl Expander<'_> {
             }
         };
         self.functions.push(CoreFunction {
+            source_scope: None,
             storage_life: None,
             call_kind,
             life,

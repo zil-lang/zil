@@ -257,6 +257,15 @@ impl<'a> SourceProgramContext<'a> {
 fn life_metadata_cost(function: &CoreFunction, limits: &Limits) -> CompileResult<(usize, usize)> {
     let mut storage_nodes = 0;
     let mut storage_work = limits.max_analysis_steps;
+    if let Some(scope)=&function.source_scope {
+        let (nodes,work)=core_function_scope_metadata_cost(scope,limits.max_nodes,limits.max_call_depth,storage_work)
+            .ok_or_else(||vec![Diagnostic::limit(Phase::Ct,"function source scope exceeds metadata bounds",Some(function.span))])?;
+        storage_nodes=nodes;
+        storage_work=storage_work.checked_sub(work).ok_or_else(||vec![Diagnostic::limit(Phase::Ct,"function source scope exceeds work budget",Some(function.span))])?;
+        for formal in &scope.parameters {
+            if let LifeParameterKind::Const(ty)=formal {hint_type(ty,0,&mut storage_nodes,&mut storage_work,limits)?;}
+        }
+    }
     if let Some(storage) = &function.storage_life {
         inventory::contract(storage, &mut storage_nodes, &mut storage_work, limits)?;
     }
@@ -958,6 +967,7 @@ fn evaluate_with_context(
         }
         walker.scopes.push(scope);
         functions.push(CoreFunction {
+            source_scope: f.source_scope.clone(),
             storage_life: f.storage_life.clone(),
             call_kind: f.call_kind,
             life: f.life.clone(),
@@ -3342,6 +3352,7 @@ mod tests {
             enums: vec![],
             unsupported: vec![],
             functions: vec![CoreFunction {
+                source_scope: None,
                 storage_life: None,
                 call_kind: None,
                 life: None,

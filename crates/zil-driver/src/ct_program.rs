@@ -165,6 +165,7 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
         let mut query = expression.clone();
         strip_expr(&mut query);
         let function = CoreFunction {
+            source_scope: None,
             storage_life: None,
             call_kind: None,
             life: None,

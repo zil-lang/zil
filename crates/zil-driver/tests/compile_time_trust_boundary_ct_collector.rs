@@ -62,6 +62,7 @@ fn program() -> CoreProgram {
                 enums: vec![],
                 unsupported: vec![],
                 functions: vec![CoreFunction {
+                    source_scope: None,
                     storage_life: None,
                     call_kind: None,
                     life: None,
