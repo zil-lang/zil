@@ -54,6 +54,8 @@ mod enabled {
         }
     }
     unsafe extern "C" {
+        #[cfg(test)]
+        fn ZilNativeProductsAnalysisDiagnostics(enabled: c_int) -> c_int;
         fn ZilNativeProductsSuspend() -> Handle;
         fn ZilNativeProductsResume(previous: Handle);
         fn ZilNativeProductsCreateRequest(
@@ -211,6 +213,26 @@ mod enabled {
     }
 
     #[cfg(test)]
+    pub(crate) struct AnalysisDiagnosticsGuard(c_int, std::marker::PhantomData<*mut ()>);
+    #[cfg(test)]
+    impl Drop for AnalysisDiagnosticsGuard {
+        fn drop(&mut self) {
+            // SAFETY: restore the exact prior mode on this same thread, including
+            // panic/cancellation paths. No LLVM owner is read by this operation.
+            unsafe {
+                ZilNativeProductsAnalysisDiagnostics(self.0);
+            }
+        }
+    }
+    #[cfg(test)]
+    pub(crate) fn analysis_diagnostics_for_test() -> AnalysisDiagnosticsGuard {
+        // SAFETY: explicit test-only thread-local diagnostic mode; not permission
+        // to replay any analysis or change the production optimization pipeline.
+        let prior = unsafe { ZilNativeProductsAnalysisDiagnostics(1) };
+        AnalysisDiagnosticsGuard(prior, std::marker::PhantomData)
+    }
+
+    #[cfg(test)]
     thread_local! {
         static NEXT_FINISH_FAILURE: std::cell::Cell<u8> = const { std::cell::Cell::new(0) };
     }
@@ -248,10 +270,10 @@ mod enabled {
     }
 }
 
-#[cfg(all(test, feature = "native-products"))]
-pub(crate) use enabled::fail_next_finish_for_test;
 #[cfg(feature = "native-products")]
 pub(crate) use enabled::{Product, Scope, Suspension};
+#[cfg(all(test, feature = "native-products"))]
+pub(crate) use enabled::{analysis_diagnostics_for_test, fail_next_finish_for_test};
 
 // Native-only builds do not reference the custom C++ adapter or its DSO hooks.
 // Ordinary compile_input always passes None; this inert type keeps that shared
