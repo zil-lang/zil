@@ -283,17 +283,6 @@ impl Engine<'_> {
                     "dyn borrowed provider requires its complete source application",
                 )
             })?;
-        for table in &self.products.dynamic.vtables {
-            self.budget.node(span, 0)?;
-            if table.interface == interface {
-                if let Some(prior) = &table.qualified_self {
-                    stored_types::pay_type(prior, &mut self.budget, span, 0)?;
-                    if prior == &actual.ty {
-                        return Ok(());
-                    }
-                }
-            }
-        }
         let reference = dynamic::copy_reference(
             &self.products.dynamic.interfaces[interface].reference,
             &mut self.budget,
@@ -454,6 +443,32 @@ impl Engine<'_> {
             actuals.push(zil_ir::DynGenericActual::Life(
                 zil_ir::StorageBinder::Fixed(index as u32),
             ));
+        }
+        // Individually alpha-normalized Self and Context types do not identify
+        // their joint application. Reuse only the complete actual port relation
+        // and impl lifetime actuals as well; swapped same-type roots stay distinct.
+        for table in &self.products.dynamic.vtables {
+            self.budget.node(span, 0)?;
+            if table.interface != interface || table.implementation != origin.declaration {
+                continue;
+            }
+            let Some(prior) = &table.qualified_self else {
+                continue;
+            };
+            stored_types::pay_type(prior, &mut self.budget, span, 0)?;
+            stored_types::pay_type(&actual.ty, &mut self.budget, span, 0)?;
+            self.budget
+                .identity_work(table.actuals.len().saturating_add(actuals.len()), span)?;
+            for row in table.ports.iter().chain(&mappings) {
+                self.budget.node(span, 0)?;
+                for source in &row.sources {
+                    self.budget
+                        .identity_work(source.path.len().saturating_add(1), span)?;
+                }
+            }
+            if prior == &actual.ty && table.ports == mappings && table.actuals == actuals {
+                return Ok(());
+            }
         }
         let table_index = self.products.dynamic.vtables.len();
         let mut providers = Vec::new();
