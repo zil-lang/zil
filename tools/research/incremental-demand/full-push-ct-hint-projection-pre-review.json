@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "reviewer": "independent non-author /root/audit",
+  "source_commit": "752ab765ce9756adbf9b36d033b8873a03c5f132",
+  "source_tree": "39721a91e40e52d2fe9f73e10182e25fe6abe1a1",
+  "status": "static_bounded_accepted_tests_pending",
+  "scope": "Only successful plain CT hint-environment reuse projection ignores raw function NodeId and exports. No changed checkpoint/full-source/query/rewrite authority.",
+  "file_sha256": {
+    "crates/zil-ct/src/plain_session.rs": "89b552d2c950020af0504527b65075c8d7586a0fcf4063a4a667b6e66dc23174",
+    "crates/zil-ct/src/plain_session_tests.rs": "296f40319f8856412b7fd410f94b4541cea0354429386642312a84d96afe9601",
+    "crates/zil-ct/src/source.rs": "7a4c98c51d6845f728f09d1197fa1d6924be8d30477290cf082ce9e89d239e9e",
+    "crates/zil-driver/src/push_pipeline_tests.rs": "3b4b484aeb6d6f97f1495b6964860924ba71c7cf17a0d7a703e5e39d7578659f"
+  },
+  "method": "Read exact three-file diff and actual current SourceProgramContext constructor/function resolver, unchanged_function/block/expr/hint/call_hints and remaining budget/publication boundaries from prior plain audit. No compile, Cargo, tests, benchmark, source mutation or commit by reviewer.",
+  "findings": [],
+  "conclusions": [
+    {
+      "topic": "actual hint read closure",
+      "conclusion": "SourceProgramContext indexes functions by current module/name and resolves current imports, marking duplicate names ambiguous. Successful plain bodies use callee parameter/return types, local scopes and own immutable function inputs; these visitors do not read callee raw function ID or exports. Full module inventories and all other function/header fields still match, including foreign contents, type/mode/name metadata; current SourceProgramContext and declaration preflight execute fresh."
+    },
+    {
+      "topic": "current body and result ownership",
+      "conclusion": "Ignoring another declaration ID/export cannot retarget an old raw result: only identical strongly retained immutable Core function owners replay body/shape costs. Editing an own ID or current source binding changes its owner and forces original current admission; raw program returned remains actual current input. Successful plain visitors allocate no new IDs and stored cost requires absent next_node and unchanged CT steps. Rich/rewriting/unknown domains continue original full paths."
+    },
+    {
+      "topic": "authority separation",
+      "conclusion": "checkpoint_for remains complete root/fingerprint/exact module Core Arc/import/export comparison. Current live context must still point to this exact program with exact Limits, and target/full initial Limits remain bound. No producer sealed source, DB Query, full rewriting evaluator, Types or independent Verify binding was narrowed. New helper name explicitly limits it to successful plain hint dependencies."
+    },
+    {
+      "topic": "tests reviewed",
+      "conclusion": "New raw renumber/export tests require fresh CT result equality, reject attachment of old checkpoint to new raw identities, preserve actual current exports and verify own changed function rechecked while unaffected callers reuse. Changed foreign symbol/parameter type still invalidates environment. New 22-file/425-function alias quality variant asserts complete new source SHA, actual changed sibling raw IDs/exports, old checkpoint refusal, current checkpoint binding,21 checks/404 reuse, current Typed equality and Verify1. These assertions are pending execution; the alias source is not the formal original private timing fixture."
+    }
+  ],
+  "validation": {
+    "status": "author frozen source; root integration/tests pending. No new executed pass claimed.",
+    "not_claimed": [
+      "current full CT or driver pass",
+      "formal original-workload speedup",
+      "native numerical or ELF validation of new alias variant",
+      "full push/global minimality or checking-guarantee parity"
+    ]
+  }
+}
