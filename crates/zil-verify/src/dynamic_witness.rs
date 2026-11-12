@@ -9,6 +9,7 @@ mod scopes;
 mod implicit;
 mod values;
 mod matching;
+mod graph;
 
 fn bad(message: &str) -> Diagnostic {
     reject("E-VERIFY-DYN-WITNESS", None, message)
@@ -19,5 +20,6 @@ fn bad(message: &str) -> Diagnostic {
 /// of the implementation proof; it does not authorize a table or method.
 pub(super) fn declaration_graph(module: &TypedModule, budget: &mut Budget) -> Check<()> {
     declarations::check(module, budget)?;
-    definitions::check(module, budget)
+    definitions::check(module, budget)?;
+    graph::claims(module, budget)
 }

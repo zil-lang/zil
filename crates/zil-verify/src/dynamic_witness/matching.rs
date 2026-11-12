@@ -432,6 +432,53 @@ fn structural(
     Ok(())
 }
 
+/// Match the complete trait application in this same lexical scope. Actual
+/// kinds follow the original mixed declaration order, including phantom lives.
+pub(super) fn application(
+    module: &TypedModule,
+    pattern: &DynSelfPattern,
+    actual: &DynTraitApplication,
+    receiver: &DynTypeValue,
+    args: &mut Arguments<'_>,
+    b: &mut Budget,
+) -> Check<()> {
+    if pattern.declaration != actual.declaration || pattern.arguments.len() != actual.actuals.len()
+    {
+        return Err(bad(
+            "original implemented trait differs from its complete actual application",
+        ));
+    }
+    b.spend(pattern.arguments.len())?;
+    for (pattern, actual) in pattern.arguments.iter().zip(&actual.actuals) {
+        match (pattern, actual) {
+            (DynPatternActual::Life(pattern), DynGenericActual::Life(actual)) => {
+                args.life(*pattern, *actual, b)?
+            }
+            (DynPatternActual::Const(pattern), DynGenericActual::Const(actual)) => {
+                if constant(module, pattern, &actual.ty(), args, b)? != *actual {
+                    return Err(bad(
+                        "original implemented trait constant differs from its actual bits",
+                    ));
+                }
+            }
+            (DynPatternActual::Type(pattern), DynGenericActual::QualifiedType(actual)) => {
+                ty(module, pattern, actual, receiver, args, b)?;
+            }
+            (DynPatternActual::Type(pattern), DynGenericActual::Type(actual)) => {
+                values::closed(module, actual, b)?;
+                let actual = empty(actual, b)?;
+                ty(module, pattern, &actual, receiver, args, b)?;
+            }
+            _ => {
+                return Err(bad(
+                    "original implemented trait actual has a different full formal kind",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 fn carrier(
     module: &TypedModule,
     pattern: &DynTypePattern,
