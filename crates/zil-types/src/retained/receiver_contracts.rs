@@ -325,6 +325,11 @@ fn complete_creators(module: &mut TypedModule, left: &mut usize) -> R<()> {
                 "returned borrowed callable has no complete class inventory",
             )
         })?;
+        // A fully inventoried zero free domain has no creator class rows to
+        // map. Constant occurrence proofs remain separate obligations.
+        if life.fixed_binder_count == 0 {
+            continue;
+        }
         let header = f.storage_life.as_ref().ok_or_else(|| {
             unsupported(
                 f.span,
