@@ -46,3 +46,15 @@ and transport. Their complete metadata is bounded and charged before copying,
 hashing or comparing it. Type and CT graph visitors preserve full identity and
 scope, including nonphysical binder references, and apply node, depth and work
 bounds to the embedded leaf Types.
+
+Output-only persistent classes retain their original complete result occurrence
+and class identity. A structural check on a concrete function may record a
+private obligation for each actual owner carrier, class and typed retained
+port. Generic signature checks cannot defer grounding without that concrete
+obligation. The independent memory check discharges it from every reachable
+actual Return: nonempty targets must all have typed static provenance and no
+activation-local parent; an explicitly known-empty row proves only `NoTarget`.
+A missing or unknown row proves neither. The complete actual directory also
+preserves phantom classes without manufacturing data targets. These facts do
+not erase named classes or establish that the whole scope has zero classes.
+Every pending obligation must be discharged before module verification ends.

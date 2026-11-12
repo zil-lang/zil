@@ -2,6 +2,7 @@
 //! seed a result permission or turn an absent source row into an empty one.
 use super::*;
 mod atoms;
+pub(super) mod pending;
 fn bad(message: &str) -> Diagnostic {
     reject("E-VERIFY-DYN-SOURCE", None, message)
 }
@@ -212,6 +213,7 @@ pub(super) fn validate(
         if claim.is_some_and(|claim| !claim.is_empty()) {
             return Err(bad("source proposal names no actual result Dyn port"));
         }
+        pending::discharge(f, rows, b)?;
         b.pending_dyn_returns.remove(&f.id);
         return Ok(());
     }
@@ -318,6 +320,7 @@ pub(super) fn validate(
             }
         }
     }
+    pending::discharge(f, rows, b)?;
     b.pending_dyn_returns.remove(&f.id);
     Ok(())
 }
