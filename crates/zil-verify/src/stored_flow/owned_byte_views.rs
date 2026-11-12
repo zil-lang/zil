@@ -233,6 +233,7 @@ fn actual_permission(
                 base: HoldRoot::Local(owner),
                 leaf: Vec::new(),
                 inline: field.into_iter().map(PlaceProjection::Field).collect(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             };
             b.spend(width(&source).saturating_add(1))?;
@@ -600,6 +601,7 @@ impl Sites {
                     base: HoldRoot::Local(local),
                     leaf: Vec::new(),
                     inline: Vec::new(),
+                    heap_parents: Vec::new(),
                     heap_element: None,
                 }],
                 loans: Vec::new(),

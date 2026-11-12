@@ -166,6 +166,7 @@ fn source(base: HoldRoot, inline: Path) -> Source {
         base,
         leaf: vec![],
         inline,
+        heap_parents: Vec::new(),
         heap_element: None,
     }
 }
@@ -381,6 +382,7 @@ fn complete_call_oracle_preserves_held_leaf_argument_and_summary_checks() {
                 &mut new_requirements,
                 None,
                 None,
+                &mut Vec::new(),
                 &mut new_b,
             );
             assert_eq!(

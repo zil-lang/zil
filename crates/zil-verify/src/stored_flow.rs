@@ -17,6 +17,7 @@ mod returned_environment;
 #[cfg(test)]
 mod set_bits_tests;
 mod ssa_loan_groups;
+mod store_paths;
 use live_words::WordRow;
 #[cfg(test)]
 mod ancestry_tests;
@@ -79,6 +80,13 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> Check<boo
             | Type::Closure(_)
             | Type::Task { .. }
             | Type::BorrowedFunctionPointer { .. } => return Ok(true),
+            Type::OwnedStore { .. } if b.nested_store_windows => return Ok(true),
+            Type::Desc(payload)
+                if b.nested_store_windows
+                    && matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. }) =>
+            {
+                return Ok(true);
+            }
             Type::Address { inner, .. }
             | Type::Managed(inner)
             | Type::Desc(inner)
@@ -376,6 +384,8 @@ pub(super) struct Source {
     pub(super) base: HoldRoot,
     pub(super) leaf: Path,
     pub(super) inline: Path,
+    // Ordered inline paths from each preceding element to its next Store head.
+    pub(super) heap_parents: Vec<Path>,
     pub(super) heap_element: Option<Path>,
 }
 #[derive(Clone, Debug, Default)]
@@ -442,6 +452,7 @@ struct Loan {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Summary {
     byte_reads: Vec<Source>,
+    head_accesses: Vec<(Source, bool)>,
     byte_covered: bool,
     result: Vec<(Path, Vec<Source>)>,
     task_ports: Vec<(Vec<ContractProjection>, Vec<Source>)>,
@@ -501,7 +512,37 @@ fn width(s: &Source) -> usize {
         .len()
         .saturating_add(s.inline.len())
         .saturating_add(s.heap_element.as_ref().map_or(0, Vec::len))
+        .saturating_add(s.heap_parents.len())
+        .saturating_add(
+            s.heap_parents
+                .iter()
+                .fold(0usize, |n, path| n.saturating_add(path.len())),
+        )
         .saturating_add(1)
+}
+pub(super) fn nested_store_element<'t>(
+    outer_element: &'t Type,
+    source: &Source,
+    b: &mut Budget,
+) -> Check<&'t Type> {
+    if source.heap_element.is_none() && !source.heap_parents.is_empty() {
+        return Err(err(
+            "Store source has parent heads without an actual element",
+        ));
+    }
+    store_paths::deepest_element(outer_element, &source.heap_parents, b)
+}
+pub(super) fn nested_store_endpoint<'t>(
+    outer_element: &'t Type,
+    source: &Source,
+    b: &mut Budget,
+) -> Check<&'t Type> {
+    let element = nested_store_element(outer_element, source, b)?;
+    let path = source
+        .heap_element
+        .as_ref()
+        .ok_or_else(|| err("Store source lacks its actual payload domain"))?;
+    store_paths::project(element, path, b)
 }
 fn source_work(s: &[Source], b: &mut Budget) -> Check<()> {
     b.spend(s.len())?;
@@ -1389,6 +1430,7 @@ pub(super) fn qualifications(
                                 | InstructionKind::DropErrorUnion { .. }
                                 | InstructionKind::DescribePackageField { .. }
                         ))
+                    && !(b.nested_store_windows && matches!(i.kind, InstructionKind::OwnedStoreBorrowMut { .. }))
                     && !pure_copy::operation(&i.kind)
                     && !pure_copy::ordinary_owned_union(f, i, b)?
                     && !pure_copy::ordinary_package_borrow(f, i, b)?
@@ -2224,6 +2266,7 @@ fn seed_payload(
             base,
             leaf: Vec::new(),
             inline: Vec::new(),
+            heap_parents: Vec::new(),
             heap_element: None,
         };
         b.spend(3)?;
@@ -2250,6 +2293,7 @@ fn seed_payload(
                 base,
                 leaf: path.clone(),
                 inline: Vec::new(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             };
             let id = loans.len();
@@ -2287,6 +2331,7 @@ fn seed_payload(
                 base,
                 leaf: path.clone(),
                 inline: Vec::new(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             };
             let id = loans.len();
@@ -2314,6 +2359,7 @@ fn seed_payload(
                 base,
                 leaf: slot.path.clone(),
                 inline: Vec::new(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             };
             let id = loans.len();
@@ -2344,6 +2390,20 @@ fn seed_payload(
                 base,
                 leaf: Vec::new(),
                 inline: Vec::new(),
+                heap_parents: Vec::new(),
+                heap_element: None,
+            });
+        }
+        if b.nested_store_windows
+            && matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }))
+        {
+            b.spend(1)?;
+            p.store_description.sources.push(Source {
+                retained_port: None,
+                base,
+                leaf: Vec::new(),
+                inline: Vec::new(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             });
         }
@@ -2544,6 +2604,12 @@ fn instantiate(
         .ok_or_else(|| err("callee source has no actual argument"))?;
     let mut p = if let Some(port) = source.retained_port {
         task_address::select(v, &source.leaf, port, b)?
+    } else if b.nested_store_windows
+        && source.leaf.is_empty()
+        && !v.store_description.sources.is_empty()
+    {
+        permission_work(&v.store_description, b)?;
+        v.store_description.clone()
     } else if source.leaf.is_empty() {
         permission_work(&v.address, b)?;
         v.address.clone()
@@ -2569,19 +2635,7 @@ fn instantiate(
         select(state, &v.address, &source.leaf, b)?
     };
     for target in &mut p.sources {
-        b.spend(source.inline.len())?;
-        if let Some(heap) = &mut target.heap_element {
-            if source.heap_element.is_some() {
-                return Err(err("nested Store element summary is outside this profile"));
-            }
-            heap.extend(&source.inline);
-        } else {
-            target.inline.extend(&source.inline);
-            if let Some(heap) = &source.heap_element {
-                b.spend(heap.len())?;
-                target.heap_element = Some(heap.clone());
-            }
-        }
+        store_paths::compose(target, source, b)?;
     }
     Ok(p)
 }
@@ -2720,6 +2774,7 @@ fn step(
                 base: HoldRoot::Static,
                 leaf: Vec::new(),
                 inline: Vec::new(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             });
         }
@@ -2745,6 +2800,7 @@ fn step(
                 base: HoldRoot::Local(*local),
                 leaf: Vec::new(),
                 inline: path.clone(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             });
         }
@@ -2812,9 +2868,34 @@ fn step(
                     base: HoldRoot::Local(*local),
                     leaf: Vec::new(),
                     inline: Vec::new(),
+                    heap_parents: Vec::new(),
                     heap_element: None,
                 });
             }
+            if b.nested_store_windows
+                && f.locals.get(local.0 as usize).is_some_and(|local| matches!(&local.ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. })))
+            {
+                b.spend(1)?;
+                out.store_description.sources.push(Source {
+                    retained_port: None,
+                    base: HoldRoot::Local(*local),
+                    leaf: Vec::new(),
+                    inline: Vec::new(),
+                    heap_parents: Vec::new(),
+                    heap_element: None,
+                });
+            }
+        }
+        InstructionKind::DescribePackageField { local, index } if b.nested_store_windows => {
+            b.spend(2)?;
+            out.store_description.sources.push(Source {
+                retained_port: None,
+                base: HoldRoot::Local(*local),
+                leaf: Vec::new(),
+                inline: vec![PlaceProjection::Field(*index)],
+                heap_parents: Vec::new(),
+                heap_element: None,
+            });
         }
         InstructionKind::DescribeCapture { index } => {
             b.spend(1)?;
@@ -2823,6 +2904,7 @@ fn step(
                 base: HoldRoot::Capture(*index),
                 leaf: Vec::new(),
                 inline: Vec::new(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             });
         }
@@ -2844,18 +2926,14 @@ fn step(
             if b.store_option_results || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
             join_permission(&mut out.store_description, &val(*address)?.address, b)?;
         }
-        InstructionKind::OwnedStoreBorrow { store, .. } if b.store_option_results => {
+        InstructionKind::OwnedStoreBorrow { store, .. } | InstructionKind::OwnedStoreBorrowMut { store, .. }
+            if b.store_option_results && (b.nested_store_windows || matches!(i.kind, InstructionKind::OwnedStoreBorrow { .. })) => {
             let description = &val(*store)?.store_description;
             // The reverse-batch solver may see bottom before a predecessor's
             // description arrives. Its final grounded-value check rejects a
             // window that remains empty at the fixed point.
             for source in &description.sources {
-                if source.heap_element.is_some() {
-                    return Err(err("nested Store element window is outside this profile"));
-                }
-                b.spend(width(source).saturating_add(1))?;
-                let mut target = source.clone();
-                target.heap_element = Some(Vec::new());
+                let target = store_paths::enter(source, b)?;
                 add_sources(&mut out.address.sources, &[target], b)?;
             }
             add_loans(&mut out.address.loans, &description.loans, b)?;
@@ -2952,6 +3030,7 @@ fn step(
                     base: HoldRoot::Capture(*index),
                     leaf: Vec::new(),
                     inline: Vec::new(),
+                    heap_parents: Vec::new(),
                     heap_element: None,
                 }],
                 loans: Vec::new(),
@@ -2977,6 +3056,7 @@ fn step(
                 base: HoldRoot::Capture(*index),
                 leaf: Vec::new(),
                 inline: Vec::new(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             });
         }
@@ -2995,6 +3075,7 @@ fn step(
                             base: HoldRoot::Local(*callee),
                             leaf: vec![],
                             inline: vec![],
+                            heap_parents: Vec::new(),
                             heap_element: None,
                         }],
                         loans: vec![],
@@ -3073,6 +3154,7 @@ fn step(
                 base: HoldRoot::Local(*local),
                 leaf: Vec::new(),
                 inline: Vec::new(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             });
             if b.task_borrowed_results {
@@ -3558,7 +3640,13 @@ fn step(
                 | InstructionKind::CallClosureBorrowed { .. }
                 | InstructionKind::CallClosureShared { .. }
                 | InstructionKind::CallClosureMut { .. }
-        ) || ordinary_error_borrow(f, i, b)?
+        ) || b.nested_store_windows
+            && matches!(
+                i.kind,
+                InstructionKind::OwnedStoreBorrow { .. }
+                    | InstructionKind::OwnedStoreBorrowMut { .. }
+            )
+            || ordinary_error_borrow(f, i, b)?
             || owned_byte_views::instruction(module, f, i, b)?)
         && matches!(vt(f, id)?, Type::Address { .. })
     {
@@ -4163,6 +4251,7 @@ fn check_call(
     requirements: &mut Vec<(Source, Source)>,
     byte_flow: Option<&byte_queries::Flow>,
     byte_point: Option<&byte_queries::Point>,
+    head_accesses: &mut Vec<(Source, bool)>,
     b: &mut Budget,
 ) -> Check<()> {
     let callee = module
@@ -4171,6 +4260,16 @@ fn check_call(
         .ok_or_else(|| err("call target absent"))?;
     if arguments.len() != callee.parameters.len() {
         return Err(err("call arity differs from actual body signature"));
+    }
+    if b.nested_store_windows {
+        for (source, write) in &summaries[function.0 as usize].head_accesses {
+            let actual = instantiate(source, arguments, &solution.values, state, b)?;
+            if *write {
+                store_paths::writable(&actual, &solution.loans, b)?;
+            }
+            checks.check(&actual, *write, requirements, b)?;
+            store_paths::record(head_accesses, &actual, *write, b)?;
+        }
     }
     for (position, argument) in arguments.iter().enumerate() {
         let value = &solution.values[argument.0 as usize];
@@ -4297,6 +4396,7 @@ fn windows(
     summaries: &[Summary],
     requirements: &mut Vec<(Source, Source)>,
     byte_reads: &mut Vec<Source>,
+    head_accesses: &mut Vec<(Source, bool)>,
     b: &mut Budget,
 ) -> Check<()> {
     // A module marker only schedules this actual per-function inventory.
@@ -4402,6 +4502,28 @@ fn windows(
             )?;
             {
                 let mut checks = access_candidates::Access::new(&active, &solution.loans, b)?;
+                if b.nested_store_windows {
+                    let head = dynamic_store::access(&i.kind)
+                        .or_else(|| byte_buffers::access(&i.kind))
+                        .or_else(|| match i.kind {
+                            InstructionKind::ReadDesc { desc, .. } => Some((desc, false)),
+                            InstructionKind::WriteDesc { desc, .. } => Some((desc, true)),
+                            _ => None,
+                        });
+                    if let Some((value, write)) = head {
+                        let actual = &solution.values[value.0 as usize];
+                        let permission = if actual.store_description.sources.is_empty() {
+                            &actual.address
+                        } else {
+                            &actual.store_description
+                        };
+                        if write {
+                            store_paths::writable(permission, &solution.loans, b)?;
+                        }
+                        checks.check(permission, write, requirements, b)?;
+                        store_paths::record(head_accesses, permission, write, b)?;
+                    }
+                }
                 match &i.kind {
                     InstructionKind::MakeAggregate { fields }
                     | InstructionKind::MakePackage { fields }
@@ -4459,6 +4581,7 @@ fn windows(
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
                                 inline: path.clone(),
+                                heap_parents: Vec::new(),
                                 heap_element: None,
                             }],
                             loans: Vec::new(),
@@ -4473,6 +4596,7 @@ fn windows(
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
                                 inline: path.clone(),
+                                heap_parents: Vec::new(),
                                 heap_element: None,
                             }],
                             loans: Vec::new(),
@@ -4487,6 +4611,7 @@ fn windows(
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
                                 inline: Vec::new(),
+                                heap_parents: Vec::new(),
                                 heap_element: None,
                             }],
                             loans: Vec::new(),
@@ -4503,6 +4628,7 @@ fn windows(
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
                                 inline: vec![PlaceProjection::Field(*index)],
+                                heap_parents: Vec::new(),
                                 heap_element: None,
                             }],
                             loans: Vec::new(),
@@ -4527,6 +4653,7 @@ fn windows(
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
                                 inline: vec![PlaceProjection::Field(*index)],
+                                heap_parents: Vec::new(),
                                 heap_element: None,
                             }],
                             loans: Vec::new(),
@@ -4563,6 +4690,7 @@ fn windows(
                                 base: HoldRoot::Capture(*index),
                                 leaf: vec![],
                                 inline: vec![],
+                                heap_parents: Vec::new(),
                                 heap_element: None,
                             }],
                             loans: vec![],
@@ -4591,6 +4719,7 @@ fn windows(
                             base: HoldRoot::Local(*local),
                             leaf: Vec::new(),
                             inline: Vec::new(),
+                            heap_parents: Vec::new(),
                             heap_element: None,
                         };
                         let actual = Permission {
@@ -4772,6 +4901,7 @@ fn windows(
                                             base: HoldRoot::Local(*callee),
                                             leaf: vec![],
                                             inline: vec![],
+                                            heap_parents: Vec::new(),
                                             heap_element: None,
                                         }],
                                         loans: vec![],
@@ -4880,6 +5010,7 @@ fn windows(
                         requirements,
                         byte_flow.as_ref(),
                         byte_point.as_ref(),
+                        head_accesses,
                         b,
                     )?,
                     _ => {}
@@ -4912,6 +5043,12 @@ fn windows(
     Ok(())
 }
 fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
+    if b.nested_store_windows {
+        b.spend(s.head_accesses.len())?;
+        for (source, _) in &s.head_accesses {
+            b.spend(width(source))?;
+        }
+    }
     if b.byte_queries {
         source_work(&s.byte_reads, b)?;
         b.spend(1)?;
@@ -5587,6 +5724,7 @@ fn solve_check(
                     &summaries,
                     &mut summary.apart,
                     &mut summary.byte_reads,
+                    &mut summary.head_accesses,
                     b,
                 )?;
             }
@@ -5827,8 +5965,9 @@ fn solve_check(
             for (index, value) in solution.values.iter().enumerate() {
                 source_work(&value.address.sources, b)?;
                 let mut sources = value.address.sources.clone();
-                if b.shared_byte_borrow
-                    && matches!(&f.values[index], Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
+                if (b.shared_byte_borrow
+                    && matches!(&f.values[index], Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer))
+                    || b.nested_store_windows && matches!(&f.values[index], Type::Desc(_))
                 {
                     add_sources(&mut sources, &value.store_description.sources, b)?;
                 }

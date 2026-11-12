@@ -249,6 +249,7 @@ fn origin(id: u32) -> Source {
         base: HoldRoot::Parameter(id),
         leaf: vec![PlaceProjection::Field(id)],
         inline: vec![PlaceProjection::ErrorArm(id.is_multiple_of(2))],
+        heap_parents: Vec::new(),
         heap_element: (id.is_multiple_of(3)).then(|| vec![PlaceProjection::Field(id + 1)]),
     }
 }
