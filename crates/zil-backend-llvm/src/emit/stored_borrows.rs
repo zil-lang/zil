@@ -255,6 +255,7 @@ pub(super) fn representation_type(t: &Type) -> bool {
         || shared_address_array_address(t)
         || matches!(t,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Record{..}|Type::Package{..}|Type::Tuple(_)))
         || matches!(t,Type::Address{inner,..}if matches!(inner.as_ref(),Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Record{..}|Type::Package{..}|Type::Tuple(_))))
+        || matches!(t,Type::Tuple(fields) if fields.iter().all(|field| field.is_copy_value() || representation_type(field)))
         || shared_pointer_enum(t)
         || matches!(t,Type::ErrorUnion{error,result} if (error.is_copy_value() || representation_type(error)) && (result.is_copy_value() || representation_type(result)))
         || pure_composite(t)

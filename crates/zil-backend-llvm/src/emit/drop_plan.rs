@@ -14,6 +14,7 @@ pub(super) fn value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
         return true;
     }
     match ty {
+        Type::BorrowedStorage { storage, .. } => scoped_value_type(storage, resources),
         Type::Managed(_) => resources::supported_type(ty, resources),
         Type::Array { element, length }
             if *length > 0 && matches!(element.as_ref(), Type::Package { .. }) =>
@@ -30,6 +31,46 @@ pub(super) fn value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
         }
         _ => false,
     }
+}
+// Qualified storage keeps its exact source scope in the verified Type. Only
+// its physical fields participate in cleanup; an address never owns its target.
+fn scoped_value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
+    match ty {
+        Type::Address { .. } | Type::Desc(_) => true,
+        Type::Record { fields, .. } | Type::Package { fields, .. } => fields
+            .iter()
+            .all(|(_, field)| scoped_value_type(field, resources)),
+        Type::Tuple(fields) => fields
+            .iter()
+            .all(|field| scoped_value_type(field, resources)),
+        _ => value_type(ty, resources),
+    }
+}
+
+/// Representation only, after exact binding to the immutable verifier artifact.
+/// Pay complete trees and every possible actual resource comparison first.
+pub(super) fn compound_type(
+    ty: &Type,
+    resources: &[ResourceDefinition],
+    limits: &zil_base::Limits,
+    work: &mut usize,
+) -> CompileResult<bool> {
+    if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() {
+        return Ok(false);
+    }
+    let mut bounded = limits.clone();
+    bounded.max_analysis_steps = *work;
+    let mut budget = Budget::new(&bounded);
+    budget.tree(ty, 0)?;
+    for resource in resources {
+        budget.tree(&resource.payload, 0)?;
+        budget.tree(ty, 0)?;
+    }
+    let cost = budget.spent();
+    // Structural equality at each managed leaf may compare an entire resource.
+    let fee = cost.saturating_mul(cost.saturating_add(1));
+    *work = work.checked_sub(fee).ok_or_else(limit)?;
+    Ok(value_type(ty, resources))
 }
 pub(super) fn sum_address(ty: &Type, resources: &[ResourceDefinition]) -> bool {
     matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Tuple(_)|Type::Enum { .. }|Type::ErrorUnion{..}) && value_type(inner, resources))
@@ -297,8 +338,11 @@ fn link(
     depth: usize,
 ) -> CompileResult<DropPlan> {
     budget.tree(ty, depth)?;
-    if ty.is_copy_value() {
+    if ty.is_copy_value() || matches!(ty, Type::Address { .. } | Type::Desc(_)) {
         return Ok(DropPlan::Empty);
+    }
+    if let Type::BorrowedStorage { storage, .. } = ty {
+        return plan(storage, resources, budget, depth + 1);
     }
     if matches!(
         ty,
@@ -389,8 +433,12 @@ fn plan(
     budget.tree(ty, depth)?;
     Ok(match ty {
         t if t.is_copy_value() => DropPlan::Empty,
+        Type::Address { .. } | Type::Desc(_) => DropPlan::Empty,
+        Type::BorrowedStorage { storage, .. } => {
+            return plan(storage, resources, budget, depth + 1);
+        }
         Type::Managed(_) => return link(ty, resources, budget, depth),
-        Type::Package { fields, .. } => {
+        Type::Package { fields, .. } | Type::Record { fields, .. } => {
             return product_plan(
                 ty,
                 &fields.iter().map(|(_, t)| t).collect::<Vec<_>>(),
@@ -634,6 +682,9 @@ pub(super) fn functions<'a>(
             found.insert(hash, ty);
         }
         match ty {
+            Type::BorrowedStorage { storage, .. } => {
+                visit(storage, found, seen, budget, true, depth + 1)?;
+            }
             Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }) => {
                 visit(element, found, seen, budget, true, depth + 1)?;
             }
@@ -642,7 +693,7 @@ pub(super) fn functions<'a>(
                     visit(t, found, seen, budget, true, depth + 1)?;
                 }
             }
-            Type::Package { fields, .. } => {
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
                 for (_, t) in fields {
                     visit(t, found, seen, budget, true, depth + 1)?;
                 }
