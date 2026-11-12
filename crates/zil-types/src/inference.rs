@@ -4047,6 +4047,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 ));
             };
             return match self.scopes.iter().rev().find_map(|s| s.get(name)) {
+                Some(Binding{term:Term::Address(variable,true),..})=>Ok(Term::Address(*variable,true)),
                 Some(Binding {
                     term: Term::Registration(environment, true, asynchronous),
                     ..

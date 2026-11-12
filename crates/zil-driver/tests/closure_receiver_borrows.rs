@@ -115,7 +115,7 @@ mod source_receiver_contracts {
     use zil_base::{FileId, Limits, ModuleId, SourceUnit, TargetProfile};
     use zil_ir::{StorageBase, StorageBinder};
 
-    fn typed(text: &str) -> zil_ir::TypedModule {
+    pub(super) fn typed(text: &str) -> zil_ir::TypedModule {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "receiver-borrow.zil", text);
         let syntax = zil_syntax::parse(&source).into_result().unwrap();
         let limits = Limits::default();
@@ -247,3 +247,51 @@ consumer!(
     consuming_capture_publishes_actual_original_holder,
     "fnonce-captured-holder-publishes-taken-capability"
 );
+
+mod additional_source_cases {
+use super::source_receiver_contracts::typed;
+use zil_base::Limits;
+use zil_ir::StorageBase;
+#[test]
+fn consuming_capture_infers_the_actual_fixed_result_without_an_explicit_promise() {
+    let text=include_str!("../../../tests/fixtures/returned-owning-holders/fnonce-exclusive-capture-take-inferred-result.zil");
+    let module=typed(text);
+    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+}
+
+#[test]
+fn shared_capture_copies_a_fixed_data_pointer_without_retaining_the_temporary_head() {
+    let text=include_str!("../../../tests/fixtures/returned-owning-holders/shared-capture-fixed-result.zil");
+    let module=typed(text);
+    assert!(!module.closures[0].storage_life.as_ref().unwrap().bindings.iter().any(|r|r.position.base==StorageBase::Receiver));
+    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+}
+
+#[test]
+fn a_stored_shared_field_keeps_its_fixed_class_without_the_borrowed_holder_head() {
+    let text=include_str!("../../../tests/fixtures/returned-owning-holders/captured-holder-fixed-data-result.zil");
+    let module=typed(text);
+    assert!(!module.closures[0].storage_life.as_ref().unwrap().bindings.iter().any(|r|r.position.base==StorageBase::Receiver));
+    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+}
+
+#[test]
+fn generic_mutable_helpers_transport_each_actual_returned_receiver_head() {
+    let text=include_str!("../../../tests/fixtures/returned-owning-holders/captured-exclusive-short-view-helper.zil");
+    zil_analyze::analyze(&typed(text),&Limits::default()).unwrap();
+    let bad=text.replace("let second=*pointer", "let other=relay(&mut f);let second=*pointer+*other");
+    assert!(zil_analyze::analyze(&typed(&bad),&Limits::default()).is_err());
+}
+
+#[test]
+fn consuming_capture_transfers_the_taken_capability_into_the_actual_external_slot() {
+    let text=include_str!("../../../tests/fixtures/returned-owning-holders/fnonce-captured-holder-publishes-taken-capability.zil");
+    zil_analyze::analyze(&typed(text),&Limits::default()).unwrap();
+    let helper="fn consume<F:FnOnce()->i32>(input:F)->i32{return input()}";
+    let forwarded=text.replace("fn main",&format!("{helper} fn main")).replace(" f()", " consume(f)");
+    zil_analyze::analyze(&typed(&forwarded),&Limits::default()).unwrap();
+    let bad=text.replace(" let result=", " b=23;let result=");
+    assert!(zil_analyze::analyze(&typed(&bad),&Limits::default()).is_err());
+}
+
+}
