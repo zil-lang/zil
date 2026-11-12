@@ -1,7 +1,7 @@
 {
   "task": "G10.5.1.15",
   "status": "Active full-pipeline continuation; prior delivery below remains historical, general acceptance is open",
-  "read_goal": "f50640b3d12acdbf91baa006be90c252d837a4c7",
+  "read_goal": "8d985cb3c0448efe3a568e42ab7d56e09fcd2459",
   "source": "e91d16480d5e31c620d2b776245973c24329840f",
   "delivery": "ff81e07961077613907ce4d3b9cf650defccfd1d",
   "branch": "research/incremental-demand-continuation",
@@ -1564,8 +1564,15 @@
             }
           ],
           "actual_removed_work": "Complete typed/CFI/currentnumber/header verifier closure permits no redundant MIRbody print/store/recompare. Persistent machine-result leaves stop samevalue and reverse consumers update actual changedCGU slots. Not simply hitrate improvement; no currentVerify/O2/budget reduction. Wholeproject reentry does not imply full recompute.",
-          "raw": "495files/415601601B currentlocal plusSDK16/binaries/gates; fixedv21 streaming remote custody pending. Not a localtar crossenvironment backup.",
+          "raw": "Complete fixed V21@902ed10db8cc7fe634de585fd3dabf4b7fd75096; original495file exact union +SDK16 allfiles +immutable sources/bins/gates/failures/reviews, freshHTTPS everyfilehash/mode. Prior local qualifier passed; not assembledfresh wholevalidator/native rerun.",
           "limits": "One diagnostic block, candidate profiled; no newRust/crosswindow attribution. Cold/broad slowermain. FullLLVM/centralgraph/generalRustlead unfinished; currentindependentVerify retained."
+        },
+        "raw_current_v21": {
+          "fixed_ref": "902ed10db8cc7fe634de585fd3dabf4b7fd75096",
+          "receipt": "/tmp/full-push-recovery-v21.json",
+          "receipt_sha256": "ef8246c96fbb0ce92046cf0ac57e3de9f7dc55ca313b509ce375c42fc3dc5956",
+          "scope": "8storagepieces+index freshHTTPS fullfilehash/mode; original profile495files/415601601B exactdisjointunion; SDK16all156regularfiles/124312325B plusrelativealias exactunion/recoverymap; originalsSDK and immutable17/18 originalpath/dev/inode/bytes kept. Full source404/e117/4b and exactd36/0f1docs, allfailures/successgates/reviews/cleanup15+16 retained.",
+          "limits": "No assembledwhole fresh qualifier rerun/native execution claimed. Prior raw original failure kept. New diagnostic consumer96 gates not part of measured4b or this archive acceptance."
         }
       }
     }
