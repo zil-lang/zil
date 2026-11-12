@@ -1466,7 +1466,7 @@ mod late_closed_native {
         fn LLVMGetValueName2(v: Handle, len: *mut usize) -> *const c_char;
         fn LLVMIsDeclaration(v: Handle) -> c_int;
         fn LLVMGetLinkage(v: Handle) -> c_uint;
-        fn LLVMSetLinkage(v: Handle, linkage: c_uint);
+        fn LLVMSetLinkage(v: Handle, linkage: c_int);
         fn LLVMGetFirstUse(v: Handle) -> Handle;
         fn LLVMGetComdat(v: Handle) -> Handle;
         fn LLVMGetVisibility(v: Handle) -> c_uint;
