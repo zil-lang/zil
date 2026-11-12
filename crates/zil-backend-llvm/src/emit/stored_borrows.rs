@@ -161,6 +161,9 @@ fn type_work(t: &Type, work: &mut usize, limits: &Limits, depth: usize) -> Compi
         | Type::Unit
         | Type::Bool
         | Type::I32
+        | Type::I8
+        | Type::I16
+        | Type::Isize
         | Type::I64
         | Type::U64
         | Type::Usize
@@ -168,6 +171,7 @@ fn type_work(t: &Type, work: &mut usize, limits: &Limits, depth: usize) -> Compi
         | Type::F64
         | Type::U8
         | Type::U16
+        | Type::U32
         | Type::ByteBuffer
         | Type::ForeignHandle
         | Type::SyncCell(_)
@@ -355,13 +359,17 @@ pub(super) fn pure_composite(t: &Type) -> bool {
         Type::Unit
         | Type::Bool
         | Type::I32
+        | Type::I8
+        | Type::I16
+        | Type::Isize
         | Type::I64
         | Type::U64
         | Type::Usize
         | Type::F32
         | Type::F64
         | Type::U8
-        | Type::U16 => true,
+        | Type::U16
+        | Type::U32 => true,
         _ => false,
     }
 }
@@ -1587,6 +1595,26 @@ mod tests {
                     ty: Type::U16,
                     size: 2,
                     alignment: 2,
+                },
+                ScalarLayout {
+                    ty: Type::U32,
+                    size: 4,
+                    alignment: 4,
+                },
+                ScalarLayout {
+                    ty: Type::I8,
+                    size: 1,
+                    alignment: 1,
+                },
+                ScalarLayout {
+                    ty: Type::I16,
+                    size: 2,
+                    alignment: 2,
+                },
+                ScalarLayout {
+                    ty: Type::Isize,
+                    size: 8,
+                    alignment: 8,
                 },
                 ScalarLayout {
                     ty: Type::ForeignHandle,

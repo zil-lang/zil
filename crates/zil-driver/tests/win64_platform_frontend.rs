@@ -143,25 +143,19 @@ fn callback_is_static_foreign_code_and_never_an_indirect_zil_call() {
         "fn bad(x:bool)->i32{return 0}fn main(){let c=c_callback(bad)}",
         "E-FFI-CALLBACK",
     );
-    rejected(
-        "fn bad(x:u16)->i32{return 0}fn main(){let c=c_callback(bad)}",
-        "E-FFI-CALLBACK",
-    );
+    typed("fn bad(x:u16)->i32{return 0}fn main(){let c=c_callback(bad)}");
     rejected(
         "fn bad(x:&i32)->i32{return *x}fn main(){let c=c_callback(bad)}",
         "E-FFI-CALLBACK",
     );
+    typed(r#"fn unused(x:extern "C" fn(u16)->i32){}fn main(){}"#);
     assert!(
         typed_result(&format!(
             "{CALLBACK}fn main(){{let cb=c_callback(callback);cb(c_null(),0,0,0)}}"
         ))
         .is_err()
     );
-    for ty in [
-        "extern \"C\" fn(bool)->i32",
-        "extern \"C\" fn(u16)->i32",
-        "extern \"C\" fn(&i32)->i32",
-    ] {
+    for ty in ["extern \"C\" fn(bool)->i32", "extern \"C\" fn(&i32)->i32"] {
         rejected(
             &format!("fn unused(x:{ty}){{}}fn main(){{}}"),
             "E-FFI-CALLBACK-TYPE",

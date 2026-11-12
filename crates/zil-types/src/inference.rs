@@ -1,8 +1,8 @@
 //! A bounded source constraint pass, before CT evaluates any integer. Its output
 //! is still raw Core: neither capture legality nor executable safety is granted.
 use super::closures::{
-    BOOL, F32, F64, FLOAT, Graph, I32, I64, INTEGER, NUMBER, Projection, SCALAR, U8, U16, U64,
-    UNIT, USIZE, VALUE, Variable,
+    BOOL, F32, F64, FLOAT, Graph, I8, I16, I32, I64, INTEGER, ISIZE, NUMBER, Projection, SCALAR,
+    U8, U16, U32, U64, UNIT, USIZE, VALUE, Variable,
 };
 use super::*;
 use std::borrow::Cow;
@@ -3629,6 +3629,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 self.budget.work(text.len(), span)?;
                 let domain = if text.ends_with("u8") {
                     U8
+                } else if text.ends_with("u32") {
+                    U32
+                } else if text.ends_with("i8") {
+                    I8
+                } else if text.ends_with("i16") {
+                    I16
+                } else if text.ends_with("isize") {
+                    ISIZE
                 } else if text.ends_with("u16") {
                     U16
                 } else if text.ends_with("u64") {
@@ -5921,6 +5929,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             CoreExprKind::Integer(text) => {
                 if !text.ends_with("u8")
                     && !text.ends_with("u16")
+                    && !text.ends_with("u32")
+                    && !text.ends_with("i8")
+                    && !text.ends_with("i16")
+                    && !text.ends_with("isize")
                     && !text.ends_with("i32")
                     && !text.ends_with("i64")
                     && !text.ends_with("u64")
@@ -5929,6 +5941,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     let ty = self.resolved(self.literal_types[&index], value.span)?;
                     text.push_str(match ty {
                         Type::U8 => "u8",
+                        Type::U32 => "u32",
+                        Type::I8 => "i8",
+                        Type::I16 => "i16",
+                        Type::Isize => "isize",
                         Type::U16 => "u16",
                         Type::I64 => "i64",
                         Type::U64 => "u64",

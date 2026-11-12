@@ -46,7 +46,19 @@ impl Identity<'_, '_> {
             Constant::Bool(v) => (1, u64::from(*v)),
             Constant::U8(v) => (2, u64::from(*v)),
             Constant::U16(v) => (3, u64::from(*v)),
+            Constant::U32(v) => (10, *v as u64),
             Constant::I32(v) => (4, *v as u32 as u64),
+            Constant::I8(v) => (11, *v as u64),
+            Constant::I16(v) => (12, *v as u64),
+            Constant::Isize(v) => {
+                if self.raw.target_pointer_width == 32 && i32::try_from(*v).is_err() {
+                    return Err(reject(
+                        None,
+                        "CT nominal isize argument exceeds target width",
+                    ));
+                }
+                (13, *v as u64)
+            }
             Constant::I64(v) => (5, *v as u64),
             Constant::U64(v) => (6, *v),
             Constant::Usize(v) => {

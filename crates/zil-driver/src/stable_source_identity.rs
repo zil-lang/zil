@@ -266,9 +266,13 @@ fn primitive(ty: &ast::TypeRef) -> Option<Type> {
             Some(match path[0].as_str() {
                 "bool" => Type::Bool,
                 "i32" => Type::I32,
+                "isize" => Type::Isize,
+                "i16" => Type::I16,
+                "i8" => Type::I8,
                 "i64" => Type::I64,
                 "u8" => Type::U8,
                 "u16" => Type::U16,
+                "u32" => Type::U32,
                 "void" => Type::Unit,
                 _ => return None,
             })

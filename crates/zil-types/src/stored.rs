@@ -473,11 +473,15 @@ fn closed_copy(ty: &Type, left: &mut usize, depth: usize, limit: usize, span: Sp
         Type::Unit
         | Type::Bool
         | Type::I32
+        | Type::I8
+        | Type::I16
+        | Type::Isize
         | Type::I64
         | Type::U64
         | Type::Usize
         | Type::U8
         | Type::U16
+        | Type::U32
         | Type::F32
         | Type::F64 => true,
         Type::Tuple(fields) => {
@@ -555,11 +559,15 @@ pub(crate) fn shared_record_child(ty: &Type, left: &mut usize, span: Span) -> R<
                 Type::Unit
                     | Type::Bool
                     | Type::I32
+                    | Type::I8
+                    | Type::I16
+                    | Type::Isize
                     | Type::I64
                     | Type::U64
                     | Type::Usize
                     | Type::U8
                     | Type::U16
+                    | Type::U32
                     | Type::F32
                     | Type::F64
             )

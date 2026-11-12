@@ -93,11 +93,13 @@ pub enum Attr {
     NonLazyBind,
     /// Function-level optimization boundary; never a language permission.
     NoInline,
+    SignExt,
 }
 impl Attr {
     pub fn name(self) -> &'static str {
         match self {
             Self::ZeroExt => "zeroext",
+            Self::SignExt => "signext",
             Self::NonLazyBind => "nonlazybind",
             Self::NoInline => "noinline",
         }

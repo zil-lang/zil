@@ -258,6 +258,21 @@ impl Parser<'_> {
                 if p.peek().kind == TokenKind::Lifetime {
                     let token = p.bump();
                     args.push(GenericArg::Lifetime(p.text(&token)[1..].to_owned()));
+                } else if p.eat(Symbol::Minus) {
+                    let value = match p.literal() {
+                        Some(Literal::Integer(text)) => Literal::Integer(format!("-{text}")),
+                        Some(Literal::Float(text)) => Literal::Float(format!("-{text}")),
+                        _ => {
+                            return p.fail(
+                                "E-PARSE-CONST-ARGUMENT",
+                                "minus in a generic argument requires a numeric literal",
+                            );
+                        }
+                    };
+                    args.push(GenericArg::Const(Expr {
+                        kind: ExprKind::Literal(value),
+                        span: p.span_from(start),
+                    }));
                 } else if matches!(p.peek().kind, TokenKind::Integer | TokenKind::Float)
                     || p.at_word("true")
                     || p.at_word("false")

@@ -137,7 +137,7 @@ pub(super) fn callback_type_formation(
                     match name.as_str() {
                         "i32" | "i64" | "c_handle" => true,
                         "void" => result,
-                        "u8" | "u16" | "bool" | "c_wstr" => false,
+                        "u8" | "u16" | "u32" | "i8" | "i16" | "isize" | "bool" | "c_wstr" => false,
                         _ => variables.is_none_or(|names| names.contains(name)),
                     }
                 } else {
@@ -242,7 +242,18 @@ pub(super) fn callback_syntax_type(
     function: &s::Function,
     span: Span,
 ) -> Result<s::TypeRef, Diagnostic> {
-    let valid = |ty: &Type| matches!(ty, Type::I32 | Type::I64 | Type::ForeignHandle);
+    let valid = |ty: &Type| {
+        matches!(
+            ty,
+            Type::I32
+                | Type::U32
+                | Type::I8
+                | Type::I16
+                | Type::Isize
+                | Type::I64
+                | Type::ForeignHandle
+        )
+    };
     let result = function.return_type.as_ref().map_or(Type::Unit, type_ref);
     if !function.generics.is_empty()
         || !function.contract.is_empty()

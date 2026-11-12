@@ -2,7 +2,7 @@
 use super::*;
 
 pub(super) fn callback_scalar(ty: &Type) -> bool {
-    matches!(ty, Type::I32 | Type::I64 | Type::ForeignHandle)
+    ty.is_integer() || matches!(ty, Type::F32 | Type::F64 | Type::ForeignHandle)
 }
 
 pub(super) fn callback_signature(parameters: &[Type], result: &Type) -> bool {
@@ -106,14 +106,20 @@ pub(super) fn check_declaration(
         Type::Unit
             | Type::U8
             | Type::U16
+            | Type::U32
+            | Type::U64
+            | Type::Usize
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::F32
             | Type::F64
             | Type::ForeignHandle
     ) {
         return Err(fail(
-            "C ABI results require unit/u8/u16/i32/i64/c_handle; borrowed or static pointer results are forbidden",
+            "C ABI results require unit, an integer, f32/f64 or c_handle; borrowed or static pointer results are forbidden",
         ));
     }
     if let Some(role) = foreign.scoped_callback {
@@ -169,7 +175,13 @@ pub(super) fn check_declaration(
         match &parameter.ty {
             Type::U8
             | Type::U16
+            | Type::U32
+            | Type::U64
+            | Type::Usize
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::F32
             | Type::F64
@@ -187,7 +199,13 @@ pub(super) fn check_declaration(
                     match target {
                         Type::U8
                         | Type::U16
+                        | Type::U32
+                        | Type::U64
+                        | Type::Usize
                         | Type::I32
+                        | Type::I8
+                        | Type::I16
+                        | Type::Isize
                         | Type::I64
                         | Type::F32
                         | Type::F64
@@ -254,7 +272,7 @@ impl Builder<'_, '_> {
             )
         })?;
         let ty = signature.foreign_callback_type().ok_or_else(|| {
-            error("E-FFI-CALLBACK", target.span, "C callbacks require an ordinary environment-free function with exact i32/i64/handle signature")
+            error("E-FFI-CALLBACK", target.span, "C callbacks require an ordinary environment-free function with exact i8/i16/i32/i64/u32/isize/handle signature")
         })?;
         let function = signature.concrete_id(span)?;
         let value = self.value(

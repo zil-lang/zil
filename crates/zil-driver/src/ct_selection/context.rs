@@ -29,7 +29,7 @@ fn scalar(t: &s::TypeRef) -> bool {
                 && path.len() == 1
                 && matches!(
                     path[0].as_str(),
-                    "void" | "bool" | "u8" | "u16" | "i32" | "i64"
+                    "void" | "bool" | "u8" | "u16" | "u32" | "i8" | "i16" | "isize" | "i32" | "i64"
                 )
         }
         s::TypeKind::Group(t) => scalar(t),

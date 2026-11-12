@@ -1614,9 +1614,13 @@ fn ordinary_aggregate_inputs<'a>(
                 Type::Unit
                     | Type::Bool
                     | Type::I32
+                    | Type::I8
+                    | Type::I16
+                    | Type::Isize
                     | Type::I64
                     | Type::U8
                     | Type::U16
+                    | Type::U32
                     | Type::F32
                     | Type::F64
             ) =>

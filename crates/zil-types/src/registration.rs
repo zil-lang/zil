@@ -619,7 +619,11 @@ fn closed_environment_for(
                 | Type::Bool
                 | Type::U8
                 | Type::U16
+                | Type::U32
                 | Type::I32
+                | Type::I8
+                | Type::I16
+                | Type::Isize
                 | Type::I64
                 | Type::U64
                 | Type::Usize
