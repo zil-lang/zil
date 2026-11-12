@@ -738,3 +738,44 @@ fn shared_context_field_view_reborrows_an_actual_mutable_input() {
     zil_verify::verify_module(decoded, plan, &target, &limits).unwrap();
     native_context(&project, &dir);
 }
+
+#[test]
+fn static_slice_target_keeps_its_nonzero_context_with_an_input_header() {
+    let text = include_str!("../../../tests/fixtures/dyn-context/static-slice-with-input.zil");
+    let (project, module, candidate, dir) = context_candidate(text, "static-with-input");
+    let context = module
+        .dyn_interfaces
+        .iter()
+        .find(|i| i.context.is_some())
+        .unwrap();
+    assert_eq!(context.retained_life.binder_count, 1);
+    assert_eq!(context.retained_life.ports.len(), 1);
+    assert!(!context.retained_life.nominal_arguments.is_empty());
+    let limits = zil_base::Limits::default();
+    let target = module.target.clone();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    let (decoded, plan) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+    zil_verify::verify_module(decoded, plan, &target, &limits).unwrap();
+    native_context(&project, &dir);
+}
+
+#[test]
+fn static_slice_target_keeps_its_nonzero_context_without_input_roots() {
+    let text = include_str!("../../../tests/fixtures/dyn-context/static-slice-without-input.zil");
+    let (project, module, candidate, dir) = context_candidate(text, "static-without-input");
+    let context = module
+        .dyn_interfaces
+        .iter()
+        .find(|i| i.context.is_some())
+        .unwrap();
+    assert_eq!(context.retained_life.binder_count, 1);
+    assert!(!context.retained_life.nominal_arguments.is_empty());
+    let limits = zil_base::Limits::default();
+    let target = module.target.clone();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    let (decoded, plan) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+    zil_verify::verify_module(decoded, plan, &target, &limits).unwrap();
+    native_context(&project, &dir);
+}
