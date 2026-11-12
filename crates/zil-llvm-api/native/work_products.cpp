@@ -332,7 +332,8 @@ extern "C" void *ZilNativeProductsCreateRequest(void *M, void *TM, const void *P
 }
 extern "C" void ZilNativeProductsSetPhase(void *P, unsigned Phase) { if (P) static_cast<zil::Request *>(P)->Phase = Phase; }
 extern "C" int ZilNativeProductsFailed(const void *P) { return P && static_cast<const zil::Request *>(P)->Failed; }
-extern "C" void *ZilNativeProductsFinish(void *P, ZilNativeProductStats *S) {
+extern "C" void *ZilNativeProductsFinish(void *P, ZilNativeProductStats *S, int *Failed) {
+  if (Failed) *Failed = 1;
   using namespace zil; std::unique_ptr<Request> R(static_cast<Request *>(P)); if (!R) return nullptr;
   symbols().set(R->Previous);
   if (R->Failed) { copyStats(*R, S); return nullptr; }
@@ -342,7 +343,10 @@ extern "C" void *ZilNativeProductsFinish(void *P, ZilNativeProductStats *S) {
     copyStats(*R, S); return nullptr;
   }
   for (const auto &E : R->Next.Stages) R->Stats.retained_bytes += E.first.size() + E.second->Input.size() + E.second->World.size() + E.second->Output.size() + E.second->Pipeline.size();
-  copyStats(*R, S); return new Products(std::move(R->Next));
+  copyStats(*R, S);
+  auto *Result = new Products(std::move(R->Next));
+  if (Failed) *Failed = 0;
+  return Result;
 }
 extern "C" void ZilNativeProductsAbort(void *P, ZilNativeProductStats *S) {
   using namespace zil; std::unique_ptr<Request> R(static_cast<Request *>(P)); if (!R) return;
