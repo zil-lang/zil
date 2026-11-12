@@ -1165,6 +1165,13 @@ fn check_with(
                         outer.as_ref(),
                         b,
                     )?,
+                    InstructionKind::BorrowPackageField { .. }
+                        if super::stored_flow::qualified_package_borrow(f, i, b)? =>
+                    {
+                        if let Some(out) = out {
+                            e.ground_address(out.outer, b)?;
+                        }
+                    }
                     InstructionKind::BorrowPlaceLocal { .. }
                         if super::stored_flow::ordinary_error_borrow(f, i, b)? =>
                     {
