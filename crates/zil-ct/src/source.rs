@@ -3913,6 +3913,52 @@ mod tests {
         assert!(errors.iter().any(|e| e.code == "E-RESOURCE-LIMIT"));
     }
     #[test]
+    fn callable_return_life_bridge_survives_ct_and_prepays_nested_metadata() {
+        let mut input = module(number("7"), Type::I32);
+        let source = CoreCallableReturnLifeContext {
+            declaration: LifeDeclarationId { module: input.module_id, declaration: NodeId(4), compiler: false },
+            identity: LifeDeclarationIdentity {
+                package: "consumer".into(), module_path: vec!["main".into()],
+                declaration_path: vec!["factory".into()], generation_path: vec![],
+            },
+            parameters: vec![LifeParameterKind::Type, LifeParameterKind::Lifetime],
+            fixed: vec![CoreCallableReturnFixed {
+                fixed: 0,
+                input: CoreClosureInputAnchor {
+                    parameter: 0, source_parameter: Some(1), header_binder: StorageBinder::Invocation(0),
+                    position: CoreClosureHeaderPosition::Borrow(StoragePosition {
+                        base: StorageBase::Parameter(0), path: vec![],
+                    }),
+                },
+            }],
+        };
+        input.functions[0].callable_return = Some(CoreCallableReturn {
+            life: Some(StorageLifeContract {
+                fixed_binder_count: 1, invocation_binder_count: 0,
+                bindings: vec![StorageLifeBinding {
+                    position: StoragePosition { base: StorageBase::Result, path: vec![] },
+                    binder: StorageBinder::Fixed(0),
+                }], classes: vec![],
+            }), source_life: Some(source), kind: CallableKind::FnOnce,
+            parameters: vec![], result: Type::Address { mutable: true, inner: Box::new(Type::I32) },
+        });
+        let target = TargetProfile::default();
+        let output = evaluate_source_constants(&input, &target, &Limits::default()).unwrap();
+        assert_eq!(output.functions[0].callable_return, input.functions[0].callable_return);
+        // CT transports untrusted proposals; no runtime semantic admission is asserted.
+        let mut deep = input.clone();
+        deep.functions[0].callable_return.as_mut().unwrap().source_life.as_mut().unwrap()
+            .parameters.push(LifeParameterKind::Const(Type::Tuple(vec![Type::Tuple(vec![Type::I32])])));
+        let limits = Limits { max_call_depth: 1, ..Limits::default() };
+        assert!(evaluate_source_constants(&deep, &target, &limits).unwrap_err().iter()
+            .any(|d| d.code == "E-RESOURCE-LIMIT"));
+        let mut oversized = input;
+        oversized.functions[0].callable_return.as_mut().unwrap().life.as_mut().unwrap()
+            .fixed_binder_count = u32::MAX;
+        assert!(evaluate_source_constants(&oversized, &target, &Limits::default()).unwrap_err().iter()
+            .any(|d| d.code == "E-RESOURCE-LIMIT"));
+    }
+    #[test]
     fn source_ct_returns_ordinary_core_with_source_identity() {
         let m = module(
             binary(BinaryOp::Multiply, number("6"), number("7")),
