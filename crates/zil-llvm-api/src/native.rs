@@ -651,6 +651,9 @@ fn compile_input(
                 "native product finalization failed; discard request",
             ));
         }
+        // Finalization is a real phase too: a cancellation arriving while the
+        // native snapshots close must discard their object and product together.
+        check(cancelled)?;
         *output = completed_products;
     }
     Ok((
@@ -799,7 +802,7 @@ mod native_product_tests {
     fn native_products_abort_at_each_boundary_without_poisoning_the_next_request() {
         let source = module(42);
         let (reference, _, products) = compile_products(&source, None);
-        for boundary in 0..5 {
+        for boundary in 0..6 {
             let polls = AtomicUsize::new(0);
             let cancelled = || polls.fetch_add(1, Ordering::SeqCst) >= boundary;
             assert_eq!(
