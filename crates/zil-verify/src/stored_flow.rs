@@ -141,6 +141,7 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> Check<boo
 }
 
 mod anonymous_tuple;
+mod closed_stores;
 pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
@@ -1510,6 +1511,9 @@ pub(super) fn qualifications(
     mask: Option<&[bool]>,
     b: &mut Budget,
 ) -> Check<()> {
+    // Work selection from the complete raw type inventory; each instruction
+    // must still authenticate its exact closed element and sealed Store.
+    b.ordinary_closed_stores = b.actual_store_types && !b.masked_stored_tasks();
     let mixed_package = b.stored_package_instance;
     for (index, f) in module.functions.iter().enumerate() {
         if mask.is_some_and(|mask| !mask[index]) {
@@ -1548,7 +1552,9 @@ pub(super) fn qualifications(
                     || scalar_owner_operation)
                     && !owned_byte_views::owner_instruction(module, f, i, b)?
                     && !(b.task_sources() && task_address::owner_instruction(f, &i.kind));
-                if !super::class_flow::pointer_instruction(f, i)
+                let closed_store_operation = closed_stores::operation(module, f, i, b)?;
+                if !closed_store_operation
+                    && !super::class_flow::pointer_instruction(f, i)
                     && !super::stored_callables::instruction(module, f, i)
                     && !returned_environment::borrowed_child(module, f, i, b)?
                     && !compound::operation(f, i, b)?
@@ -3339,7 +3345,7 @@ fn step(
             join_permission(&mut out.store_description, &val(*address)?.address, b)?;
         }
         InstructionKind::OwnedStoreBorrow { store, .. } | InstructionKind::OwnedStoreBorrowMut { store, .. }
-            if b.masked_stored_tasks() && (b.store_descriptions() || matches!(i.kind, InstructionKind::OwnedStoreBorrow { .. })) => {
+            if (b.masked_stored_tasks() || b.ordinary_closed_stores) && (b.store_descriptions() || matches!(i.kind, InstructionKind::OwnedStoreBorrow { .. })) => {
             let description = &val(*store)?.store_description;
             // The reverse-batch solver may see bottom before a predecessor's
             // description arrives. Its final grounded-value check rejects a

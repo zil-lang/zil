@@ -27,9 +27,6 @@ pub(super) fn ordinary_owned_union(
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
-    if !b.masked_stored_tasks() {
-        return Ok(false);
-    }
     let union = match &i.kind {
         InstructionKind::PlaceTagLocal { local, path } if path.is_empty() => {
             if vt(f, i.result.ok_or_else(|| err("union tag lacks result"))?)? != &Type::I32 {
@@ -593,7 +590,10 @@ fn ordinary_union_shape(union: &Type, b: &mut Budget) -> Check<bool> {
     ordinary_owned_fields(vec![(error.as_ref(), 0), (result.as_ref(), 0)], b)
 }
 
-fn ordinary_owned_fields(mut pending: Vec<(&Type, usize)>, b: &mut Budget) -> Check<bool> {
+pub(super) fn ordinary_owned_fields(
+    mut pending: Vec<(&Type, usize)>,
+    b: &mut Budget,
+) -> Check<bool> {
     while let Some((ty, depth)) = pending.pop() {
         b.spend(1)?;
         if depth > b.limits.max_call_depth {

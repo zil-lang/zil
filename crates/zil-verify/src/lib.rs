@@ -419,6 +419,7 @@ struct Budget {
     // Paid raw-Type presence only schedules ordinary Store descriptions when
     // returned environments select the shared source solver.
     actual_store_types: bool,
+    ordinary_closed_stores: bool,
     qualified_package_returns: bool,
     byte_queries: bool,
     shared_byte_borrow: bool,
@@ -451,7 +452,9 @@ struct Budget {
 }
 impl Budget {
     fn store_descriptions(&self) -> bool {
-        self.nested_store_windows || self.returned_environment_sources && self.actual_store_types
+        self.nested_store_windows
+            || self.returned_environment_sources && self.actual_store_types
+            || self.ordinary_closed_stores
     }
     fn task_sources(&self) -> bool {
         self.task_borrowed_results || self.task_failure_carriers
@@ -514,6 +517,7 @@ impl Budget {
             store_option_results: false,
             nested_store_windows: false,
             actual_store_types: false,
+            ordinary_closed_stores: false,
             qualified_package_returns: false,
             byte_queries: false,
             shared_byte_borrow: false,
