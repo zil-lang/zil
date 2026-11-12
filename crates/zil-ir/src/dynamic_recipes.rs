@@ -38,6 +38,18 @@ pub enum DynObligation {
         quantified_lifetimes: u32,
         signature: Box<DynSignatureRecipe>,
     },
+    /// Complete associated bindings and original where/super equations.
+    /// This is equality of full types/domains, never physical layout equality.
+    TypeEqual {
+        left: DynTypePattern,
+        right: DynTypePattern,
+    },
+    /// Both operands are interpreted in this exact substituted carrier.
+    ConstEqual {
+        ty: DynTypePattern,
+        left: DynConstPattern,
+        right: DynConstPattern,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
