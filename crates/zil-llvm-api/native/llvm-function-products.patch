@@ -1,11 +1,12 @@
 --- a/llvm/lib/CodeGen/MachineFunctionPass.cpp
 +++ b/llvm/lib/CodeGen/MachineFunctionPass.cpp
-@@ -13,0 +14,4 @@
+@@ -13,0 +14,5 @@
 +#include "zil_llvm_work_products_hooks.h"
++#include "llvm/CodeGen/AsmPrinter.h"
 +#include "X86MachineFunctionInfo.h"
 +#include "llvm/IR/IntrinsicInst.h"
 +#include "llvm/Target/TargetMachine.h"
-@@ -39,0 +44,12 @@
+@@ -39,0 +45,12 @@
 +static thread_local const ZilLLVMFunctionProductHooks *ZilFunctionHooks = nullptr;
 +extern "C" LLVM_ABI const ZilLLVMFunctionProductHooks *
 +ZilLLVMSetFunctionProductHooks(const ZilLLVMFunctionProductHooks *Hooks) {
@@ -18,13 +19,13 @@
 +extern "C" LLVM_ABI unsigned ZilLLVMMachineProductCapability() { return 1; }
 +
 +
-@@ -56,0 +73,5 @@
+@@ -56,0 +74,5 @@
 +  if (const auto *Hooks = ZilLLVMGetFunctionProductHooks();
 +      Hooks && Hooks->abi_version == 1 && Hooks->before_machine_pass &&
 +      Hooks->before_machine_pass(Hooks->context, this, &F, &MMI))
 +    return false;
 +
-@@ -160,0 +182,63 @@
+@@ -160,0 +183,67 @@
 +
 +// Resident X86 MFI copy: no LLVM-owner pointers may cross a request. The sole
 +// PreallocatedIds writer is the IsPreallocated call-lowering path in fixed7a
@@ -87,6 +88,10 @@
 +}
 +extern "C" LLVM_ABI void ZilLLVMDisposeX86ProductInfo(void *Snapshot) {
 +  delete static_cast<llvm::X86MachineFunctionInfo *>(Snapshot);
++}
++
++extern "C" LLVM_ABI const void *ZilLLVMAsmPrinterPassID() {
++  return llvm::AsmPrinter::zilProductPassID();
 +}
 --- a/llvm/include/llvm/IR/PassManagerImpl.h
 +++ b/llvm/include/llvm/IR/PassManagerImpl.h
@@ -204,3 +209,8 @@
 +        static_cast<const AnalysisKey *>(ID)), IR, ExtraArgs...);
 +  }
 +
+--- a/llvm/include/llvm/CodeGen/AsmPrinter.h
++++ b/llvm/include/llvm/CodeGen/AsmPrinter.h
+@@ -92,0 +93,2 @@
++  // Fixed-adapter pass identity, without RTTI, name guessing or layout changes.
++  static const void *zilProductPassID() { return &ID; }

@@ -141,7 +141,7 @@ std::string worldText(const Module &M, const Function *Subject) {
     F.getAllMetadata(MD);
     for (const auto &E : MD) {
       OS << "\n; original header metadata " << F.getName() << ':' << E.first << '\n';
-      E.second->print(OS, &M);
+      E.second->printTree(OS, &M);
     }
   }
   if (Subject) {
