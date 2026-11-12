@@ -2489,7 +2489,7 @@ fn seed_payload(
                 heap_element: None,
             });
         }
-        if b.store_descriptions()
+        if replacements::heads(b)
             && matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }))
         {
             b.spend(1)?;
@@ -2731,7 +2731,7 @@ fn instantiate(
                 )?
             }
         }
-    } else if b.store_descriptions()
+    } else if replacements::heads(b)
         && source.leaf.is_empty()
         && !v.store_description.sources.is_empty()
     {
@@ -3106,7 +3106,7 @@ fn step(
                     heap_element: None,
                 });
             }
-            if b.store_descriptions()
+            if replacements::heads(b)
                 && f.locals.get(local.0 as usize).is_some_and(|local| matches!(&local.ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. })))
             {
                 b.spend(1)?;
@@ -3121,7 +3121,7 @@ fn step(
             }
         }
         InstructionKind::DescribePackageField { local, index }
-            if b.store_descriptions() && i.result.is_some_and(|id|
+            if replacements::heads(b) && i.result.is_some_and(|id|
                 matches!(&f.values[id.0 as usize], Type::Desc(payload)
                     if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }))) => {
             b.spend(2)?;
@@ -3160,7 +3160,7 @@ fn step(
             clear_local_holes(state, *local, b)?;
         }
         InstructionKind::DescribeAddress { address }
-            if b.masked_stored_tasks() || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
+            if b.masked_stored_tasks() || b.replacements || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
             join_permission(&mut out.store_description, &val(*address)?.address, b)?;
         }
         InstructionKind::OwnedStoreBorrow { store, .. } | InstructionKind::OwnedStoreBorrowMut { store, .. }
@@ -4643,7 +4643,7 @@ fn check_call(
     if arguments.len() != callee.parameters.len() {
         return Err(err("call arity differs from actual body signature"));
     }
-    if b.store_descriptions() {
+    if replacements::heads(b) {
         for (source, write) in &summaries[function.0 as usize].head_accesses {
             let actual = instantiate(module, f, source, arguments, &solution.values, state, b)?;
             if *write {
@@ -4891,7 +4891,7 @@ fn windows(
             )?;
             {
                 let mut checks = access_candidates::Access::new(&active, &solution.loans, b)?;
-                if b.store_descriptions() {
+                if replacements::heads(b) {
                     let head = dynamic_store::access(&i.kind)
                         .or_else(|| byte_buffers::access(&i.kind))
                         .or_else(|| match i.kind {
@@ -5636,7 +5636,7 @@ fn windows(
     Ok(())
 }
 fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
-    if b.store_descriptions() {
+    if replacements::heads(b) {
         b.spend(s.head_accesses.len())?;
         for (source, _) in &s.head_accesses {
             b.spend(width(source))?;
@@ -6328,7 +6328,7 @@ fn solve_check(
                 inactive.map(|rows| rows[index].as_slice()),
                 b,
             )?;
-            if b.stored_slot_updates || b.dyn_contexts {
+            if b.stored_slot_updates || b.dyn_contexts || b.replacements {
                 b.spend(f.blocks.len())?;
                 for block in &f.blocks {
                     b.spend(block.instructions.len())?;
