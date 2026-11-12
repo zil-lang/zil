@@ -323,6 +323,8 @@ pub(super) fn check_definitions(
         // Capture fields include independently checked finite owning Packages.
         // Hold, view binding and authority are reconstructed from the raw CFG.
         for ty in &closure.captures {
+            budget.task_retained_environments |= closure.kind == CallableKind::FnMut
+                && matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }));
             if matches!(ty, Type::Address { mutable: true, inner }
                 if matches!(inner.as_ref(), Type::BorrowedStorage { .. }))
             {

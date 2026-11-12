@@ -1230,6 +1230,15 @@ pub(super) fn loans(
                             InstructionKind::BorrowLocalMut { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(p) if matches!(p.as_ref(),Type::TaskI32|Type::Task{..})) => {
                                 Set::from([id])
                             }
+                            InstructionKind::BorrowCapture { mutable: true, .. }
+                                if crate::stored_flow::task_capture_instruction(
+                                    module, f, i, budget,
+                                )? =>
+                            {
+                                // A fresh child of the actual environment slot.
+                                // Its retained data ports remain on that owner.
+                                Set::from([id])
+                            }
                             InstructionKind::ReborrowAddress {
                                 address,
                                 mutable: true,

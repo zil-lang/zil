@@ -1674,7 +1674,8 @@ pub(super) fn preflight(
                     ));
                 }
                 super::tasks::require_closed_context(payload)?;
-                budget.task_retained_environments |= matches!(payload.as_ref(),Type::Task{retained_life,..} if !retained_life.ports.is_empty());
+                budget.task_retained_environments |= closure.kind == zil_ir::CallableKind::FnMut
+                    || matches!(payload.as_ref(),Type::Task{retained_life,..} if !retained_life.ports.is_empty());
                 if matches!(payload.as_ref(),Type::Task{retained_life,..} if retained_life.binder_count>0)
                     && closure.storage_life.is_none()
                 {

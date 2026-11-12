@@ -256,7 +256,7 @@ pub(super) fn check_function(
             cleanup.push(index as u32);
             continue;
         }
-        if definition.kind == CallableKind::FnOnce
+        if matches!(definition.kind, CallableKind::FnOnce | CallableKind::FnMut)
             && matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}))
         {
             cleanup.push(index as u32);
