@@ -731,10 +731,10 @@ impl<'n> Shape<'_, '_, 'n, '_> {
                 if args.is_empty() && path.len() == 1 {
                     match path[0].as_str() {
                         "void" => return Ok((0, 1)),
-                        "bool" | "u8" => return Ok((1, 1)),
-                        "u16" => return Ok((2, 2)),
-                        "i32" | "f32" => return Ok((4, 4)),
-                        "i64" | "u64" | "usize" | "f64" => return Ok((8, 8)),
+                        "bool" | "u8" | "i8" => return Ok((1, 1)),
+                        "u16" | "i16" => return Ok((2, 2)),
+                        "u32" | "i32" | "f32" => return Ok((4, 4)),
+                        "i64" | "u64" | "usize" | "isize" | "f64" => return Ok((8, 8)),
                         _ => {}
                     }
                 }

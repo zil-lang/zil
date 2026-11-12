@@ -1182,7 +1182,9 @@ pub(super) fn preflight(
                                 None,
                             )]);
                         }
-                        if context.pod_aggregate && !context.ordinary_pod_store {
+                        if context.pod_aggregate && !context.ordinary_pod_store
+                            && !store_element.is_some_and(super::nested_store::selected)
+                        {
                             return Err(vec![Diagnostic::unsupported(
                                 Phase::Analyze,
                                 "POD Store admission does not grant owning aggregate field or payload qualification",

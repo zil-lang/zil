@@ -2382,8 +2382,8 @@ fn seed_value(
     b: &mut Budget,
 ) -> CompileResult<Value> {
     let mut value = Value::default();
-    if b.nested_store_windows
-        && matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(),Type::OwnedStore{..}|Type::ByteBuffer|Type::Record{..}))
+    if matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(),Type::OwnedStore{..})
+        || b.nested_store_windows && matches!(payload.as_ref(),Type::ByteBuffer|Type::Record{..}))
     {
         fee(b, 1)?;
         value.store_description.targets.insert(Target {
@@ -3946,13 +3946,11 @@ fn transfer(
             )]);
         }
     }
-    if b.nested_store_windows
-        && let Some(result) = i.result
+    if let Some(result) = i.result
         && let Type::Desc(payload) = value_type(f, result)?
-        && matches!(
-            payload.as_ref(),
-            Type::OwnedStore { .. } | Type::ByteBuffer | Type::Record { .. }
-        )
+        && (matches!(payload.as_ref(), Type::OwnedStore { .. })
+            || b.nested_store_windows
+                && matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. }))
     {
         let source = match i.kind {
             InstructionKind::DescribeLocal { local } => {
@@ -4750,6 +4748,16 @@ fn windows(
             owned_byte_sites.check(module, f, i, &state, values, &current, loans, apart, b)?;
             {
                 let mut access = permission_access::Access::new(&current, loans, b)?;
+                if b.nested_store_windows
+                    && let Some((head, write)) = super::nested_store::head_access(&i.kind)
+                {
+                    let actual = &values[head.0 as usize].store_description;
+                    if actual.targets.is_empty() {
+                        return Err(failure("head operation has no actual descriptor source"));
+                    }
+                    access.check(actual, write, apart, b)?;
+                    record_head_access(head_accesses, actual, write, b)?;
+                }
                 match &i.kind {
                     InstructionKind::MakeAggregate { fields }
                     | InstructionKind::MakePackage { fields }
@@ -4911,29 +4919,6 @@ fn windows(
                                 .ok_or_else(|| failure("exclusive address local is unavailable"))?;
                             access.check(&source.pointer, true, apart, b)?;
                         }
-                    }
-                    InstructionKind::OwnedStoreReserve { store, .. }
-                    | InstructionKind::OwnedStorePush { store, .. }
-                    | InstructionKind::OwnedStorePop { store }
-                    | InstructionKind::OwnedStoreBorrow { store, .. }
-                    | InstructionKind::OwnedStoreBorrowMut { store, .. }
-                    | InstructionKind::OwnedStoreLen { store }
-                    | InstructionKind::OwnedStoreCapacity { store }
-                        if b.nested_store_windows =>
-                    {
-                        let actual = &values[store.0 as usize].store_description;
-                        if actual.targets.is_empty() {
-                            return Err(failure("Store operation has no actual manager source"));
-                        }
-                        let write = matches!(
-                            i.kind,
-                            InstructionKind::OwnedStoreReserve { .. }
-                                | InstructionKind::OwnedStorePush { .. }
-                                | InstructionKind::OwnedStorePop { .. }
-                                | InstructionKind::OwnedStoreBorrowMut { .. }
-                        );
-                        access.check(actual, write, apart, b)?;
-                        record_head_access(head_accesses, actual, write, b)?;
                     }
                     InstructionKind::DropManaged { local }
                     | InstructionKind::DropPackage { local }
