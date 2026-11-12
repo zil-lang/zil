@@ -491,7 +491,11 @@ pub(super) struct Facts {
     pointer_parents: Vec<Vec<TaskLoanAnchor>>,
     pub returned: BTreeMap<Path, Vec<Target>>,
     returned_task_ports: BTreeMap<Vec<zil_ir::ContractProjection>, Vec<Target>>,
+    /// Actual callee Return targets, never populated from a declared upper.
     returned_dyn_ports: BTreeMap<Vec<zil_ir::ContractProjection>, Vec<Target>>,
+    /// Separately proved public upper used by complete ordinary calls.
+    declared_dyn_return_upper: BTreeMap<Vec<zil_ir::ContractProjection>, Vec<Target>>,
+    dyn_return_complete: bool,
     package_return_calls: BTreeMap<ValueId, u32>,
     byte_reads: Vec<Target>,
     byte_covered: bool,
@@ -753,8 +757,18 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
         }
     }
     if b.dyn_contexts {
-        fee(b, f.returned_dyn_ports.len())?;
-        for (path, targets) in &f.returned_dyn_ports {
+        fee(
+            b,
+            f.returned_dyn_ports
+                .len()
+                .saturating_add(f.declared_dyn_return_upper.len())
+                .saturating_add(1),
+        )?;
+        for (path, targets) in f
+            .returned_dyn_ports
+            .iter()
+            .chain(&f.declared_dyn_return_upper)
+        {
             fee(b, path.len().saturating_add(targets.len()))?;
             for target in targets {
                 fee(b, target_width(target))?;
@@ -3284,7 +3298,7 @@ fn transfer(
                 .substitute(arguments, values, b)?;
             out.option_variants = summary.returned_variants.substitute(arguments, values, b)?;
             task_address::call(summary, arguments, values, state, &mut out, b)?;
-            dyn_return::call(summary, arguments, values, state, &mut out, b)?;
+            dyn_return::call(callee, summary, arguments, values, state, &mut out, b)?;
             for (path, sources) in &summary.returned {
                 let mut permission = Permission::default();
                 for source in sources {
@@ -5130,6 +5144,8 @@ fn derive_cfg(
                 returned: BTreeMap::new(),
                 returned_task_ports: BTreeMap::new(),
                 returned_dyn_ports: BTreeMap::new(),
+                declared_dyn_return_upper: BTreeMap::new(),
+                dyn_return_complete: true,
                 package_return_calls,
                 byte_reads: Vec::new(),
                 byte_covered: false,
@@ -5406,6 +5422,7 @@ fn derive_cfg(
                     }
                 }
             }
+            grounded &= actual.dyn_return_complete;
             actual.complete = grounded;
             if grounded {
                 actual.byte_covered = b.byte_queries;
