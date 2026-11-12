@@ -3,7 +3,7 @@
 #[cfg(feature = "native-products")]
 mod enabled {
     use super::super::{Handle, c_char, c_int, c_uint, ptr};
-    use crate::{NativeProductStats, NativeWorkProducts};
+    use crate::{NativeMachineEmissionStats, NativeProductStats, NativeWorkProducts};
     use std::sync::Arc;
 
     #[repr(C)]
@@ -77,6 +77,7 @@ mod enabled {
                 ir_parse_ns: value.ir_parse_ns,
                 ir_capture_ns: value.ir_capture_ns,
                 ir_pack_ns: value.ir_pack_ns,
+                machine_emission: None,
                 ..Self::default()
             }
         }
@@ -162,6 +163,11 @@ mod enabled {
             failed: *mut c_int,
         ) -> Handle;
         fn ZilNativeProductsAbort(request: Handle, stats: *mut WireStats);
+        fn ZilNativeProductsReadMachineEmissionStatsV1(
+            request: Handle,
+            out: *mut NativeMachineEmissionStats,
+            bytes: usize,
+        ) -> c_int;
         fn ZilNativeProductsDispose(products: Handle);
     }
 
@@ -220,6 +226,16 @@ mod enabled {
         }
     }
 
+    fn read_machine_emission(raw: Handle) -> Option<NativeMachineEmissionStats> {
+        let mut out = NativeMachineEmissionStats::default();
+        // SAFETY: the request is live on this thread; the independent V1 shim
+        // copies exactly these 15 scalar u64 fields and retains no owner.
+        let ok = unsafe {
+            ZilNativeProductsReadMachineEmissionStatsV1(raw, &mut out, std::mem::size_of_val(&out))
+        };
+        (ok == 1 && out.available != 0).then_some(out)
+    }
+
     pub(crate) struct Scope<'a> {
         raw: Handle,
         stats: &'a mut NativeProductStats,
@@ -274,6 +290,7 @@ mod enabled {
                 return None;
             }
             let raw = std::mem::replace(&mut self.raw, ptr::null_mut());
+            let machine_emission = read_machine_emission(raw);
             let mut stats = WireStats::default();
             // Fail closed if the adapter cannot confirm final machine-product
             // binding. Finish can discover a late replay mismatch after Emit.
@@ -290,6 +307,7 @@ mod enabled {
             }
             *self.failed |= failed != 0 || stats.failed_replays > 0;
             *self.stats = stats.into();
+            self.stats.machine_emission = machine_emission;
             (!product.is_null()).then(|| NativeWorkProducts {
                 inner: Arc::new(Product(product)),
                 retained_payload_bytes: self.stats.retained_bytes,
@@ -300,12 +318,14 @@ mod enabled {
         fn drop(&mut self) {
             if !self.raw.is_null() {
                 self.replay_failed();
+                let machine_emission = read_machine_emission(self.raw);
                 let mut stats = WireStats::default();
                 // SAFETY: Abort consumes exactly this live request, before LLVM
                 // owners die, and restores TLS on every error/cancellation/unwind.
                 unsafe { ZilNativeProductsAbort(self.raw, &mut stats) }
                 self.raw = ptr::null_mut();
                 *self.stats = stats.into();
+                self.stats.machine_emission = machine_emission;
             }
         }
     }
@@ -355,25 +375,7 @@ mod enabled {
     /// Explicit same-thread scratch checks. The bitmask reports observations;
     /// it is not permission to reuse a machine function or bypass verification.
     #[cfg(test)]
-    #[repr(C)]
-    #[derive(Default, Debug)]
-    pub(crate) struct MachineEmissionStats {
-        pub available: u64,
-        pub captured_functions: u64,
-        pub captured_blocks: u64,
-        pub replayed_functions: u64,
-        pub replayed_blocks: u64,
-        pub machine_instructions_skipped: u64,
-        pub mc_replay_events: u64,
-        pub current_cfi_events: u64,
-        pub declined_functions: u64,
-        pub budget_declines: u64,
-        pub captured_capacity_bytes: u64,
-        pub capture_ns: u64,
-        pub preflight_ns: u64,
-        pub replay_ns: u64,
-        pub failed_replays: u64,
-    }
+    type MachineEmissionStats = NativeMachineEmissionStats;
     #[cfg(test)]
     pub(crate) fn machine_emission_stats_for_test() -> MachineEmissionStats {
         let mut out = MachineEmissionStats::default();

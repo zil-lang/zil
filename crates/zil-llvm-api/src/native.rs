@@ -1277,6 +1277,17 @@ mod native_machine_numbering_tests {
             "requires the actual SDK17 emission extension"
         );
         assert_eq!(cold_mc.captured_functions, 2);
+        assert_eq!(
+            cold.receipt
+                .native_products
+                .as_ref()
+                .unwrap()
+                .machine_emission
+                .unwrap()
+                .captured_functions,
+            2,
+            "actual production receipt must carry the independent V1 observation"
+        );
         assert!(cold_mc.captured_blocks >= 2 && cold_mc.captured_capacity_bytes > 0);
         assert_eq!(cold_mc.replayed_functions, 0);
         assert_eq!(cold.bytes, ordinary.bytes);
@@ -1290,6 +1301,16 @@ mod native_machine_numbering_tests {
                 && mc.mc_replay_events > 0
         );
         assert_eq!(mc.failed_replays, 0);
+        assert_eq!(
+            warm.receipt
+                .native_products
+                .as_ref()
+                .unwrap()
+                .machine_emission
+                .unwrap()
+                .mc_replay_events,
+            mc.mc_replay_events
+        );
         let native = warm.receipt.native_products.as_ref().unwrap();
         assert_eq!(native.machine_function_reuses, 2);
         assert_eq!(
@@ -1328,6 +1349,7 @@ mod native_machine_numbering_tests {
             let stats = recovered.receipt.native_products.as_ref().unwrap();
             assert_eq!(stats.fresh_context_fallbacks, 1);
             assert!(stats.failed_replays > 0);
+            assert_eq!(stats.machine_emission.unwrap().failed_replays, 1);
             assert!(p.is_none(), "partial MC/native products cannot publish");
             assert_eq!(recovered.bytes, ordinary.bytes);
         }
