@@ -116,8 +116,13 @@ fn shared_tuple_children_keep_distinct_domains_in_raw_and_wire() {
 }
 #[test]
 fn shared_tuple_generic_identity_runs_both_backends() {
-    let directory =
-        std::env::temp_dir().join(format!("zil-qualified-compound-{}", std::process::id()));
+    native(SHARED, "shared", b"");
+}
+fn native(text: &str, label: &str, stdout: &[u8]) {
+    let directory = std::env::temp_dir().join(format!(
+        "zil-qualified-compound-{label}-{}",
+        std::process::id()
+    ));
     fs::create_dir_all(&directory).unwrap();
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
         if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -132,7 +137,7 @@ fn shared_tuple_generic_identity_runs_both_backends() {
                 optimization,
                 ..CompileOptions::default()
             };
-            let report = compile_source(&input(SHARED), &options);
+            let report = compile_source(&input(text), &options);
             assert_eq!(
                 report.status,
                 ResultCategory::Success,
@@ -145,8 +150,169 @@ fn shared_tuple_generic_identity_runs_both_backends() {
             assert!(codegen.fallback.is_none());
             let result = Command::new(&output).output().unwrap();
             assert_eq!(result.status.code(), Some(0), "{result:?}");
-            assert!(result.stdout.is_empty() && result.stderr.is_empty());
+            assert_eq!(result.stdout, stdout);
+            assert!(result.stderr.is_empty());
         }
     }
     fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn owning_exclusive_and_plain_managed_values_run_both_backends() {
+    native(
+        include_str!("../../../tests/fixtures/qualified-values/owning-compound.zil"),
+        "owning",
+        b"A",
+    );
+    native(
+        include_str!("../../../tests/fixtures/qualified-values/exclusive-compound.zil"),
+        "exclusive",
+        b"",
+    );
+    native(
+        include_str!("../../../tests/fixtures/qualified-values/resource-value-roles.zil"),
+        "managed",
+        b"CBA",
+    );
+}
+#[test]
+fn affine_products_keep_all_child_classes_loans_and_cleanup_in_raw_wire() {
+    use zil_ir::InstructionKind;
+    for (text, owned) in [
+        (
+            include_str!("../../../tests/fixtures/qualified-values/owning-compound.zil"),
+            true,
+        ),
+        (
+            include_str!("../../../tests/fixtures/qualified-values/exclusive-compound.zil"),
+            false,
+        ),
+    ] {
+        let source = input(text);
+        let limits = Limits::default();
+        let target = TargetProfile::host_llvm();
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let core = zil_expand::expand_with_map_limits_target_context(
+            &source,
+            &syntax,
+            &limits,
+            &target,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &std::collections::BTreeMap::new(),
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .core;
+        let module = zil_types::check(&core, &target, &limits).unwrap();
+        let plan = zil_analyze::analyze(&module, &limits).unwrap();
+        for wire in [false, true] {
+            let (module, plan) = if wire {
+                let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+                zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap()
+            } else {
+                (module.clone(), plan.clone())
+            };
+            zil_verify::verify_module(module, plan, &target, &limits).unwrap();
+        }
+        for attack in 0..3 {
+            let mut changed = module.clone();
+            match attack {
+                0 => {
+                    let fields = changed
+                        .functions
+                        .iter_mut()
+                        .flat_map(|f| &mut f.blocks)
+                        .flat_map(|b| &mut b.instructions)
+                        .find_map(|i| {
+                            if let InstructionKind::UnpackTuple { fields, .. } = &mut i.kind {
+                                (fields.len() == 2).then_some(fields)
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap();
+                    fields[1] = fields[0];
+                }
+                1 => {
+                    let mut found = false;
+                    for f in &mut changed.functions {
+                        for block in &mut f.blocks {
+                            for i in &mut block.instructions {
+                                if let InstructionKind::TakeLocal { local } = i.kind
+                                    && matches!(&f.locals[local.0 as usize].ty, Type::Tuple(_))
+                                {
+                                    i.kind = InstructionKind::Load(local);
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if found {
+                                break;
+                            }
+                        }
+                        if found {
+                            break;
+                        }
+                    }
+                    assert!(found);
+                }
+                2 if owned => {
+                    let mut found = false;
+                    for f in &mut changed.functions {
+                        for block in &mut f.blocks {
+                            if let Some(index) = block
+                                .instructions
+                                .iter()
+                                .position(|i| matches!(i.kind, InstructionKind::DropManaged { .. }))
+                            {
+                                block.instructions.remove(index);
+                                found = true;
+                                break;
+                            }
+                        }
+                        if found {
+                            break;
+                        }
+                    }
+                    assert!(found);
+                }
+                2 => {
+                    let instruction = changed
+                        .functions
+                        .iter_mut()
+                        .flat_map(|f| &mut f.blocks)
+                        .flat_map(|b| &mut b.instructions)
+                        .find(|i| matches!(i.kind, InstructionKind::LoadStoredBorrow { .. }))
+                        .unwrap();
+                    let InstructionKind::LoadStoredBorrow { mode, .. } = &mut instruction.kind
+                    else {
+                        unreachable!()
+                    };
+                    *mode = zil_ir::StoredBorrowLoad::CopyShared;
+                }
+                _ => unreachable!(),
+            }
+            let mut candidate = plan.clone();
+            candidate.module_fingerprint = changed.fingerprint();
+            for wire in [false, true] {
+                let (module, plan) = if wire {
+                    let bytes =
+                        zil_ir::wire::encode_module_candidate(&changed, &candidate, &limits)
+                            .unwrap();
+                    zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap()
+                } else {
+                    (changed.clone(), candidate.clone())
+                };
+                let errors = zil_verify::verify_module(module, plan, &target, &limits).unwrap_err();
+                assert!(
+                    errors
+                        .iter()
+                        .any(|d| d.category == ResultCategory::SafeReject),
+                    "owned={owned} attack={attack} Wire={wire}: {errors:?}"
+                );
+            }
+        }
+    }
 }
