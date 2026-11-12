@@ -434,18 +434,19 @@ fn eval(
             let DynTypePattern::Concrete(carrier) = ty.as_ref() else {
                 return Ok(None);
             };
-            if *op == UnaryOp::Negate && carrier.is_integer() {
-                if let DynConstPattern::IntegerLiteral(text) = value.as_ref() {
-                    return parse_integer(text, carrier, target, b, true).and_then(|result| {
-                        if result.ty() == *expected {
-                            Ok(Some(result))
-                        } else {
-                            Err(bad(
-                                "negate expression result differs from original carrier",
-                            ))
-                        }
-                    });
-                }
+            if *op == UnaryOp::Negate
+                && carrier.is_integer()
+                && let DynConstPattern::IntegerLiteral(text) = value.as_ref()
+            {
+                return parse_integer(text, carrier, target, b, true).and_then(|result| {
+                    if result.ty() == *expected {
+                        Ok(Some(result))
+                    } else {
+                        Err(bad(
+                            "negate expression result differs from original carrier",
+                        ))
+                    }
+                });
             }
             let Some(value) = eval(value, carrier, target, b, depth + 1)? else {
                 return Ok(None);
@@ -672,7 +673,12 @@ mod tests {
             value: Box::new(DynConstPattern::FloatLiteral("1.75f32".into())),
             ty: Box::new(DynTypePattern::Concrete(Type::I16)),
         };
-        assert_eq!(eval(&convert, &Type::I16, 64).unwrap(), Constant::I16(1));
+        assert!(eval(&convert, &Type::I16, 64).is_err());
+        let exact = DynConstPattern::Convert {
+            value: Box::new(DynConstPattern::FloatLiteral("1.0f32".into())),
+            ty: Box::new(DynTypePattern::Concrete(Type::I16)),
+        };
+        assert_eq!(eval(&exact, &Type::I16, 64).unwrap(), Constant::I16(1));
         assert!(eval(&DynConstPattern::Value(Constant::U8(1)), &Type::I8, 64).is_err());
         assert!(
             closed(
