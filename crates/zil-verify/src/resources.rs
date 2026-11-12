@@ -655,13 +655,14 @@ impl Slots {
                 closure.kind == CallableKind::FnOnce
                     || inline_sum_owner
                     || closure.captures.iter().any(|ty| {
-                        packages::capture_owner(ty) || matches!(
-                            ty,
-                            Type::Managed(_)
-                                | Type::Package { .. }
-                                | Type::Closure(_)
-                                | Type::OwnedDyn { .. }
-                        )
+                        packages::capture_owner(ty)
+                            || matches!(
+                                ty,
+                                Type::Managed(_)
+                                    | Type::Package { .. }
+                                    | Type::Closure(_)
+                                    | Type::OwnedDyn { .. }
+                            )
                     }),
             );
             borrowed_closures.push(
@@ -2384,7 +2385,6 @@ impl Transfer<'_> {
                             .and_then(|row| row.get(i))
                             .and_then(|bridge| bridge.task_cleanup)
                             != Some(false)
-
                     {
                         tasks::require_synchronous_drop(
                             self.module,
@@ -3394,13 +3394,14 @@ pub(super) fn check_module(
             budget.spend(closure.captures.len())?;
             owning_entry |= closure.kind == CallableKind::FnOnce
                 || closure.captures.iter().any(|ty| {
-                    packages::capture_owner(ty) || matches!(
-                        ty,
-                        Type::Managed(_)
-                            | Type::Package { .. }
-                            | Type::Closure(_)
-                            | Type::OwnedDyn { .. }
-                    )
+                    packages::capture_owner(ty)
+                        || matches!(
+                            ty,
+                            Type::Managed(_)
+                                | Type::Package { .. }
+                                | Type::Closure(_)
+                                | Type::OwnedDyn { .. }
+                        )
                 });
         }
         for function in &module.functions {

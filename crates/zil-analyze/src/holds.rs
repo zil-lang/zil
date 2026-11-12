@@ -371,23 +371,46 @@ fn overlaps(a: &Roots, b: &Roots, budget: &mut Budget) -> CompileResult<bool> {
     budget.product(a.len(), b.len(), 1, "actual storage interval overlap")?;
     Ok(a.iter().any(|a| b.iter().any(|b| root_overlap(*a, *b))))
 }
-fn overlaps_for(f: &TypedFunction, a: &Roots, b: &Roots, budget: &mut Budget) -> CompileResult<bool> {
+fn overlaps_for(
+    f: &TypedFunction,
+    a: &Roots,
+    b: &Roots,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
     budget.product(a.len(), b.len(), 1, "actual mixed storage interval overlap")?;
     for left in a {
         for right in b {
             let (mut left, mut right) = (left.position(), right.position());
             match (left, right) {
                 (Root::Field(local, index), Root::Projection(other, ..))
-                | (Root::Field(local, index), Root::Window(HoldRoot::Local(other), ..)) if local == other => {
-                    left = mixed_root(f, local, &[zil_ir::PlaceProjection::Field(index)], false, budget)?;
+                | (Root::Field(local, index), Root::Window(HoldRoot::Local(other), ..))
+                    if local == other =>
+                {
+                    left = mixed_root(
+                        f,
+                        local,
+                        &[zil_ir::PlaceProjection::Field(index)],
+                        false,
+                        budget,
+                    )?;
                 }
                 (Root::Projection(local, ..), Root::Field(other, index))
-                | (Root::Window(HoldRoot::Local(local), ..), Root::Field(other, index)) if local == other => {
-                    right = mixed_root(f, other, &[zil_ir::PlaceProjection::Field(index)], false, budget)?;
+                | (Root::Window(HoldRoot::Local(local), ..), Root::Field(other, index))
+                    if local == other =>
+                {
+                    right = mixed_root(
+                        f,
+                        other,
+                        &[zil_ir::PlaceProjection::Field(index)],
+                        false,
+                        budget,
+                    )?;
                 }
                 _ => {}
             }
-            if root_overlap(left, right) { return Ok(true); }
+            if root_overlap(left, right) {
+                return Ok(true);
+            }
         }
     }
     Ok(false)
@@ -2231,7 +2254,8 @@ fn infer_with_private(
                             arguments,
                             port_bindings,
                             ..
-                        } | InstructionKind::TaskCreateOwned {
+                        }
+                        | InstructionKind::TaskCreateOwned {
                             arguments,
                             port_bindings,
                             ..
@@ -2298,15 +2322,26 @@ fn infer_with_private(
                                 state.insert(*local, source.clone());
                             }
                         }
-                        InstructionKind::UnpackVariant { local, variant, fields }
-                            if tasks::transfer::outcome_owner(&f.locals[local.0 as usize].ty).is_some() =>
+                        InstructionKind::UnpackVariant {
+                            local,
+                            variant,
+                            fields,
+                        } if tasks::transfer::outcome_owner(&f.locals[local.0 as usize].ty)
+                            .is_some() =>
                         {
-                            budget.spend(fields.len().saturating_add(1), "Task outcome Hold move")?;
+                            budget
+                                .spend(fields.len().saturating_add(1), "Task outcome Hold move")?;
                             let source = state.remove(local).unwrap_or_default();
-                            for target in fields { state.remove(target); }
+                            for target in fields {
+                                state.remove(target);
+                            }
                             if *variant == 0 {
-                                let [target] = fields.as_slice() else { return Err(bad("Task Failed must move exactly one owner")); };
-                                if !source.is_empty() { state.insert(*target,source); }
+                                let [target] = fields.as_slice() else {
+                                    return Err(bad("Task Failed must move exactly one owner"));
+                                };
+                                if !source.is_empty() {
+                                    state.insert(*target, source);
+                                }
                             }
                         }
                         InstructionKind::UnpackVariant { local, fields, .. }
@@ -2389,14 +2424,26 @@ fn infer_with_private(
                                 extend(&mut found, actual, budget)?;
                             }
                         }
-                        InstructionKind::Call { function, arguments }
-                            if instruction.result.is_some_and(|value| matches!(f.values[value.0 as usize], Type::Closure(_))) =>
+                        InstructionKind::Call {
+                            function,
+                            arguments,
+                        } if instruction.result.is_some_and(|value| {
+                            matches!(f.values[value.0 as usize], Type::Closure(_))
+                        }) =>
                         {
-                            if let Some(contract) = &module.functions[function.0 as usize].callable_return_contract {
+                            if let Some(contract) =
+                                &module.functions[function.0 as usize].callable_return_contract
+                            {
                                 if let Some(bindings) = &contract.capture_sources {
                                     for binding in bindings {
                                         for source in &binding.sources {
-                                            extend(&mut found, &factory_source_roots(f, source, arguments, &values, budget)?, budget)?;
+                                            extend(
+                                                &mut found,
+                                                &factory_source_roots(
+                                                    f, source, arguments, &values, budget,
+                                                )?,
+                                                budget,
+                                            )?;
                                         }
                                     }
                                 }
@@ -3677,25 +3724,48 @@ fn factory_source_roots(
     let zil_ir::StorageBase::Parameter(index) = source.base else {
         return Err(bad("returned capture has no actual input source"));
     };
-    let argument = *arguments.get(index as usize).ok_or_else(|| bad("returned capture actual input is absent"))?;
-    budget.spend(source.path.len().saturating_add(values[argument.0 as usize].len()), "returned capture actual source selection")?;
+    let argument = *arguments
+        .get(index as usize)
+        .ok_or_else(|| bad("returned capture actual input is absent"))?;
+    budget.spend(
+        source
+            .path
+            .len()
+            .saturating_add(values[argument.0 as usize].len()),
+        "returned capture actual source selection",
+    )?;
     if source.path.is_empty() {
         return Ok(values[argument.0 as usize].clone());
     }
-    if source.path.iter().any(|step| matches!(step, zil_ir::ContractProjection::Capture(_))) {
+    if source
+        .path
+        .iter()
+        .any(|step| matches!(step, zil_ir::ContractProjection::Capture(_)))
+    {
         // An environment selector is metadata, not an inline pointer offset.
         // Keep the actual argument's conservative dependencies here; exact
         // leaf substitution is reconstructed by the independent stored flow.
         if !matches!(f.values[argument.0 as usize], Type::Closure(_)) {
-            return Err(bad("nested returned source lacks an actual environment input"));
+            return Err(bad(
+                "nested returned source lacks an actual environment input",
+            ));
         }
         return Ok(values[argument.0 as usize].clone());
     }
-    let path = source.path.iter().map(|step| match step {
-        zil_ir::ContractProjection::Place(step) => Ok(*step),
-        _ => Err(bad("returned capture metadata source needs its actual retained-slot transport")),
-    }).collect::<CompileResult<Vec<_>>>()?;
-    values[argument.0 as usize].iter().map(|root| mixed_address_root(f, argument, &path, false, *root, budget)).collect()
+    let path = source
+        .path
+        .iter()
+        .map(|step| match step {
+            zil_ir::ContractProjection::Place(step) => Ok(*step),
+            _ => Err(bad(
+                "returned capture metadata source needs its actual retained-slot transport",
+            )),
+        })
+        .collect::<CompileResult<Vec<_>>>()?;
+    values[argument.0 as usize]
+        .iter()
+        .map(|root| mixed_address_root(f, argument, &path, false, *root, budget))
+        .collect()
 }
 
 fn infer_module_inner(
@@ -4837,7 +4907,9 @@ fn mixed_address_root(
     };
     let root = if let Root::Field(local, index) = root {
         mixed_root(f, local, &[zil_ir::PlaceProjection::Field(index)], false, b)?
-    } else { root };
+    } else {
+        root
+    };
     let (start, end) = mixed_interval(inner, path, header, b)?;
     Ok(match root {
         Root::Local(l) => Root::Projection(l, start, end),

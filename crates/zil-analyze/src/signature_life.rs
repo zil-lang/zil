@@ -544,9 +544,7 @@ fn relation_inner(
                         capture || !self.captured && self.inputs.is_none(),
                     )?;
                 }
-            } else if self.allow_callback
-                && matches!(target, Type::Closure(_))
-            {
+            } else if self.allow_callback && matches!(target, Type::Closure(_)) {
                 let Type::Closure(id) = target else {
                     unreachable!()
                 };

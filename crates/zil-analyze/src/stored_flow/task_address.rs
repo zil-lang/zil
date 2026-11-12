@@ -33,7 +33,8 @@ pub(super) fn operation(kind: &InstructionKind) -> bool {
             | InstructionKind::TakeErrorUnion { .. }
             | InstructionKind::DropErrorUnion { .. }
             | InstructionKind::DropEnum { .. }
-            | InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. }
+            | InstructionKind::TaskCreate { .. }
+            | InstructionKind::TaskCreateOwned { .. }
             | InstructionKind::TaskYield
             | InstructionKind::TaskValid { .. }
             | InstructionKind::TaskPoll { .. }
@@ -267,7 +268,8 @@ pub(super) fn transfer(
             worker,
             arguments,
             port_bindings,
-        } | InstructionKind::TaskCreateOwned {
+        }
+        | InstructionKind::TaskCreateOwned {
             worker,
             arguments,
             port_bindings,

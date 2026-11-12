@@ -1073,14 +1073,7 @@ mod owned_sum_drop_plan_tests {
             assert!(matches!(child,DropPlan::Leaf(name) if name.starts_with("zil.sum.drop.")));
         }
         let recipe = recipe_input();
-        let code = functions(
-            &recipe.as_view(),
-            &limits,
-            true,
-            &[],
-            EntryPoint::None,
-        )
-        .unwrap();
+        let code = functions(&recipe.as_view(), &limits, true, &[], EntryPoint::None).unwrap();
         let text = m::Module {
             triple: "x86_64-unknown-linux-gnu".into(),
             fingerprint: String::new(),
@@ -1223,7 +1216,9 @@ mod owned_sum_drop_plan_tests {
         assert!(functions(&owning.as_view(), &limits, true, &[], EntryPoint::None).is_ok());
         limits.max_analysis_steps = new_n - 1;
         assert_eq!(
-            functions(&owning.as_view(), &limits, true, &[], EntryPoint::None).err().expect("below-bound drop plan must reject")[0]
+            functions(&owning.as_view(), &limits, true, &[], EntryPoint::None)
+                .err()
+                .expect("below-bound drop plan must reject")[0]
                 .category,
             zil_base::ResultCategory::ResourceLimit
         );

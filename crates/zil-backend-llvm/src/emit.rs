@@ -1966,7 +1966,8 @@ impl FunctionEmitter<'_> {
             | InstructionKind::RegistrationClose { .. } => {
                 self.registration_instruction(instruction)?
             }
-            InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. }
+            InstructionKind::TaskCreate { .. }
+            | InstructionKind::TaskCreateOwned { .. }
             | InstructionKind::TaskStart { .. }
             | InstructionKind::TaskYield
             | InstructionKind::SuspendCall { .. }

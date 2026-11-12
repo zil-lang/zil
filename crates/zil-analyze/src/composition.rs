@@ -146,7 +146,8 @@ pub(super) fn partition(module: &TypedModule, b: &mut Budget) -> CompileResult<V
                     }
                     | InstructionKind::TaskCreate {
                         worker: function, ..
-                    } | InstructionKind::TaskCreateOwned {
+                    }
+                    | InstructionKind::TaskCreateOwned {
                         worker: function, ..
                     } => [Some(*function), None, None],
                     InstructionKind::WithForeignCallback {

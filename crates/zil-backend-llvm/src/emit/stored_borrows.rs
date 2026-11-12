@@ -469,7 +469,8 @@ pub(super) fn reserve_binding(
                         arguments,
                         port_bindings,
                         ..
-                    } | InstructionKind::TaskCreateOwned {
+                    }
+                    | InstructionKind::TaskCreateOwned {
                         arguments,
                         port_bindings,
                         ..

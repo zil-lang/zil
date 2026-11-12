@@ -7,7 +7,8 @@ pub(super) fn owns(definition: &ClosureDefinition) -> bool {
         matches!(
             ty,
             Type::Managed(_) | Type::Closure(_) | Type::OwnedDyn { .. }
-        ) || packages::physical_package(ty).is_some() || drop_plan::owned_sum(ty)
+        ) || packages::physical_package(ty).is_some()
+            || drop_plan::owned_sum(ty)
     })
 }
 
@@ -27,7 +28,8 @@ pub(super) fn flag_count(ty: &Type) -> usize {
             1 + fields
                 .iter()
                 .filter(|(_, ty)| {
-                    matches!(ty, Type::Managed(_)) || packages::physical_package(ty).is_some()
+                    matches!(ty, Type::Managed(_))
+                        || packages::physical_package(ty).is_some()
                         || drop_plan::owned_sum(ty)
                 })
                 .count()
@@ -253,7 +255,8 @@ pub(super) fn drop_functions(
                 Type::Package { fields, .. } => {
                     let mut offset = 1;
                     for (field, (_, ty)) in fields.iter().enumerate() {
-                        if !matches!(ty, Type::Managed(_)) && packages::physical_package(ty).is_none()
+                        if !matches!(ty, Type::Managed(_))
+                            && packages::physical_package(ty).is_none()
                             && !drop_plan::owned_sum(ty)
                         {
                             continue;
@@ -428,7 +431,9 @@ impl FunctionEmitter<'_> {
             .expect("verified Package environment");
         let definition = self.closure_definition(environment)?;
         let flag = flag_index(definition, index);
-        let Some(Type::Package { fields, .. }) = packages::physical_package(&definition.captures[index as usize]) else {
+        let Some(Type::Package { fields, .. }) =
+            packages::physical_package(&definition.captures[index as usize])
+        else {
             return invalid(
                 "E-CODEGEN-CFG",
                 "Package view has no matching capture",
@@ -439,8 +444,10 @@ impl FunctionEmitter<'_> {
             .iter()
             .enumerate()
             .filter_map(|(field, (_, ty))| {
-                (matches!(ty, Type::Managed(_)) || packages::physical_package(ty).is_some() || drop_plan::owned_sum(ty))
-                    .then_some(field)
+                (matches!(ty, Type::Managed(_))
+                    || packages::physical_package(ty).is_some()
+                    || drop_plan::owned_sum(ty))
+                .then_some(field)
             })
             .collect::<Vec<_>>();
         let env = environment_type(environment);

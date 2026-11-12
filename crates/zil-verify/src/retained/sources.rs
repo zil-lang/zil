@@ -747,7 +747,11 @@ fn borrowed_envelope(
         || (!parameter && f.callable_contract.is_some())
         || f.result_mode != PassingMode::Infer
         || c.closure != id
-        || if parameter { !closures::supports(definition.kind, c.kind) } else { c.kind != definition.kind }
+        || if parameter {
+            !closures::supports(definition.kind, c.kind)
+        } else {
+            c.kind != definition.kind
+        }
         || c.lending_captures != definition.lending_captures
     {
         return Err(invalid(
@@ -755,17 +759,17 @@ fn borrowed_envelope(
         ));
     }
     if !parameter {
-    let mut input_closure = None;
-    for local in &f.parameters {
-        budget.spend(1)?;
-        if let Type::Closure(input) = f.locals[local.0 as usize].ty
-            && (input == id || input_closure.replace(input).is_some())
-        {
-            return Err(invalid(
-                "fresh callable factory requires one distinct grounded input environment",
-            ));
+        let mut input_closure = None;
+        for local in &f.parameters {
+            budget.spend(1)?;
+            if let Type::Closure(input) = f.locals[local.0 as usize].ty
+                && (input == id || input_closure.replace(input).is_some())
+            {
+                return Err(invalid(
+                    "fresh callable factory requires one distinct grounded input environment",
+                ));
+            }
         }
-    }
     }
     let (mut hold, mut call, mut writes) = (BTreeSet::new(), BTreeSet::new(), BTreeSet::new());
     for leaf in leaves {

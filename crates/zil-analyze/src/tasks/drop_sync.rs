@@ -422,7 +422,8 @@ fn infer_origins(
                     continue;
                 }
                 let origin = match &i.kind {
-                    InstructionKind::TaskCreate { worker, .. } | InstructionKind::TaskCreateOwned { worker, .. }
+                    InstructionKind::TaskCreate { worker, .. }
+                    | InstructionKind::TaskCreateOwned { worker, .. }
                     | InstructionKind::TaskStart { worker, .. } => Origins {
                         unknown: false,
                         vacant: false,
@@ -599,7 +600,8 @@ fn require_workers(
                     | InstructionKind::ForeignFunctionRef { function }
                     | InstructionKind::TaskCreate {
                         worker: function, ..
-                    } | InstructionKind::TaskCreateOwned {
+                    }
+                    | InstructionKind::TaskCreateOwned {
                         worker: function, ..
                     }
                     | InstructionKind::TaskStart {

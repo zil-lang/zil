@@ -4009,12 +4009,17 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             worker,
             arguments,
             port_bindings,
-        } | InstructionKind::TaskCreateOwned {
+        }
+        | InstructionKind::TaskCreateOwned {
             worker,
             arguments,
             port_bindings,
         } => {
-            b.push(if matches!(i,InstructionKind::TaskCreateOwned{..}) {151} else {128});
+            b.push(if matches!(i, InstructionKind::TaskCreateOwned { .. }) {
+                151
+            } else {
+                128
+            });
             encode_u32(b, worker.0);
             encode_len(b, arguments.len());
             for argument in arguments {

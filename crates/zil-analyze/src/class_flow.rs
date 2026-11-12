@@ -937,7 +937,8 @@ fn check_with(
                     arguments,
                     port_bindings,
                     ..
-                } | InstructionKind::TaskCreateOwned {
+                }
+                | InstructionKind::TaskCreateOwned {
                     arguments,
                     port_bindings,
                     ..
@@ -1012,16 +1013,25 @@ fn check_with(
                         )?;
                     }
                 }
-                InstructionKind::BindPackageCapture { local, index } | InstructionKind::EndPackageCapture { local, index }
+                InstructionKind::BindPackageCapture { local, index }
+                | InstructionKind::EndPackageCapture { local, index }
                     if !captures.is_empty() =>
                 {
-                    let actual=captures.get(*index as usize).ok_or_else(||bad("captured view class index absent"))?;
-                    array_outer::copy(&mut e, &locals[local.0 as usize], actual, outer.as_ref(), b)?;
+                    let actual = captures
+                        .get(*index as usize)
+                        .ok_or_else(|| bad("captured view class index absent"))?;
+                    array_outer::copy(
+                        &mut e,
+                        &locals[local.0 as usize],
+                        actual,
+                        outer.as_ref(),
+                        b,
+                    )?;
                 }
                 InstructionKind::TakeLocal { local }
-                    if matches!(&f.locals[local.0 as usize].ty,Type::BorrowedStorage{..})
+                    if matches!(&f.locals[local.0 as usize].ty, Type::BorrowedStorage { .. })
                         || (b.task_borrowed_results
-                        && !locals[local.0 as usize].task_ports.is_empty())
+                            && !locals[local.0 as usize].task_ports.is_empty())
                         || super::stored_callables::fixed_value(
                             module,
                             &f.locals[local.0 as usize].ty,
@@ -1080,8 +1090,13 @@ fn check_with(
                     b,
                 )?,
                 InstructionKind::BorrowPackageField { .. }
-                    if super::stored_flow::ordinary_package_borrow(f, i, b)? => {
-                    if let Some(out) = out && let Some(outer) = out.outer { e.address_origin(outer,b)?; }
+                    if super::stored_flow::ordinary_package_borrow(f, i, b)? =>
+                {
+                    if let Some(out) = out
+                        && let Some(outer) = out.outer
+                    {
+                        e.address_origin(outer, b)?;
+                    }
                 }
                 InstructionKind::BorrowPlaceLocal { .. }
                     if super::stored_flow::ordinary_error_borrow(f, i, b)? =>

@@ -312,9 +312,10 @@ pub(super) fn check_definitions(
                     if let Type::BorrowedStorage { life, .. } = ty {
                         budget.spend(life.slots.len())?;
                         if closure.kind == CallableKind::Fn
-                            && life.slots.iter().any(|slot| {
-                                slot.mode == StoredBorrowMode::ExclusiveAddress
-                            })
+                            && life
+                                .slots
+                                .iter()
+                                .any(|slot| slot.mode == StoredBorrowMode::ExclusiveAddress)
                         {
                             return Err(reject(
                                 "E-VERIFY-CLOSURE-CALL",
@@ -807,10 +808,14 @@ pub(super) fn owned_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -
     }
     Ok(definition.kind == CallableKind::FnOnce
         || definition.captures.iter().any(|ty| {
-            packages::capture_owner(ty) || matches!(
-                ty,
-                Type::Managed(_) | Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. }
-            )
+            packages::capture_owner(ty)
+                || matches!(
+                    ty,
+                    Type::Managed(_)
+                        | Type::Package { .. }
+                        | Type::Closure(_)
+                        | Type::OwnedDyn { .. }
+                )
         }))
 }
 

@@ -1318,9 +1318,14 @@ impl<'a> Engine<'a> {
         allow_store_template: bool,
     ) -> R<store_templates::Instantiation> {
         if template == options::TASK_THREAD_SCOPE {
-            for actual in &arguments {self.budget.ty(actual)?;}
+            for actual in &arguments {
+                self.budget.ty(actual)?;
+            }
             if !matches!(arguments.as_slice(),[actual] if options::thread_owner_syntax(actual)) {
-                return Err(error(span,"TaskThreadScopeResult requires one whole Managed<Task> owner"));
+                return Err(error(
+                    span,
+                    "TaskThreadScopeResult requires one whole Managed<Task> owner",
+                ));
             }
         }
         let item = self
@@ -1419,7 +1424,10 @@ impl<'a> Engine<'a> {
         // original actual separately and authenticates it from the Call.
         let mut source_arguments = None;
         let mut class_keys: Option<Vec<Option<String>>> = None;
-        if self.stored_nominals && !self.life_scope.is_empty() && template != options::TASK_THREAD_SCOPE {
+        if self.stored_nominals
+            && !self.life_scope.is_empty()
+            && template != options::TASK_THREAD_SCOPE
+        {
             let mut qualified = false;
             for actual in &arguments {
                 if self.qualified_actual_syntax(actual, 0)? {

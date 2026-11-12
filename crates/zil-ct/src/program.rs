@@ -325,7 +325,8 @@ pub fn evaluate_program(program: &VerifiedCTProgram) -> CompileResult<ProgramEva
                         "defer is forbidden during compile-time execution",
                     )]);
                 }
-                InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. }
+                InstructionKind::TaskCreate { .. }
+                | InstructionKind::TaskCreateOwned { .. }
                 | InstructionKind::TaskStart { .. }
                 | InstructionKind::TaskYield
                 | InstructionKind::SuspendCall { .. }

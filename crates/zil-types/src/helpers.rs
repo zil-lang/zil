@@ -889,9 +889,11 @@ impl Builder<'_, '_> {
                 self.require_state_kind(argument, None, closure, bound.kind)?;
                 self.factory_require_value(value, bound.kind, argument.span)?;
                 if owned_factory || forward.is_some() && !bound.closed_environment {
-                    self.closures.factory_transportable(closure, argument.span)?;
+                    self.closures
+                        .factory_transportable(closure, argument.span)?;
                 } else if bound.closed_environment {
-                    self.closures.factory_self_contained(closure, argument.span)?;
+                    self.closures
+                        .factory_self_contained(closure, argument.span)?;
                 }
                 if forward == Some(index as u32) {
                     returned_mode = self
@@ -1447,9 +1449,12 @@ impl Builder<'_, '_> {
                 .filter_map(|(index, capture)| {
                     // Self containment was checked at the input boundary.
                     // Classify borrowed fields without cloning their type tree.
-                    ((matches!(capture.ty, Type::Managed(_) | Type::OwnedDyn { .. }) && capture.moved)
-                        || (matches!(stored::physical(&capture.ty), Type::Package { .. } | Type::Closure(_))
-                            && !capture.borrowed))
+                    ((matches!(capture.ty, Type::Managed(_) | Type::OwnedDyn { .. })
+                        && capture.moved)
+                        || (matches!(
+                            stored::physical(&capture.ty),
+                            Type::Package { .. } | Type::Closure(_)
+                        ) && !capture.borrowed))
                         .then_some(index as u32)
                 })
                 .collect();

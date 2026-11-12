@@ -113,15 +113,22 @@ pub(super) fn capture_views(
                 | InstructionKind::BorrowLocalMut { local }
                     if views.capture(local).is_some() =>
                 {
-                    if !matches!(function.locals[local.0 as usize].ty, Type::BorrowedStorage { .. }) {
+                    if !matches!(
+                        function.locals[local.0 as usize].ty,
+                        Type::BorrowedStorage { .. }
+                    ) {
                         return Err(bad("Package capture views cannot expose a local address"));
                     }
                     // The view is a unique, bounded activation alias of this
                     // checked capture. Its stored leaves retain Capture roots;
                     // the temporary head cannot outlive End or escape Return.
                     if matches!(instruction.kind, InstructionKind::BorrowLocalMut { .. })
-                        && closures::definition(module, environment, Some(function.span))?.kind == CallableKind::Fn {
-                        return Err(bad("shared Fn cannot exclusively address its owning capture view"));
+                        && closures::definition(module, environment, Some(function.span))?.kind
+                            == CallableKind::Fn
+                    {
+                        return Err(bad(
+                            "shared Fn cannot exclusively address its owning capture view",
+                        ));
                     }
                 }
                 _ => {}

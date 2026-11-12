@@ -772,10 +772,22 @@ fn check_module(
                 ));
             }
         }
-        if let Some(foreign)=&function.foreign
+        if let Some(foreign) = &function.foreign
             && foreign.thread_driver_transfer
-            && !matches!(foreign.scoped_callback,Some(ScopedCallbackRole::ThreadAsyncRegister|ScopedCallbackRole::ThreadAsyncRequestClose|ScopedCallbackRole::ThreadAsyncPollDrain)) {
-            return Err(reject("E-VERIFY-TASK-TRANSFER",Some(function.span),"unsafe driver transfer promise lacks actual threaded provider role"));
+            && !matches!(
+                foreign.scoped_callback,
+                Some(
+                    ScopedCallbackRole::ThreadAsyncRegister
+                        | ScopedCallbackRole::ThreadAsyncRequestClose
+                        | ScopedCallbackRole::ThreadAsyncPollDrain
+                )
+            )
+        {
+            return Err(reject(
+                "E-VERIFY-TASK-TRANSFER",
+                Some(function.span),
+                "unsafe driver transfer promise lacks actual threaded provider role",
+            ));
         }
         budget.protocol_contracts |= function.protocol_contract.is_some();
         if let Some(contract) = &function.storage_life {
@@ -2510,7 +2522,8 @@ fn check_instruction(
             registration::instruction(module, function, instruction, budget)?
         }
         InstructionKind::TaskStart { .. }
-        | InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. }
+        | InstructionKind::TaskCreate { .. }
+        | InstructionKind::TaskCreateOwned { .. }
         | InstructionKind::TaskYield
         | InstructionKind::SuspendCall { .. }
         | InstructionKind::TaskValid { .. }
@@ -3590,11 +3603,15 @@ fn check_instruction(
                     "capture index is outside the entry environment",
                 )
             })?;
-            if packages::capture_owner(ty) || matches!(
-                ty,
-                Type::Managed(_) | Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. }
-            ) || (budget.inline_store_root(ty)?
-                && dynamic_store::inline_sum_capture(ty, budget)?)
+            if packages::capture_owner(ty)
+                || matches!(
+                    ty,
+                    Type::Managed(_)
+                        | Type::Package { .. }
+                        | Type::Closure(_)
+                        | Type::OwnedDyn { .. }
+                )
+                || (budget.inline_store_root(ty)? && dynamic_store::inline_sum_capture(ty, budget)?)
             {
                 return Err(reject(
                     "E-VERIFY-CAPTURE",
@@ -4053,7 +4070,8 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         InstructionKind::RegistrationValid { registration }
         | InstructionKind::RegistrationClose { registration } => ([Some(*registration), None], &[]),
         InstructionKind::TaskStart { argument, .. } => ([Some(*argument), None], &[]),
-        InstructionKind::TaskCreate { arguments, .. } | InstructionKind::TaskCreateOwned { arguments, .. } => ([None, None], arguments),
+        InstructionKind::TaskCreate { arguments, .. }
+        | InstructionKind::TaskCreateOwned { arguments, .. } => ([None, None], arguments),
         InstructionKind::TaskValid { task }
         | InstructionKind::TaskPoll { task }
         | InstructionKind::TaskRequestCancel { task }

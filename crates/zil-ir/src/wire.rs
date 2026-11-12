@@ -1694,12 +1694,19 @@ impl<'a> Writer<'a> {
                 worker,
                 arguments,
                 port_bindings,
-            } | InstructionKind::TaskCreateOwned {
+            }
+            | InstructionKind::TaskCreateOwned {
                 worker,
                 arguments,
                 port_bindings,
             } => {
-                self.u8(if matches!(instruction.kind,InstructionKind::TaskCreateOwned{..}) {151} else {128})?;
+                self.u8(
+                    if matches!(instruction.kind, InstructionKind::TaskCreateOwned { .. }) {
+                        151
+                    } else {
+                        128
+                    },
+                )?;
                 self.u32(worker.0)?;
                 self.count(arguments.len(), self.limits.max_values)?;
                 for argument in arguments {
@@ -4549,7 +4556,7 @@ impl<'a> Reader<'a> {
                     arguments,
                 }
             }
-            tag @ (128|151) => {
+            tag @ (128 | 151) => {
                 let worker = FunctionId(self.u32()?);
                 let count = self.count(self.limits.max_values, 4)?;
                 let mut arguments = Vec::with_capacity(count);
@@ -4561,7 +4568,19 @@ impl<'a> Reader<'a> {
                 for _ in 0..count {
                     port_bindings.push(self.retained_port_binding()?);
                 }
-                if tag==151 {InstructionKind::TaskCreateOwned{worker,arguments,port_bindings}} else {InstructionKind::TaskCreate{worker,arguments,port_bindings}}
+                if tag == 151 {
+                    InstructionKind::TaskCreateOwned {
+                        worker,
+                        arguments,
+                        port_bindings,
+                    }
+                } else {
+                    InstructionKind::TaskCreate {
+                        worker,
+                        arguments,
+                        port_bindings,
+                    }
+                }
             }
             100 => InstructionKind::TaskYield,
             101 => InstructionKind::TaskValid {

@@ -262,8 +262,10 @@ pub(super) fn captured_profile(d: &ClosureDefinition, b: &mut Budget) -> Check<(
     }
     for ty in &d.captures {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
-        if !(shared_input(ty) || super::stored_owned::owner(ty)
-            || matches!(ty, Type::BorrowedStorage { .. }) && packages::capture_owner(ty)) {
+        if !(shared_input(ty)
+            || super::stored_owned::owner(ty)
+            || matches!(ty, Type::BorrowedStorage { .. }) && packages::capture_owner(ty))
+        {
             return Err(unsupported(
                 "captured Fixed requires shared/scalar captures or a finite class-free genuine Once owner",
                 None,

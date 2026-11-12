@@ -148,7 +148,8 @@ fn transfer(
             arguments,
             port_bindings,
             ..
-        } | InstructionKind::TaskCreateOwned {
+        }
+        | InstructionKind::TaskCreateOwned {
             arguments,
             port_bindings,
             ..

@@ -332,7 +332,9 @@ pub fn transport(
     for _ in 0..count {
         for (position, fields) in w.function()? {
             insertions.push((position, fields));
-            added = added.checked_add(fields.len()).ok_or("fixture output overflow")?;
+            added = added
+                .checked_add(fields.len())
+                .ok_or("fixture output overflow")?;
         }
     }
     let length = bytes

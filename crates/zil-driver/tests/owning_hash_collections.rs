@@ -1110,7 +1110,8 @@ fn complete_owning_hash_consumer_keeps_default_and_exact_fresh_kernel_budgets() 
 
 #[test]
 fn every_integer_width_text_conversion_checks_its_range_and_roundtrips() {
-    run(r#"
+    run(
+        r#"
 import std.int
 fn main()->i32 {
     match int.parse_u32("4294967295") {.err(_)=>{return 1},.ok(value)=>{if value!=4294967295u32{return 2}}}
@@ -1133,5 +1134,7 @@ fn main()->i32 {
     match int.parse_isize("9223372036854775808") {.err(_)=>{},.ok(_)=>{return 20}}
     return 0
 }
-"#,"all-integer-widths");
+"#,
+        "all-integer-widths",
+    );
 }

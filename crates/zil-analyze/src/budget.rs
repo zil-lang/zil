@@ -1518,12 +1518,16 @@ pub(super) fn preflight(
         }
 
         for ty in &closure.captures {
-            if matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. })) {
+            if matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
+            {
                 super::stored_flow::qualification(module, ty, limits, budget)?;
                 super::resources::product::admit_owned(module, ty, budget)?;
                 if closure.kind == zil_ir::CallableKind::Fn
-                    && matches!(ty, Type::BorrowedStorage { life, .. } if life.slots.iter().any(|slot| slot.mode == zil_ir::StoredBorrowMode::ExclusiveAddress)) {
-                    return Err(bad("exclusive stored capture requires an exclusive environment entry"));
+                    && matches!(ty, Type::BorrowedStorage { life, .. } if life.slots.iter().any(|slot| slot.mode == zil_ir::StoredBorrowMode::ExclusiveAddress))
+                {
+                    return Err(bad(
+                        "exclusive stored capture requires an exclusive environment entry",
+                    ));
                 }
                 continue;
             }
@@ -1532,7 +1536,6 @@ pub(super) fn preflight(
                 continue;
             }
             if matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. }))
-
             {
                 return Err(bad(
                     "owned dyn error capture requires a selected whole owner",
@@ -1849,14 +1852,28 @@ pub(super) fn preflight(
                 )?;
                 let mut pending = vec![contract.closure];
                 while let Some(id) = pending.pop() {
-                    budget.input(budget.returned_borrowed_environments.len().saturating_add(1),
-                        "returned environment child transport schedule")?;
-                    if !budget.returned_borrowed_environments.insert(id) { continue; }
-                    let definition = module.closures.get(id.0 as usize)
+                    budget.input(
+                        budget
+                            .returned_borrowed_environments
+                            .len()
+                            .saturating_add(1),
+                        "returned environment child transport schedule",
+                    )?;
+                    if !budget.returned_borrowed_environments.insert(id) {
+                        continue;
+                    }
+                    let definition = module
+                        .closures
+                        .get(id.0 as usize)
                         .ok_or_else(|| bad("returned environment child definition absent"))?;
-                    budget.input(definition.captures.len(), "returned environment actual child edges")?;
+                    budget.input(
+                        definition.captures.len(),
+                        "returned environment actual child edges",
+                    )?;
                     for capture in &definition.captures {
-                        if let Type::Closure(child) = capture { pending.push(*child); }
+                        if let Type::Closure(child) = capture {
+                            pending.push(*child);
+                        }
                     }
                 }
             }
@@ -1958,8 +1975,19 @@ pub(super) fn preflight(
             }
         }
         if let Some(foreign) = &function.foreign {
-            if foreign.thread_driver_transfer && !matches!(foreign.scoped_callback,Some(zil_ir::ScopedCallbackRole::ThreadAsyncRegister|zil_ir::ScopedCallbackRole::ThreadAsyncRequestClose|zil_ir::ScopedCallbackRole::ThreadAsyncPollDrain)) {
-                return Err(bad("foreign driver transfer promise has no threaded registration role"));
+            if foreign.thread_driver_transfer
+                && !matches!(
+                    foreign.scoped_callback,
+                    Some(
+                        zil_ir::ScopedCallbackRole::ThreadAsyncRegister
+                            | zil_ir::ScopedCallbackRole::ThreadAsyncRequestClose
+                            | zil_ir::ScopedCallbackRole::ThreadAsyncPollDrain
+                    )
+                )
+            {
+                return Err(bad(
+                    "foreign driver transfer promise has no threaded registration role",
+                ));
             }
             if foreign.scoped_callback.is_some() {
                 budget.input(1, "scoped foreign role")?;
@@ -2171,7 +2199,8 @@ pub(super) fn preflight(
                             return Err(bad("Suspend child operand outside actual tables"));
                         }
                     }
-                    InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. }
+                    InstructionKind::TaskCreate { .. }
+                    | InstructionKind::TaskCreateOwned { .. }
                     | InstructionKind::TaskStart { .. }
                     | InstructionKind::TaskYield
                     | InstructionKind::TaskValid { .. }

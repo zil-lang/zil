@@ -168,7 +168,10 @@ fn spend(work: &mut usize, count: usize, span: Span) -> R<()> {
 }
 
 pub(super) fn self_contained(
-    closures: &[closures::Pending], root: ClosureId, work: &mut usize, span: Span,
+    closures: &[closures::Pending],
+    root: ClosureId,
+    work: &mut usize,
+    span: Span,
 ) -> R<()> {
     environment_shape(closures, root, work, span, false)
 }
@@ -176,12 +179,18 @@ pub(super) fn self_contained(
 /// Source-side formation only. Escaping leaves still require actual CFG source
 /// proposals and independent kernel proofs; this grants no closed capability.
 pub(super) fn transportable(
-    closures: &[closures::Pending], root: ClosureId, work: &mut usize, span: Span,
+    closures: &[closures::Pending],
+    root: ClosureId,
+    work: &mut usize,
+    span: Span,
 ) -> R<()> {
     environment_shape(closures, root, work, span, true)
 }
 fn environment_shape(
-    closures: &[closures::Pending], root: ClosureId, work: &mut usize, span: Span,
+    closures: &[closures::Pending],
+    root: ClosureId,
+    work: &mut usize,
+    span: Span,
     borrowed_leaves: bool,
 ) -> R<()> {
     let mut seen = BTreeSet::new();
@@ -201,7 +210,8 @@ fn environment_shape(
         spend(work, closure.captures.len(), span)?;
         for capture in &closure.captures {
             if !borrowed_leaves
-                && (capture.borrowed || (matches!(capture.ty, Type::Managed(_)) && !capture.moved)) {
+                && (capture.borrowed || (matches!(capture.ty, Type::Managed(_)) && !capture.moved))
+            {
                 return Err(unsupported(
                     span,
                     "retained callable environments cannot capture borrowed positions or descriptions",
@@ -227,26 +237,38 @@ fn environment_shape(
 }
 
 pub(super) fn transported_borrows(
-    closures: &[closures::Pending], root: ClosureId, work: &mut usize, span: Span,
+    closures: &[closures::Pending],
+    root: ClosureId,
+    work: &mut usize,
+    span: Span,
 ) -> R<(bool, bool)> {
     let mut todo = vec![root];
     let mut seen = BTreeSet::new();
     let (mut external, mut writes) = (false, false);
     while let Some(id) = todo.pop() {
         spend(work, seen.len().saturating_add(1), span)?;
-        if !seen.insert(id) { continue; }
-        let closure = closures.get(id.0 as usize)
+        if !seen.insert(id) {
+            continue;
+        }
+        let closure = closures
+            .get(id.0 as usize)
             .ok_or_else(|| unsupported(span, "nested capture definition absent"))?;
         spend(work, closure.captures.len(), span)?;
         for capture in &closure.captures {
-            if let Type::Closure(child) = capture.ty { todo.push(child); }
+            if let Type::Closure(child) = capture.ty {
+                todo.push(child);
+            }
             let leaf = capture.borrowed
-                || matches!(capture.ty, Type::Address { .. } | Type::Desc(_) | Type::BorrowedStorage { .. })
+                || matches!(
+                    capture.ty,
+                    Type::Address { .. } | Type::Desc(_) | Type::BorrowedStorage { .. }
+                )
                 || matches!(capture.ty, Type::Managed(_)) && !capture.moved;
             external |= leaf;
-            writes |= leaf && (capture.written
-                || matches!(capture.ty, Type::Desc(_))
-                || matches!(capture.ty, Type::Address { mutable: true, .. }) && capture.moved);
+            writes |= leaf
+                && (capture.written
+                    || matches!(capture.ty, Type::Desc(_))
+                    || matches!(capture.ty, Type::Address { mutable: true, .. }) && capture.moved);
         }
     }
     Ok((external, writes))
@@ -736,11 +758,17 @@ impl Builder<'_, '_> {
             }
         }
         for index in 0..self.closures.pending[id.0 as usize].captures.len() {
-            if let Type::BorrowedStorage { life, .. } = &self.closures.pending[id.0 as usize].captures[index].ty
+            if let Type::BorrowedStorage { life, .. } =
+                &self.closures.pending[id.0 as usize].captures[index].ty
                 && !life.slots.is_empty()
             {
                 hold.push(index as u32);
-                if life.slots.iter().any(|slot|matches!(slot.mode, StoredBorrowMode::ExclusiveAddress | StoredBorrowMode::WritableDescription)) {
+                if life.slots.iter().any(|slot| {
+                    matches!(
+                        slot.mode,
+                        StoredBorrowMode::ExclusiveAddress | StoredBorrowMode::WritableDescription
+                    )
+                }) {
                     writes.push(index as u32);
                 }
             }
@@ -755,7 +783,9 @@ impl Builder<'_, '_> {
             let (external, mutable) = self.closures.transported_borrows(child, span)?;
             if external {
                 hold.push(index as u32);
-                if mutable { writes.push(index as u32); }
+                if mutable {
+                    writes.push(index as u32);
+                }
             }
         }
         if let Some(previous) = &self.function.callable_return_contract

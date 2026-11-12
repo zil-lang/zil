@@ -460,7 +460,8 @@ fn action_key(
             for instruction in &block.instructions {
                 let callee = match &instruction.kind {
                     InstructionKind::Call { function, .. } => Some(function),
-                    InstructionKind::TaskCreate { worker, .. } | InstructionKind::TaskCreateOwned { worker, .. }
+                    InstructionKind::TaskCreate { worker, .. }
+                    | InstructionKind::TaskCreateOwned { worker, .. }
                     | InstructionKind::TaskStart { worker, .. }
                     | InstructionKind::WithScopedThread { worker, .. } => Some(worker),
                     _ => None,

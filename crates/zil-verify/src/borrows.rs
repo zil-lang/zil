@@ -178,15 +178,31 @@ fn local_transfer(
                 state.insert(local, source.clone());
             }
         }
-        InstructionKind::UnpackVariant { local, variant, ref fields }
-            if tasks::transfer::outcome_owner(&f.locals[local.0 as usize].ty).is_some() =>
-        {
-            budget.spend(fields.len().saturating_add(state.get(&local).map_or(0,|s|s.len())))?;
-            let source=state.remove(&local).unwrap_or_default();
-            for target in fields {state.remove(target);}
-            if variant==0 {
-                let [target]=fields.as_slice() else{return Err(reject("E-VERIFY-TASK-PORT",Some(instruction.span),"Task failure transports one owning field"));};
-                if !source.is_empty(){state.insert(*target,source);}
+        InstructionKind::UnpackVariant {
+            local,
+            variant,
+            ref fields,
+        } if tasks::transfer::outcome_owner(&f.locals[local.0 as usize].ty).is_some() => {
+            budget.spend(
+                fields
+                    .len()
+                    .saturating_add(state.get(&local).map_or(0, |s| s.len())),
+            )?;
+            let source = state.remove(&local).unwrap_or_default();
+            for target in fields {
+                state.remove(target);
+            }
+            if variant == 0 {
+                let [target] = fields.as_slice() else {
+                    return Err(reject(
+                        "E-VERIFY-TASK-PORT",
+                        Some(instruction.span),
+                        "Task failure transports one owning field",
+                    ));
+                };
+                if !source.is_empty() {
+                    state.insert(*target, source);
+                }
             }
         }
         InstructionKind::TakeLocal { local }
@@ -197,7 +213,9 @@ fn local_transfer(
             lookup(budget, state.len())?;
             state.remove(&local);
         }
-        InstructionKind::DropManaged { local } | InstructionKind::DropErrorUnion { local } | InstructionKind::DropEnum { local }
+        InstructionKind::DropManaged { local }
+        | InstructionKind::DropErrorUnion { local }
+        | InstructionKind::DropEnum { local }
             if budget.borrowed_task_ports =>
         {
             lookup(budget, state.len())?;
@@ -792,7 +810,8 @@ fn reconstruct(
                                 arguments,
                                 port_bindings,
                                 ..
-                            } | InstructionKind::TaskCreateOwned {
+                            }
+                            | InstructionKind::TaskCreateOwned {
                                 arguments,
                                 port_bindings,
                                 ..

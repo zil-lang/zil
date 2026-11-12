@@ -3509,7 +3509,11 @@ impl Flow<'_> {
                                 )?;
                             }
                         }
-                    } else if callee.callable_return_contract.as_ref().is_none_or(|c| c.capture_sources.as_ref().is_some_and(|sources| !sources.is_empty())) {
+                    } else if callee.callable_return_contract.as_ref().is_none_or(|c| {
+                        c.capture_sources
+                            .as_ref()
+                            .is_some_and(|sources| !sources.is_empty())
+                    }) {
                         // Callable helpers and self-contained factory callers
                         // consume only their public envelopes. Factory inputs
                         // cannot carry an external description or address.

@@ -1654,11 +1654,31 @@ impl Resolver<'_> {
             {
                 self.nominal_type(name, depth, span)?
             }
-            Type::Package{name,fields} | Type::Record{name,fields} if name.starts_with("@std.task:v1:TaskCreateFailure:") => {
-                let [(reason,_),(inputs,ty)]=fields.as_slice() else{return Err(error("E-TASK-CREATE-FAILURE",span,"TaskCreateFailure requires reason and complete inputs"));};
-                if reason!="reason" || inputs!="inputs" {return Err(error("E-TASK-CREATE-FAILURE",span,"TaskCreateFailure field selectors differ"));}
-                let inputs=self.ty(ty,depth+1,span)?;
-                if !matches!(inputs,Type::Tuple(_)) {return Err(error("E-TASK-CREATE-FAILURE",span,"TaskCreateFailure inputs must be an ordered Tuple"));}
+            Type::Package { name, fields } | Type::Record { name, fields }
+                if name.starts_with("@std.task:v1:TaskCreateFailure:") =>
+            {
+                let [(reason, _), (inputs, ty)] = fields.as_slice() else {
+                    return Err(error(
+                        "E-TASK-CREATE-FAILURE",
+                        span,
+                        "TaskCreateFailure requires reason and complete inputs",
+                    ));
+                };
+                if reason != "reason" || inputs != "inputs" {
+                    return Err(error(
+                        "E-TASK-CREATE-FAILURE",
+                        span,
+                        "TaskCreateFailure field selectors differ",
+                    ));
+                }
+                let inputs = self.ty(ty, depth + 1, span)?;
+                if !matches!(inputs, Type::Tuple(_)) {
+                    return Err(error(
+                        "E-TASK-CREATE-FAILURE",
+                        span,
+                        "TaskCreateFailure inputs must be an ordered Tuple",
+                    ));
+                }
                 tasks::create_failure(inputs)
             }
             ty @ Type::Package { .. } if packages::product::nested(ty) => {

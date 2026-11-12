@@ -428,13 +428,17 @@ pub(super) fn instruction(module: &TypedModule, f: &TypedFunction, i: &Instructi
         InstructionKind::BorrowCapture { index, mutable } => f
             .environment
             .and_then(|id| module.closures.get(id.0 as usize))
-            .is_some_and(|d| (!*mutable && lending(d))
-                || d.captures.get(*index as usize).is_some_and(|ty|
-                    matches!(ty, Type::Closure(child) if finite(module,*child)))),
-        InstructionKind::TakeCapture { index } => f.environment
-            .and_then(|id|module.closures.get(id.0 as usize))
-            .and_then(|d|d.captures.get(*index as usize))
-            .is_some_and(|ty|matches!(ty,Type::Closure(child) if finite(module,*child))),
+            .is_some_and(|d| {
+                (!*mutable && lending(d))
+                    || d.captures.get(*index as usize).is_some_and(
+                        |ty| matches!(ty, Type::Closure(child) if finite(module,*child)),
+                    )
+            }),
+        InstructionKind::TakeCapture { index } => f
+            .environment
+            .and_then(|id| module.closures.get(id.0 as usize))
+            .and_then(|d| d.captures.get(*index as usize))
+            .is_some_and(|ty| matches!(ty,Type::Closure(child) if finite(module,*child))),
         _ => called(module, f, &i.kind).is_some(),
     }
 }
@@ -484,29 +488,42 @@ pub(super) fn types(
         return Ok(());
     }
     if let InstructionKind::BorrowCapture { index, mutable } = i.kind
-        && let Some(definition) = f.environment.and_then(|id|module.closures.get(id.0 as usize))
+        && let Some(definition) = f
+            .environment
+            .and_then(|id| module.closures.get(id.0 as usize))
         && b.returned_borrowed_environments.contains(&definition.id)
         && let Some(Type::Closure(child)) = definition.captures.get(index as usize)
         && b.returned_borrowed_environments.contains(child)
     {
         if mutable && definition.kind == zil_ir::CallableKind::Fn {
-            return Err(bad("nested exclusive capture requires an exclusive environment entry"));
+            return Err(bad(
+                "nested exclusive capture requires an exclusive environment entry",
+            ));
         }
         if !matches!(i.result.and_then(|value|f.values.get(value.0 as usize)),
-            Some(Type::Address { mutable: actual, inner }) if *actual==mutable && inner.as_ref()==&Type::Closure(*child)) {
-            return Err(bad("nested capture borrow differs from its actual environment field"));
+            Some(Type::Address { mutable: actual, inner }) if *actual==mutable && inner.as_ref()==&Type::Closure(*child))
+        {
+            return Err(bad(
+                "nested capture borrow differs from its actual environment field",
+            ));
         }
         return Ok(());
     }
     if let InstructionKind::TakeCapture { index } = i.kind
-        && let Some(definition) = f.environment.and_then(|id|module.closures.get(id.0 as usize))
+        && let Some(definition) = f
+            .environment
+            .and_then(|id| module.closures.get(id.0 as usize))
         && b.returned_borrowed_environments.contains(&definition.id)
         && let Some(Type::Closure(child)) = definition.captures.get(index as usize)
         && b.returned_borrowed_environments.contains(child)
     {
         if definition.kind != zil_ir::CallableKind::FnOnce
-            || i.result.and_then(|value|f.values.get(value.0 as usize))!=Some(&Type::Closure(*child)) {
-            return Err(bad("nested capture transfer requires its actual consuming environment entry"));
+            || i.result.and_then(|value| f.values.get(value.0 as usize))
+                != Some(&Type::Closure(*child))
+        {
+            return Err(bad(
+                "nested capture transfer requires its actual consuming environment entry",
+            ));
         }
         return Ok(());
     }

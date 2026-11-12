@@ -136,8 +136,7 @@ pub(super) fn check(
             for instruction in &block.instructions {
                 budget.spend(1, "Package view boundary scan")?;
                 match instruction.kind {
-                    InstructionKind::StorageLive(local)
-                    | InstructionKind::StorageDead(local) => {
+                    InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
                         budget.lookup(views.len(), "Package view storage boundary lookup")?;
                         if views.contains_key(&local) {
                             return Err(bad(
@@ -145,16 +144,27 @@ pub(super) fn check(
                             ));
                         }
                     }
-                    InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
+                    InstructionKind::BorrowLocal { local }
+                    | InstructionKind::BorrowLocalMut { local } => {
                         budget.lookup(views.len(), "qualified view head lookup")?;
-                        if let Some(index)=views.get(&local) {
-                            let captured=&module.closures[function.environment.unwrap().0 as usize].captures[*index as usize];
-                            let mutable=matches!(instruction.kind,InstructionKind::BorrowLocalMut{..});
-                            budget.type_work(captured,true,"qualified view head actual type")?;
+                        if let Some(index) = views.get(&local) {
+                            let captured = &module.closures
+                                [function.environment.unwrap().0 as usize]
+                                .captures[*index as usize];
+                            let mutable =
+                                matches!(instruction.kind, InstructionKind::BorrowLocalMut { .. });
+                            budget.type_work(captured, true, "qualified view head actual type")?;
                             if !matches!(captured,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Package{..}))
-                                || mutable && module.closures[function.environment.unwrap().0 as usize].kind==zil_ir::CallableKind::Fn
+                                || mutable
+                                    && module.closures[function.environment.unwrap().0 as usize]
+                                        .kind
+                                        == zil_ir::CallableKind::Fn
                                 || !matches!(instruction.result.and_then(|value|function.values.get(value.0 as usize)),Some(Type::Address{mutable:actual,inner})if *actual==mutable && inner.as_ref()==captured)
-                            { return Err(bad("Package view head requires its actual qualified owner and entry permission")); }
+                            {
+                                return Err(bad(
+                                    "Package view head requires its actual qualified owner and entry permission",
+                                ));
+                            }
                         }
                     }
                     InstructionKind::EndPackageCapture { local, index } => {

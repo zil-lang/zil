@@ -220,7 +220,10 @@ pub(super) fn reconstruct(
                                         // solver retains the exact nested permissions.
                                         let actual = row.entry(index).or_default();
                                         extend(&mut actual.roots, &slot.roots, budget)?;
-                                        budget.spend(slot.parents.len(), "returned capture parent envelope")?;
+                                        budget.spend(
+                                            slot.parents.len(),
+                                            "returned capture parent envelope",
+                                        )?;
                                         actual.parents.extend(slot.parents);
                                     }
                                 }

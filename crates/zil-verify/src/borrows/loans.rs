@@ -85,15 +85,31 @@ fn local_transfer(
                 state.insert(local, values[value.0 as usize].clone());
             }
         }
-        InstructionKind::UnpackVariant { local, variant, ref fields }
-            if tasks::transfer::outcome_owner(&f.locals[local.0 as usize].ty).is_some() =>
-        {
-            budget.spend(fields.len().saturating_add(state.get(&local).map_or(0, |s|s.len())))?;
-            let source=state.remove(&local).unwrap_or_default();
-            for target in fields {state.remove(target);}
-            if variant==0 {
-                let [target]=fields.as_slice() else {return Err(reject("E-VERIFY-TASK-PORT",Some(instruction.span),"Task Failed must move one exact owner"));};
-                if !source.is_empty() {state.insert(*target,source);}
+        InstructionKind::UnpackVariant {
+            local,
+            variant,
+            ref fields,
+        } if tasks::transfer::outcome_owner(&f.locals[local.0 as usize].ty).is_some() => {
+            budget.spend(
+                fields
+                    .len()
+                    .saturating_add(state.get(&local).map_or(0, |s| s.len())),
+            )?;
+            let source = state.remove(&local).unwrap_or_default();
+            for target in fields {
+                state.remove(target);
+            }
+            if variant == 0 {
+                let [target] = fields.as_slice() else {
+                    return Err(reject(
+                        "E-VERIFY-TASK-PORT",
+                        Some(instruction.span),
+                        "Task Failed must move one exact owner",
+                    ));
+                };
+                if !source.is_empty() {
+                    state.insert(*target, source);
+                }
             }
         }
         InstructionKind::TakeLocal { local }
@@ -1121,7 +1137,8 @@ fn consumers(kind: &InstructionKind, affine_values: bool) -> impl Iterator<Item 
         | InstructionKind::WithScopedThread { body, .. }
         | InstructionKind::WithSyncCell { body, .. } => (Some(body), &[]),
         InstructionKind::SuspendCall { arguments, .. }
-        | InstructionKind::TaskCreate { arguments, .. } | InstructionKind::TaskCreateOwned { arguments, .. }
+        | InstructionKind::TaskCreate { arguments, .. }
+        | InstructionKind::TaskCreateOwned { arguments, .. }
             if affine_values =>
         {
             (None, arguments)
@@ -1503,7 +1520,8 @@ pub(super) fn check(
                 }
                 InstructionKind::WithSyncCell { body, .. } => (&flow.values[body.0 as usize], &[]),
                 InstructionKind::Call { arguments, .. }
-                | InstructionKind::TaskCreate { arguments, .. } | InstructionKind::TaskCreateOwned { arguments, .. }
+                | InstructionKind::TaskCreate { arguments, .. }
+                | InstructionKind::TaskCreateOwned { arguments, .. }
                 | InstructionKind::CallDynSlot { arguments, .. }
                 | InstructionKind::CallIndirect { arguments, .. } => (&empty, arguments),
                 InstructionKind::ForeignCall { arguments, .. } => (&empty, arguments),
@@ -1576,7 +1594,9 @@ pub(super) fn check(
                 // delegate only their own roots, never another capture's loan.
                 access.callback_arguments(arguments, facts, budget)?;
             }
-            if let InstructionKind::TaskCreate { arguments, .. } | InstructionKind::TaskCreateOwned { arguments, .. } = &instruction.kind {
+            if let InstructionKind::TaskCreate { arguments, .. }
+            | InstructionKind::TaskCreateOwned { arguments, .. } = &instruction.kind
+            {
                 check_pairs(arguments, module, f, &flow, span, apart_ref, budget)?;
                 for argument in arguments {
                     if let Type::Address { mutable, .. } = f.values[argument.0 as usize] {
@@ -1986,7 +2006,8 @@ pub(super) fn check(
                     access.check(&empty, &[Root::Capture(*index)], true, budget)?;
                 }
                 InstructionKind::Call { arguments, .. }
-                | InstructionKind::TaskCreate { arguments, .. } | InstructionKind::TaskCreateOwned { arguments, .. }
+                | InstructionKind::TaskCreate { arguments, .. }
+                | InstructionKind::TaskCreateOwned { arguments, .. }
                 | InstructionKind::CallDynSlot { arguments, .. }
                 | InstructionKind::CallIndirect { arguments, .. }
                 | InstructionKind::ForeignCall { arguments, .. }

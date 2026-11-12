@@ -268,7 +268,10 @@ fn returned_value(
         }
     }
     let origin = match found {
-        Some(InstructionKind::TaskCreate { worker, .. } | InstructionKind::TaskCreateOwned { worker, .. })
+        Some(
+            InstructionKind::TaskCreate { worker, .. }
+            | InstructionKind::TaskCreateOwned { worker, .. },
+        )
         | Some(InstructionKind::TaskStart { worker, .. }) => Origins {
             unknown: false,
             workers: BTreeSet::from([*worker]),
@@ -483,7 +486,8 @@ fn require_origin(
                     changed |= locals[local.0 as usize].add(&values[value.0 as usize], budget)?;
                 }
                 if let InstructionKind::UnpackTuple { local, fields }
-                | InstructionKind::UnpackVariant { local, fields, .. } = &i.kind {
+                | InstructionKind::UnpackVariant { local, fields, .. } = &i.kind
+                {
                     for field in fields {
                         budget.spend(locals[local.0 as usize].workers.len().saturating_add(1))?;
                         let origin = locals[local.0 as usize].clone();
@@ -495,13 +499,16 @@ fn require_origin(
                     continue;
                 }
                 let origin = match &i.kind {
-                    InstructionKind::TaskCreate { worker, .. } | InstructionKind::TaskCreateOwned { worker, .. }
+                    InstructionKind::TaskCreate { worker, .. }
+                    | InstructionKind::TaskCreateOwned { worker, .. }
                     | InstructionKind::TaskStart { worker, .. } => Origins {
                         unknown: false,
                         workers: BTreeSet::from([*worker]),
                         parameters: BTreeSet::new(),
                     },
-                    InstructionKind::WithScopedThread { argument, .. } => values[argument.0 as usize].clone(),
+                    InstructionKind::WithScopedThread { argument, .. } => {
+                        values[argument.0 as usize].clone()
+                    }
                     InstructionKind::Call {
                         function,
                         arguments,
@@ -672,7 +679,8 @@ fn require_workers(
                     | InstructionKind::ForeignFunctionRef { function }
                     | InstructionKind::TaskCreate {
                         worker: function, ..
-                    } | InstructionKind::TaskCreateOwned {
+                    }
+                    | InstructionKind::TaskCreateOwned {
                         worker: function, ..
                     }
                     | InstructionKind::TaskStart {

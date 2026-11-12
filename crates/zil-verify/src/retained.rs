@@ -333,8 +333,13 @@ fn check_parameter_claim(
     // This branch checks a complete external envelope separately from the
     // path-sensitive same-instance proof in check_body. Choosing the legacy
     // empty path never hides a borrow: self_contained recursively rejects it.
-    let external = !claim.hold.is_empty() || !claim.call.is_empty() || !claim.writes.is_empty()
-        || claim.capture_sources.as_ref().is_some_and(|rows| !rows.is_empty());
+    let external = !claim.hold.is_empty()
+        || !claim.call.is_empty()
+        || !claim.writes.is_empty()
+        || claim
+            .capture_sources
+            .as_ref()
+            .is_some_and(|rows| !rows.is_empty());
     if !external {
         closures::self_contained(module, id, budget)?;
     }

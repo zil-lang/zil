@@ -48,7 +48,7 @@ impl Expander<'_> {
             );
             return;
         }
-        let (noescape_parameters, static_callbacks, scoped_callback,thread_driver_transfer) =
+        let (noescape_parameters, static_callbacks, scoped_callback, thread_driver_transfer) =
             match noescape_contract(function) {
                 Ok(indices) => indices,
                 Err(diagnostic) => {
@@ -326,12 +326,12 @@ fn wide_literal(spelling: &str) -> Option<Vec<u16>> {
 
 pub(super) fn noescape_contract(
     function: &s::Function,
-) -> Result<(Vec<u32>, bool, Option<ScopedCallbackRole>,bool), Diagnostic> {
+) -> Result<(Vec<u32>, bool, Option<ScopedCallbackRole>, bool), Diagnostic> {
     let bad =
         |span, message| Diagnostic::error(Phase::Expand, "E-FFI-DECLARATION", Some(span), message);
     let mut ffi = false;
     let mut static_callbacks = false;
-    let mut driver_transfer=false;
+    let mut driver_transfer = false;
     let mut scoped_callback = None;
     let mut parameters = BTreeSet::new();
     let mut positions = BTreeMap::new();
@@ -369,9 +369,14 @@ pub(super) fn noescape_contract(
                         static_callbacks = true;
                         continue;
                     }
-                    if term.path.as_slice()==["thread_async_driver_transfer"] {
-                        if !simple(term) || driver_transfer {return Err(bad(term.span,"thread_async_driver_transfer requires one argument-free promise"));}
-                        driver_transfer=true;
+                    if term.path.as_slice() == ["thread_async_driver_transfer"] {
+                        if !simple(term) || driver_transfer {
+                            return Err(bad(
+                                term.span,
+                                "thread_async_driver_transfer requires one argument-free promise",
+                            ));
+                        }
+                        driver_transfer = true;
                         continue;
                     }
                     let role = if term.path.as_slice() == ["scoped_callback_register"] {
@@ -450,8 +455,20 @@ pub(super) fn noescape_contract(
             "scoped callback roles require static_callbacks and ffi, without borrowed ABI parameters",
         ));
     }
-    if driver_transfer && !matches!(scoped_callback,Some(ScopedCallbackRole::ThreadAsyncRegister|ScopedCallbackRole::ThreadAsyncRequestClose|ScopedCallbackRole::ThreadAsyncPollDrain)) {
-        return Err(bad(function.span,"driver transfer promise requires an actual threaded async role"));
+    if driver_transfer
+        && !matches!(
+            scoped_callback,
+            Some(
+                ScopedCallbackRole::ThreadAsyncRegister
+                    | ScopedCallbackRole::ThreadAsyncRequestClose
+                    | ScopedCallbackRole::ThreadAsyncPollDrain
+            )
+        )
+    {
+        return Err(bad(
+            function.span,
+            "driver transfer promise requires an actual threaded async role",
+        ));
     }
     Ok((
         parameters.into_iter().collect(),

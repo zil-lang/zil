@@ -337,8 +337,10 @@ impl Pending {
                 capture.moved
             } else {
                 !capture.borrowed
-                    && (matches!(stored::physical(&capture.ty), Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. })
-                        || (capture.moved && owned_shapes::sum(&capture.ty)))
+                    && (matches!(
+                        stored::physical(&capture.ty),
+                        Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. }
+                    ) || (capture.moved && owned_shapes::sum(&capture.ty)))
             }
         })
     }
@@ -906,7 +908,10 @@ impl State {
                 // leaf; an absent source Fixed header is not manufactured.
                 // Opening an exclusive stored leaf requires exclusive entry,
                 // even when its immediate source expression is a read.
-                capture.written |= life.slots.iter().any(|slot| slot.mode == StoredBorrowMode::ExclusiveAddress);
+                capture.written |= life
+                    .slots
+                    .iter()
+                    .any(|slot| slot.mode == StoredBorrowMode::ExclusiveAddress);
             }
             if matches!(capture.ty, Type::Package { .. }) && !capture.moved {
                 // The complete body decides whether the environment borrows
@@ -2901,7 +2906,12 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 if matches!(storage.as_ref(), Type::Package { .. })
                     && (self.move_capture || self.nested_moves != 0) =>
             {
-                packages::product::validate_owned(ty, self.work_left, self.limits.max_call_depth, span)?;
+                packages::product::validate_owned(
+                    ty,
+                    self.work_left,
+                    self.limits.max_call_depth,
+                    span,
+                )?;
                 (ty, None)
             }
             ty @ Type::Package { .. }
@@ -4304,7 +4314,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     &if name == "task_await" {
                         signature.result
                     } else {
-                        tasks::call_create_type(name,
+                        tasks::call_create_type(
+                            name,
                             &signature.result,
                             tasks::borrowed_context_with_life(
                                 &signature.parameters,
@@ -4325,7 +4336,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                                     })
                                     .as_ref(),
                                 &signature.result,
-                            ), &signature.parameters)
+                            ),
+                            &signature.parameters,
+                        )
                     },
                     span,
                 );

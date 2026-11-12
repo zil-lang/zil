@@ -2138,13 +2138,29 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
                 Type::Unsupported("Managed requires one actual resource type".into())
             }
         }
-        s::TypeKind::Named { path, args } if path.as_slice()==["TaskCreateFailure"] || path.as_slice()==["std","task","TaskCreateFailure"] => {
-            if let [s::GenericArg::Type(inputs)]=args.as_slice() {
-                Type::Package{name:"@std.task:v1:TaskCreateFailure:pending".into(),fields:vec![
-                    ("reason".into(),Type::Enum{name:"@std.task:v1:TaskCreateError".into(),variants:vec![("Allocation".into(),vec![])]}),
-                    ("inputs".into(),type_ref(inputs)),
-                ]}
-            } else {Type::Unsupported("TaskCreateFailure requires the complete ordered input Tuple".into())}
+        s::TypeKind::Named { path, args }
+            if path.as_slice() == ["TaskCreateFailure"]
+                || path.as_slice() == ["std", "task", "TaskCreateFailure"] =>
+        {
+            if let [s::GenericArg::Type(inputs)] = args.as_slice() {
+                Type::Package {
+                    name: "@std.task:v1:TaskCreateFailure:pending".into(),
+                    fields: vec![
+                        (
+                            "reason".into(),
+                            Type::Enum {
+                                name: "@std.task:v1:TaskCreateError".into(),
+                                variants: vec![("Allocation".into(), vec![])],
+                            },
+                        ),
+                        ("inputs".into(), type_ref(inputs)),
+                    ],
+                }
+            } else {
+                Type::Unsupported(
+                    "TaskCreateFailure requires the complete ordered input Tuple".into(),
+                )
+            }
         }
         s::TypeKind::Named { path, args } if path.as_slice() == ["Task"] => {
             if let [s::GenericArg::Type(result)] = args.as_slice() {

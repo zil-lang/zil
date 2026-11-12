@@ -3,8 +3,12 @@
 use super::*;
 
 mod sources;
-pub(super) fn check_sources(module:&TypedModule,function:&TypedFunction,budget:&mut Budget)->CompileResult<()> {
-    sources::check(module,function,budget)
+pub(super) fn check_sources(
+    module: &TypedModule,
+    function: &TypedFunction,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    sources::check(module, function, budget)
 }
 
 #[path = "owning_factory.rs"]
@@ -114,7 +118,11 @@ pub(super) fn check_function(
         ));
     }
     if !bindings.is_empty()
-        || (budget.address_capture && definition.captures.iter().any(|ty| matches!(ty, Type::Closure(_))))
+        || (budget.address_capture
+            && definition
+                .captures
+                .iter()
+                .any(|ty| matches!(ty, Type::Closure(_))))
         || definition.captures.iter().any(|ty| {
             matches!(
                 ty,
