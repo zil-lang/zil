@@ -1206,6 +1206,10 @@ pub(super) fn owner_transfer(
         InstructionKind::TakeLocal { local }
         | InstructionKind::TakeVariantField { local, .. }
         | InstructionKind::DropManaged { local }
+        | InstructionKind::DropClosure { local }
+        | InstructionKind::DropPackage { local }
+        | InstructionKind::DropTuple { local }
+        | InstructionKind::DropOwnedArray { local }
         | InstructionKind::DropErrorUnion { local }
         | InstructionKind::DropEnum { local } => {
             owners.remove(&Owner::Local(*local));
