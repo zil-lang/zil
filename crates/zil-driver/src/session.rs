@@ -234,7 +234,10 @@ type ProducerParseCache = BTreeMap<(ModuleId, FileId, String), zil_syntax::Parse
 pub(super) fn function_checkpoint(
     functions: &zil_types::FunctionSession,
 ) -> Box<zil_types::FunctionSession> {
-    Box::new(functions.checkpoint())
+    // Rollback retains the last successful raw producer memo as well as CFGs.
+    // Every memo hit still checks its private revision, complete declaration
+    // context and observed dependencies. The optional reactive graph is reset.
+    Box::new(functions.epoch_checkpoint())
 }
 #[inline(never)]
 pub(super) fn producer_checkpoint(

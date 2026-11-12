@@ -655,7 +655,11 @@ impl CompilationSession {
             };
         }
         if (semantic.is_none() || options.producer_reuse)
-            && loaded_syntax.is_none()
+            // Discovery may have parsed changed files while returning to a
+            // retained parent. In research mode its complete current sources
+            // still permit the same closed DB/owner validation; supplied syntax
+            // is not a reason to decode disk IR or leave accelerators stale.
+            && (loaded_syntax.is_none() || options.producer_reuse)
             && options.stop_after >= Stage::Types
             && options.emit_dir.is_none()
             && options.cache_dir.is_none()
@@ -2951,6 +2955,195 @@ pub fn main()->i32=>0",
         }
         fs::remove_dir_all(dir.0).unwrap();
     }
+    // Keep the actual profile workload size and generated arithmetic. Small
+    // import-free tests cannot exercise parsed-discovery parent returns or the
+    // failed Types rollback after a broad/position epoch.
+    fn full_epoch_fixture(label: &str) -> BTreeMap<String, String> {
+        let mut files = BTreeMap::from([(
+            "io.zil".into(),
+            include_str!("../../../examples/mainline/resource_closures/io.zil").into(),
+        )]);
+        for i in 0..20 {
+            let mut code = String::new();
+            for j in 0..20 {
+                let delta = match label {
+                    "private" => usize::from(i == 0 && j == 0),
+                    "multi" => usize::from([0, 10, 19].contains(&i) && j == 0),
+                    "broad" => 1,
+                    "recovery" => 2 * usize::from(i == 0 && j == 0),
+                    _ => 0,
+                };
+                code.push_str(&format!("fn h{j}(x: i32) -> i32 {{\n    var y: i32 = x\n"));
+                for k in 0..16 {
+                    let a = (i + j + k) % 13 + 1 + delta;
+                    let b = (j * 3 + k) % 11 + 2;
+                    code.push_str(&format!("    if y % 3 == 0 {{ y = (y * 2 + {a}) % 251 }} else {{ y = (y + {b}) % 251 }}\n"));
+                }
+                code.push_str(if label == "error" && i == 0 && j == 0 {
+                    "    return absent_name\n}\n"
+                } else {
+                    "    return y\n}\n"
+                });
+            }
+            code.push_str("pub fn value(x: i32) -> i32 {\n    var total: i32 = x\n");
+            for j in 0..20 {
+                code.push_str(&format!("    total = (total + h{j}(x)) % 65521\n"));
+            }
+            code.push_str("    return total\n}\n");
+            files.insert(format!("m{i}.zil"), code);
+        }
+        let mut main = String::from("import io\n");
+        for i in 0..20 {
+            main.push_str(&format!("import m{i}\n"));
+        }
+        main.push_str("fn main() -> i32 {\n    var x: i32 = io.read()\n    if x < 0 { x = 0 }\n    x = x % 251\n    var total: i32 = 0\n");
+        for i in 0..20 {
+            main.push_str(&format!("    total = (total + m{i}.value(x)) % 65521\n"));
+        }
+        for shift in [0, 8, 16, 24] {
+            main.push_str(&format!("    io.emit((total >> {shift}) & 255)\n"));
+        }
+        main.push_str("    return 0\n}\n");
+        files.insert("main.zil".into(), main);
+        if label == "positions" {
+            for text in files.values_mut() {
+                *text = format!("// Source position edit; semantic body is unchanged.\n\n{text}");
+            }
+        }
+        files
+    }
+
+    #[test]
+    fn full_profile_history_reactivates_parsed_parents_and_rolls_back_sealed_memos() {
+        let dir = Dir::new();
+        let path = dir.0.join("main.zil");
+        let cold = full_epoch_fixture("cold");
+        assert_eq!(cold.len(), 22);
+        assert_eq!(cold.values().map(String::len).sum::<usize>(), 498_620);
+        let options = CompileOptions {
+            producer_reuse: true,
+            profile_compilation: true,
+            semantic_cache: Some(dir.0.join("cache")),
+            ..Default::default()
+        };
+        // This is the measured resident protocol's actual capacity, not a
+        // larger test-only history or a reduced source/CFG fixture.
+        let mut session = CompilationSession::with_capacity(256);
+        let mut errors = Vec::new();
+        for (index, label) in [
+            "cold",
+            "private",
+            "cold",
+            "multi",
+            "cold",
+            "broad",
+            "cold",
+            "positions",
+            "cold",
+            "error",
+            "error",
+            "recovery",
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let files = full_epoch_fixture(label);
+            for (name, text) in &files {
+                fs::write(dir.0.join(name), text).unwrap();
+            }
+            let report = session.compile_path(&path, &options);
+            if label == "error" {
+                assert_eq!(
+                    report.status,
+                    ResultCategory::SafeReject,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.phase, Phase::Types);
+                assert_eq!(report.verification_runs, 0);
+                let work = report.function_type_work.as_ref().unwrap();
+                assert_eq!((work.body_key_executions, work.body_key_reuses), (21, 400));
+                let producer = report.producer_work.as_ref();
+                if index == 9 {
+                    assert_eq!(
+                        (
+                            producer.unwrap().lower_modules,
+                            producer.unwrap().reused_lower_modules
+                        ),
+                        (1, 21)
+                    );
+                }
+                errors.push(report.diagnostics.clone());
+                continue;
+            }
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{label}: {}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            if label == "cold" && index != 0 {
+                assert_eq!(
+                    report.disk_cache,
+                    DiskCacheStatus::Resident,
+                    "parent at {index}: {}",
+                    report.to_json()
+                );
+                assert!(report.function_type_work.is_none());
+                assert!(
+                    report
+                        .driver_timings_ns
+                        .contains_key("producer_epoch_activation")
+                );
+                assert!(!report.driver_timings_ns.contains_key("semantic_cache_read"));
+                if index == 6 {
+                    // All twenty broad modules really had to be rediscovered,
+                    // yet their exact retained parent still owns raw Types.
+                    assert_eq!(
+                        report.source_ingress.as_ref().unwrap().parser_executions,
+                        20
+                    );
+                }
+            }
+            if label == "positions" {
+                let work = report.function_type_work.as_ref().unwrap();
+                assert_eq!((work.executed_functions, work.reused_functions), (4, 421));
+                let publication = report.semantic_cache_publication.as_ref().unwrap();
+                assert_eq!(
+                    (
+                        publication.serialized_functions,
+                        publication.reused_functions
+                    ),
+                    (4, 421)
+                );
+            }
+            if label == "recovery" {
+                let work = report.function_type_work.as_ref().unwrap();
+                assert_eq!((work.body_key_executions, work.body_key_reuses), (21, 400));
+                assert_eq!((work.executed_functions, work.reused_functions), (5, 420));
+                let publication = report.semantic_cache_publication.as_ref().unwrap();
+                assert_eq!(
+                    (
+                        publication.serialized_functions,
+                        publication.reused_functions
+                    ),
+                    (1, 424)
+                );
+            }
+        }
+        assert_eq!(errors.len(), 2);
+        assert_eq!(errors[0], errors[1]);
+        for (name, text) in full_epoch_fixture("error") {
+            fs::write(dir.0.join(name), text).unwrap();
+        }
+        let fresh = CompilationSession::default().compile_path(&path, &options);
+        assert_eq!(errors[0], fresh.diagnostics);
+        assert_eq!(fresh.phase, Phase::Types);
+        assert_eq!(fresh.verification_runs, 0);
+        fs::remove_dir_all(dir.0).unwrap();
+    }
+
     #[test]
     fn resident_parent_restores_types_and_publication_before_the_next_private_edit() {
         let dir = Dir::new();
