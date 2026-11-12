@@ -89,6 +89,12 @@ mod enabled {
         #[cfg(test)]
         fn ZilNativeProductsTypeAndOwnerCounterexamples() -> c_int;
         #[cfg(test)]
+        fn ZilNativePackedStageFrameCounterexample() -> c_int;
+        #[cfg(test)]
+        fn ZilNativePackedStageCodecCounterexample() -> c_int;
+        #[cfg(test)]
+        fn ZilNativePackedStageMetadataCounterexample() -> c_int;
+        #[cfg(test)]
         fn ZilNativeProductsAnalysisDiagnostics(enabled: c_int) -> c_int;
         #[cfg(test)]
         fn ZilNativeProductsMachineDiagnostics(enabled: c_int) -> c_int;
@@ -366,6 +372,24 @@ mod enabled {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn packed_stage_frames_keep_all_bytes_and_reject_malformed_lengths() {
+            // SAFETY: the fixture returns only a scalar and retains no foreign owner.
+            assert_eq!(unsafe { ZilNativePackedStageFrameCounterexample() }, 1);
+        }
+
+        #[test]
+        fn installed_stage_codec_is_lossless_and_rejects_corrupted_frames() {
+            // SAFETY: all codec buffers are owned by the fixture; -1 is not a pass.
+            assert_eq!(unsafe { ZilNativePackedStageCodecCounterexample() }, 1);
+        }
+
+        #[test]
+        fn packed_stage_keeps_every_typed_analysis_and_replay_field() {
+            // SAFETY: the fixture contains its LLVM metadata and returns a scalar.
+            assert_eq!(unsafe { ZilNativePackedStageMetadataCounterexample() }, 1);
+        }
 
         #[test]
         fn complete_current_projections_bind_eligibility_reuse() {
