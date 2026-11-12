@@ -1,0 +1,291 @@
+{
+  "archive": {
+    "bytes": 26542301,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 25165824,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "04b39a99a35fe482cd259b538222e937c57bf3fe5af5fa1628306904fe3e259f"
+      },
+      {
+        "bytes": 1376477,
+        "name": "evidence.tar.zst.part-00002",
+        "sha256": "56d0590c75206b8164a2772e4e771b131eeb393a8c32c2852eb1ccc516c1cbd0"
+      }
+    ],
+    "sha256": "23f6678c412b368fd294d2ac7327655b3aad7c2996b852144d9985bbc512e228",
+    "tar_bytes": 43192320
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 26358088,
+        "mode": 493,
+        "path": "zil-push-main/out/binaries/96f5053f59ddb50871eaabbf5005a46ff782dcda/zil",
+        "sha256": "c5334425287f32770f4841ed4a9294c5369d24f4e52fe92d77a441d4e7c0c3c1"
+      },
+      {
+        "bytes": 7823,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-18/documentation-8f/.task/point-to-point-handoff.md",
+        "sha256": "d269617a9af0557d4058a46cc2f84502235307b74ba7adf455611f1e6e54bea4"
+      },
+      {
+        "bytes": 19457,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-18/documentation-8f/tools/research/incremental-demand/README.md",
+        "sha256": "eca56126f9a8f8084c9bd59f6e5513a09175266a14ce2a0a306f05b4e4d0a237"
+      },
+      {
+        "bytes": 86344,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-18/documentation-8f/tools/research/incremental-demand/full-push-checkpoint-4b809.json",
+        "sha256": "9580c45ab799ba18b45dd8c371eb6b26d49435b2e95806e08b14ddbfcfd2f173"
+      },
+      {
+        "bytes": 4549,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-18/documentation-8f/tools/research/incremental-demand/full-push-checkpoint-4b809.md",
+        "sha256": "50a691d8037ce34cd9f373abfd752ba38035fd24e0da4d1e2a8654a1aac3b51f"
+      },
+      {
+        "bytes": 9571,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-18/documentation-8f/tools/research/incremental-demand/full-push-checkpoint-96f.json",
+        "sha256": "a80e8acffae6c979af86a27b4da35aa73454fa5ecac07f22e970a2a8d93498ff"
+      },
+      {
+        "bytes": 2840,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-18/documentation-8f/tools/research/incremental-demand/full-push-checkpoint-96f.md",
+        "sha256": "973a6a26d273e760734713ffff2584b3ae470f633e43cb0d12b789e40dfaae15"
+      },
+      {
+        "bytes": 8734,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-18/documentation-8f/tools/research/incremental-demand/full-push-diagnostic-consumer-gates-review-initial.json",
+        "sha256": "2c0449d25359c82b758dd11088363896ec8f2b94e1e79a79060e310d226f19e3"
+      },
+      {
+        "bytes": 12371,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-18/documentation-8f/tools/research/incremental-demand/full-push-diagnostic-consumer-gates-review.json",
+        "sha256": "bb790bb125c0490672e70b7435ec2ed138dace565875c58f52e68a0b6af11154"
+      },
+      {
+        "bytes": 505,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-18/documentation-8f/tools/research/incremental-demand/full-push-gates11-disconnect-original.json",
+        "sha256": "396e3dc35b3cd2f28cba33c25adbd4ffaa44dd7b2e84d20ee8af07ac196b3944"
+      },
+      {
+        "bytes": 10446,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-18/documentation-8f/tools/research/incremental-demand/full-push-recovery-v21.json",
+        "sha256": "ef8246c96fbb0ce92046cf0ac57e3de9f7dc55ca313b509ce375c42fc3dc5956"
+      },
+      {
+        "bytes": 8231,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-18/fixed-scope-and-bindings.json",
+        "sha256": "565b100cd8f13839c30fae894d575e0b7d29b844c1ec00dea5614d69d95df08b"
+      },
+      {
+        "bytes": 8273615,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-18/frozen-source-trees/96f5053f59ddb50871eaabbf5005a46ff782dcda.tar.gz",
+        "sha256": "3edd11c7cd12e284a0bdd0eb5bf7a3dc86331bcf68b9436ad69c6e59bdcda498"
+      },
+      {
+        "bytes": 8238080,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-18/frozen-source-trees/d1da81ed1d962d302425b169fe11663cf1f6bef9.tar.gz",
+        "sha256": "b5cd1f85249a05cedcbb97e03b0f6701de6d8b23d4ad4860a4486eb74c9953a8"
+      },
+      {
+        "bytes": 8734,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-18/original-small-evidence/full-push-diagnostic-consumer-gates-review-initial.json",
+        "sha256": "2c0449d25359c82b758dd11088363896ec8f2b94e1e79a79060e310d226f19e3"
+      },
+      {
+        "bytes": 12371,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-18/original-small-evidence/full-push-diagnostic-consumer-gates-review.json",
+        "sha256": "bb790bb125c0490672e70b7435ec2ed138dace565875c58f52e68a0b6af11154"
+      },
+      {
+        "bytes": 10446,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-18/original-small-evidence/full-push-recovery-v21.json",
+        "sha256": "ef8246c96fbb0ce92046cf0ac57e3de9f7dc55ca313b509ce375c42fc3dc5956"
+      },
+      {
+        "bytes": 2797,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-combined-components-gates-11-resume-01.py",
+        "sha256": "c78df2e806f22905cbbdec64fcd1ec471940619b5f5197041031a2cce0762b00"
+      },
+      {
+        "bytes": 3081,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-combined-components-gates-11.py",
+        "sha256": "fca3cba16c5754e1edc113ac0c02dd43d39118b962616104c5a69a374ea1d2ff"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-fmt-18.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 758,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-fmt-18.json",
+        "sha256": "2b57cc1ece1eb393f50c143a87c605aa1ccbf8566d0da3caea989dfecbcdab21"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-fmt-18.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-gates11-resume-01-controller.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 634,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-gates11-resume-01-controller.log",
+        "sha256": "4685f6eb296f989237b65ad1439ec800bb917412a76805bba2fa87152ca76ab1"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-clippy-20.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 857,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-clippy-20.json",
+        "sha256": "ff4b91413f893eccbe2b1a2c75a50a4bbc971018dc82a85fab001c17c1f5c9a6"
+      },
+      {
+        "bytes": 365,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-clippy-20.log",
+        "sha256": "e1be44e3afe7e654aa2d549b66568f8a13b07319226da5645b134d827edb016a"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-release-19.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1423,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-release-19.json",
+        "sha256": "2528c2c7e05ef5dd6c315830be715f5da6d5cabcee6ebd3f235c3c8698b413a0"
+      },
+      {
+        "bytes": 297,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-release-19.log",
+        "sha256": "d08cb4077391c7ae7a07eecf1bec308662d9a5c4248156ee03ac58b793d29075"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-backend-library-tests-17.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 860,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-backend-library-tests-17.json",
+        "sha256": "d2a553f92b4e69f1337d9f9ae4b096fb693e868c26c750cc06c90685e19ca778"
+      },
+      {
+        "bytes": 25799,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-backend-library-tests-17.log",
+        "sha256": "9aa94f58324a32bf94d50afa521f8e26a2a03e28da4cdaf5bce05f3513d446ff"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-driver-library-tests-20.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 855,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-driver-library-tests-20.json",
+        "sha256": "48d340f03d0b7c817847ad92fede42e153997b6364eb47e0b7e043b77247f6c6"
+      },
+      {
+        "bytes": 24554,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-driver-library-tests-20.log",
+        "sha256": "803759d0e336a93cb7c366685ef93a4f167b881a3e5925ace1c454819b77c882"
+      }
+    ],
+    "main_commit": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "schema": 1,
+    "scope": "V22 bounded metadata only: compiled/source96f5053f59ddb50871eaabbf5005a46ff782dcda/tree6fcfd44274b3961ac9a2f600c5a257b98aadf2d5/release19c5334425287f32770f4841ed4a9294c5369d24f4e52fe92d77a441d4e7c0c3c1; originald1author and96full source trees; exactdocs8f821098293ae43411e3bc66b6ab7df2562f83e2. Gate11 backend249/driver210 successful subprocesses do not imply original controllerexit0; originaltool96999 UnknownProcess event verbatim, sameboot evidence and unknown original exit preserved. Resume onlystrict20/fmt18/release19 roottool4531direct0 plus durable6linecontrollerlog/exit0/script; initial pending review and final review keptseparate. Complete fivegate logs/JSON/exits, immutableoriginal binary path/bytes/inode preserved, V21latestreceipt. No new compiler/native/performance work; no MC/rope/future source. Single fixedmetadata shard freshlyHTTPS restores all selected files/hash/size/mode before deleting only new restored/downloadduplicates, never SDK/immutable/source/Git.",
+    "source_commits": {
+      "author": "d1da81ed1d962d302425b169fe11663cf1f6bef9",
+      "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+      "compiled": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+      "documentation": "8f821098293ae43411e3bc66b6ab7df2562f83e2"
+    }
+  },
+  "inventory_sha256": "10cc62467f887881482bfee9199d86a6af2026a5115e4d510fdf2a18cc98d3d6",
+  "schema": 1,
+  "selectors": [
+    "zil-push-main/out/binaries/96f5053f59ddb50871eaabbf5005a46ff782dcda/zil",
+    "zil-push-main/out/evidence/full-push-checkpoint-18/documentation-8f/.task/point-to-point-handoff.md",
+    "zil-push-main/out/evidence/full-push-checkpoint-18/documentation-8f/tools/research/incremental-demand/README.md",
+    "zil-push-main/out/evidence/full-push-checkpoint-18/documentation-8f/tools/research/incremental-demand/full-push-checkpoint-4b809.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-18/documentation-8f/tools/research/incremental-demand/full-push-checkpoint-4b809.md",
+    "zil-push-main/out/evidence/full-push-checkpoint-18/documentation-8f/tools/research/incremental-demand/full-push-checkpoint-96f.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-18/documentation-8f/tools/research/incremental-demand/full-push-checkpoint-96f.md",
+    "zil-push-main/out/evidence/full-push-checkpoint-18/documentation-8f/tools/research/incremental-demand/full-push-diagnostic-consumer-gates-review-initial.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-18/documentation-8f/tools/research/incremental-demand/full-push-diagnostic-consumer-gates-review.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-18/documentation-8f/tools/research/incremental-demand/full-push-gates11-disconnect-original.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-18/documentation-8f/tools/research/incremental-demand/full-push-recovery-v21.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-18/fixed-scope-and-bindings.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-18/frozen-source-trees/96f5053f59ddb50871eaabbf5005a46ff782dcda.tar.gz",
+    "zil-push-main/out/evidence/full-push-checkpoint-18/frozen-source-trees/d1da81ed1d962d302425b169fe11663cf1f6bef9.tar.gz",
+    "zil-push-main/out/evidence/full-push-checkpoint-18/original-small-evidence/full-push-diagnostic-consumer-gates-review-initial.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-18/original-small-evidence/full-push-diagnostic-consumer-gates-review.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-18/original-small-evidence/full-push-recovery-v21.json",
+    "zil-push-main/out/runs/full-push-combined-components-gates-11-resume-01.py",
+    "zil-push-main/out/runs/full-push-combined-components-gates-11.py",
+    "zil-push-main/out/runs/full-push-fmt-18.exit",
+    "zil-push-main/out/runs/full-push-fmt-18.json",
+    "zil-push-main/out/runs/full-push-fmt-18.log",
+    "zil-push-main/out/runs/full-push-gates11-resume-01-controller.exit",
+    "zil-push-main/out/runs/full-push-gates11-resume-01-controller.log",
+    "zil-push-main/out/runs/full-push-native-clippy-20.exit",
+    "zil-push-main/out/runs/full-push-native-clippy-20.json",
+    "zil-push-main/out/runs/full-push-native-clippy-20.log",
+    "zil-push-main/out/runs/full-push-release-19.exit",
+    "zil-push-main/out/runs/full-push-release-19.json",
+    "zil-push-main/out/runs/full-push-release-19.log",
+    "zil-push-main/out/runs/push-backend-library-tests-17.exit",
+    "zil-push-main/out/runs/push-backend-library-tests-17.json",
+    "zil-push-main/out/runs/push-backend-library-tests-17.log",
+    "zil-push-main/out/runs/push-driver-library-tests-20.exit",
+    "zil-push-main/out/runs/push-driver-library-tests-20.json",
+    "zil-push-main/out/runs/push-driver-library-tests-20.log"
+  ],
+  "source_root": "/workspace"
+}

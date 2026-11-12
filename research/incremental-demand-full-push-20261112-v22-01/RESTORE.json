@@ -1,0 +1,20 @@
+{
+  "archive_sha256": "23f6678c412b368fd294d2ac7327655b3aad7c2996b852144d9985bbc512e228",
+  "limits": "Fixed-commit freshHTTPS full byte/mode recovery; no compilation/execution/performance comparison. Shard of V22; restore all fixed shard commits in final union receipt for complete checkpoint.",
+  "manifest": {
+    "bytes": 14586,
+    "sha256": "f5a3ede6ef0ba33b775c4e28a4eb5ae739cf4d05a89629c3158d80ce63bee7e3"
+  },
+  "schema": 1,
+  "scope": "V22 bounded metadata only: compiled/source96f5053f59ddb50871eaabbf5005a46ff782dcda/tree6fcfd44274b3961ac9a2f600c5a257b98aadf2d5/release19c5334425287f32770f4841ed4a9294c5369d24f4e52fe92d77a441d4e7c0c3c1; originald1author and96full source trees; exactdocs8f821098293ae43411e3bc66b6ab7df2562f83e2. Gate11 backend249/driver210 successful subprocesses do not imply original controllerexit0; originaltool96999 UnknownProcess event verbatim, sameboot evidence and unknown original exit preserved. Resume onlystrict20/fmt18/release19 roottool4531direct0 plus durable6linecontrollerlog/exit0/script; initial pending review and final review keptseparate. Complete fivegate logs/JSON/exits, immutableoriginal binary path/bytes/inode preserved, V21latestreceipt. No new compiler/native/performance work; no MC/rope/future source. Single fixedmetadata shard freshlyHTTPS restores all selected files/hash/size/mode before deleting only new restored/downloadduplicates, never SDK/immutable/source/Git.",
+  "source_commits": {
+    "author": "d1da81ed1d962d302425b169fe11663cf1f6bef9",
+    "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "compiled": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+    "documentation": "8f821098293ae43411e3bc66b6ab7df2562f83e2"
+  },
+  "verifier": {
+    "bytes": 21146,
+    "sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a"
+  }
+}
