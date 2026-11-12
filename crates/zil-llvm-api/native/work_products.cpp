@@ -34,6 +34,19 @@
 using namespace llvm;
 namespace zil {
 namespace {
+thread_local bool AnalysisDiagnostics = false;
+bool admissionFailure(const Function &F, const Instruction *I, const char *Reason) {
+  if (AnalysisDiagnostics) {
+    std::fprintf(stderr, "ZIL FPM admission %.*s: %s", static_cast<int>(F.getName().size()), F.getName().data(), Reason);
+    if (I) {
+      std::fprintf(stderr, " opcode=%s", I->getOpcodeName());
+      if (const auto *C = dyn_cast<CallBase>(I)) if (const Function *Target = C->getCalledFunction())
+        std::fprintf(stderr, " callee=%.*s", static_cast<int>(Target->getName().size()), Target->getName().data());
+    }
+    std::fprintf(stderr, "\n");
+  }
+  return false;
+}
 bool numeric(Type *T) {
   if (T->isIntegerTy() || T->isVoidTy()) return true;
   if (auto *S = dyn_cast<StructType>(T)) {
@@ -80,38 +93,38 @@ bool acyclic(const Function &F) {
 bool eligibleFunction(const Function &F) {
   if (F.isDeclaration() || F.isVarArg() || F.getCallingConv() != CallingConv::C ||
       !F.getReturnType()->isIntegerTy() || F.hasPersonalityFn() || F.hasGC() ||
-      F.hasPrefixData() || F.hasPrologueData() || F.hasComdat() || !acyclic(F)) return false;
-  for (const Argument &A : F.args()) if (!A.getType()->isIntegerTy()) return false;
+      F.hasPrefixData() || F.hasPrologueData() || F.hasComdat() || !acyclic(F)) return admissionFailure(F, nullptr, "function-signature-or-CFG");
+  for (const Argument &A : F.args()) if (!A.getType()->isIntegerTy()) return admissionFailure(F, nullptr, "noninteger-argument");
   SmallVector<std::pair<unsigned, MDNode *>, 4> Metadata;
   F.getAllMetadata(Metadata);
-  if (!Metadata.empty()) return false;
+  if (!Metadata.empty()) return admissionFailure(F, nullptr, "function-metadata");
   for (const User *U : F.users()) {
     const auto *C = dyn_cast<CallBase>(U);
-    if (!C || C->getCalledOperand() != &F) return false;
+    if (!C || C->getCalledOperand() != &F) return admissionFailure(F, nullptr, "noncall-function-use");
   }
   for (const BasicBlock &B : F) {
-    if (B.hasAddressTaken()) return false;
+    if (B.hasAddressTaken()) return admissionFailure(F, nullptr, "block-address-taken");
     for (const Instruction &I : B) {
       Metadata.clear(); I.getAllMetadata(Metadata);
-      if (!Metadata.empty() || I.getDebugLoc()) return false;
+      if (!Metadata.empty() || I.getDebugLoc()) return admissionFailure(F, &I, "instruction-metadata");
       if (const auto *C = dyn_cast<CallBase>(&I)) {
-        if (!approvedIntrinsic(*C)) return false;
+        if (!approvedIntrinsic(*C)) return admissionFailure(F, &I, "call-outside-closed-domain");
       } else if (!(isa<BinaryOperator>(I) || isa<UnaryOperator>(I) ||
                    isa<ICmpInst>(I) || isa<PHINode>(I) || isa<SelectInst>(I) ||
                    isa<CondBrInst>(I) || isa<UncondBrInst>(I) || isa<SwitchInst>(I) || isa<ReturnInst>(I) ||
                    isa<UnreachableInst>(I) || isa<ExtractValueInst>(I) ||
                    isa<InsertValueInst>(I) || isa<TruncInst>(I) ||
-                   isa<ZExtInst>(I) || isa<SExtInst>(I) || isa<FreezeInst>(I))) return false;
-      if (!numeric(I.getType())) return false;
+                   isa<ZExtInst>(I) || isa<SExtInst>(I) || isa<FreezeInst>(I))) return admissionFailure(F, &I, "instruction-outside-closed-domain");
+      if (!numeric(I.getType())) return admissionFailure(F, &I, "instruction-type");
       for (const Use &U : I.operands()) {
         const Value *V = U.get();
         if (isa<BasicBlock>(V)) continue;
         if (const auto *G = dyn_cast<GlobalValue>(V)) {
-          if (!isa<CallBase>(I) || G != cast<CallBase>(I).getCalledFunction()) return false;
+          if (!isa<CallBase>(I) || G != cast<CallBase>(I).getCalledFunction()) return admissionFailure(F, &I, "global-operand");
           continue;
         }
         if (isa<ConstantExpr>(V) || isa<BlockAddress>(V) ||
-            (!numeric(V->getType()) && !V->getType()->isLabelTy())) return false;
+            (!numeric(V->getType()) && !V->getType()->isLabelTy())) return admissionFailure(F, &I, "operand-outside-closed-domain");
       }
     }
   }
@@ -206,7 +219,6 @@ struct Symbols {
 };
 Symbols &symbols() { static Symbols S; return S; }
 using Keys = std::vector<const void *>;
-thread_local bool AnalysisDiagnostics = false;
 Keys analysisKeys(FunctionAnalysisManager &AM, Function &F) {
   Keys K; symbols().visit(&AM, &F, [](void *P, const void *K) {
     static_cast<Keys *>(P)->push_back(K);
