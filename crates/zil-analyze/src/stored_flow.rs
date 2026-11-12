@@ -3309,7 +3309,18 @@ fn seed(
             let mut value = seed_value(
                 module,
                 ty,
-                HoldRoot::Capture(index as u32),
+                if d.storage_life.as_ref().is_some_and(|life| {
+                    life.static_bindings.iter().any(|position| {
+                        position.base == StorageBase::Capture(index as u32)
+                            && position.path.is_empty()
+                    })
+                }) {
+                    // The all-constructor/write proof ran before any CFG is
+                    // admitted; this is its constant input, not a fresh root.
+                    HoldRoot::Static
+                } else {
+                    HoldRoot::Capture(index as u32)
+                },
                 &mut state,
                 loans,
                 b,
@@ -4957,8 +4968,7 @@ fn transfer(
         InstructionKind::UnpackTuple{local,fields} if compound_unpack(module,f,i,b)?=>{
             let mut source=state.locals.remove(local).ok_or_else(||failure("compound unpack source unavailable"))?;
             for (index,field) in fields.iter().enumerate(){
-                let mut child=Value::default();
-                child.slots=take_package_field_slots(&mut source,u32::try_from(index).map_err(|_|failure("compound field overflow"))?,b)?;
+                let mut child=Value{slots:take_package_field_slots(&mut source,u32::try_from(index).map_err(|_|failure("compound field overflow"))?,b)?,..Value::default()};
                 if matches!(&f.locals[field.0 as usize].ty,Type::Address{..}) {
                     // A summary may still be empty in this fixed-point iteration.
                     // Final address uses and returns independently demand real
