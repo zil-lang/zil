@@ -6,7 +6,11 @@
 //! obligations below. Its dependencies are the complete function and candidate
 //! row (except diagnostic spans), target and every limit. Instruction proofs
 //! additionally bind every callee signature field they read. Unfactored contextual
-//! checks and global obligations still run before issuing a new module authority. In particular a cached CFG is not a callee-effect proof.
+//! checks and global obligations still run before issuing a new module authority.
+//! Empty-borrow receipts additionally bind complete closure definitions and the
+//! current independently established context. They prove only absent source and
+//! local loan obligations, with original stage fees replayed. A cached CFG or
+//! empty-source fact is never a callee-effect or ownership proof.
 use super::*;
 
 #[cfg(test)]
@@ -19,6 +23,11 @@ pub struct VerifyStats {
     pub function_proofs_checked: usize,
     pub function_proofs_reused: usize,
     pub instruction_proofs_reused: usize,
+    /// Independently checked empty source/loan proofs, sealed only on success.
+    pub empty_borrow_proofs_checked: usize,
+    pub empty_borrow_proofs_reused: usize,
+    /// Empty per-SSA root vectors not allocated by this invocation.
+    pub empty_borrow_values_avoided: usize,
 }
 
 /// One retained successful epoch, with independently produced local receipts.
@@ -27,6 +36,7 @@ pub struct VerifyStats {
 pub struct VerifySession {
     verified: Option<VerifiedModule>,
     flows: Arc<BTreeMap<FunctionId, Arc<FlowReceipt>>>,
+    empty_borrows: Arc<BTreeMap<FunctionId, borrows::EmptyContext>>,
     stats: VerifyStats,
 }
 
@@ -90,15 +100,25 @@ impl VerifySession {
         }
         let mut attempt = Attempt {
             previous: &self.flows,
+            previous_empty_borrows: &self.empty_borrows,
             previous_inputs: self.verified.as_ref(),
             next: BTreeMap::new(),
+            next_empty_borrows: BTreeMap::new(),
+            bound_plans: BTreeMap::new(),
+            bound_closures: None,
             bound_functions: BTreeMap::new(),
             stats: VerifyStats::default(),
         };
         let result = verify_inputs_with_reuse(inputs, expected_target, limits, Some(&mut attempt));
         self.stats = attempt.stats;
         if let Ok(verified) = &result {
-            self.flows = Arc::new(attempt.next);
+            let Attempt {
+                next,
+                next_empty_borrows,
+                ..
+            } = attempt;
+            self.flows = Arc::new(next);
+            self.empty_borrows = Arc::new(next_empty_borrows);
             self.verified = Some(verified.clone());
         }
         result
@@ -142,8 +162,12 @@ struct FlowReceipt {
 
 pub(super) struct Attempt<'a> {
     previous: &'a BTreeMap<FunctionId, Arc<FlowReceipt>>,
+    previous_empty_borrows: &'a BTreeMap<FunctionId, borrows::EmptyContext>,
     previous_inputs: Option<&'a VerifiedModule>,
     next: BTreeMap<FunctionId, Arc<FlowReceipt>>,
+    next_empty_borrows: BTreeMap<FunctionId, borrows::EmptyContext>,
+    bound_plans: BTreeMap<FunctionId, bool>,
+    bound_closures: Option<bool>,
     bound_functions: BTreeMap<FunctionId, bool>,
     stats: VerifyStats,
 }
@@ -166,6 +190,51 @@ impl<'a> Attempt<'a> {
                         .is_some_and(|prior| same_function(prior, function))
             })
         })
+    }
+
+    fn plan_matches(&mut self, function: &TypedFunction, plan: &FunctionPlan) -> bool {
+        *self.bound_plans.entry(function.id).or_insert_with(|| {
+            self.previous_inputs.is_some_and(|previous| {
+                previous.plan().functions.get(function.id.0 as usize) == Some(plan)
+            })
+        })
+    }
+
+    /// The caller has freshly established EmptyContext's complete eligibility
+    /// predicate. No callee body, candidate summary, or hash grants authority.
+    /// Closure definitions are the sole external raw reads of the source/loan
+    /// predicates; conservatively bind the complete table, including nested
+    /// closure types reached by affine_type. Unrelated closure edits may miss.
+    pub(super) fn empty_borrow_matches(
+        &mut self,
+        module: &TypedModule,
+        function: &TypedFunction,
+        plan: &FunctionPlan,
+        context: borrows::EmptyContext,
+        limits: &Limits,
+    ) -> bool {
+        self.previous_empty_borrows.get(&function.id) == Some(&context)
+            && self.function_matches(function, &module.target, limits)
+            && self.plan_matches(function, plan)
+            && *self.bound_closures.get_or_insert_with(|| {
+                self.previous_inputs
+                    .is_some_and(|previous| previous.module().closures == module.closures)
+            })
+    }
+
+    pub(super) fn record_empty_borrow(
+        &mut self,
+        function: &TypedFunction,
+        context: borrows::EmptyContext,
+        reused: bool,
+    ) {
+        self.next_empty_borrows.insert(function.id, context);
+        self.stats.empty_borrow_values_avoided += function.values.len();
+        if reused {
+            self.stats.empty_borrow_proofs_reused += 1;
+        } else {
+            self.stats.empty_borrow_proofs_checked += 1;
+        }
     }
 
     pub(super) fn instructions(
@@ -193,11 +262,10 @@ impl<'a> Attempt<'a> {
         limits: &Limits,
     ) -> Check<FlowProof> {
         let function_matches = self.function_matches(inputs.function, target, limits);
+        let plan_matches = self.plan_matches(inputs.function, inputs.plan);
         if function_matches
             && let Some(receipt) = self.previous.get(&inputs.function.id)
-            && self.previous_inputs.is_some_and(|previous| {
-                previous.plan().functions.get(inputs.function.id.0 as usize) == Some(inputs.plan)
-            })
+            && plan_matches
             && receipt.work <= budget.remaining
         {
             // Equal complete inputs imply the same successful checks and cost.

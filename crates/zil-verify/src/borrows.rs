@@ -210,28 +210,14 @@ fn replacement_schedule(
     Ok(Some((inventory, schedule)))
 }
 
-fn check(
+fn check_hold_shape(
     module: &TypedModule,
     f: &TypedFunction,
     plan: &FunctionPlan,
-    graph: &FunctionGraph,
-    facts: &Facts,
-    descriptor_origins: bool,
     budget: &mut Budget,
 ) -> Check<()> {
-    let FunctionGraph {
-        successors,
-        predecessors,
-        reachable,
-        ..
-    } = graph;
-    let values = &facts.values;
-    let inputs = &facts.inputs;
-    let replacements = replacement_schedule(module, f, graph, budget)?;
-    let schedule = replacements.as_ref().map(|(_, s)| s);
     let m = f.locals.len();
     let v = f.values.len();
-    let n = f.blocks.len();
     if plan.holds.len() != v {
         return Err(reject(
             "E-VERIFY-HOLD",
@@ -259,6 +245,32 @@ fn check(
         }
         budget.spend(claim.roots.len())?;
     }
+    Ok(())
+}
+
+fn check(
+    module: &TypedModule,
+    f: &TypedFunction,
+    plan: &FunctionPlan,
+    graph: &FunctionGraph,
+    facts: &Facts,
+    descriptor_origins: bool,
+    budget: &mut Budget,
+) -> Check<()> {
+    let FunctionGraph {
+        successors,
+        predecessors,
+        reachable,
+        ..
+    } = graph;
+    let values = &facts.values;
+    let inputs = &facts.inputs;
+    let replacements = replacement_schedule(module, f, graph, budget)?;
+    let schedule = replacements.as_ref().map(|(_, s)| s);
+    let m = f.locals.len();
+    let v = f.values.len();
+    let n = f.blocks.len();
+    check_hold_shape(module, f, plan, budget)?;
     if !function_has_sources(module, f, descriptor_origins, budget)? {
         if plan.holds.iter().any(|claim| !claim.roots.is_empty()) {
             return Err(reject(
@@ -616,15 +628,70 @@ fn check(
     Ok(())
 }
 
+/// Additional ambient reads of the empty-source/empty-loan path. Every other
+/// relevant switch is freshly excluded by check_module_mask before a match.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct EmptyContext {
+    static_utf8: bool,
+    shared_thread: Option<bool>,
+}
+impl EmptyContext {
+    fn current(function: &TypedFunction, budget: &Budget) -> Self {
+        Self {
+            static_utf8: budget.static_utf8,
+            shared_thread: budget
+                .shared_thread_functions
+                .as_ref()
+                .map(|rows| rows[function.id.0 as usize]),
+        }
+    }
+}
+
+// Replay at the original stage, not as one aggregate module debit. On a short
+// budget preserve the original per-row failure position and remaining amount.
+fn replay_empty_work(values: usize, budget: &mut Budget) -> Check<()> {
+    if values <= budget.remaining {
+        budget.spend(values)
+    } else {
+        for _ in 0..values {
+            budget.spend(1)?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 struct Facts {
+    // Only check_module_mask's independently gated empty-source path creates
+    // this sentinel. It is never exposed to a global facts consumer. A local
+    // loan consumer materializes rows after its early gate if needed.
+    compact_empty: bool,
     values: Vec<Roots>,
     inputs: Vec<State>,
     product_captures: bool,
 }
+impl Facts {
+    fn compact() -> Self {
+        Self {
+            compact_empty: true,
+            values: Vec::new(),
+            inputs: Vec::new(),
+            product_captures: false,
+        }
+    }
+    fn dense_empty(function: &TypedFunction) -> Self {
+        Self {
+            compact_empty: false,
+            values: vec![Roots::new(); function.values.len()],
+            inputs: Vec::new(),
+            product_captures: false,
+        }
+    }
+}
 fn empty_facts(f: &TypedFunction, budget: &mut Budget) -> Check<Facts> {
     budget.spend(f.values.len())?;
     Ok(Facts {
+        compact_empty: false,
         values: vec![vec![]; f.values.len()],
         inputs: Vec::new(),
         product_captures: false,
@@ -639,6 +706,26 @@ fn reconstruct(
     descriptor_origins: bool,
     budget: &mut Budget,
 ) -> Check<Facts> {
+    reconstruct_with_empty_mode(
+        module,
+        f,
+        graph,
+        summaries,
+        descriptor_origins,
+        budget,
+        false,
+    )
+}
+
+fn reconstruct_with_empty_mode(
+    module: &TypedModule,
+    f: &TypedFunction,
+    graph: &FunctionGraph,
+    summaries: &[Roots],
+    descriptor_origins: bool,
+    budget: &mut Budget,
+    compact: bool,
+) -> Check<Facts> {
     let n = f.blocks.len();
     let v = f.values.len();
     let predecessors = &graph.predecessors;
@@ -648,7 +735,8 @@ fn reconstruct(
         && !function_has_sources(module, f, descriptor_origins, budget)?
     {
         return Ok(Facts {
-            values: vec![vec![]; v],
+            compact_empty: compact,
+            values: if compact { Vec::new() } else { vec![vec![]; v] },
             inputs: vec![],
             product_captures: false,
         });
@@ -1053,6 +1141,7 @@ fn reconstruct(
         }
     }
     Ok(Facts {
+        compact_empty: false,
         values,
         inputs,
         product_captures,
@@ -1237,8 +1326,22 @@ pub(super) fn check_module(
     graphs: &[FunctionGraph],
     budget: &mut Budget,
 ) -> Check<Vec<BTreeSet<u32>>> {
-    check_module_mask(module, plan, graphs, None, budget)
+    check_module_mask(module, plan, graphs, None, budget, None)
 }
+pub(super) fn check_module_with_reuse(
+    module: &TypedModule,
+    plan: &CandidatePlan,
+    graphs: &[FunctionGraph],
+    budget: &mut Budget,
+    reuse: Option<&mut incremental::Attempt<'_>>,
+) -> Check<Vec<BTreeSet<u32>>> {
+    if reuse.is_none() {
+        check_module(module, plan, graphs, budget)
+    } else {
+        check_module_mask(module, plan, graphs, None, budget, reuse)
+    }
+}
+
 pub(super) fn check_mixed(
     module: &TypedModule,
     plan: &CandidatePlan,
@@ -1246,7 +1349,7 @@ pub(super) fn check_mixed(
     mask: &[bool],
     budget: &mut Budget,
 ) -> Check<Vec<BTreeSet<u32>>> {
-    check_module_mask(module, plan, graphs, Some(mask), budget)
+    check_module_mask(module, plan, graphs, Some(mask), budget, None)
 }
 fn overlay_store_option_sources(
     module: &TypedModule,
@@ -1334,6 +1437,7 @@ fn check_module_mask(
     graphs: &[FunctionGraph],
     mask: Option<&[bool]>,
     budget: &mut Budget,
+    mut reuse: Option<&mut incremental::Attempt<'_>>,
 ) -> Check<Vec<BTreeSet<u32>>> {
     // The complete raw-type preflight already found every retained Task port.
     // Closed/legacy modules keep their original fee path and need no new table.
@@ -1344,7 +1448,54 @@ fn check_module_mask(
     };
     let empty_port_facts = port_facts::FunctionFacts::default();
     let descriptor_origins = descriptor_origins(module, budget)?;
-    let mut facts = reconstruct_module(module, graphs, descriptor_origins, mask, budget)?;
+    // A compact row must never reach a consumer which assumes dense facts.
+    // The frontier, Task/Store overlays, callbacks, captures/effects, weak
+    // descriptions and mutex result summaries keep their original full path.
+    // This is a current checker predicate, not a language/source label.
+    let compact = reuse.is_some()
+        && mask.is_none()
+        && !descriptor_origins
+        && !budget.task_borrowed_results
+        && !budget.store_option_results
+        && !budget.invocation_callbacks
+        && !budget.borrowed_function_pointers
+        && !budget.generic_mutex
+        && !budget.replacements
+        && !module.functions.iter().any(|f| {
+            matches!(f.return_type, Type::Address { .. }) || retained_task_value(&f.return_type)
+        });
+    let mut reused_empty = Vec::new();
+    let mut facts = if compact {
+        // Same no-frontier reconstruction fee and function order. There are no
+        // summary reads in the empty-source branch; retain the ordinary empty
+        // summary rows for any functions which need the full reconstruction.
+        budget.spend(module.functions.len())?;
+        let summaries = vec![Roots::new(); module.functions.len()];
+        let mut facts = Vec::with_capacity(module.functions.len());
+        for ((function, candidate), graph) in
+            module.functions.iter().zip(&plan.functions).zip(graphs)
+        {
+            let context = EmptyContext::current(function, budget);
+            let matched = reuse.as_deref_mut().is_some_and(|attempt| {
+                attempt.empty_borrow_matches(module, function, candidate, context, &budget.limits)
+            });
+            if matched && function.values.len() <= budget.remaining {
+                budget.spend(function.values.len())?;
+                facts.push(Facts::compact());
+                reused_empty.push(true);
+            } else {
+                // Insufficient residual budget follows the original first
+                // spend/check order. Cold requests perform no extra type walk.
+                facts.push(reconstruct_with_empty_mode(
+                    module, function, graph, &summaries, false, budget, true,
+                )?);
+                reused_empty.push(false);
+            }
+        }
+        facts
+    } else {
+        reconstruct_module(module, graphs, descriptor_origins, mask, budget)?
+    };
     if budget.store_option_results && !budget.task_borrowed_results {
         let checked = budget.store_option_sources.take().ok_or_else(|| {
             reject(
@@ -1576,6 +1727,55 @@ fn check_module_mask(
         if mask.is_some_and(|mask| mask[function_index]) {
             if has_buffers {
                 apart.push(Default::default());
+            }
+            continue;
+        }
+        if facts.compact_empty {
+            let reused = reused_empty[function_index];
+            // The source predicate excludes every Address and tracked Desc
+            // value. Together with the current no-return-frontier predicate,
+            // all origin/lending checks below are false; no CFG walk is needed.
+            if budget.static_utf8 {
+                replay_empty_work(function.values.len(), budget)?;
+            }
+            if reused && function.values.len() <= budget.remaining {
+                // Successful empty Holds pay v, then only zero-root spends.
+                budget.spend(function.values.len())?;
+            } else {
+                check_hold_shape(module, function, plan, budget)?;
+                if plan.holds.iter().any(|claim| !claim.roots.is_empty()) {
+                    return Err(reject(
+                        "E-VERIFY-HOLD",
+                        Some(function.span),
+                        "scalar-only function cannot claim address Hold roots",
+                    ));
+                }
+            }
+            let loan_fee = usize::from(budget.shared_thread_functions.is_some());
+            let no_loans = if reused && loan_fee <= budget.remaining {
+                budget.spend(loan_fee)?;
+                true
+            } else {
+                let (_, empty) = loans::check_with_empty_proof(
+                    module,
+                    function,
+                    graph,
+                    facts,
+                    port_facts
+                        .as_ref()
+                        .map_or(&empty_port_facts, |rows| &rows[function_index]),
+                    None,
+                    false,
+                    budget,
+                )?;
+                empty
+            };
+            if no_loans {
+                let context = EmptyContext::current(function, budget);
+                reuse
+                    .as_deref_mut()
+                    .expect("compact session context")
+                    .record_empty_borrow(function, context, reused);
             }
             continue;
         }

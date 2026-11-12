@@ -56,6 +56,9 @@ fn private_edit_reuses_unchanged_function_and_rebinds_current_spans() {
             function_proofs_checked: 1,
             function_proofs_reused: 1,
             instruction_proofs_reused: 4,
+            empty_borrow_proofs_checked: 1,
+            empty_borrow_proofs_reused: 1,
+            empty_borrow_values_avoided: 8,
         }
     );
 }
@@ -207,8 +210,12 @@ fn insufficient_remaining_work_falls_back_at_the_original_check_position() {
         .unwrap();
     let mut attempt = Attempt {
         previous: &session.flows,
+        previous_empty_borrows: &session.empty_borrows,
         previous_inputs: session.verified.as_ref(),
         next: BTreeMap::new(),
+        next_empty_borrows: BTreeMap::new(),
+        bound_plans: BTreeMap::new(),
+        bound_closures: None,
         bound_functions: BTreeMap::new(),
         stats: VerifyStats::default(),
     };
@@ -352,3 +359,5 @@ fn shared_body_mutation_cannot_retain_the_old_instruction_or_flow_authority() {
     assert_eq!(session.stats().instruction_proofs_reused, 0);
     assert_eq!(session.stats().function_proofs_reused, 0);
 }
+
+mod empty_borrows;

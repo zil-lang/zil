@@ -1272,6 +1272,29 @@ pub(super) fn check(
     descriptor_origins: bool,
     budget: &mut Budget,
 ) -> Check<Apart> {
+    check_with_empty_proof(
+        module,
+        f,
+        graph,
+        facts,
+        ports,
+        capture,
+        descriptor_origins,
+        budget,
+    )
+    .map(|(apart, _)| apart)
+}
+
+pub(super) fn check_with_empty_proof(
+    module: &TypedModule,
+    f: &TypedFunction,
+    graph: &FunctionGraph,
+    facts: &Facts,
+    ports: &super::port_facts::FunctionFacts,
+    capture: Option<captures::Context<'_>>,
+    descriptor_origins: bool,
+    budget: &mut Budget,
+) -> Check<(Apart, bool)> {
     let shared_thread = budget
         .shared_thread_functions
         .as_ref()
@@ -1308,8 +1331,18 @@ pub(super) fn check(
                 || packages::has_callable_fields(t)
         })
     {
-        return Ok(Apart::new());
+        return Ok((Apart::new(), true));
     }
+    // Compact facts reached only this local consumer. A source-free function
+    // can still have affine local obligations, so materialize before the full
+    // loan path; never treat source absence as an ownership proof.
+    let dense;
+    let facts = if facts.compact_empty {
+        dense = Facts::dense_empty(f);
+        &dense
+    } else {
+        facts
+    };
     let replacements = replacement_schedule(module, f, graph, budget)?;
     let schedule = replacements.as_ref().map(|(_, s)| s);
     let apart = RefCell::new(Apart::new());
@@ -2009,5 +2042,5 @@ pub(super) fn check(
             }
         }
     }
-    Ok(apart.into_inner())
+    Ok((apart.into_inner(), false))
 }
