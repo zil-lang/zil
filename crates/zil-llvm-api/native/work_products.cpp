@@ -117,7 +117,10 @@ bool eligibleFunction(const Function &F) {
   return true;
 }
 std::string functionText(const Function &F) {
-  std::string S; raw_string_ostream OS(S); F.print(OS, nullptr, true); return S;
+  std::string S; raw_string_ostream OS(S); F.print(OS, nullptr, true);
+  OS << "\n; block-number-state " << F.getMaxBlockNumber() << ':' << F.getBlockNumberEpoch();
+  for (const BasicBlock &B : F) OS << ':' << B.getNumber();
+  OS << '\n'; return S;
 }
 std::string worldText(const Module &M, const Function *Subject) {
   ValueToValueMapTy Map;
@@ -153,7 +156,7 @@ std::string worldText(const Module &M, const Function *Subject) {
     for (const User *U : Subject->users())
       if (const auto *I = dyn_cast<Instruction>(U)) Callers.insert(I->getFunction());
     for (const Function &F : M)
-      if (Callers.count(&F)) { OS << "\n; incoming caller\n"; F.print(OS, nullptr, true); }
+      if (Callers.count(&F)) { OS << "\n; incoming caller\n" << functionText(F); }
     // User iteration order is observable to transformations. Bind the actual
     // outside-body use list as stable current IR positions, without retaining
     // historical Instruction/Use pointers.
@@ -183,8 +186,9 @@ struct Symbols {
   using Has = int (*)(void *, const void *);
   using Require = void (*)(void *, void *, const void *);
   using Name = const char *(*)(void *, const void *, uint64_t *);
+  using RestoreNumbers = int (*)(void *, unsigned, unsigned, const unsigned *, uint64_t);
   Set set = nullptr; Visit visit = nullptr; Has has = nullptr; Require require = nullptr;
-  Name name = nullptr;
+  Name name = nullptr; RestoreNumbers restoreNumbers = nullptr;
   bool available = false;
   Symbols() {
     auto Cap = [](const char *N) { auto F = reinterpret_cast<unsigned (*)()>(dlsym(RTLD_DEFAULT, N)); return F && F() == 1; };
@@ -195,7 +199,8 @@ struct Symbols {
     has = reinterpret_cast<Has>(dlsym(RTLD_DEFAULT, "ZilLLVMHasFunctionAnalysisKey"));
     require = reinterpret_cast<Require>(dlsym(RTLD_DEFAULT, "ZilLLVMRequireFunctionAnalysisKey"));
     name = reinterpret_cast<Name>(dlsym(RTLD_DEFAULT, "ZilLLVMFunctionAnalysisName"));
-    available = set && visit && has && require;
+    restoreNumbers = reinterpret_cast<RestoreNumbers>(dlsym(RTLD_DEFAULT, "ZilLLVMRestoreFunctionBlockNumbers"));
+    available = set && visit && has && require && restoreNumbers;
   }
 };
 Symbols &symbols() { static Symbols S; return S; }
@@ -220,6 +225,8 @@ void describeAnalyses(FunctionAnalysisManager &AM, Function &F, const char *Poin
 struct Stage {
   std::string Input, World, Path, Pipeline, Output, OutputText;
   Keys EntryKeys, ExitKeys;
+  unsigned OutputNextBlock = 0, OutputBlockEpoch = 0;
+  std::vector<unsigned> OutputBlockNumbers;
   PreservedAnalyses PA = PreservedAnalyses::none();
 };
 struct Products {
@@ -254,7 +261,8 @@ void retainStage(Request &R, const std::string &Slot, std::shared_ptr<const Stag
   size_t Bytes = sizeof(Stage);
   for (size_t N : {Slot.size(), P->Input.size(), P->World.size(), P->Path.size(),
                    P->Pipeline.size(), P->Output.size(), P->OutputText.size(),
-                   P->EntryKeys.size() * sizeof(void *), P->ExitKeys.size() * sizeof(void *)}) {
+                   P->EntryKeys.size() * sizeof(void *), P->ExitKeys.size() * sizeof(void *),
+                   P->OutputBlockNumbers.size() * sizeof(unsigned)}) {
     if (N > MaxStageProductBytes - Bytes) return;
     Bytes += N;
   }
@@ -359,7 +367,9 @@ bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P
       R.M.eraseNamedMetadata(CU);
     }
   }
-  if (!preserveLocalUseOrder(*SF, Map) || verifyFunction(F, nullptr) ||
+  if (!symbols().restoreNumbers(&F, P.OutputNextBlock, P.OutputBlockEpoch,
+                               P.OutputBlockNumbers.data(), P.OutputBlockNumbers.size()) ||
+      !preserveLocalUseOrder(*SF, Map) || verifyFunction(F, nullptr) ||
       functionText(F) != P.OutputText) return false;
   for (const void *K : P.ExitKeys) { symbols().require(&AM, &F, K); ++R.Stats.analysis_reconstructions; }
   if (analysisKeys(AM, F) != P.ExitKeys) return false;
@@ -410,6 +420,9 @@ void afterStage(void *Context, void *, void *IR, void *Manager, const void *PA, 
   describeAnalyses(*static_cast<FunctionAnalysisManager *>(Manager), F, "exit", analysisKeys(*static_cast<FunctionAnalysisManager *>(Manager), F));
   if (!P->Product || R.Failed || !eligibleFunction(F) || worldText(R.M, &F) != P->Product->World) return;
   P->Product->OutputText = functionText(F);
+  P->Product->OutputNextBlock = F.getMaxBlockNumber();
+  P->Product->OutputBlockEpoch = F.getBlockNumberEpoch();
+  for (const BasicBlock &B : F) P->Product->OutputBlockNumbers.push_back(B.getNumber());
   P->Product->Output = snapshot(F);
   if (P->Product->Output.empty()) return;
   P->Product->PA = *static_cast<const PreservedAnalyses *>(PA);

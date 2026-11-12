@@ -131,7 +131,7 @@
 +++ b/llvm/lib/IR/PassManager.cpp
 @@ -15,0 +16 @@
 +extern "C" LLVM_ABI unsigned ZilLLVMFunctionStageCapability() { return 1; }
-@@ -165,0 +167,29 @@
+@@ -165,0 +167,37 @@
 +
 +extern "C" LLVM_ABI void ZilLLVMVisitFunctionAnalysisKeys(
 +    void *Manager, void *IR, void (*Visit)(void *, const void *), void *Context) {
@@ -160,6 +160,14 @@
 +                  ->zilAnalysisName(Key);
 +  if (Length) *Length = Name.size();
 +  return Name.data();
++}
++
++extern "C" LLVM_ABI int ZilLLVMRestoreFunctionBlockNumbers(
++    void *IR, unsigned Next, unsigned Epoch, const unsigned *Numbers,
++    uint64_t Count) {
++  if (!IR || (!Numbers && Count)) return 0;
++  return static_cast<llvm::Function *>(IR)->zilRestoreBlockNumberState(
++      Next, Epoch, llvm::ArrayRef<unsigned>(Numbers, Count));
 +}
 --- a/llvm/lib/Analysis/CGSCCPassManager.cpp
 +++ b/llvm/lib/Analysis/CGSCCPassManager.cpp
@@ -221,4 +229,23 @@
 +    (void)getResultImpl(const_cast<AnalysisKey *>(
 +        static_cast<const AnalysisKey *>(ID)), IR, ExtraArgs...);
 +  }
++
+--- a/llvm/include/llvm/IR/Function.h
++++ b/llvm/include/llvm/IR/Function.h
+@@ -817,0 +818,16 @@
++  // Fixed resident-product replay. Validation precedes any current mutation.
++  // Analysis caches must be cleared before replacing the owning function body.
++  bool zilRestoreBlockNumberState(unsigned Next, unsigned Epoch,
++                                   ArrayRef<unsigned> Numbers) {
++    if (Numbers.size() != size()) return false;
++    DenseSet<unsigned> Seen;
++    for (unsigned N : Numbers)
++      if (N >= Next || !Seen.insert(N).second) return false;
++    unsigned I = 0;
++    for (BasicBlock &BB : *this) BB.Number = Numbers[I++];
++    NextBlockNum = Next;
++    BlockNumEpoch = Epoch;
++    return true;
++  }
++
 +
