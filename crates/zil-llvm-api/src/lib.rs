@@ -82,7 +82,12 @@ pub struct NativeProductStats {
     // Actual scoped MIR costs, not a partition of total native time. Dispatch,
     // optimization, emission and other unassigned work remain in receipt totals.
     pub mir_key_ns: u64,
+    /// Combined reconstruction: tiny MIR header parsing, typed current
+    /// MI/MBB/use-chain construction, and parser/header destruction. This is
+    /// not pure YAML parsing time; restoration/validation below is excluded.
     pub mir_parse_ns: u64,
+    /// Target, numbering and block-state restoration, typed-body recapture
+    /// equality, current domain/MachineVerifier checks, and full MIR equality.
     pub mir_restore_validate_ns: u64,
     pub mir_capture_ns: u64,
     pub retained_bytes: u64,
