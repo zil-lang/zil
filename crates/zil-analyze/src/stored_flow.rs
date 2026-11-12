@@ -675,6 +675,9 @@ pub(super) struct Facts {
     byte_reads: Vec<Target>,
     byte_covered: bool,
     external_after: BTreeMap<(u32, Path), Vec<Target>>,
+    // Every reachable return preserves the exact seeded targets AND loans.
+    // This is derived from actual terminal states, never a type/life claim.
+    external_stable: BTreeSet<(u32, Path)>,
     capture_after: BTreeMap<Path, Vec<Target>>,
     /// Actual entry-head ancestry of every reachable returned permission.
     receiver_return: bool,
@@ -943,6 +946,7 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
     if !f.returned_head_inputs.is_empty() {
         fee(b, f.returned_head_inputs.len())?;
     }
+    for (_,path) in &f.external_stable {fee(b,path.len().saturating_add(1))?;}
     if !f.none_values.is_empty() {
         fee(b, f.none_values.len())?;
     }
@@ -4345,7 +4349,14 @@ fn transfer(
                         for source in sources {union(&mut permission,&substitute(source,arguments,values,state,b)?,b)?;}
                     }
                     if !permission.targets.is_empty() {
-                        permission=retain_slot(&permission,i,position as u32,&path,slot_ids,loans,b)?;
+                        let stable=summary.external_stable.contains(&(position as u32,path.clone()));
+                        if stable {
+                            let previous=before.get(&path).ok_or_else(||failure("stable moved context omits actual previous row"))?;
+                            permission_clone_work(previous,b)?;permission_clone_work(&permission,b)?;
+                            if *previous!=permission {return Err(failure("stable moved context changed actual targets or loans"));}
+                        } else {
+                            permission=retain_slot(&permission,i,position as u32,&path,slot_ids,loans,b)?;
+                        }
                     }
                     ordered(b,after.len(),path.len())?;
                     after.insert(path,permission);
@@ -4384,7 +4395,19 @@ fn transfer(
                     ));
                 }
                 fee(b, path.len().saturating_add(permission.targets.len()))?;
-                let permission = retain_slot(&permission, i, *parameter, path, slot_ids, loans, b)?;
+                let stable=summary.external_stable.contains(&(*parameter,path.clone()));
+                let permission = if stable {
+                    let previous=match &callee.locals[local.0 as usize].ty {
+                        Type::Address{inner,..} if matches!(inner.as_ref(),Type::Closure(_))=>{
+                            let rows=environment_memory::current(actual,state,b)?;
+                            copy_permission(rows.get(path).ok_or_else(||failure("stable callable row absent"))?,b)?
+                        },
+                        _=>select(state,&actual.pointer,path,b)?,
+                    };
+                    permission_clone_work(&previous,b)?;permission_clone_work(&permission,b)?;
+                    if previous!=permission {return Err(failure("stable external effect changed actual targets or loans"));}
+                    permission
+                } else {retain_slot(&permission, i, *parameter, path, slot_ids, loans, b)?};
                 for root in &actual.pointer.targets {
                     fee(b,target_width(root).saturating_add(path.len()))?;
                     if !root.stored.is_empty() || root.heap_element.is_some() || root.retained_port.is_some() {
@@ -6646,6 +6669,7 @@ fn derive_cfg(
                 byte_reads: Vec::new(),
                 byte_covered: false,
                 external_after: BTreeMap::new(),
+                external_stable: BTreeSet::new(),
                 capture_after: BTreeMap::new(),
                 receiver_return: f.environment.is_some()
                     && f.storage_life.as_ref().is_some_and(|life| {
@@ -6726,6 +6750,15 @@ fn derive_cfg(
                 fee(b, root.len())?;
                 actual.values.push(root.into_iter().collect());
             }
+            if b.receiver_borrows || b.mutable_capture_contexts {
+                for (base, rows) in &entry.external {
+                    let HoldRoot::Parameter(parameter)=base else {continue;};
+                    for path in rows.keys() {
+                        fee(b,path.len().saturating_add(1))?;
+                        actual.external_stable.insert((*parameter,path.clone()));
+                    }
+                }
+            }
             for (bi, (block, live)) in f.blocks.iter().zip(reachable).enumerate() {
                 fee(b, 1)?;
                 if *live
@@ -6741,6 +6774,17 @@ fn derive_cfg(
                     && *live
                     && matches!(block.terminator, Terminator::Return(_))
                 {
+                    let mut changed_rows=Vec::new();
+                    for (parameter,path) in &actual.external_stable {
+                        fee(b,path.len().saturating_add(1))?;
+                        let base=HoldRoot::Parameter(*parameter);
+                        let initial=entry.external.get(&base).and_then(|rows|rows.get(path));
+                        let terminal=outputs[bi].external.get(&base).and_then(|rows|rows.get(path));
+                        if let Some(value)=initial {permission_clone_work(value,b)?;}
+                        if let Some(value)=terminal {permission_clone_work(value,b)?;}
+                        if initial!=terminal {changed_rows.push((*parameter,path.clone()));}
+                    }
+                    for row in changed_rows {actual.external_stable.remove(&row);}
                     for (base, slots) in &outputs[bi].external {
                         let HoldRoot::Parameter(index) = base else {
                             continue;
