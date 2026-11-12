@@ -955,6 +955,14 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             let mut writes = Vec::new();
             for (i, capture) in definition.captures.iter().enumerate() {
                 budget.spend(1, "helper capture envelope")?;
+                if matches!(capture,Type::BorrowedStorage{..}|Type::Closure(_))
+                    && budget.returned_borrowed_environments.contains(&closure) {
+                    let (held,called,written)=super::retained::capture_effects(module,capture,budget)?;
+                    if held {hold.push(i as u32);}
+                    if called {call.push(i as u32);}
+                    if written {writes.push(i as u32);}
+                    continue;
+                }
                 if matches!(capture, Type::Address { .. }) {
                     hold.push(i as u32);
                 }

@@ -1,6 +1,8 @@
 //! Producer proposals from complete Typed CFGs. Neither safety kernel consumes
 //! this solver's internal state; they must reconstruct actual target relations.
 use super::*;
+#[path = "helper_classes.rs"]
+mod helper_classes;
 type Path = Vec<ContractProjection>;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Origins {
@@ -609,7 +611,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
             })
             .collect();
     }
-    populate_creator_fixed(module, left)?;
+    if populate_creator_fixed(module, left)? { helper_classes::populate(module,left,limits)?; }
     Ok(())
 }
 
@@ -779,7 +781,7 @@ fn captured_parameter(
     }
     parameter.ok_or_else(|| unsupported(f.span, "capture class has no actual construction"))
 }
-fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize) -> R<()> {
+fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize) -> R<bool> {
     let mut updates = Vec::new();
     for f in &module.functions {
         let Some(contract) = &f.callable_return_contract else {
@@ -909,6 +911,7 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize) -> R<()> {
             result_classes,
         ));
     }
+    let changed = !updates.is_empty();
     for (id, function, creator, proposal, result_classes) in updates {
         spend(
             left,
@@ -939,5 +942,5 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize) -> R<()> {
         }
         header.classes.extend(result_classes);
     }
-    Ok(())
+    Ok(changed)
 }
