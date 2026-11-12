@@ -38,7 +38,7 @@ FIELDS = {
                           'environment_functions_not_visited', 'region_functions_checked',
                           'region_functions_reused', 'lexical_cleanup_functions_checked',
                           'lexical_cleanup_functions_reused', 'closure_instance_functions_checked',
-                          'closure_instance_functions_reused', 'closure_instance_ranges_reused'),
+                          'closure_instance_functions_reused', 'closure_instance_ranges_reused', 'raw_function_headers_reused'),
     'lowering_work': ('functions_checked', 'layout_checks', 'functions_reused', 'full_checks',
                       'budget_replays', 'context_checks', 'context_check_ns'),
 }
