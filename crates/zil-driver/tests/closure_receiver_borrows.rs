@@ -539,3 +539,46 @@ fn receiver_and_capture_epoch_analysis_has_exact_fresh_warm_and_wire_budgets() {
 }
 
 }
+
+mod original_named_source_scope {
+use super::source_receiver_contracts::typed;
+use zil_base::{FileId, Limits, ModuleId, SourceUnit, TargetProfile};
+fn core(text: &str) -> zil_ir::CoreModule {
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "receiver-borrow.zil", text);
+    let syntax = zil_syntax::parse(&source).into_result().unwrap();
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &source,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    core
+}
+#[test]
+fn original_named_result_scope_selects_the_real_same_typed_input() {
+    for (life, actual, wrong) in [("a", "left", "right"), ("b", "right", "left")] {
+        let text = format!(
+            "fn make<life a,life b>(left:&'a mut i32,right:&'b mut i32)->impl FnOnce()->&'{life} mut i32{{return move()=>give {actual}}} fn main()->i32{{var left=20;var right=20;let f=make(&mut left,&mut right);let pointer=f();*pointer+=2;return *pointer-22}}"
+        );
+        let module = typed(&text);
+        zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        let bad = text.replace(&format!("give {actual}"), &format!("give {wrong}"));
+        let errors = zil_types::check(&core(&bad), &TargetProfile::host_llvm(), &Limits::default())
+            .unwrap_err();
+        assert!(
+            errors.iter().any(|e| e.code == "E-CALLABLE-RETURN-LIFE"),
+            "{errors:?}"
+        );
+    }
+}
+
+}

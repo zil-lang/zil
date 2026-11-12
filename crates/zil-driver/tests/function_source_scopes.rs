@@ -142,7 +142,19 @@ fn raw_return_bridge() -> CoreModule {
     let text = "fn make<life a,life b>(value:&'a mut i32,other:&'b mut i32)->impl FnOnce()->&mut i32{return move()=>give value} fn main()->i32{var value=20;var spare=0;let f=make(&mut value,&mut spare);let pointer=f();*pointer+=2;return *pointer-22}";
     let source = SourceUnit::new(FileId(0), ModuleId(0), "raw-return-bridge.zil", text);
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
-    let mut core = zil_expand::expand(&source, &syntax).unwrap();
+    let mut core = zil_expand::expand_with_map_limits_target_context(
+        &source,
+        &syntax,
+        &Limits::default(),
+        &TargetProfile::host_llvm(),
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
     let baseline =
         zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap();
     let actual = baseline
