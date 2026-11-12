@@ -561,6 +561,9 @@ bool captureStageBody(Stage &P, Function &F, ZilNativeProductStats &Stats) {
   std::string Output = functionText(F);
   if (Output.empty()) return false;
   if (Output == P.Input) {
+    // Snapshot cloning used to verify the transported body. There is no
+    // transport now, but retain the same current function validity check.
+    if (verifyFunction(F, nullptr)) return false;
     // Keep only the input's complete bytes. No bitcode clone, serialization,
     // second output-text copy, old declaration map or numbering payload.
     P.BodyUnchanged = true; return true;
@@ -587,6 +590,7 @@ bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P
     return false;
   };
   if (P.BodyUnchanged) {
+    if (verifyFunction(F, nullptr)) return Fail("unchanged-current-function-verifier");
     // Input/world/stage/config/entry analyses were matched in beforeStage.
     // Retain the current Function and all of its Values/use-lists/name/BB
     // state; only the independently bound analysis transition may need work.
