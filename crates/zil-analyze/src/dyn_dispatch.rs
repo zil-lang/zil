@@ -610,6 +610,9 @@ fn body(
     let mut seen = BTreeSet::new();
     let mut receiver_values = BTreeSet::new();
     let mut field_values: BTreeMap<ValueId, Type> = BTreeMap::new();
+    // Every reachable store into a temporary must carry an already established
+    // receiver-derived capability. A later load cannot infer origin from Type.
+    let mut field_locals: BTreeMap<LocalId, Type> = BTreeMap::new();
     let mut value_results = BTreeSet::new();
     let mut saw_return = false;
     let mut saw_write = false;
@@ -639,6 +642,59 @@ fn body(
                         return Err(bad("dyn receiver load type differs"));
                     }
                     receiver_values.insert(result);
+                }
+                InstructionKind::Store {
+                    local,
+                    value: source,
+                } if field_values.contains_key(source) => {
+                    let local_type = &f
+                        .locals
+                        .get(local.0 as usize)
+                        .ok_or_else(|| bad("dyn address temporary local is absent"))?
+                        .ty;
+                    if local_type != value(f, *source, budget)? {
+                        return Err(bad("dyn address temporary changes its complete type"));
+                    }
+                    budget.lookup(field_locals.len(), WORK)?;
+                    field_locals.insert(
+                        *local,
+                        field_values
+                            .get(source)
+                            .expect("actual receiver field")
+                            .clone(),
+                    );
+                }
+                InstructionKind::Store {
+                    local,
+                    value: source,
+                } if value_results.contains(source) => {
+                    let local_type = &f
+                        .locals
+                        .get(local.0 as usize)
+                        .ok_or_else(|| bad("dyn scalar temporary local is absent"))?
+                        .ty;
+                    if !plain_value(local_type) || local_type != value(f, *source, budget)? {
+                        return Err(bad("dyn scalar temporary changes its complete type"));
+                    }
+                }
+                InstructionKind::Load(local) if field_locals.contains_key(local) => {
+                    let output = instruction
+                        .result
+                        .ok_or_else(|| bad("dyn address temporary load has no result"))?;
+                    if value(f, output, budget)?
+                        != &f
+                            .locals
+                            .get(local.0 as usize)
+                            .ok_or_else(|| bad("dyn address temporary local is absent"))?
+                            .ty
+                    {
+                        return Err(bad("dyn address temporary load changes its complete type"));
+                    }
+                    budget.lookup(field_values.len(), WORK)?;
+                    field_values.insert(
+                        output,
+                        field_locals.get(local).expect("proved temporary").clone(),
+                    );
                 }
                 InstructionKind::Load(local)
                     if f.locals
