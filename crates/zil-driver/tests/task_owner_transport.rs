@@ -188,6 +188,14 @@ fn static_callable_task_input_keeps_the_complete_constant_capture_contract() {
             ..CompileOptions::default()
         },
     );
+    if report.status != ResultCategory::Success {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../out/runs");
+        fs::write(
+            dir.join("static-task-typed.txt"),
+            format!("{:#?}", typed_original(text)),
+        )
+        .unwrap();
+    }
     assert_eq!(
         report.status,
         ResultCategory::Success,

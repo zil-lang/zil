@@ -330,7 +330,7 @@ pub(crate) fn registration_operation(
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    if !b.task_failure_carriers {
+    if !b.task_sources() {
         return Ok(false);
     }
     let actual = match &i.kind {
@@ -366,7 +366,7 @@ pub(crate) fn provider(
     candidate: &TypedFunction,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    if !b.task_failure_carriers
+    if !b.task_sources()
         || !candidate.foreign.as_ref().is_some_and(|f| {
             matches!(
                 f.scoped_callback,
