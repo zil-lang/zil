@@ -70,7 +70,7 @@ pub(super) fn ordered_batches<T, U, F>(
     emit: F,
 ) -> CompileResult<Vec<U>>
 where
-    T: Sync,
+    T: Send + Sync,
     U: Send,
     F: Fn(usize, Batch<'_, T>) -> CompileResult<U> + Sync,
 {

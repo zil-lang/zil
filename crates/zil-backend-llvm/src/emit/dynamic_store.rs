@@ -1450,12 +1450,14 @@ mod pod_tests {
     }
 
     fn view<'a>(resources: &'a [ResourceDefinition], target: &'a TargetProfile) -> LirView<'a> {
+        static FUNCTIONS: std::sync::LazyLock<zil_ir::PersistentVec<TypedFunction>> =
+            std::sync::LazyLock::new(zil_ir::PersistentVec::new);
         LirView {
             schema_version: SCHEMA_VERSION,
             module_id: ModuleId(0),
             verified_fingerprint: Fingerprint::ZERO,
             target,
-            functions: &zil_ir::PersistentVec::new(),
+            functions: &FUNCTIONS,
             closures: &[],
             resources,
             layouts: std::borrow::Cow::Borrowed(&[]),

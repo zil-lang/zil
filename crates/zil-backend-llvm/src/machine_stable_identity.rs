@@ -221,6 +221,7 @@ pub(crate) fn prepare_collected(
             selected_hints.push((*id, key.clone()));
         }
     }
+    let functions: zil_ir::PersistentVec<_> = functions.into();
     let selected = LirView {
         schema_version: lir.schema_version,
         module_id: lir.module_id,
