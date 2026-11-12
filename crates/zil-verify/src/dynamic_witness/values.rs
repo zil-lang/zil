@@ -108,13 +108,50 @@ impl Inventory<'_> {
                             "zero Closure relation contains undeclared class occurrences",
                         ));
                     }
-                    for child in d
-                        .captures
-                        .iter()
-                        .chain(&d.parameters)
-                        .chain(std::iter::once(&d.result))
-                    {
-                        closed.pending_sources |= self.zero(child, b)?.pending_sources;
+                    let mut expected = Vec::new();
+                    for (ordinal, child) in d.parameters.iter().enumerate() {
+                        self.static_occurrences(
+                            child,
+                            StoragePosition {
+                                base: StorageBase::Parameter(ordinal as u32),
+                                path: vec![],
+                            },
+                            &mut expected,
+                            0,
+                            b,
+                        )?;
+                    }
+                    for (ordinal, child) in d.captures.iter().enumerate() {
+                        self.static_occurrences(
+                            child,
+                            StoragePosition {
+                                base: StorageBase::Capture(ordinal as u32),
+                                path: vec![],
+                            },
+                            &mut expected,
+                            0,
+                            b,
+                        )?;
+                    }
+                    self.static_occurrences(
+                        &d.result,
+                        StoragePosition {
+                            base: StorageBase::Result,
+                            path: vec![],
+                        },
+                        &mut expected,
+                        0,
+                        b,
+                    )?;
+                    b.spend(
+                        expected
+                            .len()
+                            .saturating_add(relation.static_bindings.len()),
+                    )?;
+                    if expected != relation.static_bindings {
+                        return Err(bad(
+                            "zero Closure relation omits or changes an actual static borrow occurrence",
+                        ));
                     }
                 } else {
                     signature_life::closure_relation(
@@ -308,6 +345,79 @@ impl Inventory<'_> {
                 "dynamic actual type has no complete intrinsic domain consumer",
             )),
         }
+    }
+    fn static_occurrences(
+        &mut self,
+        ty: &Type,
+        position: StoragePosition,
+        expected: &mut Vec<StoragePosition>,
+        depth: usize,
+        b: &mut Budget,
+    ) -> Check<()> {
+        b.spend(position.path.len().saturating_add(1))?;
+        if depth > b.limits.max_call_depth.min(128) || expected.len() > b.limits.max_nodes {
+            return Err(limit(
+                "zero Closure actual static directory exceeds selected bound",
+            ));
+        }
+        let mut child = |this: &mut Self, ty: &Type, step: PlaceProjection, b: &mut Budget| {
+            b.spend(position.path.len().saturating_add(1))?;
+            let mut next = position.clone();
+            next.path.push(ContractProjection::Place(step));
+            this.static_occurrences(ty, next, expected, depth + 1, b)
+        };
+        match ty {
+            Type::Address { inner, .. } | Type::Desc(inner) => {
+                // Even a constant outer borrow cannot erase the complete inner
+                // nominal/phantom domain. The actual origin stays pending.
+                self.zero(inner, b)?;
+                expected.push(position);
+            }
+            Type::Tuple(fields) => {
+                for (i, ty) in fields.iter().enumerate() {
+                    child(self, ty, PlaceProjection::Field(i as u32), b)?;
+                }
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                for (i, (_, ty)) in fields.iter().enumerate() {
+                    child(self, ty, PlaceProjection::Field(i as u32), b)?;
+                }
+            }
+            Type::Enum { variants, .. } => {
+                for (variant, (_, fields)) in variants.iter().enumerate() {
+                    for (index, ty) in fields.iter().enumerate() {
+                        child(
+                            self,
+                            ty,
+                            PlaceProjection::Variant(VariantProjection {
+                                variant: variant as u32,
+                                index: index as u32,
+                            }),
+                            b,
+                        )?;
+                    }
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                child(self, error, PlaceProjection::ErrorArm(true), b)?;
+                child(self, result, PlaceProjection::ErrorArm(false), b)?;
+            }
+            Type::Array { element, length } => {
+                if *length as usize > b.limits.max_nodes {
+                    return Err(limit(
+                        "static array occurrence directory exceeds selected bound",
+                    ));
+                }
+                b.spend(*length as usize)?;
+                for i in 0..*length {
+                    child(self, element, PlaceProjection::Field(i), b)?;
+                }
+            }
+            _ => {
+                self.zero(ty, b)?;
+            }
+        }
+        Ok(())
     }
     fn zero(&mut self, ty: &Type, b: &mut Budget) -> Check<Domain> {
         let domain = self.domain(ty, b)?;
@@ -542,6 +652,7 @@ mod tests {
             })
             .collect();
         let relation = StorageLifeContract {
+            static_bindings: vec![],
             fixed_binder_count: count,
             invocation_binder_count: 0,
             bindings: (0..count)
@@ -687,6 +798,54 @@ mod tests {
         }
         assert_eq!(run(&module, &actual).unwrap().count, 2);
         assert!(run(&module, &value(storage, 2)).is_err());
+    }
+
+    #[test]
+    fn static_zero_closure_keeps_actual_borrow_positions_pending_without_erasing_classes() {
+        let mut module = closure(0);
+        module.closures[0].captures = vec![Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        }];
+        let position = StoragePosition {
+            base: StorageBase::Capture(0),
+            path: vec![],
+        };
+        let mut relation = module.closures[0].storage_life.clone().unwrap();
+        relation.static_bindings = vec![position.clone()];
+        module.closures[0].storage_life = Some(relation.clone());
+        module.functions[0].storage_life = Some(relation);
+        let actual = value(Type::Closure(ClosureId(0)), 0);
+        assert!(run(&module, &actual).unwrap().pending_sources);
+        let aggregate = value(Type::Tuple(vec![Type::Closure(ClosureId(0))]), 0);
+        assert!(run(&module, &aggregate).unwrap().pending_sources);
+        let mut missing = module.clone();
+        missing.closures[0]
+            .storage_life
+            .as_mut()
+            .unwrap()
+            .static_bindings
+            .clear();
+        missing.functions[0].storage_life = missing.closures[0].storage_life.clone();
+        assert!(run(&missing, &actual).is_err());
+        let mut wrong = module.clone();
+        wrong.closures[0]
+            .storage_life
+            .as_mut()
+            .unwrap()
+            .static_bindings[0]
+            .base = StorageBase::Parameter(0);
+        wrong.functions[0].storage_life = wrong.closures[0].storage_life.clone();
+        assert!(run(&wrong, &actual).is_err());
+        let mut duplicated = module.clone();
+        duplicated.closures[0]
+            .storage_life
+            .as_mut()
+            .unwrap()
+            .static_bindings
+            .push(position);
+        duplicated.functions[0].storage_life = duplicated.closures[0].storage_life.clone();
+        assert!(run(&duplicated, &actual).is_err());
     }
 
     #[test]
