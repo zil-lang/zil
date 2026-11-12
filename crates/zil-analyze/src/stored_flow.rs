@@ -4066,6 +4066,27 @@ fn transfer(
         }
     }
     capture_after::invoke(module,f,i,state,values,summaries,slot_ids,loans,b)?;
+    if b.qualified_head_returns
+        && let Some(result) = i.result
+        && let Some((storage, shape)) = pointed_carrier(value_type(f, result)?)
+        && matches!(storage, Type::Record { .. } | Type::Tuple(_))
+        && shape.retained.is_empty()
+    {
+        // A qualified address denotes current memory, not the slot snapshot
+        // cached when its capability entered the environment. In particular a
+        // consuming call may have just published a write through that head.
+        // Ordinary extracted data addresses do not enter this branch: their
+        // own permissions and parent loans stay frozen until their last use.
+        fee(b, shape.slots.len().saturating_add(1))?;
+        let mut current = BTreeMap::new();
+        for declaration in &shape.slots {
+            fee(b, declaration.path.len())?;
+            let actual = select(state, &out.pointer, &declaration.path, b)?;
+            ordered(b, current.len(), declaration.path.len())?;
+            current.insert(declaration.path.clone(), actual);
+        }
+        out.slots = current;
+    }
     if let Some(permission) = owned_byte_views::seed_description(module, f, i, values, b)? {
         out.store_description = permission;
     }

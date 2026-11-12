@@ -177,6 +177,30 @@ pub(super) fn finish(module: &mut TypedModule, summaries: &[Summary], left: &mut
                 binder: result,
             });
         }
+        if let Type::Address{inner,..}=&d.result
+            && let Type::BorrowedStorage{life:shape,..}=inner.as_ref() {
+            for class in 0..shape.binder_count {
+                let mut selected=None;
+                for source in &origin.inputs {
+                    let StorageBase::Capture(index)=source.base else {return Err(unsupported(f.span,"qualified result class has no actual captured head"));};
+                    if !source.path.is_empty() || d.captures.get(index as usize)!=Some(&d.result) {
+                        return Err(unsupported(f.span,"qualified result requires its complete actual pointee class projection"));
+                    }
+                    spend(left,life.classes.len(),f.span)?;
+                    let actual=life.classes.iter().find(|row|row.position.base==StorageBase::Capture(index)
+                        && row.position.path.as_slice()==[LifeTypeProjection::Pointee] && row.position.class==class)
+                        .map(|row|row.binder).ok_or_else(||unsupported(f.span,"qualified result omits an actual captured pointee class"))?;
+                    if selected.replace(actual).is_some_and(|previous|previous!=actual) {
+                        return Err(error("E-CLOSURE-RESULT-LIFE",f.span,"qualified result joins distinct original pointee classes"));
+                    }
+                }
+                let position=SignatureLifeClass{base:StorageBase::Result,path:vec![LifeTypeProjection::Pointee],class};
+                let binder=selected.ok_or_else(||unsupported(f.span,"qualified result class has no actual source"))?;
+                if let Some(row)=life.classes.iter().find(|row|row.position==position) {
+                    if row.binder!=binder {return Err(error("E-CLOSURE-RESULT-LIFE",f.span,"qualified result changes its declared pointee class"));}
+                } else {spend(left,2,f.span)?;life.classes.push(SignatureLifeClassBinding{position,binder});}
+            }
+        }
         updates.push((d.id, d.function, life));
     }
     for (id, entry, life) in updates {

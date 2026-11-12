@@ -10,7 +10,10 @@ pub(super) fn supported_result(ty: &Type) -> bool {
 }
 pub(super) fn transferred_result(ty:&Type)->bool {
     matches!(ty,Type::Address{inner,..} if inner.is_copy_value()
-        || matches!(inner.as_ref(),Type::Slice{element}if element.is_copy_value()))
+        || matches!(inner.as_ref(),Type::Slice{element}if element.is_copy_value())
+        || matches!(inner.as_ref(),Type::BorrowedStorage{storage,life}
+            if matches!(storage.as_ref(),Type::Record{..}|Type::Tuple(_))
+                && life.retained.is_empty()))
 }
 
 pub(super) fn qualified_result(closure: &ClosureDefinition) -> bool {
