@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Build the pinned, opt-in function-product LLVM extension in a new prefix.
 
-Only MachineFunctionPass.cpp.o is replaced. The original SDK and DSO remain
-unchanged. This is a locally modified LLVM build, not an upstream release.
+Only the pinned translation units in the manifest are replaced. The original
+SDK and DSO remain unchanged. This is a locally modified LLVM build.
 """
 import argparse
 import ctypes
@@ -54,38 +54,73 @@ def build(sdk, prefix, receipt):
         return (logs / (name + '.stdout')).read_text()
 
     source_root = prefix / 'source'
-    for relative, expected in manifest['original_files'].items():
+    for index, (relative, expected) in enumerate(manifest['original_files'].items()):
         path = source_root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         url = f'https://raw.githubusercontent.com/llvm/llvm-project/{manifest["llvm_commit"]}/{relative}'
-        run('source-download', ['curl', '--fail', '--location', '--retry', '3', '--max-time', '120', url, '-o', path])
+        run(f'source-download-{index}', ['curl', '--fail', '--location', '--retry', '3', '--max-time', '120', url, '-o', path])
         if sha(path) != expected:
             raise ValueError('upstream source hash mismatch')
     run('apply-patch', ['patch', '--batch', '--fuzz=0', '-p1', '-i', patch], source_root)
     config = sdk / 'bin/llvm-config'
     cxxflags = shlex.split(run('cxxflags', [config, '--cxxflags']))
-    obj = prefix / 'MachineFunctionPass.cpp.o'
-    source = source_root / 'llvm/lib/CodeGen/MachineFunctionPass.cpp'
-    run('compile-extension', [sdk / 'bin/clang++', *cxxflags, '-O3', '-DNDEBUG', '-fPIC',
-                              '-I', NATIVE, '-c', source, '-o', obj])
     lib = prefix / 'lib'
     lib.mkdir()
-    replacement = lib / 'libLLVMCodeGen.a'
-    expected = installed['component_inputs']['lib/libLLVMCodeGen.a']
-    if sha(sdk / 'lib/libLLVMCodeGen.a') != expected:
-        raise ValueError('original CodeGen component changed')
-    shutil.copyfile(sdk / 'lib/libLLVMCodeGen.a', replacement)
-    run('replace-object', [sdk / 'bin/llvm-ar', 'r', replacement, obj])
-    members = run('archive-members', [sdk / 'bin/llvm-ar', 't', replacement]).splitlines()
-    if members.count(obj.name) != 1:
-        raise ValueError('replacement object is not unique in component archive')
+    units = manifest.get('compile_units', [{
+        'source': 'llvm/lib/CodeGen/MachineFunctionPass.cpp',
+        'archive': 'libLLVMCodeGen.a', 'member': 'MachineFunctionPass.cpp.o',
+    }])
+    if not units:
+        raise ValueError('empty replacement set')
+    replacements = {}
+    seen = set()
+    receipt['compile_units'] = []
+    for index, unit in enumerate(units):
+        source_name, archive, member = (unit[key] for key in ('source', 'archive', 'member'))
+        if source_name not in manifest['original_files']:
+            raise ValueError('unbound translation unit: ' + source_name)
+        if Path(archive).name != archive or Path(member).name != member:
+            raise ValueError('archive and member must be basenames')
+        if (archive, member) in seen:
+            raise ValueError('duplicate replacement member')
+        seen.add((archive, member))
+        source = source_root / source_name
+        object_dir = prefix / f'objects-{index}'
+        object_dir.mkdir()
+        obj = object_dir / member
+        includes = []
+        for include in unit.get('include_dirs', []):
+            include_path = (source_root / include).resolve()
+            include_path.relative_to(source_root)
+            includes.extend(['-I', include_path])
+        run(f'compile-extension-{index}', [sdk / 'bin/clang++', *cxxflags, '-O3', '-DNDEBUG', '-fPIC',
+                                          '-I', NATIVE, *includes, *unit.get('flags', []),
+                                          '-c', source, '-o', obj])
+        replacement = lib / archive
+        if archive not in replacements:
+            relative = 'lib/' + archive
+            if sha(sdk / relative) != installed['component_inputs'][relative]:
+                raise ValueError('original component changed: ' + archive)
+            shutil.copyfile(sdk / relative, replacement)
+            replacements[archive] = str(replacement)
+        original_members = run(f'original-members-{index}', [sdk / 'bin/llvm-ar', 't', replacement]).splitlines()
+        if original_members.count(member) != 1:
+            raise ValueError('original member is missing or ambiguous: ' + member)
+        run(f'replace-object-{index}', [sdk / 'bin/llvm-ar', 'r', replacement, obj])
+        members = run(f'archive-members-{index}', [sdk / 'bin/llvm-ar', 't', replacement]).splitlines()
+        if members != original_members:
+            raise ValueError('replacement changed component member order or membership')
+        receipt['compile_units'].append({**unit, 'patched_source_sha256': sha(source),
+                                          'object_sha256': sha(obj)})
     libraries = shlex.split(run('component-libraries', [config, '--link-static', '--libfiles', *installed['release']['components']]))
     libraries = list(dict.fromkeys(libraries))
     for name in libraries:
         relative = str(Path(name).relative_to(sdk))
         if sha(Path(name)) != installed['component_inputs'][relative]:
             raise ValueError(f'component differs from original SDK receipt: {relative}')
-    libraries = [str(replacement) if Path(name).name == replacement.name else name for name in libraries]
+    if not set(replacements).issubset({Path(name).name for name in libraries}):
+        raise ValueError('replacement component is not in the linked SDK component set')
+    libraries = [replacements.get(Path(name).name, name) for name in libraries]
     major, minor, _ = manifest['version'].split('.')
     soname = f'libLLVM.so.{major}.{minor}'
     version_map = prefix / 'llvm.map'
@@ -109,8 +144,10 @@ def build(sdk, prefix, receipt):
     dependencies = run('dependencies', ['ldd', output])
     if 'not found' in dependencies:
         raise ValueError('replacement DSO has missing dependencies')
-    receipt['replacement_object_sha256'] = sha(obj)
-    receipt['replacement_archive_sha256'] = sha(replacement)
+    for symbol in manifest.get('required_exports', []):
+        if not hasattr(loaded, symbol):
+            raise ValueError('missing extension export: ' + symbol)
+    receipt['replacement_archives'] = {name: sha(Path(path)) for name, path in replacements.items()}
     receipt['library'] = {'path': str(output), 'sha256': sha(output)}
     receipt['default_hook'] = 'null: original pipeline selected'
     env = {'ZIL_LLVM_LIB_DIR': str(lib), 'ZIL_LLVM_INCLUDE_DIR': str(sdk / 'include'),
