@@ -167,6 +167,15 @@ std::string functionText(const Function &F) {
   for (const BasicBlock &B : F) OS << ':' << B.getNumber();
   OS << '\n'; return S;
 }
+std::string declarationText(const Function &F) {
+  std::string S; raw_string_ostream OS(S);
+  F.print(OS, nullptr, false);
+  OS << "\n; complete-attribute-values "; F.getAttributes().print(OS);
+  SmallVector<std::pair<unsigned, MDNode *>, 4> Metadata;
+  F.getAllMetadata(Metadata);
+  for (const auto &E : Metadata) { OS << "\n; metadata " << E.first << '\n'; E.second->printTree(OS, F.getParent()); }
+  return S;
+}
 std::string worldText(const Module &M, const Function *Subject) {
   ValueToValueMapTy Map;
   auto World = CloneModule(M, Map, [](const GlobalValue *G) { return !isa<Function>(G); });
@@ -272,6 +281,7 @@ struct Stage {
   Keys EntryKeys, ExitKeys;
   unsigned OutputNextBlock = 0, OutputBlockEpoch = 0;
   AnalysisReplayState OutputAnalysisReplay;
+  std::map<std::string, std::string> OriginalDeclarations;
   std::vector<unsigned> OutputBlockNumbers;
   PreservedAnalyses PA = PreservedAnalyses::none();
 };
@@ -311,6 +321,12 @@ void retainStage(Request &R, const std::string &Slot, std::shared_ptr<const Stag
                    P->OutputBlockNumbers.size() * sizeof(unsigned)}) {
     if (N > MaxStageProductBytes - Bytes) return;
     Bytes += N;
+  }
+  for (const auto &D : P->OriginalDeclarations) {
+    for (size_t N : {D.first.size(), D.second.size()}) {
+      if (N > MaxStageProductBytes - Bytes) return;
+      Bytes += N;
+    }
   }
   if (Bytes > MaxStageProductBytes - R.ProductBytes) return;
   R.ProductBytes += Bytes;
@@ -396,10 +412,26 @@ bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P
   for (const Argument &SA : SF->args()) Map[&SA] = &*A++;
   for (Function &D : *Source) if (&D != SF) {
     Function *Current = R.M.getFunction(D.getName());
+    auto Saved = P.OriginalDeclarations.find(D.getName().str());
     if (!D.isDeclaration() || !Current || Current->getFunctionType() != D.getFunctionType() ||
-        Current->getAttributes() != D.getAttributes()) return Fail("current-declaration-binding");
+        !D.isIntrinsic() || D.getIntrinsicID() != Current->getIntrinsicID() ||
+        Saved == P.OriginalDeclarations.end() || declarationText(*Current) != Saved->second)
+      return Fail("current-original-declaration-binding");
+    if (AnalysisDiagnostics && Current->getAttributes() != D.getAttributes()) {
+      std::string A, B; raw_string_ostream AO(A), BO(B);
+      Current->getAttributes().print(AO); D.getAttributes().print(BO);
+      std::fprintf(stderr, "ZIL intrinsic serialization attributes %.*s current=[%s] parsed=[%s]\n", static_cast<int>(D.getName().size()), D.getName().data(), A.c_str(), B.c_str());
+    }
+    // Reading even current-version bitcode upgrades intrinsic declarations.
+    // Rebind to the independently checked CURRENT original declaration state,
+    // whose complete projection above is equal to the cold stage's original.
+    D.setAttributes(Current->getAttributes());
     Map[&D] = Current;
   }
+  // The cold group was retained only if its complete module/header projection
+  // was unchanged. The subject's original attributes therefore equal CURRENT
+  // entry attributes as well; do not transport parser-upgraded function attrs.
+  SF->setAttributes(F.getAttributes());
   for (const void *K : P.ExitKeys) if (!symbols().has(&AM, K)) return Fail("exit-analysis-registration");
   // invalidate(none) deliberately does not suffice: some immutable analyses
   // self-preserve. Destroy the complete old function cache before body replace.
@@ -477,6 +509,11 @@ void afterStage(void *Context, void *, void *IR, void *Manager, const void *PA, 
   P->Product->ExitKeys = analysisKeys(*static_cast<FunctionAnalysisManager *>(Manager), F);
   if (!analysisFacts(F, *static_cast<FunctionAnalysisManager *>(Manager),
                      P->Product->ExitKeys, P->Product->ExitFacts, &P->Product->OutputAnalysisReplay)) return;
+  for (const BasicBlock &B : F) for (const Instruction &I : B)
+    if (const auto *Call = dyn_cast<CallBase>(&I)) {
+      const Function *D = Call->getCalledFunction();
+      P->Product->OriginalDeclarations.emplace(D->getName().str(), declarationText(*D));
+    }
   P->Product->OutputText = functionText(F);
   P->Product->OutputNextBlock = F.getMaxBlockNumber();
   P->Product->OutputBlockEpoch = F.getBlockNumberEpoch();
