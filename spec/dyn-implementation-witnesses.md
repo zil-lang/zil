@@ -135,3 +135,13 @@ ordinary language qualification rules. A specialized producer having passed a
 bound does not let raw transport omit it. A structural predicate is not satisfied
 by an unrelated same-named user trait; ordinary nominal types named Value or
 SyncDrop in type position retain their actual declaration identity.
+
+Original associated bindings remain explicit equality premises. A requirement
+such as `T: A<Item = i32>` contains both the Trait obligation for the actual T
+and a TypeEqual between its real A::Item projection and i32. Direct super edges
+carry their associated bindings as requirements in the declaring trait's scope.
+They are not extra generic arguments. TypeEqual compares complete type values,
+including local life shapes and their actual class maps; equal layouts do not
+suffice. ConstEqual independently evaluates both original recipes in its exact
+substituted carrier and compares the complete canonical value and bits. A method
+that never mentions Item or COUNT does not discharge these original premises.

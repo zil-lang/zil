@@ -133,6 +133,17 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     pending.push(Work::DynTypePattern(receiver));
                     b.push(2);
                 }
+                DynObligation::TypeEqual { left, right } => {
+                    pending.push(Work::DynTypePattern(right));
+                    pending.push(Work::DynTypePattern(left));
+                    b.push(3);
+                }
+                DynObligation::ConstEqual { ty, left, right } => {
+                    pending.push(Work::DynConstPattern(right));
+                    pending.push(Work::DynConstPattern(left));
+                    pending.push(Work::DynTypePattern(ty));
+                    b.push(4);
+                }
             },
             Work::DynParameterRecipe(value) => {
                 pending.push(Work::PassingMode(&value.mode));

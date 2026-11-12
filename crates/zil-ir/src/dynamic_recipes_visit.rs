@@ -37,51 +37,51 @@ enum Work<'a> {
     W10(&'a DynSelfPattern, usize),
     W11(&'a CallableKind, usize),
     W12(&'a DynSignatureRecipe, usize),
-    W13(&'a DynParameterRecipe, usize),
-    W14(&'a PassingMode, usize),
-    W15(&'a Vec<DynParameterRecipe>, usize),
-    W16(&'a CallKind, usize),
-    W17(&'a DynContractRecipe, usize),
-    W18(&'a DynRequirementRecipe, usize),
-    W19(&'a StoragePosition, usize),
-    W20(&'a DynGuaranteeRecipe, usize),
-    W21(&'a StorageSourceBinding, usize),
-    W22(&'a DynEffectRecipe, usize),
-    W23(&'a DynCleanupRecipe, usize),
-    W24(&'a bool, usize),
-    W25(&'a Vec<StoragePosition>, usize),
-    W26(&'a DynCallAccess, usize),
-    W27(&'a Vec<DynEffectRecipe>, usize),
-    W28(&'a Option<Vec<DynRequirementRecipe>>, usize),
-    W29(&'a Vec<DynRequirementRecipe>, usize),
-    W30(&'a Option<Vec<DynGuaranteeRecipe>>, usize),
-    W31(&'a Vec<DynGuaranteeRecipe>, usize),
-    W32(&'a Option<Vec<StoragePosition>>, usize),
-    W33(&'a Option<DynCallAccess>, usize),
-    W34(&'a Option<DynResultSource>, usize),
-    W35(&'a DynResultSource, usize),
-    W36(&'a Option<DynCleanupRecipe>, usize),
-    W37(&'a Option<Vec<DynEffectRecipe>>, usize),
-    W38(&'a Option<DynResumeBound>, usize),
-    W39(&'a DynResumeBound, usize),
-    W40(&'a Option<DynThreadRequirements>, usize),
-    W41(&'a DynThreadRequirements, usize),
-    W42(&'a DynDefinitionId, usize),
-    W43(&'a ModuleId, usize),
-    W44(&'a NodeId, usize),
-    W45(&'a DynDefinitionScope, usize),
-    W46(&'a DynDefinitionDeclaration, usize),
-    W47(&'a Vec<DynObligation>, usize),
-    W48(&'a Vec<DynDefinitionSpecialization>, usize),
-    W49(&'a DynDefinitionSpecialization, usize),
-    W50(&'a LifeDeclarationIdentity, usize),
-    W51(&'a DynMethodRecipe, usize),
-    W52(&'a Option<DynDefinitionId>, usize),
-    W53(&'a DynFunctionInstance, usize),
-    W54(&'a Vec<DynGenericActual>, usize),
-    W55(&'a DynGenericActual, usize),
-    W56(&'a DynAssociatedValueRecipe, usize),
-    W57(&'a DynConstPattern, usize),
+    W13(&'a DynConstPattern, usize),
+    W14(&'a DynParameterRecipe, usize),
+    W15(&'a PassingMode, usize),
+    W16(&'a Vec<DynParameterRecipe>, usize),
+    W17(&'a CallKind, usize),
+    W18(&'a DynContractRecipe, usize),
+    W19(&'a DynRequirementRecipe, usize),
+    W20(&'a StoragePosition, usize),
+    W21(&'a DynGuaranteeRecipe, usize),
+    W22(&'a StorageSourceBinding, usize),
+    W23(&'a DynEffectRecipe, usize),
+    W24(&'a DynCleanupRecipe, usize),
+    W25(&'a bool, usize),
+    W26(&'a Vec<StoragePosition>, usize),
+    W27(&'a DynCallAccess, usize),
+    W28(&'a Vec<DynEffectRecipe>, usize),
+    W29(&'a Option<Vec<DynRequirementRecipe>>, usize),
+    W30(&'a Vec<DynRequirementRecipe>, usize),
+    W31(&'a Option<Vec<DynGuaranteeRecipe>>, usize),
+    W32(&'a Vec<DynGuaranteeRecipe>, usize),
+    W33(&'a Option<Vec<StoragePosition>>, usize),
+    W34(&'a Option<DynCallAccess>, usize),
+    W35(&'a Option<DynResultSource>, usize),
+    W36(&'a DynResultSource, usize),
+    W37(&'a Option<DynCleanupRecipe>, usize),
+    W38(&'a Option<Vec<DynEffectRecipe>>, usize),
+    W39(&'a Option<DynResumeBound>, usize),
+    W40(&'a DynResumeBound, usize),
+    W41(&'a Option<DynThreadRequirements>, usize),
+    W42(&'a DynThreadRequirements, usize),
+    W43(&'a DynDefinitionId, usize),
+    W44(&'a ModuleId, usize),
+    W45(&'a NodeId, usize),
+    W46(&'a DynDefinitionScope, usize),
+    W47(&'a DynDefinitionDeclaration, usize),
+    W48(&'a Vec<DynObligation>, usize),
+    W49(&'a Vec<DynDefinitionSpecialization>, usize),
+    W50(&'a DynDefinitionSpecialization, usize),
+    W51(&'a LifeDeclarationIdentity, usize),
+    W52(&'a DynMethodRecipe, usize),
+    W53(&'a Option<DynDefinitionId>, usize),
+    W54(&'a DynFunctionInstance, usize),
+    W55(&'a Vec<DynGenericActual>, usize),
+    W56(&'a DynGenericActual, usize),
+    W57(&'a DynAssociatedValueRecipe, usize),
     W58(&'a DynAssociatedDefinition, usize),
     W59(&'a Option<DynTypePattern>, usize),
     W60(&'a Option<DynAssociatedValueRecipe>, usize),
@@ -183,6 +183,22 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         pending.push(Work::W11(field_kind, nesting + 1));
                         pending.push(Work::W8(field_receiver, nesting + 1));
                     }
+                    DynObligation::TypeEqual {
+                        left: field_left,
+                        right: field_right,
+                    } => {
+                        pending.push(Work::W8(field_right, nesting + 1));
+                        pending.push(Work::W8(field_left, nesting + 1));
+                    }
+                    DynObligation::ConstEqual {
+                        ty: field_ty,
+                        left: field_left,
+                        right: field_right,
+                    } => {
+                        pending.push(Work::W13(field_right, nesting + 1));
+                        pending.push(Work::W13(field_left, nesting + 1));
+                        pending.push(Work::W8(field_ty, nesting + 1));
+                    }
                 }
             }
             Work::W8(value, nesting) => {
@@ -204,7 +220,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     } => {
                         pending.push(Work::W8(field_inner, nesting + 1));
                         pending.push(Work::W77(field_lifetime, nesting + 1));
-                        pending.push(Work::W24(field_mutable, nesting + 1));
+                        pending.push(Work::W25(field_mutable, nesting + 1));
                     }
                     DynTypePattern::Tuple(field_value_0) => {
                         pending.push(Work::W78(field_value_0, nesting + 1));
@@ -213,7 +229,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         element: field_element,
                         length: field_length,
                     } => {
-                        pending.push(Work::W57(field_length, nesting + 1));
+                        pending.push(Work::W13(field_length, nesting + 1));
                         pending.push(Work::W8(field_element, nesting + 1));
                     }
                     DynTypePattern::Slice(field_value_0) => {
@@ -270,345 +286,14 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             }
             Work::W12(value, nesting) => {
                 visitor.node(nesting)?;
-                pending.push(Work::W17(&value.contract, nesting + 1));
+                pending.push(Work::W18(&value.contract, nesting + 1));
                 pending.push(Work::W6(&value.invocation_binder_count, nesting + 1));
-                pending.push(Work::W16(&value.call_kind, nesting + 1));
-                pending.push(Work::W14(&value.result_mode, nesting + 1));
+                pending.push(Work::W17(&value.call_kind, nesting + 1));
+                pending.push(Work::W15(&value.result_mode, nesting + 1));
                 pending.push(Work::W8(&value.result, nesting + 1));
-                pending.push(Work::W15(&value.parameters, nesting + 1));
+                pending.push(Work::W16(&value.parameters, nesting + 1));
             }
             Work::W13(value, nesting) => {
-                visitor.node(nesting)?;
-                pending.push(Work::W14(&value.mode, nesting + 1));
-                pending.push(Work::W8(&value.ty, nesting + 1));
-            }
-            Work::W14(value, nesting) => {
-                let _ = value;
-                visitor.node(nesting)?;
-            }
-            Work::W15(value, nesting) => {
-                visitor.rows(value.len(), nesting)?;
-                for item in value.iter().rev() {
-                    pending.push(Work::W13(item, nesting));
-                }
-            }
-            Work::W16(value, nesting) => {
-                let _ = value;
-                visitor.node(nesting)?;
-            }
-            Work::W17(value, nesting) => {
-                visitor.node(nesting)?;
-                pending.push(Work::W40(&value.threads, nesting + 1));
-                pending.push(Work::W38(&value.resume, nesting + 1));
-                pending.push(Work::W37(&value.effects, nesting + 1));
-                pending.push(Work::W36(&value.cleanup, nesting + 1));
-                pending.push(Work::W34(&value.result, nesting + 1));
-                pending.push(Work::W33(&value.call, nesting + 1));
-                pending.push(Work::W32(&value.hold, nesting + 1));
-                pending.push(Work::W30(&value.guarantees, nesting + 1));
-                pending.push(Work::W28(&value.requires, nesting + 1));
-            }
-            Work::W18(value, nesting) => {
-                visitor.node(nesting)?;
-                match value {
-                    DynRequirementRecipe::Read(field_value_0) => {
-                        pending.push(Work::W19(field_value_0, nesting + 1));
-                    }
-                    DynRequirementRecipe::Write(field_value_0) => {
-                        pending.push(Work::W19(field_value_0, nesting + 1));
-                    }
-                    DynRequirementRecipe::Manage(field_value_0) => {
-                        pending.push(Work::W19(field_value_0, nesting + 1));
-                    }
-                    DynRequirementRecipe::Apart(field_value_0, field_value_1) => {
-                        pending.push(Work::W19(field_value_1, nesting + 1));
-                        pending.push(Work::W19(field_value_0, nesting + 1));
-                    }
-                    DynRequirementRecipe::State {
-                        position: field_position,
-                        ty: field_ty,
-                        variant: field_variant,
-                    } => {
-                        pending.push(Work::W6(field_variant, nesting + 1));
-                        pending.push(Work::W8(field_ty, nesting + 1));
-                        pending.push(Work::W19(field_position, nesting + 1));
-                    }
-                }
-            }
-            Work::W19(value, nesting) => {
-                visitor.position(value, nesting)?;
-            }
-            Work::W20(value, nesting) => {
-                visitor.node(nesting)?;
-                match value {
-                    DynGuaranteeRecipe::StorageSources(field_value_0) => {
-                        pending.push(Work::W21(field_value_0, nesting + 1));
-                    }
-                    DynGuaranteeRecipe::ManageResult => {}
-                    DynGuaranteeRecipe::State {
-                        position: field_position,
-                        ty: field_ty,
-                        variant: field_variant,
-                    } => {
-                        pending.push(Work::W6(field_variant, nesting + 1));
-                        pending.push(Work::W8(field_ty, nesting + 1));
-                        pending.push(Work::W19(field_position, nesting + 1));
-                    }
-                }
-            }
-            Work::W21(value, nesting) => {
-                visitor.node(nesting)?;
-                pending.push(Work::W25(&value.sources, nesting + 1));
-                pending.push(Work::W19(&value.position, nesting + 1));
-            }
-            Work::W22(value, nesting) => {
-                visitor.node(nesting)?;
-                match value {
-                    DynEffectRecipe::Alloc => {}
-                    DynEffectRecipe::Io => {}
-                    DynEffectRecipe::Block => {}
-                    DynEffectRecipe::Suspend => {}
-                    DynEffectRecipe::Spawn => {}
-                    DynEffectRecipe::Ffi => {}
-                    DynEffectRecipe::Reenter => {}
-                    DynEffectRecipe::Panic => {}
-                    DynEffectRecipe::Call(field_value_0) => {
-                        pending.push(Work::W19(field_value_0, nesting + 1));
-                    }
-                    DynEffectRecipe::Cleanup(field_value_0) => {
-                        pending.push(Work::W8(field_value_0, nesting + 1));
-                    }
-                }
-            }
-            Work::W23(value, nesting) => {
-                visitor.node(nesting)?;
-                pending.push(Work::W27(&value.effects, nesting + 1));
-                pending.push(Work::W26(&value.access, nesting + 1));
-                pending.push(Work::W25(&value.positions, nesting + 1));
-                pending.push(Work::W24(&value.environment, nesting + 1));
-            }
-            Work::W24(value, nesting) => {
-                let _ = value;
-                visitor.node(nesting)?;
-            }
-            Work::W25(value, nesting) => {
-                visitor.rows(value.len(), nesting)?;
-                for item in value.iter().rev() {
-                    pending.push(Work::W19(item, nesting));
-                }
-            }
-            Work::W26(value, nesting) => {
-                visitor.node(nesting)?;
-                pending.push(Work::W25(&value.writes, nesting + 1));
-                pending.push(Work::W25(&value.reads, nesting + 1));
-            }
-            Work::W27(value, nesting) => {
-                visitor.rows(value.len(), nesting)?;
-                for item in value.iter().rev() {
-                    pending.push(Work::W22(item, nesting));
-                }
-            }
-            Work::W28(value, nesting) => {
-                visitor.node(nesting)?;
-                if let Some(item) = value {
-                    pending.push(Work::W29(item, nesting));
-                }
-            }
-            Work::W29(value, nesting) => {
-                visitor.rows(value.len(), nesting)?;
-                for item in value.iter().rev() {
-                    pending.push(Work::W18(item, nesting));
-                }
-            }
-            Work::W30(value, nesting) => {
-                visitor.node(nesting)?;
-                if let Some(item) = value {
-                    pending.push(Work::W31(item, nesting));
-                }
-            }
-            Work::W31(value, nesting) => {
-                visitor.rows(value.len(), nesting)?;
-                for item in value.iter().rev() {
-                    pending.push(Work::W20(item, nesting));
-                }
-            }
-            Work::W32(value, nesting) => {
-                visitor.node(nesting)?;
-                if let Some(item) = value {
-                    pending.push(Work::W25(item, nesting));
-                }
-            }
-            Work::W33(value, nesting) => {
-                visitor.node(nesting)?;
-                if let Some(item) = value {
-                    pending.push(Work::W26(item, nesting));
-                }
-            }
-            Work::W34(value, nesting) => {
-                visitor.node(nesting)?;
-                if let Some(item) = value {
-                    pending.push(Work::W35(item, nesting));
-                }
-            }
-            Work::W35(value, nesting) => {
-                visitor.node(nesting)?;
-                match value {
-                    DynResultSource::Value => {}
-                    DynResultSource::Create => {}
-                    DynResultSource::Give => {}
-                    DynResultSource::Borrow {
-                        sources: field_sources,
-                        mutable: field_mutable,
-                    } => {
-                        pending.push(Work::W24(field_mutable, nesting + 1));
-                        pending.push(Work::W25(field_sources, nesting + 1));
-                    }
-                }
-            }
-            Work::W36(value, nesting) => {
-                visitor.node(nesting)?;
-                if let Some(item) = value {
-                    pending.push(Work::W23(item, nesting));
-                }
-            }
-            Work::W37(value, nesting) => {
-                visitor.node(nesting)?;
-                if let Some(item) = value {
-                    pending.push(Work::W27(item, nesting));
-                }
-            }
-            Work::W38(value, nesting) => {
-                visitor.node(nesting)?;
-                if let Some(item) = value {
-                    pending.push(Work::W39(item, nesting));
-                }
-            }
-            Work::W39(value, nesting) => {
-                let _ = value;
-                visitor.node(nesting)?;
-            }
-            Work::W40(value, nesting) => {
-                visitor.node(nesting)?;
-                if let Some(item) = value {
-                    pending.push(Work::W41(item, nesting));
-                }
-            }
-            Work::W41(value, nesting) => {
-                visitor.node(nesting)?;
-                pending.push(Work::W24(&value.share, nesting + 1));
-                pending.push(Work::W24(&value.transfer, nesting + 1));
-            }
-            Work::W42(value, nesting) => {
-                visitor.node(nesting)?;
-                pending.push(Work::W44(&value.source, nesting + 1));
-                pending.push(Work::W43(&value.module, nesting + 1));
-            }
-            Work::W43(value, nesting) => {
-                let _ = value;
-                visitor.node(nesting)?;
-            }
-            Work::W44(value, nesting) => {
-                let _ = value;
-                visitor.node(nesting)?;
-            }
-            Work::W45(value, nesting) => {
-                visitor.node(nesting)?;
-                match value {
-                    DynDefinitionScope::TraitDefault => {}
-                    DynDefinitionScope::ImplOverride => {}
-                }
-            }
-            Work::W46(value, nesting) => {
-                visitor.node(nesting)?;
-                pending.push(Work::W12(&value.signature, nesting + 1));
-                pending.push(Work::W45(&value.scope, nesting + 1));
-                pending.push(Work::W6(&value.member, nesting + 1));
-                pending.push(Work::W50(&value.identity, nesting + 1));
-                pending.push(Work::W42(&value.id, nesting + 1));
-                pending.push(Work::W48(&value.instances, nesting + 1));
-                pending.push(Work::W47(&value.requirements, nesting + 1));
-            }
-            Work::W47(value, nesting) => {
-                visitor.rows(value.len(), nesting)?;
-                for item in value.iter().rev() {
-                    pending.push(Work::W7(item, nesting));
-                }
-            }
-            Work::W48(value, nesting) => {
-                visitor.rows(value.len(), nesting)?;
-                for item in value.iter().rev() {
-                    pending.push(Work::W49(item, nesting));
-                }
-            }
-            Work::W49(value, nesting) => {
-                visitor.node(nesting)?;
-                pending.push(Work::W54(&value.method_actuals, nesting + 1));
-                pending.push(Work::W54(&value.declaration_actuals, nesting + 1));
-                pending.push(Work::W0(&value.receiver, nesting + 1));
-                pending.push(Work::W70(&value.function, nesting + 1));
-            }
-            Work::W50(value, nesting) => {
-                visitor.identity(value, nesting)?;
-            }
-            Work::W51(value, nesting) => {
-                visitor.node(nesting)?;
-                pending.push(Work::W52(&value.default_definition, nesting + 1));
-                pending.push(Work::W12(&value.signature, nesting + 1));
-                pending.push(Work::W6(&value.member, nesting + 1));
-                pending.push(Work::W47(&value.requirements, nesting + 1));
-            }
-            Work::W52(value, nesting) => {
-                visitor.node(nesting)?;
-                if let Some(item) = value {
-                    pending.push(Work::W42(item, nesting));
-                }
-            }
-            Work::W53(value, nesting) => {
-                visitor.node(nesting)?;
-                pending.push(Work::W54(&value.method_actuals, nesting + 1));
-                pending.push(Work::W54(&value.declaration_actuals, nesting + 1));
-                pending.push(Work::W0(&value.receiver, nesting + 1));
-                pending.push(Work::W42(&value.definition, nesting + 1));
-            }
-            Work::W54(value, nesting) => {
-                visitor.rows(value.len(), nesting)?;
-                for item in value.iter().rev() {
-                    pending.push(Work::W55(item, nesting));
-                }
-            }
-            Work::W55(value, nesting) => {
-                visitor.node(nesting)?;
-                match value {
-                    DynGenericActual::Type(field_value_0) => {
-                        pending.push(Work::W1(field_value_0, nesting + 1));
-                    }
-                    DynGenericActual::Const(field_value_0) => {
-                        pending.push(Work::W64(field_value_0, nesting + 1));
-                    }
-                    DynGenericActual::Life(field_value_0) => {
-                        pending.push(Work::W4(field_value_0, nesting + 1));
-                    }
-                    DynGenericActual::QualifiedType(field_value_0) => {
-                        pending.push(Work::W0(field_value_0, nesting + 1));
-                    }
-                }
-            }
-            Work::W56(value, nesting) => {
-                visitor.node(nesting)?;
-                match value {
-                    DynAssociatedValueRecipe::Type(field_value_0) => {
-                        pending.push(Work::W8(field_value_0, nesting + 1));
-                    }
-                    DynAssociatedValueRecipe::Constant {
-                        ty: field_ty,
-                        value: field_value,
-                    } => {
-                        pending.push(Work::W57(field_value, nesting + 1));
-                        pending.push(Work::W8(field_ty, nesting + 1));
-                    }
-                }
-            }
-            Work::W57(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     DynConstPattern::Value(field_value_0) => {
@@ -626,7 +311,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         ty: field_ty,
                     } => {
                         pending.push(Work::W8(field_ty, nesting + 1));
-                        pending.push(Work::W57(field_value, nesting + 1));
+                        pending.push(Work::W13(field_value, nesting + 1));
                         pending.push(Work::W74(field_op, nesting + 1));
                     }
                     DynConstPattern::Binary {
@@ -636,8 +321,8 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         ty: field_ty,
                     } => {
                         pending.push(Work::W8(field_ty, nesting + 1));
-                        pending.push(Work::W57(field_right, nesting + 1));
-                        pending.push(Work::W57(field_left, nesting + 1));
+                        pending.push(Work::W13(field_right, nesting + 1));
+                        pending.push(Work::W13(field_left, nesting + 1));
                         pending.push(Work::W75(field_op, nesting + 1));
                     }
                     DynConstPattern::Convert {
@@ -645,7 +330,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         ty: field_ty,
                     } => {
                         pending.push(Work::W8(field_ty, nesting + 1));
-                        pending.push(Work::W57(field_value, nesting + 1));
+                        pending.push(Work::W13(field_value, nesting + 1));
                     }
                     DynConstPattern::AssociatedProjection {
                         receiver: field_receiver,
@@ -664,9 +349,340 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
+            Work::W14(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W15(&value.mode, nesting + 1));
+                pending.push(Work::W8(&value.ty, nesting + 1));
+            }
+            Work::W15(value, nesting) => {
+                let _ = value;
+                visitor.node(nesting)?;
+            }
+            Work::W16(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W14(item, nesting));
+                }
+            }
+            Work::W17(value, nesting) => {
+                let _ = value;
+                visitor.node(nesting)?;
+            }
+            Work::W18(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W41(&value.threads, nesting + 1));
+                pending.push(Work::W39(&value.resume, nesting + 1));
+                pending.push(Work::W38(&value.effects, nesting + 1));
+                pending.push(Work::W37(&value.cleanup, nesting + 1));
+                pending.push(Work::W35(&value.result, nesting + 1));
+                pending.push(Work::W34(&value.call, nesting + 1));
+                pending.push(Work::W33(&value.hold, nesting + 1));
+                pending.push(Work::W31(&value.guarantees, nesting + 1));
+                pending.push(Work::W29(&value.requires, nesting + 1));
+            }
+            Work::W19(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    DynRequirementRecipe::Read(field_value_0) => {
+                        pending.push(Work::W20(field_value_0, nesting + 1));
+                    }
+                    DynRequirementRecipe::Write(field_value_0) => {
+                        pending.push(Work::W20(field_value_0, nesting + 1));
+                    }
+                    DynRequirementRecipe::Manage(field_value_0) => {
+                        pending.push(Work::W20(field_value_0, nesting + 1));
+                    }
+                    DynRequirementRecipe::Apart(field_value_0, field_value_1) => {
+                        pending.push(Work::W20(field_value_1, nesting + 1));
+                        pending.push(Work::W20(field_value_0, nesting + 1));
+                    }
+                    DynRequirementRecipe::State {
+                        position: field_position,
+                        ty: field_ty,
+                        variant: field_variant,
+                    } => {
+                        pending.push(Work::W6(field_variant, nesting + 1));
+                        pending.push(Work::W8(field_ty, nesting + 1));
+                        pending.push(Work::W20(field_position, nesting + 1));
+                    }
+                }
+            }
+            Work::W20(value, nesting) => {
+                visitor.position(value, nesting)?;
+            }
+            Work::W21(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    DynGuaranteeRecipe::StorageSources(field_value_0) => {
+                        pending.push(Work::W22(field_value_0, nesting + 1));
+                    }
+                    DynGuaranteeRecipe::ManageResult => {}
+                    DynGuaranteeRecipe::State {
+                        position: field_position,
+                        ty: field_ty,
+                        variant: field_variant,
+                    } => {
+                        pending.push(Work::W6(field_variant, nesting + 1));
+                        pending.push(Work::W8(field_ty, nesting + 1));
+                        pending.push(Work::W20(field_position, nesting + 1));
+                    }
+                }
+            }
+            Work::W22(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W26(&value.sources, nesting + 1));
+                pending.push(Work::W20(&value.position, nesting + 1));
+            }
+            Work::W23(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    DynEffectRecipe::Alloc => {}
+                    DynEffectRecipe::Io => {}
+                    DynEffectRecipe::Block => {}
+                    DynEffectRecipe::Suspend => {}
+                    DynEffectRecipe::Spawn => {}
+                    DynEffectRecipe::Ffi => {}
+                    DynEffectRecipe::Reenter => {}
+                    DynEffectRecipe::Panic => {}
+                    DynEffectRecipe::Call(field_value_0) => {
+                        pending.push(Work::W20(field_value_0, nesting + 1));
+                    }
+                    DynEffectRecipe::Cleanup(field_value_0) => {
+                        pending.push(Work::W8(field_value_0, nesting + 1));
+                    }
+                }
+            }
+            Work::W24(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W28(&value.effects, nesting + 1));
+                pending.push(Work::W27(&value.access, nesting + 1));
+                pending.push(Work::W26(&value.positions, nesting + 1));
+                pending.push(Work::W25(&value.environment, nesting + 1));
+            }
+            Work::W25(value, nesting) => {
+                let _ = value;
+                visitor.node(nesting)?;
+            }
+            Work::W26(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W20(item, nesting));
+                }
+            }
+            Work::W27(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W26(&value.writes, nesting + 1));
+                pending.push(Work::W26(&value.reads, nesting + 1));
+            }
+            Work::W28(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W23(item, nesting));
+                }
+            }
+            Work::W29(value, nesting) => {
+                visitor.node(nesting)?;
+                if let Some(item) = value {
+                    pending.push(Work::W30(item, nesting));
+                }
+            }
+            Work::W30(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W19(item, nesting));
+                }
+            }
+            Work::W31(value, nesting) => {
+                visitor.node(nesting)?;
+                if let Some(item) = value {
+                    pending.push(Work::W32(item, nesting));
+                }
+            }
+            Work::W32(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W21(item, nesting));
+                }
+            }
+            Work::W33(value, nesting) => {
+                visitor.node(nesting)?;
+                if let Some(item) = value {
+                    pending.push(Work::W26(item, nesting));
+                }
+            }
+            Work::W34(value, nesting) => {
+                visitor.node(nesting)?;
+                if let Some(item) = value {
+                    pending.push(Work::W27(item, nesting));
+                }
+            }
+            Work::W35(value, nesting) => {
+                visitor.node(nesting)?;
+                if let Some(item) = value {
+                    pending.push(Work::W36(item, nesting));
+                }
+            }
+            Work::W36(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    DynResultSource::Value => {}
+                    DynResultSource::Create => {}
+                    DynResultSource::Give => {}
+                    DynResultSource::Borrow {
+                        sources: field_sources,
+                        mutable: field_mutable,
+                    } => {
+                        pending.push(Work::W25(field_mutable, nesting + 1));
+                        pending.push(Work::W26(field_sources, nesting + 1));
+                    }
+                }
+            }
+            Work::W37(value, nesting) => {
+                visitor.node(nesting)?;
+                if let Some(item) = value {
+                    pending.push(Work::W24(item, nesting));
+                }
+            }
+            Work::W38(value, nesting) => {
+                visitor.node(nesting)?;
+                if let Some(item) = value {
+                    pending.push(Work::W28(item, nesting));
+                }
+            }
+            Work::W39(value, nesting) => {
+                visitor.node(nesting)?;
+                if let Some(item) = value {
+                    pending.push(Work::W40(item, nesting));
+                }
+            }
+            Work::W40(value, nesting) => {
+                let _ = value;
+                visitor.node(nesting)?;
+            }
+            Work::W41(value, nesting) => {
+                visitor.node(nesting)?;
+                if let Some(item) = value {
+                    pending.push(Work::W42(item, nesting));
+                }
+            }
+            Work::W42(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W25(&value.share, nesting + 1));
+                pending.push(Work::W25(&value.transfer, nesting + 1));
+            }
+            Work::W43(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W45(&value.source, nesting + 1));
+                pending.push(Work::W44(&value.module, nesting + 1));
+            }
+            Work::W44(value, nesting) => {
+                let _ = value;
+                visitor.node(nesting)?;
+            }
+            Work::W45(value, nesting) => {
+                let _ = value;
+                visitor.node(nesting)?;
+            }
+            Work::W46(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    DynDefinitionScope::TraitDefault => {}
+                    DynDefinitionScope::ImplOverride => {}
+                }
+            }
+            Work::W47(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W12(&value.signature, nesting + 1));
+                pending.push(Work::W46(&value.scope, nesting + 1));
+                pending.push(Work::W6(&value.member, nesting + 1));
+                pending.push(Work::W51(&value.identity, nesting + 1));
+                pending.push(Work::W43(&value.id, nesting + 1));
+                pending.push(Work::W49(&value.instances, nesting + 1));
+                pending.push(Work::W48(&value.requirements, nesting + 1));
+            }
+            Work::W48(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W7(item, nesting));
+                }
+            }
+            Work::W49(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W50(item, nesting));
+                }
+            }
+            Work::W50(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W55(&value.method_actuals, nesting + 1));
+                pending.push(Work::W55(&value.declaration_actuals, nesting + 1));
+                pending.push(Work::W0(&value.receiver, nesting + 1));
+                pending.push(Work::W70(&value.function, nesting + 1));
+            }
+            Work::W51(value, nesting) => {
+                visitor.identity(value, nesting)?;
+            }
+            Work::W52(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W53(&value.default_definition, nesting + 1));
+                pending.push(Work::W12(&value.signature, nesting + 1));
+                pending.push(Work::W6(&value.member, nesting + 1));
+                pending.push(Work::W48(&value.requirements, nesting + 1));
+            }
+            Work::W53(value, nesting) => {
+                visitor.node(nesting)?;
+                if let Some(item) = value {
+                    pending.push(Work::W43(item, nesting));
+                }
+            }
+            Work::W54(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W55(&value.method_actuals, nesting + 1));
+                pending.push(Work::W55(&value.declaration_actuals, nesting + 1));
+                pending.push(Work::W0(&value.receiver, nesting + 1));
+                pending.push(Work::W43(&value.definition, nesting + 1));
+            }
+            Work::W55(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W56(item, nesting));
+                }
+            }
+            Work::W56(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    DynGenericActual::Type(field_value_0) => {
+                        pending.push(Work::W1(field_value_0, nesting + 1));
+                    }
+                    DynGenericActual::Const(field_value_0) => {
+                        pending.push(Work::W64(field_value_0, nesting + 1));
+                    }
+                    DynGenericActual::Life(field_value_0) => {
+                        pending.push(Work::W4(field_value_0, nesting + 1));
+                    }
+                    DynGenericActual::QualifiedType(field_value_0) => {
+                        pending.push(Work::W0(field_value_0, nesting + 1));
+                    }
+                }
+            }
+            Work::W57(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    DynAssociatedValueRecipe::Type(field_value_0) => {
+                        pending.push(Work::W8(field_value_0, nesting + 1));
+                    }
+                    DynAssociatedValueRecipe::Constant {
+                        ty: field_ty,
+                        value: field_value,
+                    } => {
+                        pending.push(Work::W13(field_value, nesting + 1));
+                        pending.push(Work::W8(field_ty, nesting + 1));
+                    }
+                }
+            }
             Work::W58(value, nesting) => {
                 visitor.node(nesting)?;
-                pending.push(Work::W47(&value.requirements, nesting + 1));
+                pending.push(Work::W48(&value.requirements, nesting + 1));
                 pending.push(Work::W60(&value.value, nesting + 1));
                 pending.push(Work::W6(&value.member, nesting + 1));
                 pending.push(Work::W59(&value.carrier, nesting + 1));
@@ -680,7 +696,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             Work::W60(value, nesting) => {
                 visitor.node(nesting)?;
                 if let Some(item) = value {
-                    pending.push(Work::W56(item, nesting));
+                    pending.push(Work::W57(item, nesting));
                 }
             }
             Work::W61(value, nesting) => {
@@ -738,14 +754,14 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             Work::W67(value, nesting) => {
                 visitor.node(nesting)?;
                 pending.push(Work::W69(&value.associated, nesting + 1));
-                pending.push(Work::W54(&value.actuals, nesting + 1));
+                pending.push(Work::W55(&value.actuals, nesting + 1));
                 pending.push(Work::W62(&value.implementation, nesting + 1));
                 pending.push(Work::W68(&value.application, nesting + 1));
                 pending.push(Work::W0(&value.receiver, nesting + 1));
             }
             Work::W68(value, nesting) => {
                 visitor.node(nesting)?;
-                pending.push(Work::W54(&value.actuals, nesting + 1));
+                pending.push(Work::W55(&value.actuals, nesting + 1));
                 pending.push(Work::W62(&value.declaration, nesting + 1));
             }
             Work::W69(value, nesting) => {
@@ -761,8 +777,8 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         module: field_module,
                         source: field_source,
                     } => {
-                        pending.push(Work::W44(field_source, nesting + 1));
-                        pending.push(Work::W43(field_module, nesting + 1));
+                        pending.push(Work::W45(field_source, nesting + 1));
+                        pending.push(Work::W44(field_module, nesting + 1));
                     }
                     DynFunctionTarget::Typed(field_value_0) => {
                         pending.push(Work::W71(field_value_0, nesting + 1));
@@ -786,7 +802,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         pending.push(Work::W8(field_value_0, nesting + 1));
                     }
                     DynPatternActual::Const(field_value_0) => {
-                        pending.push(Work::W57(field_value_0, nesting + 1));
+                        pending.push(Work::W13(field_value_0, nesting + 1));
                     }
                     DynPatternActual::Life(field_value_0) => {
                         pending.push(Work::W5(field_value_0, nesting + 1));
@@ -853,7 +869,7 @@ impl DynRecipeMetadata for DynParameterRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W13(self, nesting), visitor)
+        visit(Work::W14(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynSignatureRecipe {
@@ -871,7 +887,7 @@ impl DynRecipeMetadata for DynRequirementRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W18(self, nesting), visitor)
+        visit(Work::W19(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynGuaranteeRecipe {
@@ -880,7 +896,7 @@ impl DynRecipeMetadata for DynGuaranteeRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W20(self, nesting), visitor)
+        visit(Work::W21(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynEffectRecipe {
@@ -889,7 +905,7 @@ impl DynRecipeMetadata for DynEffectRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W22(self, nesting), visitor)
+        visit(Work::W23(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynCleanupRecipe {
@@ -898,7 +914,7 @@ impl DynRecipeMetadata for DynCleanupRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W23(self, nesting), visitor)
+        visit(Work::W24(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynContractRecipe {
@@ -907,7 +923,7 @@ impl DynRecipeMetadata for DynContractRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W17(self, nesting), visitor)
+        visit(Work::W18(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynDefinitionId {
@@ -916,7 +932,7 @@ impl DynRecipeMetadata for DynDefinitionId {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W42(self, nesting), visitor)
+        visit(Work::W43(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynDefinitionScope {
@@ -925,7 +941,7 @@ impl DynRecipeMetadata for DynDefinitionScope {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W45(self, nesting), visitor)
+        visit(Work::W46(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynDefinitionDeclaration {
@@ -934,7 +950,7 @@ impl DynRecipeMetadata for DynDefinitionDeclaration {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W46(self, nesting), visitor)
+        visit(Work::W47(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynMethodRecipe {
@@ -943,7 +959,7 @@ impl DynRecipeMetadata for DynMethodRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W51(self, nesting), visitor)
+        visit(Work::W52(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynFunctionInstance {
@@ -952,7 +968,7 @@ impl DynRecipeMetadata for DynFunctionInstance {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W53(self, nesting), visitor)
+        visit(Work::W54(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynAssociatedValueRecipe {
@@ -961,7 +977,7 @@ impl DynRecipeMetadata for DynAssociatedValueRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W56(self, nesting), visitor)
+        visit(Work::W57(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynAssociatedDefinition {
@@ -1024,7 +1040,7 @@ impl DynRecipeMetadata for DynDefinitionSpecialization {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W49(self, nesting), visitor)
+        visit(Work::W50(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynStructuralBound {
@@ -1060,7 +1076,7 @@ impl DynRecipeMetadata for DynConstPattern {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W57(self, nesting), visitor)
+        visit(Work::W13(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynTypePattern {
@@ -1078,7 +1094,7 @@ impl DynRecipeMetadata for StorageSourceBinding {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W21(self, nesting), visitor)
+        visit(Work::W22(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynGenericActual {
@@ -1087,7 +1103,7 @@ impl DynRecipeMetadata for DynGenericActual {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W55(self, nesting), visitor)
+        visit(Work::W56(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynTraitApplication {
@@ -1114,7 +1130,7 @@ impl DynRecipeMetadata for DynCallAccess {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W26(self, nesting), visitor)
+        visit(Work::W27(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynResultSource {
@@ -1123,7 +1139,7 @@ impl DynRecipeMetadata for DynResultSource {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W35(self, nesting), visitor)
+        visit(Work::W36(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynThreadRequirements {
@@ -1132,6 +1148,6 @@ impl DynRecipeMetadata for DynThreadRequirements {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W41(self, nesting), visitor)
+        visit(Work::W42(self, nesting), visitor)
     }
 }

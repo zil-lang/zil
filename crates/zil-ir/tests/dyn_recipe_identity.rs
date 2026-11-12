@@ -19,10 +19,21 @@ fn fixture() -> TypedModule {
         life_instances: vec![],
         dyn_declarations: vec![DynDeclaration {
             direct_supertraits: None,
-            requirements: Some(vec![DynObligation::Structural {
-                receiver: DynTypePattern::Parameter(2),
-                bound: DynStructuralBound::Copy,
-            }]),
+            requirements: Some(vec![
+                DynObligation::Structural {
+                    receiver: DynTypePattern::Parameter(2),
+                    bound: DynStructuralBound::Copy,
+                },
+                DynObligation::TypeEqual {
+                    left: DynTypePattern::Parameter(2),
+                    right: DynTypePattern::Parameter(2),
+                },
+                DynObligation::ConstEqual {
+                    ty: DynTypePattern::Concrete(Type::Usize),
+                    left: DynConstPattern::Value(Constant::Usize(7)),
+                    right: DynConstPattern::Parameter(3),
+                },
+            ]),
             associated_definitions: None,
             method_signatures: None,
             method_definitions: None,
@@ -97,10 +108,19 @@ fn independent_bytes(m: &TypedModule) -> Vec<u8> {
     word(&mut out, 0); // Complete nominal inventories.
     word(&mut out, 1);
     out.extend_from_slice(&[0, 1]); // No supers, one original structural requirement.
-    word(&mut out, 1);
+    word(&mut out, 3);
     out.extend_from_slice(&[0, 1]); // Structural(receiver=type formal2).
     small(&mut out, 2);
-    out.extend_from_slice(&[0, 0, 0, 0]); // Copy; no assoc/method/definition inventories.
+    out.push(0); // Copy.
+    out.extend_from_slice(&[3, 1]); // Complete type equality, left type formal2.
+    small(&mut out, 2);
+    out.push(1);
+    small(&mut out, 2); // Right type formal2.
+    out.extend_from_slice(&[4, 0, 27, 0, 10]); // Const equality: usize, literal Usize(7).
+    word(&mut out, 7);
+    out.push(1);
+    small(&mut out, 3); // Right original const formal3.
+    out.extend_from_slice(&[0, 0, 0]); // No assoc/method/definition inventories.
     decl(&mut out, 9);
     text(&mut out, "recipe");
     word(&mut out, 1);
@@ -152,11 +172,18 @@ fn recipe_occurrences_and_formal_ordinals_match_independent_identity() {
             .0,
         module
     );
-    for mutation in 0..9 {
+    for mutation in 0..11 {
         let mut changed = module.clone();
         let declaration = &mut changed.dyn_declarations[0];
         if mutation == 0 {
             declaration.self_pattern = None;
+        } else if mutation >= 9 {
+            match &mut declaration.requirements.as_mut().unwrap()[if mutation == 9 { 1 } else { 2 }]
+            {
+                DynObligation::TypeEqual { right, .. } => *right = DynTypePattern::Parameter(3),
+                DynObligation::ConstEqual { ty, .. } => *ty = DynTypePattern::Concrete(Type::U64),
+                _ => unreachable!(),
+            }
         } else if mutation >= 6 {
             match mutation {
                 6 => declaration.implemented_trait = None,
