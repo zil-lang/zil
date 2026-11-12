@@ -102,6 +102,10 @@ pub struct CompileOptions {
     pub optimization: zil_backend_llvm::Optimization,
     /// Explicit Linux build without generated ZIL symbol exports; default false.
     pub closed_executable: bool,
+    /// Research opt-in: the same no-ZIL-export executable contract, applied
+    /// only to unused definitions after the complete original O2 pipeline.
+    /// Mutually exclusive with early closed-executable internalization.
+    pub late_closed_executable: bool,
     /// Explicit O2 bounded complete imports; copy-cost overflow keeps ordinary units.
     pub incremental_o2: bool,
     /// O2 function-merging policy, with address-preserving reference controls.
@@ -143,6 +147,7 @@ impl Default for CompileOptions {
             clang: None,
             optimization: zil_backend_llvm::Optimization::O0,
             closed_executable: false,
+            late_closed_executable: false,
             incremental_o2: false,
             function_merging: FunctionMerging::Disabled,
             codegen: CodegenOptions::default(),
