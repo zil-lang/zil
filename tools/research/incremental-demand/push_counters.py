@@ -23,7 +23,8 @@ FIELDS = {
                         'position_rebindings', 'retained_functions', 'receipt_tree_updates'),
     'initialization': ('product_admission_functions_checked', 'product_function_queries_executed',
                        'product_function_queries_reused', 'product_global_obligations_executed',
-                       'product_global_obligations_reused', 'product_plan_rows_replaced'),
+                       'product_global_obligations_reused', 'product_plan_rows_replaced',
+                       'product_semantic_functions_compared', 'product_relocated_function_bindings'),
     'verification_work': ('full_receipts_reused', 'function_proofs_checked', 'function_proofs_reused',
                           'instruction_proofs_reused', 'empty_borrow_proofs_checked',
                           'empty_borrow_proofs_reused', 'empty_borrow_values_avoided',
@@ -33,9 +34,11 @@ FIELDS = {
                           'raw_result_modes_checked', 'raw_result_modes_reused',
                           'resource_inventory_functions_checked', 'resource_inventory_functions_reused',
                           'resource_inventory_ranges_reused', 'foreign_functions_selected',
-                          'foreign_functions_not_visited', 'region_functions_checked',
+                          'foreign_functions_not_visited', 'environment_functions_selected',
+                          'environment_functions_not_visited', 'region_functions_checked',
                           'region_functions_reused', 'lexical_cleanup_functions_checked',
-                          'lexical_cleanup_functions_reused'),
+                          'lexical_cleanup_functions_reused', 'closure_instance_functions_checked',
+                          'closure_instance_functions_reused', 'closure_instance_ranges_reused'),
     'lowering_work': ('functions_checked', 'layout_checks', 'functions_reused', 'full_checks',
                       'budget_replays', 'context_checks', 'context_check_ns'),
 }
@@ -53,13 +56,57 @@ def baseline_pin(actual, requested):
         raise ValueError('baseline source differs from the explicit supported experiment pin')
 
 
-def command_flags(command, arm, extras):
-    expected = candidate_flags(extras) if arm == 'candidate' else []
-    actual = [arg for arg in command if arg in CANDIDATE_FLAGS]
-    if actual != expected:
-        raise ValueError('actual research flags differ from the manifest for ' + arm)
-    if '--profile-compilation' in command or '--incremental-o2' in command:
-        raise ValueError('profile or alternate backend path in formal wall run')
+def zil_command(*, binary, mode, source, work, arm, extras):
+    """The complete formal command, including its declared artifact locations."""
+    if mode not in ('check', 'o2') or arm not in ('baseline', 'candidate'):
+        raise ValueError('unsupported formal Zil command mode or arm')
+    extras = candidate_flags(extras)
+    paths = []
+    for value in (binary, source, work):
+        if not isinstance(value, (str, Path)):
+            raise ValueError('formal command paths must be absolute')
+        path = Path(value)
+        if not path.is_absolute() or '..' in path.parts or '\0' in str(path):
+            raise ValueError('formal command paths must be absolute and have no parent traversal')
+        # Do not resolve against the validating machine: a recovered archive
+        # retains the original command's paths without requiring them to exist.
+        paths.append(path)
+    binary, source, work = paths
+    command = [str(binary), 'check' if mode == 'check' else 'build', str(source),
+               '--json', '--resident', '--resident-capacity', '256',
+               '--resident-reset-after', '4096', '--semantic-cache', str(work / 'semantic')]
+    if mode == 'o2':
+        command += ['--backend', 'llvm-api', '--opt', 'O2', '--codegen-units', '16',
+                    '--codegen-jobs', '1', '--object-cache', str(work / 'objects'),
+                    '-o', str(work / 'program')]
+    if arm == 'candidate':
+        command += extras
+    return command
+
+
+def command_flags(command, arm, extras, *, binary, mode, source, work):
+    """Reject every undeclared token, duplicate/override and retargeted path."""
+    expected = zil_command(binary=binary, mode=mode, source=source, work=work,
+                           arm=arm, extras=extras)
+    if (not isinstance(command, list) or any(type(arg) is not str for arg in command)
+            or command != expected):
+        raise ValueError('complete formal Zil argv differs from declared protocol for ' + arm)
+
+
+def inspect_commands(run, manifest):
+    """Bind all recorded argv to the original manifest, also after relocation."""
+    original = Path(manifest['arguments']['out'])
+    if not original.is_absolute() or '..' in original.parts:
+        raise ValueError('original run location must be absolute without parent traversal')
+    extras = candidate_flags(manifest['arguments'].get('candidate_extra_arg', []))
+    for block in range(6):
+        recorded_block = Path(run) / f'block-{block:02d}'
+        original_block = original / f'block-{block:02d}'
+        for arm in ('baseline', 'candidate'):
+            command = json.loads((recorded_block / arm / 'command.json').read_text())['argv']
+            command_flags(command, arm, extras, binary=manifest['binaries'][arm]['path'],
+                          mode=manifest['arguments']['mode'],
+                          source=original_block / 'source' / 'main.zil', work=original_block / arm)
 
 
 def llvm_comparison_sha256(data):
