@@ -645,3 +645,11 @@ fn same_typed_inputs_keep_the_original_named_result_at_runtime() {
         accepted(&format!("named-return-{life}"), &text);
     }
 }
+
+#[test]
+fn static_text_capture_has_an_explicit_complete_source() {
+    accepted(
+        "static-captured-text",
+        r#"fn make()->impl Fn()->u8{let text="abc";return move()=>text[0]} fn main()->i32{let f=make();return i32(f())-97}"#,
+    );
+}
