@@ -16,6 +16,7 @@
 //! local loan obligations, with original stage fees replayed. A cached CFG or
 //! empty-source fact is never a callee-effect or ownership proof.
 use super::*;
+mod closure_instances;
 pub(super) mod inventory;
 mod lexical;
 mod raw_tree;
@@ -55,6 +56,9 @@ pub struct VerifyStats {
     pub region_functions_reused: usize,
     pub lexical_cleanup_functions_checked: usize,
     pub lexical_cleanup_functions_reused: usize,
+    pub closure_instance_functions_checked: usize,
+    pub closure_instance_functions_reused: usize,
+    pub closure_instance_ranges_reused: usize,
 }
 
 /// One retained successful epoch, with independently produced local receipts.
@@ -69,6 +73,7 @@ pub struct VerifySession {
     shape_tree: Option<Arc<raw_tree::Node>>,
     resource_inventory: Option<Arc<resource_inventory::Node>>,
     lexical: zil_ir::PersistentVec<Option<Arc<lexical::Receipt>>>,
+    closure_instances: Option<Arc<closure_instances::Receipt>>,
     stats: VerifyStats,
 }
 
@@ -159,6 +164,8 @@ impl VerifySession {
             previous_inventory: &self.inventory,
             previous_lexical: &self.lexical,
             next_lexical: self.lexical.clone(),
+            previous_closure_instances: self.closure_instances.as_ref(),
+            next_closure_instances: None,
             previous_inputs: self.verified.as_ref(),
             delta: None,
             previous_shape_tree: self.shape_tree.as_ref(),
@@ -190,6 +197,7 @@ impl VerifySession {
                 next_shapes,
                 next_inventory,
                 next_lexical,
+                next_closure_instances,
                 next_shape_tree,
                 next_resource_inventory,
                 ..
@@ -199,6 +207,7 @@ impl VerifySession {
             self.shapes = next_shapes;
             self.inventory = next_inventory;
             self.lexical = next_lexical;
+            self.closure_instances = next_closure_instances;
             self.shape_tree = next_shape_tree;
             self.resource_inventory = next_resource_inventory;
             self.verified = Some(verified.clone());
@@ -323,6 +332,8 @@ pub(super) struct Attempt<'a> {
     previous_shapes: &'a zil_ir::PersistentVec<Option<Arc<shapes::Receipt>>>,
     previous_inventory: &'a zil_ir::PersistentVec<Option<Arc<inventory::Receipt>>>,
     previous_lexical: &'a zil_ir::PersistentVec<Option<Arc<lexical::Receipt>>>,
+    previous_closure_instances: Option<&'a Arc<closure_instances::Receipt>>,
+    next_closure_instances: Option<Arc<closure_instances::Receipt>>,
     next_lexical: zil_ir::PersistentVec<Option<Arc<lexical::Receipt>>>,
     previous_inputs: Option<&'a VerifiedModule>,
     delta: Option<RawDelta>,

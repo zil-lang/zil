@@ -37,11 +37,19 @@ pub(super) struct Node {
     len: usize,
     source_free: bool,
     foreign_count: usize,
+    instances: Option<usize>,
     receipt: Option<Receipt>,
     children: Option<(Arc<Node>, Arc<Node>)>,
 }
 
 impl Attempt<'_> {
+    pub(crate) fn raw_instance_count(&self, module: &TypedModule) -> Option<Option<usize>> {
+        self.current_shape_functions
+            .as_ref()
+            .filter(|inputs| inputs.ptr_eq(&module.functions))?;
+        Some(self.next_shape_tree.as_ref()?.instances)
+    }
+
     pub(crate) fn foreign_indices(&mut self, module: &TypedModule) -> Option<Vec<usize>> {
         if !self
             .current_shape_functions
@@ -110,12 +118,17 @@ impl Attempt<'_> {
         // Insufficient total credit is never a new rejection point. Descending
         // preserves the earliest original error and its residual budget.
         let remaining = b.remaining;
-        let (source_free, foreign_count, children) = if len == 1 {
+        let (source_free, foreign_count, instances, children) = if len == 1 {
             let function = &module.functions[start];
             check_function_raw_shapes(module, start, function, b, limits, Some(self))?;
             (
                 function.storage_life.is_none(),
                 usize::from(function.foreign.is_some()),
+                function
+                    .locals
+                    .len()
+                    .checked_add(function.values.len())
+                    .and_then(|count| count.checked_add(1)),
                 None,
             )
         } else {
@@ -144,6 +157,9 @@ impl Attempt<'_> {
             (
                 left.source_free && right.source_free,
                 left.foreign_count + right.foreign_count,
+                left.instances
+                    .zip(right.instances)
+                    .and_then(|(left, right)| left.checked_add(right)),
                 Some((left, right)),
             )
         };
@@ -160,6 +176,7 @@ impl Attempt<'_> {
             len,
             source_free,
             foreign_count,
+            instances,
             receipt,
             children,
         }))

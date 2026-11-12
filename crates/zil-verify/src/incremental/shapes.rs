@@ -134,7 +134,7 @@ pub(super) struct Receipt {
     array_roots: Vec<ArrayRoot>,
 }
 
-fn same_types(old: &TypedFunction, current: &TypedFunction) -> bool {
+pub(super) fn same_types(old: &TypedFunction, current: &TypedFunction) -> bool {
     // The old side is a retained successful bounded tree. Distinct-allocation
     // equality cannot descend beyond its checked shape; same allocation is
     // protected by SharedVec's immutable strong owner/COW implementation.
