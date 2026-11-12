@@ -878,6 +878,7 @@ fn consuming_qualified_holder_preserves_the_complete_pointee_class_and_real_slot
     let module = typed(text);
     let limits = Limits::default();
     let candidate = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &module.target, &limits).unwrap();
     let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
     let (decoded, _) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
     assert_eq!(zil_analyze::analyze(&decoded, &limits).unwrap(), candidate);
@@ -929,6 +930,11 @@ fn consuming_qualified_holder_preserves_the_complete_pointee_class_and_real_slot
             zil_analyze::analyze(&bad, &limits).is_err(),
             "qualified capability attack {attack}"
         );
+        independently_reject_typed_attack(
+            bad.clone(),
+            candidate.clone(),
+            &format!("qualified return {attack}"),
+        );
         let wire = zil_ir::wire::encode_module_candidate(&bad, &candidate, &limits).unwrap();
         let (decoded, _) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
         assert!(
@@ -945,3 +951,8 @@ fn consuming_qualified_holder_preserves_the_complete_pointee_class_and_real_slot
         "old data SSA must retain its original root until last use: {errors:?}"
     );
 }
+
+consumer!(
+    consuming_qualified_holder_head_preserves_actual_data_and_head_scopes_at_runtime,
+    "fnonce-qualified-holder-head-transfer"
+);

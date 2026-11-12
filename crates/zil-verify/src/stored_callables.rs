@@ -229,6 +229,12 @@ pub(super) fn owned_entry(
     Ok(())
 }
 
+fn address_result(ty: &Type) -> bool {
+    matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()
+        || matches!(inner.as_ref(), Type::BorrowedStorage { storage, life }
+            if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
+                && life.retained.is_empty()))
+}
 pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
     module.closures.get(id.0 as usize).is_some_and(|d| {
         (d.lending_captures.is_empty() && scalar(&d.result))
@@ -236,7 +242,7 @@ pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
             || borrowed_owned_candidate(d)
             || d.storage_life.as_ref().is_some_and(|life| {
                 super::signature_life::outer(life, StorageBase::Result).is_some()
-            }) && matches!(&d.result, Type::Address { inner, .. } if inner.is_address_pointee())
+            }) && address_result(&d.result)
     })
 }
 pub(super) fn shared_input(t: &Type) -> bool {
@@ -300,7 +306,7 @@ pub(super) fn captured_profile(
         || d.storage_life
             .as_ref()
             .is_some_and(|life| super::signature_life::outer(life, StorageBase::Result).is_some())
-            && matches!(&d.result, Type::Address { inner, .. } if inner.is_address_pointee()))
+            && address_result(&d.result))
     {
         return Err(unsupported(
             "captured Fixed requires a scalar nonlending result",
