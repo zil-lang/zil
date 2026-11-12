@@ -315,11 +315,17 @@ fn fresh_constructor_can_be_returned_and_wire_stays_untrusted() {
     let p = plan(&m);
     let bytes = zil_ir::wire::encode_module_candidate(&m, &p, &Limits::default()).unwrap();
     verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap();
-    // Ordinary affine values can return an owner without promising freshness.
+    // Merely naming Managed does not waive the resource result contract.
     m.functions[0].result_mode = PassingMode::Infer;
     let bytes = zil_ir::wire::encode_module_candidate(&m, &plan(&m), &Limits::default()).unwrap();
+    assert!(verify(m.clone()).is_err());
+    assert!(verify_module_bytes(&bytes, &m.target, &Limits::default()).is_err());
+    // Give permits a real owner transfer without promising freshness.
+    m.functions[0].result_mode = PassingMode::Give;
+    verify(m.clone()).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&m, &plan(&m), &Limits::default()).unwrap();
     verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap();
-    // Calling an ordinary value helper cannot manufacture a Create promise.
+    // Calling a Give helper cannot manufacture a Create promise.
     let mut wrapper = m.functions[0].clone();
     wrapper.id = FunctionId(1);
     wrapper.name = "create_from_ordinary".into();
