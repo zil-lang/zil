@@ -710,9 +710,22 @@ fn result()->i32 {
     if identity(-9223372036854775808i64)!=-9223372036854775808i64{return 10}
     return 0
 }
+
 "#;
     check(text);
     native(text, Some("result"), b"0\n", true);
+}
+
+#[test]
+fn complete_integer_domains_compose_with_generic_store_layouts() {
+    let text = include_str!("../../../tests/integers/store-domains.zil");
+    check(text);
+    let (module, plan) = raw(text);
+    let limits = Limits::default();
+    zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &module.target, &limits).unwrap();
+    native(text, None, b"", true);
 }
 
 #[test]
