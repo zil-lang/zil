@@ -126,6 +126,7 @@ mod tests {
                 loans: vec![0],
             },
             vec![Loan {
+                receiver_head: false,
                 sources: vec![source],
                 parents: vec![],
                 exclusive: true,
