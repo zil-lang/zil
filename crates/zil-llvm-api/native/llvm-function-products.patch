@@ -302,9 +302,10 @@
 +
 --- a/llvm/include/llvm/CodeGen/MachineFunction.h
 +++ b/llvm/include/llvm/CodeGen/MachineFunction.h
-@@ -18,0 +19 @@
+@@ -18,0 +19,2 @@
 +#include <climits>
-@@ -935,0 +937,27 @@
++#include "llvm/ADT/DenseSet.h"
+@@ -935,0 +938,27 @@
 +  // Restore a sealed resident product's original numbering, including holes.
 +  // Current MBB owners/layout and current MMI FunctionNumber are retained.
 +  bool zilRestoreProductBlockNumbers(unsigned Capacity, unsigned Next,
