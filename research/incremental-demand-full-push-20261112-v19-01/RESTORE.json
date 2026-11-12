@@ -1,0 +1,20 @@
+{
+  "archive_sha256": "f042f1c3de4fe1cee84599a1b31e6f79e89009f49ccf44437d37b2e518705ddc",
+  "limits": "Fixed-commit freshHTTPS full byte/mode recovery; no compilation/execution/performance comparison. Shard of V19; restore all fixed shard commits in final union receipt for complete checkpoint.",
+  "manifest": {
+    "bytes": 105195,
+    "sha256": "f5451429de77023cb95c1fb21c5632d6a59835c1cfd1dafce49cd9c4e2cdf44a"
+  },
+  "schema": 1,
+  "scope": "V19 complete integrated-component diagnostic checkpoint. Profile13 compiledsource03b078b5799fe44d98855f26279f0f09e1d25bf5/tree5294dbb3a4c84c7f8ac8647df5b83ff386724c45/binaryd0d6b76c543148f44b3856cd41f4317b1da5e589a7735ec814c5bbdebb75630c, baseline3ec7e8a960ca69368cd9a90f1a15ac063fec5a02, original425/22files/20x20x16/CGU16/O2/jobs1/cacheall/capacity256. Complete34rows/18measured16parents/17pairs15success2safeerrors/180recordednative outcomes; original independent qualifier4716 passed source/tool/build/DSO/LLVM and all native oracle records. Candidate onlyprofiled; no Rust/priorcandidate cross-window timing comparison. All496originalfiles/415587451B full pre-retirement master is disjoint-union authority. Each fixed shard freshHTTPS fully restores and SHA/size/mode verifies before exact-master-matched local raw materialization retirement. No assembled whole fresh qualifier rerun or old overwritten ELF physical rehash claimed. Batch04 source1453 and batch05 source03b with both immutable binaries are separately bound; documentation7c13 is uncompiled metadata.",
+  "source_commits": {
+    "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "batch04": "1453e6e0e2bbe7af214f309b099f1a7e97534463",
+    "documentation": "7c13a883b87df17c59855fa9433984726ae62f1e",
+    "profile13": "03b078b5799fe44d98855f26279f0f09e1d25bf5"
+  },
+  "verifier": {
+    "bytes": 21146,
+    "sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a"
+  }
+}
