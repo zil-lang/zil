@@ -15,16 +15,35 @@
     "task/language-integration"
   ],
   "tests_this_dispatch": 0,
-  "integration_checkpoint": "7b228e896",
+  "integration_checkpoint": "d269c19b3",
   "integration_remote": "task/language-integration",
   "observations": {
-    "numeric": "PR85 draft at84ea429ca; 1585 lib tests and 16 targeted/144 native reported on candidate; full CI first failures in old LIR layout/suffix fixtures fixed by root, focused6+13 pass; latest remote full CI pending; not merged",
-    "joint_integration": "All six implementation lanes now present in one integration worktree; five-lane all-target check passed before async/stdlib; subsequent full workspace checks exposed old test constructors and historical oracle opcode exhaustiveness, fixed incrementally; full joint execution and exact-source acceptance pending",
-    "borrowed_environments": "Independent Verify4639da669:606 lib and11 raw/Wire source/loop/loan/budget controls pass. Ownership reports nested/wrapped/loop/multiple actual environments native pass; whole qualified owning holder capture reveals cleanup extension under implementation by Astra Verify independently from ownership Types/Analyze",
-    "iteration": "Value and SyncDrop independent obligations; lazy adapters/source-root conflict controls implemented; qualified Source lifetime specialization and recursively nested Store provenance still being completed, not accepted",
+    "numeric": "PR85 accepted and merged at main42f0396f3, frozen head703fb0107/tree3829d8305. Full independent production23e and final test-only703 reviews Accept. Both official/research LLVM CI each workspace6068/reference5953/text71, zero failures/ignored; structure pass. Win64 ABI emitted checks only, native executions Linux x86_64.",
+    "joint_integration": "Rootd269c19b3 includes accepted numeric main plus all six candidate lanes. Combined workspace all-target check passed earlier; current joined23 returned-capture/forwarding controls pass. Full joint workspace/reference/native project acceptance still pending, no whole-language claim.",
+    "borrowed_environments": "Whole qualified owners, mutable slot epochs, nested/wrapped/loop/actual-distinct environments now joined18 Source/raw/Wire/native plus3 qualified attacks and2 forwarding controls PASS at674d+6a120. RootV checks actual same Parameter instance AND independent external source envelope; stored-target solver substitutes Capture paths. Ownership0bcf replaces stale SSA union with actual current memory; root exact unchanged-fixture AnalyzeN12246 N-1/fresh/warm pass.",
+    "iteration": "Value/SyncDrop, lazy adapters and compound lifetime specialization under construction. Old nominal Value names preserved outside constraint positions. New nested finite Managed Store producer6783 and independent V ordered-parent ledger remain WIP; compound single T carrying independently qualified fields still open.",
     "async": "Task input/result aggregates, actual frame migration, provider driver-transfer promises, TaskCreateOwned151 implemented as WIP; real threaded controls run, remaining retained failure/helper composition still open",
-    "stdlib": "Owning hash Map/Set, numeric text, buffered I/O, bounded graph reuse integrated as candidates; actual original full owning hash consumer still above default10M budget; private immutable fact/tag work reduces real computation without limit increase; not accepted",
-    "dynamic": "Common effects, large snapshots, whole-owner cleanup and repeated Fn/FnMut capture implemented; borrowed Context provider/storage/result/source contracts being completed"
+    "stdlib": "Original complete owning hash consumers now pass jointly at unchanged default10M: Analyze9956114/Verify9899874, with N-1/fresh controls; float/buffer full Analyze2309040/Verify4019588. Root same-source hash15/integer18 passed. Bounded graph and exact parsing native branch controls pass; full joined final acceptance pending.",
+    "dynamic": "Closed-owner/effect/large snapshot work integrated. Context schema and actual port/source/self-pattern transport independent A/V remain open; no Context execution acceptance."
   },
-  "source_acceptance": "No complete-language candidate accepted or merged; all unresolved capabilities remain open. Existing main stays99035931d. Raw logs persist per-worktree out/runs."
+  "source_acceptance": "Only the complete integer/native scalar scope has entered main42f0396f3 through PR85. Remaining language scopes and whole-language release gates stay open. Raw logs persist per-worktree out/runs.",
+  "accepted_main": "42f0396f36b2a36860ecb55371d436e4327877a4",
+  "numeric_acceptance": {
+    "pr": "https://github.com/zil-lang/zil/pull/85",
+    "head": "703fb010713b810ca7868ce60482f4644386613e",
+    "merged_main": "42f0396f36b2a36860ecb55371d436e4327877a4",
+    "ci": {
+      "official": "https://github.com/zil-lang/zil/actions/runs/43182000540",
+      "research": "https://github.com/zil-lang/zil/actions/runs/43182000404",
+      "structure": "https://github.com/zil-lang/zil/actions/runs/43182000455"
+    },
+    "logs": [
+      "/workspace/zil-numeric/out/runs/pr85-compatibility/ci-703-official.log",
+      "/workspace/zil-numeric/out/runs/pr85-compatibility/ci-703-research.log"
+    ],
+    "independent_review": [
+      "/workspace/zil-stdlib-numeric-review/out/runs/pr85-review.json",
+      "/workspace/zil-stdlib-numeric-review/out/runs/pr85-703-review.json"
+    ]
+  }
 }
