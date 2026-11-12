@@ -73,7 +73,8 @@ pub(super) fn check_claim(
                     .saturating_add(binding.sources.len())
                     .saturating_add(1),
             )?;
-            for source in &binding.sources {
+            for atom in &binding.sources {
+                let source = crate::exact_storage_source(atom)?;
                 if source.path.len() > limits.max_call_depth {
                     return Err(limit("retained return source path exceeds depth"));
                 }
@@ -123,7 +124,8 @@ pub(super) fn check_claim(
                     .saturating_add(binding.position.path.len())
                     .saturating_add(1),
             )?;
-            for source in &binding.sources {
+            for atom in &binding.sources {
+                let source = crate::exact_storage_source(atom)?;
                 if source.path.len() > limits.max_call_depth {
                     return Err(limit("callable source path exceeds depth bound"));
                 }

@@ -988,6 +988,7 @@ mod tests {
             span: Span::default(),
         };
         let mut function = TypedFunction {
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind: CallKind::Direct,
@@ -1090,6 +1091,7 @@ mod tests {
         // Internal planning fixture only; source/runtime/Verify evidence lives
         // in the driver tests. This does not grant authority to the raw model.
         let f = TypedFunction {
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,

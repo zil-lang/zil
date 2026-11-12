@@ -76,7 +76,9 @@ fn function_has_sources(
     descriptor_origins: bool,
     budget: &mut Budget,
 ) -> Check<bool> {
-    if budget.masked_stored_tasks() && super::stored_flow::qualified_function(function, budget)? {
+    if budget.masked_stored_tasks()
+        && super::ordinary_heads::requires_stored(module, function, budget)?
+    {
         return Ok(true);
     }
     if descriptor_origins {
@@ -380,7 +382,7 @@ fn check(
             return Err(reject(
                 "E-VERIFY-HOLD",
                 Some(f.span),
-                &format!(
+                format!(
                     "Hold candidate differs from independently reconstructed provenance at value {}: claimed {:?}, actual {:?}",
                     claim.value.0, claim.roots, coarse
                 ),
@@ -2164,6 +2166,7 @@ mod frontier_tests {
                     }
                 }
                 TypedFunction {
+                    dyn_instance: None,
                     retained_return_sources: None,
                     storage_life: None,
                     call_kind: zil_ir::CallKind::Direct,

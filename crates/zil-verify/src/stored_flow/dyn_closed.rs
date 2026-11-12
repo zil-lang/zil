@@ -143,10 +143,10 @@ pub(super) fn transfer(
                 };
                 b.spend(sources.len())?;
                 if sources.as_slice()
-                    != [StoragePosition {
+                    != [StorageSource::Exact(StoragePosition {
                         base: StorageBase::Parameter(0),
                         path: Vec::new(),
-                    }]
+                    })]
                 {
                     return Err(err(
                         "closed dyn view must retain its real receiver position",
@@ -504,7 +504,10 @@ mod tests {
                         writes: vec![],
                     }),
                     result: Some(DynResultSource::Borrow {
-                        sources: vec![receiver],
+                        sources: (vec![receiver])
+                            .into_iter()
+                            .map(zil_ir::StorageSource::Exact)
+                            .collect(),
                         mutable: false,
                     }),
                     cleanup: Some(DynCleanupContract {

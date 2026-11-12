@@ -857,7 +857,8 @@ pub(super) fn charge_return_sources(
             .checked_add(binding.position.path.len())
             .and_then(|n| n.checked_add(binding.sources.len()))
             .ok_or_else(fail)?;
-        for source in &binding.sources {
+        for atom in &binding.sources {
+            let source = crate::exact_storage_source(atom)?;
             if source.path.len() > limits.max_call_depth {
                 return Err(fail());
             }
@@ -906,8 +907,9 @@ pub(super) fn snapshot_context_function(
         })?;
     }
     Ok(CoreFunction {
-        retained_return_sources: function.retained_return_sources.clone(),
         source_scope: function.source_scope.clone(),
+        dyn_instance: function.dyn_instance.clone(),
+        retained_return_sources: function.retained_return_sources.clone(),
         storage_life: function.storage_life.clone(),
         call_kind: function.call_kind,
         resume_bound: function.resume_bound,

@@ -100,7 +100,7 @@ fn contract(slot: &DynSlot, budget: &mut Budget) -> Check<()> {
         }),
         result: Some(if borrowed_result(&slot.result) {
             DynResultSource::Borrow {
-                sources: vec![receiver_position()],
+                sources: vec![StorageSource::Exact(receiver_position())],
                 mutable: false,
             }
         } else {
@@ -256,6 +256,26 @@ fn dyn_address(ty: &Type) -> bool {
 /// Charge every raw list before cloning, fingerprinting or indexing it. This
 /// branch is inactive for old modules, preserving their exact budget path.
 pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> {
+    for f in &module.functions {
+        budget.spend(1)?;
+        if let Some(instance) = &f.dyn_instance {
+            crate::dynamic_metadata::recipe(instance, budget)?;
+            return Err(bad(
+                "dynamic function instance requires its complete definition proof",
+                None,
+            ));
+        }
+    }
+    for table in &module.dyn_vtables {
+        crate::dynamic_metadata::recipe_table(table, budget)?;
+        if table.self_life.is_some() || table.implementation_witnesses.is_some() {
+            return Err(bad(
+                "dynamic implementation recipes require their complete static proof",
+                None,
+            ));
+        }
+    }
+
     if !module.target.is_supported_x64_llvm() {
         return Err(unsupported(
             "shared dyn requires the checked x64 LLVM target profile",
@@ -304,6 +324,17 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
     let mut identities = BTreeSet::new();
     for declaration in &module.dyn_declarations {
         crate::dynamic_metadata::declaration(declaration, budget)?;
+        if declaration.direct_supertraits.is_some()
+            || declaration.requirements.is_some()
+            || declaration.associated_definitions.is_some()
+            || declaration.method_signatures.is_some()
+            || declaration.method_definitions.is_some()
+        {
+            return Err(bad(
+                "dynamic declaration recipes require their complete static proof",
+                None,
+            ));
+        }
         if declaration.kind == DynDeclarationKind::Trait
             && (declaration.implemented_trait.is_some() || declaration.self_pattern.is_some())
         {

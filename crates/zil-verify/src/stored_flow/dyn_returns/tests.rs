@@ -94,10 +94,13 @@ fn boundary() -> (TypedModule, TypedFunction, dyn_ports::Rows) {
             base: StorageBase::Result,
             path: vec![ContractProjection::RetainedPort(0)],
         },
-        sources: vec![StoragePosition {
+        sources: (vec![StoragePosition {
             base: StorageBase::Parameter(0),
             path: vec![],
-        }],
+        }])
+        .into_iter()
+        .map(zil_ir::StorageSource::Exact)
+        .collect(),
     }]);
     let source = Source {
         retained_port: None,
@@ -131,7 +134,8 @@ fn dyn_result_upper_keeps_actual_same_type_input_and_rejects_local_escape() {
     let (module, f, rows) = boundary();
     assert!(checked(&module, &f, &rows));
     let mut forged = f.clone();
-    forged.retained_return_sources.as_mut().unwrap()[0].sources[0].base = StorageBase::Parameter(1);
+    exact_source_mut(&mut forged.retained_return_sources.as_mut().unwrap()[0].sources[0]).base =
+        StorageBase::Parameter(1);
     assert!(!checked(&module, &forged, &rows));
     let mut forged = rows.clone();
     forged.0[0].1.permission.sources[0].base = HoldRoot::Local(LocalId(0));
@@ -156,7 +160,10 @@ fn dyn_result_unknown_missing_and_empty_are_distinct() {
             base: StorageBase::Result,
             path: vec![ContractProjection::RetainedPort(0)],
         },
-        sources: vec![],
+        sources: (vec![])
+            .into_iter()
+            .map(zil_ir::StorageSource::Exact)
+            .collect(),
     }]);
     assert!(!checked(&module, &claim, &rows));
     actual.0[0].1.known = true;
@@ -345,6 +352,7 @@ fn actual_helper_step(update: bool, head_parent: bool) -> (Payload, Frame, Vec<L
         &values,
         &summaries,
         &Vec::new(),
+        &mut dyn_leases::Sites::default(),
         &mut loans,
         &mut b,
     )
@@ -430,11 +438,13 @@ fn borrowed_return_cannot_hide_a_local_head_behind_external_data_sources() {
     };
     let loans = vec![
         Loan {
+            receiver_head: false,
             sources: vec![data.clone()],
             parents: vec![1],
             exclusive: false,
         },
         Loan {
+            receiver_head: false,
             sources: vec![local_head],
             parents: vec![],
             exclusive: false,
@@ -447,4 +457,11 @@ fn borrowed_return_cannot_hide_a_local_head_behind_external_data_sources() {
     let actual = parents(&result, &loans, &mut b).unwrap();
     assert!(check_parent_escape(&f, &actual, &mut b).is_err());
     assert!(check_parent_escape(&f, &[data], &mut b).is_ok());
+}
+
+fn exact_source_mut(source: &mut zil_ir::StorageSource) -> &mut zil_ir::StoragePosition {
+    match source {
+        zil_ir::StorageSource::Exact(position) => position,
+        _ => panic!("fixture requires an exact source"),
+    }
 }

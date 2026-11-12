@@ -94,6 +94,16 @@ pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(us
         for argument in &instance.arguments {
             item(1, &mut nodes, &mut work, limits)?;
             match argument {
+                LifeNominalActual::QualifiedType { ty, life } => {
+                    hint_type(ty, 2, &mut nodes, &mut work, limits)?;
+                    if life.binder_count as usize > limits.max_nodes {
+                        return Err(quota());
+                    }
+                    for _ in 0..life.binder_count {
+                        item(2, &mut nodes, &mut work, limits)?;
+                    }
+                    shape(life, 2, &mut nodes, &mut work, limits)?;
+                }
                 LifeNominalActual::Type(ty) => {
                     hint_type(ty, 2, &mut nodes, &mut work, limits)?;
                 }

@@ -123,7 +123,8 @@ impl Builder<'_, '_> {
             Type::MutexGuard { .. } | Type::OwnedDyn { .. } => true,
             Type::Package { .. } => true,
             Type::BorrowedStorage { storage, .. }
-                if matches!(storage.as_ref(), Type::Package { .. }) =>
+                if matches!(storage.as_ref(), Type::Package { .. })
+                    || matches!(storage.as_ref(), Type::Tuple(_)) && owned_shapes::tuple(ty) =>
             {
                 true
             }

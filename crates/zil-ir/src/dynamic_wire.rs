@@ -13,12 +13,48 @@ impl Writer<'_> {
         Ok(())
     }
     pub(super) fn dyn_declaration(&mut self, value: &DynDeclaration) -> WireResult<()> {
+        let depth = 0;
+        self.boolean(value.direct_supertraits.is_some())?;
+        if let Some(item) = &value.direct_supertraits {
+            self.count((item).len(), self.limits.max_nodes)?;
+            for item in item {
+                self.dyn_self_pattern(item, depth + 1)?;
+            }
+        }
+        self.boolean(value.requirements.is_some())?;
+        if let Some(item) = &value.requirements {
+            self.count((item).len(), self.limits.max_nodes)?;
+            for item in item {
+                self.dyn_obligation(item, depth + 1)?;
+            }
+        }
+        self.boolean(value.associated_definitions.is_some())?;
+        if let Some(item) = &value.associated_definitions {
+            self.count((item).len(), self.limits.max_nodes)?;
+            for item in item {
+                self.dyn_associated_definition(item, depth + 1)?;
+            }
+        }
+        self.boolean(value.method_signatures.is_some())?;
+        if let Some(item) = &value.method_signatures {
+            self.count((item).len(), self.limits.max_nodes)?;
+            for item in item {
+                self.dyn_method_recipe(item, depth + 1)?;
+            }
+        }
+        self.boolean(value.method_definitions.is_some())?;
+        if let Some(item) = &value.method_definitions {
+            self.count((item).len(), self.limits.max_nodes)?;
+            for item in item {
+                self.dyn_definition_declaration(item, depth + 1)?;
+            }
+        }
         self.declaration_id(&value.id)?;
         self.declaration_identity(&value.identity)?;
         self.dyn_declaration_kind(&value.kind)?;
         self.boolean(value.self_pattern.is_some())?;
         if let Some(pattern) = &value.self_pattern {
-            self.dyn_self_pattern(pattern, 0)?;
+            self.dyn_type_pattern(pattern, 0)?;
         }
         self.boolean(value.implemented_trait.is_some())?;
         if let Some(pattern) = &value.implemented_trait {
@@ -35,115 +71,6 @@ impl Writer<'_> {
         Ok(())
     }
 
-    fn dyn_pattern_node(&mut self, depth: usize) -> WireResult<()> {
-        if depth >= self.limits.max_call_depth.min(128) {
-            return Err(quota("dyn Self recipe nesting quota exceeded"));
-        }
-        self.charge(1)
-    }
-    fn dyn_self_pattern(&mut self, value: &DynSelfPattern, depth: usize) -> WireResult<()> {
-        self.dyn_pattern_node(depth)?;
-        self.declaration_id(&value.declaration)?;
-        self.count(value.arguments.len(), self.limits.max_nodes)?;
-        for actual in &value.arguments {
-            self.dyn_pattern_actual(actual, depth + 1)?;
-        }
-        Ok(())
-    }
-    fn dyn_pattern_actual(&mut self, value: &DynPatternActual, depth: usize) -> WireResult<()> {
-        self.dyn_pattern_node(depth)?;
-        match value {
-            DynPatternActual::Type(ty) => {
-                self.u8(0)?;
-                self.dyn_type_pattern(ty, depth + 1)
-            }
-            DynPatternActual::Const(value) => {
-                self.u8(1)?;
-                self.dyn_const_pattern(value, depth + 1)
-            }
-            DynPatternActual::LifeParameter(ordinal) => {
-                self.u8(2)?;
-                self.u32(*ordinal)
-            }
-        }
-    }
-    fn dyn_const_pattern(&mut self, value: &DynConstPattern, depth: usize) -> WireResult<()> {
-        self.dyn_pattern_node(depth)?;
-        match value {
-            DynConstPattern::Value(value) => {
-                self.u8(0)?;
-                self.constant(value)
-            }
-            DynConstPattern::Parameter(ordinal) => {
-                self.u8(1)?;
-                self.u32(*ordinal)
-            }
-        }
-    }
-    fn dyn_type_pattern(&mut self, value: &DynTypePattern, depth: usize) -> WireResult<()> {
-        self.dyn_pattern_node(depth)?;
-        match value {
-            DynTypePattern::Concrete(ty) => {
-                self.u8(0)?;
-                self.ty(ty, depth + 1)
-            }
-            DynTypePattern::Parameter(ordinal) => {
-                self.u8(1)?;
-                self.u32(*ordinal)
-            }
-            DynTypePattern::Nominal(value) => {
-                self.u8(2)?;
-                self.dyn_self_pattern(value, depth + 1)
-            }
-            DynTypePattern::Address {
-                mutable,
-                lifetime,
-                inner,
-            } => {
-                self.u8(3)?;
-                self.boolean(*mutable)?;
-                self.boolean(lifetime.is_some())?;
-                if let Some(ordinal) = lifetime {
-                    self.u32(*ordinal)?;
-                }
-                self.dyn_type_pattern(inner, depth + 1)
-            }
-            DynTypePattern::Tuple(values) => {
-                self.u8(4)?;
-                self.count(values.len(), self.limits.max_nodes)?;
-                for value in values {
-                    self.dyn_type_pattern(value, depth + 1)?;
-                }
-                Ok(())
-            }
-            DynTypePattern::Array { element, length } => {
-                self.u8(5)?;
-                self.dyn_const_pattern(length, depth + 1)?;
-                self.dyn_type_pattern(element, depth + 1)
-            }
-            DynTypePattern::Slice(inner) => {
-                self.u8(6)?;
-                self.dyn_type_pattern(inner, depth + 1)
-            }
-            DynTypePattern::Managed(inner) => {
-                self.u8(7)?;
-                self.dyn_type_pattern(inner, depth + 1)
-            }
-            DynTypePattern::Desc(inner) => {
-                self.u8(8)?;
-                self.dyn_type_pattern(inner, depth + 1)
-            }
-            DynTypePattern::OwnedStore(inner) => {
-                self.u8(9)?;
-                self.dyn_type_pattern(inner, depth + 1)
-            }
-            DynTypePattern::ErrorUnion { error, result } => {
-                self.u8(10)?;
-                self.dyn_type_pattern(error, depth + 1)?;
-                self.dyn_type_pattern(result, depth + 1)
-            }
-        }
-    }
     pub(super) fn dyn_member_declaration(
         &mut self,
         value: &DynMemberDeclaration,
@@ -168,6 +95,11 @@ impl Writer<'_> {
     pub(super) fn dyn_associated_type(&mut self, value: &DynAssociatedType) -> WireResult<()> {
         self.dyn_member(&value.member)?;
         self.ty(&value.ty, 0)?;
+        self.storage_shape(&value.life)?;
+        self.count(value.classes.len(), self.limits.max_nodes)?;
+        for class in &value.classes {
+            self.storage_binder(class)?;
+        }
         Ok(())
     }
     pub(super) fn dyn_associated_constant(
@@ -246,6 +178,18 @@ impl Writer<'_> {
         Ok(())
     }
     pub(super) fn dyn_vtable(&mut self, value: &DynVtable) -> WireResult<()> {
+        let depth = 0;
+        self.boolean(value.self_life.is_some())?;
+        if let Some(item) = &value.self_life {
+            self.storage_shape(item)?;
+        }
+        self.boolean(value.implementation_witnesses.is_some())?;
+        if let Some(item) = &value.implementation_witnesses {
+            self.count((item).len(), self.limits.max_nodes)?;
+            for item in item {
+                self.dyn_implementation_witness(item, depth + 1)?;
+            }
+        }
         self.dyn_vtable_id(&value.id)?;
         self.dyn_interface_id(&value.interface)?;
         self.ty(&value.self_type, 0)?;
@@ -379,9 +323,8 @@ impl Writer<'_> {
             DynMemberKind::Type => {
                 self.u8(0)?;
             }
-            DynMemberKind::Constant(value_0) => {
+            DynMemberKind::Constant => {
                 self.u8(1)?;
-                self.ty(value_0, 0)?;
             }
             DynMemberKind::Method(value_0) => {
                 self.u8(2)?;
@@ -395,6 +338,10 @@ impl Writer<'_> {
     }
     pub(super) fn dyn_generic_actual(&mut self, value: &DynGenericActual) -> WireResult<()> {
         match value {
+            DynGenericActual::QualifiedType(value) => {
+                self.u8(3)?;
+                self.dyn_type_value(value, 0)?;
+            }
             DynGenericActual::Type(value_0) => {
                 self.u8(0)?;
                 self.ty(value_0, 0)?;
@@ -449,7 +396,7 @@ impl Writer<'_> {
                 self.storage_position(&binding.position)?;
                 self.count(binding.sources.len(), self.limits.max_nodes)?;
                 for source in &binding.sources {
-                    self.storage_position(source)?;
+                    self.storage_source(source, 0)?;
                 }
             }
             DynGuarantee::ManageResult => {
@@ -520,7 +467,7 @@ impl Writer<'_> {
                 self.u8(3)?;
                 self.count(sources.len(), self.limits.max_nodes)?;
                 for value in sources {
-                    self.storage_position(value)?;
+                    self.storage_source(value, 0)?;
                 }
                 self.boolean(*mutable)?;
             }
@@ -594,12 +541,73 @@ impl Reader<'_> {
         })
     }
     pub(super) fn dyn_declaration(&mut self) -> WireResult<DynDeclaration> {
+        let depth = 0;
         Ok(DynDeclaration {
+            direct_supertraits: if self.boolean()? {
+                Some({
+                    let count = self.count(self.limits.max_nodes, 1)?;
+                    let mut rows = Vec::with_capacity(count);
+                    for _ in 0..count {
+                        rows.push(self.dyn_self_pattern(depth + 1)?);
+                    }
+                    rows
+                })
+            } else {
+                None
+            },
+            requirements: if self.boolean()? {
+                Some({
+                    let count = self.count(self.limits.max_nodes, 1)?;
+                    let mut rows = Vec::with_capacity(count);
+                    for _ in 0..count {
+                        rows.push(self.dyn_obligation(depth + 1)?);
+                    }
+                    rows
+                })
+            } else {
+                None
+            },
+            associated_definitions: if self.boolean()? {
+                Some({
+                    let count = self.count(self.limits.max_nodes, 1)?;
+                    let mut rows = Vec::with_capacity(count);
+                    for _ in 0..count {
+                        rows.push(self.dyn_associated_definition(depth + 1)?);
+                    }
+                    rows
+                })
+            } else {
+                None
+            },
+            method_signatures: if self.boolean()? {
+                Some({
+                    let count = self.count(self.limits.max_nodes, 1)?;
+                    let mut rows = Vec::with_capacity(count);
+                    for _ in 0..count {
+                        rows.push(self.dyn_method_recipe(depth + 1)?);
+                    }
+                    rows
+                })
+            } else {
+                None
+            },
+            method_definitions: if self.boolean()? {
+                Some({
+                    let count = self.count(self.limits.max_nodes, 1)?;
+                    let mut rows = Vec::with_capacity(count);
+                    for _ in 0..count {
+                        rows.push(self.dyn_definition_declaration(depth + 1)?);
+                    }
+                    rows
+                })
+            } else {
+                None
+            },
             id: self.declaration_id()?,
             identity: self.declaration_identity()?,
             kind: self.dyn_declaration_kind()?,
             self_pattern: if self.boolean()? {
-                Some(self.dyn_self_pattern(0)?)
+                Some(self.dyn_type_pattern(0)?)
             } else {
                 None
             },
@@ -627,87 +635,6 @@ impl Reader<'_> {
         })
     }
 
-    fn dyn_pattern_node(&mut self, depth: usize) -> WireResult<()> {
-        if depth >= self.limits.max_call_depth.min(128) {
-            return Err(quota("dyn Self recipe nesting quota exceeded"));
-        }
-        self.charge(1)
-    }
-    fn dyn_self_pattern(&mut self, depth: usize) -> WireResult<DynSelfPattern> {
-        self.dyn_pattern_node(depth)?;
-        let declaration = self.declaration_id()?;
-        let count = self.count(self.limits.max_nodes, 2)?;
-        let mut arguments = Vec::with_capacity(count);
-        for _ in 0..count {
-            arguments.push(self.dyn_pattern_actual(depth + 1)?);
-        }
-        Ok(DynSelfPattern {
-            declaration,
-            arguments,
-        })
-    }
-    fn dyn_pattern_actual(&mut self, depth: usize) -> WireResult<DynPatternActual> {
-        self.dyn_pattern_node(depth)?;
-        Ok(match self.u8()? {
-            0 => DynPatternActual::Type(self.dyn_type_pattern(depth + 1)?),
-            1 => DynPatternActual::Const(self.dyn_const_pattern(depth + 1)?),
-            2 => DynPatternActual::LifeParameter(self.u32()?),
-            _ => return Err(malformed("E-WIRE-TAG", "unknown dyn Self actual recipe")),
-        })
-    }
-    fn dyn_const_pattern(&mut self, depth: usize) -> WireResult<DynConstPattern> {
-        self.dyn_pattern_node(depth)?;
-        Ok(match self.u8()? {
-            0 => DynConstPattern::Value(self.constant()?),
-            1 => DynConstPattern::Parameter(self.u32()?),
-            _ => return Err(malformed("E-WIRE-TAG", "unknown dyn Self const recipe")),
-        })
-    }
-    fn dyn_type_pattern(&mut self, depth: usize) -> WireResult<DynTypePattern> {
-        self.dyn_pattern_node(depth)?;
-        Ok(match self.u8()? {
-            0 => DynTypePattern::Concrete(self.ty(depth + 1)?),
-            1 => DynTypePattern::Parameter(self.u32()?),
-            2 => DynTypePattern::Nominal(Box::new(self.dyn_self_pattern(depth + 1)?)),
-            3 => {
-                let mutable = self.boolean()?;
-                let lifetime = if self.boolean()? {
-                    Some(self.u32()?)
-                } else {
-                    None
-                };
-                let inner = Box::new(self.dyn_type_pattern(depth + 1)?);
-                DynTypePattern::Address {
-                    mutable,
-                    lifetime,
-                    inner,
-                }
-            }
-            4 => {
-                let count = self.count(self.limits.max_nodes, 2)?;
-                let mut values = Vec::with_capacity(count);
-                for _ in 0..count {
-                    values.push(self.dyn_type_pattern(depth + 1)?);
-                }
-                DynTypePattern::Tuple(values)
-            }
-            5 => {
-                let length = self.dyn_const_pattern(depth + 1)?;
-                let element = Box::new(self.dyn_type_pattern(depth + 1)?);
-                DynTypePattern::Array { element, length }
-            }
-            6 => DynTypePattern::Slice(Box::new(self.dyn_type_pattern(depth + 1)?)),
-            7 => DynTypePattern::Managed(Box::new(self.dyn_type_pattern(depth + 1)?)),
-            8 => DynTypePattern::Desc(Box::new(self.dyn_type_pattern(depth + 1)?)),
-            9 => DynTypePattern::OwnedStore(Box::new(self.dyn_type_pattern(depth + 1)?)),
-            10 => {
-                let error = Box::new(self.dyn_type_pattern(depth + 1)?);
-                let result = Box::new(self.dyn_type_pattern(depth + 1)?);
-                DynTypePattern::ErrorUnion { error, result }
-            }
-            _ => return Err(malformed("E-WIRE-TAG", "unknown dyn Self type recipe")),
-        })
-    }
     pub(super) fn dyn_member_declaration(&mut self) -> WireResult<DynMemberDeclaration> {
         Ok(DynMemberDeclaration {
             name: self.text()?,
@@ -737,6 +664,15 @@ impl Reader<'_> {
         Ok(DynAssociatedType {
             member: self.dyn_member()?,
             ty: self.ty(0)?,
+            life: self.storage_shape()?,
+            classes: {
+                let count = self.count(self.limits.max_nodes, 5)?;
+                let mut rows = Vec::with_capacity(count);
+                for _ in 0..count {
+                    rows.push(self.storage_binder()?);
+                }
+                rows
+            },
         })
     }
     pub(super) fn dyn_associated_constant(&mut self) -> WireResult<DynAssociatedConstant> {
@@ -847,7 +783,25 @@ impl Reader<'_> {
         })
     }
     pub(super) fn dyn_vtable(&mut self) -> WireResult<DynVtable> {
+        let depth = 0;
         Ok(DynVtable {
+            self_life: if self.boolean()? {
+                Some(self.storage_shape()?)
+            } else {
+                None
+            },
+            implementation_witnesses: if self.boolean()? {
+                Some({
+                    let count = self.count(self.limits.max_nodes, 1)?;
+                    let mut rows = Vec::with_capacity(count);
+                    for _ in 0..count {
+                        rows.push(self.dyn_implementation_witness(depth + 1)?);
+                    }
+                    rows
+                })
+            } else {
+                None
+            },
             id: self.dyn_vtable_id()?,
             interface: self.dyn_interface_id()?,
             self_type: self.ty(0)?,
@@ -1037,7 +991,7 @@ impl Reader<'_> {
     pub(super) fn dyn_member_kind(&mut self) -> WireResult<DynMemberKind> {
         Ok(match self.u8()? {
             0 => DynMemberKind::Type,
-            1 => DynMemberKind::Constant(self.ty(0)?),
+            1 => DynMemberKind::Constant,
             2 => DynMemberKind::Method({
                 let count = self.count(self.limits.max_nodes, 1)?;
                 let mut values_22 = Vec::with_capacity(count);
@@ -1051,6 +1005,7 @@ impl Reader<'_> {
     }
     pub(super) fn dyn_generic_actual(&mut self) -> WireResult<DynGenericActual> {
         Ok(match self.u8()? {
+            3 => DynGenericActual::QualifiedType(self.dyn_type_value(0)?),
             0 => DynGenericActual::Type(self.ty(0)?),
             1 => DynGenericActual::Const(self.constant()?),
             2 => DynGenericActual::Life(self.storage_binder()?),
@@ -1084,7 +1039,7 @@ impl Reader<'_> {
                 let count = self.count(self.limits.max_nodes, 5)?;
                 let mut sources = Vec::with_capacity(count);
                 for _ in 0..count {
-                    sources.push(self.storage_position()?);
+                    sources.push(self.storage_source(0)?);
                 }
                 DynGuarantee::StorageSources(StorageSourceBinding { position, sources })
             }
@@ -1116,7 +1071,7 @@ impl Reader<'_> {
                     let count = self.count(self.limits.max_nodes, 1)?;
                     let mut values_23 = Vec::with_capacity(count);
                     for _ in 0..count {
-                        values_23.push(self.storage_position()?);
+                        values_23.push(self.storage_source(0)?);
                     }
                     values_23
                 },

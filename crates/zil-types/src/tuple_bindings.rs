@@ -109,6 +109,7 @@ impl Builder<'_, '_> {
         }
         if let Type::BorrowedStorage { storage, .. } = &ty
             && matches!(storage.as_ref(), Type::Tuple(_))
+            && owned_shapes::tuple(&ty)
         {
             self.closures.snapshot_type(&ty, 4, 0, initializer.span)?;
             if !self.irrefutable_pattern(pattern, storage)? {
@@ -124,7 +125,7 @@ impl Builder<'_, '_> {
         }
         // This checks the complete value, including discarded fields, exact arity
         // at every tuple and duplicate names, using the existing paid pattern core.
-        if !self.irrefutable_pattern(pattern, &ty)? {
+        if !self.irrefutable_pattern(pattern, stored::physical(&ty))? {
             return Err(error(
                 "E-PATTERN-REFUTABLE",
                 pattern.span,
@@ -142,7 +143,13 @@ impl Builder<'_, '_> {
         let mut bindings = Vec::new();
         let impossible = self.block_id()?;
         self.function.blocks[impossible.0 as usize].terminator = Terminator::Trap;
-        self.pattern_test(pattern, value, &ty, impossible, &mut bindings)?;
+        self.pattern_test(
+            pattern,
+            value,
+            stored::physical(&ty),
+            impossible,
+            &mut bindings,
+        )?;
         for (name, value, ty, span) in bindings {
             let local = self.local(&name, ty, mutable, span)?;
             self.store(local, value, span)?;
@@ -171,7 +178,7 @@ impl Builder<'_, '_> {
             }
             CorePatternKind::Wildcard => Ok(()),
             CorePatternKind::Tuple(fields) => {
-                let Type::Tuple(types) = ty else {
+                let Type::Tuple(types) = stored::physical(ty) else {
                     unreachable!("checked tuple pattern")
                 };
                 if ty.is_copy_value() {

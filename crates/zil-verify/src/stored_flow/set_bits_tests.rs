@@ -127,6 +127,7 @@ fn fixture(ssa: usize, locals: usize, generation: usize) -> (Solution, Frame) {
             entry: Frame::default(),
             outputs: vec![],
             sites: vec![],
+            dyn_sites: dyn_leases::Sites::default(),
         },
         frame,
     )
@@ -219,6 +220,7 @@ fn set_bits_pay_word_scan_and_live_visits_with_exact_fresh_limits() {
         entry: Frame::default(),
         outputs: vec![],
         sites: vec![],
+        dyn_sites: dyn_leases::Sites::default(),
     };
     let state = Frame {
         locals: vec![Payload::default(); 56],

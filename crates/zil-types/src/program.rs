@@ -431,6 +431,7 @@ pub(super) fn check_resolved_program_with_reuse(
                     .map_err(|e| vec![e])?;
             }
             let export = ScalarFunction {
+                dyn_instance: typed.dyn_instance.clone(),
                 retained_return_sources: typed.retained_return_sources.clone(),
                 storage_life: typed.storage_life.clone(),
                 reference_return_bound: typed.reference_return_bound.clone(),
@@ -724,7 +725,8 @@ fn interface_fingerprint(
                     .saturating_add(binding.position.path.len())
                     .saturating_add(binding.sources.len())
                     .saturating_add(1);
-                for source in &binding.sources {
+                for atom in &binding.sources {
+                    let source = crate::exact_storage_source(atom).map_err(|error| vec![error])?;
                     work = work.saturating_add(source.path.len()).saturating_add(1);
                 }
             }

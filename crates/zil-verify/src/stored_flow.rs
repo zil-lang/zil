@@ -11,6 +11,7 @@ mod byte_queries;
 mod captured_owner;
 mod compound;
 mod dyn_closed;
+mod dyn_leases;
 mod dyn_ports;
 mod dyn_providers;
 mod dyn_returns;
@@ -139,12 +140,23 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> Check<boo
     Ok(false)
 }
 
+mod anonymous_tuple;
 pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
 mod retained;
 mod task_address;
 mod task_failure;
+pub(super) fn anonymous_tuple(ty: &Type, b: &mut Budget) -> Check<bool> {
+    Ok(anonymous_tuple::layout(ty, b)?.is_some())
+}
+pub(super) fn anonymous_operation(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
+    anonymous_tuple::operation(f, i, b)
+}
 pub(super) fn borrowed_product_child(ty: &Type, b: &mut Budget) -> Check<bool> {
     compound::borrowed_child(ty, b)
 }
@@ -587,6 +599,7 @@ struct Solution {
     entry: Frame,
     loans: Vec<Loan>,
     sites: WriteSites,
+    dyn_sites: dyn_leases::Sites,
 }
 
 fn err(text: &str) -> Diagnostic {
@@ -1135,6 +1148,9 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
         return Ok(false);
     };
     type_work(ty, limits, b)?;
+    if anonymous_tuple::layout(ty, b)?.is_some() {
+        return Ok(true);
+    }
     if b.task_failure_carriers && task_failure::shape(ty, limits, b)? {
         return Ok(true);
     }
@@ -1502,6 +1518,8 @@ pub(super) fn qualifications(
         for block in &f.blocks {
             for i in &block.instructions {
                 b.spend(1)?;
+                // Type/mode authentication is independent of dispatch flags.
+                anonymous_tuple::operation(f, i, b)?;
                 if let InstructionKind::Load(local) = i.kind
                     && f.locals
                         .get(local.0 as usize)
@@ -1534,6 +1552,7 @@ pub(super) fn qualifications(
                     && !super::stored_callables::instruction(module, f, i)
                     && !returned_environment::borrowed_child(module, f, i, b)?
                     && !compound::operation(f, i, b)?
+                    && !anonymous_tuple::operation(f, i, b)?
                     && !dyn_closed::operation(module, f, i, b)?
                     && !dyn_ports::operation(module, f, i, b)?
                     && !dyn_ports::wrapper(module, f, i, b)?
@@ -1648,6 +1667,7 @@ pub(super) fn qualifications(
                 if pure_copy::operation(&i.kind)
                     && !array_index::candidate(f, i)
                     && !compound::projection(f, i, b)?
+                    && !anonymous_tuple::operation(f, i, b)?
                     && enum_address::types(module, f, i, b)?.is_none()
                     && option_address::types(module, f, i, b)?.is_none()
                     && !(b.task_sources() && task_address::wrapper_instruction(f, i, b)?)
@@ -1926,6 +1946,9 @@ fn relation(
 }
 
 pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<()> {
+    if super::ordinary_heads::check(module, f, b)? {
+        return Ok(());
+    }
     fn nested_class(ty: &Type, depth: usize, b: &mut Budget) -> Check<bool> {
         if depth > b.limits.max_call_depth {
             return Err(limit("stored signature class depth exceeds limit"));
@@ -2890,7 +2913,9 @@ fn write_sites(
                     Ok(())
                 };
             match &i.kind {
-                InstructionKind::MakeAggregate { .. } | InstructionKind::MakePackage { .. } => {
+                InstructionKind::MakeAggregate { .. }
+                | InstructionKind::MakePackage { .. }
+                | InstructionKind::MakeOwnedTuple { .. } => {
                     if let Some((_, shape)) = qualified(vt(
                         f,
                         i.result.ok_or_else(|| err("aggregate lacks result"))?,
@@ -3010,7 +3035,8 @@ fn step(
     values: &[Payload],
     summaries: &[Summary],
     sites: &WriteSites,
-    loans: &mut [Loan],
+    dyn_sites: &mut dyn_leases::Sites,
+    loans: &mut Vec<Loan>,
     b: &mut Budget,
 ) -> Check<Payload> {
     b.spend(1)?;
@@ -3020,7 +3046,7 @@ fn step(
             .get(v.0 as usize)
             .ok_or_else(|| err("operand outside actual value table"))
     };
-    let dyn_transfer = dyn_ports::transfer(module, f, i, state, values, b)?;
+    let dyn_transfer = dyn_ports::transfer(module, f, i, state, values, dyn_sites, loans, b)?;
     let closed_dyn_transfer = dyn_closed::transfer(module, f, i, state, values, b)?;
     let task_transfer = task_address::transfer(module, f, i, state, values, summaries, b)?;
     let failure_view = failure_projection(f, i, b)?;
@@ -3033,6 +3059,23 @@ fn step(
         None
     };
     match &i.kind {
+        InstructionKind::UnpackTuple { local, fields } if anonymous_tuple::operation(f, i, b)? => {
+            anonymous_tuple::unpack(f, *local, fields, state, b)?;
+        }
+        InstructionKind::DropTuple { local } if anonymous_tuple::operation(f, i, b)? => {
+            state.locals[local.0 as usize] = Payload::default();
+            clear_local_holes(state, *local, b)?;
+        }
+        InstructionKind::ExtractField { aggregate, index } if anonymous_tuple::operation(f, i, b)? => {
+            let scalar_address = matches!(vt(f, i.result.ok_or_else(||err("anonymous snapshot result absent"))?)?, Type::Address { .. });
+            for (path, permission) in &val(*aggregate)?.leaves {
+                b.spend(path.len().saturating_add(1))?;
+                if let Some((PlaceProjection::Field(field), tail)) = path.split_first() && field == index {
+                    if scalar_address && tail.is_empty() {join_permission(&mut out.address, permission, b)?;}
+                    else {add_leaf(&mut out, tail, permission, b)?;}
+                }
+            }
+        }
         InstructionKind::UnpackTuple { local, fields } if compound::operation(f, i, b)? => {
             compound::unpack(*local, fields, state, b)?;
         }
@@ -3181,6 +3224,7 @@ fn step(
         | InstructionKind::DropClosure { local: l } => {
             state.locals[l.0 as usize] = Payload::default();
             clear_local_holes(state, *l, b)?;
+            dyn_ports::vacate_owner(module, f, *l, state, b)?;
         }
         InstructionKind::BorrowPackageField { local, index, mutable: false }
             if pure_copy::qualified_package_borrow(f, i, b)? => {
@@ -3362,6 +3406,7 @@ fn step(
             out = copy_payload(&state.locals[local.0 as usize], b)?;
             state.locals[local.0 as usize] = Payload::default();
             clear_local_holes(state, *local, b)?;
+            dyn_ports::vacate_owner(module, f, *local, state, b)?;
         }
         InstructionKind::ReadCapture { index } if captured_definition(module, f, b).is_some() => {
             out = copy_payload(
@@ -3601,6 +3646,7 @@ fn step(
         }
         InstructionKind::MakeAggregate { fields } | InstructionKind::MakePackage { fields } | InstructionKind::MakeOwnedTuple { fields } => {
             if b.task_failure_carriers
+                && !anonymous_tuple::operation(f, i, b)?
                 && i.result.is_some_and(|r| matches!(f.values.get(r.0 as usize),Some(Type::BorrowedStorage{storage,..}) if matches!(storage.as_ref(),Type::Tuple(_))))
             {
                 return Err(err("anonymous input Tuple must be moved from its actual parent field"));
@@ -3782,11 +3828,14 @@ fn step(
                 module,
                 f,
                 callee,
+                i,
                 &summaries[function.0 as usize],
                 arguments,
                 values,
                 state,
                 &mut out,
+                dyn_sites,
+                loans,
                 b,
             )?;
             task_address::call(
@@ -3852,10 +3901,14 @@ fn step(
             let dyn_updates = dyn_ports::prepare_after(
                 module,
                 f,
+                callee,
+                i,
                 &summaries[function.0 as usize],
                 arguments,
                 values,
                 state,
+                dyn_sites,
+                loans,
                 b,
             )?;
             let mut updates = Vec::new();
@@ -4294,6 +4347,7 @@ fn solve(
     let mut loans = vec![Loan::default(); count];
     let entry = seed(module, f, &mut loans, b)?;
     let sites = write_sites(module, f, &mut loans, b)?;
+    let mut dyn_sites = dyn_leases::Sites::default();
     let mut values = vec![Payload::default(); f.values.len()];
     let mut outputs = Vec::new();
     for _ in &f.blocks {
@@ -4331,6 +4385,7 @@ fn solve(
                     &values,
                     summaries,
                     &sites,
+                    &mut dyn_sites,
                     &mut loans,
                     b,
                 )?;
@@ -4346,6 +4401,7 @@ fn solve(
             entry,
             loans,
             sites,
+            dyn_sites,
         });
     }
     loop {
@@ -4372,7 +4428,16 @@ fn solve(
             }
             for i in &f.blocks[bi].instructions {
                 let out = step(
-                    module, f, i, &mut state, &values, summaries, &sites, &mut loans, b,
+                    module,
+                    f,
+                    i,
+                    &mut state,
+                    &values,
+                    summaries,
+                    &sites,
+                    &mut dyn_sites,
+                    &mut loans,
+                    b,
                 )?;
                 if let Some(v) = i.result {
                     changed |= join_payload(&mut values[v.0 as usize], &out, b)?;
@@ -4396,6 +4461,7 @@ fn solve(
         entry,
         loans,
         sites,
+        dyn_sites,
     })
 }
 
@@ -4839,6 +4905,15 @@ fn check_call(
             store_paths::record(head_accesses, &actual, *write, b)?;
         }
     }
+    if b.dyn_contexts {
+        // A helper's actual body effects retain the same caller obligations
+        // as an inlined operation. The result-source upper cannot erase an
+        // external data access or delegate an unrelated live child loan.
+        for (source, write) in &summaries[function.0 as usize].dyn_accesses {
+            let actual = instantiate(module, f, source, arguments, &solution.values, state, b)?;
+            checks.check(&actual, *write, requirements, b)?;
+        }
+    }
     for (position, argument) in arguments.iter().enumerate() {
         let value = &solution.values[argument.0 as usize];
         let ty = &callee.locals[callee.parameters[position].0 as usize].ty;
@@ -5080,7 +5155,7 @@ fn windows(
                 if replacements::heads(b) {
                     let head = dynamic_store::access(&i.kind)
                         .or_else(|| byte_buffers::access(&i.kind))
-                        .or_else(|| match i.kind {
+                        .or(match i.kind {
                             InstructionKind::ReadDesc { desc, .. } => Some((desc, false)),
                             InstructionKind::WriteDesc { desc, .. } => Some((desc, true)),
                             _ => None,
@@ -5809,6 +5884,7 @@ fn windows(
                 &solution.values,
                 summaries,
                 &solution.sites,
+                &mut solution.dyn_sites,
                 &mut solution.loans,
                 b,
             )?;
@@ -6640,7 +6716,13 @@ fn solve_check(
                     &mut summary.dyn_accesses,
                     b,
                 )
-                .map_err(|error| error.with_note(format!("actual stored function {}", f.name)))?;
+                .map_err(|mut failure| {
+                    failure.notes.push(format!(
+                        "while reconstructing actual stored accesses of {}",
+                        f.name
+                    ));
+                    failure
+                })?;
             }
             summary_work(&summary, b)?;
             summary_work(&summaries[index], b)?;
@@ -7161,7 +7243,8 @@ mod tests {
                     &values,
                     &[],
                     &sites,
-                    &mut [],
+                    &mut dyn_leases::Sites::default(),
+                    &mut Vec::new(),
                     &mut budget,
                 );
                 if byte {
@@ -7200,7 +7283,8 @@ mod tests {
             &values,
             &[],
             &sites,
-            &mut [],
+            &mut dyn_leases::Sites::default(),
+            &mut Vec::new(),
             &mut Budget::new(&limits),
         )
         .unwrap_err();
@@ -7252,6 +7336,14 @@ mod tests {
                 };
                 if let Some(v) = i.result {
                     let mut roots = roots;
+                    // Ordinary resource descriptions publish no strong Hold.
+                    // Their actual owner head, epoch and source stay private
+                    // and are still exercised by the retirement attacks.
+                    if matches!(&f.values[v.0 as usize], Type::Desc(payload)
+                        if !matches!(payload.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. } | Type::Mutex { .. }))
+                    {
+                        roots.clear();
+                    }
                     roots.sort();
                     roots.dedup();
                     plan.holds[v.0 as usize].roots = roots;
@@ -8029,7 +8121,8 @@ mod tests {
             println!("owning Fixed Verify wire={wire} N={low}; N-1/fresh/repeated/retry");
         }
         let mut forged = c;
-        forged.functions[0].holds[8].roots.clear();
+        assert!(forged.functions[0].holds[8].roots.is_empty());
+        forged.functions[0].holds[8].roots = vec![HoldRoot::Local(LocalId(1))];
         let bytes = zil_ir::wire::encode_module_candidate(&m, &forged, &Limits::default()).unwrap();
         for result in [
             super::super::verify_module(m.clone(), forged, &m.target, &Limits::default()),

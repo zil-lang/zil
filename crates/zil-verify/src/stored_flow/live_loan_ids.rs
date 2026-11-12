@@ -188,6 +188,7 @@ mod tests {
             entry: Frame::default(),
             loans: vec![Loan::default(); 12],
             sites: vec![],
+            dyn_sites: dyn_leases::Sites::default(),
         };
         solution.loans[1].parents = vec![0];
         solution.loans[3].parents = vec![2];

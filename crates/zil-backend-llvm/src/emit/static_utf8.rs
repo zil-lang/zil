@@ -78,6 +78,7 @@ pub(crate) fn same_functions(
     left: &[TypedFunction],
     right: &[TypedFunction],
     remaining: &mut usize,
+    limits: &zil_base::Limits,
 ) -> CompileResult<bool> {
     if std::ptr::eq(left, right) {
         return Ok(true);
@@ -87,6 +88,7 @@ pub(crate) fn same_functions(
     }
     for (left, right) in left.iter().zip(right) {
         let TypedFunction {
+            dyn_instance,
             retained_return_sources,
             storage_life,
             call_kind,
@@ -108,7 +110,12 @@ pub(crate) fn same_functions(
             entry,
             span,
         } = left;
-        if retained_return_sources != &right.retained_return_sources
+        if let (Some(a), Some(b)) = (dyn_instance, &right.dyn_instance) {
+            reserve_dyn_instance(a, limits, remaining)?;
+            reserve_dyn_instance(b, limits, remaining)?;
+        }
+        if dyn_instance != &right.dyn_instance
+            || retained_return_sources != &right.retained_return_sources
             || storage_life != &right.storage_life
             || call_kind != &right.call_kind
             || resume_bound != &right.resume_bound
@@ -159,4 +166,68 @@ pub(crate) fn same_functions(
         }
     }
     Ok(true)
+}
+
+struct RecipeWork<'a> {
+    remaining: &'a mut usize,
+    limits: &'a zil_base::Limits,
+}
+impl zil_ir::DynRecipeVisitor for RecipeWork<'_> {
+    type Error = Vec<Diagnostic>;
+    fn node(&mut self, depth: usize) -> CompileResult<()> {
+        if depth > self.limits.max_call_depth.min(128) {
+            return Err(vec![Diagnostic::limit(
+                Phase::Codegen,
+                "dynamic recipe machine depth exceeded",
+                None,
+            )]);
+        }
+        spend(1, self.remaining)
+    }
+    fn rows(&mut self, n: usize, depth: usize) -> CompileResult<()> {
+        self.node(depth)?;
+        spend(n, self.remaining)
+    }
+    fn ty(&mut self, value: &Type, depth: usize) -> CompileResult<()> {
+        self.node(depth)?;
+        super::stored_borrows::type_work(value, self.remaining, self.limits, depth)
+    }
+    fn life(&mut self, value: &zil_ir::StorageLifeShape, depth: usize) -> CompileResult<()> {
+        self.node(depth)?;
+        super::stored_borrows::shape(value, self.remaining)
+    }
+    fn identity(
+        &mut self,
+        value: &zil_ir::LifeDeclarationIdentity,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.node(depth)?;
+        self.rows(value.package.len(), depth)?;
+        for part in value.module_path.iter().chain(&value.declaration_path) {
+            self.rows(part.len(), depth)?;
+        }
+        self.rows(value.generation_path.len(), depth)
+    }
+    fn position(&mut self, value: &zil_ir::StoragePosition, depth: usize) -> CompileResult<()> {
+        self.rows(value.path.len(), depth.saturating_add(value.path.len()))
+    }
+    fn constant(&mut self, value: &Constant, depth: usize) -> CompileResult<()> {
+        self.node(depth)?;
+        if let Constant::WideString(units) = value {
+            self.rows(units.len(), depth)?;
+        }
+        Ok(())
+    }
+    fn text(&mut self, value: &str, depth: usize) -> CompileResult<()> {
+        self.node(depth)?;
+        spend(value.len(), self.remaining)
+    }
+}
+pub(super) fn reserve_dyn_instance(
+    value: &zil_ir::DynFunctionInstance,
+    limits: &zil_base::Limits,
+    remaining: &mut usize,
+) -> CompileResult<()> {
+    use zil_ir::DynRecipeMetadata;
+    value.visit_dyn_metadata(&mut RecipeWork { remaining, limits }, 0)
 }

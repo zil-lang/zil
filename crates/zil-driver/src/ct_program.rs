@@ -165,8 +165,9 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
         let mut query = expression.clone();
         strip_expr(&mut query);
         let function = CoreFunction {
-            retained_return_sources: None,
             source_scope: None,
+            dyn_instance: None,
+            retained_return_sources: None,
             storage_life: None,
             call_kind: None,
             resume_bound: zil_ir::TaskResumeBound::Local,

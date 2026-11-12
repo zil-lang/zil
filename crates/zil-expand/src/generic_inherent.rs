@@ -346,8 +346,11 @@ impl Engine<'_> {
         }
         let previous_scope = std::mem::replace(&mut self.life_scope, scope);
         let previous_result = self.source_enum_return.take();
+        let previous_candidate = self.signature_candidate.take();
         let prepared = self.with_origin(origin, |engine| engine.stored_signature(&mut function));
         let source_result = self.source_enum_return.take();
+        let signature_candidate = self.signature_candidate.take();
+        self.signature_candidate = previous_candidate;
         self.source_enum_return = previous_result;
         self.life_scope = previous_scope;
         if !prepared? {
@@ -362,6 +365,7 @@ impl Engine<'_> {
             .insert(name.into(), Cow::Owned(function.clone()));
         self.pending[index].item.kind = ItemKind::Function(function);
         self.pending[index].source_enum_return = source_result;
+        self.pending[index].signature_candidate = signature_candidate;
         Ok(())
     }
 

@@ -13,6 +13,8 @@ use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 pub const WIRE_VERSION: u32 = 48;
 #[path = "dynamic_wire.rs"]
 mod dynamic;
+#[path = "dynamic_recipes_wire.rs"]
+mod dynamic_recipes;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";
@@ -290,6 +292,43 @@ struct Writer<'a> {
     nodes: usize,
 }
 impl<'a> Writer<'a> {
+    pub(super) fn storage_source(
+        &mut self,
+        source: &StorageSource,
+        depth: usize,
+    ) -> WireResult<()> {
+        if depth >= self.limits.max_call_depth {
+            return Err(quota("storage source depth exceeded"));
+        }
+        self.charge(1)?;
+        match source {
+            StorageSource::Exact(position) => {
+                self.u8(0)?;
+                self.storage_position(position)
+            }
+            StorageSource::PlaceAddress { place, mode } => {
+                self.u8(1)?;
+                self.storage_position(place)?;
+                self.u8(*mode as u8)
+            }
+            StorageSource::OwnedView { head, leaf, mode } => {
+                self.u8(2)?;
+                self.storage_position(head)?;
+                self.ty(leaf, depth + 1)?;
+                self.u8(*mode as u8)
+            }
+            StorageSource::ReborrowedLeaf { source, head } => {
+                self.u8(3)?;
+                self.storage_position(source)?;
+                self.storage_position(head)
+            }
+            StorageSource::Static { leaf, mode } => {
+                self.u8(4)?;
+                self.ty(leaf, depth + 1)?;
+                self.u8(*mode as u8)
+            }
+        }
+    }
     fn new(limits: &'a Limits) -> Self {
         Self {
             output: Vec::new(),
@@ -645,6 +684,11 @@ impl<'a> Writer<'a> {
             self.count(instance.arguments.len(), self.limits.max_nodes)?;
             for argument in &instance.arguments {
                 match argument {
+                    LifeNominalActual::QualifiedType { ty, life } => {
+                        self.u8(3)?;
+                        self.ty(ty, 0)?;
+                        self.storage_shape(life)?;
+                    }
                     LifeNominalActual::Type(ty) => {
                         self.u8(0)?;
                         self.ty(ty, 0)?;
@@ -1106,6 +1150,11 @@ impl<'a> Writer<'a> {
         })
     }
     fn function(&mut self, function: &TypedFunction) -> WireResult<()> {
+        self.boolean(function.dyn_instance.is_some())?;
+        if let Some(instance) = &function.dyn_instance {
+            self.dyn_function_instance(instance, 0)?;
+        }
+
         self.boolean(function.retained_return_sources.is_some())?;
         if let Some(bindings) = &function.retained_return_sources {
             self.count(bindings.len(), self.limits.max_nodes)?;
@@ -1113,7 +1162,7 @@ impl<'a> Writer<'a> {
                 self.storage_position(&binding.position)?;
                 self.count(binding.sources.len(), self.limits.max_nodes)?;
                 for source in &binding.sources {
-                    self.storage_position(source)?;
+                    self.storage_source(source, 0)?;
                 }
             }
         }
@@ -1137,7 +1186,7 @@ impl<'a> Writer<'a> {
                     self.storage_position(&binding.position)?;
                     self.count(binding.sources.len(), self.limits.max_nodes)?;
                     for source in &binding.sources {
-                        self.storage_position(source)?;
+                        self.storage_source(source, 0)?;
                     }
                 }
             }
@@ -2402,6 +2451,33 @@ struct Reader<'a> {
     nodes: usize,
 }
 impl<'a> Reader<'a> {
+    pub(super) fn storage_source(&mut self, depth: usize) -> WireResult<StorageSource> {
+        if depth >= self.limits.max_call_depth {
+            return Err(quota("storage source depth exceeded"));
+        }
+        self.charge(1)?;
+        Ok(match self.u8()? {
+            0 => StorageSource::Exact(self.storage_position()?),
+            1 => StorageSource::PlaceAddress {
+                place: self.storage_position()?,
+                mode: self.stored_borrow_mode()?,
+            },
+            2 => StorageSource::OwnedView {
+                head: self.storage_position()?,
+                leaf: self.ty(depth + 1)?,
+                mode: self.stored_borrow_mode()?,
+            },
+            3 => StorageSource::ReborrowedLeaf {
+                source: self.storage_position()?,
+                head: self.storage_position()?,
+            },
+            4 => StorageSource::Static {
+                leaf: self.ty(depth + 1)?,
+                mode: self.stored_borrow_mode()?,
+            },
+            _ => return Err(malformed("E-WIRE-TAG", "unknown storage source atom")),
+        })
+    }
     fn new(input: &'a [u8], limits: &'a Limits) -> WireResult<Self> {
         if input.len() > limits.max_source_bytes {
             return Err(quota("candidate wire byte quota exceeded"));
@@ -2833,6 +2909,10 @@ impl<'a> Reader<'a> {
             let mut arguments = Vec::with_capacity(n);
             for _ in 0..n {
                 arguments.push(match self.u8()? {
+                    3 => LifeNominalActual::QualifiedType {
+                        ty: self.ty(0)?,
+                        life: self.storage_shape()?,
+                    },
                     0 => LifeNominalActual::Type(self.ty(0)?),
                     1 => LifeNominalActual::Const(self.constant()?),
                     2 => LifeNominalActual::Lifetime(self.u32()?),
@@ -3543,15 +3623,21 @@ impl<'a> Reader<'a> {
         }
     }
     fn function(&mut self) -> WireResult<TypedFunction> {
+        let dyn_instance = if self.boolean()? {
+            Some(self.dyn_function_instance(0)?)
+        } else {
+            None
+        };
+
         let retained_return_sources = if self.boolean()? {
             let count = self.count(self.limits.max_nodes, 9)?;
             let mut bindings = Vec::with_capacity(count);
             for _ in 0..count {
                 let position = self.storage_position()?;
-                let count = self.count(self.limits.max_nodes, 5)?;
+                let count = self.count(self.limits.max_nodes, 3)?;
                 let mut sources = Vec::with_capacity(count);
                 for _ in 0..count {
-                    sources.push(self.storage_position()?);
+                    sources.push(self.storage_source(0)?);
                 }
                 bindings.push(StorageSourceBinding { position, sources });
             }
@@ -3583,10 +3669,10 @@ impl<'a> Reader<'a> {
                     let mut bindings = Vec::with_capacity(count);
                     for _ in 0..count {
                         let position = self.storage_position()?;
-                        let count = self.count(self.limits.max_nodes, 5)?;
+                        let count = self.count(self.limits.max_nodes, 3)?;
                         let mut sources = Vec::with_capacity(count);
                         for _ in 0..count {
-                            sources.push(self.storage_position()?);
+                            sources.push(self.storage_source(0)?);
                         }
                         bindings.push(StorageSourceBinding { position, sources });
                     }
@@ -3753,6 +3839,7 @@ impl<'a> Reader<'a> {
             });
         }
         Ok(TypedFunction {
+            dyn_instance,
             retained_return_sources,
             storage_life,
             call_kind,
@@ -4797,3 +4884,7 @@ mod owned_sum_tests;
 
 #[cfg(test)]
 mod retained_tests;
+
+#[cfg(test)]
+#[path = "wire/storage_source_tests.rs"]
+mod storage_source_tests;

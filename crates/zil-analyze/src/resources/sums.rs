@@ -5,6 +5,7 @@ use std::sync::Arc;
 mod direct_index;
 #[cfg(test)]
 mod direct_index_reference;
+pub(crate) mod dyn_tags;
 mod partial_places;
 #[cfg(test)]
 mod sorted_join_tests;
@@ -33,6 +34,16 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
         scoped: bool,
     ) -> CompileResult<(bool, bool)> {
         budget.spend(1, "ordinary Sum shape")?;
+        // A fully checked anonymous boundary authorizes only this resource
+        // skeleton walk. An Address adds no cleanup debt and its pointee is
+        // never visited; stored-flow separately proves every actual target.
+        // An ordinary unqualified Tuple<Address> keeps its prior rejection.
+        let scoped = scoped
+            || matches!(ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Tuple(_)));
+        if matches!(ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Tuple(_)))
+        {
+            crate::stored_flow::physical(ty, budget)?;
+        }
         if !ty.is_copy_value()
             && (super::super::stored_flow::pure_inline(module, ty, budget)?
                 || super::super::stored_flow::pure_read(module, ty, budget)?)

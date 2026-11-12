@@ -20,6 +20,7 @@ mod active_projection_tests;
 #[cfg(test)]
 mod binding_index_tests;
 mod dyn_address;
+mod dyn_return;
 pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
@@ -75,6 +76,14 @@ use std::collections::BTreeMap;
 pub(super) mod owned;
 #[path = "stored_flow_pure_copy.rs"]
 mod pure_copy;
+
+pub(super) fn dyn_return_header(
+    module: &TypedModule,
+    f: &TypedFunction,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    dyn_return::header(module, f, b)
+}
 
 // Class grounding may recognize only this independently authenticated origin.
 pub(super) fn ordinary_error_borrow(
@@ -670,7 +679,11 @@ pub(super) struct Facts {
     // keeps its original targets; caller substitution retains actual loans.
     returned_environment: BTreeMap<Path, Vec<Target>>,
     returned_task_ports: BTreeMap<Vec<zil_ir::ContractProjection>, Vec<Target>>,
+    /// Actual callee Return targets, never populated from a declared upper.
     returned_dyn_ports: BTreeMap<Vec<zil_ir::ContractProjection>, Vec<Target>>,
+    /// Separately proved public upper used by complete ordinary calls.
+    declared_dyn_return_upper: BTreeMap<Vec<zil_ir::ContractProjection>, Vec<Target>>,
+    dyn_return_complete: bool,
     package_return_calls: BTreeMap<ValueId, u32>,
     byte_reads: Vec<Target>,
     byte_covered: bool,
@@ -977,8 +990,18 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
         }
     }
     if b.dyn_contexts {
-        fee(b, f.returned_dyn_ports.len())?;
-        for (path, targets) in &f.returned_dyn_ports {
+        fee(
+            b,
+            f.returned_dyn_ports
+                .len()
+                .saturating_add(f.declared_dyn_return_upper.len())
+                .saturating_add(1),
+        )?;
+        for (path, targets) in f
+            .returned_dyn_ports
+            .iter()
+            .chain(&f.declared_dyn_return_upper)
+        {
             fee(b, path.len().saturating_add(targets.len()))?;
             for target in targets {
                 fee(b, target_width(target))?;
@@ -1375,6 +1398,18 @@ pub(super) fn shared_compound(
     ty: &Type,
     b: &mut Budget,
 ) -> CompileResult<bool> {
+    if let Type::BorrowedStorage { storage, life } = ty
+        && matches!(storage.as_ref(), Type::Tuple(_))
+    {
+        b.type_work(ty, true, "anonymous shared compound complete type")?;
+        physical(ty, b)?;
+        fee(b, life.slots.len())?;
+        return Ok(!resources::sums::owned(storage)
+            && life
+                .slots
+                .iter()
+                .all(|slot| slot.mode == StoredBorrowMode::SharedAddress));
+    }
     if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() {
         return Ok(false);
     }
@@ -1426,6 +1461,18 @@ pub(super) fn affine_compound(
     ty: &Type,
     b: &mut Budget,
 ) -> CompileResult<bool> {
+    if let Type::BorrowedStorage { storage, life } = ty
+        && matches!(storage.as_ref(), Type::Tuple(_))
+    {
+        b.type_work(ty, true, "anonymous affine compound complete type")?;
+        physical(ty, b)?;
+        fee(b, life.slots.len())?;
+        return Ok(resources::sums::owned(storage)
+            || life
+                .slots
+                .iter()
+                .any(|slot| slot.mode == StoredBorrowMode::ExclusiveAddress));
+    }
     if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() {
         return Ok(false);
     }
@@ -1530,7 +1577,8 @@ fn compound_extract(
     if !shared_compound(module, parent, b)? {
         return Ok(false);
     }
-    let Type::Tuple(fields) = parent else {
+    let physical = carrier(parent).map_or(parent, |(storage, _)| storage);
+    let Type::Tuple(fields) = physical else {
         unreachable!()
     };
     let child = fields
@@ -1558,10 +1606,11 @@ fn compound_unpack(
         .get(local.0 as usize)
         .ok_or_else(|| failure("compound unpack local absent"))?
         .ty;
-    if !affine_compound(module, parent, b)? {
+    if !affine_compound(module, parent, b)? && !shared_compound(module, parent, b)? {
         return Ok(false);
     }
-    let Type::Tuple(types) = parent else {
+    let physical = carrier(parent).map_or(parent, |(storage, _)| storage);
+    let Type::Tuple(types) = physical else {
         unreachable!()
     };
     if i.result.is_some() || fields.len() != types.len() {
@@ -1619,7 +1668,8 @@ fn compound_constructor(
     if !affine_compound(module, ty, b)? {
         return Ok(false);
     }
-    let Type::Tuple(types) = ty else {
+    let physical = carrier(ty).map_or(ty, |(storage, _)| storage);
+    let Type::Tuple(types) = physical else {
         unreachable!()
     };
     if types.len() != fields.len() {
@@ -2649,7 +2699,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
             }
             Type::BorrowedStorage { storage, life } => {
                 if !owning
-                    || (!matches!(storage.as_ref(), Type::Package { .. })
+                    || (!matches!(storage.as_ref(), Type::Package { .. } | Type::Tuple(_))
                         && !shared_record_child(ty, b)?)
                 {
                     if !retained::pure(ty, b)? {
@@ -2665,7 +2715,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                     path,
                     out,
                     b,
-                    matches!(storage.as_ref(), Type::Package { .. }),
+                    matches!(storage.as_ref(), Type::Package { .. } | Type::Tuple(_)),
                 )?;
                 let boundary: Vec<_> = path
                     .iter()
@@ -2713,7 +2763,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         &mut Vec::new(),
         &mut actual,
         b,
-        matches!(storage, Type::Package { .. }),
+        matches!(storage, Type::Package { .. } | Type::Tuple(_)),
     )?;
     if actual.len() != life.slots.len()
         || (actual.is_empty() && life.nominal_arguments.is_empty() && life.retained.is_empty())
@@ -2758,15 +2808,17 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
             ));
         }
         if *mode == StoredBorrowMode::ExclusiveAddress
-            && (!matches!(storage, Type::Record { .. } | Type::Package { .. })
-                || !path
-                    .iter()
-                    .all(|part| matches!(part, PlaceProjection::Field(_)))
+            && (!matches!(
+                storage,
+                Type::Record { .. } | Type::Package { .. } | Type::Tuple(_)
+            ) || !path
+                .iter()
+                .all(|part| matches!(part, PlaceProjection::Field(_)))
                 || (child_class.is_none() && path.len() != 1))
         {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
-                "exclusive stored holder requires direct nominal address slots",
+                "exclusive stored holder requires exact inline address slots",
                 None,
             )]);
         }
@@ -3632,7 +3684,9 @@ fn slot_loan_ids(
                 )?;
             }
             match &instruction.kind {
-                InstructionKind::MakeAggregate { .. } | InstructionKind::MakePackage { .. } => {
+                InstructionKind::MakeAggregate { .. }
+                | InstructionKind::MakePackage { .. }
+                | InstructionKind::MakeOwnedTuple { .. } => {
                     if let Some((_, shape)) = carrier(value_type(
                         f,
                         instruction
@@ -4110,7 +4164,24 @@ fn transfer(
             if b.task_failure_carriers
                 && i.result.is_some_and(|r| matches!(f.values.get(r.0 as usize),Some(Type::BorrowedStorage{storage,..}) if matches!(storage.as_ref(),Type::Tuple(_))))
             {
-                return Err(failure("anonymous input Tuple must be moved from its actual parent field"));
+                // A Task input view is ordinarily projected from its parent.
+                // A separate ordinary Tuple producer must instead prove its
+                // complete actual structure and mode, regardless of unrelated
+                // Task declarations. It still reconstructs every source below.
+                let result=i.result.ok_or_else(||failure("anonymous constructor result absent"))?;
+                let ty=value_type(f,result)?;
+                let shared=shared_compound(module,ty,b)?;
+                let affine=affine_compound(module,ty,b)?;
+                if !(shared && matches!(i.kind,InstructionKind::MakeAggregate{..})
+                    || affine && matches!(i.kind,InstructionKind::MakeOwnedTuple{..})){
+                    return Err(failure("anonymous input Tuple requires its actual parent projection or independently checked constructor"));
+                }
+                let Some((Type::Tuple(types),_))=carrier(ty) else{return Err(failure("anonymous constructor has no actual Tuple storage"))};
+                if types.len()!=fields.len(){return Err(failure("anonymous constructor omits actual fields"))}
+                for (field,expected) in fields.iter().zip(types){
+                    b.type_work(expected,false,"anonymous constructor complete field type")?;
+                    if value_type(f,*field)?!=expected{return Err(failure("anonymous constructor changes complete field Type"))}
+                }
             }
             let ty = value_type(
                 f,
@@ -4132,6 +4203,10 @@ fn transfer(
                         .insert(vec![PlaceProjection::Field(index as u32)], permission);
                 }
                 return Ok(out);
+            }
+            if matches!(carrier(ty).map_or(ty,|(storage,_)|storage),Type::Tuple(_))
+                && matches!(i.kind,InstructionKind::MakeAggregate{..}) && affine_compound(module,ty,b)? {
+                return Err(failure("affine compound requires an actual owning tuple constructor"));
             }
             if matches!(ty,Type::Tuple(_)) && (shared_compound(module,ty,b)? || affine_compound(module,ty,b)?) {
                 if matches!(i.kind,InstructionKind::MakeAggregate{..}) && affine_compound(module,ty,b)? {return Err(failure("affine compound requires an actual owning tuple constructor"))}
@@ -4318,6 +4393,7 @@ fn transfer(
                 fee(b, path.len())?;
                 environment_leaf(&mut out, path.clone(), &permission, b)?;
             }
+            dyn_return::call(callee, summary, arguments, values, state, &mut out, b)?;
             for (path, sources) in &summary.returned {
                 let mut permission = Permission::default();
                 for source in sources {
@@ -4844,6 +4920,13 @@ fn transfer(
             for (index,field) in fields.iter().enumerate(){
                 let mut child=Value::default();
                 child.slots=take_package_field_slots(&mut source,u32::try_from(index).map_err(|_|failure("compound field overflow"))?,b)?;
+                if matches!(&f.locals[field.0 as usize].ty,Type::Address{..}) {
+                    // A summary may still be empty in this fixed-point iteration.
+                    // Final address uses and returns independently demand real
+                    // nonempty targets; an empty candidate grants no permission.
+                    child.pointer=child.slots.remove(&Vec::new()).unwrap_or_default();
+                    if !child.slots.is_empty(){return Err(failure("anonymous Tuple address child has stray inline source slots"))}
+                }
                 union(&mut child.held,&source.held,b)?;
                 ordered(b,state.locals.len(),0)?;state.locals.insert(*field,child);
             }
@@ -4858,7 +4941,8 @@ fn transfer(
         InstructionKind::ExtractField {aggregate,index} if compound_extract(module,f,i,b)?=>{
             let parent=value_type(f,*aggregate)?;
             if shared_compound(module,parent,b)? {
-                let Type::Tuple(fields)=parent else{unreachable!()};
+                let physical=carrier(parent).map_or(parent,|(storage,_)|storage);
+                let Type::Tuple(fields)=physical else{unreachable!()};
                 let child=fields.get(*index as usize).ok_or_else(||failure("compound extraction field absent"))?;
                 let result=i.result.ok_or_else(||failure("compound extraction result absent"))?;
                 if value_type(f,result)?!=child{return Err(failure("compound extraction changes complete child type"))}
@@ -4866,7 +4950,11 @@ fn transfer(
                 for (path,permission) in &source.slots{
                     fee(b,path.len().saturating_add(1))?;
                     if let Some((PlaceProjection::Field(field),tail))=path.split_first() && field==index {
-                        union(out.slots.entry(tail.to_vec()).or_default(),permission,b)?;
+                        if matches!(child,Type::Address{..}) && tail.is_empty(){
+                            union(&mut out.pointer,permission,b)?;
+                        }else{
+                            union(out.slots.entry(tail.to_vec()).or_default(),permission,b)?;
+                        }
                     }
                 }
                 union(&mut out.held,&source.held,b)?;
@@ -5861,6 +5949,7 @@ fn windows(
                 match &i.kind {
                     InstructionKind::MakeAggregate { fields }
                     | InstructionKind::MakePackage { fields }
+                    | InstructionKind::MakeOwnedTuple { fields }
                         if b.stored_exclusive_loans =>
                     {
                         let result = i.result.ok_or_else(|| failure("aggregate lacks result"))?;
@@ -6708,6 +6797,8 @@ fn derive_cfg(
                 returned_environment: BTreeMap::new(),
                 returned_task_ports: BTreeMap::new(),
                 returned_dyn_ports: BTreeMap::new(),
+                declared_dyn_return_upper: BTreeMap::new(),
+                dyn_return_complete: true,
                 package_return_calls,
                 byte_reads: Vec::new(),
                 byte_covered: false,
@@ -7030,6 +7121,7 @@ fn derive_cfg(
                         }
                     }
                     task_address::summarize(f, value, &mut actual, b)?;
+                    dyn_return::summarize(module, f, value, &mut actual, b)?;
                 }
             }
             if let Some(d) = f
@@ -7282,6 +7374,7 @@ fn derive_cfg(
                     }
                 }
             }
+            grounded &= actual.dyn_return_complete;
             actual.complete = grounded;
             if grounded {
                 actual.byte_covered = b.byte_queries;

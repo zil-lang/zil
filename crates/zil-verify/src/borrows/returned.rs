@@ -22,7 +22,8 @@ pub(super) fn inputs(
     budget.spend(sources.len())?;
     for binding in sources {
         budget.spend(binding.sources.len())?;
-        for source in &binding.sources {
+        for atom in &binding.sources {
+            let source = crate::exact_storage_source(atom)?;
             let StorageBase::Parameter(index) = source.base else {
                 return Err(bad("returned environment source is not an input"));
             };
@@ -61,7 +62,8 @@ pub(super) fn instantiate(
         }
         let capture_type = &module.closures[claim.closure.0 as usize].captures[capture as usize];
         let mut roots = Roots::new();
-        for source in &binding.sources {
+        for atom in &binding.sources {
+            let source = crate::exact_storage_source(atom)?;
             budget.spend(source.path.len().saturating_add(1))?;
             let StorageBase::Parameter(parameter) = source.base else {
                 return Err(bad("returned environment source is not an input"));

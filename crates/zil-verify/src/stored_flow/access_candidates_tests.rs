@@ -345,6 +345,7 @@ fn complete_call_oracle_preserves_held_leaf_argument_and_summary_checks() {
                 entry: Frame::default(),
                 loans,
                 sites: vec![],
+                dyn_sites: dyn_leases::Sites::default(),
             };
             let mut summaries = vec![Summary::default(); module.functions.len()];
             summaries[1].apart.push((

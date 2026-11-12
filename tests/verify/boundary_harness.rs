@@ -214,6 +214,7 @@ fn candidate() -> (TypedModule, CandidatePlan) {
         source_fingerprint: Fingerprint::of(b"boundary candidate"),
         target: TargetProfile::host_llvm(),
         functions: vec![TypedFunction {
+            dyn_instance: None,
             retained_return_sources: None,
             result_mode: zil_ir::PassingMode::Infer,
             environment: None,

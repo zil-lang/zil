@@ -7,6 +7,11 @@ fn span() -> Span {
 
 fn declaration(id: u32, name: &str, kind: DynDeclarationKind) -> DynDeclaration {
     DynDeclaration {
+        direct_supertraits: None,
+        requirements: None,
+        associated_definitions: None,
+        method_signatures: None,
+        method_definitions: None,
         self_pattern: None,
         implemented_trait: (kind == DynDeclarationKind::Impl).then_some(DynSelfPattern {
             declaration: LifeDeclarationId {
@@ -129,6 +134,8 @@ fn fixture() -> TypedModule {
         slots: vec![slot],
     }];
     module.dyn_vtables = vec![DynVtable {
+        self_life: None,
+        implementation_witnesses: None,
         id: table_id,
         interface: interface_id,
         self_type: self_type.clone(),
@@ -144,6 +151,7 @@ fn fixture() -> TypedModule {
         owned_storage: None,
     }];
     module.functions.push(TypedFunction {
+        dyn_instance: None,
         retained_return_sources: None,
         storage_life: None,
         call_kind: CallKind::Direct,
