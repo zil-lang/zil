@@ -1194,8 +1194,11 @@ extern "C" int ZilNativeProductsEligibilityProducerCounterexample() {
 
 extern "C" int ZilNativeProductsTypeAndOwnerCounterexamples() {
   if (!zil::symbols().available) return 0;
-  auto Fail = [](const char *Site) {
-    if (zil::AnalysisDiagnostics) std::fprintf(stderr, "ZIL type/owner counterexample: %s\n", Site);
+  unsigned CurrentMode = 0;
+  auto Fail = [&](const char *Site) {
+    // This entry is called only by the explicit test harness. Preserve the
+    // exact failed boundary on its first run without changing runtime logging.
+    std::fprintf(stderr, "ZIL type/owner counterexample mode=%u: %s\n", CurrentMode, Site);
     return 0;
   };
   auto Official = [](const Function &F) {
@@ -1243,6 +1246,7 @@ extern "C" int ZilNativeProductsTypeAndOwnerCounterexamples() {
   // Cover ordinary aggregate operands, alloca allocated type, GEP source type,
   // call-site byval type and ConstantExpr GEP source independently.
   for (unsigned Mode = 0; Mode != 5; ++Mode) {
+    CurrentMode = Mode;
     LLVMContext A, B; Module MA("complete-type-projection", A), MB("complete-type-projection", B);
     auto Left = Build(A, MA, 8, Mode), Right = Build(B, MB, 16, Mode);
     if (verifyModule(MA, nullptr) || verifyModule(MB, nullptr)) return Fail("module-verifier");
@@ -1253,6 +1257,20 @@ extern "C" int ZilNativeProductsTypeAndOwnerCounterexamples() {
     if (zil::worldText(MA, nullptr) != zil::worldText(MB, nullptr)) return Fail("headers-must-collide");
     if (Mode && zil::worldText(MA, Left.first) == zil::worldText(MB, Right.first)) return Fail("incoming-world-must-differ");
   }
+  // Unknown unnamed identified schemas take a real shared-projector fallback,
+  // including when reached only through an otherwise valid incoming caller.
+  CurrentMode = 5;
+  LLVMContext U; Module MU("unnamed-schema", U);
+  auto *UI32 = Type::getInt32Ty(U);
+  auto *T = StructType::create(U); T->setBody({UI32, Type::getInt8Ty(U)});
+  auto *US = Function::Create(FunctionType::get(UI32, {UI32}, false), GlobalValue::ExternalLinkage, "subject", &MU);
+  IRBuilder<> UB(BasicBlock::Create(U, "entry", US)); UB.CreateRet(US->getArg(0));
+  auto *UC = Function::Create(FunctionType::get(UI32, false), GlobalValue::ExternalLinkage, "caller", &MU);
+  auto *UE = BasicBlock::Create(U, "entry", UC); IRBuilder<> UCB(UE);
+  auto *UV = ExtractValueInst::Create(ConstantAggregateZero::get(T), {0}, "value", UE);
+  UCB.CreateRet(UCB.CreateCall(US, {UV}, "call"));
+  if (verifyModule(MU, nullptr) || !zil::eligibleFunction(*US) ||
+      !zil::functionText(*UC).empty() || !zil::worldText(MU, US).empty()) return Fail("unnamed-schema-fallback");
   LLVMContext C; Module M("orphan-owners", C);
   auto *I32 = Type::getInt32Ty(C);
   auto *F = Function::Create(FunctionType::get(I32, {I32}, false), GlobalValue::ExternalLinkage, "f", &M);
