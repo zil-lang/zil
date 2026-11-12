@@ -229,8 +229,16 @@ impl Engine<'_> {
             }
             Ok(())
         }
+        let roles = callable::template(function, &mut self.budget)?;
         let mut lives = Vec::new();
+        let mut data_lives = Vec::new();
         for (index, parameter) in function.params.iter_mut().enumerate() {
+            let start = lives.len();
+            let callable_receiver = roles.as_ref().is_some_and(|roles| {
+                roles.bindings().any(|role| {
+                    callable::parameter_mode(&parameter.ty, &role.generic_name).is_some()
+                })
+            });
             input(
                 self,
                 &mut parameter.ty,
@@ -241,6 +249,24 @@ impl Engine<'_> {
                 &mut lives,
                 0,
             )?;
+            if !callable_receiver {
+                for name in &lives[start..] {
+                    self.budget.text(name, parameter.span)?;
+                    self.budget.lineage_bytes(
+                        std::mem::size_of::<String>().saturating_add(name.len()),
+                        parameter.span,
+                    )?;
+                    data_lives.push(name.clone());
+                }
+            }
+        }
+        let mut data_unique = Vec::new();
+        for life in data_lives {
+            self.budget
+                .identity_work(data_unique.len().saturating_add(1), function.span)?;
+            if !data_unique.contains(&life) {
+                data_unique.push(life);
+            }
         }
         let mut unique = Vec::new();
         for life in lives {
@@ -258,7 +284,13 @@ impl Engine<'_> {
                 TypeKind::Reference { lifetime, .. } => lifetime.as_deref(),
                 _ => None,
             });
-        let selected = receiver.or_else(|| (unique.len() == 1).then(|| unique[0].as_str()));
+        // A borrowed callable receiver has its own environment domain. A
+        // declared callable invocation forwards its ordinary data domain; the
+        // role's complete code contract is checked separately, never inferred
+        // by equating the receiver's address with a data input.
+        let selected = receiver
+            .or_else(|| (data_unique.len() == 1).then(|| data_unique[0].as_str()))
+            .or_else(|| (unique.len() == 1).then(|| unique[0].as_str()));
         let mut changed = !candidate.source_inputs.is_empty();
         if let Some(ty) = &mut function.return_type {
             result(self, ty, selected, &mut changed, 0)?;
