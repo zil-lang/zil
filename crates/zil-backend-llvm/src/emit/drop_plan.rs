@@ -1072,8 +1072,9 @@ mod owned_sum_drop_plan_tests {
         for (_, child) in fields {
             assert!(matches!(child,DropPlan::Leaf(name) if name.starts_with("zil.sum.drop.")));
         }
+        let recipe = recipe_input();
         let code = functions(
-            &recipe_input().as_view(),
+            &recipe.as_view(),
             &limits,
             true,
             &[],
