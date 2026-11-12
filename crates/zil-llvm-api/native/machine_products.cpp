@@ -379,10 +379,14 @@ bool snapshotDomain(llvm::MachineFunction &MF) {
       !MF.DebugValueSubstitutions.empty() ||
       !MF.DebugPHIPositions.empty() || MF.DebugInstrNumberingCount)
     return false;
-  // A complete value copy preserves the full original FI table, including
-  // fixed negative IDs and dead holes. Every owner is null or separately
-  // rebound; a bodyless YAML header alone never authorizes these fields.
-  if (!frame::domain(MF, MaxMachinePayload) || MF.getJumpTableInfo() ||
+  // Completed fixed7a PEI clears both maps (PrologEpilogInserter.cpp347-348).
+  // Their DenseMap hash iteration order is not transported by block ordinals:
+  // do not widen the final native domain merely because MIR sorts its output.
+  // The frame helper can independently rebind map values for scratch tests.
+  // A complete value copy preserves the full FI table, including fixed
+  // negative IDs/dead holes; bodyless YAML never authorizes hidden fields.
+  if (!Frame.getSavePoints().empty() || !Frame.getRestorePoints().empty() ||
+      !frame::domain(MF, MaxMachinePayload) || MF.getJumpTableInfo() ||
       !MF.getConstantPool()->getConstants().empty()) return false;
   auto *X = MF.getInfo<llvm::X86MachineFunctionInfo>();
   if (!X || X->getRAIndex() || X->getFAIndex() || X->getVarArgsFrameIndex() ||
@@ -987,6 +991,11 @@ void testFrameProducts(llvm::MachineFunction &Current) {
   OwnersRejected &= !frame::captureMemory(*Restored, *Volatile);
   OwnersRejected &= !frame::ownerFreeCFI(CFI::createLabel(nullptr, nullptr, {})) &&
       !frame::ownerFreeCFI(CFI::cfiDefCfa(nullptr, 7, 8, llvm::SMLoc::getFromPointer("location")));
+  // The helper's map rebinding does not authorize production hash iteration.
+  // Removing ONLY the nonempty maps makes this scratch final frame eligible.
+  OwnersRejected &= !snapshotDomain(*Restored);
+  Restored->getFrameInfo().clearSavePoints(); Restored->getFrameInfo().clearRestorePoints();
+  OwnersRejected &= snapshotDomain(*Restored);
   if (OwnersRejected) MachineFrameTestBits |= 128;
 }
 
