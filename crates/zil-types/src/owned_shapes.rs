@@ -118,9 +118,9 @@ pub(super) fn enumeration(ty: &Type) -> bool {
 }
 pub(super) fn sum(ty: &Type) -> bool {
     matches!(
-        ty,
+        stored::physical(ty),
         Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
-    ) && shape(ty).is_some_and(|owns|owns||matches!(ty,Type::Tuple(_))&&exclusive(ty))
+    ) && shape(ty).is_some_and(|owns|owns||matches!(stored::physical(ty),Type::Tuple(_))&&exclusive(ty))
 }
 pub(super) fn error_union(ty: &Type) -> bool {
     matches!(ty, Type::ErrorUnion { .. }) && shape(ty).is_some()
