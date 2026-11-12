@@ -525,6 +525,21 @@ fn task_aliases(
     Ok(aliases)
 }
 
+// This closed wrapper transports the complete Task context already carried by
+// its field. It never stores an arbitrary address actual or invents life classes.
+pub(super) fn thread_owner_syntax(t: &TypeRef) -> bool {
+    let TypeKind::Named { path, args } = &grouped(t).kind else {
+        return false;
+    };
+    if path.as_slice() != ["Managed"] {
+        return false;
+    }
+    let [GenericArg::Type(owner)] = args.as_slice() else {
+        return false;
+    };
+    matches!(&grouped(owner).kind,TypeKind::Named{path,args} if path.as_slice()==["Task"] && matches!(args.len(),1|2))
+}
+
 #[cfg(test)]
 mod namespace_budget {
     use super::*;
@@ -604,19 +619,4 @@ mod namespace_budget {
             boundaries[0], boundaries[1]
         );
     }
-}
-
-// This closed wrapper transports the complete Task context already carried by
-// its field. It never stores an arbitrary address actual or invents life classes.
-pub(super) fn thread_owner_syntax(t: &TypeRef) -> bool {
-    let TypeKind::Named { path, args } = &grouped(t).kind else {
-        return false;
-    };
-    if path.as_slice() != ["Managed"] {
-        return false;
-    }
-    let [GenericArg::Type(owner)] = args.as_slice() else {
-        return false;
-    };
-    matches!(&grouped(owner).kind,TypeKind::Named{path,args} if path.as_slice()==["Task"] && matches!(args.len(),1|2))
 }
