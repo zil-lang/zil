@@ -215,18 +215,22 @@ fn wrong_live_context_target_or_full_limits_cannot_authorize_replay() {
     let owner = session.current.clone().unwrap();
     let other = initial.clone();
     let other_context = SourceProgramContext::new(&other, &limits).unwrap();
-    assert!(session
-        .validate_program(&initial, &target, &limits, &other_context)
-        .is_none());
+    assert!(
+        session
+            .validate_program(&initial, &target, &limits, &other_context)
+            .is_none()
+    );
     assert!(Arc::ptr_eq(session.current.as_ref().unwrap(), &owner));
     let different_limit = Limits {
         max_source_bytes: limits.max_source_bytes - 1,
         ..limits.clone()
     };
     let original_context = SourceProgramContext::new(&initial, &limits).unwrap();
-    assert!(session
-        .validate_program(&initial, &target, &different_limit, &original_context)
-        .is_none());
+    assert!(
+        session
+            .validate_program(&initial, &target, &different_limit, &original_context)
+            .is_none()
+    );
     checked(&mut session, &initial, &target, &different_limit);
     assert_eq!(session.stats.body_reuses, 0);
     let mut other_target = target.clone();

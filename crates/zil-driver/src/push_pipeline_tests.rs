@@ -346,7 +346,9 @@ impl Directory {
                 for k in 0..16 {
                     let a = (i + j + k) % 13 + 1 + delta;
                     let b = (j * 3 + k) % 11 + 2;
-                    text += &format!("    if y % 3 == 0 {{ y = (y * 2 + {a}) % 251 }} else {{ y = (y + {b}) % 251 }}\n");
+                    text += &format!(
+                        "    if y % 3 == 0 {{ y = (y * 2 + {a}) % 251 }} else {{ y = (y + {b}) % 251 }}\n"
+                    );
                 }
                 text += "    return y\n}\n";
             }
