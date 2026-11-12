@@ -976,4 +976,22 @@ fn captured_callback_exclusive_companion_uses_actual_caller_targets() {
         errors.iter().any(|error| error.code == "E-BORROW-CONFLICT"),
         "{errors:#?}"
     );
+    let earlier_receiver = BORROWED
+        .replace("var visit=", "let receiver=&mut cursor\n    var visit=")
+        .replace(
+            "iter.for_each_lent(&mut cursor,&mut visit)",
+            "iter.for_each_lent(receiver,&mut visit)",
+        );
+    assert_ne!(earlier_receiver, BORROWED);
+    zil_analyze::analyze(&typed(&earlier_receiver), &limits).unwrap();
+    let reverse_conflict = earlier_receiver.replace(
+        "var visit=(item:&Item)=>{total+=item.value}",
+        "var visit=(item:&Item)=>{cursor.index+=1;total+=item.value}",
+    );
+    assert_ne!(reverse_conflict, earlier_receiver);
+    let errors = zil_analyze::analyze(&typed(&reverse_conflict), &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|error| error.code == "E-BORROW-CONFLICT"),
+        "{errors:#?}"
+    );
 }
