@@ -14,7 +14,7 @@ pub struct BackendSession {
     pub(crate) keys: Vec<Arc<KeyProduct>>,
     pub(crate) key_partition: Option<Arc<PartitionProduct>>,
     pub(crate) preflights: Vec<Arc<PreflightProduct>>,
-    pub(crate) native_products: std::collections::BTreeMap<NativeUnitOwner, Arc<NativeUnitProduct>>,
+    pub(crate) native_products: NativeProductHistory,
     pub(crate) summary: BackendSessionSummary,
     pub(crate) link: Option<Arc<crate::link_cache::Product>>,
     pub(crate) link_tools: crate::object_cache::InstalledToolIdentities,
@@ -38,6 +38,10 @@ pub struct BackendSessionSummary {
     pub source_projection_traversals: usize,
     pub source_projection_instruction_visits: usize,
     pub source_projection_reuses: usize,
+    pub native_history_restored_units: usize,
+    pub native_history_retained_epochs: usize,
+    /// Conservative sum of encoded native payloads, not process RSS.
+    pub native_history_payload_bytes: u64,
 }
 impl BackendSession {
     pub fn summary(&self) -> &BackendSessionSummary {
@@ -85,7 +89,11 @@ impl BackendSession {
         }
     }
     pub(crate) fn begin(&mut self) {
-        self.summary = BackendSessionSummary::default();
+        self.summary = BackendSessionSummary {
+            native_history_retained_epochs: self.native_products.retained_epochs(),
+            native_history_payload_bytes: self.native_products.payload_bytes(),
+            ..BackendSessionSummary::default()
+        };
         self.link_tools.begin();
     }
 }
@@ -304,4 +312,222 @@ pub(crate) struct NativeUnitOwner {
 pub(crate) struct NativeUnitProduct {
     pub(crate) module: Module,
     pub(crate) products: zil_llvm_api::NativeWorkProducts,
+}
+
+// Optional raw-native candidates only. Four successful owner epochs are enough
+// to retain named cold/private parents across intervening broad edits without
+// retaining arbitrary session history. The independent checker never lives here.
+const NATIVE_HISTORY_EPOCHS: usize = 4;
+const NATIVE_HISTORY_PAYLOAD_BYTES: u64 = 128 * 1024 * 1024;
+type NativeUnits = std::collections::BTreeMap<NativeUnitOwner, Arc<NativeUnitProduct>>;
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct NativeProductHistory {
+    epochs: std::collections::VecDeque<Arc<NativeEpoch>>,
+}
+#[derive(Debug, PartialEq, Eq)]
+struct NativeEpoch {
+    units: NativeUnits,
+    payload_bytes: u64,
+}
+impl NativeProductHistory {
+    pub(crate) fn candidates(
+        &self,
+        owner: &NativeUnitOwner,
+    ) -> (Option<Arc<NativeUnitProduct>>, Vec<Arc<NativeUnitProduct>>) {
+        let parent = self
+            .epochs
+            .front()
+            .and_then(|epoch| epoch.units.get(owner))
+            .cloned();
+        let older = self
+            .epochs
+            .iter()
+            .skip(1)
+            .filter_map(|epoch| epoch.units.get(owner).cloned())
+            .collect();
+        (parent, older)
+    }
+    pub(crate) fn retained_epochs(&self) -> usize {
+        self.epochs.len()
+    }
+    pub(crate) fn payload_bytes(&self) -> u64 {
+        self.epochs.iter().map(|epoch| epoch.payload_bytes).sum()
+    }
+    pub(crate) fn commit(&mut self, enabled: bool, next: NativeUnits) {
+        self.commit_with_cap(enabled, next, NATIVE_HISTORY_PAYLOAD_BYTES);
+    }
+    fn commit_with_cap(&mut self, enabled: bool, mut next: NativeUnits, cap: u64) {
+        if !enabled {
+            self.epochs.clear();
+            return;
+        }
+        // Bound even a single new epoch. Oversize optional products are dropped
+        // in deterministic owner order; compilation/verification are unaffected.
+        let mut payload_bytes = 0_u64;
+        next.retain(|_, product| {
+            let bytes = product.products.retained_payload_bytes();
+            if bytes > cap.saturating_sub(payload_bytes) {
+                return false;
+            }
+            payload_bytes += bytes;
+            true
+        });
+        // Dedup uses existing opaque product identity only, never a content
+        // digest or checker authority. A product is paired with another raw unit
+        // only after complete current triple/items equality on an object hit.
+        let found = self.epochs.iter().position(|epoch| {
+            epoch.units.len() == next.len()
+                && epoch
+                    .units
+                    .iter()
+                    .zip(&next)
+                    .all(|((old_owner, old), (new_owner, new))| {
+                        old_owner == new_owner && old.products == new.products
+                    })
+        });
+        let current = found
+            .and_then(|index| self.epochs.remove(index))
+            .unwrap_or_else(|| {
+                Arc::new(NativeEpoch {
+                    units: next,
+                    payload_bytes,
+                })
+            });
+        self.epochs.push_front(current);
+        while self.epochs.len() > NATIVE_HISTORY_EPOCHS || self.payload_bytes() > cap {
+            self.epochs.pop_back();
+        }
+    }
+}
+
+#[cfg(all(test, feature = "native-products"))]
+pub(crate) mod native_history_tests {
+    use super::*;
+    use zil_llvm_api::model::{Arg, Block, Function, Inst, Item, Linkage, Op, Signature, Ty};
+
+    pub(crate) fn module(answer: i64, sibling: i64) -> Module {
+        let function = |name: &str, value| {
+            Item::Function(Function {
+                name: name.into(),
+                linkage: Linkage::External,
+                signature: Signature::new(Ty::Int(32), Vec::new()),
+                attrs: Vec::new(),
+                blocks: Some(
+                    vec![Block {
+                        name: "entry".into(),
+                        instructions: vec![Inst::new(
+                            None,
+                            Op::Return(Some(Arg::new(Ty::Int(32), value))),
+                        )],
+                    }]
+                    .into(),
+                ),
+            })
+        };
+        Module {
+            triple: "x86_64-unknown-linux-gnu".into(),
+            fingerprint: "diagnostic-only".into(),
+            items: vec![function("answer", answer), function("sibling", sibling)].into(),
+        }
+    }
+    pub(crate) fn owner(ordinal: usize) -> NativeUnitOwner {
+        NativeUnitOwner {
+            triple: "x86_64-unknown-linux-gnu".into(),
+            requested_units: 16,
+            ordinal,
+        }
+    }
+    fn product(value: i64) -> Arc<NativeUnitProduct> {
+        let module = module(value, value + 1);
+        let (object, _, product) = zil_llvm_api::compile_module_with_native_products(
+            &module,
+            &zil_llvm_api::Config {
+                triple: &module.triple,
+                optimization: zil_llvm_api::Optimization::O2,
+            },
+            crate::FunctionMerging::Disabled,
+            &|| false,
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            object.receipt.native_products.unwrap().available,
+            1,
+            "native history acceptance requires the installed extension"
+        );
+        Arc::new(NativeUnitProduct {
+            module,
+            products: product.expect("native product"),
+        })
+    }
+    fn units(product: &Arc<NativeUnitProduct>) -> NativeUnits {
+        [(owner(0), product.clone())].into()
+    }
+
+    #[test]
+    fn native_history_is_bounded_lru_and_checkpoint_owners_remain_immutable() {
+        let values: Vec<_> = (0..5).map(product).collect();
+        let mut history = NativeProductHistory::default();
+        for value in &values[..4] {
+            history.commit(true, units(value));
+        }
+        assert_eq!(history.retained_epochs(), 4);
+        let checkpoint = history.clone();
+        let oldest = history.epochs.back().unwrap().clone();
+        history.commit(true, units(&values[0]));
+        assert_eq!(history.retained_epochs(), 4);
+        assert!(Arc::ptr_eq(history.epochs.front().unwrap(), &oldest));
+        history.commit(true, units(&values[4]));
+        let (active, previous) = history.candidates(&owner(0));
+        assert_eq!(active.unwrap().products, values[4].products);
+        assert_eq!(
+            previous.iter().map(|p| &p.products).collect::<Vec<_>>(),
+            vec![
+                &values[0].products,
+                &values[3].products,
+                &values[2].products
+            ]
+        );
+        assert_eq!(
+            checkpoint.candidates(&owner(0)).0.unwrap().products,
+            values[3].products
+        );
+        assert_eq!(checkpoint.retained_epochs(), 4);
+        // A failed caller discards its cloned staging history. A successful
+        // disabled build releases all retained epochs, including historical ones.
+        history.commit(false, NativeUnits::new());
+        assert_eq!(history.retained_epochs(), 0);
+        assert_eq!(history.payload_bytes(), 0);
+        assert_eq!(checkpoint.retained_epochs(), 4);
+    }
+
+    #[test]
+    fn native_history_payload_cap_drops_only_optional_candidates() {
+        let first = product(42);
+        let second = product(43);
+        let cap = first.products.retained_payload_bytes();
+        assert!(cap > 0 && second.products.retained_payload_bytes() > 0);
+        let mut history = NativeProductHistory::default();
+        history.commit_with_cap(
+            true,
+            [(owner(0), first.clone()), (owner(1), second)].into(),
+            cap,
+        );
+        assert_eq!(history.payload_bytes(), cap);
+        assert_eq!(
+            history.candidates(&owner(0)).0.unwrap().products,
+            first.products
+        );
+        assert!(history.candidates(&owner(1)).0.is_none());
+        history.commit_with_cap(true, units(&first), cap);
+        assert_eq!(
+            history.retained_epochs(),
+            1,
+            "same opaque owners deduplicate the epoch"
+        );
+        history.commit_with_cap(true, units(&first), 0);
+        assert_eq!(history.payload_bytes(), 0);
+        assert!(history.candidates(&owner(0)).0.is_none());
+        assert!(history.candidates(&owner(0)).1.is_empty());
+    }
 }

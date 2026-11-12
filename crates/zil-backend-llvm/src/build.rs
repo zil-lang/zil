@@ -772,6 +772,7 @@ pub fn build_view_with_cancellation_and_session(
                         }
                     }),
                     native_prior: None,
+                    native_history: Vec::new(),
                 })
             })
             .collect::<CompileResult<Vec<_>>>()?;
@@ -814,7 +815,8 @@ pub fn build_view_with_cancellation_and_session(
         if let Some(session) = session.as_ref() {
             for unit in &mut inputs {
                 if let Some(owner) = &unit.native_owner {
-                    unit.native_prior = session.native_products.get(owner).cloned();
+                    (unit.native_prior, unit.native_history) =
+                        session.native_products.candidates(owner);
                 }
                 if !unit.retain_preflight {
                     continue;
@@ -839,6 +841,11 @@ pub fn build_view_with_cancellation_and_session(
         )?;
         let mut next_preflights = Vec::new();
         for (unit, result) in inputs.iter().zip(compiled) {
+            if result.restored_native_history {
+                if let Some(session) = session.as_deref_mut() {
+                    session.summary.native_history_restored_units += 1;
+                }
+            }
             if let (Some(owner), Some(products)) = (&unit.native_owner, result.native_products) {
                 next_native_products.insert(
                     owner.clone(),
@@ -988,7 +995,11 @@ pub fn build_view_with_cancellation_and_session(
         codegen.link_tool_identities = session.link_tools.summary.clone();
         // Publish native candidates only after the entire current build succeeds.
         // Errors/cancellation retain the preceding successful native map.
-        session.native_products = next_native_products;
+        session
+            .native_products
+            .commit(options.native_products, next_native_products);
+        session.summary.native_history_retained_epochs = session.native_products.retained_epochs();
+        session.summary.native_history_payload_bytes = session.native_products.payload_bytes();
     }
     Ok(BuildArtifact {
         executable: final_executable,
@@ -1012,6 +1023,7 @@ struct UnitInput {
     retain_preflight: bool,
     native_owner: Option<crate::incremental::NativeUnitOwner>,
     native_prior: Option<std::sync::Arc<crate::incremental::NativeUnitProduct>>,
+    native_history: Vec<std::sync::Arc<crate::incremental::NativeUnitProduct>>,
 }
 struct UnitResult {
     commands: Vec<Vec<String>>,
@@ -1020,6 +1032,7 @@ struct UnitResult {
     pending: Option<PendingObject>,
     preflight: Option<std::sync::Arc<zil_llvm_api::PreflightReceipt>>,
     native_products: Option<zil_llvm_api::NativeWorkProducts>,
+    restored_native_history: bool,
 }
 
 fn compile_units(
@@ -1086,6 +1099,7 @@ fn compile_units(
                                         pending: None,
                                         preflight: None,
                                         native_products: None,
+                                        restored_native_history: false,
                                     })
                                 }
                                 NativeBackend::LlvmApi => compile_api_unit(
@@ -1195,8 +1209,20 @@ fn compile_api_unit(
             check_cancelled(cancelled)?;
             fs::write(&unit.object, &bytes)
                 .map_err(|e| io_error("write reused object", &unit.object, e))?;
+            let history_started = unit.native_owner.is_some().then(std::time::Instant::now);
+            let current = |prior: &&std::sync::Arc<crate::incremental::NativeUnitProduct>| {
+                prior.module.triple == unit.module.triple && prior.module.items == unit.module.items
+            };
+            let parent = unit.native_prior.as_ref().filter(current);
+            let historical = parent
+                .is_none()
+                .then(|| unit.native_history.iter().find(current))
+                .flatten();
+            let restored_native_history = historical.is_some();
+            let retained = parent.or(historical).map(|prior| prior.products.clone());
+            let history_lookup_ns = history_started.map_or(0, crate::object_cache::elapsed_ns);
             let q = zil_base::json_string;
-            let receipt = format!(
+            let mut receipt = format!(
                 "{{\"backend\":\"llvm-api\",\"input_kind\":\"object-cache\",\"llvm_version\":{},\"triple\":{},\"pipeline\":{},\"object_bytes\":{},\"cache\":{},\"llvm_verification_this_request\":false,\"producer_verified_before_after\":true,\"current_machine_preflight_reused\":{},\"preflight_ns\":{},\"builder_ns\":0,\"parse_ns\":0,\"optimize_ns\":0,\"emit_ns\":0,\"total_ns\":{}}}",
                 q(&cache.llvm_version),
                 q(target),
@@ -1208,25 +1234,24 @@ fn compile_api_unit(
                 lookup.to_json(),
                 reused,
                 lookup.preflight_ns,
-                lookup.key_ns + lookup.lookup_ns + lookup.preflight_ns
+                lookup.key_ns + lookup.lookup_ns + lookup.preflight_ns + history_lookup_ns
             );
+            if unit.native_owner.is_some() {
+                receipt.pop();
+                receipt.push_str(&format!(
+                    ",\"native_product_history_restored\":{restored_native_history},\"native_product_history_lookup_ns\":{history_lookup_ns}}}"
+                ));
+            }
             return Ok(UnitResult {
                 commands: Vec::new(),
                 receipt: Some(receipt),
                 access: Some(lookup),
                 pending: None,
                 preflight: Some(preflight),
-                // Disk-object reuse does not execute a native consumer. Keep
-                // only a product already bound to this exact raw unit; never
-                // carry an obsolete same-slot product as a historical tail.
-                native_products: unit
-                    .native_prior
-                    .as_ref()
-                    .filter(|prior| {
-                        prior.module.triple == unit.module.triple
-                            && prior.module.items == unit.module.items
-                    })
-                    .map(|prior| prior.products.clone()),
+                // Restoring an exact old raw owner does not execute LLVM or
+                // grant safety authority. Current machine preflight ran above.
+                native_products: retained,
+                restored_native_history,
             });
         }
         access = Some(lookup);
@@ -1309,6 +1334,7 @@ fn compile_api_unit(
                         pending: Some(pending),
                         preflight,
                         native_products: None,
+                        restored_native_history: false,
                     });
                 }
                 patch_fallback = attempt.reason;
@@ -1415,6 +1441,7 @@ fn compile_api_unit(
         pending,
         preflight,
         native_products,
+        restored_native_history: false,
     })
 }
 #[cfg(not(feature = "llvm-api"))]
@@ -1519,4 +1546,215 @@ fn io_error(operation: &str, path: &Path, error: io::Error) -> Vec<Diagnostic> {
         "E-LINK-IO",
         format!("{operation} ({}): {error}", path.display()),
     )
+}
+
+#[cfg(all(test, feature = "native-products"))]
+mod native_history_cache_tests {
+    use super::*;
+    use crate::incremental::{
+        NativeProductHistory, NativeUnitProduct,
+        native_history_tests::{module, owner},
+    };
+    use std::sync::Arc;
+
+    struct Dir(PathBuf);
+    impl Dir {
+        fn new() -> Self {
+            static NEXT: AtomicU64 = AtomicU64::new(0);
+            let path = std::env::temp_dir().join(format!(
+                "zil-native-history-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+    }
+    impl Drop for Dir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+    fn unit(
+        module: zil_llvm_api::model::Module,
+        history: &NativeProductHistory,
+        dir: &Path,
+    ) -> UnitInput {
+        let owner = owner(0);
+        let (native_prior, native_history) = history.candidates(&owner);
+        UnitInput {
+            input: dir.join("unused.ll"),
+            object: dir.join("unit.o"),
+            module,
+            key: None,
+            preflight: None,
+            retain_preflight: true,
+            native_owner: Some(owner),
+            native_prior,
+            native_history,
+        }
+    }
+    fn compile(unit: &UnitInput, cache: &PreparedCache) -> UnitResult {
+        compile_api_unit(
+            unit,
+            &unit.module.triple,
+            Optimization::O2,
+            FunctionMerging::Disabled,
+            Some(cache),
+            &|| false,
+        )
+        .unwrap()
+    }
+    fn publish(
+        history: &mut NativeProductHistory,
+        unit: &UnitInput,
+        mut result: UnitResult,
+        cache: &PreparedCache,
+    ) {
+        let mut summary = ObjectCacheSummary::default();
+        PendingObjectCache {
+            directory: Some(cache.directory.clone()),
+            objects: result.pending.take().into_iter().collect(),
+            layout: None,
+        }
+        .commit(&mut summary);
+        assert_eq!(summary.write_failures, 0);
+        let products = result.native_products.expect("current native owner");
+        history.commit(
+            true,
+            [(
+                owner(0),
+                Arc::new(NativeUnitProduct {
+                    module: unit.module.clone(),
+                    products,
+                }),
+            )]
+            .into(),
+        );
+    }
+    fn counter(receipt: &str, key: &str) -> u64 {
+        let prefix = format!("\"{key}\":");
+        receipt
+            .split_once(&prefix)
+            .expect("actual native counter")
+            .1
+            .split(|c: char| !c.is_ascii_digit())
+            .next()
+            .unwrap()
+            .parse()
+            .unwrap()
+    }
+
+    #[test]
+    fn cached_parent_restores_its_native_owner_before_a_fresh_private_edit() {
+        let dir = Dir::new();
+        let cache = PreparedCache::new(
+            &dir.0.join("cache"),
+            &zil_base::TargetProfile::host_llvm(),
+            Optimization::O2,
+            FunctionMerging::Disabled,
+            false,
+        )
+        .unwrap();
+        let mut history = NativeProductHistory::default();
+        let cold = unit(module(42, 7), &history, &dir.0);
+        let result = compile(&cold, &cache);
+        assert!(!result.access.as_ref().unwrap().hit);
+        assert_eq!(counter(result.receipt.as_ref().unwrap(), "available"), 1);
+        let cold_product = result.native_products.clone().unwrap();
+        let cold_bytes = fs::read(&cold.object).unwrap();
+        publish(&mut history, &cold, result, &cache);
+
+        let broad = unit(module(100, 200), &history, &dir.0);
+        let result = compile(&broad, &cache);
+        assert!(!result.access.as_ref().unwrap().hit);
+        publish(&mut history, &broad, result, &cache);
+        assert_eq!(history.retained_epochs(), 2);
+
+        let parent = unit(module(42, 7), &history, &dir.0);
+        assert_ne!(parent.native_prior.as_ref().unwrap().products, cold_product);
+        let result = compile(&parent, &cache);
+        assert!(result.access.as_ref().unwrap().hit);
+        assert!(
+            !result.access.as_ref().unwrap().preflight_reused,
+            "current machine check has no prior receipt"
+        );
+        assert!(result.restored_native_history);
+        assert_eq!(result.native_products.as_ref(), Some(&cold_product));
+        let receipt = result.receipt.as_ref().unwrap();
+        assert!(receipt.contains("\"input_kind\":\"object-cache\""));
+        assert!(receipt.contains("\"native_product_history_restored\":true"));
+        assert!(
+            !receipt.contains("\"native_products\":"),
+            "history activation is not an LLVM call"
+        );
+        assert_eq!(fs::read(&parent.object).unwrap(), cold_bytes);
+        publish(&mut history, &parent, result, &cache);
+        assert_eq!(
+            history.retained_epochs(),
+            2,
+            "reactivation promotes rather than duplicates"
+        );
+
+        let edited = unit(module(43, 7), &history, &dir.0);
+        assert_ne!(
+            edited.native_prior.as_ref().unwrap().module.items,
+            edited.module.items
+        );
+        assert_eq!(
+            edited.native_prior.as_ref().unwrap().products,
+            cold_product,
+            "current parent remains the candidate when the edited unit is not equal"
+        );
+        let result = compile(&edited, &cache);
+        assert!(!result.access.as_ref().unwrap().hit);
+        let receipt = result.receipt.as_ref().unwrap();
+        assert_eq!(counter(receipt, "available"), 1);
+        assert_eq!(counter(receipt, "machine_function_reuses"), 1);
+        assert_eq!(counter(receipt, "machine_function_executions"), 1);
+        assert_eq!(counter(receipt, "fresh_context_fallbacks"), 0);
+        let reference = zil_llvm_api::compile_module(
+            &edited.module,
+            &zil_llvm_api::Config {
+                triple: &edited.module.triple,
+                optimization: zil_llvm_api::Optimization::O2,
+            },
+            &|| false,
+        )
+        .unwrap();
+        assert_eq!(fs::read(&edited.object).unwrap(), reference.bytes);
+        publish(&mut history, &edited, result, &cache);
+
+        let checkpoint = history.clone();
+        let cancelled = unit(module(44, 7), &history, &dir.0);
+        assert!(
+            compile_api_unit(
+                &cancelled,
+                &cancelled.module.triple,
+                Optimization::O2,
+                FunctionMerging::Disabled,
+                Some(&cache),
+                &|| true
+            )
+            .is_err()
+        );
+        let mut invalid = module(44, 7);
+        let zil_llvm_api::model::Item::Function(function) = &mut invalid.items[0] else {
+            panic!()
+        };
+        function.signature.result = zil_llvm_api::model::Ty::Void;
+        let invalid = unit(invalid, &history, &dir.0);
+        assert!(
+            compile_api_unit(
+                &invalid,
+                &invalid.module.triple,
+                Optimization::O2,
+                FunctionMerging::Disabled,
+                Some(&cache),
+                &|| false
+            )
+            .is_err()
+        );
+        assert_eq!(history, checkpoint);
+    }
 }

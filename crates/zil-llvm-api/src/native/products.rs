@@ -56,6 +56,8 @@ mod enabled {
     unsafe extern "C" {
         #[cfg(test)]
         fn ZilNativeProductsAnalysisDiagnostics(enabled: c_int) -> c_int;
+        #[cfg(test)]
+        fn ZilNativeProductsMachineDiagnostics(enabled: c_int) -> c_int;
         fn ZilNativeProductsSuspend() -> Handle;
         fn ZilNativeProductsResume(previous: Handle);
         fn ZilNativeProductsCreateRequest(
@@ -195,6 +197,7 @@ mod enabled {
             *self.stats = stats.into();
             (!product.is_null()).then(|| NativeWorkProducts {
                 inner: Arc::new(Product(product)),
+                retained_payload_bytes: self.stats.retained_bytes,
             })
         }
     }
@@ -213,13 +216,14 @@ mod enabled {
     }
 
     #[cfg(test)]
-    pub(crate) struct AnalysisDiagnosticsGuard(c_int, std::marker::PhantomData<*mut ()>);
+    pub(crate) struct AnalysisDiagnosticsGuard(c_int, c_int, std::marker::PhantomData<*mut ()>);
     #[cfg(test)]
     impl Drop for AnalysisDiagnosticsGuard {
         fn drop(&mut self) {
             // SAFETY: restore the exact prior mode on this same thread, including
             // panic/cancellation paths. No LLVM owner is read by this operation.
             unsafe {
+                ZilNativeProductsMachineDiagnostics(self.1);
                 ZilNativeProductsAnalysisDiagnostics(self.0);
             }
         }
@@ -229,7 +233,10 @@ mod enabled {
         // SAFETY: explicit test-only thread-local diagnostic mode; not permission
         // to replay any analysis or change the production optimization pipeline.
         let prior = unsafe { ZilNativeProductsAnalysisDiagnostics(1) };
-        AnalysisDiagnosticsGuard(prior, std::marker::PhantomData)
+        // SAFETY: independently save/enable the machine diagnostic TLS mode;
+        // neither setter grants replay permission or changes optimization.
+        let machine_prior = unsafe { ZilNativeProductsMachineDiagnostics(1) };
+        AnalysisDiagnosticsGuard(prior, machine_prior, std::marker::PhantomData)
     }
 
     #[cfg(test)]
