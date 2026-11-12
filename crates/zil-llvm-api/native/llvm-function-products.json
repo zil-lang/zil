@@ -1,7 +1,7 @@
 {
   "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
   "version": "23.1.4",
-  "patch_sha256": "096bb64c746b8d2f14515a734688d729f8855b0dd76ff83be1772e36acaeb0c3",
+  "patch_sha256": "52e1233592ff429283fb92deb9d64659f2e55c3fb5ceaaa0617cc0c406805fea",
   "original_files": {
     "llvm/lib/CodeGen/MachineFunctionPass.cpp": "5e4e44cfb817bd4f2eb90bd1fa817348a0dbaa1a59fe2387a97e328ed9e53b7d",
     "llvm/include/llvm/IR/PassManagerImpl.h": "97aa3e5d2b85a5a2cc8b36b559f6c748f3eb0a65e77cfd89488c116f25277527",
@@ -11,7 +11,13 @@
     "llvm/include/llvm/IR/PassManager.h": "7e00839cadde74a1d2c1b964fee953737171966d75a76b4e740187b9f5694141",
     "llvm/include/llvm/IR/Function.h": "0a2a230e9edcf4cbcfff1ceaee6afe7a5766ee0a19ce6281405099bce9594371",
     "llvm/include/llvm/Analysis/AssumptionCache.h": "b8db7809641f2d79889e6a3d6490d043499fb177457182c585edb6c4f82cf6c3",
-    "llvm/include/llvm/CodeGen/MachineFunction.h": "6773729e05294738499d330651b765e01d460ec7f4ac4b103154d2fb97e5458d"
+    "llvm/include/llvm/CodeGen/MachineFunction.h": "6773729e05294738499d330651b765e01d460ec7f4ac4b103154d2fb97e5458d",
+    "llvm/include/llvm/Transforms/InstCombine/InstCombine.h": "009d8206c067d2e476945102ced6b7ffbc43e46ef4634cbffd4fc823e6505737",
+    "llvm/include/llvm/Analysis/LastRunTrackingAnalysis.h": "6343069c4fb17d301736e0d4e4babb97050a2895e8a359e9de54911e2de9f002",
+    "llvm/include/llvm/Analysis/TargetLibraryInfo.h": "3e1fd400c1a013cd9043979635eabb52fdab3bdd61a5ddc004eb2443e6c7bbbd",
+    "llvm/include/llvm/Analysis/BasicAliasAnalysis.h": "14b1ed4c6b9fd137a66b1f4a444ce9cc4eb21b91e65b5519a036e2a4e613eb2e",
+    "llvm/include/llvm/Analysis/TypeBasedAliasAnalysis.h": "d01d2c350b29453e7aae1dce25dd518d8d4f3a8d82ba6c6e67ac9dae8403a5ea",
+    "llvm/include/llvm/Analysis/OptimizationRemarkEmitter.h": "55617eaa52312f1c43ee6a2390e25a2e40a33ebe36b5e889b27f52b0e92ac784"
   },
   "compile_units": [
     {
@@ -53,7 +59,13 @@
     "llvm/include/llvm/IR/PassManager.h",
     "llvm/include/llvm/IR/Function.h",
     "llvm/include/llvm/Analysis/AssumptionCache.h",
-    "llvm/include/llvm/CodeGen/MachineFunction.h"
+    "llvm/include/llvm/CodeGen/MachineFunction.h",
+    "llvm/include/llvm/Transforms/InstCombine/InstCombine.h",
+    "llvm/include/llvm/Analysis/LastRunTrackingAnalysis.h",
+    "llvm/include/llvm/Analysis/TargetLibraryInfo.h",
+    "llvm/include/llvm/Analysis/BasicAliasAnalysis.h",
+    "llvm/include/llvm/Analysis/TypeBasedAliasAnalysis.h",
+    "llvm/include/llvm/Analysis/OptimizationRemarkEmitter.h"
   ],
   "private_header": "zil_llvm_work_products_hooks.h",
   "default_behavior": "No installed thread-local hook: original actual pass objects, order and invalidation. AsmPrinter/streamer original objects. Explicit native_products=false by default.",

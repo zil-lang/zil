@@ -138,13 +138,19 @@
 +  }
 --- a/llvm/lib/IR/PassManager.cpp
 +++ b/llvm/lib/IR/PassManager.cpp
-@@ -9,0 +10,3 @@
+@@ -9,0 +10,9 @@
++#include "llvm/Analysis/BasicAliasAnalysis.h"
++#include "llvm/Analysis/LastRunTrackingAnalysis.h"
++#include "llvm/Analysis/OptimizationRemarkEmitter.h"
++#include "llvm/Analysis/TargetLibraryInfo.h"
++#include "llvm/Analysis/TypeBasedAliasAnalysis.h"
++#include "llvm/Transforms/InstCombine/InstCombine.h"
 +#include "llvm/Analysis/AssumptionCache.h"
 +#include "llvm/Analysis/TargetTransformInfo.h"
 +#include "llvm/IR/IntrinsicInst.h"
-@@ -15,0 +19 @@
+@@ -15,0 +25 @@
 +extern "C" LLVM_ABI unsigned ZilLLVMFunctionStageCapability() { return 1; }
-@@ -165,0 +170,56 @@
+@@ -165,0 +176,107 @@
 +
 +extern "C" LLVM_ABI void ZilLLVMVisitFunctionAnalysisKeys(
 +    void *Manager, void *IR, void (*Visit)(void *, const void *), void *Context) {
@@ -200,6 +206,57 @@
 +    if (llvm::isa<llvm::AssumeInst>(I)) return 0;
 +  return AC->zilRestoreEmptyProductState(
 +      &F, AM.getCachedResult<llvm::TargetIRAnalysis>(F), State);
++}
++
++extern "C" LLVM_ABI int ZilLLVMNoOptionTrackingState(void *Manager, void *IR) {
++  auto &F = *static_cast<llvm::Function *>(IR);
++  auto &AM = *static_cast<llvm::FunctionAnalysisManager *>(Manager);
++  auto *Info = AM.getCachedResult<llvm::LastRunTrackingAnalysis>(F);
++  return Info ? Info->zilNoOptionProductState(
++      llvm::InstCombinePass::zilNoOptionTrackingProductID()) : -1;
++}
++extern "C" LLVM_ABI int ZilLLVMRestoreNoOptionTrackingState(
++    void *Manager, void *IR, unsigned State) {
++  auto &F = *static_cast<llvm::Function *>(IR);
++  auto &AM = *static_cast<llvm::FunctionAnalysisManager *>(Manager);
++  auto *Info = AM.getCachedResult<llvm::LastRunTrackingAnalysis>(F);
++  return Info && Info->zilRestoreNoOptionProductState(
++      llvm::InstCombinePass::zilNoOptionTrackingProductID(), State);
++}
++extern "C" LLVM_ABI uint64_t ZilLLVMTargetLibraryOverrideWords(
++    void *Manager, void *IR, uint64_t *Words, uint64_t Capacity) {
++  auto &F = *static_cast<llvm::Function *>(IR);
++  auto &AM = *static_cast<llvm::FunctionAnalysisManager *>(Manager);
++  auto *Info = AM.getCachedResult<llvm::TargetLibraryAnalysis>(F);
++  if (!Info) return 0;
++  constexpr uint64_t Count = (llvm::NumLibFuncs + 63) / 64;
++  if (!Words || Capacity < Count) return Count;
++  for (uint64_t I = 0; I != Count; ++I) Words[I] = 0;
++  const auto &Overrides = Info->zilProductOverrides();
++  for (unsigned I = 0; I != llvm::NumLibFuncs; ++I)
++    if (Overrides[I]) Words[I / 64] |= uint64_t(1) << (I % 64);
++  return Count;
++}
++extern "C" LLVM_ABI int ZilLLVMBasicAAProductState(void *Manager, void *IR) {
++  auto &F = *static_cast<llvm::Function *>(IR);
++  auto &AM = *static_cast<llvm::FunctionAnalysisManager *>(Manager);
++  auto *Info = AM.getCachedResult<llvm::BasicAA>(F);
++  return Info ? Info->zilProductDependencyState(&F.getParent()->getDataLayout(),
++      &F, AM.getCachedResult<llvm::TargetLibraryAnalysis>(F),
++      AM.getCachedResult<llvm::AssumptionAnalysis>(F),
++      AM.getCachedResult<llvm::DominatorTreeAnalysis>(F)) : -1;
++}
++extern "C" LLVM_ABI int ZilLLVMTypeBasedAAProductState(void *Manager, void *IR) {
++  auto &F = *static_cast<llvm::Function *>(IR);
++  auto &AM = *static_cast<llvm::FunctionAnalysisManager *>(Manager);
++  auto *Info = AM.getCachedResult<llvm::TypeBasedAA>(F);
++  return Info ? int(Info->zilProductTypeSanitizer()) : -1;
++}
++extern "C" LLVM_ABI int ZilLLVMOREProductState(void *Manager, void *IR) {
++  auto &F = *static_cast<llvm::Function *>(IR);
++  auto &AM = *static_cast<llvm::FunctionAnalysisManager *>(Manager);
++  auto *Info = AM.getCachedResult<llvm::OptimizationRemarkEmitterAnalysis>(F);
++  return Info && Info->zilDisabledProductState(&F);
 +}
 --- a/llvm/lib/Analysis/CGSCCPassManager.cpp
 +++ b/llvm/lib/Analysis/CGSCCPassManager.cpp
@@ -334,3 +391,49 @@
 +  }
 +
 +
+--- a/llvm/include/llvm/Transforms/InstCombine/InstCombine.h
++++ b/llvm/include/llvm/Transforms/InstCombine/InstCombine.h
+@@ -55,0 +56 @@
++  static const void *zilNoOptionTrackingProductID() { return &ID; }
+--- a/llvm/include/llvm/Analysis/LastRunTrackingAnalysis.h
++++ b/llvm/include/llvm/Analysis/LastRunTrackingAnalysis.h
+@@ -48,0 +49,11 @@
++  int zilNoOptionProductState(const void *AllowedID) const {
++    for (const auto &Entry : TrackedPasses)
++      if (Entry.first != AllowedID || Entry.second) return -1;
++    return TrackedPasses.empty() ? 0 : 1;
++  }
++  bool zilRestoreNoOptionProductState(const void *AllowedID, unsigned State) {
++    if (State > 1 || zilNoOptionProductState(AllowedID) < 0) return false;
++    TrackedPasses.clear();
++    if (State) TrackedPasses[AllowedID] = {};
++    return true;
++  }
+--- a/llvm/include/llvm/Analysis/TargetLibraryInfo.h
++++ b/llvm/include/llvm/Analysis/TargetLibraryInfo.h
+@@ -277,0 +278,4 @@
++  const std::bitset<NumLibFuncs> &zilProductOverrides() const {
++    return OverrideAsUnavailable;
++  }
++
+--- a/llvm/include/llvm/Analysis/BasicAliasAnalysis.h
++++ b/llvm/include/llvm/Analysis/BasicAliasAnalysis.h
+@@ -55,0 +56,7 @@
++  int zilProductDependencyState(const DataLayout *CurrentDL,
++      const Function *CurrentF, const TargetLibraryInfo *CurrentTLI,
++      const AssumptionCache *CurrentAC, const DominatorTree *CurrentDT) const {
++    if (&DL != CurrentDL || &F != CurrentF || &TLI != CurrentTLI ||
++        &AC != CurrentAC || (DT_ && DT_ != CurrentDT) || !Visited.empty()) return -1;
++    return DT_ ? 1 : 0;
++  }
+--- a/llvm/include/llvm/Analysis/TypeBasedAliasAnalysis.h
++++ b/llvm/include/llvm/Analysis/TypeBasedAliasAnalysis.h
+@@ -38,0 +39 @@
++  bool zilProductTypeSanitizer() const { return UsingTypeSanitizer; }
+--- a/llvm/include/llvm/Analysis/OptimizationRemarkEmitter.h
++++ b/llvm/include/llvm/Analysis/OptimizationRemarkEmitter.h
+@@ -34,0 +35,4 @@
++  bool zilDisabledProductState(const Function *Current) const {
++    return F == Current && !BFI && !enabled() &&
++           !F->getContext().getDiagnosticsHotnessRequested();
++  }
