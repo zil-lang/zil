@@ -1,0 +1,7 @@
+# Selective Product paths
+
+`TakeTupleField { local, path }` transfers an initialized subtree of a concrete owning Tuple or Package root. Its historical opcode name does not restrict Product paths to Tuples. `TakeVariantField` retains its concrete Enum/ErrorUnion root requirement. Both operations require a nonempty bounded path; each Field, Variant, and ErrorArm step must match the actual intermediate type and active tag. Records, address wrappers, absent fields, and differently typed endpoints do not grant ownership.
+
+Selective transfer moves only the actual endpoint's responsibility. Every untaken descendant remains in the original parent's storage and cleanup debt. Nested Package patterns bind directly in that storage, so `ref` and `ref mut` preserve actual parent loans when sibling fields move. Existing direct-field roots and mixed paths are compared through the same actual inline tree intervals when they meet. A live parent or selected-child loan forbids an intersecting take, replacement, whole movement, or cleanup.
+
+Analyze and Verify reconstruct the complete path, tag, initialization, result type, and source debt independently. Machine cleanup uses actual per-leaf flags for selective locals; direct field take/drop/refill updates those same descendant flags. Error exits clean each remaining or transferred owner once. This capability does not independently admit borrowed-storage wrappers or external callable escape; those require their own complete provenance relations.

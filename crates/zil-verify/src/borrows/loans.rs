@@ -945,7 +945,7 @@ impl Access<'_> {
             if !(write || self.flow.mutable[other]) {
                 continue;
             }
-            if !overlaps(roots, &self.flow.roots[other], budget)? {
+            if !super::roots::overlaps_for(self.function, roots, &self.flow.roots[other], budget)? {
                 if let Some(apart) = self.apart {
                     buffer_effects::unknown_pairs(
                         self.module,
@@ -964,7 +964,7 @@ impl Access<'_> {
             let mut related = false;
             let mut delegated = true;
             for id in own {
-                if overlaps(&self.flow.roots[*id], &self.flow.roots[other], budget)? {
+                if super::roots::overlaps_for(self.function, &self.flow.roots[*id], &self.flow.roots[other], budget)? {
                     related = true;
                     if !self.flow.parents[*id].contains(&other) {
                         delegated = false;

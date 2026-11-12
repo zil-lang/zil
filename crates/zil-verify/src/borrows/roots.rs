@@ -382,6 +382,37 @@ pub(super) fn overlaps(left: &[Root], right: &[Root], budget: &mut Budget) -> Ch
     Ok(left.iter().any(|a| right.iter().any(|b| a.intersects(*b))))
 }
 
+/// Legacy direct-field roots and mixed paths name the same physical tree.
+/// Resolve only mixed comparisons so legacy field-only fees remain unchanged.
+pub(super) fn overlaps_for(
+    f: &TypedFunction,
+    left: &[Root],
+    right: &[Root],
+    budget: &mut Budget,
+) -> Check<bool> {
+    budget.spend(left.len().saturating_mul(right.len()).saturating_add(1))?;
+    for a in left {
+        for b in right {
+            let (mut a, mut b) = (*a, *b);
+            match (a, b) {
+                (Root::Field(l, i), Root::Projection(r, ..))
+                | (Root::Field(l, i), Root::Window(HoldRoot::Local(r), ..)) if l == r => {
+                    a = mixed_root(f, l, &[zil_ir::PlaceProjection::Field(i)], false, budget)?;
+                }
+                (Root::Projection(l, ..), Root::Field(r, i))
+                | (Root::Window(HoldRoot::Local(l), ..), Root::Field(r, i)) if l == r => {
+                    b = mixed_root(f, r, &[zil_ir::PlaceProjection::Field(i)], false, budget)?;
+                }
+                _ => {}
+            }
+            if a.intersects(b) {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
+}
+
 pub(super) fn contains_overlap(roots: &[Root], root: Root, budget: &mut Budget) -> Check<bool> {
     budget.spend(roots.len().saturating_add(1))?;
     Ok(roots.iter().any(|r| r.intersects(root)))

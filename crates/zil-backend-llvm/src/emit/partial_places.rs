@@ -147,6 +147,9 @@ pub(super) fn prepay(
             | InstructionKind::DropTuple { local: target }
             | InstructionKind::DropEnum { local: target }
             | InstructionKind::DropPackage { local: target }
+            | InstructionKind::TakePackageField { local: target, .. }
+            | InstructionKind::DropPackageField { local: target, .. }
+            | InstructionKind::StorePackageField { local: target, .. }
             | InstructionKind::DropErrorUnion { local: target } => *target == local,
             InstructionKind::UnpackTuple {
                 local: source,
@@ -481,23 +484,40 @@ impl FunctionEmitter<'_> {
                 },
             );
         }
+        self.partial_path_flags(local, path, false);
+        Ok(())
+    }
+    /// Direct field operations and selective paths share the same leaf debts.
+    /// A complete refill republishes only the actual selected descendants.
+    pub(super) fn partial_path_flags(
+        &mut self,
+        local: LocalId,
+        path: &[PlaceProjection],
+        live: bool,
+    ) {
         let count = self.partial_sums.get(&local).map_or(0, Vec::len);
         for index in 0..count {
             if self.partial_sums[&local][index].path.starts_with(path) {
                 self.place_inst(
                     None,
                     m::Op::Store {
-                        arg: m::Arg::new(m::Ty::Int(1), false),
+                        arg: m::Arg::new(m::Ty::Int(1), live),
                         ptr: m::local(Self::leaf_flag(local, index)),
                         align: 1,
                     },
                 );
             }
         }
-        Ok(())
     }
     /// Return true only when this local has actual selective-transfer recipes.
     pub(super) fn drop_partial_place(&mut self, local: LocalId) -> CompileResult<bool> {
+        self.drop_partial_path(local, &[])
+    }
+    pub(super) fn drop_partial_path(
+        &mut self,
+        local: LocalId,
+        prefix: &[PlaceProjection],
+    ) -> CompileResult<bool> {
         let Some(leaves) = self.partial_sums.get(&local).cloned() else {
             return Ok(false);
         };
@@ -524,6 +544,7 @@ impl FunctionEmitter<'_> {
             },
         );
         self.event(m::Event::Label(start));
+        if prefix.is_empty() {
         self.place_inst(
             None,
             m::Op::Store {
@@ -532,7 +553,11 @@ impl FunctionEmitter<'_> {
                 align: 1,
             },
         );
+        }
         for (index, leaf) in leaves.iter().enumerate() {
+            if !leaf.path.starts_with(prefix) {
+                continue;
+            }
             let skip = format!("partial.leaf.done.{id}.{index}");
             let mut at = ty.clone();
             let mut pointer = format!("%local.{}", local.0);

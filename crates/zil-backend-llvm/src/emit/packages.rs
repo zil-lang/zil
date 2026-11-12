@@ -463,6 +463,7 @@ impl FunctionEmitter<'_> {
                 align: 1,
             },
         )));
+        self.partial_path_flags(local, &[zil_ir::PlaceProjection::Field(index)], false);
         Ok(())
     }
 
@@ -506,6 +507,7 @@ impl FunctionEmitter<'_> {
                 },
             )));
         }
+        self.partial_path_flags(local, &[zil_ir::PlaceProjection::Field(index)], true);
         Ok(())
     }
 
@@ -515,6 +517,9 @@ impl FunctionEmitter<'_> {
         local: LocalId,
         index: u32,
     ) -> CompileResult<()> {
+        if self.drop_partial_path(local, &[zil_ir::PlaceProjection::Field(index)])? {
+            return Ok(());
+        }
         let (package, field) = self.package_field(local, index)?;
         if !owned_field(&field) {
             return invalid(
@@ -525,6 +530,7 @@ impl FunctionEmitter<'_> {
         }
         let teardowns = teardown_paths(&field, self.resources)?;
         self.emit_package_field_drop(local, index, &package, &teardowns);
+        self.partial_path_flags(local, &[zil_ir::PlaceProjection::Field(index)], false);
         Ok(())
     }
 
