@@ -5,7 +5,9 @@
 #include "zil_llvm_work_products_hooks.h"
 #include "machine_products.h"
 #include "analysis_facts.h"
+#include "packed_stage.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/CFG.h"
@@ -391,8 +393,7 @@ void describeAnalyses(FunctionAnalysisManager &AM, Function &F, const char *Poin
   }
   std::fprintf(stderr, "\n");
 }
-struct Stage {
-  std::string Input, World, Path, Pipeline, Output, OutputText, EntryFacts, ExitFacts;
+struct StageState {
   Keys EntryKeys, ExitKeys;
   // A full function projection equality (not PA::all or a digest) proves that
   // this stage has no function state to transport. Analyses remain separate.
@@ -400,13 +401,19 @@ struct Stage {
   unsigned OutputNextBlock = 0, OutputBlockEpoch = 0;
   AnalysisReplayState OutputAnalysisReplay;
   NameState OutputNames;
-  std::map<std::string, std::string> OriginalDeclarations;
   std::vector<unsigned> OutputBlockNumbers;
   PreservedAnalyses PA = PreservedAnalyses::none();
 };
+// Pending visitors keep ordinary complete text. Resident records encode only
+// the lossless text frame; every analysis/PA/name/BB field remains typed state.
+struct Stage : StageState, StageStrings {};
+struct PackedStage : StageState {
+  PackedStageStrings Text;
+  size_t UnpackedBytes = 0, StoredBytes = 0;
+};
 struct Products {
   std::string Config;
-  std::map<std::string, std::shared_ptr<const Stage>> Stages;
+  std::map<std::string, std::shared_ptr<const PackedStage>> Stages;
   std::shared_ptr<const MachineProducts> Machine;
 };
 struct Pending { std::string Slot; std::shared_ptr<Stage> Product; };
@@ -418,7 +425,7 @@ struct Request {
   AnalysisFactsMemo AnalysisMemo;
   bool Failed = false;
   unsigned Phase = 0;
-  size_t ProductBytes = 0;
+  size_t ProductBytes = 0, UnpackedProductBytes = 0;
   std::map<Pending *, std::unique_ptr<Pending>> PendingTokens;
   std::vector<std::pair<unsigned, unsigned>> Path;
   std::map<std::string, unsigned> Occurrences;
@@ -437,26 +444,67 @@ Pending *newPending(Request &R, std::string Slot = {}, std::shared_ptr<Stage> Pr
 // verification, optimization policy or the compiler's existing work budget.
 constexpr size_t MaxStageProductBytes = 64 * 1024 * 1024;
 constexpr size_t MaxStageProductSlots = 4096;
-void retainStage(Request &R, const std::string &Slot, std::shared_ptr<const Stage> P) {
-  if (R.Next.Stages.size() >= MaxStageProductSlots) return;
-  size_t Bytes = sizeof(Stage);
-  for (size_t N : {Slot.size(), P->Input.size(), P->World.size(), P->Path.size(),
-                   P->Pipeline.size(), P->Output.size(), P->OutputText.size(), P->EntryFacts.size(), P->ExitFacts.size(),
-                   P->EntryKeys.size() * sizeof(void *), P->ExitKeys.size() * sizeof(void *),
-                   P->OutputBlockNumbers.size() * sizeof(unsigned)}) {
-    if (N > MaxStageProductBytes - Bytes) return;
-    Bytes += N;
-  }
-  for (const auto &D : P->OriginalDeclarations) {
-    for (size_t N : {D.first.size(), D.second.size()}) {
-      if (N > MaxStageProductBytes - Bytes) return;
-      Bytes += N;
-    }
-  }
-  if (Bytes > MaxStageProductBytes - R.ProductBytes) return;
-  R.ProductBytes += Bytes;
-  R.Next.Stages.emplace(Slot, std::move(P));
+bool addStageBytes(size_t &Bytes, size_t N) {
+  if (Bytes > MaxStageProductBytes || N > MaxStageProductBytes - Bytes) return false;
+  Bytes += N; return true;
 }
+bool addStageElements(size_t &Bytes, size_t Count, size_t Width) {
+  return Count <= MaxStageProductBytes / Width && addStageBytes(Bytes, Count * Width);
+}
+bool stageMetadataBytes(const StageState &P, size_t &Bytes) {
+  return addStageElements(Bytes, P.EntryKeys.size(), sizeof(void *)) &&
+         addStageElements(Bytes, P.ExitKeys.size(), sizeof(void *)) &&
+         addStageElements(Bytes, P.OutputBlockNumbers.size(), sizeof(unsigned));
+}
+bool unpackedStageBytes(const Stage &P, size_t &Bytes) {
+  Bytes = 0;
+  if (!addStageBytes(Bytes, sizeof(Stage)) || !stageMetadataBytes(P, Bytes)) return false;
+  for (const auto *S : {&P.Input, &P.World, &P.Pipeline, &P.Output,
+                        &P.OutputText, &P.EntryFacts, &P.ExitFacts})
+    if (!addStageBytes(Bytes, S->size())) return false;
+  for (const auto &D : P.OriginalDeclarations)
+    if (!addStageBytes(Bytes, D.first.size()) || !addStageBytes(Bytes, D.second.size())) return false;
+  return true;
+}
+bool unpackStage(const PackedStage &Packed, Stage &Out) {
+  if (Packed.UnpackedBytes > MaxStageProductBytes || Packed.StoredBytes > MaxStageProductBytes) return false;
+  Stage Current;
+  if (!Packed.Text.unpack(Current, MaxStageProductBytes)) return false;
+  static_cast<StageState &>(Current) = static_cast<const StageState &>(Packed);
+  size_t Bytes;
+  if (!unpackedStageBytes(Current, Bytes) || Bytes != Packed.UnpackedBytes) return false;
+  Out = std::move(Current); return true;
+}
+void retainStage(Request &R, const std::string &Slot, std::shared_ptr<const PackedStage> P) {
+  if (R.Next.Stages.size() >= MaxStageProductSlots || R.Next.Stages.count(Slot)) return;
+  size_t Raw = P->UnpackedBytes, Stored = P->StoredBytes;
+  if (!addStageBytes(Raw, Slot.size()) || !addStageBytes(Stored, Slot.size()) ||
+      Raw > MaxStageProductBytes - R.UnpackedProductBytes ||
+      Stored > MaxStageProductBytes - R.ProductBytes) return;
+  R.Next.Stages.emplace(Slot, std::move(P));
+  // Preserve BOTH the original aggregate decoded admission and the bounded
+  // actual encoded payload+typed metadata. This is not an RSS measurement.
+  R.UnpackedProductBytes += Raw; R.ProductBytes += Stored;
+}
+void retainStage(Request &R, const std::string &Slot, std::shared_ptr<const Stage> P) {
+  size_t Raw;
+  if (R.Next.Stages.size() >= MaxStageProductSlots || R.Next.Stages.count(Slot) ||
+      !unpackedStageBytes(*P, Raw)) return;
+  size_t WithSlot = Raw;
+  if (!addStageBytes(WithSlot, Slot.size()) ||
+      WithSlot > MaxStageProductBytes - R.UnpackedProductBytes) return;
+  auto Text = PackedStageStrings::pack(*P, MaxStageProductBytes);
+  if (!Text) return;
+  auto Packed = std::make_shared<PackedStage>();
+  static_cast<StageState &>(*Packed) = static_cast<const StageState &>(*P);
+  Packed->Text = std::move(*Text); Packed->UnpackedBytes = Raw;
+  size_t Stored = 0;
+  if (!addStageBytes(Stored, sizeof(PackedStage)) ||
+      !stageMetadataBytes(*Packed, Stored) || !addStageBytes(Stored, Packed->Text.encodedSize())) return;
+  Packed->StoredBytes = Stored;
+  retainStage(R, Slot, std::shared_ptr<const PackedStage>(std::move(Packed)));
+}
+
 std::string pipeline(FunctionPassManager &PM) {
   std::string S; raw_string_ostream OS(S);
   PM.printPipeline(OS, [](StringRef N) { return N; }); return S;
@@ -678,15 +726,17 @@ int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *
     ++R.Stats.optimizer_function_stage_executions; return 0;
   }
   auto P = std::make_shared<Stage>();
-  P->Path = path(R, F); P->Pipeline = pipeline(*static_cast<FunctionPassManager *>(PM));
+  std::string Slot = path(R, F);
+  P->Pipeline = pipeline(*static_cast<FunctionPassManager *>(PM));
   P->Input = functionText(F); P->World = worldText(R.M, &F, &R.Stats); P->EntryKeys = std::move(Entry); P->EntryFacts = std::move(Facts);
   R.Stats.ir_key_bytes += P->Input.size() + P->World.size() + P->Pipeline.size() + P->EntryFacts.size() + R.Config.size();
-  std::string Slot = P->Path;
   if (R.Prior && R.Prior->Config == R.Config) {
     auto It = R.Prior->Stages.find(Slot);
     if (It != R.Prior->Stages.end()) {
-      const auto &Old = *It->second;
-      if (Old.Input == P->Input && Old.World == P->World && Old.Pipeline == P->Pipeline && Old.EntryKeys == P->EntryKeys && Old.EntryFacts == P->EntryFacts) {
+      Stage Old;
+      // A malformed/unavailable codec is an optional candidate miss. No IR or
+      // AM state has changed; the original stage still executes below.
+      if (unpackStage(*It->second, Old) && Old.Input == P->Input && Old.World == P->World && Old.Pipeline == P->Pipeline && Old.EntryKeys == P->EntryKeys && Old.EntryFacts == P->EntryFacts) {
         if (!replay(R, F, AM, Old)) {
           R.Failed = true; ++R.Stats.failed_replays;
           *static_cast<PreservedAnalyses *>(PA) = PreservedAnalyses::none(); return 1;
@@ -1000,5 +1050,68 @@ extern "C" int ZilNativeProductsUnchangedStageCounterexample() {
   zil::Stage Corrupt = P; Corrupt.ExitFacts += "not-the-current-analysis-state";
   if (zil::restoreStageAnalyses(*F, Current, Corrupt, &Memo, Rebuilt, true) ||
       zil::functionText(*F) != P.Input || verifyModule(M, nullptr)) return 0;
+  return 1;
+}
+
+extern "C" int ZilNativePackedStageMetadataCounterexample() {
+  using namespace zil;
+  for (bool Unchanged : {false, true}) {
+    Stage Original;
+    Original.Input = "complete-current-input"; Original.World = "complete-world";
+    Original.Pipeline = "actual-pipeline"; Original.EntryFacts = "entry-facts";
+    Original.ExitFacts = "exit-facts";
+    if (!Unchanged) {
+      Original.Output = std::string("BC\0\xff", 4); Original.OutputText = "output-text";
+      Original.OriginalDeclarations.emplace("llvm.test", "complete-declaration");
+    }
+    Original.EntryKeys = {TargetLibraryAnalysis::ID(), DominatorTreeAnalysis::ID()};
+    Original.ExitKeys = {DominatorTreeAnalysis::ID(), TargetLibraryAnalysis::ID()};
+    Original.BodyUnchanged = Unchanged;
+    Original.OutputNextBlock = 123; Original.OutputBlockEpoch = 9;
+    Original.OutputBlockNumbers = {3, 8, 17};
+    Original.OutputAnalysisReplay.emptyAssumptions = 1;
+    Original.OutputAnalysisReplay.noOptionTracking = 0;
+    Original.OutputAnalysisReplay.dominatorDFSValid = 1;
+    Original.OutputAnalysisReplay.postDominatorDFSValid = 0;
+    Original.OutputNames.present = 1; Original.OutputNames.counter = 37;
+    Original.OutputNames.maximum = 255;
+    Original.PA.preserve<TargetLibraryAnalysis>();
+    Original.PA.abandon<DominatorTreeAnalysis>();
+    auto Text = PackedStageStrings::pack(Original, MaxStageProductBytes, false);
+    if (!Text) return 0;
+    PackedStage Packed;
+    static_cast<StageState &>(Packed) = static_cast<const StageState &>(Original);
+    Packed.Text = std::move(*Text);
+    if (!unpackedStageBytes(Original, Packed.UnpackedBytes)) return 0;
+    Packed.StoredBytes = sizeof(PackedStage);
+    if (!stageMetadataBytes(Packed, Packed.StoredBytes) ||
+        !addStageBytes(Packed.StoredBytes, Packed.Text.encodedSize())) return 0;
+    Stage Restored;
+    if (!unpackStage(Packed, Restored) || Restored.Input != Original.Input ||
+        Restored.World != Original.World || Restored.Pipeline != Original.Pipeline ||
+        Restored.Output != Original.Output || Restored.OutputText != Original.OutputText ||
+        Restored.EntryFacts != Original.EntryFacts || Restored.ExitFacts != Original.ExitFacts ||
+        Restored.OriginalDeclarations != Original.OriginalDeclarations ||
+        Restored.EntryKeys != Original.EntryKeys || Restored.ExitKeys != Original.ExitKeys ||
+        Restored.BodyUnchanged != Unchanged || Restored.OutputNextBlock != 123 ||
+        Restored.OutputBlockEpoch != 9 || Restored.OutputBlockNumbers != Original.OutputBlockNumbers ||
+        Restored.OutputAnalysisReplay.emptyAssumptions != 1 ||
+        Restored.OutputAnalysisReplay.noOptionTracking != 0 ||
+        Restored.OutputAnalysisReplay.dominatorDFSValid != 1 ||
+        Restored.OutputAnalysisReplay.postDominatorDFSValid != 0 ||
+        Restored.OutputNames.present != 1 || Restored.OutputNames.counter != 37 ||
+        Restored.OutputNames.maximum != 255 ||
+        !Restored.PA.getChecker<TargetLibraryAnalysis>().preserved() ||
+        Restored.PA.getChecker<DominatorTreeAnalysis>().preserved()) return 0;
+    Restored.Input = "sentinel";
+    ++Packed.UnpackedBytes;
+    if (unpackStage(Packed, Restored) || Restored.Input != "sentinel") return 0;
+    Packed.UnpackedBytes = std::numeric_limits<size_t>::max();
+    if (unpackStage(Packed, Restored)) return 0;
+  }
+  size_t Bytes = MaxStageProductBytes;
+  if (addStageBytes(Bytes, 1) || Bytes != MaxStageProductBytes) return 0;
+  Bytes = std::numeric_limits<size_t>::max();
+  if (addStageBytes(Bytes, 1) || addStageElements(Bytes, std::numeric_limits<size_t>::max(), 8)) return 0;
   return 1;
 }

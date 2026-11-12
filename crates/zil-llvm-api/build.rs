@@ -82,7 +82,12 @@ fn build_native_products(out: &std::path::Path) {
     );
     let flags = String::from_utf8(flags.stdout).expect("llvm-config flags are UTF-8");
     let mut objects = Vec::new();
-    for source in ["work_products", "machine_products", "analysis_facts"] {
+    for source in [
+        "work_products",
+        "machine_products",
+        "analysis_facts",
+        "packed_stage",
+    ] {
         let file = format!("native/{source}.cpp");
         println!("cargo:rerun-if-changed={file}");
         let object = out.join(format!("{source}.o"));
@@ -110,6 +115,7 @@ fn build_native_products(out: &std::path::Path) {
         "work_products.h",
         "machine_products.h",
         "analysis_facts.h",
+        "packed_stage.h",
         "zil_llvm_work_products_hooks.h",
         "X86MachineFunctionInfo.h",
     ] {
