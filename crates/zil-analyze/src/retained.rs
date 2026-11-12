@@ -117,6 +117,10 @@ pub(super) fn check_function(
             "callable source binding paths",
         )?;
         for atom in &binding.sources {
+            if let StorageSource::Static { leaf, .. } = atom {
+                budget.type_work(leaf, false, "constant capture full envelope leaf")?;
+                continue;
+            }
             let source = crate::exact_storage_source(atom)?;
             budget.spend(
                 source.path.len().saturating_add(1),

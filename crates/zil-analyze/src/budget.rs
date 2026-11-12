@@ -2048,6 +2048,17 @@ pub(super) fn preflight(
                         "callable source paths",
                     )?;
                     for atom in &binding.sources {
+                        if let zil_ir::StorageSource::Static { leaf, mode } = atom {
+                            if *mode != zil_ir::StoredBorrowMode::SharedAddress
+                                || !matches!(leaf,Type::Address{mutable:false,inner}if **inner==Type::U8 || matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8))
+                            {
+                                return Err(bad(
+                                    "constant capture metadata requires its complete immutable byte leaf",
+                                ));
+                            }
+                            budget.input(if matches!(leaf,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Slice{..})){5}else{4},"constant capture complete leaf metadata")?;
+                            continue;
+                        }
                         let source = crate::exact_storage_source(atom)?;
                         count(
                             0,

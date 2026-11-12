@@ -200,6 +200,11 @@ pub(super) fn reconstruct(
                                     };
                                     let mut slot = Slot::default();
                                     for atom in &binding.sources {
+                                        if matches!(atom, zil_ir::StorageSource::Static { .. }) {
+                                            budget.spend(1, "proved static environment leaf")?;
+                                            slot.roots.insert(HoldRoot::Static);
+                                            continue;
+                                        }
                                         let source = crate::exact_storage_source(atom)?;
                                         extend(
                                             &mut slot.roots,
