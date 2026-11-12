@@ -1099,3 +1099,31 @@ fn complete_owning_hash_consumer_keeps_default_and_exact_fresh_kernel_budgets() 
     let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
     zil_verify::verify_module_bytes(&bytes, &target, &Limits::default()).unwrap();
 }
+
+#[test]
+fn every_integer_width_text_conversion_checks_its_range_and_roundtrips() {
+    run(r#"
+import std.int
+fn main()->i32 {
+    match int.parse_u32("4294967295") {.err(_)=>{return 1},.ok(value)=>{if value!=4294967295u32{return 2}}}
+    match int.parse_u32("4294967296") {.err(_)=>{},.ok(_)=>{return 3}}
+    let unsigned=int.format_u32(4294967295u32)
+    match int.parse_u32(&unsigned.bytes[..unsigned.len]) {.err(_)=>{return 4},.ok(value)=>{if value!=4294967295u32{return 5}}}
+    match int.parse_i8("-128") {.err(_)=>{return 6},.ok(value)=>{if value!=i8(-128){return 7}}}
+    match int.parse_i8("128") {.err(_)=>{},.ok(_)=>{return 8}}
+    match int.parse_i8("-129") {.err(_)=>{},.ok(_)=>{return 9}}
+    let tiny=int.format_i8(i8(-128))
+    match int.parse_i8(&tiny.bytes[..tiny.len]) {.err(_)=>{return 10},.ok(value)=>{if value!=i8(-128){return 11}}}
+    match int.parse_i16("-32768") {.err(_)=>{return 12},.ok(value)=>{if value!=i16(-32768){return 13}}}
+    match int.parse_i16("32768") {.err(_)=>{},.ok(_)=>{return 14}}
+    match int.parse_i16("-32769") {.err(_)=>{},.ok(_)=>{return 15}}
+    let small=int.format_i16(i16(32767))
+    match int.parse_i16(&small.bytes[..small.len]) {.err(_)=>{return 16},.ok(value)=>{if value!=i16(32767){return 17}}}
+    let minimum= -i64(u64(~0usize)>>1u64)-1
+    let word=int.format_isize(isize(minimum))
+    match int.parse_isize(&word.bytes[..word.len]) {.err(_)=>{return 18},.ok(value)=>{if value!=isize(minimum){return 19}}}
+    match int.parse_isize("9223372036854775808") {.err(_)=>{},.ok(_)=>{return 20}}
+    return 0
+}
+"#,"all-integer-widths");
+}

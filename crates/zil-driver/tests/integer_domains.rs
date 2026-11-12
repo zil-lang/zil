@@ -680,3 +680,25 @@ fn radix_literals_preserve_mathematical_range_and_explicit_identity() {
         );
     }
 }
+
+#[test]
+fn complete_integer_domains_preserve_identity_through_ordinary_value_generics() {
+    let text = r#"
+fn identity<T:Value>(value:T)->T{return value}
+fn result()->i32 {
+    if identity(4294967295u32)!=4294967295u32{return 1}
+    if identity(-128i8)!=-128i8{return 2}
+    if identity(-32768i16)!=-32768i16{return 3}
+    if identity(-9223372036854775808isize)!=-9223372036854775808isize{return 4}
+    if identity(255u8)!=255u8{return 5}
+    if identity(65535u16)!=65535u16{return 6}
+    if identity(18446744073709551615u64)!=18446744073709551615u64{return 7}
+    if identity(18446744073709551615usize)!=18446744073709551615usize{return 8}
+    if identity(-2147483648i32)!=-2147483648i32{return 9}
+    if identity(-9223372036854775808i64)!=-9223372036854775808i64{return 10}
+    return 0
+}
+"#;
+    check(text);
+    native(text, Some("result"), b"", true);
+}
