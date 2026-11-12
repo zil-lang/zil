@@ -122,6 +122,9 @@ impl FrozenReadView<'_> {
             out.push((text.to_owned(), CtTokenClass::Identifier, None))
         };
         match actual {
+            CtTypeNode::ScopedDyn { .. } | CtTypeNode::ScopedTask { .. } => {
+                return Err(self.unready("scoped Type syntax requires frozen stage authority"));
+            }
             CtTypeNode::BorrowedStorage { .. } => {
                 return Err(
                     self.unready("stored-borrow Type needs a closed scoped source reconstruction")
@@ -2555,6 +2558,11 @@ impl CtReadView for FrozenReadView<'_> {
                     let shift = |id: CtTypeNodeId| CtTypeNodeId(id.0.saturating_add(base));
                     for node in &value.nodes {
                         nodes.push(match node {
+                            CtTypeNode::ScopedDyn { .. } | CtTypeNode::ScopedTask { .. } => {
+                                return Err(self.unready(
+                                    "scoped Type substitution requires stage catalogue relocation",
+                                ));
+                            }
                             CtTypeNode::BorrowedStorage { .. } => {
                                 return Err(self.unready(
                                     "stored-borrow CT substitution requires closed scope remapping",

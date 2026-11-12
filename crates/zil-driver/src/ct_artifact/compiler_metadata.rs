@@ -2,6 +2,19 @@
 use super::*;
 pub(crate) fn ids(node: &mut CtTypeNode, mut map: impl FnMut(&mut CtTypeNodeId)) {
     match node {
+        CtTypeNode::ScopedDyn { context, .. } => {
+            if let Some(context) = context {
+                map(context);
+            }
+        }
+        CtTypeNode::ScopedTask {
+            result, context, ..
+        } => {
+            map(result);
+            if let Some(context) = context {
+                map(context);
+            }
+        }
         CtTypeNode::BorrowedStorage { storage, .. } => map(storage),
         CtTypeNode::Nominal { arguments, .. } => {
             for arg in arguments {
