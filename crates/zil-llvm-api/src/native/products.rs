@@ -328,12 +328,19 @@ mod enabled {
         use super::*;
 
         #[test]
-        fn native_stats_wire_matches_the_eighteen_u64_c_fields() {
+        fn native_stats_wire_matches_the_twenty_two_u64_c_fields() {
             assert_eq!(std::mem::size_of::<WireStats>(), 22 * 8);
             assert_eq!(
                 std::mem::align_of::<WireStats>(),
                 std::mem::align_of::<u64>()
             );
+            assert_eq!(std::mem::offset_of!(WireStats, mir_key_ns), 16 * 8);
+            assert_eq!(std::mem::offset_of!(WireStats, mir_parse_ns), 17 * 8);
+            assert_eq!(
+                std::mem::offset_of!(WireStats, mir_restore_validate_ns),
+                18 * 8
+            );
+            assert_eq!(std::mem::offset_of!(WireStats, mir_capture_ns), 19 * 8);
             assert_eq!(std::mem::offset_of!(WireStats, failed_replays), 21 * 8);
             fn assert_send_sync<T: Send + Sync>() {}
             assert_send_sync::<NativeWorkProducts>();
