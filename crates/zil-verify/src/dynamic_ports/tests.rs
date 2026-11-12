@@ -122,10 +122,10 @@ fn actual_context_factory_unknown_empty_wrong_root_and_duplicate_sources_reject_
             }
             other => {
                 factory.retained_return_sources.as_mut().unwrap()[0].sources =
-                    vec![StoragePosition {
+                    vec![StorageSource::Exact(StoragePosition {
                         base: StorageBase::Parameter(if other == 4 { 1 } else { 2 }),
                         path: vec![],
-                    }];
+                    })];
             }
         }
         let target = wrong.target.clone();
