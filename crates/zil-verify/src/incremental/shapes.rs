@@ -122,7 +122,7 @@ impl Location {
     }
 }
 #[derive(Clone, Copy)]
-pub(super) struct ArrayRoot {
+pub(crate) struct ArrayRoot {
     location: Location,
     was_present: bool,
 }
@@ -177,7 +177,7 @@ impl Receipt {
 }
 
 impl Attempt<'_> {
-    pub(super) fn check_shapes(
+    pub(crate) fn check_shapes(
         &mut self,
         module: &TypedModule,
         f: &TypedFunction,
@@ -239,7 +239,7 @@ impl Attempt<'_> {
     }
 }
 
-pub(super) fn check_current(
+pub(crate) fn check_current(
     module: &TypedModule,
     f: &TypedFunction,
     b: &mut Budget,

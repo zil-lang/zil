@@ -39,7 +39,7 @@ pub(super) struct Receipt {
 }
 
 impl Attempt<'_> {
-    pub(super) fn check_inventory(
+    pub(crate) fn check_inventory(
         &mut self,
         module: &TypedModule,
         function: &TypedFunction,
@@ -107,7 +107,7 @@ impl Attempt<'_> {
     }
 }
 
-pub(super) fn check_current(
+pub(crate) fn check_current(
     module: &TypedModule,
     function: &TypedFunction,
     budget: &mut Budget,
