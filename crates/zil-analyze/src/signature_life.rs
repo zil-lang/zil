@@ -541,7 +541,6 @@ fn relation_inner(
                     )?;
                 }
             } else if self.allow_callback
-                && self.inputs.is_none()
                 && matches!(target, Type::Closure(_))
             {
                 let Type::Closure(id) = target else {

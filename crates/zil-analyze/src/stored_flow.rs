@@ -1711,7 +1711,9 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     } else {
         super::signature_life::function_relation
     };
-    let result = if f.callable_return_contract.is_some() {
+    let result = if f.callable_return_contract.is_some()
+        && !c.classes.iter().any(|row|row.position.base==StorageBase::Result)
+    {
         &Type::Unit
     } else {
         &f.return_type
@@ -1720,7 +1722,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         &parameters,
         result,
         c,
-        f.callable_contract.is_some(),
+        f.callable_contract.is_some() || f.callable_return_contract.is_some(),
         &module.closures,
     )?;
     Ok(())
