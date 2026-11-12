@@ -513,7 +513,11 @@ struct Symbols {
 };
 Symbols &symbols() { static Symbols S; return S; }
 using Keys = std::vector<const void *>;
+// Explicit same-thread counterexample observation only; no public ABI or
+// product statistics. It counts the actual FAM visitor, not inferred savings.
+thread_local uint64_t *AnalysisKeyVisitsForTests = nullptr;
 Keys analysisKeys(FunctionAnalysisManager &AM, Function &F) {
+  if (AnalysisKeyVisitsForTests) ++*AnalysisKeyVisitsForTests;
   Keys K; symbols().visit(&AM, &F, [](void *P, const void *K) {
     static_cast<Keys *>(P)->push_back(K);
   }, &K); return K;
@@ -1125,11 +1129,17 @@ int beforeStageImpl(Request &R, FunctionPassManager &PM, Function &F,
     ++R.Stats.optimizer_function_stage_executions;
     return 0; // sample the ORIGINAL nested pipeline, not a child replay
   }
-  Keys Entry = analysisKeys(AM, F);
-  describeAnalyses(AM, F, "entry", Entry);
-  if (!supportedAnalysisKeys(Entry)) {
-    if (AnalysisDiagnostics) *Token = newPending(R);
-    ++R.Stats.optimizer_function_stage_executions; return 0;
+  Keys Entry;
+  // Diagnostics deliberately retains the original complete entry listing,
+  // including unsupported and economically refused groups. The ordinary
+  // refusal path does not enumerate FAM or manufacture an unused key set.
+  if (AnalysisDiagnostics) {
+    Entry = analysisKeys(AM, F);
+    describeAnalyses(AM, F, "entry", Entry);
+    if (!supportedAnalysisKeys(Entry)) {
+      *Token = newPending(R);
+      ++R.Stats.optimizer_function_stage_executions; return 0;
+    }
   }
   IRScopeNS<> KeyTime(R.Stats.ir_key_ns);
   GroupRuntime *Group = R.AlwaysForTests ? nullptr : economyGroup(R, economyGroupKey(R, PM, F));
@@ -1142,6 +1152,12 @@ int beforeStageImpl(Request &R, FunctionPassManager &PM, Function &F,
     if (Group && sampleFresh(*Group)) *Token = newPending(R, {}, {}, Group, true);
     else if (AnalysisDiagnostics) *Token = newPending(R);
     ++R.Stats.optimizer_function_stage_executions; return 0;
+  }
+  if (!AnalysisDiagnostics) {
+    Entry = analysisKeys(AM, F);
+    if (!supportedAnalysisKeys(Entry)) {
+      ++R.Stats.optimizer_function_stage_executions; return 0;
+    }
   }
   const bool Sample = Group && sampleFresh(*Group);
   auto FreshWithoutCapture = [&]() {
@@ -1930,6 +1946,17 @@ public:
 extern "C" int ZilNativeStageEconomicsCounterexample() {
   using namespace zil;
   if (!symbols().available) return 0;
+  struct KeyVisitScope {
+    uint64_t Count = 0;
+    uint64_t *Previous = AnalysisKeyVisitsForTests;
+    bool Diagnostics = AnalysisDiagnostics;
+    bool Always = StageAlwaysForTests;
+    KeyVisitScope() { AnalysisKeyVisitsForTests = &Count; AnalysisDiagnostics = false; StageAlwaysForTests = false; }
+    ~KeyVisitScope() {
+      AnalysisKeyVisitsForTests = Previous;
+      AnalysisDiagnostics = Diagnostics; StageAlwaysForTests = Always;
+    }
+  } Visits;
   GroupRuntime Cold = beginEconomy(nullptr, 1);
   for (unsigned I = 0; I != 2; ++I) {
     if (!tryEconomyKey(Cold) || !tryEconomyCapture(Cold)) return 0;
@@ -2027,7 +2054,43 @@ extern "C" int ZilNativeStageEconomicsCounterexample() {
   if (OuterRan != 1 || InnerRan != 1 || Slots != 2 || Current.Groups.size() != 1 ||
       !Current.PendingTokens.empty() || Current.SuppressNestedCache || Current.ObserverDepth ||
       !Current.Next.Stages.empty() || Current.Stats.ir_key_bytes || Current.Stats.ir_snapshot_bytes ||
-      Current.Stats.optimizer_function_stage_executions != 2 || Current.Failed) return 0;
+      Current.Stats.optimizer_function_stage_executions != 2 || Current.Failed || Visits.Count) return 0;
+  // Actual hooked FPM: Bypass and bad-clock refusals leave FAM completely
+  // unenumerated, but retain original pass execution, Slots and token cleanup.
+  auto Refused = [&](bool Diagnostics, bool BadClock) {
+    unsigned Ran = 0;
+    FunctionPassManager Fresh; Fresh.addPass(EconomyCountingPass(Ran));
+    Request R(M, "config", nullptr); R.Phase = 1;
+    auto *G = economyGroup(R, economyGroupKey(R, Fresh, *F));
+    if (!G) return false;
+    G->Frozen = EconomyMode::Bypass; R.ObserverClockValid = !BadClock;
+    R.Hooks = {2, &R, nullptr, enterPass, leavePass, beforeStage, afterStage, nullptr, requestFailedCallback};
+    const auto BeforeVisits = Visits.Count;
+    AnalysisDiagnostics = Diagnostics;
+    { EconomyTestHooks Hooks(R.Hooks); Fresh.run(*F, AM); }
+    AnalysisDiagnostics = false;
+    unsigned Slots = 0;
+    for (const auto &E : R.Occurrences) Slots += E.second;
+    return Ran == 1 && Slots == 1 && R.PendingTokens.empty() && !R.SuppressNestedCache &&
+        !R.ObserverDepth && !R.Failed && R.Next.Stages.empty() && !R.Stats.ir_key_bytes &&
+        R.Stats.optimizer_function_stage_executions == 1 &&
+        Visits.Count - BeforeVisits == (Diagnostics ? (BadClock ? 1u : 2u) : 0u);
+  };
+  if (!Refused(false, false) || !Refused(false, true) ||
+      !Refused(true, false) || !Refused(true, true)) return 0;
+  // An actually admitted capture still observes COMPLETE current entry/exit
+  // analysis sets. Force only economics, as existing strict quality scopes do.
+  StageAlwaysForTests = true;
+  Request Capturing(M, "config", nullptr); Capturing.Phase = 1;
+  StageAlwaysForTests = false;
+  unsigned CaptureRan = 0;
+  FunctionPassManager CapturePM; CapturePM.addPass(EconomyCountingPass(CaptureRan));
+  Capturing.Hooks = {2, &Capturing, nullptr, enterPass, leavePass, beforeStage, afterStage, nullptr, requestFailedCallback};
+  const auto BeforeCaptureVisits = Visits.Count;
+  { EconomyTestHooks Hooks(Capturing.Hooks); CapturePM.run(*F, AM); }
+  if (CaptureRan != 1 || Capturing.Failed || !Capturing.PendingTokens.empty() ||
+      Capturing.Next.Stages.size() != 1 || !Capturing.Stats.ir_key_bytes ||
+      Visits.Count - BeforeCaptureVisits != 2) return 0;
   // PM address reuse is only a potentially bad economic hint. The complete
   // authorized Pipeline is still freshly printed after this hint is poisoned.
   Current.PipelineHints[&PM] = "deliberately-wrong-economic-recipe";
