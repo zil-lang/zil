@@ -144,6 +144,10 @@ bool eligibleFunction(const Function &F) {
   for (const User *U : F.users()) {
     const auto *C = dyn_cast<CallBase>(U);
     if (!C || C->getCalledOperand() != &F) return admissionFailure(F, nullptr, "noncall-function-use");
+    const Function *Caller = C->getFunction();
+    if (!Caller || Caller->getParent() != F.getParent() || nameState(*Caller).present < 0 ||
+        !ownedUseSequence(*Caller, nullptr))
+      return admissionFailure(F, nullptr, "unbound-incoming-caller");
   }
   std::set<const AllocaInst *> LocalSlots;
   for (const BasicBlock &B : F) for (const Instruction &I : B)
@@ -687,4 +691,27 @@ extern "C" int ZilNativeProductsOwnedUseOrderCounterexample() {
   if (Print() != Text || zil::functionText(*F) == Key || verifyFunction(*F, nullptr)) return 0;
   F->getArg(0)->reverseUseList();
   return Print() == Text && zil::functionText(*F) == Key;
+}
+
+extern "C" int ZilNativeProductsIncomingCallerCounterexample() {
+  LLVMContext Context; Module M("incoming-use-order", Context);
+  auto *I32 = Type::getInt32Ty(Context);
+  auto *F = Function::Create(FunctionType::get(I32, {I32}, false), GlobalValue::ExternalLinkage, "f", &M);
+  F->getArg(0)->setName("x");
+  IRBuilder<> FB(BasicBlock::Create(Context, "entry", F)); FB.CreateRet(F->getArg(0));
+  auto *G = Function::Create(FunctionType::get(I32, false), GlobalValue::ExternalLinkage, "caller", &M);
+  auto *Entry = BasicBlock::Create(Context, "entry", G);
+  auto *Target = BasicBlock::Create(Context, "target", G);
+  IRBuilder<> GB(Entry); GB.CreateBr(Target); GB.SetInsertPoint(Target);
+  auto *Call = GB.CreateCall(F, {GB.getInt32(7)}, "call"); GB.CreateRet(Call);
+  if (verifyModule(M, nullptr) || !zil::ownedUseSequence(*G, nullptr)) return 0;
+  if (zil::readNameStateAPI() && !zil::eligibleFunction(*F)) return 0;
+  auto *Address = BlockAddress::get(G, Target);
+  new GlobalVariable(M, Address->getType(), true, GlobalValue::ExternalLinkage, Address, "taken");
+  if (verifyModule(M, nullptr) || zil::ownedUseSequence(*G, nullptr) ||
+      !zil::functionText(*G).empty() || zil::eligibleFunction(*F)) return 0;
+  Call->setArgOperand(0, GB.getInt32(8));
+  // Two unrepresentable caller bodies would both produce an empty string.
+  // Neither is admitted as a native product input for the unchanged callee.
+  return !verifyModule(M, nullptr) && zil::functionText(*G).empty() && !zil::eligibleFunction(*F);
 }
