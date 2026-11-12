@@ -661,7 +661,7 @@ impl Slots {
                 closure.kind == CallableKind::FnOnce
                     || inline_sum_owner
                     || closure.captures.iter().any(|ty| {
-                        matches!(
+                        packages::capture_owner(ty) || matches!(
                             ty,
                             Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
                         )
@@ -863,7 +863,7 @@ impl Slots {
                     let next = debt_count;
                     debt_count += 1;
                     Ok(Some(next))
-                } else if matches!(ty, Type::Package { .. }) {
+                } else if packages::capture_owner(ty) {
                     let local =
                         views.by_capture[index].expect("independently checked Package binding");
                     Ok(managed_local[local.0 as usize])
@@ -3329,7 +3329,7 @@ pub(super) fn check_module(
             budget.spend(closure.captures.len())?;
             owning_entry |= closure.kind == CallableKind::FnOnce
                 || closure.captures.iter().any(|ty| {
-                    matches!(
+                    packages::capture_owner(ty) || matches!(
                         ty,
                         Type::Managed(_)
                             | Type::Package { .. }

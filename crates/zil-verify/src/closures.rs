@@ -302,8 +302,27 @@ pub(super) fn check_definitions(
             // Capture qualification does not itself prove responsibility.
             // Complete child fields receive their own retained slots/flags;
             // the body still independently proves binding, mode and exits.
-            if matches!(ty, Type::Package { .. }) {
+            if packages::capture_owner(ty) {
                 packages::check_capture_type(module, ty, None, budget)?;
+                if matches!(ty, Type::BorrowedStorage { .. }) {
+                    stored_flow::qualification(module, ty, limits, budget)?;
+                    if let Type::BorrowedStorage { life, .. } = ty {
+                        budget.spend(life.slots.len())?;
+                        if closure.kind == CallableKind::Fn
+                            && life.slots.iter().any(|slot| {
+                                slot.mode == StoredBorrowMode::ExclusiveAddress
+                            })
+                        {
+                            return Err(reject(
+                                "E-VERIFY-CLOSURE-CALL",
+                                None,
+                                "exclusive stored capture requires an exclusive environment entry",
+                            ));
+                        }
+                    }
+                    budget.returned_environment_sources = true;
+                    budget.nested_callable_sources = true;
+                }
             } else {
                 check_local_type(ty, None, module, budget)?;
             }
@@ -547,6 +566,7 @@ fn check_layouts(module: &TypedModule, limits: &Limits, budget: &mut Budget) -> 
     while let Some((ty, count)) = types.pop() {
         budget.spend(1)?;
         match ty {
+            Type::BorrowedStorage { storage, .. } => types.push((storage, count)),
             Type::Closure(id) => {
                 definition(module, *id, None)?;
                 let work = count
@@ -598,6 +618,7 @@ fn type_layout_work_with_store(ty: &Type, budget: &mut Budget) -> Check<(usize, 
             && matches!(ty, Type::Managed(payload)
             if matches!(payload.as_ref(), Type::OwnedStore { .. }));
         match ty {
+            Type::BorrowedStorage { storage, .. } => pending.push((storage, owning)),
             Type::Array { element, .. }
             | Type::Slice { element }
             | Type::OwnedStore { element }
@@ -780,7 +801,7 @@ pub(super) fn owned_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -
     }
     Ok(definition.kind == CallableKind::FnOnce
         || definition.captures.iter().any(|ty| {
-            matches!(
+            packages::capture_owner(ty) || matches!(
                 ty,
                 Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
             )
