@@ -304,4 +304,80 @@ mod tests {
             );
         }
     }
+    fn direct_buffer_push() -> (TypedModule, CandidatePlan) {
+        let element = Type::Managed(Box::new(Type::ByteBuffer));
+        let outcome = Type::ErrorUnion {
+            error: Box::new(element.clone()),
+            result: Box::new(Type::Unit),
+        };
+        let (mut module, mut plan) = request(element.clone());
+        let function = &mut module.functions[0];
+        let span = function.span;
+        function.locals.push(LocalDecl {
+            id: LocalId(1),
+            name: "returned_owner".into(),
+            ty: outcome.clone(),
+            mutable: true,
+            span,
+        });
+        function.values.extend([
+            Type::Desc(Box::new(Type::OwnedStore { element: Box::new(element.clone()) })),
+            element,
+            outcome,
+        ]);
+        let body = &mut function.blocks[0].instructions;
+        let at = body.iter().position(|i| matches!(i.kind, InstructionKind::DropManaged {..})).unwrap();
+        let instruction = |result, kind| Instruction {result, kind, span};
+        body.splice(at..at, [
+            instruction(None, InstructionKind::StorageLive(LocalId(1))),
+            instruction(Some(ValueId(2)), InstructionKind::DescribeLocal {local: LocalId(0)}),
+            instruction(Some(ValueId(3)), InstructionKind::ByteBufferNew),
+            instruction(Some(ValueId(4)), InstructionKind::OwnedStorePush {store: ValueId(2), value: ValueId(3)}),
+            instruction(None, InstructionKind::Store {local: LocalId(1), value: ValueId(4)}),
+            instruction(None, InstructionKind::DropErrorUnion {local: LocalId(1)}),
+            instruction(None, InstructionKind::StorageDead(LocalId(1))),
+        ]);
+        plan.functions[0].holds.extend([
+            ValueHold {value:ValueId(2), roots:vec![HoldRoot::Local(LocalId(0))]},
+            ValueHold {value:ValueId(3), roots:vec![]},
+            ValueHold {value:ValueId(4), roots:vec![]},
+        ]);
+        (module, plan)
+    }
+
+    #[test]
+    fn direct_owned_push_failure_keeps_exact_owner_debt_raw_wire() {
+        let (module, plan) = direct_buffer_push();
+        for result in super::super::tests::pod_both(&module, &plan, &Limits::default()) {
+            result.unwrap();
+        }
+        for attack in 0..4 {
+            let mut changed = module.clone();
+            let span = changed.functions[0].span;
+            let body = &mut changed.functions[0].blocks[0].instructions;
+            let at = body.iter().position(|i| matches!(i.kind, InstructionKind::DropErrorUnion {..})).unwrap();
+            match attack {
+                0 => {body.remove(at);}
+                1 => {let duplicate=body[at].clone(); body.insert(at,duplicate);}
+                2 => {
+                    // Same payload layout does not turn an owned failure into Copy.
+                    changed.functions[0].values[4] = Type::ErrorUnion {
+                        error: Box::new(Type::ByteBuffer), result: Box::new(Type::Unit),
+                    };
+                }
+                _ => {
+                    // Returning the owner on failure must not leave the input live.
+                    body.insert(at, Instruction {
+                        result: None,
+                        kind: InstructionKind::Store {local:LocalId(0),value:ValueId(3)},
+                        span,
+                    });
+                }
+            }
+            for result in super::super::tests::pod_both(&changed, &plan, &Limits::default()) {
+                rejected(result);
+            }
+        }
+    }
+
 }
