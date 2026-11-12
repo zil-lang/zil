@@ -67,6 +67,7 @@ fn make_parser<'a>(source: &'a SourceUnit, raw: &'a [Token], limits: &'a Limits)
         limits,
         quote_frames: Vec::new(),
         type_meta_candidate: false,
+        type_const_expression: false,
     }
 }
 
@@ -83,6 +84,9 @@ struct Parser<'a> {
     limits: &'a Limits,
     quote_frames: Vec<quote::QuoteFrame>,
     type_meta_candidate: bool,
+    /// The outermost typed associated-constant RHS stops at a type closer.
+    /// Parenthesized/subexpression parsing restores ordinary value operators.
+    type_const_expression: bool,
 }
 
 impl Parser<'_> {

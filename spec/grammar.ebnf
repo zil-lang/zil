@@ -57,7 +57,12 @@ TypePrimary = CallableType | Qualified, [TypeArgs]
             | MetaEval | MetaBlock | MetaSplice ;
 TupleType = "(", ")" | "(", Type, ")" | "(", Type, ",", [TypeList], ")" ;
 TypeArgs = "<", GenericArg, {",", GenericArg}, [","], ">" ;
-GenericArg = Type | ["-"], NUMBER | "true" | "false" ;
+GenericArg = Type | ["-"], NUMBER | "true" | "false" | AssociatedEquation ;
+(* Equations are premises of a trait bound/application, never mixed formal
+   argument slots. Ordinary nominal/function arguments reject this position.
+   Parenthesize comparisons and right shifts in a constant RHS. *)
+AssociatedEquation = Qualified, "=", Type
+                   | "const", Qualified, ":", Type, "=", Expression ;
 TypeAlias = "type", IDENT, [Generics], "=", Type, End ;
 ConstDecl = "const", IDENT, [":", Type], "=", Expr, End ;
 Contract = "contract", "{", {ContractClause, End}, "}" ;

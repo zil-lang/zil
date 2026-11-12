@@ -3,12 +3,21 @@ use super::*;
 impl Parser<'_> {
     pub(super) fn expr(&mut self, record: bool) -> P<Expr> {
         self.nested(|p| {
-            if p.closure_ahead() {
+            let outer = std::mem::replace(&mut p.type_const_expression, false);
+            let result = if p.closure_ahead() {
                 p.closure()
             } else {
                 p.pratt(0, record)
-            }
+            };
+            p.type_const_expression = outer;
+            result
         })
+    }
+    pub(super) fn associated_const_expression(&mut self) -> P<Expr> {
+        let outer = std::mem::replace(&mut self.type_const_expression, true);
+        let result = self.pratt(0, true);
+        self.type_const_expression = outer;
+        result
     }
     fn closure_ahead(&mut self) -> bool {
         self.peek();
@@ -134,6 +143,11 @@ impl Parser<'_> {
         let mut chain_depth = 0usize;
         loop {
             let token = self.peek();
+            if self.type_const_expression
+                && matches!(token.kind, TokenKind::Symbol(Symbol::Gt | Symbol::GtEq | Symbol::Shr))
+            {
+                break;
+            }
             let Some((precedence, op)) = binary(token.kind) else {
                 break;
             };

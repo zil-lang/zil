@@ -171,6 +171,24 @@ fn argument<V: Visitor + ?Sized>(
         s::GenericArg::Lifetime(name) => v.text(name, Span::default()),
         s::GenericArg::Type(t) => v.ty(t, depth),
         s::GenericArg::Const(e) => v.expression(e, depth),
+        s::GenericArg::AssociatedBinding(binding) => {
+            v.node(&mut binding.span, depth)?;
+            match &mut binding.kind {
+                s::DynBindingKind::Type { member, value } => {
+                    path(v, member, binding.span, depth + 1)?;
+                    v.ty(value, depth + 1)
+                }
+                s::DynBindingKind::Constant { member, ty, value } => {
+                    path(v, member, binding.span, depth + 1)?;
+                    v.ty(ty, depth + 1)?;
+                    v.expression(value, depth + 1)
+                }
+                s::DynBindingKind::Method { .. } => Err(vec![Diagnostic::error(
+                    Phase::Expand, "E-SOURCE-ASSOCIATED-BINDING", Some(binding.span),
+                    "a bound equation cannot contain a method slot application",
+                )]),
+            }
+        }
     }
 }
 fn generics<V: Visitor + ?Sized>(

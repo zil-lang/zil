@@ -178,6 +178,9 @@ pub enum GenericArg {
     Lifetime(String),
     Type(TypeRef),
     Const(Expr),
+    /// A trait-application premise, never an ordinary Type/Const/Life actual.
+    /// Only type equations and explicitly typed constant equations are legal.
+    AssociatedBinding(DynBinding),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
