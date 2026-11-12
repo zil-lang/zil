@@ -13,6 +13,8 @@ use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 pub const WIRE_VERSION: u32 = 48;
 #[path = "dynamic_wire.rs"]
 mod dynamic;
+#[path = "dynamic_recipes_wire.rs"]
+mod dynamic_recipes;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";

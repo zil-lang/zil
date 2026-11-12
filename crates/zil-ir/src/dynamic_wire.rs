@@ -41,7 +41,11 @@ impl Writer<'_> {
         }
         self.charge(1)
     }
-    fn dyn_self_pattern(&mut self, value: &DynSelfPattern, depth: usize) -> WireResult<()> {
+    pub(super) fn dyn_self_pattern(
+        &mut self,
+        value: &DynSelfPattern,
+        depth: usize,
+    ) -> WireResult<()> {
         self.dyn_pattern_node(depth)?;
         self.declaration_id(&value.declaration)?;
         self.count(value.arguments.len(), self.limits.max_nodes)?;
@@ -67,7 +71,11 @@ impl Writer<'_> {
             }
         }
     }
-    fn dyn_const_pattern(&mut self, value: &DynConstPattern, depth: usize) -> WireResult<()> {
+    pub(super) fn dyn_const_pattern(
+        &mut self,
+        value: &DynConstPattern,
+        depth: usize,
+    ) -> WireResult<()> {
         self.dyn_pattern_node(depth)?;
         match value {
             DynConstPattern::Value(value) => {
@@ -80,7 +88,11 @@ impl Writer<'_> {
             }
         }
     }
-    fn dyn_type_pattern(&mut self, value: &DynTypePattern, depth: usize) -> WireResult<()> {
+    pub(super) fn dyn_type_pattern(
+        &mut self,
+        value: &DynTypePattern,
+        depth: usize,
+    ) -> WireResult<()> {
         self.dyn_pattern_node(depth)?;
         match value {
             DynTypePattern::Concrete(ty) => {
@@ -633,7 +645,7 @@ impl Reader<'_> {
         }
         self.charge(1)
     }
-    fn dyn_self_pattern(&mut self, depth: usize) -> WireResult<DynSelfPattern> {
+    pub(super) fn dyn_self_pattern(&mut self, depth: usize) -> WireResult<DynSelfPattern> {
         self.dyn_pattern_node(depth)?;
         let declaration = self.declaration_id()?;
         let count = self.count(self.limits.max_nodes, 2)?;
@@ -655,7 +667,7 @@ impl Reader<'_> {
             _ => return Err(malformed("E-WIRE-TAG", "unknown dyn Self actual recipe")),
         })
     }
-    fn dyn_const_pattern(&mut self, depth: usize) -> WireResult<DynConstPattern> {
+    pub(super) fn dyn_const_pattern(&mut self, depth: usize) -> WireResult<DynConstPattern> {
         self.dyn_pattern_node(depth)?;
         Ok(match self.u8()? {
             0 => DynConstPattern::Value(self.constant()?),
@@ -663,7 +675,7 @@ impl Reader<'_> {
             _ => return Err(malformed("E-WIRE-TAG", "unknown dyn Self const recipe")),
         })
     }
-    fn dyn_type_pattern(&mut self, depth: usize) -> WireResult<DynTypePattern> {
+    pub(super) fn dyn_type_pattern(&mut self, depth: usize) -> WireResult<DynTypePattern> {
         self.dyn_pattern_node(depth)?;
         Ok(match self.u8()? {
             0 => DynTypePattern::Concrete(self.ty(depth + 1)?),

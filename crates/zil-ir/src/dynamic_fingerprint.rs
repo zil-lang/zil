@@ -449,7 +449,7 @@ pub(super) fn encode_dyn_call_kind(b: &mut impl FingerprintSink, value: &CallKin
     }
 }
 
-fn encode_dyn_self_pattern(b: &mut impl FingerprintSink, pattern: &DynSelfPattern) {
+pub(super) fn encode_dyn_self_pattern(b: &mut impl FingerprintSink, pattern: &DynSelfPattern) {
     encode_declaration_id(b, &pattern.declaration);
     encode_len(b, pattern.arguments.len());
     for actual in &pattern.arguments {
@@ -469,7 +469,7 @@ fn encode_dyn_self_pattern(b: &mut impl FingerprintSink, pattern: &DynSelfPatter
         }
     }
 }
-fn encode_dyn_const_pattern(b: &mut impl FingerprintSink, pattern: &DynConstPattern) {
+pub(super) fn encode_dyn_const_pattern(b: &mut impl FingerprintSink, pattern: &DynConstPattern) {
     match pattern {
         DynConstPattern::Value(value) => {
             b.push(0);
@@ -481,7 +481,7 @@ fn encode_dyn_const_pattern(b: &mut impl FingerprintSink, pattern: &DynConstPatt
         }
     }
 }
-fn encode_dyn_type_pattern(b: &mut impl FingerprintSink, pattern: &DynTypePattern) {
+pub(super) fn encode_dyn_type_pattern(b: &mut impl FingerprintSink, pattern: &DynTypePattern) {
     match pattern {
         DynTypePattern::Concrete(ty) => {
             b.push(0);
