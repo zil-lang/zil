@@ -118,6 +118,12 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                 Ok((store, owner))
             }
             Type::ErrorUnion { error: e, result } => {
+                if crate::nested_store::protocol_payload(ty).is_some() {
+                    crate::nested_store::protocol(module, ty, budget)?;
+                    let (a, ao) = walk(module, e, budget)?;
+                    let (b, bo) = walk(module, result, budget)?;
+                    return Ok((a || b, ao || bo));
+                }
                 let owning_failure = matches!(result.as_ref(),Type::Managed(t) if matches!(t.as_ref(),Type::Task{..}))
                     && matches!(e.as_ref(),Type::Package{name,fields} if name.starts_with("@std.task:v1:TaskCreateFailure:") && matches!(fields.as_slice(),[(reason,_),(inputs,Type::Tuple(_))] if reason=="reason" && inputs=="inputs"));
                 if owning_failure {

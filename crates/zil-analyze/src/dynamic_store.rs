@@ -48,6 +48,9 @@ pub(super) fn product_carrier(
     element: &Type,
     budget: &mut Budget,
 ) -> CompileResult<()> {
+    if super::nested_store::selected(element) {
+        return super::nested_store::carrier(module, element, budget);
+    }
     product_element(element, budget)?;
     let Type::Package { name, .. } = element else {
         unreachable!("independently admitted Product")
@@ -184,6 +187,9 @@ pub(super) fn ordinary_owned(
     let Type::OwnedStore { element } = payload.as_ref() else {
         return Err(super::bad("ordinary Product Store payload is absent"));
     };
+    if super::nested_store::selected(element) {
+        return super::nested_store::carrier(module, element, budget);
+    }
     budget.type_work(element, true, WORK)?;
     let Type::Package { name, fields } = element.as_ref() else {
         return Err(super::bad(

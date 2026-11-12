@@ -104,6 +104,13 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> CompileRe
             return Ok(true);
         }
         match ty {
+            Type::OwnedStore { .. } if b.nested_store_windows => return Ok(true),
+            Type::Desc(payload)
+                if b.nested_store_windows
+                    && matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. }) =>
+            {
+                return Ok(true);
+            }
             // Their actual capture/retained declarations can carry targets
             // outside this type spelling. Keep their functions in the proof.
             Type::BorrowedStorage { .. }
@@ -418,6 +425,9 @@ pub(super) struct Target {
     pub stored: Vec<PlaceProjection>,
     /// Manager-inline path remains pinned independently of the heap element.
     pub place: Vec<PlaceProjection>,
+    /// Each entry is the actual inline path from a parent heap element
+    /// to its next managed Store head. Order preserves every heap boundary.
+    pub heap_parents: Vec<Vec<PlaceProjection>>,
     pub heap_element: Option<Vec<PlaceProjection>>,
 }
 type Targets = BTreeSet<Target>;
@@ -603,6 +613,7 @@ pub(super) struct Facts {
     external_after: BTreeMap<(u32, Path), Vec<Target>>,
     capture_after: BTreeMap<Path, Vec<Target>>,
     pub apart: BTreeSet<(Target, Target)>,
+    head_accesses: BTreeMap<Target, bool>,
     complete: bool,
     returned_enum_variants: enum_address::Variants,
     enum_values: BTreeMap<ValueId, enum_address::Variants>,
@@ -631,6 +642,9 @@ pub(super) fn target_width(target: &Target) -> usize {
         .len()
         .saturating_add(target.place.len())
         .saturating_add(target.heap_element.as_ref().map_or(0, Vec::len))
+        .saturating_add(target.heap_parents.iter().fold(0usize, |n, path| {
+            n.saturating_add(path.len()).saturating_add(1)
+        }))
 }
 fn target_work(t: &Targets, b: &mut Budget) -> CompileResult<()> {
     fee(b, t.len())?;
@@ -902,6 +916,9 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
         for root in row {
             fee(b, target_width(root).saturating_add(1))?;
         }
+    }
+    for target in f.head_accesses.keys() {
+        fee(b, target_width(target).saturating_add(1))?;
     }
     for (left, right) in &f.apart {
         fee(
@@ -2348,6 +2365,7 @@ fn seed_environment(
                 base,
                 stored: path.clone(),
                 place: Vec::new(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             };
             let id = loans.len();
@@ -2414,12 +2432,26 @@ fn seed_value(
     b: &mut Budget,
 ) -> CompileResult<Value> {
     let mut value = Value::default();
+    if b.nested_store_windows
+        && matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(),Type::OwnedStore{..}|Type::ByteBuffer|Type::Record{..}))
+    {
+        fee(b, 1)?;
+        value.store_description.targets.insert(Target {
+            retained_port: None,
+            base,
+            stored: vec![],
+            place: vec![],
+            heap_parents: vec![],
+            heap_element: None,
+        });
+    }
     if let Type::Address { mutable, .. } = ty {
         let target = Target {
             retained_port: None,
             base,
             stored: Vec::new(),
             place: Vec::new(),
+            heap_parents: Vec::new(),
             heap_element: None,
         };
         let id = loans.len();
@@ -2445,6 +2477,7 @@ fn seed_value(
                 base,
                 stored: path.clone(),
                 place: Vec::new(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             };
             fee(b, path.len().saturating_mul(2).saturating_add(3))?;
@@ -2481,6 +2514,7 @@ fn seed_value(
                 base,
                 stored: path.clone(),
                 place: Vec::new(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             };
             let id = loans.len();
@@ -2519,6 +2553,7 @@ fn seed_value(
                 base,
                 stored: decl.path.clone(),
                 place: Vec::new(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             };
             let id = loans.len();
@@ -2858,6 +2893,9 @@ fn substitute(
     } else if source.stored.is_empty() {
         let mut out = Permission::default();
         union(&mut out, &value.pointer, b)?;
+        if b.nested_store_windows {
+            union(&mut out, &value.store_description, b)?;
+        }
         out
     } else if !value.environment.is_empty() {
         ordered(b, value.environment.len(), source.stored.len())?;
@@ -2905,14 +2943,30 @@ fn substitute(
             )?;
             let mut target = target.clone();
             if let Some(heap) = &mut target.heap_element {
-                if source.heap_element.is_some() {
-                    return Err(failure(
-                        "nested Store element summary is outside this profile",
-                    ));
-                }
                 heap.extend(&source.place);
+                if let Some(element) = &source.heap_element {
+                    fee(
+                        b,
+                        target_width(source).saturating_add(target_width(&target)),
+                    )?;
+                    let parent = target.heap_element.take().expect("actual parent element");
+                    target.heap_parents.push(parent);
+                    target
+                        .heap_parents
+                        .extend(source.heap_parents.iter().cloned());
+                    target.heap_element = Some(element.clone());
+                }
             } else {
+                fee(
+                    b,
+                    source.heap_parents.iter().fold(0usize, |n, path| {
+                        n.saturating_add(path.len()).saturating_add(1)
+                    }),
+                )?;
                 target.place.extend(&source.place);
+                target
+                    .heap_parents
+                    .extend(source.heap_parents.iter().cloned());
                 target.heap_element = source.heap_element.clone();
             }
             ordered(b, targets.len(), target_width(&target))?;
@@ -3101,6 +3155,7 @@ fn transfer(
                 base: HoldRoot::Static,
                 stored: Vec::new(),
                 place: Vec::new(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             });
         }
@@ -3152,6 +3207,7 @@ fn transfer(
                 base: state.capture_views.get(local).copied().map_or(HoldRoot::Local(*local), HoldRoot::Capture),
                 stored: Vec::new(),
                 place: path.clone(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             });
         }
@@ -3219,6 +3275,7 @@ fn transfer(
                 base,
                 stored: Vec::new(),
                 place: Vec::new(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             });
             if environment_value(module, &f.locals[local.0 as usize].ty, b)? {
@@ -3711,7 +3768,7 @@ fn transfer(
             out.pointer.targets.insert(Target {
                 retained_port: None,
                 base: HoldRoot::Capture(*index),
-                stored: Vec::new(), place: Vec::new(), heap_element: None,
+                stored: Vec::new(), place: Vec::new(), heap_parents: Vec::new(), heap_element: None,
             });
         }
         InstructionKind::BorrowCapture {
@@ -3736,6 +3793,7 @@ fn transfer(
                 base: HoldRoot::Capture(*index),
                 stored: vec![],
                 place: vec![],
+                heap_parents: Vec::new(),
                 heap_element: None,
             });
         }
@@ -3757,6 +3815,7 @@ fn transfer(
                         base: HoldRoot::Local(*callee),
                         stored: vec![],
                         place: vec![],
+                        heap_parents: Vec::new(),
                         heap_element: None,
                     });
                 }
@@ -3878,7 +3937,8 @@ fn transfer(
             // no element permission until the checked Store borrow.
             union(&mut out.store_description, &get(*address)?.pointer, b)?;
         }
-        InstructionKind::OwnedStoreBorrow { store, .. } if b.store_option_results => {
+        InstructionKind::OwnedStoreBorrow { store, .. }
+        | InstructionKind::OwnedStoreBorrowMut { store, .. } if b.store_option_results => {
             let description = &get(*store)?.store_description;
             if description.targets.is_empty() {
                 return Err(failure(
@@ -3886,13 +3946,15 @@ fn transfer(
                 ));
             }
             for source in &description.targets {
-                if source.heap_element.is_some() {
-                    return Err(failure(
-                        "nested Store element window is outside this profile",
-                    ));
-                }
                 fee(b, target_width(source).saturating_add(1))?;
                 let mut target = source.clone();
+                if let Some(parent) = target.heap_element.take() {
+                    if !b.nested_store_windows {
+                        return Err(failure("nested Store window lacks complete recursive resource qualification"));
+                    }
+                    fee(b, parent.len().saturating_add(1))?;
+                    target.heap_parents.push(parent);
+                }
                 target.heap_element = Some(Vec::new());
                 ordered(b, out.pointer.targets.len(), target_width(&target))?;
                 out.pointer.targets.insert(target);
@@ -4046,6 +4108,67 @@ fn transfer(
         }
     }
     capture_after::invoke(module, f, i, state, values, summaries, slot_ids, loans, b)?;
+    if b.nested_store_windows
+        && let Some(result) = i.result
+        && let Type::Desc(payload) = value_type(f, result)?
+        && matches!(
+            payload.as_ref(),
+            Type::OwnedStore { .. } | Type::ByteBuffer | Type::Record { .. }
+        )
+    {
+        let source = match i.kind {
+            InstructionKind::DescribeLocal { local } => {
+                if f.locals.get(local.0 as usize).map(|local| &local.ty)
+                    != Some(&Type::Managed(payload.clone()))
+                {
+                    return Err(failure(
+                        "Store description lacks its actual owning local head",
+                    ));
+                }
+                Some((HoldRoot::Local(local), vec![]))
+            }
+            InstructionKind::DescribePackageField { local, index } => {
+                let Some(Type::Package { fields, .. }) =
+                    f.locals.get(local.0 as usize).map(|local| &local.ty)
+                else {
+                    return Err(failure("Store description field lacks an actual Package"));
+                };
+                fee(b, fields.len())?;
+                if fields.get(index as usize).map(|(_, field)| field)
+                    != Some(&Type::Managed(payload.clone()))
+                {
+                    return Err(failure(
+                        "Store description differs from its actual managed field",
+                    ));
+                }
+                Some((HoldRoot::Local(local), vec![PlaceProjection::Field(index)]))
+            }
+            InstructionKind::DescribeCapture { index } => {
+                let actual = f
+                    .environment
+                    .and_then(|id| module.closures.get(id.0 as usize))
+                    .and_then(|definition| definition.captures.get(index as usize));
+                if actual != Some(&Type::Managed(payload.clone())) {
+                    return Err(failure(
+                        "Store description capture is not its actual owning head",
+                    ));
+                }
+                Some((HoldRoot::Capture(index), vec![]))
+            }
+            _ => None,
+        };
+        if let Some((base, place)) = source {
+            fee(b, place.len().saturating_add(1))?;
+            out.store_description.targets.insert(Target {
+                retained_port: None,
+                base,
+                stored: vec![],
+                place,
+                heap_parents: vec![],
+                heap_element: None,
+            });
+        }
+    }
     if let Some(permission) = owned_byte_views::seed_description(module, f, i, values, b)? {
         out.store_description = permission;
     }
@@ -4081,7 +4204,11 @@ fn transfer(
                 | InstructionKind::CallClosureBorrowed { .. }
                 | InstructionKind::CallClosureShared { .. }
                 | InstructionKind::CallClosureMut { .. }
-        ) || ordinary_error_borrow(f, i, b)?
+        ) || b.nested_store_windows
+            && matches!(i.kind, InstructionKind::OwnedStoreBorrow { .. })
+            || b.store_option_results
+                && matches!(i.kind, InstructionKind::OwnedStoreBorrowMut { .. })
+            || ordinary_error_borrow(f, i, b)?
             || pure_copy::ordinary_package_borrow(f, i, b)?
             || owned_byte_views::instruction(module, f, i, b)?)
         && matches!(value_type(f, result)?, Type::Address { .. })
@@ -4340,6 +4467,9 @@ fn active(
         if let Some(value) = value {
             active_loans_union(&mut direct, &value.pointer, b)?;
             active_loans_union(&mut direct, &value.held, b)?;
+            if b.nested_store_windows {
+                active_loans_union(&mut direct, &value.store_description, b)?;
+            }
             if b.task_borrowed_results {
                 for permission in value.task_ports.values() {
                     active_loans_union(&mut direct, permission, b)?;
@@ -4373,6 +4503,9 @@ fn active(
         active_loans_union(&mut direct, &value.pointer, b)?;
         if !value.environment.is_empty() {
             active_loans_union(&mut direct, &value.held, b)?;
+        }
+        if b.nested_store_windows {
+            active_loans_union(&mut direct, &value.store_description, b)?;
         }
         for leaf in value.slots.values() {
             active_loans_union(&mut direct, leaf, b)?;
@@ -4412,6 +4545,9 @@ fn active_by_permission(
         if let Some(value) = value {
             union(&mut direct, &value.pointer, b)?;
             union(&mut direct, &value.held, b)?;
+            if b.nested_store_windows {
+                union(&mut direct, &value.store_description, b)?;
+            }
             if b.task_borrowed_results {
                 for permission in value.task_ports.values() {
                     union(&mut direct, permission, b)?;
@@ -4444,6 +4580,9 @@ fn active_by_permission(
         union(&mut direct, &value.pointer, b)?;
         if !value.environment.is_empty() {
             union(&mut direct, &value.held, b)?;
+        }
+        if b.nested_store_windows {
+            union(&mut direct, &value.store_description, b)?;
         }
         for leaf in value.slots.values() {
             union(&mut direct, leaf, b)?;
@@ -4706,6 +4845,24 @@ fn instruction_live(
     Ok(after)
 }
 
+fn record_head_access(
+    into: &mut BTreeMap<Target, bool>,
+    permission: &Permission,
+    write: bool,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    fee(b, permission.targets.len())?;
+    for target in &permission.targets {
+        if !matches!(target.base, HoldRoot::Parameter(_)) {
+            continue;
+        }
+        ordered(b, into.len(), target_width(target))?;
+        fee(b, target_width(target).saturating_add(1))?;
+        *into.entry(target.clone()).or_default() |= write;
+    }
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 fn windows(
     module: &TypedModule,
@@ -4720,6 +4877,7 @@ fn windows(
     summaries: &[Facts],
     apart: &mut BTreeSet<(Target, Target)>,
     byte_reads: &mut Vec<Target>,
+    head_accesses: &mut BTreeMap<Target, bool>,
     b: &mut Budget,
 ) -> CompileResult<()> {
     // A module marker only schedules this actual per-function inventory.
@@ -4858,6 +5016,7 @@ fn windows(
                                     .map_or(HoldRoot::Local(*local), HoldRoot::Capture),
                                 stored: Vec::new(),
                                 place: path.clone(),
+                                heap_parents: Vec::new(),
                                 heap_element: None,
                             }]),
                             loans: Loans::new(),
@@ -4872,6 +5031,7 @@ fn windows(
                                 base: local_capture_base(&state, *local, b)?,
                                 stored: Vec::new(),
                                 place: path.clone(),
+                                heap_parents: Vec::new(),
                                 heap_element: None,
                             }]),
                             loans: Loans::new(),
@@ -4886,6 +5046,7 @@ fn windows(
                                 base: local_capture_base(&state, *local, b)?,
                                 stored: Vec::new(),
                                 place: Vec::new(),
+                                heap_parents: Vec::new(),
                                 heap_element: None,
                             }]),
                             loans: Loans::new(),
@@ -4902,6 +5063,7 @@ fn windows(
                                 base: local_capture_base(&state, *local, b)?,
                                 stored: Vec::new(),
                                 place: vec![PlaceProjection::Field(*index)],
+                                heap_parents: Vec::new(),
                                 heap_element: None,
                             }]),
                             loans: Loans::new(),
@@ -4926,6 +5088,7 @@ fn windows(
                                 base: local_capture_base(&state, *local, b)?,
                                 stored: Vec::new(),
                                 place: vec![PlaceProjection::Field(*index)],
+                                heap_parents: Vec::new(),
                                 heap_element: None,
                             }]),
                             loans: Loans::new(),
@@ -4954,6 +5117,48 @@ fn windows(
                             access.check(&source.pointer, true, apart, b)?;
                         }
                     }
+                    InstructionKind::OwnedStoreReserve { store, .. }
+                    | InstructionKind::OwnedStorePush { store, .. }
+                    | InstructionKind::OwnedStorePop { store }
+                    | InstructionKind::OwnedStoreBorrow { store, .. }
+                    | InstructionKind::OwnedStoreBorrowMut { store, .. }
+                    | InstructionKind::OwnedStoreLen { store }
+                    | InstructionKind::OwnedStoreCapacity { store }
+                        if b.nested_store_windows =>
+                    {
+                        let actual = &values[store.0 as usize].store_description;
+                        if actual.targets.is_empty() {
+                            return Err(failure("Store operation has no actual manager source"));
+                        }
+                        let write = matches!(
+                            i.kind,
+                            InstructionKind::OwnedStoreReserve { .. }
+                                | InstructionKind::OwnedStorePush { .. }
+                                | InstructionKind::OwnedStorePop { .. }
+                                | InstructionKind::OwnedStoreBorrowMut { .. }
+                        );
+                        access.check(actual, write, apart, b)?;
+                        record_head_access(head_accesses, actual, write, b)?;
+                    }
+                    InstructionKind::DropManaged { local }
+                    | InstructionKind::DropPackage { local }
+                    | InstructionKind::DropErrorUnion { local }
+                        if b.nested_store_windows =>
+                    {
+                        fee(b, 1)?;
+                        let actual = Permission {
+                            targets: BTreeSet::from([Target {
+                                retained_port: None,
+                                base: HoldRoot::Local(*local),
+                                stored: vec![],
+                                place: vec![],
+                                heap_parents: vec![],
+                                heap_element: None,
+                            }]),
+                            loans: Loans::new(),
+                        };
+                        access.check(&actual, true, apart, b)?;
+                    }
                     InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local }
                     | InstructionKind::Store { local, .. }
@@ -4976,6 +5181,7 @@ fn windows(
                             base: local_capture_base(&state, *local, b)?,
                             stored: Vec::new(),
                             place: Vec::new(),
+                            heap_parents: Vec::new(),
                             heap_element: None,
                         });
                         let write = !matches!(i.kind, InstructionKind::BorrowLocal { .. });
@@ -4988,6 +5194,7 @@ fn windows(
                                 base: HoldRoot::Capture(*index),
                                 stored: vec![],
                                 place: vec![],
+                                heap_parents: Vec::new(),
                                 heap_element: None,
                             }]),
                             loans: Loans::new(),
@@ -5140,6 +5347,7 @@ fn windows(
                                             base: HoldRoot::Local(*callee),
                                             stored: vec![],
                                             place: vec![],
+                                            heap_parents: Vec::new(),
                                             heap_element: None,
                                         }]),
                                         loans: Loans::new(),
@@ -5217,6 +5425,18 @@ fn windows(
                         arguments,
                     } => {
                         let callee = &module.functions[function.0 as usize];
+                        if b.nested_store_windows {
+                            for (target, write) in &summaries[function.0 as usize].head_accesses {
+                                let actual = substitute(target, arguments, values, &state, b)?;
+                                if actual.targets.is_empty() {
+                                    return Err(failure(
+                                        "callee head effect has no actual caller manager",
+                                    ));
+                                }
+                                access.check(&actual, *write, apart, b)?;
+                                record_head_access(head_accesses, &actual, *write, b)?;
+                            }
+                        }
                         for (a, (argument, parameter)) in
                             arguments.iter().zip(&callee.parameters).enumerate()
                         {
@@ -5489,6 +5709,7 @@ fn derive_cfg(
                 external_after: BTreeMap::new(),
                 capture_after: BTreeMap::new(),
                 apart: BTreeSet::new(),
+                head_accesses: BTreeMap::new(),
                 complete: false,
                 returned_enum_variants: enum_address::Variants::default(),
                 enum_values: BTreeMap::new(),
@@ -5840,6 +6061,7 @@ fn derive_cfg(
                     &summaries,
                     &mut actual.apart,
                     &mut actual.byte_reads,
+                    &mut actual.head_accesses,
                     b,
                 )?;
             }
@@ -6415,6 +6637,7 @@ fn actual_instructions(
                             | InstructionKind::OwnedStoreCapacity { .. }
                             | InstructionKind::OwnedStoreLen { .. }
                             | InstructionKind::OwnedStoreBorrow { .. }
+                            | InstructionKind::OwnedStoreBorrowMut { .. }
                             | InstructionKind::DropErrorUnion { .. }
                             | InstructionKind::DescribePackageField { .. }
                     ))
@@ -7117,6 +7340,7 @@ mod tests {
                     base: HoldRoot::Parameter(0),
                     stored: vec![PlaceProjection::Field(0)],
                     place: vec![PlaceProjection::Field(1)],
+                    heap_parents: Vec::new(),
                     heap_element: heap,
                 }]),
                 loans: Loans::new(),
@@ -8078,6 +8302,7 @@ mod tests {
                 base: HoldRoot::Local(LocalId(0)),
                 stored: vec![],
                 place: vec![],
+                heap_parents: Vec::new(),
                 heap_element: None,
             }]
         );

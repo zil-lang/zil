@@ -12,6 +12,7 @@ fn payload() -> Permission {
                 base: HoldRoot::Local(LocalId(9)),
                 stored: vec![PlaceProjection::Field(511); 8],
                 place: vec![PlaceProjection::Field(2); 8],
+                heap_parents: Vec::new(),
                 heap_element: None,
             },
             Target {
@@ -19,6 +20,7 @@ fn payload() -> Permission {
                 base: HoldRoot::Parameter(0),
                 stored: vec![PlaceProjection::ErrorArm(false)],
                 place: vec![],
+                heap_parents: Vec::new(),
                 heap_element: Some(vec![PlaceProjection::Field(4); 8]),
             },
         ]),

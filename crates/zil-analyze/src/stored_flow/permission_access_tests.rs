@@ -18,6 +18,7 @@ fn target(base: HoldRoot, field: u32) -> Target {
         base,
         stored: vec![],
         place: vec![PlaceProjection::Field(field)],
+        heap_parents: Vec::new(),
         heap_element: None,
     }
 }

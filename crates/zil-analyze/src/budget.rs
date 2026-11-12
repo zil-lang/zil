@@ -32,6 +32,7 @@ pub(super) struct Budget {
     // Derived from raw instructions; only avoids work in unaffected modules.
     pub(super) static_utf8: bool,
     pub(super) pod_stores: bool,
+    pub(super) nested_store_windows: bool,
     pub(super) pod_store_carriers: Option<super::pod_store::CarrierCache>,
     pub(super) dyn_interfaces: BTreeSet<zil_ir::DynInterfaceId>,
     pub(super) partial_depth: usize,
@@ -142,6 +143,7 @@ impl Budget {
             admitted_owned_products: BTreeMap::new(),
             static_utf8: false,
             pod_stores: false,
+            nested_store_windows: false,
             pod_store_carriers: None,
             dyn_interfaces: BTreeSet::new(),
             partial_depth: limits.max_call_depth,
@@ -709,6 +711,10 @@ fn local_value(
     {
         return super::resources::sums::admit(module, inner, budget).map(|_| false);
     }
+    if super::nested_store::protocol_payload(ty).is_some() {
+        super::nested_store::protocol(module, ty, budget)?;
+        return super::resources::sums::admit(module, ty, budget);
+    }
     if budget.sum_type(ty)? {
         return super::resources::sums::admit(module, ty, budget);
     }
@@ -934,7 +940,8 @@ pub(super) fn preflight(
             pod_store_elements.push(element);
         }
         if let Some(element) = store_element
-            && super::resources::product::nested(element)
+            && (super::resources::product::nested(element)
+                || matches!(element, Type::Package { .. }) && super::nested_store::selected(element))
         {
             budget.spend(1, "Product Store instruction admission entry")?;
             product_store_elements.push(element);
@@ -1021,6 +1028,7 @@ pub(super) fn preflight(
                     }
                 }
                 Type::ErrorUnion { .. } => {
+                    new_sum |= super::nested_store::protocol_payload(ty).is_some();
                     child.in_error = true;
                     child.pod_aggregate = true;
                     child.product_sum |= context.in_product;
@@ -1192,7 +1200,10 @@ pub(super) fn preflight(
                         budget.spend(1, "POD Store type admission entry")?;
                         pod_store_elements.push(element.as_ref());
                     }
-                    if super::resources::product::nested(element) {
+                    if super::resources::product::nested(element)
+                        || matches!(element.as_ref(), Type::Package { .. })
+                            && super::nested_store::selected(element)
+                    {
                         budget.spend(1, "Product Store type admission entry")?;
                         product_store_elements.push(element);
                     }
