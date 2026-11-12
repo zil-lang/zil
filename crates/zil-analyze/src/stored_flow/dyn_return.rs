@@ -491,7 +491,7 @@ fn contract(
                     crate::dyn_metadata::ty(ty, b)?;
                     if *mode != StoredBorrowMode::SharedAddress
                         || !matches!(ty,Type::Address{mutable:false,inner}
-                        if matches!(inner.as_ref(),Type::Slice(element) if element.as_ref()==&Type::U8))
+                        if matches!(inner.as_ref(),Type::Slice{element} if element.as_ref()==&Type::U8))
                     {
                         return Err(failure(
                             "static source has no supported complete immutable leaf",

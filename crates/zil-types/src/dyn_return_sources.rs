@@ -429,7 +429,7 @@ pub(super) fn propose<'a>(
         }
         if mode == StoredBorrowMode::SharedAddress
             && matches!(leaf,Type::Address{mutable:false,inner}
-            if matches!(inner.as_ref(),Type::Slice(element) if element.as_ref()==&Type::U8))
+            if matches!(inner.as_ref(),Type::Slice{element} if element.as_ref()==&Type::U8))
         {
             walk.pay(f.blocks.len())?;
             let mut has_static = false;
