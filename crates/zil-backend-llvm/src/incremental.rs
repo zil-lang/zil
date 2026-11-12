@@ -40,7 +40,9 @@ pub struct BackendSessionSummary {
     pub source_projection_reuses: usize,
     pub native_history_restored_units: usize,
     pub native_history_retained_epochs: usize,
-    /// Conservative sum of encoded native payloads, not process RSS.
+    /// Encoded payload of distinct opaque native products retained by this
+    /// history. Sharing inside different products remains conservatively charged.
+    /// This is not process RSS or memory held by separate session checkpoints.
     pub native_history_payload_bytes: u64,
 }
 impl BackendSession {
@@ -327,7 +329,28 @@ pub(crate) struct NativeProductHistory {
 #[derive(Debug, PartialEq, Eq)]
 struct NativeEpoch {
     units: NativeUnits,
-    payload_bytes: u64,
+}
+
+// Identity is an opaque native allocation, never a raw input/content digest.
+// Both single-epoch admission and cross-epoch eviction use this same ledger.
+// The caller keeps all counted owners alive, so allocation addresses cannot be
+// recycled during a comparison. Nothing here authorizes a compilation reuse.
+fn admit_native_payload<T: PartialEq>(
+    seen: &mut Vec<T>,
+    payload_bytes: &mut u64,
+    identity: T,
+    bytes: u64,
+    cap: u64,
+) -> bool {
+    if seen.contains(&identity) {
+        return true;
+    }
+    if bytes > cap.saturating_sub(*payload_bytes) {
+        return false;
+    }
+    *payload_bytes += bytes;
+    seen.push(identity);
+    true
 }
 impl NativeProductHistory {
     pub(crate) fn candidates(
@@ -351,7 +374,21 @@ impl NativeProductHistory {
         self.epochs.len()
     }
     pub(crate) fn payload_bytes(&self) -> u64 {
-        self.epochs.iter().map(|epoch| epoch.payload_bytes).sum()
+        let mut seen = Vec::new();
+        let mut bytes = 0;
+        for product in self.epochs.iter().flat_map(|epoch| epoch.units.values()) {
+            // At most four successful epochs with at most 64 units each.
+            // Borrow the immutable products; this does not clone native maps.
+            let admitted = admit_native_payload(
+                &mut seen,
+                &mut bytes,
+                &product.products,
+                product.products.retained_payload_bytes(),
+                u64::MAX,
+            );
+            debug_assert!(admitted, "bounded native history cannot overflow u64");
+        }
+        bytes
     }
     pub(crate) fn commit(&mut self, enabled: bool, next: NativeUnits) {
         self.commit_with_cap(enabled, next, NATIVE_HISTORY_PAYLOAD_BYTES);
@@ -364,14 +401,17 @@ impl NativeProductHistory {
         // Bound even a single new epoch. Oversize optional products are dropped
         // in deterministic owner order; compilation/verification are unaffected.
         let mut payload_bytes = 0_u64;
+        let mut seen = Vec::new();
         next.retain(|_, product| {
-            let bytes = product.products.retained_payload_bytes();
-            if bytes > cap.saturating_sub(payload_bytes) {
-                return false;
-            }
-            payload_bytes += bytes;
-            true
+            admit_native_payload(
+                &mut seen,
+                &mut payload_bytes,
+                product.products.clone(),
+                product.products.retained_payload_bytes(),
+                cap,
+            )
         });
+        drop(seen); // Release temporary Arc clones before installing the epoch.
         // Dedup uses existing opaque product identity only, never a content
         // digest or checker authority. A product is paired with another raw unit
         // only after complete current triple/items equality on an object hit.
@@ -387,13 +427,10 @@ impl NativeProductHistory {
         });
         let current = found
             .and_then(|index| self.epochs.remove(index))
-            .unwrap_or_else(|| {
-                Arc::new(NativeEpoch {
-                    units: next,
-                    payload_bytes,
-                })
-            });
+            .unwrap_or_else(|| Arc::new(NativeEpoch { units: next }));
         self.epochs.push_front(current);
+        // Recompute the union after every eviction. Dropping one epoch must
+        // not subtract a product still referenced by another retained epoch.
         while self.epochs.len() > NATIVE_HISTORY_EPOCHS || self.payload_bytes() > cap {
             self.epochs.pop_back();
         }
@@ -462,6 +499,122 @@ pub(crate) mod native_history_tests {
     }
     fn units(product: &Arc<NativeUnitProduct>) -> NativeUnits {
         [(owner(0), product.clone())].into()
+    }
+
+    #[test]
+    fn native_payload_ledger_counts_shared_allocations_once_at_64_mib_boundary() {
+        let first = Arc::new(0_u8);
+        let second = Arc::new(0_u8);
+        let third = Arc::new(0_u8);
+        let allocation = |value: &Arc<u8>| Arc::as_ptr(value);
+        let unit = 64 * 1024 * 1024;
+        let mut seen = Vec::new();
+        let mut bytes = 0;
+        assert!(admit_native_payload(
+            &mut seen,
+            &mut bytes,
+            allocation(&first),
+            unit,
+            unit * 2,
+        ));
+        assert!(admit_native_payload(
+            &mut seen,
+            &mut bytes,
+            allocation(&first.clone()),
+            unit,
+            unit * 2,
+        ));
+        assert_eq!(bytes, unit);
+        // Equal value and equal payload size do not identify an allocation.
+        assert!(admit_native_payload(
+            &mut seen,
+            &mut bytes,
+            allocation(&second),
+            unit,
+            unit * 2,
+        ));
+        assert_eq!(bytes, unit * 2);
+        assert!(!admit_native_payload(
+            &mut seen,
+            &mut bytes,
+            allocation(&third),
+            unit,
+            unit * 2,
+        ));
+        assert_eq!(bytes, unit * 2);
+        assert_eq!(seen.len(), 2);
+    }
+
+    #[test]
+    fn native_history_shared_products_survive_partial_epoch_eviction() {
+        let first = product(42);
+        let second = product(42);
+        assert_ne!(first.products, second.products);
+        let first_bytes = first.products.retained_payload_bytes();
+        let second_bytes = second.products.retained_payload_bytes();
+        assert_eq!(
+            first_bytes, second_bytes,
+            "same raw input, independent allocation"
+        );
+        let cap = first_bytes + second_bytes;
+        let mut history = NativeProductHistory::default();
+        history.commit_with_cap(true, units(&first), cap);
+        history.commit_with_cap(
+            true,
+            [(owner(0), first.clone()), (owner(1), second.clone())].into(),
+            cap,
+        );
+        assert_eq!(history.retained_epochs(), 2);
+        assert_eq!(history.payload_bytes(), cap);
+        // Replacing a current owner does not erase an older retained owner.
+        history.commit_with_cap(true, units(&second), cap);
+        assert_eq!(history.retained_epochs(), 3);
+        assert_eq!(history.payload_bytes(), cap);
+        let checkpoint = history.clone();
+        history.epochs.pop_back();
+        assert_eq!(
+            history.payload_bytes(),
+            cap,
+            "middle epoch still owns first"
+        );
+        history.epochs.pop_back();
+        assert_eq!(
+            history.payload_bytes(),
+            second_bytes,
+            "last history reference removed"
+        );
+        assert_eq!(
+            checkpoint.payload_bytes(),
+            cap,
+            "checkpoint is an independent immutable history"
+        );
+
+        // Admission also deduplicates references inside one owner map. A new
+        // wrapper around the same opaque product is not a second native payload.
+        let wrapper = Arc::new(NativeUnitProduct {
+            module: first.module.clone(),
+            products: first.products.clone(),
+        });
+        history.commit_with_cap(
+            true,
+            [(owner(0), first.clone()), (owner(1), wrapper)].into(),
+            first_bytes,
+        );
+        assert_eq!(history.retained_epochs(), 1);
+        assert_eq!(history.epochs.front().unwrap().units.len(), 2);
+        assert_eq!(history.payload_bytes(), first_bytes);
+        history.commit_with_cap(true, units(&first), first_bytes);
+        assert_eq!(history.retained_epochs(), 2);
+        assert_eq!(history.payload_bytes(), first_bytes);
+        // Both old epochs must be removed before the distinct second product
+        // fits this cap, even though its encoded bytes equal the first's.
+        history.commit_with_cap(true, units(&second), first_bytes);
+        assert_eq!(history.retained_epochs(), 1);
+        assert_eq!(history.payload_bytes(), second_bytes);
+        assert_eq!(
+            history.candidates(&owner(0)).0.unwrap().products,
+            second.products
+        );
     }
 
     #[test]
