@@ -1052,12 +1052,9 @@ pub(super) fn preflight(
             }
             let mut child = context;
             match ty {
-                Type::BorrowedStorage { life, .. } if context.in_tuple => {
-                    budget.input(life.slots.len(), "affine compound exclusive slots")?;
-                    new_sum |= life
-                        .slots
-                        .iter()
-                        .any(|slot| slot.mode == zil_ir::StoredBorrowMode::ExclusiveAddress);
+                Type::BorrowedStorage{storage,life} if context.in_tuple || matches!(storage.as_ref(),Type::Tuple(_))=>{
+                    budget.input(life.slots.len(),"affine compound exclusive slots")?;
+                    new_sum|=life.slots.iter().any(|slot|slot.mode==zil_ir::StoredBorrowMode::ExclusiveAddress);
                 }
                 Type::Enum { .. } => {
                     child.in_enum = true;
@@ -1167,7 +1164,7 @@ pub(super) fn preflight(
             }
             match ty {
                 Type::BorrowedStorage { storage, .. } => {
-                    budget.stored_compound_values |= context.in_tuple;
+                    budget.stored_compound_values|=context.in_tuple || matches!(storage.as_ref(),Type::Tuple(_));
                     new_product_shape |= context.in_product && store_element.is_none();
                     super::stored_flow::qualification(module, ty, limits, budget)?;
                     budget.stored_borrows = true;

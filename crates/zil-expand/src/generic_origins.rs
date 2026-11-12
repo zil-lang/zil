@@ -867,6 +867,7 @@ pub(crate) struct Pending {
     pub(crate) item: Item,
     pub(crate) origin: Option<Origin>,
     pub(crate) source_enum_return: Option<TypeRef>,
+    pub(crate) signature_candidate: Option<crate::stored_types::SignatureCandidate>,
     pub(crate) member_calls: BTreeMap<usize, trait_instances::CallTargets>,
     pub(crate) runtime_calls: Option<BTreeMap<usize, u32>>,
 }
@@ -882,6 +883,7 @@ impl Engine<'_> {
             item,
             origin,
             source_enum_return: None,
+            signature_candidate: None,
             member_calls: BTreeMap::new(),
             runtime_calls: None,
         });

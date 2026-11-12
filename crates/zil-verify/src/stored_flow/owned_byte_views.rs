@@ -391,6 +391,11 @@ pub(super) fn value(ty: &Type, b: &mut Budget) -> Check<bool> {
     if direct {
         return Ok(true);
     }
+    if anonymous_tuple::layout(ty, b)?.is_some() {
+        // This is not the local-byte-family value route. The actual anonymous
+        // carrier has its own complete physical, loan and resource proof.
+        return Ok(false);
+    }
     if let Type::Package { fields, .. } = ty {
         b.spend(fields.len())?;
         let mut count = 0;

@@ -598,7 +598,7 @@ fn relation_inner(
                     storage.as_ref(),
                     Type::Record { .. } | Type::Package { .. } | Type::Tuple(_)
                 ) || (!life.retained.is_empty()
-                    && !matches!(storage.as_ref(), Type::Package { .. })))
+                    && !matches!(storage.as_ref(), Type::Package { .. } | Type::Tuple(_))))
                     && !pure_nominal_value(target)
                     && !super::stored_flow::enum_address::signature(target)
                     && !super::stored_flow::option_address::signature(target)
