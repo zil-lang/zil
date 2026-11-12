@@ -33,7 +33,11 @@ pub(super) fn ordinary_error_borrow(
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    pure_copy::ordinary_error_borrow(f, i, b)
+    Ok(pure_copy::ordinary_error_borrow(f, i, b)? || pure_copy::ordinary_resource_place(f, i, b)?)
+}
+
+pub(super) fn ordinary_package_borrow(f: &TypedFunction,i:&Instruction,b:&mut Budget)->CompileResult<bool> {
+    pure_copy::ordinary_package_borrow(f,i,b)
 }
 
 /// These observations transport shared address permissions in this ledger,
@@ -3058,7 +3062,7 @@ fn transfer(
             fee(b, path.len().saturating_add(1))?;
             out.pointer.targets.insert(Target {
                 retained_port: None,
-                base: HoldRoot::Local(*local),
+                base: state.capture_views.get(local).copied().map_or(HoldRoot::Local(*local), HoldRoot::Capture),
                 stored: Vec::new(),
                 place: path.clone(),
                 heap_element: None,
@@ -3711,6 +3715,16 @@ fn transfer(
                 b,
             )?;
         }
+        InstructionKind::DescribePackageField { local, index }
+            if pure_copy::ordinary_package_description(f, i, b)? => {
+            fee(b, 2)?;
+            let base = state.capture_views.get(local).copied()
+                .map_or(HoldRoot::Local(*local), HoldRoot::Capture);
+            out.held.targets.insert(Target {
+                retained_port: None, base, stored: Vec::new(),
+                place: vec![PlaceProjection::Field(*index)], heap_element: None,
+            });
+        }
         InstructionKind::DescribeLocal { local } if b.stored_owned_fixed => {
             owned::describe(&mut out, HoldRoot::Local(*local), b)?;
         }
@@ -3744,6 +3758,10 @@ fn transfer(
             ordered(b, state.locals.len(), 0)?;
             state.locals.remove(local);
             clear_local_holes(state, *local, b)?;
+        }
+        InstructionKind::DescribeAddress { address }
+            if owned::scalar_description(f, i, b)? => {
+            union(&mut out.held, &get(*address)?.pointer, b)?;
         }
         InstructionKind::DescribeAddress { address }
             if b.store_option_results || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
@@ -3819,7 +3837,14 @@ fn transfer(
             out = option_transfer.unwrap();
         }
         _ if pure_copy::ordinary_owned_union(f, i, b)? => {}
-        _ if pure_copy::ordinary_package_borrow(f, i, b)? => {}
+        InstructionKind::BorrowPackageField { local, index, .. } if pure_copy::ordinary_package_borrow(f, i, b)? => {
+            fee(b,2)?;
+            out.pointer.targets.insert(Target {
+                retained_port:None,
+                base:state.capture_views.get(local).copied().map_or(HoldRoot::Local(*local),HoldRoot::Capture),
+                stored:Vec::new(),place:vec![PlaceProjection::Field(*index)],heap_element:None,
+            });
+        }
         _ if pure_copy::ordinary_package_read(f, i, b)? => {}
         _ if task_transfer.is_some() => {
             out = task_transfer.unwrap();
@@ -3947,6 +3972,7 @@ fn transfer(
                 | InstructionKind::CallClosureShared { .. }
                 | InstructionKind::CallClosureMut { .. }
         ) || ordinary_error_borrow(f, i, b)?
+            || pure_copy::ordinary_package_borrow(f, i, b)?
             || owned_byte_views::instruction(module, f, i, b)?)
         && matches!(value_type(f, result)?, Type::Address { .. })
     {
@@ -4677,7 +4703,7 @@ fn windows(
                         let actual = Permission {
                             targets: BTreeSet::from([Target {
                                 retained_port: None,
-                                base: HoldRoot::Local(*local),
+                                base: state.capture_views.get(local).copied().map_or(HoldRoot::Local(*local), HoldRoot::Capture),
                                 stored: Vec::new(),
                                 place: path.clone(),
                                 heap_element: None,
@@ -6175,8 +6201,9 @@ fn actual_instructions(
             let byte_description = owned_byte_views::description_instruction(module, f, i, b)?;
             let byte_query = byte_queries::instruction(module, f, i, b)?;
             let package_read = pure_copy::ordinary_package_read(f, i, b)?;
+            let package_description = pure_copy::ordinary_package_description(f, i, b)?;
             let error_borrow = ordinary_error_borrow(f, i, b)?;
-            ordinary_observations |= package_read || error_borrow || byte_view;
+            ordinary_observations |= package_read || package_description || error_borrow || byte_view;
             let enum_operation = enum_address::instruction(module, f, i, b)?;
             let owned_operation = (b.stored_owned_fixed
                 || matches!(i.kind, InstructionKind::ReadDesc { .. })
@@ -6192,6 +6219,7 @@ fn actual_instructions(
                 && !byte_view
                 && !byte_description
                 && !package_read
+                && !package_description
                 && !error_borrow
                 && !(b.task_borrowed_results && task_address::operation(&i.kind))
                 && !(b.store_option_results
@@ -6472,6 +6500,10 @@ fn actual_instructions(
                         return Err(failure("field base is not an actual Address"));
                     };
                     let inner = carrier(inner).map_or(inner.as_ref(), |(storage, _)| storage);
+                    let inner = if let Type::Managed(payload) = inner {
+                        if !*mutable && super::stored_callables::resource_payload(payload,b)? { payload.as_ref() }
+                        else { return Err(failure("resource field observation requires an actual shared scalar payload")); }
+                    } else { inner };
                     let child = match inner {
                         Type::Record { fields, .. } | Type::Package { fields, .. } => {
                             fields.get(*index as usize).map(|(_, t)| t)

@@ -137,28 +137,34 @@ pub(super) fn ordinary_package_borrow(
     else {
         return Ok(false);
     };
-    if !b.store_option_results {
-        return Ok(false);
-    }
-    let Some(Type::Package { fields, .. }) = f.locals.get(local.0 as usize).map(|l| &l.ty) else {
-        return Ok(false);
-    };
-    let Some((_, field)) = fields.get(index as usize) else {
-        return Ok(false);
-    };
-    let Type::Package {
-        fields: children, ..
-    } = field
-    else {
+    let parent = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| failure("borrowed Package local absent"))?
+        .ty;
+    let Type::Package { fields, .. } = resources::package_storage(parent) else {
         return Ok(false);
     };
+    let field = &fields
+        .get(index as usize)
+        .ok_or_else(|| failure("borrowed Package field absent"))?
+        .1;
     b.type_work(field, false, "ordinary borrowed Package field")?;
-    fee(b, children.len())?;
-    if !children.iter().all(|(_, child)| {
-        child.is_copy_value()
-            || matches!(child, Type::Managed(inner) if inner.as_ref() == &Type::ByteBuffer)
-    }) {
-        return Ok(false);
+    match field {
+        Type::Managed(payload)
+            if !mutable && super::super::stored_callables::resource_payload(payload, b)? => {}
+        Type::Package {
+            fields: children, ..
+        } if b.store_option_results => {
+            fee(b, children.len())?;
+            if !children.iter().all(|(_, child)| {
+                child.is_copy_value()
+                    || matches!(child,Type::Managed(inner) if inner.as_ref()==&Type::ByteBuffer)
+            }) {
+                return Ok(false);
+            }
+        }
+        _ => return Ok(false),
     }
     if !matches!(value_type(f, i.result.ok_or_else(|| failure("Package field borrow lacks result"))?)?,
         Type::Address { mutable: actual, inner } if *actual == mutable && inner.as_ref() == field)
@@ -204,6 +210,80 @@ pub(super) fn ordinary_package_read(
     if output != field {
         return Err(failure(
             "ordinary Package read result differs from its actual field",
+        ));
+    }
+    Ok(true)
+}
+
+// A weak description observes a live owning field; it does not load or copy
+// the owner or any stored pointer. The product ledger checks its live debt.
+pub(super) fn ordinary_package_description(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::DescribePackageField { local, index } = i.kind else {
+        return Ok(false);
+    };
+    let parent = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| failure("described Package local absent"))?
+        .ty;
+    let Type::Package { fields, .. } = resources::package_storage(parent) else {
+        return Ok(false);
+    };
+    let field = &fields
+        .get(index as usize)
+        .ok_or_else(|| failure("described Package field absent"))?
+        .1;
+    let Type::Managed(payload) = field else {
+        return Ok(false);
+    };
+    if !super::super::stored_callables::resource_payload(payload, b)? {
+        return Ok(false);
+    }
+    b.type_work(payload, false, "actual Package resource description")?;
+    if !matches!(value_type(f,i.result.ok_or_else(||failure("Package description result absent"))?)?, Type::Desc(actual) if actual == payload)
+    {
+        return Err(failure(
+            "Package description differs from actual owning field",
+        ));
+    }
+    Ok(true)
+}
+
+// The actual Product/Sum ledger checks every selected owning ancestor live.
+// This produces only the address of the field, never its owning value.
+pub(super) fn ordinary_resource_place(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::BorrowPlaceLocal {
+        local,
+        path,
+        mutable: false,
+    } = &i.kind
+    else {
+        return Ok(false);
+    };
+    let parent = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| failure("observed owner local absent"))?
+        .ty;
+    let field = slot(parent, path, b)?;
+    let Type::Managed(payload) = field else {
+        return Ok(false);
+    };
+    if !super::super::stored_callables::resource_payload(payload, b)? {
+        return Ok(false);
+    }
+    if !matches!(value_type(f,i.result.ok_or_else(||failure("owner observation result absent"))?)?,Type::Address{mutable:false,inner} if inner.as_ref()==field)
+    {
+        return Err(failure(
+            "owner observation address differs from actual complete field",
         ));
     }
     Ok(true)
@@ -304,13 +384,25 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Compi
         }
         InstructionKind::ErrorTag { value } | InstructionKind::ReadErrorUnion { value, .. } => {
             let source = value_type(f, *value)?;
-            if !pure(source, b, 0)? { return Err(failure("pure error observation retains actual targets")); }
-            let Type::ErrorUnion { error, result: success } = source else {
+            if !pure(source, b, 0)? {
+                return Err(failure("pure error observation retains actual targets"));
+            }
+            let Type::ErrorUnion {
+                error,
+                result: success,
+            } = source
+            else {
                 return Err(failure("pure error observation lacks its actual union"));
             };
             match i.kind {
                 InstructionKind::ErrorTag { .. } => &Type::Bool,
-                InstructionKind::ReadErrorUnion { is_error, .. } => if is_error { error.as_ref() } else { success.as_ref() },
+                InstructionKind::ReadErrorUnion { is_error, .. } => {
+                    if is_error {
+                        error.as_ref()
+                    } else {
+                        success.as_ref()
+                    }
+                }
                 _ => unreachable!(),
             }
         }
@@ -646,7 +738,9 @@ pub(super) fn ordinary_error_borrow(
     } else {
         (result.as_ref(), error.as_ref())
     };
-    if !matches!(companion, Type::Package { .. }) || !ordinary_union_shape(parent, b)? {
+    if !pure(parent, b, 0)?
+        && (!matches!(companion, Type::Package { .. }) || !ordinary_union_shape(parent, b)?)
+    {
         return Ok(false);
     }
     b.type_work(selected, true, "ordinary Copy selected arm borrow")?;
