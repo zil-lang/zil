@@ -465,7 +465,51 @@ fn match_terms(
         _ => Ok(false),
     }
 }
-fn head_type(ty: &TypeRef, budget: &mut Budget<'_>, depth: usize) -> R<()> {
+fn life_occurs(ty: &TypeRef, name: &str, budget: &mut Budget<'_>) -> R<bool> {
+    use crate::ct_selection::Visitor;
+    struct Visit<'a, 'b, 'l> {
+        name: &'a str,
+        budget: &'b mut Budget<'l>,
+        found: bool,
+    }
+    impl Visitor for Visit<'_, '_, '_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.budget.node(span, depth).map_err(|e| vec![e])
+        }
+        fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+            self.budget.text(text, span).map_err(|e| vec![e])
+        }
+        fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
+            match &ty.kind {
+                TypeKind::Reference {
+                    lifetime: Some(name),
+                    ..
+                } => {
+                    self.text(self.name, ty.span)?;
+                    self.found |= name == self.name;
+                }
+                TypeKind::Named { args, .. } => {
+                    for arg in args {
+                        if let GenericArg::Lifetime(name) = arg {
+                            self.text(self.name, ty.span)?;
+                            self.found |= name == self.name;
+                        }
+                    }
+                }
+                _ => {}
+            }
+            crate::ct_selection::walk_type(self, ty, depth)
+        }
+    }
+    let mut visit = Visit {
+        name,
+        budget,
+        found: false,
+    };
+    visit.ty(ty, 0).map_err(|mut e| e.remove(0))?;
+    Ok(visit.found)
+}
+fn head_type(ty: &TypeRef, lives: &BTreeSet<&str>, budget: &mut Budget<'_>, depth: usize) -> R<()> {
     budget.node(ty.span, depth)?;
     match &grouped(ty).kind {
         TypeKind::Named { path, args } => {
@@ -476,30 +520,40 @@ fn head_type(ty: &TypeRef, budget: &mut Budget<'_>, depth: usize) -> R<()> {
                 ));
             }
             for arg in args {
-                let GenericArg::Type(ty) = arg else {
-                    return Err(unsupported(ty.span, "const impl head"));
-                };
-                head_type(ty, budget, depth + 1)?;
+                match arg {
+                    GenericArg::Type(ty) => head_type(ty, lives, budget, depth + 1)?,
+                    GenericArg::Lifetime(name) => {
+                        budget.text(name, ty.span)?;
+                        budget.identity_work(lives.len(), ty.span)?;
+                        if !lives.contains(name.as_str()) {
+                            return Err(error(
+                                ty.span,
+                                "impl head lifetime has no declared binder",
+                            ));
+                        }
+                    }
+                    GenericArg::Const(_) => return Err(unsupported(ty.span, "const impl head")),
+                }
             }
         }
         TypeKind::Tuple(types) => {
             for ty in types {
-                head_type(ty, budget, depth + 1)?;
+                head_type(ty, lives, budget, depth + 1)?;
             }
         }
         TypeKind::Reference { inner, .. }
         | TypeKind::Optional(inner)
-        | TypeKind::Array { element: inner, .. } => head_type(inner, budget, depth + 1)?,
+        | TypeKind::Array { element: inner, .. } => head_type(inner, lives, budget, depth + 1)?,
         TypeKind::Error { error, result } => {
-            head_type(error, budget, depth + 1)?;
-            head_type(result, budget, depth + 1)?;
+            head_type(error, lives, budget, depth + 1)?;
+            head_type(result, lives, budget, depth + 1)?;
         }
         TypeKind::Function { params, result }
         | TypeKind::ForeignFunction { params, result, .. } => {
             for ty in params {
-                head_type(ty, budget, depth + 1)?;
+                head_type(ty, lives, budget, depth + 1)?;
             }
-            head_type(result, budget, depth + 1)?;
+            head_type(result, lives, budget, depth + 1)?;
         }
         _ => {
             return Err(unsupported(
@@ -524,8 +578,16 @@ impl Index<'_> {
                 && trait_instances::head(application)
                     .is_some_and(|name| self.declarations.contains_key(name))
             {
-                head_type(&implementation.target, budget, 0)?;
-                head_type(application, budget, 0)?;
+                let mut lives = BTreeSet::new();
+                for parameter in &implementation.generics {
+                    budget.node(parameter.span, 0)?;
+                    if matches!(parameter.kind, GenericParamKind::Lifetime) {
+                        budget.text(&parameter.name, parameter.span)?;
+                        lives.insert(parameter.name.as_str());
+                    }
+                }
+                head_type(&implementation.target, &lives, budget, 0)?;
+                head_type(application, &lives, budget, 0)?;
                 heads.push((item, implementation, application));
             }
         }
@@ -536,9 +598,14 @@ impl Index<'_> {
                 budget.text(&parameter.name, parameter.span)?;
                 budget.ty(&implementation.target)?;
                 budget.ty(application)?;
-                if !callable::refers(&implementation.target, &parameter.name)
-                    && !callable::refers(application, &parameter.name)
-                {
+                let occurs = if matches!(parameter.kind, GenericParamKind::Lifetime) {
+                    life_occurs(&implementation.target, &parameter.name, budget)?
+                        || life_occurs(application, &parameter.name, budget)?
+                } else {
+                    callable::refers(&implementation.target, &parameter.name)
+                        || callable::refers(application, &parameter.name)
+                };
+                if !occurs {
                     return Err(error(
                         parameter.span,
                         "impl binder is not constrained by its nominal head",
@@ -693,8 +760,17 @@ fn overlap_terms(
             if a == b && x.len() == y.len() =>
         {
             for (a, b) in x.iter().zip(y) {
+                if matches!((a, b), (GenericArg::Lifetime(_), GenericArg::Lifetime(_))) {
+                    // Universally quantified regions can always coincide. No
+                    // region spelling or distinct formal proves impl apartness.
+                    budget.node(left.span, depth)?;
+                    continue;
+                }
                 let (GenericArg::Type(a), GenericArg::Type(b)) = (a, b) else {
-                    return Err(unsupported(left.span, "const impl head coherence"));
+                    return Err(unsupported(
+                        left.span,
+                        "const or mismatched-kind impl head coherence",
+                    ));
                 };
                 if !overlap_terms(a, b, variables, found, budget, depth + 1)? {
                     return Ok(false);

@@ -812,10 +812,48 @@ impl Catalog {
                 .items
                 .get(owner)
                 .ok_or_else(|| error(module.span, "dyn emitted declaration placement absent"))?;
+            if let ItemKind::Function(method) = &item.kind {
+                let origin = origins.in_module(module.id, owner, budget, item.span)?;
+                if !origin.provider {
+                    return Err(error(
+                        item.span,
+                        "dyn generated provider lacks actual member provenance",
+                    ));
+                }
+                let member = origin.id(item.span)?;
+                for (table, vtable) in self.vtables.iter().enumerate() {
+                    for (slot, provider) in vtable.providers.iter().enumerate() {
+                        budget.node(item.span, 0)?;
+                        if let Some(name) = &provider.generated {
+                            budget.text(name, item.span)?;
+                            budget.text(&method.name, item.span)?;
+                            if provider.declaration == member && *name == method.name {
+                                if self
+                                    .targets
+                                    .iter()
+                                    .any(|prior| prior.table == table && prior.slot == slot)
+                                {
+                                    return Err(error(
+                                        item.span,
+                                        "dyn generated provider has duplicate emitted targets",
+                                    ));
+                                }
+                                self.targets.push(Target {
+                                    table,
+                                    slot,
+                                    module: module.id,
+                                    function,
+                                });
+                            }
+                        }
+                    }
+                }
+                continue;
+            }
             let ItemKind::Impl(implementation) = &item.kind else {
                 return Err(error(
                     item.span,
-                    "dyn method emission is not owned by an actual impl",
+                    "dyn method emission has no actual provider declaration",
                 ));
             };
             let member = implementation
@@ -920,10 +958,26 @@ impl Catalog {
                     index,
                 },
                 interface: self.interface_id(table.interface, budget, span)?,
-                self_type: lower_type(&table.self_type, budget)?,
+                self_type: if let Some(actual) = &table.qualified_self {
+                    crate::stored_types::pay_type(actual, budget, span, 0)?;
+                    actual.clone()
+                } else {
+                    lower_type(&table.self_type, budget)?
+                },
                 implementation: declaration_id(table.implementation, origins, budget, span)?,
-                actuals: Vec::new(),
-                ports: Vec::new(),
+                actuals: {
+                    budget.identity_work(table.actuals.len(), span)?;
+                    table.actuals.clone()
+                },
+                ports: {
+                    for row in &table.ports {
+                        budget.node(span, 0)?;
+                        for source in &row.sources {
+                            budget.identity_work(source.path.len().saturating_add(1), span)?;
+                        }
+                    }
+                    table.ports.clone()
+                },
                 entries,
                 cleanup: None,
                 owned_storage: self
@@ -1011,7 +1065,12 @@ impl Catalog {
                         .find(|m| m.module_id == entry.module)
                         .and_then(|m| m.functions.iter().find(|f| f.id == entry.function))
                         .ok_or_else(|| error(span, "dyn actual provider body is absent"))?;
-                    prove_scalar_read(provider, table, slot, &snapshot, budget)?;
+                    if interface.context.is_none() {
+                        prove_scalar_read(provider, table, slot, &snapshot, budget)?;
+                    }
+                    // Context providers carry declaration-owned explicit upper
+                    // contracts. Types and both kernels inspect the actual CFG;
+                    // a source syntax shape is not their authority.
                 }
             }
         }
@@ -1038,7 +1097,11 @@ impl Catalog {
             }
             fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
                 self.found |= matches!(ty.kind, TypeKind::Dyn { .. });
-                self.found |= self.catalog.context_type(ty, self.budget).map_err(|e| vec![e])?.is_some();
+                self.found |= self
+                    .catalog
+                    .context_type(ty, self.budget)
+                    .map_err(|e| vec![e])?
+                    .is_some();
                 crate::ct_selection::walk_type(self, ty, depth)
             }
         }
@@ -1158,7 +1221,9 @@ impl Catalog {
         depth: usize,
     ) -> R<zil_ir::Type> {
         budget.node(ty.span, depth)?;
-        if let Some(actual) = self.context_type(ty, budget)? { return Ok(actual); }
+        if let Some(actual) = self.context_type(ty, budget)? {
+            return Ok(actual);
+        }
         match &ty.kind {
             TypeKind::Named { path, args } if path.as_slice() == ["OwnedDyn"] => {
                 let [GenericArg::Type(target)] = args.as_slice() else {
@@ -1226,6 +1291,16 @@ impl Catalog {
                 self.require_fixed_members(declaration, budget, span)?;
                 inherited.push(self.application(reference, declaration, origins, budget)?);
             }
+            let retained_life = if let Some(context) = &source.context {
+                crate::generics::dyn_context::retained(context, budget, span)?
+            } else {
+                zil_ir::RetainedLifeShape {
+                    binder_count: 0,
+                    ports: Vec::new(),
+                    retained: Vec::new(),
+                    nominal_arguments: Vec::new(),
+                }
+            };
             let mut slots = Vec::new();
             for slot in &source.slots {
                 budget.node(slot.signature.span, 0)?;
@@ -1306,6 +1381,51 @@ impl Catalog {
                         mutable: false,
                     });
                 }
+                let mut classes = Vec::new();
+                for class in 0..retained_life.binder_count {
+                    budget.node(span, 0)?;
+                    classes.push(zil_ir::SignatureLifeClassBinding {
+                        position: zil_ir::SignatureLifeClass {
+                            base: zil_ir::StorageBase::Parameter(0),
+                            path: vec![zil_ir::LifeTypeProjection::Pointee],
+                            class,
+                        },
+                        binder: zil_ir::StorageBinder::Fixed(class),
+                    });
+                }
+                for (index, port) in retained_life.ports.iter().enumerate() {
+                    budget.node(span, 0)?;
+                    let position = zil_ir::StoragePosition {
+                        base: zil_ir::StorageBase::Parameter(0),
+                        path: vec![zil_ir::ContractProjection::RetainedPort(index as u32)],
+                    };
+                    contract
+                        .requires
+                        .as_mut()
+                        .expect("complete declaration")
+                        .push(zil_ir::DynRequirement::Read(position.clone()));
+                    let call = contract.call.as_mut().expect("complete declaration");
+                    call.reads.push(position.clone());
+                    if *mutable && port.mode == zil_ir::StoredBorrowMode::ExclusiveAddress {
+                        call.writes.push(position.clone());
+                        contract
+                            .requires
+                            .as_mut()
+                            .expect("complete declaration")
+                            .push(zil_ir::DynRequirement::Write(position.clone()));
+                    }
+                    if let Some(zil_ir::DynResultSource::Borrow { sources, .. }) =
+                        &mut contract.result
+                    {
+                        crate::stored_types::pay_type(&port.leaf, budget, span, 0)?;
+                        let compatible = port.leaf == result_type
+                            || matches!((&port.leaf, &result_type),
+                            (zil_ir::Type::Address { inner: a, .. } | zil_ir::Type::Desc(a), zil_ir::Type::Address { mutable: false, inner: z }) if a == z);
+                        if compatible {
+                            sources.push(position);
+                        }
+                    }
+                }
                 slots.push(DynSlot {
                     member: DynMember {
                         application,
@@ -1322,29 +1442,31 @@ impl Catalog {
                     result_mode: zil_ir::PassingMode::Infer,
                     call_kind: zil_ir::CallKind::Direct,
                     storage_life: Some(zil_ir::StorageLifeContract {
-                        fixed_binder_count: 0,
+                        fixed_binder_count: retained_life.binder_count,
                         invocation_binder_count: 1,
                         bindings,
-                        classes: Vec::new(),
+                        classes,
                     }),
                     contract,
                 });
             }
-            let retained_life = if let Some(context) = &source.context {
-                crate::generics::dyn_context::retained(context, budget, span)?
-            } else { zil_ir::RetainedLifeShape {
-                binder_count: 0, ports: Vec::new(), retained: Vec::new(), nominal_arguments: Vec::new(),
-            } };
-            let mut cleanup_access = zil_ir::DynCallAccess { reads: Vec::new(), writes: Vec::new() };
+            let mut cleanup_access = zil_ir::DynCallAccess {
+                reads: Vec::new(),
+                writes: Vec::new(),
+            };
             for (index, port) in retained_life.ports.iter().enumerate() {
                 budget.node(span, 0)?;
                 let position = zil_ir::StoragePosition {
                     base: zil_ir::StorageBase::Result,
-                    path: vec![zil_ir::ContractProjection::RetainedPort(u32::try_from(index)
-                        .map_err(|_| error(span, "dyn Context port ordinal overflow"))?)],
+                    path: vec![zil_ir::ContractProjection::RetainedPort(
+                        u32::try_from(index)
+                            .map_err(|_| error(span, "dyn Context port ordinal overflow"))?,
+                    )],
                 };
                 cleanup_access.reads.push(position.clone());
-                if port.mode == zil_ir::StoredBorrowMode::ExclusiveAddress { cleanup_access.writes.push(position); }
+                if port.mode == zil_ir::StoredBorrowMode::ExclusiveAddress {
+                    cleanup_access.writes.push(position);
+                }
             }
             result.push(DynInterface {
                 context: source.context.clone(),

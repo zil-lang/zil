@@ -1212,7 +1212,12 @@ impl Expander<'_> {
         }
         match &item.kind {
             s::ItemKind::Function(f) => {
+                let first = self.functions.len();
                 self.function(f, prefix, host, default);
+                if prefix.is_none() && self.functions.len() > first {
+                    let target = self.functions.last().expect("emitted provider").id;
+                    self.record_dyn_provider(&f.name, target, f.span);
+                }
             }
             s::ItemKind::Aggregate(a) => {
                 for field in &a.fields {

@@ -121,6 +121,8 @@ pub(super) mod rich_pointer;
 mod runtime_ct_phase;
 #[path = "generic_source_life.rs"]
 mod source_life;
+#[path = "generic_source_life_alpha.rs"]
+mod source_life_alpha;
 #[path = "generic_state.rs"]
 mod states;
 #[path = "generic_store_templates.rs"]
