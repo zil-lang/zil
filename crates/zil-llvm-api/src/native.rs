@@ -883,6 +883,79 @@ mod native_product_tests {
         assert_ne!(changed.bytes, cold.bytes);
     }
 
+    #[cfg(feature = "text-reference")]
+    #[test]
+    fn actual_scalar_workload_bodies_replay_without_native_fallback() {
+        unsafe extern "C" {
+            fn ZilNativeProductsMachineDiagnostics(enabled: c_int) -> c_int;
+        }
+        struct MachineDiagnostics(c_int);
+        impl Drop for MachineDiagnostics {
+            fn drop(&mut self) {
+                // SAFETY: restore this test thread's previous diagnostic flag.
+                unsafe {
+                    ZilNativeProductsMachineDiagnostics(self.0);
+                }
+            }
+        }
+        // SAFETY: explicit test-local TLS flag; no LLVM owner is accessed.
+        let _machine_diagnostics =
+            MachineDiagnostics(unsafe { ZilNativeProductsMachineDiagnostics(1) });
+        let _diagnostics = products::analysis_diagnostics_for_test();
+        let source = include_str!("../tests/fixtures/scalar-native-products.ll");
+        let attempt = |prior| NativeAttempt {
+            prior,
+            stats: crate::NativeProductStats::default(),
+            replay_failed: false,
+            products: None,
+            timings: AttemptTimings::default(),
+        };
+        let mut cold_attempt = attempt(None);
+        let (cold, _) = compile_input(
+            Input::Text(source),
+            &config(),
+            FunctionMerging::Disabled,
+            &|| false,
+            false,
+            Some(&mut cold_attempt),
+        )
+        .unwrap();
+        eprintln!("scalar cold native work: {:?}", cold_attempt.stats);
+        assert_eq!(cold_attempt.stats.available, 1);
+        assert_eq!(cold_attempt.stats.machine_function_executions, 2);
+        assert!(!cold_attempt.replay_failed);
+        let prior = cold_attempt
+            .products
+            .expect("successful scalar native products");
+        let mut warm_attempt = attempt(Some(&prior));
+        let warm_result = compile_input(
+            Input::Text(source),
+            &config(),
+            FunctionMerging::Disabled,
+            &|| false,
+            false,
+            Some(&mut warm_attempt),
+        );
+        eprintln!("scalar warm native work: {:?}", warm_attempt.stats);
+        let (warm, _) =
+            warm_result.expect("actual scalar bodies must replay in the current native context");
+        assert!(!warm_attempt.replay_failed);
+        assert_eq!(warm_attempt.stats.failed_replays, 0);
+        assert_eq!(warm_attempt.stats.machine_function_reuses, 2);
+        assert_eq!(warm_attempt.stats.machine_function_executions, 0);
+        assert_eq!(warm.bytes, cold.bytes);
+        let (ordinary, _) = compile_input(
+            Input::Text(source),
+            &config(),
+            FunctionMerging::Disabled,
+            &|| false,
+            false,
+            None,
+        )
+        .unwrap();
+        assert_eq!(warm.bytes, ordinary.bytes);
+    }
+
     #[test]
     fn native_product_scope_does_not_capture_a_reentrant_ordinary_compilation() {
         let source = module(42);
