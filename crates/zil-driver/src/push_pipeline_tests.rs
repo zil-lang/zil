@@ -323,7 +323,10 @@ impl Directory {
     /// label, False), including its variable-width private edit and positions
     /// prefix. This is the native fixture, not the fixed-width test above.
     fn native_scalar_project(&self, label: &str) -> ProjectSources {
-        assert!(matches!(label, "cold" | "private" | "positions"));
+        assert!(matches!(
+            label,
+            "cold" | "private" | "positions" | "error" | "recovery"
+        ));
         let mut main = "import io\n".to_owned();
         for i in 0..20 {
             main += &format!("import m{i}\n");
@@ -341,7 +344,15 @@ impl Directory {
         for i in 0..20 {
             let mut text = String::new();
             for j in 0..20 {
-                let delta = usize::from(label == "private" && i == 0 && j == 0);
+                let delta = if i == 0 && j == 0 {
+                    match label {
+                        "private" => 1,
+                        "recovery" => 2,
+                        _ => 0,
+                    }
+                } else {
+                    0
+                };
                 text += &format!("fn h{j}(x: i32) -> i32 {{\n    var y: i32 = x\n");
                 for k in 0..16 {
                     let a = (i + j + k) % 13 + 1 + delta;
@@ -350,7 +361,11 @@ impl Directory {
                         "    if y % 3 == 0 {{ y = (y * 2 + {a}) % 251 }} else {{ y = (y + {b}) % 251 }}\n"
                     );
                 }
-                text += "    return y\n}\n";
+                text += if label == "error" && i == 0 && j == 0 {
+                    "    return absent_name\n}\n"
+                } else {
+                    "    return y\n}\n"
+                };
             }
             text += "pub fn value(x: i32) -> i32 {\n    var total: i32 = x\n";
             for j in 0..20 {
@@ -453,6 +468,78 @@ fn native_length_changing_private_edit_reuses_exact_plain_body_owners() {
         if label == "private" {
             assert_eq!(plain.context_reuses, 1);
             assert_eq!(report.types_push_work.as_ref().unwrap().body_checks, 1);
+        }
+    }
+}
+
+#[test]
+fn native_error_recovery_bridges_raw_epochs_without_rebuilding_425_cfgs() {
+    let dir = Directory::new();
+    let options = CompileOptions {
+        push_reuse: true,
+        stop_after: Stage::Lower,
+        ..Default::default()
+    };
+    let mut session = CompilationSession::with_capacity(256);
+    let cold = dir.native_scalar_project("cold");
+    let initial = session.compile_project(&cold, &options);
+    assert_eq!(
+        initial.status,
+        ResultCategory::Success,
+        "{}",
+        initial.to_json()
+    );
+    compare(&session, &initial, &cold, &options);
+    for label in ["error", "error", "recovery"] {
+        let sources = dir.native_scalar_project(label);
+        // Fixed SHA of the ACTUAL Python native_workloads 20x20x16 snapshots,
+        // including the 10-byte error and 2-byte recovery source length changes.
+        let texts: BTreeMap<_, _> = sources
+            .modules
+            .iter()
+            .map(|unit| {
+                (
+                    Path::new(&unit.path).file_name().unwrap().to_str().unwrap(),
+                    &unit.text,
+                )
+            })
+            .collect();
+        let mut joined = String::new();
+        for (name, text) in texts {
+            joined.push_str(name);
+            joined.push('\0');
+            joined.push_str(text);
+            joined.push('\0');
+        }
+        assert_eq!(
+            Fingerprint::of(joined.as_bytes()).to_hex(),
+            if label == "error" {
+                "771eeb57eb8657ce33c8cf30a86f06a0d26198b28b7e327749e8e3ab166a2755"
+            } else {
+                "be938606be53ff583d4bfca93bfa2c6f92e0304d0edcf6422c8048552580741b"
+            }
+        );
+        let report = session.compile_project(&sources, &options);
+        compare(&session, &report, &sources, &options);
+        if label == "error" {
+            assert_ne!(report.status, ResultCategory::Success);
+            assert_eq!(report.phase, Phase::Types);
+            assert_eq!(report.verification_runs, 0);
+        } else {
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            let work = report.types_push_work.as_ref().unwrap();
+            assert_eq!(work.context_rebuilds, 0, "{}", report.to_json());
+            assert_eq!(work.sparse_batches, 1);
+            assert_eq!(work.body_checks, 1);
+            assert_eq!(work.position_rebindings, 20);
+            assert_eq!(work.retained_functions, 404);
+            assert_eq!(current(&session, &report).module.functions.len(), 425);
+            assert_eq!(report.verification_runs, 1);
         }
     }
 }
