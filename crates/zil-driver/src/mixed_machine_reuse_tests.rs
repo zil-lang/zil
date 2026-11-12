@@ -93,6 +93,21 @@ fn original_resource_closure_project_reuses_independent_private_scalar_machine()
             &options,
             &[b"D", b"S", b"O", b"M", b"?"],
         );
+        for (input, output) in [
+            (b"D", b"C".as_slice()),
+            (b"S", b"A".as_slice()),
+            (b"O", b"CB".as_slice()),
+            (b"M", b"C".as_slice()),
+        ] {
+            assert_eq!(
+                execute(&report.artifacts["executable"], input),
+                (Some(0), output.to_vec(), vec![])
+            );
+        }
+        assert_eq!(
+            execute(&report.artifacts["executable"], b"?"),
+            (Some(if index == 2 { 10 } else { 8 }), vec![], vec![])
+        );
         let work = report
             .backend_work
             .as_ref()
@@ -147,6 +162,10 @@ fn nonyield_scalar_worker_is_never_reused_as_an_ordinary_function_batch() {
         let project = dir.project(&[("main", &source)]);
         let report = session.compile_project(&project, &options);
         oracle(&session, &report, &project, &options, &[b""]);
+        assert_eq!(
+            execute(&report.artifacts["executable"], b""),
+            (Some(i32::from(index == 3)), vec![], vec![])
+        );
         let work = report.backend_work.as_ref().unwrap();
         assert!(!work.reused_machine_transforms && !work.reused_partition_recipe);
         if index <= 1 {
