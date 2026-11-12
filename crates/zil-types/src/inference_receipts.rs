@@ -529,8 +529,8 @@ mod tests {
                 fresh(&one, &limits).is_ok(),
                 "changed leaf fits; only aggregate must reject"
             );
-            let expected = fresh(&current, &limits)
-                .expect_err("aggregate N is exhausted by the edit");
+            let expected =
+                fresh(&current, &limits).expect_err("aggregate N is exhausted by the edit");
             assert_eq!(
                 prepare(&mut session, &current, &limits).err().unwrap(),
                 expected
