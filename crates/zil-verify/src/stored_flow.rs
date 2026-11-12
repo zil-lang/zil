@@ -1528,6 +1528,7 @@ pub(super) fn qualifications(
                     && !super::stored_callables::instruction(module, f, i)
                     && !returned_environment::borrowed_child(module, f, i, b)?
                     && !compound::operation(f, i, b)?
+                    && !anonymous_tuple::operation(f, i, b)?
                     && !dyn_closed::operation(module, f, i, b)?
                     && !dyn_ports::operation(module, f, i, b)?
                     && !dyn_ports::wrapper(module, f, i, b)?
@@ -1642,6 +1643,7 @@ pub(super) fn qualifications(
                 if pure_copy::operation(&i.kind)
                     && !array_index::candidate(f, i)
                     && !compound::projection(f, i, b)?
+                    && !anonymous_tuple::operation(f, i, b)?
                     && enum_address::types(module, f, i, b)?.is_none()
                     && option_address::types(module, f, i, b)?.is_none()
                     && !(b.task_sources() && task_address::wrapper_instruction(f, i, b)?)
@@ -2815,7 +2817,8 @@ fn write_sites(
                     Ok(())
                 };
             match &i.kind {
-                InstructionKind::MakeAggregate { .. } | InstructionKind::MakePackage { .. } => {
+                InstructionKind::MakeAggregate { .. } | InstructionKind::MakePackage { .. }
+                | InstructionKind::MakeOwnedTuple { .. } => {
                     if let Some((_, shape)) = qualified(vt(
                         f,
                         i.result.ok_or_else(|| err("aggregate lacks result"))?,
