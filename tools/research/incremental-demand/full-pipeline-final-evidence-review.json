@@ -1,0 +1,283 @@
+{
+  "schema": "final900-independent-evidence-review-v1",
+  "scope": "Independent read-only invocation of existing validators plus separate raw-to-summary arithmetic, parents, native oracle/output and emitted-symbol-content cross-check; not an independent review of compiler correctness, experiment implementation or language parity.",
+  "source": "900293cfd8afcd7118775e8165e1ec4f5266e3d7",
+  "tree": "e3f16832a9751f25399d4dd8e58488ed03513f54",
+  "binary_sha256": "936d7c107713c11dca86bbf196fc9a0c6ceee336ef4f57e60751543ba1817d82",
+  "head": "60db327f82e94efdbabe4f2e5dc151d26afca19e",
+  "valid": true,
+  "validator_commands": [
+    {
+      "name": "profile",
+      "command": [
+        "python",
+        "tools/research/incremental-demand/profile_validate.py",
+        "--repo",
+        ".",
+        "--run-dir",
+        "out/runs/full-pipeline-profile-o2-r7",
+        "--source",
+        "900293cfd8afcd7118775e8165e1ec4f5266e3d7",
+        "--build-receipt",
+        "out/runs/full-pipeline-final-build/candidate-build.json",
+        "--controller-exit",
+        "unknown",
+        "--output-stem",
+        "/tmp/full-pipeline-900-review-profile",
+        "--reference-fixtures",
+        "out/runs/full-pipeline-profile-o2-r6/rows.jsonl",
+        "--expect-plan-fragments",
+        "--expect-body-revision",
+        "--expect-relocated-input-revision",
+        "--expect-whole-machine",
+        "--scope-note",
+        "Frozen 900 includes plan fragments, relative inputs, mixed function lowering, shared candidate arrays, current-input whole machine reuse, and import-position input bindings. External controller response unavailable; persisted helper exit is checked independently.",
+        "--main-binary",
+        "/workspace/zil/target/release/zil"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 0.3669465240018326,
+      "log": "/tmp/full-pipeline-900-review-profile.log"
+    },
+    {
+      "name": "matched-check",
+      "command": [
+        "python",
+        "tools/research/incremental-demand/matched_validate.py",
+        "out/runs/full-pipeline-matched-check-900-r1",
+        "--write-summary",
+        "/tmp/full-pipeline-900-review-check-validation.json"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 0.5772565849983948,
+      "log": "/tmp/full-pipeline-900-review-matched-check.log"
+    },
+    {
+      "name": "matched-o2",
+      "command": [
+        "python",
+        "tools/research/incremental-demand/matched_validate.py",
+        "out/runs/full-pipeline-matched-o2-900-r1",
+        "--write-summary",
+        "/tmp/full-pipeline-900-review-o2-validation.json"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 4.498418267001398,
+      "log": "/tmp/full-pipeline-900-review-matched-o2.log"
+    }
+  ],
+  "profile": {
+    "validation": {
+      "rows": 34,
+      "measured_rows": 18,
+      "preparation_rows": 16,
+      "pairs": 17,
+      "successful_pairs": 15,
+      "safe_reject_pairs": 2,
+      "native_executions": 180,
+      "all_semantically_valid": true,
+      "all_successful_pairs_recorded_elf_llvm_sha_equal": true,
+      "all_native_actual_equal_expected": true,
+      "native_oracles_independently_recomputed": 180,
+      "oracle_bound_to_source_git_blob": true,
+      "full_cold_functions": 425,
+      "candidate_binary_physically_rechecked": true,
+      "main_binary_physically_rechecked": true
+    },
+    "controller": {
+      "persisted_helper_exit": 0,
+      "externally_reported_tool_exit": null,
+      "reported_tool_exit_origin": "Root observation supplied via --controller-exit; null means the controller response was unavailable after context truncation/session expiry. Not independently encoded by runner.",
+      "complete_log_pairs": 17,
+      "agreement": null
+    },
+    "committed_case_counters_equal_independent_replay": true
+  },
+  "matrix_modes": {
+    "check": {
+      "rows": 270,
+      "cells": 24,
+      "parent_vectors": 21,
+      "existing_native_records_checked": 0,
+      "validator_verified_blobs": 7
+    },
+    "o2": {
+      "rows": 270,
+      "cells": 24,
+      "parent_vectors": 21,
+      "existing_native_records_checked": 2808,
+      "validator_verified_blobs": 351,
+      "actual_units": {
+        "baseline": {
+          "cold_object_count": 16,
+          "cold_defined_symbol_counts": [
+            23,
+            23,
+            42,
+            42,
+            42,
+            42,
+            21,
+            21,
+            21,
+            21,
+            21,
+            21,
+            21,
+            21,
+            21,
+            21
+          ],
+          "observed_inventory_counts": {
+            "16": 78,
+            "null": 12
+          }
+        },
+        "candidate": {
+          "cold_object_count": 16,
+          "cold_defined_symbol_counts": [
+            23,
+            23,
+            42,
+            42,
+            42,
+            42,
+            21,
+            21,
+            21,
+            21,
+            21,
+            21,
+            21,
+            21,
+            21,
+            21
+          ],
+          "observed_inventory_counts": {
+            "16": 78,
+            "null": 12
+          }
+        },
+        "rust": {
+          "cold_object_count": 16,
+          "cold_defined_symbol_counts": [
+            1,
+            2,
+            2,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            3,
+            1,
+            2,
+            2,
+            2,
+            5,
+            2
+          ],
+          "observed_inventory_counts": {
+            "16": 90
+          }
+        }
+      },
+      "zil_main_candidate_llvm_elf_equal_pairs": {
+        "successful_pairs_including_named_parents": 78,
+        "executable_sha256_equal": true,
+        "llvm_text_sha256_equal": true,
+        "rust_byte_or_partition_equality_claimed": false
+      }
+    }
+  },
+  "summary_crosscheck": {
+    "cells": 48,
+    "wall_values": 288,
+    "parent_vectors": 42,
+    "parent_wall_values": 252,
+    "all_cpu_and_legacy_rss_vectors_match": true,
+    "all_current_object_count_vectors_match": true,
+    "all_six_arm_permutations_match": true,
+    "negative_cases": [
+      "check/cold: candidate 830.200 ms > main 775.875 ms",
+      "check/multi: candidate 289.290 ms > Rust 239.214 ms",
+      "check/broad: candidate 1470.706 ms > Rust 1328.574 ms",
+      "check/recovery: candidate 299.443 ms > Rust 207.615 ms",
+      "o2/cold: candidate 7843.636 ms > main 7743.671 ms",
+      "o2/cold: candidate 7843.636 ms > Rust 7789.748 ms",
+      "o2/unchanged: candidate 73.568 ms > Rust 13.932 ms",
+      "o2/private: candidate 902.955 ms > Rust 581.726 ms",
+      "o2/multi: candidate 1130.963 ms > Rust 1079.397 ms",
+      "o2/broad: candidate 6463.730 ms > main 5846.336 ms",
+      "o2/broad: candidate 6463.730 ms > Rust 6150.068 ms",
+      "o2/recovery: candidate 785.298 ms > Rust 696.138 ms"
+    ]
+  },
+  "native_evidence": {
+    "existing_matrix_records_oracle_and_raw_output_checked": 2808,
+    "existing_profile_records_independently_recomputed": 180,
+    "new_native_executions": 0,
+    "new_compiler_invocations": 0,
+    "oracle_pinned_to_source_git_bytes": true
+  },
+  "cgu_evidence": {
+    "actual_unit_references_checked": 3936,
+    "unique_object_symbol_lists_checked": 72,
+    "all_reported_block0_cold_and_changed_unit_contents_match": true,
+    "all_six_block_actual_counts_match": true,
+    "scope": "Actual emitted defined symbols after optimization; requested or actual unit count does not establish equivalent partitions, source dependencies or optimizer work. Missing Zil error inventory is not zero work; retained Rust current/historical objects remain distinct."
+  },
+  "disk_boundary": {
+    "receipt": "out/runs/full-pipeline-final-controls/disk-boundary.json",
+    "sha256": "5041311d788a52c4c3edd7fbc7adfc8ea760496bb8baf52e91602a7191a14e13",
+    "check_completed": "2026-11-12T07:18:10Z",
+    "cleanup_completed": "2026-11-12T07:18:30.831184+00:00",
+    "o2_started": "2026-11-12T07:18:42Z",
+    "ordering_checked": true,
+    "scope": "Documented disposable debug-cache cleanup falls between recorded check completion and O2 start; no filesystem syscall trace was collected."
+  },
+  "receipts": [
+    {
+      "path": "/workspace/zil-demand/tools/research/incremental-demand/full-pipeline-matched-900.json",
+      "sha256": "21520909e7660105f5fdc14152885f97905d5bcb3e90de3dba9ad32f1e236eae"
+    },
+    {
+      "path": "/workspace/zil-demand/out/runs/full-pipeline-matched-check-900-r1/manifest.json",
+      "sha256": "0a5481d79a4b41d1980295caf3e975570a90639450fe0a1d9d574cd1cf7ae340"
+    },
+    {
+      "path": "/workspace/zil-demand/out/runs/full-pipeline-matched-check-900-r1/rows.jsonl",
+      "sha256": "d27dd66749bafa3c163de6ccce34100b5cc19cc5018796f1c88168c64b5d8068"
+    },
+    {
+      "path": "/tmp/full-pipeline-900-review-check-validation.json",
+      "sha256": "ff96eff28e65ca9ce676f1bffc5fc9f339e94bc81a17dab4d51cfff096bd2e83"
+    },
+    {
+      "path": "/workspace/zil-demand/out/runs/full-pipeline-matched-o2-900-r1/manifest.json",
+      "sha256": "401cb5d75359992d1baa6c1732d7aa5f253ddd093443c53bc42daaf15bd85fbe"
+    },
+    {
+      "path": "/workspace/zil-demand/out/runs/full-pipeline-matched-o2-900-r1/rows.jsonl",
+      "sha256": "417c7aef92f12929e5c14352927b42731427c67c813978eea6e3ba9e7ea36b8c"
+    },
+    {
+      "path": "/tmp/full-pipeline-900-review-o2-validation.json",
+      "sha256": "9adfda7aa09d004e920c1c3fe79754aec4be070fac3d8e00069632ad75aad44e"
+    }
+  ],
+  "not_performed": [
+    "compiler build or benchmark",
+    "new native execution",
+    "cache deletion or mutation",
+    "compression or recovery",
+    "root source edits"
+  ],
+  "review_script": {
+    "path": "/tmp/final900_evidence_review.py",
+    "sha256": "541d9d3292f1df2744cb7b59598f2ee70e0794c061df9ebac191c655a8454053"
+  },
+  "controller_scope": "The independently invoked validation processes exited 0. That does not recover the original r7 measurement controller response, which remains unknown/null; its persisted helper exit remains separately 0.",
+  "oracle_scope": "Recomputation reuses the exact source-pinned archived arithmetic oracle. This is independent evidence replay, not an independently implemented oracle or a new native execution."
+}

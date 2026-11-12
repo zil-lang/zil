@@ -22,7 +22,9 @@
     "source_boundary": "Frozen 900, production sources and Cargo inputs unchanged during final tests and release."
   },
   "strict_clippy": {
-    "command": [
+    "passed_run": "02",
+    "retained_failure": "01 unnecessary_unwrap in new complete-budget regression fixture; match repair preserves assertions.",
+    "reproduction_command": [
       "cargo",
       "clippy",
       "--locked",
@@ -34,8 +36,7 @@
       "-D",
       "warnings"
     ],
-    "passed_run": "02",
-    "retained_failure": "01 unnecessary_unwrap in new complete-budget regression fixture; match repair preserves assertions."
+    "command_scope": "Strict workspace/all-targets LLVM-api -D warnings scope is recorded in root/reviewer observations; raw Cargo log does not independently encode argv. Reproduction command pins Cargo.lock explicitly."
   },
   "fmt": "02 passed",
   "release": {
