@@ -1665,9 +1665,12 @@ pub(super) fn preflight(
             if let Type::Managed(payload) = ty
                 && matches!(payload.as_ref(), Type::Task { .. })
             {
-                if closure.kind != zil_ir::CallableKind::FnOnce {
+                if !matches!(
+                    closure.kind,
+                    zil_ir::CallableKind::FnOnce | zil_ir::CallableKind::FnMut
+                ) {
                     return Err(bad(
-                        "captured Task owner needs its actual consuming FnOnce entry",
+                        "captured Task owner requires an actual exclusive or consuming entry",
                     ));
                 }
                 super::tasks::require_closed_context(payload)?;
