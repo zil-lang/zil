@@ -184,7 +184,9 @@ fn argument<V: Visitor + ?Sized>(
                     v.expression(value, depth + 1)
                 }
                 s::DynBindingKind::Method { .. } => Err(vec![Diagnostic::error(
-                    Phase::Expand, "E-SOURCE-ASSOCIATED-BINDING", Some(binding.span),
+                    Phase::Expand,
+                    "E-SOURCE-ASSOCIATED-BINDING",
+                    Some(binding.span),
                     "a bound equation cannot contain a method slot application",
                 )]),
             }

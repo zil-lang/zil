@@ -295,11 +295,21 @@ impl Parser<'_> {
                 } else {
                     let argument = p.ty()?;
                     if p.eat(Symbol::Eq) {
-                        let TypeKind::Named { path: member, args: parameters } = argument.kind else {
-                            return p.fail("E-PARSE-ASSOCIATED-BINDING", "associated type equation needs a member path");
+                        let TypeKind::Named {
+                            path: member,
+                            args: parameters,
+                        } = argument.kind
+                        else {
+                            return p.fail(
+                                "E-PARSE-ASSOCIATED-BINDING",
+                                "associated type equation needs a member path",
+                            );
                         };
                         if !parameters.is_empty() {
-                            return p.fail("E-PARSE-ASSOCIATED-BINDING", "associated type equation member cannot have arguments");
+                            return p.fail(
+                                "E-PARSE-ASSOCIATED-BINDING",
+                                "associated type equation member cannot have arguments",
+                            );
                         }
                         let value = p.ty()?;
                         args.push(GenericArg::AssociatedBinding(DynBinding {

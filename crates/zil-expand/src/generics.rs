@@ -3284,6 +3284,7 @@ fn original_type_observed(
                 args: args
                     .iter()
                     .map(|arg| match arg {
+                        GenericArg::AssociatedBinding(binding) => return Err(error(binding.span, "associated equations require the original trait application obligation consumer")),
                         GenericArg::Lifetime(name) => {
                             budget.text(name, ty.span)?;
                             Ok(GenericArg::Lifetime(name.clone()))
@@ -3511,6 +3512,12 @@ fn render_type_key(ty: &TypeRef) -> R<String> {
             let mut key = format!("{prefix}{}:{}", path.join(".").len(), path.join("."));
             for a in args {
                 let argument = match a {
+                    GenericArg::AssociatedBinding(binding) => {
+                        return Err(error(
+                            binding.span,
+                            "associated equations require the original trait application obligation consumer",
+                        ));
+                    }
                     GenericArg::Lifetime(_) => {
                         return Err(unsupported(
                             ty.span,
@@ -4069,6 +4076,14 @@ impl Substitution<'_> {
             TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
                 for a in args {
                     match a {
+                        GenericArg::AssociatedBinding(binding) => match &mut binding.kind {
+                            DynBindingKind::Type { value, .. } => self.ty(value),
+                            DynBindingKind::Constant { ty, value, .. } => {
+                                self.ty(ty);
+                                self.expr(value);
+                            }
+                            DynBindingKind::Method { .. } => {}
+                        },
                         GenericArg::Lifetime(_) => {}
                         GenericArg::Type(t) => {
                             if let Some(name) = trait_bounds::plain(t)
@@ -4303,6 +4318,14 @@ impl Substitution<'_> {
                 self.expr(callee);
                 for a in arguments {
                     match a {
+                        GenericArg::AssociatedBinding(binding) => match &mut binding.kind {
+                            DynBindingKind::Type { value, .. } => self.ty(value),
+                            DynBindingKind::Constant { ty, value, .. } => {
+                                self.ty(ty);
+                                self.expr(value);
+                            }
+                            DynBindingKind::Method { .. } => {}
+                        },
                         GenericArg::Lifetime(_) => {}
                         GenericArg::Type(t) => {
                             if let Some(name) = trait_bounds::plain(t)

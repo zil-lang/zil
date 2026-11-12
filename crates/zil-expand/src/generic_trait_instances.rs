@@ -1262,6 +1262,14 @@ impl CallRewrite<'_> {
                 self.expr(callee);
                 for a in arguments {
                     match a {
+                        GenericArg::AssociatedBinding(binding) => match &mut binding.kind {
+                            DynBindingKind::Type { value, .. } => self.ty(value),
+                            DynBindingKind::Constant { ty, value, .. } => {
+                                self.ty(ty);
+                                self.expr(value);
+                            }
+                            DynBindingKind::Method { .. } => {}
+                        },
                         GenericArg::Lifetime(_) => {}
                         GenericArg::Type(t) => self.ty(t),
                         GenericArg::Const(e) => self.expr(e),

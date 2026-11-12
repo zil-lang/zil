@@ -214,6 +214,12 @@ fn shape(ty: &TypeRef, budget: &mut Budget<'_>, depth: usize) -> R<Shape> {
             }
             for arg in args {
                 let child = match arg {
+                    GenericArg::AssociatedBinding(binding) => {
+                        return Err(error(
+                            binding.span,
+                            "associated equations require the original trait application obligation consumer",
+                        ));
+                    }
                     GenericArg::Lifetime(_) => {
                         return Err(unsupported(
                             ty.span,

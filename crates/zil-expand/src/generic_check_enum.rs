@@ -26,6 +26,7 @@ type ScopedEnumActuals = Option<(Vec<GenericArg>, BTreeMap<String, TypeRef>)>;
 pub(super) fn scoped_nominal_actual(ty: &TypeRef) -> bool {
     match &ty.kind {
         TypeKind::Named { args, .. } => args.iter().any(|arg| match arg {
+            GenericArg::AssociatedBinding(_) => true,
             GenericArg::Lifetime(_) => true,
             GenericArg::Type(inner) => scoped_nominal_actual(inner),
             GenericArg::Const(_) => false,
@@ -33,6 +34,7 @@ pub(super) fn scoped_nominal_actual(ty: &TypeRef) -> bool {
         TypeKind::Dyn { args, bindings, .. } => {
             !bindings.is_empty()
                 || args.iter().any(|arg| match arg {
+                    GenericArg::AssociatedBinding(_) => true,
                     GenericArg::Lifetime(_) => true,
                     GenericArg::Type(inner) => scoped_nominal_actual(inner),
                     GenericArg::Const(_) => false,

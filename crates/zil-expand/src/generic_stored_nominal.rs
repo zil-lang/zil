@@ -86,6 +86,12 @@ impl<'a> Engine<'a> {
             TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
                 for arg in args {
                     match arg {
+                        GenericArg::AssociatedBinding(binding) => {
+                            return Err(error(
+                                binding.span,
+                                "associated equations require the original trait application obligation consumer",
+                            ));
+                        }
                         GenericArg::Lifetime(name) => {
                             self.capture_actual_life(name, ty.span, captured)?
                         }
@@ -979,6 +985,12 @@ impl<'a> Engine<'a> {
                         )?;
                         for argument in args.iter() {
                             match argument {
+                                GenericArg::AssociatedBinding(binding) => {
+                                    return Err(error(
+                                        binding.span,
+                                        "associated equations require the original trait application obligation consumer",
+                                    ));
+                                }
                                 GenericArg::Type(actual) => self.budget.ty(actual)?,
                                 GenericArg::Lifetime(life) => self.budget.text(life, ty.span)?,
                                 GenericArg::Const(value) => self.budget.const_expression(value)?,
@@ -2032,6 +2044,12 @@ impl<'a> Engine<'a> {
                 for arg in args {
                     self.budget.node(ty.span, depth)?;
                     match arg {
+                        GenericArg::AssociatedBinding(binding) => {
+                            return Err(error(
+                                binding.span,
+                                "associated equations require the original trait application obligation consumer",
+                            ));
+                        }
                         GenericArg::Lifetime(_) => {
                             return Err(unsupported(
                                 ty.span,

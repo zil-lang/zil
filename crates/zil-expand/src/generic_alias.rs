@@ -521,6 +521,12 @@ impl Resolver<'_, '_> {
                             span: parameter.span,
                         };
                         match arg {
+                            GenericArg::AssociatedBinding(binding) => {
+                                return Err(error(
+                                    binding.span,
+                                    "associated equations require the original trait application obligation consumer",
+                                ));
+                            }
                             GenericArg::Lifetime(_) => {
                                 return Err(error(
                                     ty.span,
@@ -540,6 +546,12 @@ impl Resolver<'_, '_> {
                         *arg = GenericArg::Const(expression.clone());
                     } else {
                         match arg {
+                            GenericArg::AssociatedBinding(binding) => {
+                                return Err(error(
+                                    binding.span,
+                                    "associated equations require the original trait application obligation consumer",
+                                ));
+                            }
                             GenericArg::Lifetime(name) => {
                                 self.budget.text(name, ty.span)?;
                                 for binder in &self.life_scope {
@@ -1228,6 +1240,12 @@ impl Visitor<'_, '_, '_> {
                     self.expr(callee, types, values, depth + 1)?;
                     for arg in arguments {
                         match arg {
+                            GenericArg::AssociatedBinding(binding) => {
+                                return Err(error(
+                                    binding.span,
+                                    "associated equations require the original trait application obligation consumer",
+                                ));
+                            }
                             GenericArg::Lifetime(name) => {
                                 self.resolver.budget.text(name, e.span)?
                             }

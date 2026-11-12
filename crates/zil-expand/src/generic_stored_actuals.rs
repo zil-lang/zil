@@ -483,6 +483,12 @@ impl Engine<'_> {
             TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
                 for arg in args {
                     match arg {
+                        GenericArg::AssociatedBinding(binding) => {
+                            return Err(error(
+                                binding.span,
+                                "associated equations require the original trait application obligation consumer",
+                            ));
+                        }
                         GenericArg::Lifetime(name) => {
                             self.semantic_free_life(name, ty.span, bound, classes)?
                         }
@@ -797,6 +803,12 @@ pub(super) fn source_unification_key(
             TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
                 for arg in args {
                     match arg {
+                        GenericArg::AssociatedBinding(binding) => {
+                            return Err(error(
+                                binding.span,
+                                "associated equations require the original trait application obligation consumer",
+                            ));
+                        }
                         GenericArg::Lifetime(name) => life(name, source, budget, ty.span, key)?,
                         GenericArg::Type(inner) => visit(inner, source, budget, key, depth + 1)?,
                         GenericArg::Const(_) => {}

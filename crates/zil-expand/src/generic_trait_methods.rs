@@ -1066,6 +1066,12 @@ impl Engine<'_> {
         if let Some(explicit) = explicit {
             for argument in explicit {
                 match argument {
+                    GenericArg::AssociatedBinding(binding) => {
+                        return Err(error(
+                            binding.span,
+                            "associated equations require the original trait application obligation consumer",
+                        ));
+                    }
                     GenericArg::Lifetime(name) => self.budget.text(name, expression.span)?,
                     GenericArg::Type(ty) => self.budget.ty(ty)?,
                     GenericArg::Const(value) => self.budget.const_expression(value)?,

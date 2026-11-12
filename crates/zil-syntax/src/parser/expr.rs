@@ -144,7 +144,10 @@ impl Parser<'_> {
         loop {
             let token = self.peek();
             if self.type_const_expression
-                && matches!(token.kind, TokenKind::Symbol(Symbol::Gt | Symbol::GtEq | Symbol::Shr))
+                && matches!(
+                    token.kind,
+                    TokenKind::Symbol(Symbol::Gt | Symbol::GtEq | Symbol::Shr)
+                )
             {
                 break;
             }
