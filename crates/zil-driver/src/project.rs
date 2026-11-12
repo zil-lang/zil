@@ -1280,7 +1280,10 @@ impl CompilationSession {
         if result.is_ok()
             && let Some(store) = &function_store
         {
-            store.save(&self.function_types, options, &artifacts);
+            let encoding = store.save(&self.function_types, options, &artifacts);
+            if options.profile_compilation {
+                report.function_cache_encoding = encoding.map(Box::new);
+            }
         }
         report.record_driver_cost("function_cache_publication", persistence_start);
         result

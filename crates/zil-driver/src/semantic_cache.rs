@@ -709,21 +709,25 @@ impl FunctionStore {
         session: &zil_types::FunctionSession,
         options: &CompileOptions,
         plan: &artifacts::ArtifactPlan,
-    ) {
+    ) -> Option<zil_ir::wire::FunctionEncodingStats> {
         if options.cancellation.is_cancelled() || plan.validate().is_err() {
-            return;
+            return None;
         }
-        let Some(bytes) = session.encode_work_products(&options.target, &options.limits) else {
-            return;
-        };
+        let mut stats = zil_ir::wire::FunctionEncodingStats::default();
+        let bytes = session.encode_work_products_with_stats(
+            &options.target,
+            &options.limits,
+            &mut stats,
+        )?;
         if options.cancellation.is_cancelled()
             || plan.validate().is_err()
             || !private_directory(&self.0.root, true)
         {
-            return;
+            return None;
         }
         let _ = ArtifactCache::with_limit(&self.0.root, self.0.maximum)
             .write_candidate_cancellable(self.0.key, &bytes, &options.cancellation);
+        Some(stats)
     }
 }
 

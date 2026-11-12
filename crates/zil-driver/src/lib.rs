@@ -261,6 +261,9 @@ pub struct CompileReport {
     // Keep detailed research counters out of every caller's report/Result
     // frame. Reports also travel through discovery, retry and query closures;
     // inline counter payloads multiplied their nonrecursive stack footprint.
+    /// Encoding work in the final attempt only; None means not observed.
+    /// These counters never represent Verify or successful disk publication.
+    pub function_cache_encoding: Option<Box<zil_ir::wire::FunctionEncodingStats>>,
     pub function_type_work: Option<Box<zil_types::FunctionStats>>,
     pub producer_work: Option<Box<zil_expand::ProducerStats>>,
     pub materialization_work: Option<ScalarMaterializationStats>,
@@ -294,6 +297,7 @@ impl CompileReport {
             verification_runs: 0,
             source_files: BTreeMap::from([(source.file_id, source.path.clone())]),
             scalar_interfaces: Vec::new(),
+            function_cache_encoding: None,
             function_type_work: None,
             producer_work: None,
             materialization_work: None,
@@ -307,7 +311,7 @@ impl CompileReport {
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{},\"exclusive_costs\":{},\"attempts\":[{}]}}",
+            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"function_cache_encoding\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{},\"exclusive_costs\":{},\"attempts\":[{}]}}",
             json_string(self.status.as_str()),
             json_string(self.phase.as_str()),
             self.diagnostics
@@ -354,6 +358,9 @@ impl CompileReport {
             self.source_files.iter().map(|(id, path)| format!("{}:{}", json_string(&id.0.to_string()), json_string(path))).collect::<Vec<_>>().join(","),
             self.scalar_interfaces.iter().map(|interface| format!("{{\"module\":{},\"signature_fingerprint\":{},\"implementation_fingerprint\":{},\"contract_fingerprint\":{},\"result_origins\":{},\"callable_contracts\":{},\"callable_returns\":{},\"exports\":[{}]}}", interface.module.0, json_string(&interface.signature_fingerprint.to_hex()), json_string(&interface.implementation_fingerprint.to_hex()), interface.contract_fingerprint.map_or_else(|| "null".into(), |hash| json_string(&hash.to_hex())), interface.result_origins.as_ref().map_or_else(|| "null".into(), |origins| format!("[{}]", origins.iter().map(|origin| format!("{{\"name\":{},\"parameters\":{:?},\"static_storage\":{}}}", json_string(&origin.name), origin.parameters, origin.static_storage)).collect::<Vec<_>>().join(","))), contracts::callable_json(interface), contracts::callable_return_json(interface), interface.exports.iter().map(|f| json_string(&f.name)).collect::<Vec<_>>().join(","))).collect::<Vec<_>>().join(","),
             self.frontend_stats_json(),
+            self.function_cache_encoding.as_ref().map_or_else(|| "null".into(), |stats| format!(
+                "{{\"serialized_functions\":{},\"reused_functions\":{}}}",
+                stats.serialized_functions, stats.reused_functions)),
             phase_timings_json(&self.phase_timings_ns),
             named_timings_json(&self.driver_timings_ns),
             self.materialization_ns,

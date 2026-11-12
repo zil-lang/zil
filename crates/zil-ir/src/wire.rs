@@ -8,6 +8,7 @@
 //! `zil-verify` independently checks every claim before creating VerifiedCTIR.
 
 use crate::*;
+use std::sync::OnceLock;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
 pub const WIRE_VERSION: u32 = 46;
@@ -214,6 +215,65 @@ pub fn encode_module_candidate(
         Ok(writer.output)
     })())
 }
+
+/// A successful serialization of one raw function under exactly one set of
+/// limits. This is transport data, and carries no Verify authority. Keep its
+/// cache slot with the immutable function that produced it.
+pub struct RawFunctionEncoding {
+    bytes: Vec<u8>,
+    limits: Limits,
+    nodes: usize,
+}
+
+impl RawFunctionEncoding {
+    fn byte_len(&self) -> usize {
+        self.bytes.len()
+    }
+}
+
+/// Counts actual function traversals and fragment copies during publication.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FunctionEncodingStats {
+    pub serialized_functions: usize,
+    pub reused_functions: usize,
+}
+
+/// Borrow raw functions in place of `module.functions`. Each cache slot must
+/// remain bound to its immutable function. New successful fragments are admitted
+/// against the byte limit minus all bytes currently retained by these slots.
+/// Existing slots are never replaced on a limits change. Slots shared with other
+/// epochs can fill later, so this is an admission bound for the current epoch,
+/// not a lifetime byte bound for every retained snapshot.
+/// The module header, other fields and candidate plan use the ordinary encoder.
+/// Callers must serialize publication across shared slots, including slots
+/// retained by earlier epochs, to make aggregate cache admission atomic.
+pub fn encode_module_candidate_with_function_encodings(
+    module: &TypedModule,
+    plan: &CandidatePlan,
+    functions: &[(&TypedFunction, &OnceLock<RawFunctionEncoding>)],
+    limits: &Limits,
+    stats: &mut FunctionEncodingStats,
+) -> CompileResult<Vec<u8>> {
+    public((|| {
+        let mut writer = Writer::new(limits);
+        writer.header(MODULE_MAGIC)?;
+        let retained_bytes = functions.iter().fold(0usize, |bytes, (_, cache)| {
+            bytes.saturating_add(cache.get().map_or(0, RawFunctionEncoding::byte_len))
+        });
+        let mut cache_bytes = limits.max_source_bytes.saturating_sub(retained_bytes);
+        writer.module_with_functions(
+            module,
+            functions
+                .iter()
+                .map(|(function, cache)| (*function, Some(*cache))),
+            &mut cache_bytes,
+            stats,
+        )?;
+        writer.plan(plan)?;
+        Ok(writer.output)
+    })())
+}
+
 pub fn decode_module_candidate(
     bytes: &[u8],
     limits: &Limits,
@@ -947,6 +1007,22 @@ impl<'a> Writer<'a> {
         Ok(())
     }
     fn module(&mut self, module: &TypedModule) -> WireResult<()> {
+        self.module_with_functions(
+            module,
+            module.functions.iter().map(|function| (function, None)),
+            &mut 0,
+            &mut FunctionEncodingStats::default(),
+        )
+    }
+    fn module_with_functions<'f>(
+        &mut self,
+        module: &TypedModule,
+        functions: impl ExactSizeIterator<
+            Item = (&'f TypedFunction, Option<&'f OnceLock<RawFunctionEncoding>>),
+        >,
+        cache_bytes: &mut usize,
+        stats: &mut FunctionEncodingStats,
+    ) -> WireResult<()> {
         self.u32(module.schema_version)?;
         self.u32(module.module_id.0)?;
         self.fingerprint(module.source_fingerprint)?;
@@ -965,9 +1041,43 @@ impl<'a> Writer<'a> {
             self.dyn_vtable(row)?;
         }
 
-        self.count(module.functions.len(), self.limits.max_functions)?;
-        for function in &module.functions {
-            self.function(function)?;
+        self.count(functions.len(), self.limits.max_functions)?;
+        for (function, cache) in functions {
+            let encoding = cache.and_then(OnceLock::get);
+            if let Some(encoding) = encoding.filter(|encoding| {
+                encoding.limits == *self.limits
+                    && encoding.nodes <= self.nodes
+                    && self
+                        .output
+                        .len()
+                        .checked_add(encoding.bytes.len())
+                        .is_some_and(|length| length <= self.limits.max_source_bytes)
+            }) {
+                self.charge(encoding.nodes)?;
+                self.bytes(&encoding.bytes)?;
+                stats.reused_functions += 1;
+            } else {
+                // A fragment cannot reproduce the first failure within a
+                // function when the remaining aggregate quota is insufficient.
+                // Use the original traversal in that case, or on limits changes.
+                let start = self.output.len();
+                let nodes = self.nodes;
+                stats.serialized_functions += 1;
+                self.function(function)?;
+                let length = self.output.len() - start;
+                if let Some(cache) = cache.filter(|cache| cache.get().is_none())
+                    && length <= *cache_bytes
+                {
+                    let encoding = RawFunctionEncoding {
+                        bytes: self.output[start..].to_vec(),
+                        limits: self.limits.clone(),
+                        nodes: nodes - self.nodes,
+                    };
+                    if cache.set(encoding).is_ok() {
+                        *cache_bytes -= length;
+                    }
+                }
+            }
         }
         self.count(module.closures.len(), self.limits.max_functions)?;
         for closure in &module.closures {
@@ -4660,3 +4770,6 @@ mod owned_sum_tests;
 
 #[cfg(test)]
 mod retained_tests;
+
+#[cfg(test)]
+mod function_encoding_tests;

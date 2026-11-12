@@ -3,7 +3,7 @@ use super::*;
 use std::cell::RefCell;
 use std::collections::BTreeSet;
 use std::hash::Hash;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 use zil_base::{FileId, Fingerprint, FingerprintBuilder, ModuleId};
 use zil_db::reactive::{GraphError, ReactiveGraph, ReactiveStats};
@@ -163,11 +163,11 @@ fn elapsed_cost(start: Option<Instant>) -> u64 {
     })
 }
 
-#[derive(Clone)]
 struct Entry {
     // All spans are relative to the source function; IDs remain explicitly bound.
     function: TypedFunction,
     cost: [usize; 6],
+    encoding: OnceLock<zil_ir::wire::RawFunctionEncoding>,
 }
 
 /// Holds only the most recent successful scalar Types epoch, not an unbounded
@@ -175,6 +175,11 @@ struct Entry {
 #[derive(Clone, Default)]
 pub struct FunctionSession {
     entries: Arc<BTreeMap<Fingerprint, Arc<Entry>>>,
+    // Epochs can share individual Entries after edits. Their cache admission
+    // must share the same lock as well as each Entry's immutable fragment slot.
+    // Admission counts the current epoch, while older checkpoints may retain
+    // shared Entries whose slots are filled by a later epoch.
+    publication_guard: Arc<Mutex<()>>,
     stats: FunctionStats,
     projections: Projections,
     producer_memo: ProducerMemo,
@@ -194,6 +199,7 @@ impl FunctionSession {
     pub fn checkpoint(&self) -> Self {
         Self {
             entries: self.entries.clone(),
+            publication_guard: self.publication_guard.clone(),
             stats: self.stats,
             projections: Projections::default(),
             producer_memo: ProducerMemo::default(),
@@ -336,6 +342,26 @@ impl FunctionSession {
     /// Optional transport of raw, explicitly trusted local work products. The
     /// caller must bind the exact compiler and protect the artifact destination.
     pub fn encode_work_products(&self, target: &TargetProfile, limits: &Limits) -> Option<Vec<u8>> {
+        self.encode_work_products_with_stats(
+            target,
+            limits,
+            &mut zil_ir::wire::FunctionEncodingStats::default(),
+        )
+    }
+
+    /// Publication counters describe actual raw function serializations, rather
+    /// than inferred hits from the Types epoch. They grant no Verify authority.
+    pub fn encode_work_products_with_stats(
+        &self,
+        target: &TargetProfile,
+        limits: &Limits,
+        stats: &mut zil_ir::wire::FunctionEncodingStats,
+    ) -> Option<Vec<u8>> {
+        *stats = zil_ir::wire::FunctionEncodingStats::default();
+        let _publication = self
+            .publication_guard
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
         if self.entries.is_empty() || self.entries.len() > limits.max_functions {
             return None;
         }
@@ -350,7 +376,7 @@ impl FunctionSession {
             if bytes.len() > limits.max_source_bytes {
                 return None;
             }
-            functions.push(entry.function.clone());
+            functions.push((&entry.function, &entry.encoding));
         }
         let module = TypedModule {
             life_declarations: Vec::new(),
@@ -362,7 +388,7 @@ impl FunctionSession {
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,
             target: target.clone(),
-            functions,
+            functions: vec![],
             closures: vec![],
             resources: vec![],
             unsupported: vec![],
@@ -376,7 +402,10 @@ impl FunctionSession {
             responsibilities: vec![],
             unsupported: vec![],
         };
-        let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, limits).ok()?;
+        let wire = zil_ir::wire::encode_module_candidate_with_function_encodings(
+            &module, &candidate, &functions, limits, stats,
+        )
+        .ok()?;
         if bytes.len().checked_add(wire.len())? > limits.max_source_bytes {
             return None;
         }
@@ -455,7 +484,14 @@ fn decode(
             }
         }
         if entries
-            .insert(key, Arc::new(Entry { function, cost }))
+            .insert(
+                key,
+                Arc::new(Entry {
+                    function,
+                    cost,
+                    encoding: OnceLock::new(),
+                }),
+            )
             .is_some()
         {
             return None;
@@ -627,7 +663,14 @@ impl Reuse<'_> {
             };
             cost[i] = delta;
         }
-        self.next.insert(*key, Arc::new(Entry { function, cost }));
+        self.next.insert(
+            *key,
+            Arc::new(Entry {
+                function,
+                cost,
+                encoding: OnceLock::new(),
+            }),
+        );
     }
 }
 
@@ -1672,6 +1715,193 @@ mod reactive_tests {
             graph.encode_work_products(&TargetProfile::default(), &Limits::default()),
             legacy.encode_work_products(&TargetProfile::default(), &Limits::default())
         );
+    }
+
+    // Preserve the previous publication path as an independent byte oracle.
+    fn legacy_publication(session: &FunctionSession, limits: &Limits) -> Option<Vec<u8>> {
+        if session.entries.is_empty() || session.entries.len() > limits.max_functions {
+            return None;
+        }
+        let mut bytes = b"ZILFUN01".to_vec();
+        bytes.extend_from_slice(&u32::try_from(session.entries.len()).ok()?.to_le_bytes());
+        let mut functions = Vec::new();
+        for (key, entry) in session.entries.iter() {
+            bytes.extend_from_slice(&key.0);
+            for cost in entry.cost {
+                bytes.extend_from_slice(&u64::try_from(cost).ok()?.to_le_bytes());
+            }
+            if bytes.len() > limits.max_source_bytes {
+                return None;
+            }
+            functions.push(entry.function.clone());
+        }
+        let module = TypedModule {
+            life_declarations: vec![],
+            life_instances: vec![],
+            dyn_declarations: vec![],
+            dyn_interfaces: vec![],
+            dyn_vtables: vec![],
+            schema_version: SCHEMA_VERSION,
+            module_id: ModuleId(0),
+            source_fingerprint: Fingerprint::ZERO,
+            target: TargetProfile::default(),
+            functions,
+            closures: vec![],
+            resources: vec![],
+            unsupported: vec![],
+        };
+        let plan = CandidatePlan {
+            schema_version: SCHEMA_VERSION,
+            module_fingerprint: Fingerprint::ZERO,
+            target_fingerprint: Fingerprint::ZERO,
+            functions: vec![],
+            origins: vec![],
+            responsibilities: vec![],
+            unsupported: vec![],
+        };
+        let wire = zil_ir::wire::encode_module_candidate(&module, &plan, limits).ok()?;
+        if bytes.len().checked_add(wire.len())? > limits.max_source_bytes {
+            return None;
+        }
+        bytes.extend_from_slice(&wire);
+        Some(bytes)
+    }
+
+    fn publication(
+        session: &FunctionSession,
+        limits: &Limits,
+        serialized: usize,
+        reused: usize,
+    ) -> Option<Vec<u8>> {
+        let mut stats = zil_ir::wire::FunctionEncodingStats::default();
+        let actual =
+            session.encode_work_products_with_stats(&TargetProfile::default(), limits, &mut stats);
+        assert_eq!(
+            stats,
+            zil_ir::wire::FunctionEncodingStats {
+                serialized_functions: serialized,
+                reused_functions: reused,
+            }
+        );
+        assert_eq!(actual, legacy_publication(session, limits));
+        actual
+    }
+
+    #[test]
+    fn publication_reuses_entry_fragments_across_edits_checkpoints_and_failed_epochs() {
+        fn send_sync<T: Send + Sync>() {}
+        send_sync::<FunctionSession>();
+        let limits = Limits::default();
+        let mut session = FunctionSession::default();
+        check(&mut session, &program("4"), true).unwrap();
+        let first = publication(&session, &limits, 3, 0).unwrap();
+        assert_eq!(publication(&session, &limits, 0, 3).unwrap(), first);
+        let checkpoint = session.checkpoint();
+        assert_eq!(publication(&checkpoint, &limits, 0, 3).unwrap(), first);
+        check(&mut session, &program("5"), true).unwrap();
+        let retained = session
+            .entries
+            .iter()
+            .filter(|(key, entry)| {
+                checkpoint
+                    .entries
+                    .get(key)
+                    .is_some_and(|prior| Arc::ptr_eq(prior, entry))
+            })
+            .count();
+        assert_eq!(retained, 2);
+        let edited = publication(&session, &limits, 1, 2).unwrap();
+        assert_ne!(edited, first);
+        let mut invalid = program("5");
+        Arc::make_mut(&mut invalid.modules[0].core).functions[0].name = "missing".into();
+        assert!(check(&mut session, &invalid, true).is_err());
+        assert_eq!(publication(&session, &limits, 0, 3).unwrap(), edited);
+        check(&mut session, &program("5"), true).unwrap();
+        assert_eq!(publication(&session, &limits, 0, 3).unwrap(), edited);
+        session = checkpoint;
+        assert_eq!(publication(&session, &limits, 0, 3).unwrap(), first);
+
+        let mut restored = FunctionSession::default();
+        assert!(restored.restore_work_products(&edited, &TargetProfile::default(), &limits));
+        assert_eq!(publication(&restored, &limits, 3, 0).unwrap(), edited);
+        assert_eq!(publication(&restored, &limits, 0, 3).unwrap(), edited);
+        assert!(!restored.restore_work_products(
+            &edited[..edited.len() - 1],
+            &TargetProfile::default(),
+            &limits
+        ));
+        assert_eq!(publication(&restored, &limits, 0, 3).unwrap(), edited);
+    }
+
+    #[test]
+    fn publication_binds_all_limits_and_preserves_outer_byte_budget() {
+        let mut session = FunctionSession::default();
+        check(&mut session, &program("4"), false).unwrap();
+        let normal = Limits::default();
+        let bytes = publication(&session, &normal, 3, 0).unwrap();
+        let mut changed = normal.clone();
+        changed.max_ct_steps -= 1;
+        for _ in 0..2 {
+            assert_eq!(publication(&session, &changed, 3, 0).unwrap(), bytes);
+        }
+        assert_eq!(publication(&session, &normal, 0, 3).unwrap(), bytes);
+        let mut exact = normal.clone();
+        exact.max_source_bytes = bytes.len();
+        assert_eq!(publication(&session, &exact, 3, 0).unwrap(), bytes);
+        exact.max_source_bytes -= 1;
+        // Every inner Wire field fits: the outer metadata makes N-1 fail.
+        assert!(publication(&session, &exact, 3, 0).is_none());
+        assert_eq!(publication(&session, &normal, 0, 3).unwrap(), bytes);
+    }
+
+    #[test]
+    fn concurrent_publication_serializes_each_shared_entry_once() {
+        let mut session = FunctionSession::default();
+        check(&mut session, &program("4"), false).unwrap();
+        let limits = Limits::default();
+        let expected = legacy_publication(&session, &limits).unwrap();
+        let checkpoint = session.checkpoint();
+        assert!(Arc::ptr_eq(
+            &session.publication_guard,
+            &checkpoint.publication_guard
+        ));
+        let barrier = std::sync::Barrier::new(8);
+        std::thread::scope(|scope| {
+            let mut workers = Vec::new();
+            for index in 0..8 {
+                let shared = if index % 2 == 0 {
+                    &session
+                } else {
+                    &checkpoint
+                };
+                let barrier = &barrier;
+                let limits = &limits;
+                let expected = &expected;
+                workers.push(scope.spawn(move || {
+                    barrier.wait();
+                    let mut stats = zil_ir::wire::FunctionEncodingStats::default();
+                    let bytes = shared
+                        .encode_work_products_with_stats(
+                            &TargetProfile::default(),
+                            limits,
+                            &mut stats,
+                        )
+                        .unwrap();
+                    assert_eq!(&bytes, expected);
+                    stats
+                }));
+            }
+            let counts = workers
+                .into_iter()
+                .map(|worker| worker.join().unwrap())
+                .fold((0, 0), |(serialized, reused), stats| {
+                    (
+                        serialized + stats.serialized_functions,
+                        reused + stats.reused_functions,
+                    )
+                });
+            assert_eq!(counts, (3, 21));
+        });
     }
 
     #[test]
