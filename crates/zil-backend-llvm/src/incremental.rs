@@ -32,6 +32,9 @@ pub struct BackendSessionSummary {
     pub reused_link: bool,
     pub rendered_diagnostic_items: usize,
     pub reused_diagnostic_items: usize,
+    pub source_projection_traversals: usize,
+    pub source_projection_instruction_visits: usize,
+    pub source_projection_reuses: usize,
 }
 impl BackendSession {
     pub fn summary(&self) -> &BackendSessionSummary {
@@ -63,15 +66,9 @@ impl BackendSession {
                 old.clone()
             } else {
                 self.summary.rendered_diagnostic_items += 1;
-                let rendered = Module {
-                    triple: module.triple.clone(),
-                    fingerprint: module.fingerprint.clone(),
-                    items: (vec![item.clone()]).into(),
-                }
-                .to_text();
                 Arc::new(DiagnosticItem {
                     item: item.clone(),
-                    text: Arc::new(rendered[header.len()..].to_owned()),
+                    text: Arc::new(zil_llvm_api::model::item_to_text(item)),
                 })
             };
             fragments.push(product.text.clone());

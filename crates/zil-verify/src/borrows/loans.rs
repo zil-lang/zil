@@ -1285,6 +1285,8 @@ pub(super) fn check(
     .map(|(apart, _)| apart)
 }
 
+// The same explicit proof inputs as check above; the extra result is private.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn check_with_empty_proof(
     module: &TypedModule,
     f: &TypedFunction,

@@ -768,96 +768,107 @@ fn render_module(module: &Module) -> String {
     s.push_str(&module.triple);
     s.push_str("\"\n\n");
     for item in &module.items {
-        match item {
-            Item::NamedType(name, fields) => {
-                s.push('%');
-                s.push_str(name);
-                s.push_str(" = type ");
-                if fields.is_empty() {
-                    s.push_str("{  }");
-                } else {
-                    write_fields(&mut s, fields);
-                }
-                s.push('\n');
+        render_item(&mut s, item);
+    }
+    s
+}
+
+/// Render exactly one machine item, without a module header. This is the same
+/// body formatter used by `Module::to_text`; it grants no validation authority.
+pub fn item_to_text(item: &Item) -> String {
+    let mut text = String::new();
+    render_item(&mut text, item);
+    text
+}
+fn render_item(s: &mut String, item: &Item) {
+    match item {
+        Item::NamedType(name, fields) => {
+            s.push('%');
+            s.push_str(name);
+            s.push_str(" = type ");
+            if fields.is_empty() {
+                s.push_str("{  }");
+            } else {
+                write_fields(s, fields);
             }
-            Item::Global(global) => {
-                s.push('@');
-                s.push_str(&global.name);
-                s.push_str(" = ");
-                s.push_str(global.linkage.prefix());
-                if global.initializer.is_none() {
-                    s.push_str("external ");
-                }
-                if global.unnamed_addr {
-                    s.push_str("unnamed_addr ");
-                }
-                s.push_str(if global.constant {
-                    "constant "
-                } else {
-                    "global "
-                });
-                write_type(&mut s, &global.ty);
-                if let Some(value) = &global.initializer {
-                    s.push(' ');
-                    write_value(&mut s, value);
-                }
-                write_alignment(&mut s, global.alignment);
-                s.push('\n');
+            s.push('\n');
+        }
+        Item::Global(global) => {
+            s.push('@');
+            s.push_str(&global.name);
+            s.push_str(" = ");
+            s.push_str(global.linkage.prefix());
+            if global.initializer.is_none() {
+                s.push_str("external ");
             }
-            Item::Function(function) => {
-                s.push_str(if function.blocks.is_some() {
-                    "define "
-                } else {
-                    "declare "
-                });
-                s.push_str(function.linkage.prefix());
-                write_attrs(&mut s, &function.signature.result_attrs);
-                write_type(&mut s, &function.signature.result);
-                s.push_str(" @");
-                s.push_str(&function.name);
-                s.push('(');
-                for (index, parameter) in function.signature.params.iter().enumerate() {
-                    if index != 0 {
-                        s.push_str(", ");
-                    }
-                    write_type(&mut s, &parameter.ty);
-                    for attr in &parameter.attrs {
-                        s.push(' ');
-                        s.push_str(attr.name());
-                    }
-                    if let Some(name) = &parameter.name {
-                        s.push_str(" %");
-                        s.push_str(name);
-                    }
+            if global.unnamed_addr {
+                s.push_str("unnamed_addr ");
+            }
+            s.push_str(if global.constant {
+                "constant "
+            } else {
+                "global "
+            });
+            write_type(s, &global.ty);
+            if let Some(value) = &global.initializer {
+                s.push(' ');
+                write_value(s, value);
+            }
+            write_alignment(s, global.alignment);
+            s.push('\n');
+        }
+        Item::Function(function) => {
+            s.push_str(if function.blocks.is_some() {
+                "define "
+            } else {
+                "declare "
+            });
+            s.push_str(function.linkage.prefix());
+            write_attrs(s, &function.signature.result_attrs);
+            write_type(s, &function.signature.result);
+            s.push_str(" @");
+            s.push_str(&function.name);
+            s.push('(');
+            for (index, parameter) in function.signature.params.iter().enumerate() {
+                if index != 0 {
+                    s.push_str(", ");
                 }
-                if function.signature.variadic {
-                    if !function.signature.params.is_empty() {
-                        s.push_str(", ");
-                    }
-                    s.push_str("...");
-                }
-                s.push(')');
-                for attr in &function.attrs {
+                write_type(s, &parameter.ty);
+                for attr in &parameter.attrs {
                     s.push(' ');
                     s.push_str(attr.name());
                 }
-                if let Some(blocks) = &function.blocks {
-                    s.push_str(" {\n");
-                    for block in blocks {
-                        s.push_str(&block.name);
-                        s.push_str(":\n");
-                        for instruction in &block.instructions {
-                            write_inst(&mut s, instruction);
-                        }
-                    }
-                    s.push_str("}\n");
-                } else {
-                    s.push('\n');
+                if let Some(name) = &parameter.name {
+                    s.push_str(" %");
+                    s.push_str(name);
                 }
+            }
+            if function.signature.variadic {
+                if !function.signature.params.is_empty() {
+                    s.push_str(", ");
+                }
+                s.push_str("...");
+            }
+            s.push(')');
+            for attr in &function.attrs {
+                s.push(' ');
+                s.push_str(attr.name());
+            }
+            if let Some(blocks) = &function.blocks {
+                s.push_str(" {\n");
+                for block in blocks {
+                    s.push_str(&block.name);
+                    s.push_str(":\n");
+                    for instruction in &block.instructions {
+                        write_inst(s, instruction);
+                    }
+                }
+                s.push_str("}\n");
+            } else {
+                s.push('\n');
             }
         }
     }
-    s
 }
 
 fn write_attrs(s: &mut String, attrs: &[Attr]) {
@@ -1274,5 +1285,62 @@ mod sharing_tests {
                 .ptr_eq(changed.blocks.as_ref().unwrap())
         );
         assert_eq!(original_function.blocks.as_ref().unwrap()[0].name, "entry");
+    }
+}
+
+#[cfg(test)]
+mod item_text_tests {
+    use super::*;
+    #[test]
+    fn body_only_items_have_exact_spelling_and_compose_the_full_module() {
+        let items = vec![
+            Item::NamedType("empty".into(), vec![]),
+            Item::Global(Global {
+                name: "value".into(),
+                linkage: Linkage::Private,
+                ty: Ty::Int(32),
+                initializer: Some(Val::Int(7)),
+                constant: true,
+                unnamed_addr: false,
+                alignment: 4,
+            }),
+            Item::Function(Function {
+                name: "decl".into(),
+                linkage: Linkage::External,
+                signature: Signature::new(Ty::Void, vec![]),
+                attrs: vec![],
+                blocks: None,
+            }),
+            Item::Function(Function {
+                name: "body".into(),
+                linkage: Linkage::External,
+                signature: Signature::new(Ty::Void, vec![]),
+                attrs: vec![],
+                blocks: Some(
+                    vec![Block {
+                        name: "entry".into(),
+                        instructions: vec![Inst::new(None, Op::Return(None))],
+                    }]
+                    .into(),
+                ),
+            }),
+        ];
+        let expected = [
+            "%empty = type {  }\n",
+            "@value = private constant i32 7, align 4\n",
+            "declare void @decl()\n",
+            "define void @body() {\nentry:\n  ret void\n}\n",
+        ];
+        for (item, expected) in items.iter().zip(expected) {
+            assert_eq!(item_to_text(item), expected);
+        }
+        let mut module = Module {
+            triple: "x86_64-unknown-linux-gnu".into(),
+            fingerprint: "current".into(),
+            items: Vec::new().into(),
+        };
+        let header = module.to_text();
+        module.items = items.into();
+        assert_eq!(module.to_text(), header + &expected.concat());
     }
 }

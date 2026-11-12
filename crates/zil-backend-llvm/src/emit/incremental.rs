@@ -10,6 +10,9 @@ pub(crate) struct Session {
     entries: BTreeMap<FunctionId, Arc<Entry>>,
     pub(crate) hits: usize,
     pub(crate) misses: usize,
+    pub(crate) source_projection_traversals: usize,
+    pub(crate) source_projection_instruction_visits: usize,
+    pub(crate) source_projection_reuses: usize,
     context_identity: Arc<()>,
     pub(crate) products: Vec<(Arc<()>, Arc<()>)>,
     pub(crate) eligible: bool,
@@ -40,8 +43,13 @@ struct Entry {
     output: Arc<FunctionBatch>,
     output_identity: Arc<()>,
     source_identity: Arc<()>,
-    source: Vec<Vec<Option<FunctionId>>>,
+    source: Option<Arc<SourceProjection>>,
     cost: usize,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SourceProjection {
+    slots: Vec<Vec<Option<FunctionId>>>,
+    observed: Vec<FunctionId>,
 }
 fn scalar(ty: &Type) -> bool {
     matches!(
@@ -165,6 +173,9 @@ impl Session {
     ) -> bool {
         self.hits = 0;
         self.misses = 0;
+        self.source_projection_traversals = 0;
+        self.source_projection_instruction_visits = 0;
+        self.source_projection_reuses = 0;
         self.eligible = false;
         self.products.clear();
         if !lir.closures.is_empty()
@@ -235,31 +246,62 @@ impl Session {
     where
         F: FnOnce() -> CompileResult<FunctionBatch>,
     {
-        // Only observed direct calls can consume a scalar result. Capturing the
-        // actual fact values stops propagation when a callee recomputes equally.
-        let observed = if let Some(entry) = self
+        // With ordinary scalar policy there is no summary consumer, complete
+        // implementation import or source-call grouping. ABI/header inventory
+        // and each actual machine output remain bound independently. In the
+        // explicit scalar policy, preserve ordered slots and observed callees:
+        // an absent current fact can become present after a callee body edit.
+        let consumes_calls = summaries.is_some()
+            || self
+                .context
+                .as_ref()
+                .is_some_and(|context| context.scalar_policy);
+        let source = if !consumes_calls {
+            None
+        } else if let Some(source) = self
             .entries
             .get(&function.id)
             .filter(|entry| entry.input.blocks.ptr_eq(&function.blocks))
+            .and_then(|entry| entry.source.as_ref())
         {
-            entry
-                .facts
-                .iter()
-                .map(|(id, _)| *id)
-                .collect::<BTreeSet<_>>()
+            self.source_projection_reuses += 1;
+            Some(source.clone())
         } else {
+            self.source_projection_traversals += 1;
             let mut observed = BTreeSet::from([function.id]);
-            for instruction in function.blocks.iter().flat_map(|b| &b.instructions) {
-                if let InstructionKind::Call { function, .. } = &instruction.kind {
-                    observed.insert(*function);
-                }
-            }
-            observed
+            let slots = function
+                .blocks
+                .iter()
+                .map(|block| {
+                    block
+                        .instructions
+                        .iter()
+                        .map(|instruction| {
+                            self.source_projection_instruction_visits += 1;
+                            if let InstructionKind::Call { function, .. } = &instruction.kind {
+                                observed.insert(*function);
+                                Some(*function)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect()
+                })
+                .collect();
+            Some(Arc::new(SourceProjection {
+                slots,
+                observed: observed.into_iter().collect(),
+            }))
         };
-        let facts = observed
-            .into_iter()
-            .map(|id| (id, summaries.and_then(|s| s.get(&id)).cloned()))
-            .collect::<Vec<_>>();
+        let facts = if let (Some(source), Some(summaries)) = (&source, summaries) {
+            source
+                .observed
+                .iter()
+                .map(|id| (*id, summaries.get(id).cloned()))
+                .collect()
+        } else {
+            Vec::new()
+        };
         let collected = collected.is_none_or(|needed| needed.contains(&function.id));
         if let Some(entry) = self.entries.get(&function.id)
             && same_input(&entry.input, function)
@@ -276,19 +318,6 @@ impl Session {
         let output = lower()?;
         let cost = before.saturating_sub(meter.remaining());
         self.misses += 1;
-        let source = function
-            .blocks
-            .iter()
-            .map(|b| {
-                b.instructions
-                    .iter()
-                    .map(|i| match &i.kind {
-                        InstructionKind::Call { function, .. } => Some(*function),
-                        _ => None,
-                    })
-                    .collect()
-            })
-            .collect::<Vec<Vec<Option<FunctionId>>>>();
         let old = self.entries.get(&function.id);
         let (output, output_identity) =
             if let Some(old) = old.filter(|old| old.output.as_ref() == &output) {
@@ -297,7 +326,13 @@ impl Session {
                 (Arc::new(output), Arc::new(()))
             };
         let source_identity = old
-            .filter(|old| old.source == source)
+            .filter(|old| match (&old.source, &source) {
+                (Some(old), Some(current)) => {
+                    Arc::ptr_eq(old, current) || old.slots == current.slots
+                }
+                (None, None) => true,
+                _ => false,
+            })
             .map_or_else(|| Arc::new(()), |old| old.source_identity.clone());
         self.products
             .push((output_identity.clone(), source_identity.clone()));

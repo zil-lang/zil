@@ -2445,3 +2445,119 @@ fn equal_optimized_object_bytes_stop_before_link_even_when_the_object_action_mis
     assert_eq!(output.stdout, b"42\n");
     equal.commit_object_cache();
 }
+
+#[test]
+fn source_call_projection_runs_only_for_real_consumers_and_tracks_new_summary_facts() {
+    let mut caller = function(
+        0,
+        "caller",
+        Type::I64,
+        vec![Type::I64; 3],
+        vec![block(
+            0,
+            vec![
+                instruction(
+                    Some(0),
+                    InstructionKind::Call {
+                        function: FunctionId(1),
+                        arguments: vec![],
+                    },
+                ),
+                load(1, 0),
+                binary(2, BinaryOp::Add, 0, 1),
+            ],
+            Terminator::Return(Some(ValueId(2))),
+        )],
+    );
+    caller.parameters.push(LocalId(0));
+    caller.locals.push(local(0, Type::I64, false));
+    // Division is deliberately outside scalar-summary evaluation. An absent
+    // initial fact still has a real caller dependency when the policy is on.
+    let mut callee = binary_function(BinaryOp::Divide, Constant::I64(3), Constant::I64(2));
+    callee.id = FunctionId(1);
+    callee.name = "known".into();
+    let initial = checked(
+        vec![caller.clone(), callee],
+        vec![vec![(vec![0], vec![0])], vec![(vec![], vec![])]],
+    );
+    let raw = lir(&initial);
+    let options = EmitOptions {
+        entry: EntryPoint::None,
+    };
+    let mut ordinary = crate::emit::incremental::Session::default();
+    let (ordinary_machine, _, _) = crate::emit::lower_view_with_session(
+        &initial,
+        &raw.as_view(),
+        &options,
+        false,
+        false,
+        1,
+        Some(&mut ordinary),
+    )
+    .unwrap();
+    assert_eq!(ordinary.source_projection_traversals, 0);
+    assert_eq!(ordinary.source_projection_instruction_visits, 0);
+    let reference =
+        crate::emit::lower_view_with_options(&initial, &raw.as_view(), &options).unwrap();
+    assert_eq!(ordinary_machine, reference);
+    let mut policy = crate::emit::incremental::Session::default();
+    let (first, _, _) = crate::emit::lower_view_with_session(
+        &initial,
+        &raw.as_view(),
+        &options,
+        true,
+        false,
+        1,
+        Some(&mut policy),
+    )
+    .unwrap();
+    assert_eq!(policy.source_projection_traversals, 2);
+    assert_eq!(policy.source_projection_instruction_visits, 6);
+    let has_call = |module: &zil_llvm_api::model::Module| {
+        module.items.iter().any(|item| {
+        matches!(item, zil_llvm_api::model::Item::Function(function) if function.name == "zil.fn.0" && function.blocks.iter().flatten().flat_map(|block| &block.instructions).any(|instruction|
+            matches!(&instruction.op, zil_llvm_api::model::Op::Call { callee: zil_llvm_api::model::Val::Global(name), .. } if name == "zil.fn.1")))
+    })
+    };
+    assert!(has_call(&first));
+    crate::emit::lower_view_with_session(
+        &initial,
+        &raw.as_view(),
+        &options,
+        true,
+        false,
+        1,
+        Some(&mut policy),
+    )
+    .unwrap();
+    assert_eq!(policy.source_projection_traversals, 0);
+    assert_eq!(policy.source_projection_instruction_visits, 0);
+    assert_eq!(policy.source_projection_reuses, 2);
+    let mut known = returning(Constant::I64(1));
+    known.id = FunctionId(1);
+    known.name = "known".into();
+    let current = checked(
+        vec![caller, known],
+        vec![vec![(vec![0], vec![0])], vec![(vec![], vec![])]],
+    );
+    let current_raw = lir(&current);
+    let (updated, _, _) = crate::emit::lower_view_with_session(
+        &current,
+        &current_raw.as_view(),
+        &options,
+        true,
+        false,
+        1,
+        Some(&mut policy),
+    )
+    .unwrap();
+    assert!(
+        !has_call(&updated),
+        "a newly present callee summary must invalidate its unchanged caller"
+    );
+    assert_eq!(policy.misses, 2);
+    assert_eq!(policy.source_projection_traversals, 1);
+    assert_eq!(policy.source_projection_instruction_visits, 1);
+    assert_eq!(policy.source_projection_reuses, 1);
+    zil_llvm_api::validate_module(&updated).unwrap();
+}

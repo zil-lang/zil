@@ -326,6 +326,10 @@ pub fn build_view_with_cancellation_and_session(
     if let Some(session) = session.as_deref_mut() {
         session.summary.lowered_functions = session.lower.misses;
         session.summary.reused_functions = session.lower.hits;
+        session.summary.source_projection_traversals = session.lower.source_projection_traversals;
+        session.summary.source_projection_instruction_visits =
+            session.lower.source_projection_instruction_visits;
+        session.summary.source_projection_reuses = session.lower.source_projection_reuses;
     }
     let mut task_abis = crate::task_abi::derive(verified, &machine, &mut task_work)?;
     // The opt-in O2 strategy contracts strict checked-add chains before
