@@ -563,7 +563,21 @@ pub(super) fn types(
                 .get(*index as usize)
                 .ok_or_else(|| bad("qualified capture access lacks actual field"))?;
             if let InstructionKind::WriteCapture { value, .. } = &i.kind {
-                if d.storage_life.is_some() && !scalar(t) {
+                let constant_slot = if let Some(life) = &d.storage_life {
+                    b.spend(life.static_bindings.len())?;
+                    b.static_borrow_occurrences
+                        && matches!(t, Type::Address { mutable: false, .. })
+                        && life.static_bindings.iter().any(|position| {
+                            position.base == StorageBase::Capture(*index)
+                                && position.path.is_empty()
+                        })
+                } else {
+                    false
+                };
+                // Shape admission does not establish the incoming source.
+                // The whole-module invariant checks every actual write,
+                // including writes in entries which are never called.
+                if d.storage_life.is_some() && !scalar(t) && !constant_slot {
                     return Err(unsupported(
                         "captured Fixed mutation is limited to inline scalar fields",
                         Some(i.span),
