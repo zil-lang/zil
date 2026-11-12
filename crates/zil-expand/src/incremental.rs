@@ -634,7 +634,7 @@ impl ExpandSession {
                 Entry {
                     parsed: parsed.clone(),
                     headers: {
-                        let current = module_headers(module);
+                        let current = if scalar { module_headers(module) } else { Vec::new() };
                         self.entries
                             .get(&module.id)
                             .map(|old| &old.headers)
@@ -730,7 +730,7 @@ impl ExpandSession {
                     continue;
                 };
                 if old.parsed.same_revision(&entry.parsed)
-                    || !old.parsed.same_parse_configuration(&entry.parsed)
+                    || !old.parsed.same_attribute_context(&entry.parsed)
                 {
                     continue;
                 }
@@ -868,7 +868,7 @@ impl ExpandSession {
                 let same_body = declaration.and_then(|previous| {
                     let old = self.entries.get(&source.module_id)?;
                     let old_source = old.parsed.source();
-                    if !old.parsed.same_parse_configuration(&entry.parsed)
+                    if !old.parsed.same_attribute_context(&entry.parsed)
                         || old_source.file_id != source.file_id
                     {
                         return None;
@@ -1058,7 +1058,7 @@ impl Reuse<'_> {
         let module = self.files.get(&file)?;
         let old = self.prior_entries.get(module)?;
         let current = self.entries.get(module)?;
-        if !old.parsed.same_parse_configuration(&current.parsed) {
+        if !old.parsed.same_attribute_context(&current.parsed) {
             return None;
         }
         Some(item_lowering::ItemLowerPlan {

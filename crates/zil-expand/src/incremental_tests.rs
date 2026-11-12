@@ -587,7 +587,8 @@ fn producer_retains_complete_ast_products_without_warm_deep_clones() {
     let limits = Limits::default();
     let cold = checked(&mut session, &input, &limits);
     assert_eq!(session.last_stats().normalized_item_deep_clones, 4);
-    assert_eq!(session.last_stats().restored_module_deep_clones, 3);
+    assert_eq!(session.last_stats().restored_module_deep_clones, 0);
+    assert_eq!(session.last_stats().restored_item_deep_clones, 4);
     assert_eq!(session.last_stats().retained_normalized_items, 0);
     checked(&mut session, &input, &limits);
     assert_eq!(session.last_stats().normalized_item_deep_clones, 0);
@@ -606,7 +607,8 @@ fn producer_retains_complete_ast_products_without_warm_deep_clones() {
     ];
     let current = checked(&mut session, &changed, &limits);
     assert_eq!(session.last_stats().normalized_item_deep_clones, 2);
-    assert_eq!(session.last_stats().restored_module_deep_clones, 1);
+    assert_eq!(session.last_stats().restored_module_deep_clones, 0);
+    assert_eq!(session.last_stats().restored_item_deep_clones, 2);
     assert_eq!(session.last_stats().retained_normalized_items, 2);
     assert_eq!(session.last_stats().retained_restored_modules, 2);
     assert_eq!(
@@ -653,11 +655,12 @@ fn producer_retained_body_receipt_shortfall_reenters_complete_restore_input() {
     assert_eq!(actual, expected);
     assert!(session.last_stats().retained_normalized_items > 0);
     assert_eq!(
-        session.last_stats().restored_module_deep_clones,
+        session.last_stats().restored_item_deep_clones,
         2,
-        "changed first module and insufficient retained second module both copy complete normalized bodies"
+        "changed first item and insufficient retained second item both copy complete normalized bodies"
     );
     assert!(session.last_stats().receipt_budget_misses > 0);
+    assert_eq!(session.last_stats().restored_module_deep_clones, 0);
 }
 
 #[test]
