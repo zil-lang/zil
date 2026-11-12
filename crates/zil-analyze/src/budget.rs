@@ -15,6 +15,8 @@ fn exhausted(context: &str) -> Vec<Diagnostic> {
     )]
 }
 
+pub(super) type TaskRetainedRoots =
+    std::collections::BTreeMap<Vec<zil_ir::ContractProjection>, Vec<zil_ir::HoldRoot>>;
 pub(super) struct Budget {
     remaining: usize,
     // Only shape nodes borrowed from this request's immutable module enter.
@@ -85,6 +87,8 @@ pub(super) struct Budget {
     pub(super) protocol_checked: bool,
     pub(super) stored_enum_addresses: bool,
     pub(super) task_borrowed_results: bool,
+    pub(super) task_retained_environments: bool,
+    pub(super) task_retained_roots: Vec<Vec<TaskRetainedRoots>>,
     // Qualified Option with a shared owning Package pointee needs both the
     // stored Sum proof and ordinary Store/resource proof on the same CFG.
     pub(super) store_option_results: bool,
@@ -142,7 +146,7 @@ pub(super) struct Budget {
 
 impl Budget {
     pub(super) fn task_sources(&self) -> bool {
-        self.task_borrowed_results || self.task_failure_carriers
+        self.task_borrowed_results || self.task_failure_carriers || self.task_retained_environments
     }
     pub(super) fn masked_stored_tasks(&self) -> bool {
         self.store_option_results || self.task_failure_carriers
@@ -204,6 +208,8 @@ impl Budget {
             protocol_checked: false,
             stored_enum_addresses: false,
             task_borrowed_results: false,
+            task_retained_environments: false,
+            task_retained_roots: Vec::new(),
             dyn_contexts: false,
             store_option_results: false,
             qualified_package_returns: false,
@@ -1620,6 +1626,26 @@ pub(super) fn preflight(
                 return Err(bad(
                     "owned dyn error capture requires a selected whole owner",
                 ));
+            }
+            if let Type::Managed(payload) = ty
+                && matches!(payload.as_ref(), Type::Task { .. })
+            {
+                if closure.kind != zil_ir::CallableKind::FnOnce {
+                    return Err(bad(
+                        "captured Task owner needs its actual consuming FnOnce entry",
+                    ));
+                }
+                super::tasks::require_closed_context(payload)?;
+                budget.task_retained_environments |= matches!(payload.as_ref(),Type::Task{retained_life,..} if !retained_life.ports.is_empty());
+                if matches!(payload.as_ref(),Type::Task{retained_life,..} if retained_life.binder_count>0)
+                    && closure.storage_life.is_none()
+                {
+                    return Err(bad(
+                        "captured Task omits complete actual Fixed class domain",
+                    ));
+                }
+                local_value(ty, Span::default(), module, budget)?;
+                continue;
             }
             if closure.storage_life.is_some() {
                 budget.stored_fixed_owner |= matches!(ty, Type::Managed(_) | Type::Package { .. });

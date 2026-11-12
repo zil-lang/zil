@@ -22,6 +22,9 @@ pub(super) fn leaves<'a>(
     b.spend(actual.len())?;
     let mut out = Vec::with_capacity(actual.len());
     for leaf in actual {
+        if task_address::environment_task_leaf(module, id, &leaf.position, leaf.ty, b)? {
+            continue;
+        }
         b.spend(leaf.position.path.len().saturating_add(1))?;
         let StorageBase::Capture(index) = leaf.position.base else {
             return Err(err("actual environment leaf lacks a capture"));

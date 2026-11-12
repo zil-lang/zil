@@ -1,6 +1,19 @@
 //! Independent external Task-result permission reconstruction.
 use super::*;
+mod carriers;
 
+pub(super) fn port_relation(
+    module: &TypedModule,
+    f: &TypedFunction,
+    base: StorageBase,
+    path: &[ContractProjection],
+    b: &mut Budget,
+) -> Check<StorageBinder> {
+    carriers::relation(module, f, base, path, b)
+}
+pub(super) fn has_carrier(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    Ok(!carriers::paths(module, ty, b)?.is_empty())
+}
 fn task_type(ty: &Type) -> Option<(&Type, &zil_ir::RetainedLifeShape)> {
     match ty {
         Type::Task {
@@ -28,6 +41,54 @@ pub(super) fn owner_instruction(f: &TypedFunction, kind: &InstructionKind) -> bo
         InstructionKind::ReadDesc { desc, .. } => f.values.get(desc.0 as usize).is_some_and(shape),
         _ => false,
     }
+}
+pub(super) fn capture_instruction(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
+    let (index, describe) = match i.kind {
+        InstructionKind::TakeCapture { index } => (index, false),
+        InstructionKind::DescribeCapture { index } => (index, true),
+        _ => return Ok(false),
+    };
+    let Some(d) = f
+        .environment
+        .and_then(|id| module.closures.get(id.0 as usize))
+    else {
+        return Ok(false);
+    };
+    let Some(actual) = d.captures.get(index as usize) else {
+        return Err(err("actual Task capture absent"));
+    };
+    if !matches!(actual,Type::Managed(inner) if matches!(inner.as_ref(),Type::Task{..})) {
+        return Ok(false);
+    }
+    type_work(actual, &b.limits.clone(), b)?;
+    let out = i
+        .result
+        .and_then(|value| f.values.get(value.0 as usize))
+        .ok_or_else(|| err("consuming Task capture result absent"))?;
+    if describe {
+        let Type::Managed(payload) = actual else {
+            unreachable!()
+        };
+        type_work(out, &b.limits.clone(), b)?;
+        if !matches!(out,Type::Desc(inner) if inner.as_ref()==payload.as_ref()) {
+            return Err(err(
+                "Task description does not refer to its actual captured payload",
+            ));
+        }
+        return Ok(true);
+    }
+    if d.kind != CallableKind::FnOnce || out != actual {
+        return Err(err("Task capture must consume exact actual FnOnce field"));
+    }
+    if let Type::Managed(payload) = actual {
+        super::super::tasks::require_closed_context(payload, Some(i.span))?;
+    }
+    Ok(true)
 }
 pub(super) fn operation(kind: &InstructionKind) -> bool {
     matches!(
@@ -58,15 +119,6 @@ fn port_path(places: &[PlaceProjection], port: u32) -> Vec<ContractProjection> {
         .collect::<Vec<_>>();
     out.push(ContractProjection::RetainedPort(port));
     out
-}
-fn wrapper(ty: &Type) -> Path {
-    if let Type::ErrorUnion { result, .. } = ty {
-        let mut p = vec![PlaceProjection::ErrorArm(false)];
-        p.extend(wrapper(result));
-        p
-    } else {
-        vec![]
-    }
 }
 pub(super) fn work(p: &Payload, b: &mut Budget) -> Check<()> {
     if !b.task_sources() {
@@ -108,41 +160,41 @@ pub(super) fn join(out: &mut Payload, from: &Payload, b: &mut Budget) -> Check<b
     Ok(changed)
 }
 pub(super) fn seed(
+    module: &TypedModule,
     ty: &Type,
     base: HoldRoot,
     out: &mut Payload,
     loans: &mut Vec<Loan>,
     b: &mut Budget,
 ) -> Check<()> {
-    if !b.task_sources() || !shape(ty) {
+    if !b.task_sources() {
         return Ok(());
     }
-    let (_, context) = task_type(ty).unwrap();
-    let leaf = wrapper(ty);
-    b.spend(context.ports.len().saturating_add(leaf.len()))?;
-    for (ordinal, port) in context.ports.iter().enumerate() {
-        b.spend(leaf.len().saturating_add(3))?;
+    for (carrier, port, mode) in carriers::paths(module, ty, b)? {
+        b.spend(carrier.len().saturating_mul(3).saturating_add(3))?;
         let source = Source {
             base,
-            leaf: leaf.clone(),
-            inline: vec![],
+            leaf: Vec::new(),
+            inline: Vec::new(),
             heap_parents: Vec::new(),
             heap_element: None,
             retained_port: Some(PortOrigin::Task {
-                carrier: Vec::new(),
-                port: ordinal as u32,
+                carrier: carrier.clone(),
+                port,
             }),
         };
         let id = loans.len();
         loans.push(Loan {
             sources: vec![source.clone()],
             parents: vec![],
-            exclusive: port.mode == StoredBorrowMode::ExclusiveAddress,
+            exclusive: mode == StoredBorrowMode::ExclusiveAddress,
         });
-        b.stored_exclusive_loans |= port.mode == StoredBorrowMode::ExclusiveAddress;
+        b.stored_exclusive_loans |= mode == StoredBorrowMode::ExclusiveAddress;
+        let mut path = carrier;
+        path.push(ContractProjection::RetainedPort(port));
         insert(
             out,
-            &port_path(&leaf, ordinal as u32),
+            &path,
             &Permission {
                 sources: vec![source],
                 loans: vec![id],
@@ -151,6 +203,67 @@ pub(super) fn seed(
         )?;
     }
     Ok(())
+}
+pub(super) fn create_environment(
+    captures: &[ValueId],
+    values: &[Payload],
+    out: &mut Payload,
+    b: &mut Budget,
+) -> Check<()> {
+    if !b.task_sources() {
+        return Ok(());
+    }
+    b.spend(captures.len())?;
+    for (index, value) in captures.iter().enumerate() {
+        let value = values
+            .get(value.0 as usize)
+            .ok_or_else(|| err("Task environment actual capture absent"))?;
+        for (path, permission) in &value.task_ports {
+            b.spend(path.len().saturating_add(1))?;
+            let mut selected = vec![ContractProjection::Capture(index as u32)];
+            selected.extend_from_slice(path);
+            insert(out, &selected, permission, b)?;
+        }
+    }
+    Ok(())
+}
+pub(super) fn environment_task_leaf(
+    module: &TypedModule,
+    id: zil_ir::ClosureId,
+    position: &zil_ir::StoragePosition,
+    ty: &Type,
+    b: &mut Budget,
+) -> Check<bool> {
+    let Some((ContractProjection::RetainedPort(port), carrier)) = position.path.split_last() else {
+        return Ok(false);
+    };
+    if !b.task_sources() {
+        return Err(err(
+            "opaque Task environment leaf has no actual Task consumer",
+        ));
+    }
+    let StorageBase::Capture(index) = position.base else {
+        return Err(err("Task environment port lacks real capture"));
+    };
+    b.spend(carrier.len().saturating_add(1))?;
+    let mut complete = vec![ContractProjection::Capture(index)];
+    complete.extend_from_slice(carrier);
+    let root = Type::Closure(id);
+    let endpoint = carriers::endpoint(module, &root, &complete, b)?;
+    let Type::Task { retained_life, .. } = endpoint else {
+        return Err(err("opaque environment port endpoint is not a Task"));
+    };
+    let actual = &retained_life
+        .ports
+        .get(*port as usize)
+        .ok_or_else(|| err("Task environment port absent"))?
+        .leaf;
+    type_work(actual, &b.limits.clone(), b)?;
+    type_work(ty, &b.limits.clone(), b)?;
+    if actual != ty {
+        return Err(err("Task environment data leaf differs from actual port"));
+    }
+    Ok(true)
 }
 pub(super) fn select_carrier(
     value: &Payload,
@@ -225,6 +338,7 @@ pub(super) fn call(
     Ok(())
 }
 pub(super) fn source_relation(
+    module: &TypedModule,
     f: &TypedFunction,
     source: &Source,
     b: &mut Budget,
@@ -233,23 +347,16 @@ pub(super) fn source_relation(
         return Err(err("Task result source is activation-local"));
     };
     if let Some(PortOrigin::Task { carrier, port }) = &source.retained_port {
-        let c = f
-            .storage_life
-            .as_ref()
-            .ok_or_else(|| err("Task input has no retained relation"))?;
-        let mut p = port_path(&source.leaf, *port);
-        p.splice(p.len() - 1..p.len() - 1, carrier.iter().cloned());
-        b.spend(c.bindings.len().saturating_add(p.len()))?;
-        c.bindings
-            .iter()
-            .find(|r| r.position.base == StorageBase::Parameter(index) && r.position.path == p)
-            .map(|r| r.binder)
-            .ok_or_else(|| err("Task retained input relation omits actual port"))
+        let mut path = port_path(&source.leaf, *port);
+        b.spend(path.len().saturating_add(carrier.len()))?;
+        path.splice(path.len() - 1..path.len() - 1, carrier.iter().cloned());
+        carriers::relation(module, f, StorageBase::Parameter(index), &path, b)
     } else {
         relation(f, StorageBase::Parameter(index), &source.leaf, b)
     }
 }
 pub(super) fn summarize(
+    module: &TypedModule,
     f: &TypedFunction,
     p: &Payload,
     summary: &mut Summary,
@@ -259,19 +366,9 @@ pub(super) fn summarize(
         return Ok(());
     }
     for (path, permission) in &p.task_ports {
-        let c = f
-            .storage_life
-            .as_ref()
-            .ok_or_else(|| err("returned Task lacks complete retained relation"))?;
-        b.spend(c.bindings.len().saturating_add(path.len()))?;
-        let upper = c
-            .bindings
-            .iter()
-            .find(|r| r.position.base == StorageBase::Result && r.position.path == *path)
-            .map(|r| r.binder)
-            .ok_or_else(|| err("returned Task omits actual port relation"))?;
+        let upper = carriers::relation(module, f, StorageBase::Result, path, b)?;
         for source in &permission.sources {
-            if source.base != HoldRoot::Static && source_relation(f, source, b)? != upper {
+            if source.base != HoldRoot::Static && source_relation(module, f, source, b)? != upper {
                 return Err(err(
                     "returned Task port exceeds its declared external relation",
                 ));

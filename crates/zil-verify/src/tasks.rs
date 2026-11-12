@@ -235,12 +235,25 @@ fn reject_nested_transport(module: &TypedModule, budget: &mut Budget) -> Check<(
                 .len()
                 .saturating_add(closure.parameters.len()),
         )?;
-        for ty in closure.captures.iter().chain(&closure.parameters) {
-            if retained_parameter(ty, budget)? {
+        for ty in &closure.captures {
+            if retained_parameter(ty, budget)?
+                && !(closure.kind == CallableKind::FnOnce
+                    && closure.storage_life.is_some()
+                    && matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..})))
+            {
                 return Err(reject(
                     "E-VERIFY-TASK",
                     None,
                     "retained Task closure transport has no frame owner loan",
+                ));
+            }
+        }
+        for ty in &closure.parameters {
+            if retained_parameter(ty, budget)? {
+                return Err(reject(
+                    "E-VERIFY-TASK",
+                    None,
+                    "retained Task callable arguments need complete frame argument transport",
                 ));
             }
         }
@@ -308,7 +321,17 @@ fn reject_nested_transport(module: &TypedModule, budget: &mut Budget) -> Check<(
                             "Task transport operand absent",
                         )
                     })?;
-                    if retained_parameter(ty, budget)? {
+                    let captured = match &i.kind {
+                        InstructionKind::MakeClosure { closure, .. } => {
+                            module.closures.get(closure.0 as usize).is_some_and(|d| {
+                                d.kind == CallableKind::FnOnce && d.storage_life.is_some()
+                            }) && matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}))
+                        }
+                        _ => false,
+                    };
+                    // The new route is still proved from executable sources,
+                    // exact capture classes and retained owner/loan facts.
+                    if retained_parameter(ty, budget)? && !captured {
                         return Err(reject(
                             "E-VERIFY-TASK",
                             Some(i.span),

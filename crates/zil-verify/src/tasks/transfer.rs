@@ -39,16 +39,8 @@ fn data(
     while let Some(t) = pending.pop() {
         b.spend(1)?;
         match t {
-            Type::Unit
-            | Type::Bool
-            | Type::U8
-            | Type::U16
-            | Type::I32
-            | Type::I64
-            | Type::U64
-            | Type::Usize
-            | Type::F32
-            | Type::F64 => {}
+            Type::Unit | Type::Bool => {}
+            scalar if scalar.is_integer() || scalar.is_float() => {}
             Type::Address { inner, .. } => pending.push(inner),
             Type::Managed(p) | Type::Desc(p) => match p.as_ref() {
                 Type::ByteBuffer => {

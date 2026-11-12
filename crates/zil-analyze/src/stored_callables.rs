@@ -262,6 +262,7 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
             }
             admitted &= if d.storage_life.is_some() {
                 capture(t)
+                    || matches!(t,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}) && d.kind==zil_ir::CallableKind::FnOnce)
                     || owned_capture(t, b)?
                     || matches!(t,Type::Closure(child) if b.returned_borrowed_environments.contains(child) && finite(module,*child))
             } else {

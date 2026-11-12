@@ -3773,6 +3773,40 @@ fn factory_source_roots(
     if source
         .path
         .iter()
+        .any(|step| matches!(step, zil_ir::ContractProjection::RetainedPort(_)))
+    {
+        if !budget.task_sources() {
+            return Err(bad("returned Task source lacks its actual retained proof"));
+        }
+        let ports = budget
+            .task_retained_roots
+            .get(f.id.0 as usize)
+            .and_then(|rows| rows.get(argument.0 as usize))
+            .ok_or_else(|| bad("returned Task source proof omitted actual argument"))?;
+        let work = ports.iter().fold(source.path.len(), |n, (path, roots)| {
+            n.saturating_add(path.len())
+                .saturating_add(source.path.len())
+                .saturating_add(roots.len())
+        });
+        budget.spend(work, "actual Task port roots for returned capture")?;
+        let ports = &budget.task_retained_roots[f.id.0 as usize][argument.0 as usize];
+        let selected = ports
+            .get(&source.path)
+            .filter(|roots| !roots.is_empty())
+            .ok_or_else(|| bad("returned Task source has no actual selected data port"))?;
+        return Ok(selected
+            .iter()
+            .map(|root| match root {
+                HoldRoot::Static => Root::Static,
+                HoldRoot::Local(local) => Root::Local(*local),
+                HoldRoot::Parameter(index) => Root::Parameter(*index),
+                HoldRoot::Capture(index) => Root::Capture(*index),
+            })
+            .collect());
+    }
+    if source
+        .path
+        .iter()
         .any(|step| matches!(step, zil_ir::ContractProjection::Capture(_)))
     {
         // An environment selector is metadata, not an inline pointer offset.

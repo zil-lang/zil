@@ -3,11 +3,15 @@
 //! A live owning carrier keeps its roots even when it has no later SSA use.
 use super::*;
 use std::collections::BTreeMap;
+mod carriers;
+use carriers::{Catalog, Path, Shape};
+use zil_ir::{ContractProjection, PlaceProjection};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Owner {
     Value(ValueId),
     Local(LocalId),
+    Capture(u32),
 }
 type Roots = BTreeSet<HoldRoot>;
 type Apart = BTreeSet<(u32, u32)>;
@@ -16,20 +20,9 @@ struct Debt {
     all: Roots,
     exclusive: Roots,
 }
-type State = BTreeMap<Owner, Debt>;
+type Carrier = BTreeMap<Path, Debt>;
+type State = BTreeMap<Owner, Carrier>;
 
-fn retained(ty: &Type) -> bool {
-    if let Some(owner) = super::transfer::outcome_owner(ty) {
-        return retained(owner);
-    }
-    match ty {
-        Type::Managed(payload) => {
-            matches!(payload.as_ref(), Type::Task { retained_life, .. } if !retained_life.ports.is_empty())
-        }
-        Type::ErrorUnion { result, .. } => retained(result),
-        _ => false,
-    }
-}
 fn retained_shape(ty: &Type) -> Option<&zil_ir::RetainedLifeShape> {
     if let Some(owner) = super::transfer::outcome_owner(ty) {
         return retained_shape(owner);
@@ -44,50 +37,115 @@ fn retained_shape(ty: &Type) -> Option<&zil_ir::RetainedLifeShape> {
 fn fee(b: &mut Budget, n: usize) -> CompileResult<()> {
     b.spend(n, "borrowed Task actual owner dependencies")
 }
+fn carrier_work(carrier: &Carrier, b: &mut Budget) -> CompileResult<()> {
+    fee(b, carrier.len())?;
+    for (path, debt) in carrier {
+        fee(
+            b,
+            path.len()
+                .saturating_add(debt.all.len())
+                .saturating_add(debt.exclusive.len()),
+        )?;
+    }
+    Ok(())
+}
 fn copy(state: &State, b: &mut Budget) -> CompileResult<State> {
     fee(b, state.len())?;
-    for debt in state.values() {
-        fee(b, debt.all.len().saturating_add(debt.exclusive.len()))?;
+    for carrier in state.values() {
+        carrier_work(carrier, b)?;
     }
     Ok(state.clone())
 }
 fn merge(to: &mut State, from: &State, b: &mut Budget) -> CompileResult<bool> {
     let mut changed = false;
-    for (owner, debt) in from {
-        fee(
-            b,
-            to.len()
-                .saturating_add(debt.all.len())
-                .saturating_add(debt.exclusive.len())
-                .saturating_add(1),
-        )?;
-        let entry = to.entry(*owner).or_default();
-        let before = (entry.all.len(), entry.exclusive.len());
-        entry.all.extend(&debt.all);
-        entry.exclusive.extend(&debt.exclusive);
-        changed |= (entry.all.len(), entry.exclusive.len()) != before;
+    for (owner, carrier) in from {
+        carrier_work(carrier, b)?;
+        for (path, debt) in carrier {
+            fee(b, to.len().saturating_add(path.len()).saturating_add(1))?;
+            let row = to
+                .entry(*owner)
+                .or_default()
+                .entry(path.clone())
+                .or_default();
+            let before = (row.all.len(), row.exclusive.len());
+            fee(b, row.all.len().saturating_add(row.exclusive.len()))?;
+            row.all.extend(&debt.all);
+            row.exclusive.extend(&debt.exclusive);
+            changed |= before != (row.all.len(), row.exclusive.len());
+        }
     }
     Ok(changed)
 }
-fn take(state: &mut State, owner: Owner, b: &mut Budget) -> CompileResult<Debt> {
+fn take(state: &mut State, owner: Owner, b: &mut Budget) -> CompileResult<Carrier> {
     fee(b, state.len().saturating_add(1))?;
     Ok(state.remove(&owner).unwrap_or_default())
 }
-fn put(state: &mut State, owner: Owner, debt: Debt, b: &mut Budget) -> CompileResult<()> {
-    fee(
-        b,
-        state
-            .len()
-            .saturating_add(debt.all.len())
-            .saturating_add(debt.exclusive.len())
-            .saturating_add(1),
-    )?;
-    if debt.all.is_empty() && debt.exclusive.is_empty() {
+fn put(state: &mut State, owner: Owner, carrier: Carrier, b: &mut Budget) -> CompileResult<()> {
+    fee(b, state.len().saturating_add(1))?;
+    carrier_work(&carrier, b)?;
+    if carrier.is_empty() {
         state.remove(&owner);
     } else {
-        state.insert(owner, debt);
+        state.insert(owner, carrier);
     }
     Ok(())
+}
+fn seed(shape: &Shape, all: &Roots, exclusive: &Roots, b: &mut Budget) -> CompileResult<Carrier> {
+    let mut carrier = Carrier::new();
+    fee(b, shape.len())?;
+    for (path, mutable) in shape {
+        fee(
+            b,
+            path.len()
+                .saturating_add(all.len())
+                .saturating_add(exclusive.len()),
+        )?;
+        carrier.insert(
+            path.clone(),
+            Debt {
+                all: all.clone(),
+                exclusive: if *mutable {
+                    exclusive.clone()
+                } else {
+                    Roots::new()
+                },
+            },
+        );
+    }
+    Ok(carrier)
+}
+fn wrap(carrier: Carrier, prefix: ContractProjection, b: &mut Budget) -> CompileResult<Carrier> {
+    let mut out = Carrier::new();
+    carrier_work(&carrier, b)?;
+    for (path, debt) in carrier {
+        fee(b, path.len().saturating_add(1))?;
+        let mut selected = vec![prefix.clone()];
+        selected.extend(path);
+        out.insert(selected, debt);
+    }
+    Ok(out)
+}
+fn project(
+    carrier: &mut Carrier,
+    prefix: &[ContractProjection],
+    b: &mut Budget,
+) -> CompileResult<Carrier> {
+    carrier_work(carrier, b)?;
+    fee(
+        b,
+        carrier.len().saturating_mul(prefix.len().saturating_add(1)),
+    )?;
+    let mut out = Carrier::new();
+    let mut rest = Carrier::new();
+    for (path, debt) in std::mem::take(carrier) {
+        if path.starts_with(prefix) {
+            out.insert(path[prefix.len()..].to_vec(), debt);
+        } else {
+            rest.insert(path, debt);
+        }
+    }
+    *carrier = rest;
+    Ok(out)
 }
 fn actual(holds: &[ValueHold], value: ValueId, b: &mut Budget) -> CompileResult<Roots> {
     let row = holds
@@ -138,11 +196,14 @@ fn transfer(
     f: &TypedFunction,
     i: &Instruction,
     holds: &[ValueHold],
+    catalog: &Catalog,
     state: &mut State,
     b: &mut Budget,
 ) -> CompileResult<()> {
     fee(b, 1)?;
-    let output = i.result.filter(|v| retained(&f.values[v.0 as usize]));
+    let output = i
+        .result
+        .filter(|v| !catalog.values[v.0 as usize].is_empty());
     let roots = match &i.kind {
         InstructionKind::TaskCreate {
             arguments,
@@ -184,22 +245,78 @@ fn transfer(
                     .ok_or_else(|| bad("Task exclusive port argument absent"))?;
                 exclusive.extend(actual(holds, value, b)?);
             }
-            Some(Debt { all, exclusive })
+            Some(seed(
+                &catalog.values[output.unwrap().0 as usize],
+                &all,
+                &exclusive,
+                b,
+            )?)
         }
-        InstructionKind::WithScopedThread { argument, .. } if output.is_some() => {
-            Some(take(state, Owner::Value(*argument), b)?)
-        }
+        InstructionKind::WithScopedThread { argument, .. } if output.is_some() => Some(wrap(
+            take(state, Owner::Value(*argument), b)?,
+            ContractProjection::Place(PlaceProjection::Variant(zil_ir::VariantProjection {
+                variant: 0,
+                index: 0,
+            })),
+            b,
+        )?),
         InstructionKind::UnpackVariant {
             local,
             variant,
             fields,
-        } if super::transfer::outcome_owner(&f.locals[local.0 as usize].ty).is_some() => {
-            let debt = take(state, Owner::Local(*local), b)?;
-            if *variant == 0 {
-                let target = *fields
-                    .first()
-                    .ok_or_else(|| bad("Task failure has no owner field"))?;
-                put(state, Owner::Local(target), debt, b)?;
+        } => {
+            let mut original = take(state, Owner::Local(*local), b)?;
+            for (index, target) in fields.iter().enumerate() {
+                let prefix = [ContractProjection::Place(PlaceProjection::Variant(
+                    zil_ir::VariantProjection {
+                        variant: *variant,
+                        index: index as u32,
+                    },
+                ))];
+                let selected = project(&mut original, &prefix, b)?;
+                put(state, Owner::Local(*target), selected, b)?;
+            }
+            None
+        }
+        InstructionKind::MakeClosure { captures, .. } => {
+            let mut out = Carrier::new();
+            for (index, value) in captures.iter().enumerate() {
+                let child = wrap(
+                    take(state, Owner::Value(*value), b)?,
+                    ContractProjection::Capture(index as u32),
+                    b,
+                )?;
+                carrier_work(&child, b)?;
+                out.extend(child);
+            }
+            Some(out)
+        }
+        InstructionKind::MakePackage { fields, .. }
+        | InstructionKind::MakeAggregate { fields }
+        | InstructionKind::MakeOwnedTuple { fields } => {
+            let mut out = Carrier::new();
+            for (index, value) in fields.iter().enumerate() {
+                let child = wrap(
+                    take(state, Owner::Value(*value), b)?,
+                    ContractProjection::Place(PlaceProjection::Field(index as u32)),
+                    b,
+                )?;
+                carrier_work(&child, b)?;
+                out.extend(child);
+            }
+            Some(out)
+        }
+        InstructionKind::TakeCapture { index } => Some(take(state, Owner::Capture(*index), b)?),
+        InstructionKind::CallClosureOnce { callee, arguments } => {
+            take(state, Owner::Value(*callee), b)?;
+            for value in arguments {
+                take(state, Owner::Value(*value), b)?;
+            }
+            if output.is_some() {
+                return Err(fail(
+                    i.span,
+                    "Task-returning callable needs its complete returned frame source consumer",
+                ));
             }
             None
         }
@@ -212,14 +329,17 @@ fn transfer(
             let mut carried_exclusive = Roots::new();
             for argument in arguments {
                 fee(b, 1)?;
-                if retained(&f.values[argument.0 as usize]) {
+                if !catalog.values[argument.0 as usize].is_empty() {
                     if module.functions[function.0 as usize].foreign.is_some() {
                         return Err(fail(
                             i.span,
                             "borrowed Task cannot escape through an unverified foreign owner transfer",
                         ));
                     }
-                    carried_exclusive.extend(take(state, Owner::Value(*argument), b)?.exclusive);
+                    for debt in take(state, Owner::Value(*argument), b)?.values() {
+                        fee(b, debt.exclusive.len())?;
+                        carried_exclusive.extend(&debt.exclusive);
+                    }
                 }
             }
             if output.is_some() && module.functions[function.0 as usize].foreign.is_some() {
@@ -232,7 +352,10 @@ fn transfer(
                 .map(|v| {
                     let all = actual(holds, v, b)?;
                     let mut exclusive = carried_exclusive;
-                    if exclusive_port(&f.values[v.0 as usize]) {
+                    if catalog.values[v.0 as usize]
+                        .values()
+                        .any(|exclusive| *exclusive)
+                    {
                         // A callee may create a fresh frame from any address input.
                         // Existing Task inputs retain their exact exclusive roots;
                         // address inputs add their actual target roots conservatively.
@@ -245,65 +368,109 @@ fn transfer(
                         if exclusive.is_empty() {
                             exclusive.extend(&all);
                         }
-                    } else {
-                        exclusive.clear();
                     }
-                    Ok::<Debt, Vec<Diagnostic>>(Debt { all, exclusive })
+                    // The callee's actual capture sources and per-port relation
+                    // are checked by the independent retained/stored consumers.
+                    if all.is_empty() {
+                        return Err(fail(
+                            i.span,
+                            "returned Task carrier lacks reconstructed actual input roots",
+                        ));
+                    }
+                    seed(&catalog.values[v.0 as usize], &all, &exclusive, b)
                 })
                 .transpose()?
         }
-        InstructionKind::Store { local, value } if retained(&f.locals[local.0 as usize].ty) => {
+        InstructionKind::Store { local, value } if !catalog.locals[local.0 as usize].is_empty() => {
             let debt = take(state, Owner::Value(*value), b)?;
             put(state, Owner::Local(*local), debt, b)?;
             None
         }
-        InstructionKind::TakeLocal { local } if retained(&f.locals[local.0 as usize].ty) => {
+        InstructionKind::TakeLocal { local } if !catalog.locals[local.0 as usize].is_empty() => {
             Some(take(state, Owner::Local(*local), b)?)
         }
         InstructionKind::TakeVariantField { local, path }
-            if retained(&f.locals[local.0 as usize].ty) =>
+        | InstructionKind::TakeTupleField { local, path }
+            if !catalog.locals[local.0 as usize].is_empty() =>
         {
-            // The independent Sum pass has already checked the actual tag
-            // guard and that this selective take consumes the owning shell.
-            let debt = take(state, Owner::Local(*local), b)?;
-            match path.as_slice() {
-                [zil_ir::PlaceProjection::ErrorArm(false)]
-                | [
-                    zil_ir::PlaceProjection::Variant(zil_ir::VariantProjection {
-                        variant: 0,
-                        index: 0,
-                    }),
-                ] => Some(debt),
-                [zil_ir::PlaceProjection::ErrorArm(true)] => None,
-                _ => {
-                    return Err(fail(
-                        i.span,
-                        "borrowed Task selective take has no complete error arm",
-                    ));
-                }
+            let mut carrier = take(state, Owner::Local(*local), b)?;
+            fee(b, path.len())?;
+            let prefix = path
+                .iter()
+                .copied()
+                .map(ContractProjection::Place)
+                .collect::<Vec<_>>();
+            let selected = project(&mut carrier, &prefix, b)?;
+            put(state, Owner::Local(*local), carrier, b)?;
+            Some(selected)
+        }
+        InstructionKind::TakePackageField { local, index } => {
+            let mut carrier = take(state, Owner::Local(*local), b)?;
+            let selected = project(
+                &mut carrier,
+                &[ContractProjection::Place(PlaceProjection::Field(*index))],
+                b,
+            )?;
+            put(state, Owner::Local(*local), carrier, b)?;
+            Some(selected)
+        }
+        InstructionKind::UnpackTuple { local, fields } => {
+            let mut carrier = take(state, Owner::Local(*local), b)?;
+            for (index, target) in fields.iter().enumerate() {
+                let selected = project(
+                    &mut carrier,
+                    &[ContractProjection::Place(PlaceProjection::Field(
+                        index as u32,
+                    ))],
+                    b,
+                )?;
+                put(state, Owner::Local(*target), selected, b)?;
             }
+            if !carrier.is_empty() {
+                return Err(fail(
+                    i.span,
+                    "Task carrier tuple unpack leaves an untransported frame responsibility",
+                ));
+            }
+            None
         }
         InstructionKind::TakeErrorUnion { value, is_error }
-            if retained(&f.values[value.0 as usize]) =>
+            if !catalog.values[value.0 as usize].is_empty() =>
         {
             let debt = take(state, Owner::Value(*value), b)?;
-            if *is_error { None } else { Some(debt) }
+            let mut debt = debt;
+            Some(project(
+                &mut debt,
+                &[ContractProjection::Place(PlaceProjection::ErrorArm(
+                    *is_error,
+                ))],
+                b,
+            )?)
         }
         InstructionKind::MakeErrorUnion { value, is_error } if output.is_some() => {
             Some(if *is_error {
-                Debt::default()
+                Carrier::new()
             } else {
-                take(state, Owner::Value(*value), b)?
+                wrap(
+                    take(state, Owner::Value(*value), b)?,
+                    ContractProjection::Place(PlaceProjection::ErrorArm(false)),
+                    b,
+                )?
             })
         }
-        InstructionKind::TaskFinishDestroy { task } if retained(&f.values[task.0 as usize]) => {
+        InstructionKind::TaskFinishDestroy { task }
+            if !catalog.values[task.0 as usize].is_empty() =>
+        {
             take(state, Owner::Value(*task), b)?;
             None
         }
         InstructionKind::DropManaged { local }
         | InstructionKind::DropErrorUnion { local }
         | InstructionKind::DropEnum { local }
-            if retained(&f.locals[local.0 as usize].ty) =>
+        | InstructionKind::DropClosure { local }
+        | InstructionKind::DropPackage { local }
+        | InstructionKind::DropTuple { local }
+            if !catalog.locals[local.0 as usize].is_empty() =>
         {
             // Task admission separately proves the reachable teardown is
             // synchronous; only completion of this instruction releases it.
@@ -311,7 +478,7 @@ fn transfer(
             None
         }
         InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local)
-            if retained(&f.locals[local.0 as usize].ty) =>
+            if !catalog.locals[local.0 as usize].is_empty() =>
         {
             if state.contains_key(&Owner::Local(*local)) {
                 return Err(fail(
@@ -331,7 +498,7 @@ fn transfer(
         _ => {
             for operand in resources::uses(&i.kind) {
                 fee(b, 1)?;
-                if retained(&f.values[operand.0 as usize]) {
+                if !catalog.values[operand.0 as usize].is_empty() {
                     return Err(fail(
                         i.span,
                         "borrowed Task transport requires a checked complete owner transfer",
@@ -382,7 +549,7 @@ fn exclusive(
     b: &mut Budget,
 ) -> CompileResult<()> {
     fee(b, state.len())?;
-    for debt in state.values() {
+    for debt in state.values().flat_map(|carrier| carrier.values()) {
         let held = &debt.all;
         b.product(
             roots.len(),
@@ -403,16 +570,8 @@ fn exclusive(
     }
     Ok(())
 }
-fn exclusive_port(ty: &Type) -> bool {
-    retained_shape(ty).is_some_and(|shape| {
-        shape
-            .ports
-            .iter()
-            .any(|p| p.mode == zil_ir::StoredBorrowMode::ExclusiveAddress)
-    })
-}
 fn shared_access(
-    f: &TypedFunction,
+    _f: &TypedFunction,
     state: &State,
     roots: &Roots,
     i: &Instruction,
@@ -420,18 +579,9 @@ fn shared_access(
     b: &mut Budget,
 ) -> CompileResult<()> {
     fee(b, state.len())?;
-    for (owner, debt) in state {
+    for debt in state.values().flat_map(|carrier| carrier.values()) {
         let held = &debt.exclusive;
         fee(b, held.len().saturating_add(1))?;
-        let ty = match owner {
-            Owner::Value(value) => f.values.get(value.0 as usize),
-            Owner::Local(local) => f.locals.get(local.0 as usize).map(|l| &l.ty),
-        }
-        .ok_or_else(|| bad("Task exclusive owner type is absent"))?;
-        b.type_work(ty, false, "Task exclusive owner port modes")?;
-        if !exclusive_port(ty) {
-            continue;
-        }
         b.product(
             roots.len(),
             held.len(),
@@ -453,12 +603,50 @@ fn shared_access(
 }
 fn access(
     f: &TypedFunction,
+    catalog: &Catalog,
     i: &Instruction,
     holds: &[ValueHold],
     state: &State,
     apart: &mut Apart,
     b: &mut Budget,
 ) -> CompileResult<()> {
+    let mut consumed = Vec::new();
+    match &i.kind {
+        InstructionKind::Store { value, .. }
+        | InstructionKind::MakeErrorUnion { value, .. }
+        | InstructionKind::TakeErrorUnion { value, .. } => consumed.push(*value),
+        InstructionKind::MakeClosure {
+            captures: values, ..
+        }
+        | InstructionKind::MakePackage { fields: values }
+        | InstructionKind::MakeOwnedTuple { fields: values }
+        | InstructionKind::MakeAggregate { fields: values }
+        | InstructionKind::Call {
+            arguments: values, ..
+        } => {
+            fee(b, values.len())?;
+            consumed.extend_from_slice(values);
+        }
+        InstructionKind::CallClosureOnce { callee, arguments } => {
+            fee(b, arguments.len().saturating_add(1))?;
+            consumed.push(*callee);
+            consumed.extend_from_slice(arguments);
+        }
+        _ => {}
+    }
+    let mut remaining;
+    let state = if consumed
+        .iter()
+        .any(|value| !catalog.values[value.0 as usize].is_empty())
+    {
+        remaining = copy(state, b)?;
+        for value in consumed {
+            take(&mut remaining, Owner::Value(value), b)?;
+        }
+        &remaining
+    } else {
+        state
+    };
     if state.is_empty() {
         return Ok(());
     }
@@ -547,7 +735,7 @@ fn access(
         && !f
             .locals
             .get(local.0 as usize)
-            .is_some_and(|l| retained(&l.ty))
+            .is_some_and(|_| !catalog.locals[local.0 as usize].is_empty())
     {
         shared_access(
             f,
@@ -559,9 +747,7 @@ fn access(
         )?;
     }
     match i.kind {
-        InstructionKind::CallClosureShared { .. }
-        | InstructionKind::CallClosureMut { .. }
-        | InstructionKind::CallClosureOnce { .. } => {
+        InstructionKind::CallClosureShared { .. } | InstructionKind::CallClosureMut { .. } => {
             return Err(fail(
                 i.span,
                 "closure environment effects during a borrowed Task require the retained capture consumer",
@@ -744,7 +930,14 @@ pub(super) fn check(
     let mut apart = vec![Apart::new(); module.functions.len()];
     for (fi, f) in module.functions.iter().enumerate() {
         fee(b, f.values.len().saturating_add(f.locals.len()))?;
-        if !f.values.iter().any(retained) && !f.locals.iter().any(|l| retained(&l.ty)) {
+        let catalog = Catalog::new(module, f, b)?;
+        if catalog
+            .values
+            .iter()
+            .chain(&catalog.locals)
+            .chain(&catalog.captures)
+            .all(Shape::is_empty)
+        {
             continue;
         }
         if f.foreign.is_some() {
@@ -764,7 +957,7 @@ pub(super) fn check(
             for i in &block.instructions {
                 fee(b, 1)?;
                 if let (Some(result), InstructionKind::ErrorTag { value }) = (i.result, &i.kind)
-                    && retained(&f.values[value.0 as usize])
+                    && !catalog.values[value.0 as usize].is_empty()
                 {
                     tags[result.0 as usize] = Some(*value);
                 }
@@ -773,20 +966,17 @@ pub(super) fn check(
         let mut initial = State::new();
         for (index, local) in f.parameters.iter().enumerate() {
             fee(b, 1)?;
-            if retained(&f.locals[local.0 as usize].ty) {
+            if !catalog.locals[local.0 as usize].is_empty() {
                 let all = Roots::from([HoldRoot::Parameter(index as u32)]);
-                let exclusive = if exclusive_port(&f.locals[local.0 as usize].ty) {
-                    all.clone()
-                } else {
-                    Roots::new()
-                };
-                put(
-                    &mut initial,
-                    Owner::Local(*local),
-                    Debt { all, exclusive },
-                    b,
-                )?;
+                let exclusive = all.clone();
+                let carrier = seed(&catalog.locals[local.0 as usize], &all, &exclusive, b)?;
+                put(&mut initial, Owner::Local(*local), carrier, b)?;
             }
+        }
+        for (index, shape) in catalog.captures.iter().enumerate() {
+            let roots = Roots::from([HoldRoot::Capture(index as u32)]);
+            let carrier = seed(shape, &roots, &roots, b)?;
+            put(&mut initial, Owner::Capture(index as u32), carrier, b)?;
         }
         let mut inputs = vec![State::new(); f.blocks.len()];
         let mut outputs = vec![State::new(); f.blocks.len()];
@@ -827,11 +1017,11 @@ pub(super) fn check(
                 }
                 inputs[index] = copy(&state, b)?;
                 for i in &block.instructions {
-                    transfer(module, f, i, holds, &mut state, b)?;
+                    transfer(module, f, i, holds, &catalog, &mut state, b)?;
                 }
                 fee(b, state.len().saturating_add(outputs[index].len()))?;
-                for debt in state.values().chain(outputs[index].values()) {
-                    fee(b, debt.all.len().saturating_add(debt.exclusive.len()))?;
+                for carrier in state.values().chain(outputs[index].values()) {
+                    carrier_work(carrier, b)?;
                 }
                 if state != outputs[index] {
                     outputs[index] = state;
@@ -848,8 +1038,8 @@ pub(super) fn check(
             }
             let mut state = copy(&inputs[index], b)?;
             for i in &block.instructions {
-                access(f, i, holds, &state, &mut apart[fi], b)?;
-                transfer(module, f, i, holds, &mut state, b)?;
+                access(f, &catalog, i, holds, &state, &mut apart[fi], b)?;
+                transfer(module, f, i, holds, &catalog, &mut state, b)?;
             }
         }
     }

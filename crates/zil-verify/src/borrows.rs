@@ -37,10 +37,12 @@ fn retained_task_value(ty: &Type) -> bool {
     }
 }
 
-fn mixed_task_strong_value(ty: &Type, budget: &mut Budget) -> Check<bool> {
+fn mixed_task_strong_value(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bool> {
     crate::stored_flow::type_work(ty, &budget.limits.clone(), budget)?;
     Ok(!matches!(ty, Type::Desc(_))
         && (retained_task_value(ty)
+            || budget.task_retained_environments
+                && crate::stored_flow::task_carrier(module, ty, budget)?
             || matches!(ty, Type::Address { .. } | Type::BorrowedStorage { .. })
             || crate::stored_flow::enum_address::signature(ty)))
 }
@@ -333,7 +335,8 @@ fn check(
         coarse.dedup();
         if budget.task_sources() {
             let ty = &f.values[claim.value.0 as usize];
-            let mixed_strong = budget.masked_stored_tasks() && mixed_task_strong_value(ty, budget)?;
+            let mixed_strong =
+                budget.masked_stored_tasks() && mixed_task_strong_value(module, ty, budget)?;
             let function_proof = budget
                 .task_stored_sources
                 .as_ref()
@@ -1526,7 +1529,7 @@ fn check_module_mask(
             {
                 if budget.masked_stored_tasks() {
                     budget.spend(1)?;
-                    if !mixed_task_strong_value(ty, budget)?
+                    if !mixed_task_strong_value(module, ty, budget)?
                         || matches!(ty, Type::Address { .. }) && sources.pointer.is_empty()
                     {
                         continue;

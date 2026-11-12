@@ -386,6 +386,7 @@ struct Budget {
     head_descriptions: bool,
     stored_enum_addresses: bool,
     task_borrowed_results: bool,
+    task_retained_environments: bool,
     store_option_results: bool,
     // Derived only from the bounded raw tree: direct Managed elements or a
     // Store header below another Store's actual element. No candidate flag.
@@ -429,7 +430,7 @@ impl Budget {
         self.nested_store_windows || self.returned_environment_sources && self.actual_store_types
     }
     fn task_sources(&self) -> bool {
-        self.task_borrowed_results || self.task_failure_carriers
+        self.task_borrowed_results || self.task_failure_carriers || self.task_retained_environments
     }
     fn masked_stored_tasks(&self) -> bool {
         self.store_option_results || self.task_failure_carriers
@@ -485,6 +486,7 @@ impl Budget {
             head_descriptions: false,
             stored_enum_addresses: false,
             task_borrowed_results: false,
+            task_retained_environments: false,
             store_option_results: false,
             nested_store_windows: false,
             actual_store_types: false,
@@ -1254,7 +1256,7 @@ fn check_module(
         task_input_fingerprint = tasks::interface_fingerprint(program, fingerprint, &mut budget)?;
     }
     helpers::check_module(module, &graphs, limits, &mut budget)?;
-    let guard_sources = if budget.task_borrowed_results || budget.store_option_results {
+    let guard_sources = if budget.task_sources() || budget.store_option_results {
         for (index, f) in module.functions.iter().enumerate() {
             if store_option_mask.as_ref().is_none_or(|mask| mask[index]) {
                 stored_flow::header(module, f, &mut budget)?;

@@ -277,6 +277,9 @@ fn analyze_budgeted(
                     if matches!(ty, Type::BorrowedStorage { .. })
                         || stored_flow::enum_address::signature(ty)
                         || holds::retained_task_value(ty) && !matches!(ty, Type::Desc(_))
+                        || budget.task_retained_environments
+                            && !matches!(ty, Type::Desc(_))
+                            && stored_flow::task_carrier(module, ty, budget)?
                         || matches!(ty, Type::Address { .. }) && !stored.roots.is_empty()
                     {
                         budget.spend(stored.roots.len(), "mixed strong Hold copy")?;

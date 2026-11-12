@@ -598,6 +598,18 @@ fn amount(a: usize, b: usize) -> Check<usize> {
     a.checked_mul(b)
         .ok_or_else(|| limit("stored comparison work overflow"))
 }
+pub(crate) fn task_port_relation(
+    module: &TypedModule,
+    f: &TypedFunction,
+    base: StorageBase,
+    path: &[ContractProjection],
+    b: &mut Budget,
+) -> Check<StorageBinder> {
+    task_address::port_relation(module, f, base, path, b)
+}
+pub(crate) fn task_carrier(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    task_address::has_carrier(module, ty, b)
+}
 fn width(s: &Source) -> usize {
     let opaque = match &s.retained_port {
         Some(PortOrigin::Dyn { carrier, .. } | PortOrigin::Task { carrier, .. }) => carrier.len(),
@@ -1512,10 +1524,12 @@ pub(super) fn qualifications(
                     _ => false,
                 };
                 let enum_operation = enum_address::instruction(module, f, i, b)?;
-                let owned_operation = ((!mixed_package
-                    && !b.masked_stored_tasks()
-                    && super::stored_owned::instruction(f, &i.kind))
-                    || scalar_owner_operation)
+                let task_capture_operation = task_address::capture_instruction(module, f, i, b)?;
+                let owned_operation = !task_capture_operation
+                    && ((!mixed_package
+                        && !b.masked_stored_tasks()
+                        && super::stored_owned::instruction(f, &i.kind))
+                        || scalar_owner_operation)
                     && !owned_byte_views::owner_instruction(module, f, i, b)?
                     && !(b.task_sources() && task_address::owner_instruction(f, &i.kind));
                 if !super::class_flow::pointer_instruction(f, i)
@@ -1527,6 +1541,7 @@ pub(super) fn qualifications(
                     && !dyn_ports::wrapper(module, f, i, b)?
                     && !dyn_closed::wrapper(module, f, i, b)?
                     && !owned_operation
+                    && !task_capture_operation
                     && !enum_operation
                     && !owned_byte_views::instruction(module, f, i, b)?
                     && !owned_byte_views::description_instruction(module, f, i, b)?
@@ -2335,7 +2350,7 @@ fn seed_environment(
         .ok_or_else(|| err("environment definition absent"))?;
     b.spend(d.captures.len())?;
     for (index, ty) in d.captures.iter().enumerate() {
-        let capture = seed_payload(ty, base, loans, b)?;
+        let capture = seed_payload(module, ty, base, loans, b)?;
         let prefix = vec![PlaceProjection::Field(index as u32)];
         for (tail, mut p) in
             std::iter::once((Vec::new(), capture.address)).chain(capture.leaves.into_vec(b)?)
@@ -2361,6 +2376,7 @@ fn seed_environment(
     Ok(())
 }
 fn seed_payload(
+    module: &TypedModule,
     ty: &Type,
     base: HoldRoot,
     loans: &mut Vec<Loan>,
@@ -2516,7 +2532,7 @@ fn seed_payload(
         }
     }
     compound::seed(ty, base, &mut p, loans, b)?;
-    task_address::seed(ty, base, &mut p, loans, b)?;
+    task_address::seed(module, ty, base, &mut p, loans, b)?;
     Ok(p)
 }
 fn empty_frame(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<Frame> {
@@ -2541,7 +2557,7 @@ fn seed(
     for (position, local) in f.parameters.iter().enumerate() {
         b.spend(1)?;
         let ty = &f.locals[local.0 as usize].ty;
-        let mut p = seed_payload(ty, HoldRoot::Parameter(position as u32), loans, b)?;
+        let mut p = seed_payload(module, ty, HoldRoot::Parameter(position as u32), loans, b)?;
         if enum_address::ordinary(module, ty, b)? {
             p.enum_variants = enum_address::Variants::parameter(position as u32, ty, b)?;
         } else if option_address::candidate(ty) {
@@ -2581,7 +2597,7 @@ fn seed(
         b.spend(d.captures.len())?;
         for (index, ty) in d.captures.iter().enumerate() {
             let base = HoldRoot::Capture(index as u32);
-            let mut payload = seed_payload(ty, base, loans, b)?;
+            let mut payload = seed_payload(module, ty, base, loans, b)?;
             if fixed_environment(module, ty, b) {
                 seed_environment(module, ty, base, &mut payload, loans, b)?;
             }
@@ -3392,6 +3408,7 @@ fn step(
         }
         InstructionKind::MakeClosure { closure, captures } if b.returned_environment_sources => {
             returned_environment::create(module, *closure, captures, values, state, &mut out, b)?;
+            task_address::create_environment(captures,values,&mut out,b)?;
         }
         InstructionKind::MakeClosure { closure, captures }
             if module
@@ -6032,7 +6049,7 @@ fn summarize(
             for (path, p) in &payload.leaves {
                 result_row(&mut summary, path, &p.sources, b)?;
             }
-            task_address::summarize(f, payload, &mut summary, b)?;
+            task_address::summarize(module, f, payload, &mut summary, b)?;
             dyn_returns::summarize(module, f, payload, &mut summary, &solution.loans, b)?;
             if b.dyn_contexts && matches!(f.return_type, Type::Address { .. }) {
                 let parents = dyn_returns::parents(&payload.address, &solution.loans, b)?;
@@ -6597,7 +6614,7 @@ fn solve_check(
                         != (if source.retained_port.is_some() {
                             match &source.retained_port {
                                 Some(PortOrigin::Task { .. }) => {
-                                    task_address::source_relation(f, source, b)?
+                                    task_address::source_relation(module, f, source, b)?
                                 }
                                 Some(PortOrigin::Dyn { carrier, port }) => {
                                     dyn_returns::source_relation(

@@ -266,7 +266,9 @@ pub(super) fn captured_profile(
     }
     for ty in &d.captures {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
+        b.task_retained_environments |= matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{retained_life,..} if !retained_life.ports.is_empty()));
         if !(shared_input(ty)
+            || matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}) && d.kind==CallableKind::FnOnce)
             || super::stored_owned::owner(ty)
             || matches!(ty, Type::BorrowedStorage { .. }) && packages::capture_owner(ty)
             || matches!(ty, Type::Closure(child) if finite(module, *child)))

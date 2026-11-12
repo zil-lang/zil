@@ -1287,6 +1287,33 @@ fn check_with(
                             )?;
                         }
                     }
+                    InstructionKind::TakeVariantField { local, path }
+                        if b.task_sources()
+                            && path.as_slice() == [PlaceProjection::ErrorArm(false)]
+                            && out.is_some_and(|p| !p.task_ports.is_empty()) =>
+                    {
+                        link_projection(
+                            &f.locals[local.0 as usize].ty,
+                            &locals[local.0 as usize],
+                            out.unwrap(),
+                            LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                    InstructionKind::TakeErrorUnion {
+                        value,
+                        is_error: false,
+                    } if b.task_sources() && out.is_some_and(|p| !p.task_ports.is_empty()) => {
+                        link_projection(
+                            &f.values[value.0 as usize],
+                            &values[value.0 as usize],
+                            out.unwrap(),
+                            LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
                     InstructionKind::TaskCreate {
                         arguments,
                         port_bindings,
@@ -1414,7 +1441,10 @@ fn check_with(
                             e.equal(*from, *to, b)?;
                         }
                     }
-                    InstructionKind::ReadCapture { index } if !captures.is_empty() => {
+                    InstructionKind::ReadCapture { index }
+                    | InstructionKind::TakeCapture { index }
+                        if !captures.is_empty() =>
+                    {
                         let source = captures
                             .get(*index as usize)
                             .ok_or_else(|| bad("capture class index absent"))?;

@@ -55,6 +55,7 @@ struct Flow {
     heads: Vec<bool>,
     roots: Vec<Roots>,
     created: BTreeMap<(ValueId, super::port_facts::Path), usize>,
+    task_captures: BTreeMap<u32, Loans>,
 }
 
 /// Descriptor writes do not mutate the closure's environment position. Only
@@ -256,6 +257,7 @@ fn reconstruct(
             vec![]
         },
         roots: vec![vec![]; count],
+        task_captures: BTreeMap::new(),
         created: ports
             .created
             .keys()
@@ -313,29 +315,50 @@ fn reconstruct(
     }
     for (offset, (position, mode)) in task_ports.iter().enumerate() {
         budget.spend(position.path.len().saturating_add(1))?;
-        let StorageBase::Parameter(parameter) = position.base else {
-            return Err(reject(
-                "E-VERIFY-TASK-PORT",
-                Some(f.span),
-                "retained loan input is not a parameter",
-            ));
-        };
         let loan = base + incoming.len() + offset;
         parameter_loans.insert((*position).clone(), loan);
         flow.mutable[loan] = **mode == StoredBorrowMode::ExclusiveAddress;
-        // A retained data port is distinct from this same Task's stable head
-        // for every result type. The caller/constructor proof supplies its
-        // actual external root; result T cannot collapse the two positions.
-        flow.roots[loan] = vec![match position.path.as_slice() {
-            path if matches!(path.last(), Some(ContractProjection::RetainedPort(_))) => {
-                roots::parameter_port(parameter, path, budget)?
+        match position.base {
+            StorageBase::Parameter(parameter) => {
+                let local = *f.parameters.get(parameter as usize).ok_or_else(|| {
+                    reject(
+                        "E-VERIFY-TASK-PORT",
+                        Some(f.span),
+                        "Task port parameter absent",
+                    )
+                })?;
+                flow.roots[loan] = vec![if matches!(
+                    position.path.last(),
+                    Some(ContractProjection::RetainedPort(_))
+                ) {
+                    roots::parameter_port(parameter, &position.path, budget)?
+                } else {
+                    Root::Parameter(parameter)
+                }];
+                initial.entry(local).or_default().insert(loan);
             }
-            _ => Root::Parameter(parameter),
-        }];
-        initial
-            .entry(f.parameters[parameter as usize])
-            .or_default()
-            .insert(loan);
+            StorageBase::Capture(capture) => {
+                if !matches!(
+                    position.path.last(),
+                    Some(ContractProjection::RetainedPort(_))
+                ) {
+                    return Err(reject(
+                        "E-VERIFY-TASK-PORT",
+                        Some(f.span),
+                        "captured Task input lacks retained selector",
+                    ));
+                }
+                flow.roots[loan] = vec![roots::capture_port(capture, &position.path, budget)?];
+                flow.task_captures.entry(capture).or_default().insert(loan);
+            }
+            _ => {
+                return Err(reject(
+                    "E-VERIFY-TASK-PORT",
+                    Some(f.span),
+                    "Task input loan has no actual input position",
+                ));
+            }
+        }
     }
     for (index, _) in f.parameters.iter().enumerate() {
         parameter_loans.insert(
@@ -1490,6 +1513,12 @@ pub(super) fn check(
                         }
                         false
                     }
+                    super::port_facts::Owner::Capture(index) => {
+                        if let Some(row) = flow.task_captures.get(index) {
+                            join(&mut active, row, budget)?;
+                        }
+                        false
+                    }
                 };
             }
             // Arguments and captured targets participate in the current call,
@@ -2091,7 +2120,13 @@ pub(super) fn check(
             }
             local_transfer(f, &mut locals, instruction, &flow.values, budget)?;
             if budget.borrowed_task_ports {
-                super::port_facts::owner_transfer(f, instruction, &mut retained_owners, budget)?;
+                super::port_facts::owner_transfer(
+                    module,
+                    f,
+                    instruction,
+                    &mut retained_owners,
+                    budget,
+                )?;
             }
             if let Some(capture) = capture {
                 captures::local_transfer(

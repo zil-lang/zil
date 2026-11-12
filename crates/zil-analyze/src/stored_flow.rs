@@ -662,6 +662,7 @@ fn pointer_anchors(
 pub(super) struct Facts {
     pub values: Vec<Vec<Target>>,
     pointer_values: Vec<Vec<HoldRoot>>,
+    task_port_values: Vec<crate::budget::TaskRetainedRoots>,
     pointer_parents: Vec<Vec<TaskLoanAnchor>>,
     pub returned: BTreeMap<Path, Vec<Target>>,
     // Actual external leaves of returned concrete environments. Each row
@@ -698,6 +699,9 @@ fn ordered(b: &mut Budget, n: usize, width: usize) -> CompileResult<()> {
     )
 }
 /// Every owned Target path participates in cloning and derived equality/order.
+pub(crate) fn task_carrier(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    task_address::has_carrier(module, ty, b)
+}
 pub(super) fn target_width(target: &Target) -> usize {
     target
         .stored
@@ -974,6 +978,13 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
                         },
                     )?;
                 }
+            }
+        }
+        fee(b, f.task_port_values.len())?;
+        for ports in &f.task_port_values {
+            fee(b, ports.len())?;
+            for (path, roots) in ports {
+                fee(b, path.len().saturating_add(roots.len()))?;
             }
         }
         for (path, row) in &f.returned_task_ports {
@@ -2398,7 +2409,7 @@ fn returns(
                 return Err(failure("result retains local/captured target"));
             };
             if (if source.retained_port.is_some() {
-                task_address::source_binding(f, source, b)?
+                task_address::source_binding(module, f, source, b)?
             } else {
                 binding(f, StorageBase::Parameter(index), &source.stored, b)?
             }) != upper
@@ -3020,7 +3031,7 @@ fn seed_value(
         }
         value.slots = slots;
     }
-    task_address::seed(ty, base, &mut value, loans, b)?;
+    task_address::seed(module, ty, base, &mut value, loans, b)?;
     dyn_address::seed(module, ty, base, &mut value, loans, b)?;
     Ok(value)
 }
@@ -3704,7 +3715,7 @@ fn transfer(
                     state
                         .locals
                         .get(local)
-                        .ok_or_else(|| failure("move of unavailable environment"))?,
+                        .ok_or_else(|| failure(&format!("move of unavailable environment in {} local {}",f.name,local.0)))?,
                     b,
                 )?;
             }
@@ -4265,6 +4276,14 @@ fn transfer(
                     let path = environment_path(index, &[], b)?;
                     environment_leaf(&mut out, path, &actual.pointer, b)?;
                 }
+                task_address::work(actual,b)?;
+                for (path,permission) in &actual.task_ports {
+                    fee(b,path.len().saturating_add(1))?;
+                    let mut selected=vec![zil_ir::ContractProjection::Capture(index as u32)];
+                    selected.extend_from_slice(path);
+                    out.task_ports.insert(selected,permission.clone());
+                    complete &= !permission.targets.is_empty();
+                }
                 for (nested, permission) in &actual.environment {
                     let path = environment_path(index, nested, b)?;
                     complete &= !permission.targets.is_empty();
@@ -4402,7 +4421,7 @@ fn transfer(
                 && (matches!(i.kind,InstructionKind::ReadCapture{..})
                     || f.environment.and_then(|id|module.closures.get(id.0 as usize))
                         .and_then(|definition|definition.captures.get(*index as usize))
-                        .is_some_and(|ty|matches!(ty,Type::Closure(_)))) => {
+                        .is_some_and(|ty|matches!(ty,Type::Closure(_)) || matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..})) )) => {
             ordered(b, state.captures.len(), 0)?;
             out = snapshot(
                 state
@@ -4411,6 +4430,7 @@ fn transfer(
                     .ok_or_else(|| failure("actual environment capture is absent"))?,
                 b,
             )?;
+            if matches!(i.kind,InstructionKind::TakeCapture{..}) {state.captures.remove(index);}
         }
         InstructionKind::DescribePackageField { local, index }
             if pure_copy::ordinary_package_description(f, i, b)? => {
@@ -6330,7 +6350,7 @@ fn derive_cfg(
             // an executed move from an absent Task. The new failure carrier
             // composes loops in both arms, so defer only genuinely unseeded
             // blocks. Final access/resource passes still require live inputs.
-            let mut seeded = if b.task_failure_carriers {
+            let mut seeded = if b.task_failure_carriers || b.task_retained_environments {
                 fee(b, f.blocks.len())?;
                 vec![false; f.blocks.len()]
             } else {
@@ -6343,7 +6363,9 @@ fn derive_cfg(
                     if !reachable[bi] {
                         continue;
                     }
-                    if b.task_failure_carriers && bi != f.entry.0 as usize {
+                    if (b.task_failure_carriers || b.task_retained_environments)
+                        && bi != f.entry.0 as usize
+                    {
                         fee(b, preds[bi].len().saturating_add(1))?;
                         if !preds[bi].iter().any(|p| reachable[*p] && seeded[*p]) {
                             continue;
@@ -6382,7 +6404,7 @@ fn derive_cfg(
                         outputs[bi] = state;
                         local_changed = true;
                     }
-                    if b.task_failure_carriers && !seeded[bi] {
+                    if (b.task_failure_carriers || b.task_retained_environments) && !seeded[bi] {
                         seeded[bi] = true;
                         local_changed = true;
                     }
@@ -6399,6 +6421,7 @@ fn derive_cfg(
             let mut actual = Facts {
                 values: Vec::with_capacity(values.len()),
                 pointer_values: Vec::new(),
+                task_port_values: Vec::new(),
                 pointer_parents: Vec::new(),
                 returned: BTreeMap::new(),
                 returned_environment: BTreeMap::new(),
@@ -6430,6 +6453,23 @@ fn derive_cfg(
                     actual.none_values.insert(ValueId(id as u32));
                 }
                 if b.task_sources() {
+                    let mut ports = crate::budget::TaskRetainedRoots::new();
+                    task_address::work(value, b)?;
+                    for (path, permission) in &value.task_ports {
+                        fee(
+                            b,
+                            path.len()
+                                .saturating_add(permission.targets.len())
+                                .saturating_add(1),
+                        )?;
+                        let roots = permission
+                            .targets
+                            .iter()
+                            .map(|target| target.base)
+                            .collect::<BTreeSet<_>>();
+                        ports.insert(path.clone(), roots.into_iter().collect());
+                    }
+                    actual.task_port_values.push(ports);
                     fee(b, value.pointer.targets.len().saturating_add(1))?;
                     let roots = value
                         .pointer
@@ -6587,7 +6627,7 @@ fn derive_cfg(
                             }
                         }
                     }
-                    task_address::summarize(f, value, &mut actual, b)?;
+                    task_address::summarize(module, f, value, &mut actual, b)?;
                 }
             }
             let mut grounded = true;
@@ -7074,6 +7114,9 @@ pub(super) fn infer(
                 fee(b, count)?;
                 b.task_pointer_roots.push(vec![Vec::new(); count]);
                 fee(b, count)?;
+                b.task_retained_roots
+                    .push(vec![crate::budget::TaskRetainedRoots::new(); count]);
+                fee(b, count)?;
                 b.task_pointer_parents.push(vec![Vec::new(); count]);
             }
             result.push(
@@ -7101,6 +7144,13 @@ pub(super) fn infer(
                 return Err(failure("Task physical-source proof omitted an SSA value"));
             }
             b.task_pointer_roots.push(function.pointer_values);
+            fee(b, function.task_port_values.len())?;
+            if function.task_port_values.len() != function.values.len() {
+                return Err(failure(
+                    "Task retained source proof omitted an actual SSA value",
+                ));
+            }
+            b.task_retained_roots.push(function.task_port_values);
             if b.masked_stored_tasks() {
                 if function.pointer_parents.len() != function.values.len() {
                     return Err(failure("Task physical parent proof omitted an SSA value"));
@@ -7370,7 +7420,9 @@ fn actual_instructions(
             ordinary_observations |=
                 package_read || package_description || error_borrow || byte_view;
             let enum_operation = enum_address::instruction(module, f, i, b)?;
-            let owned_operation = (b.stored_owned_fixed
+            let task_capture_operation =
+                b.task_sources() && task_address::capture_instruction(module, f, i, b)?;
+            let owned_operation = !task_capture_operation && (b.stored_owned_fixed
                 || b.stored_compound_values && matches!(i.kind,InstructionKind::DropManaged{local} if matches!(&f.locals[local.0 as usize].ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Record{..})))
                 || matches!(i.kind, InstructionKind::ReadDesc { .. })
                 || matches!(i.kind, InstructionKind::MakeManaged { .. })
@@ -7380,6 +7432,7 @@ fn actual_instructions(
             if !super::class_flow::pointer_instruction(f, i)
                 && !super::stored_callables::instruction(module, f, i)
                 && !owned_operation
+                && !task_capture_operation
                 && !enum_operation
                 && !byte_query
                 && !byte_view

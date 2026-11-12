@@ -13,6 +13,7 @@ pub(super) enum Root {
     // interval are separate domains. Conflict checks use the header interval.
     StoreElementWindow(HoldRoot, u32, u32, u32, u32),
     Capture(u32),
+    CapturePort(u32, u32),
     Parameter(u32),
     // Second index is an interned complete metadata path, never a bare port ordinal.
     ParameterPort(u32, u32),
@@ -60,6 +61,16 @@ pub(super) fn parameter_port(
         u32::try_from(index).map_err(|_| limit("Task root namespace exceeds finite IDs"))?;
     Ok(Root::ParameterPort(parameter, index))
 }
+pub(super) fn capture_port(
+    capture: u32,
+    path: &[ContractProjection],
+    budget: &mut Budget,
+) -> Check<Root> {
+    let Root::ParameterPort(_, selector) = parameter_port(0, path, budget)? else {
+        unreachable!()
+    };
+    Ok(Root::CapturePort(capture, selector))
+}
 pub(super) fn task_source(
     source: &crate::stored_flow::TaskPointerRoot,
     budget: &mut Budget,
@@ -70,6 +81,12 @@ pub(super) fn task_source(
             let mut path = source.carrier.clone();
             path.push(ContractProjection::RetainedPort(port));
             parameter_port(parameter, &path, budget)?
+        }
+        (HoldRoot::Capture(capture), Some(port)) => {
+            budget.spend(source.carrier.len().saturating_add(1))?;
+            let mut path = source.carrier.clone();
+            path.push(ContractProjection::RetainedPort(port));
+            capture_port(capture, &path, budget)?
         }
         (HoldRoot::Static, _) => Root::Static,
         (HoldRoot::Local(local), _) => Root::Local(local),
@@ -86,7 +103,7 @@ impl Root {
             }
             Self::Window(root, ..) => root,
             Self::StoreElementWindow(root, ..) => root,
-            Self::Capture(index) => HoldRoot::Capture(index),
+            Self::Capture(index) | Self::CapturePort(index, _) => HoldRoot::Capture(index),
             Self::Parameter(index)
             | Self::ParameterCapture(index, _)
             | Self::ParameterPort(index, _) => HoldRoot::Parameter(index),
@@ -105,7 +122,9 @@ impl Root {
         {
             return left == right;
         }
-        if matches!(left, Self::ParameterPort(..)) || matches!(right, Self::ParameterPort(..)) {
+        if matches!(left, Self::ParameterPort(..) | Self::CapturePort(..))
+            || matches!(right, Self::ParameterPort(..) | Self::CapturePort(..))
+        {
             return left == right;
         }
         if left.coarse() != right.coarse() {
@@ -140,6 +159,7 @@ impl Ord for Root {
             }
             Self::ParameterCapture(_, capture) => (3, *capture, 0, 0, 0),
             Self::ParameterPort(_, port) => (6, *port, 0, 0, 0),
+            Self::CapturePort(_, port) => (7, *port, 0, 0, 0),
             _ => (0, 0, 0, 0, 0),
         };
         (self.coarse(), projection(self)).cmp(&(other.coarse(), projection(other)))
