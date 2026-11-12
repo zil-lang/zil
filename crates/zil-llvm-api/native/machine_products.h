@@ -34,4 +34,6 @@ extern "C" int ZilNativeProductsMachineAlignmentTest(int max_bytes);
 extern "C" uint32_t ZilNativeProductsMachineBundleTestResults();
 // Typed-body current-owner reconstruction and rejection checks; expected 255.
 extern "C" uint32_t ZilNativeProductsMachineTypedBodyTestResults();
+// Complete frame/current-stack-MMO/CFI owner transport, same scope; expected 255.
+extern "C" uint32_t ZilNativeProductsMachineFrameTestResults();
 #endif
