@@ -72,6 +72,8 @@ fn private_edit_reuses_unchanged_function_and_rebinds_current_spans() {
             resource_inventory_ranges_reused: 0,
             foreign_functions_selected: 0,
             foreign_functions_not_visited: 2,
+            environment_functions_selected: 0,
+            environment_functions_not_visited: 2,
             region_functions_checked: 2,
             region_functions_reused: 0,
             lexical_cleanup_functions_checked: 2,
