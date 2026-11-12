@@ -1,9 +1,10 @@
 //! Actual sparse raw CFG updates from sealed producer inputs. This owns no
 //! verification capability. Unknown state transitions use the current checker.
 use super::*;
+use std::collections::BTreeSet;
 use std::sync::Arc;
 use zil_base::{ModuleId, NodeId};
-use zil_expand::{ExpansionEpoch, FunctionOwner, InputContext, ProducedProgram};
+use zil_expand::{ExpansionEpoch, FunctionOwner, InputContext, NamespaceContext, ProducedProgram};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TypesPushStats {
@@ -13,17 +14,21 @@ pub struct TypesPushStats {
     pub position_rebindings: usize,
     pub retained_functions: usize,
     pub receipt_tree_updates: usize,
+    pub signature_updates: usize,
+    pub signature_readers_checked: usize,
 }
 impl TypesPushStats {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"context_rebuilds\":{},\"sparse_batches\":{},\"body_checks\":{},\"position_rebindings\":{},\"retained_functions\":{},\"receipt_tree_updates\":{}}}",
+            "{{\"context_rebuilds\":{},\"sparse_batches\":{},\"body_checks\":{},\"position_rebindings\":{},\"retained_functions\":{},\"receipt_tree_updates\":{},\"signature_updates\":{},\"signature_readers_checked\":{}}}",
             self.context_rebuilds,
             self.sparse_batches,
             self.body_checks,
             self.position_rebindings,
             self.retained_functions,
-            self.receipt_tree_updates
+            self.receipt_tree_updates,
+            self.signature_updates,
+            self.signature_readers_checked
         )
     }
 }
@@ -148,26 +153,42 @@ impl TypesPushSession {
             || &prior.limits != limits
             || &prior.target != target
             || batch.previous_epoch() != Some(&prior.epoch)
-            || batch.context() != &prior.input_context
+            || batch.namespace_context() != &prior.namespace
             || prepared.program().root != prior.program.module.module_id
         {
             return None;
         }
+        if batch.context() != &prior.input_context
+            && !batch
+                .changes()
+                .iter()
+                .any(|change| change.interface_changed())
+        {
+            return None;
+        }
         let mut rows = prior.rows.clone();
+        let mut signature_values = prior.signature_values.clone();
+        let mut signature_costs = prior.signature_costs.clone();
+        let mut signature_work = prior.signature_work;
+        let mut readers = prior.readers.clone();
         let mut program = prior.program.as_ref().clone();
-        let mut changes = Vec::with_capacity(batch.changes().len());
+        let mut work = BTreeMap::<usize, Work>::new();
+        let mut signature_modules = BTreeSet::new();
         let mut stats = TypesPushStats {
             sparse_batches: 1,
             retained_functions: program.module.functions.len(),
             ..TypesPushStats::default()
         };
-        // Changes are in original module/declaration order. We do not emit an
-        // error from this speculative path: all failures restart the original
-        // ordered current checker with its original allowances and first error.
+        // Names/IDs resolve through the immutable namespace table; actual
+        // signature contents resolve through current persistent value leaves.
         for change in batch.changes() {
             let (module, function) = produced.changed_function(change)?;
-            let table = prior.tables.get(&module.core.module_id)?;
-            let id = table.get(&function.name)?.concrete_id(function.span).ok()?;
+            let id = prior
+                .tables
+                .get(&module.core.module_id)?
+                .get(&function.name)?
+                .concrete_id(function.span)
+                .ok()?;
             let index = usize::try_from(id.0).ok()?;
             let old = rows.get(index)?;
             if old.id != id
@@ -176,21 +197,76 @@ impl TypesPushSession {
                 || old.owner.as_ref()? != change.owner()
                 || change.previous_span() != Some(old.span)
                 || change.previous_node_id() != Some(old.node)
+                || old.location != (change.module_index(), change.function_index())
             {
                 return None;
             }
+            let item = work.entry(index).or_insert(Work {
+                body: false,
+                binding: false,
+                reader: false,
+            });
+            item.body |= change.body_changed() || change.interface_changed();
+            item.binding = true;
+            if change.interface_changed() {
+                let (signature, cost) =
+                    checked_signature(module, change.function_index(), id, limits)?;
+                let old_signature = signature_values.get(index)?;
+                signature_work = signature_work
+                    .checked_sub(*signature_costs.get(index)?)?
+                    .checked_add(cost)?;
+                signature_costs.set_owner(index, Arc::new(cost));
+                if &signature != old_signature {
+                    signature_values.set_owner(index, Arc::new(signature));
+                    stats.signature_updates += 1;
+                    for &reader in prior.readers.get(index)? {
+                        let entry = work.entry(reader.0 as usize).or_insert(Work {
+                            body: true,
+                            binding: false,
+                            reader: true,
+                        });
+                        entry.body = true;
+                        entry.reader = true;
+                    }
+                }
+                signature_modules.insert(module.core.module_id);
+            }
+        }
+        let mut changes = Vec::with_capacity(work.len());
+        // Failure never publishes speculative state or queue order as a
+        // diagnostic. It restarts the original complete ordered checker.
+        for (index, work) in work {
+            let old = rows.get(index)?;
+            let module = prepared.program().modules.get(old.location.0)?;
+            let function = module.core.functions.get(old.location.1)?;
+            if module.core.module_id != old.module
+                || function.name != old.name
+                || produced.function_owner(old.module, &old.name) != old.owner.as_ref()
+                || (!work.binding && (function.id != old.node || function.span != old.span))
+            {
+                return None;
+            }
+            let id = old.id;
+            let table = prior.tables.get(&old.module)?;
             let before = program.module.functions.get(index)?;
             let mut row = old.clone();
             let mut typed;
             let result_changed;
-            if change.body_changed() {
+            if work.body {
                 row.shape = scalar_shapes::validate_function(function, limits)?.ok()?;
                 row.names = names::check_function(function, limits).ok()?;
+                row.header = function
+                    .name
+                    .len()
+                    .checked_add(function.parameters.len())?
+                    .checked_add(1)?;
                 let mut state = closures::State::new(program.module.functions.len(), limits);
                 let imports = program::imports_for(module, &prior.tables).ok()?;
+                let observed = std::cell::RefCell::new(BTreeSet::new());
                 let mut builder = Builder::new(function, id, table, limits, &mut state).ok()?;
                 builder.imports = Some(&imports);
-                // Current closed context has no enums/dyn/aggregate inventories.
+                builder.signature_values = Some(&signature_values);
+                builder.observed_signatures = Some(&observed);
                 typed = builder.finish(&function.body).ok()?;
                 if !state.push_closed_state() || !closed_function(&typed) {
                     return None;
@@ -198,11 +274,26 @@ impl TypesPushSession {
                 row.cfg = state.accounting();
                 row.post = PostReceipt::check(&typed, limits)?;
                 row.visibility = instruction_count(&typed)?;
+                let observed = observed.into_inner();
+                if observed != *old.observed {
+                    for &callee in old.observed.symmetric_difference(&observed) {
+                        let callee = callee.0 as usize;
+                        let mut set = readers.get(callee)?.clone();
+                        if observed.contains(&FunctionId(callee as u32)) {
+                            set.insert(id);
+                        } else {
+                            set.remove(&id);
+                        }
+                        readers.set_owner(callee, Arc::new(set));
+                    }
+                    row.observed = Arc::new(observed);
+                }
                 if module.core.module_id != prepared.program().root {
                     typed.name = format!("@module{}:function{}", module.core.module_id.0, id.0);
                 }
                 result_changed = !relative_equal(before, &typed)?;
                 stats.body_checks += 1;
+                stats.signature_readers_checked += usize::from(work.reader);
             } else {
                 typed = before.clone();
                 if old.span != function.span {
@@ -218,10 +309,8 @@ impl TypesPushSession {
             row.node = function.id;
             rows = rows.replace(index, row)?;
             stats.receipt_tree_updates += 1;
-            // Preserve the old actual leaf when both complete raw values match.
-            // This is actual equality after execution, never an asserted hash.
             if typed != *before {
-                program.module.functions.replace(index, typed);
+                program.module.functions.set_owner(index, Arc::new(typed));
             }
             stats.retained_functions = stats.retained_functions.checked_sub(1)?;
             changes.push(TypedFunctionChange {
@@ -231,9 +320,61 @@ impl TypesPushSession {
                 position_changed,
             });
         }
-        let totals = rows.total()?;
-        if !prior.fits(totals, limits) {
-            return None;
+        let mut interface_costs = prior.interface_costs.clone();
+        let mut fixed_tail = prior.fixed_tail;
+        for module_id in signature_modules {
+            let interface_index = *prior.interface_indexes.get(&module_id)?;
+            let module = prepared
+                .program()
+                .modules
+                .iter()
+                .find(|module| module.core.module_id == module_id)?;
+            // Namespace/publicness/count are unchanged. Rebuild only actual
+            // changed declaration exports, then hash this current interface.
+            let interface = program.interfaces.get_mut(interface_index)?;
+            for change in batch
+                .changes()
+                .iter()
+                .filter(|change| change.interface_changed())
+            {
+                let (source_module, source) = produced.changed_function(change)?;
+                if source_module.core.module_id != module_id {
+                    continue;
+                }
+                let signature = prior.tables.get(&module_id)?.get(&source.name)?;
+                let id = signature.id?;
+                let typed = program.module.functions.get(id.0 as usize)?;
+                let export = current_export(source, typed);
+                if signature.public {
+                    let slot = interface
+                        .exports
+                        .iter_mut()
+                        .find(|row| row.name == source.name)?;
+                    *slot = export.clone();
+                }
+                if module_id == prepared.program().root && source.foreign.is_none() {
+                    let slot = program
+                        .root_functions
+                        .iter_mut()
+                        .find(|row| row.name == source.name)?;
+                    *slot = export;
+                }
+            }
+            let mut remaining = limits.max_analysis_steps;
+            interface.signature_fingerprint = program::interface_fingerprint(
+                &interface.exports,
+                target,
+                &program.module,
+                &mut remaining,
+                limits,
+            )
+            .ok()?;
+            interface.implementation_fingerprint = module.core.source_fingerprint;
+            let cost = limits.max_analysis_steps - remaining;
+            fixed_tail = fixed_tail
+                .checked_sub(*interface_costs.get(&module_id)?)?
+                .checked_add(cost)?;
+            Arc::make_mut(&mut interface_costs).insert(module_id, cost);
         }
         program.module.source_fingerprint = prepared.program().source_fingerprint;
         for &index in batch.changed_modules() {
@@ -247,10 +388,20 @@ impl TypesPushSession {
         let program = Arc::new(program);
         let context = Context {
             epoch: batch.epoch().clone(),
+            input_context: batch.context().clone(),
             rows,
             program: program.clone(),
+            signature_values,
+            readers,
+            signature_costs,
+            signature_work,
+            interface_costs,
+            fixed_tail,
             ..prior.as_ref().clone()
         };
+        if !context.fits(context.rows.total()?, limits) {
+            return None;
+        }
         let update = TypedUpdate {
             program,
             changes,
@@ -260,10 +411,98 @@ impl TypesPushSession {
     }
 }
 
+struct Work {
+    body: bool,
+    binding: bool,
+    reader: bool,
+}
+fn checked_signature(
+    module: &ProgramModule,
+    index: usize,
+    id: FunctionId,
+    limits: &Limits,
+) -> Option<(Signature, usize)> {
+    let function = module.core.functions.owner(index)?;
+    let mut core = module.core.as_ref().clone();
+    core.functions = PersistentVec::new();
+    core.functions.push_owner(function.clone());
+    let exports = module.exports.iter().copied().collect();
+    let mut arrays = false;
+    let mut costs = BTreeMap::new();
+    let mut table = signatures_recording(
+        &core,
+        limits,
+        id.0 as usize,
+        Some(&exports),
+        &mut arrays,
+        Some(&mut costs),
+    )
+    .ok()?;
+    let signature = table.remove(&function.name)?;
+    if arrays || signature.id != Some(id) || !closed_signature(&signature) {
+        return None;
+    }
+    Some((signature, *costs.get(&id)?))
+}
+fn closed_signature(signature: &Signature) -> bool {
+    let Signature {
+        storage_life,
+        life,
+        id,
+        callable,
+        state_parameter,
+        callable_return,
+        type_parameter,
+        template,
+        foreign: _,
+        scoped_callback,
+        cleanup,
+        parameters,
+        result,
+        public: _,
+        receiver,
+    } = signature;
+    storage_life.is_none()
+        && life.is_none()
+        && id.is_some()
+        && callable.is_empty()
+        && state_parameter.is_none()
+        && callable_return.is_none()
+        && type_parameter.is_none()
+        && template.is_none()
+        && scoped_callback.is_none()
+        && !cleanup
+        && parameters.iter().all(primitive)
+        && primitive(result)
+        && receiver.is_none()
+}
+fn current_export(source: &CoreFunction, typed: &TypedFunction) -> ScalarFunction {
+    ScalarFunction {
+        storage_life: typed.storage_life.clone(),
+        reference_return_bound: typed.reference_return_bound.clone(),
+        name: source.name.clone(),
+        function: typed.id,
+        parameters: source
+            .parameters
+            .iter()
+            .map(|p| (p.mode, p.ty.clone()))
+            .collect(),
+        result: typed.return_type.clone(),
+        result_mode: source.result_mode,
+    }
+}
+
 #[derive(Clone)]
 struct Context {
     epoch: ExpansionEpoch,
     input_context: InputContext,
+    namespace: NamespaceContext,
+    signature_values: PersistentVec<Signature>,
+    readers: PersistentVec<BTreeSet<FunctionId>>,
+    signature_costs: PersistentVec<usize>,
+    signature_work: usize,
+    project_base: usize,
+    interface_costs: Arc<BTreeMap<ModuleId, usize>>,
     target: TargetProfile,
     limits: Limits,
     program: Arc<TypedProgram>,
@@ -300,7 +539,11 @@ impl Context {
                 return false;
             }
         }
-        total.names <= limits.max_nodes
+        self.project_base
+            .checked_add(total.header)
+            .is_some_and(|work| work <= limits.max_analysis_steps)
+            && self.signature_work <= limits.max_analysis_steps
+            && total.names <= limits.max_nodes
             && total.shape <= limits.max_analysis_steps
             && total.visibility <= limits.max_analysis_steps
             && total.post.bytes <= limits.max_analysis_steps
@@ -320,17 +563,23 @@ pub(super) struct Recording {
     pub(super) body_cost: [usize; 6],
     pub(super) closed_state: bool,
     pub(super) remaining: usize,
+    pub(super) observed_complete: bool,
+    pub(super) signature_costs: BTreeMap<FunctionId, usize>,
+    pub(super) interface_costs: BTreeMap<ModuleId, usize>,
+    pub(super) project_work: usize,
     rows: Vec<Row>,
 }
 impl Recording {
     pub(super) fn record(
         &mut self,
-        module: ModuleId,
-        source: &CoreFunction,
+        location: (usize, usize),
+        source: (ModuleId, &CoreFunction),
         typed: &TypedFunction,
         before: [usize; 6],
         after: [usize; 6],
+        observed: BTreeSet<FunctionId>,
     ) {
+        let (module, source) = source;
         let mut cfg = [0; 6];
         for i in 0..6 {
             let Some(cost) = after[i].checked_sub(before[i]) else {
@@ -342,6 +591,13 @@ impl Recording {
         self.rows.push(Row {
             id: typed.id,
             module,
+            location,
+            observed: Arc::new(observed),
+            header: source
+                .name
+                .len()
+                .saturating_add(source.parameters.len())
+                .saturating_add(1),
             node: source.id,
             name: source.name.clone(),
             owner: None,
@@ -361,6 +617,7 @@ impl Recording {
         limits: &Limits,
     ) -> Option<Context> {
         if !self.closed_state
+            || !self.observed_complete
             || self.rows.len() != program.module.functions.len()
             || self.names.len() != self.rows.len()
             || self.shapes.len() != self.rows.len()
@@ -389,6 +646,26 @@ impl Recording {
             row.post = PostReceipt::check(function, limits)?;
             row.visibility = instruction_count(function)?;
         }
+        let tables = self.tables.take()?;
+        let mut signature_values = Vec::with_capacity(self.rows.len());
+        let mut readers = vec![BTreeSet::new(); self.rows.len()];
+        let mut signature_costs = Vec::with_capacity(self.rows.len());
+        for row in &self.rows {
+            let signature = tables.get(&row.module)?.get(&row.name)?;
+            if signature.id != Some(row.id) || !closed_signature(signature) {
+                return None;
+            }
+            signature_values.push(signature.clone());
+            signature_costs.push(*self.signature_costs.get(&row.id)?);
+            for &callee in row.observed.iter() {
+                readers.get_mut(callee.0 as usize)?.insert(row.id);
+            }
+        }
+        let project_base = self.project_work.checked_sub(
+            self.rows
+                .iter()
+                .try_fold(0usize, |sum, row| sum.checked_add(row.header))?,
+        )?;
         let rows = ReceiptTree::build(self.rows)?;
         let total = rows.total()?;
         // All post-body shared work was really charged by the old full pass.
@@ -405,11 +682,20 @@ impl Recording {
             }
         }
         let context = Context {
+            namespace: produced.change_batch().namespace_context().clone(),
+            signature_values: signature_values.into(),
+            readers: readers.into(),
+            signature_work: signature_costs
+                .iter()
+                .try_fold(0usize, |sum, cost| sum.checked_add(*cost))?,
+            signature_costs: signature_costs.into(),
+            interface_costs: Arc::new(self.interface_costs),
+            project_base,
             epoch: produced.change_batch().epoch().clone(),
             input_context: produced.change_batch().context().clone(),
             target: target.clone(),
             limits: limits.clone(),
-            tables: self.tables?,
+            tables,
             rows,
             context_cost: self.context_cost,
             fixed_tail,
@@ -430,6 +716,9 @@ impl Recording {
 struct Row {
     id: FunctionId,
     module: ModuleId,
+    location: (usize, usize),
+    observed: Arc<BTreeSet<FunctionId>>,
+    header: usize,
     node: NodeId,
     name: String,
     owner: Option<FunctionOwner>,
@@ -491,6 +780,7 @@ struct Total {
     names: usize,
     shape: usize,
     visibility: usize,
+    header: usize,
     post: PostReceipt,
 }
 impl Total {
@@ -500,6 +790,7 @@ impl Total {
             names: row.names,
             shape: row.shape,
             visibility: row.visibility,
+            header: row.header,
             post: row.post,
         }
     }
@@ -513,6 +804,7 @@ impl Total {
             names: self.names.checked_add(other.names)?,
             shape: self.shape.checked_add(other.shape)?,
             visibility: self.visibility.checked_add(other.visibility)?,
+            header: self.header.checked_add(other.header)?,
             post: PostReceipt {
                 shared: self.post.shared.checked_add(other.post.shared)?,
                 bytes: self.post.bytes.checked_add(other.post.bytes)?,
@@ -1127,5 +1419,206 @@ mod tests {
         assert_eq!(actual.stats.body_checks, 2);
         assert_eq!(actual.stats.context_rebuilds, 0);
         assert_eq!(actual.program.as_ref(), &fresh(&current, &limits).unwrap());
+    }
+    #[test]
+    fn current_signature_leaves_push_only_actual_readers_and_replace_changed_edges() {
+        let limits = Limits::default();
+        let text = "fn leaf(x:i32)->i32=>i32(x)+1; fn reader()->i32=>leaf(1)+2; fn other()->i32=>leaf(2)+3; fn keep()->i32=>4;";
+        let mut expand = ExpandSession::default();
+        let mut session = TypesPushSession::default();
+        let initial = produced(&mut expand, &[parse(0, text, &limits)], &limits);
+        let cold = apply(&mut session, &prepared(&initial, &limits), &limits).unwrap();
+        assert_eq!(
+            session.current.as_ref().unwrap().readers[0],
+            BTreeSet::from([FunctionId(1), FunctionId(2)])
+        );
+        let current_text = text.replacen("x:i32", "x:u32", 1);
+        let current = produced(&mut expand, &[parse(0, &current_text, &limits)], &limits);
+        assert_ne!(
+            initial.change_batch().context(),
+            current.change_batch().context()
+        );
+        assert_eq!(
+            initial.change_batch().namespace_context(),
+            current.change_batch().namespace_context()
+        );
+        assert_eq!(current.change_batch().changes().len(), 1);
+        assert!(current.change_batch().changes()[0].interface_changed());
+        let current = prepared(&current, &limits);
+        let changed = apply(&mut session, &current, &limits).unwrap();
+        assert_eq!(changed.stats.context_rebuilds, 0);
+        assert_eq!(changed.stats.signature_updates, 1);
+        assert_eq!(changed.stats.signature_readers_checked, 2);
+        assert_eq!(changed.stats.body_checks, 3);
+        assert_eq!(
+            changed
+                .program
+                .module
+                .functions
+                .changed_indices(&cold.program.module.functions),
+            [0, 1, 2]
+        );
+        assert!(Arc::ptr_eq(
+            changed.program.module.functions.owner(3).unwrap(),
+            cold.program.module.functions.owner(3).unwrap()
+        ));
+        assert_eq!(changed.program.as_ref(), &fresh(&current, &limits).unwrap());
+        let edge_text = current_text.replacen("leaf(1)+2", "keep()+2", 1);
+        let edges = produced(&mut expand, &[parse(0, &edge_text, &limits)], &limits);
+        let edges = prepared(&edges, &limits);
+        let edges = apply(&mut session, &edges, &limits).unwrap();
+        assert_eq!(edges.stats.body_checks, 1);
+        assert_eq!(
+            session.current.as_ref().unwrap().readers[0],
+            BTreeSet::from([FunctionId(2)])
+        );
+        assert_eq!(
+            session.current.as_ref().unwrap().readers[3],
+            BTreeSet::from([FunctionId(1)])
+        );
+        let final_text = edge_text.replacen("x:u32", "x:i32", 1);
+        let final_input = produced(&mut expand, &[parse(0, &final_text, &limits)], &limits);
+        let final_input = prepared(&final_input, &limits);
+        let final_result = apply(&mut session, &final_input, &limits).unwrap();
+        assert_eq!(final_result.stats.body_checks, 2);
+        assert_eq!(final_result.stats.signature_readers_checked, 1);
+        assert_eq!(final_result.stats.context_rebuilds, 0);
+        assert_eq!(
+            final_result.program.as_ref(),
+            &fresh(&final_input, &limits).unwrap()
+        );
+        assert_eq!(
+            cold.program.as_ref(),
+            &fresh(&prepared(&initial, &limits), &limits).unwrap()
+        );
+    }
+    #[test]
+    fn changed_signature_error_and_same_limit_header_growth_preserve_successful_owner() {
+        let defaults = Limits::default();
+        let text = (0..10)
+            .map(|i| format!("fn f{i}(x:i32)->i32=>x+1; "))
+            .collect::<String>();
+        let mut sizing = ExpandSession::default();
+        let sized = produced(&mut sizing, &[parse(0, &text, &defaults)], &defaults);
+        let cold_fresh = fresh(&prepared(&sized, &defaults), &defaults).unwrap();
+        let locals = cold_fresh
+            .module
+            .functions
+            .iter()
+            .map(|f| f.locals.len())
+            .sum::<usize>();
+        let limits = Limits {
+            max_locals: locals,
+            ..defaults
+        };
+        let mut expand = ExpandSession::default();
+        let mut session = TypesPushSession::default();
+        let initial = produced(&mut expand, &[parse(0, &text, &limits)], &limits);
+        let cold = apply(&mut session, &prepared(&initial, &limits), &limits).unwrap();
+        let owner = session.current.as_ref().unwrap().clone();
+        let checkpoint = expand.checkpoint();
+        let changed = text.replacen("f0(x:i32)", "f0(x:i32,y:i32)", 1);
+        let current = produced(&mut expand, &[parse(0, &changed, &limits)], &limits);
+        let current = prepared(&current, &limits);
+        let generous = fresh(&current, &Limits::default()).unwrap();
+        assert!(generous.module.functions[0].locals.len() < locals);
+        assert!(
+            generous
+                .module
+                .functions
+                .iter()
+                .map(|f| f.locals.len())
+                .sum::<usize>()
+                > locals
+        );
+        assert_eq!(
+            apply(&mut session, &current, &limits).unwrap_err(),
+            fresh(&current, &limits).unwrap_err()
+        );
+        assert!(Arc::ptr_eq(session.current.as_ref().unwrap(), &owner));
+        expand = checkpoint;
+        let recovery = produced(&mut expand, &[parse(0, &text, &limits)], &limits);
+        let recovery = prepared(&recovery, &limits);
+        let recovered = apply(&mut session, &recovery, &limits).unwrap();
+        assert_eq!(recovered.stats.body_checks, 0);
+        assert_eq!(recovered.program, cold.program);
+        let error = text.replacen(
+            "fn f0(x:i32)->i32=>x+1;",
+            "fn f0(x:i32)->i32=>missing(x);",
+            1,
+        );
+        let error = produced(&mut expand, &[parse(0, &error, &limits)], &limits);
+        let error = prepared(&error, &limits);
+        assert_eq!(
+            apply(&mut session, &error, &limits).unwrap_err(),
+            fresh(&error, &limits).unwrap_err()
+        );
+    }
+    #[test]
+    fn changed_imported_signature_reads_current_values_and_namespace_rebinding_rebuilds() {
+        let limits = Limits::default();
+        let target = TargetProfile::default();
+        let mut expand = ExpandSession::default();
+        let mut session = TypesPushSession::default();
+        let main = parse(0, "import dep\nfn main()->i32=>dep.leaf(1);", &limits);
+        let other = parse(2, "pub fn leaf(x:i32)->i32=>i32(x)+8;", &limits);
+        let mut provider = parse(1, "pub fn leaf(x:i32)->i32=>i32(x)+1;", &limits);
+        let make = |expand: &mut ExpandSession, provider: &ParsedSource, owner: u32| {
+            let imports = vec![
+                vec![CoreImport {
+                    alias: "dep".into(),
+                    module: ModuleId(owner),
+                    span: main.parsed().module.items[0].span,
+                }],
+                vec![],
+                vec![],
+            ];
+            let aliases = BTreeMap::new();
+            expand
+                .expand_parsed(
+                    &[main.clone(), provider.clone(), other.clone()],
+                    &imports,
+                    &limits,
+                    &target,
+                    SourceIdentityContext::ClosedSnapshot {
+                        root: ModuleId(0),
+                        aliases: &aliases,
+                        declarations: DeclarationPlacement::Original,
+                    },
+                )
+                .unwrap()
+                .unwrap()
+                .into_program(ModuleId(0), Fingerprint::ZERO)
+                .0
+        };
+        let initial = make(&mut expand, &provider, 1);
+        let cold = apply(&mut session, &prepared(&initial, &limits), &limits).unwrap();
+        provider = parse(1, "pub fn leaf(x:u32)->i32=>i32(x)+1;", &limits);
+        let current = make(&mut expand, &provider, 1);
+        let current = prepared(&current, &limits);
+        let changed = apply(&mut session, &current, &limits).unwrap();
+        assert_eq!(changed.stats.signature_updates, 1);
+        assert_eq!(changed.stats.signature_readers_checked, 1);
+        assert_eq!(changed.stats.body_checks, 2);
+        assert_eq!(changed.stats.context_rebuilds, 0);
+        assert!(Arc::ptr_eq(
+            cold.program.module.functions.owner(2).unwrap(),
+            changed.program.module.functions.owner(2).unwrap()
+        ));
+        assert_eq!(changed.program.as_ref(), &fresh(&current, &limits).unwrap());
+        let rebound = make(&mut expand, &provider, 2);
+        let rebound = prepared(&rebound, &limits);
+        let rebound = apply(&mut session, &rebound, &limits).unwrap();
+        assert_eq!(rebound.stats.context_rebuilds, 1);
+        assert_ne!(
+            rebound.program.module.functions[0],
+            changed.program.module.functions[0]
+        );
+        let actual_source = make(&mut expand, &provider, 2);
+        let actual_source = prepared(&actual_source, &limits);
+        assert_eq!(
+            rebound.program.as_ref(),
+            &fresh(&actual_source, &limits).unwrap()
+        );
     }
 }

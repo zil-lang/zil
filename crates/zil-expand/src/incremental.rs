@@ -60,6 +60,17 @@ impl PartialEq for InputContext {
 }
 impl Eq for InputContext {}
 
+/// Stable complete declaration namespace, separate from signature contents.
+/// Current signature checks and observed readers remain Types obligations.
+#[derive(Clone, Debug)]
+pub struct NamespaceContext(Arc<()>);
+impl PartialEq for NamespaceContext {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+impl Eq for NamespaceContext {}
+
 /// Sparse changes admitted by actual successful lowering. Current function
 /// references are resolved from the exact immutable ProducedProgram, never from
 /// caller supplied digests or a prior Typed result.
@@ -70,6 +81,7 @@ pub struct FunctionInputChange {
     module: usize,
     function: usize,
     body_changed: bool,
+    interface_changed: bool,
     previous_span: Option<Span>,
     previous_node: Option<zil_base::NodeId>,
 }
@@ -79,6 +91,9 @@ impl FunctionInputChange {
     }
     pub fn body_changed(&self) -> bool {
         self.body_changed
+    }
+    pub fn interface_changed(&self) -> bool {
+        self.interface_changed
     }
     pub fn previous_span(&self) -> Option<Span> {
         self.previous_span
@@ -98,6 +113,7 @@ pub struct FunctionChangeBatch {
     previous: Option<ExpansionEpoch>,
     current: ExpansionEpoch,
     context: InputContext,
+    namespace: NamespaceContext,
     changes: Arc<[FunctionInputChange]>,
     modules: Arc<[usize]>,
 }
@@ -110,6 +126,9 @@ impl FunctionChangeBatch {
     }
     pub fn context(&self) -> &InputContext {
         &self.context
+    }
+    pub fn namespace_context(&self) -> &NamespaceContext {
+        &self.namespace
     }
     pub fn changes(&self) -> &[FunctionInputChange] {
         &self.changes
@@ -338,16 +357,28 @@ impl Environment {
     // input revision can survive. Exhaustive matching makes new environment or
     // import fields require an explicit decision here.
     fn function_inputs_compatible(&self, current: &Self) -> bool {
+        self.projected_inputs_compatible(current, self.headers == current.headers)
+    }
+    fn namespace_compatible(&self, current: &Self) -> bool {
+        let headers = self.headers.len() == current.headers.len()
+            && self
+                .headers
+                .iter()
+                .zip(&current.headers)
+                .all(|(a, b)| namespace_headers(a, b));
+        self.projected_inputs_compatible(current, headers)
+    }
+    fn projected_inputs_compatible(&self, current: &Self, same_headers: bool) -> bool {
         let Self {
             sources,
-            headers,
+            headers: _,
             imports,
             limits,
             target,
             context,
         } = self;
         sources == &current.sources
-            && headers == &current.headers
+            && same_headers
             && same_limit_domain(limits, &current.limits)
             && target == &current.target
             && context == &current.context
@@ -480,6 +511,7 @@ struct FunctionInput {
     // Private body projection binds actual source bytes and declaration slot;
     // unlike the legacy input_revision it does not identify relocated NodeIds.
     body_revision: FunctionInputRevision,
+    interface_revision: FunctionInputRevision,
     lower_binding: FunctionLowerBinding,
     span: Span,
     text_fingerprint: Fingerprint,
@@ -508,6 +540,7 @@ struct Entry {
 pub struct ExpandSession {
     environment: Option<Environment>,
     input_context: Option<InputContext>,
+    namespace_context: Option<NamespaceContext>,
     epoch: Option<ExpansionEpoch>,
     entries: BTreeMap<ModuleId, Entry>,
     stats: ProducerStats,
@@ -709,7 +742,7 @@ impl ExpandSession {
             let preserve_function_inputs = self
                 .environment
                 .as_ref()
-                .is_some_and(|previous| previous.function_inputs_compatible(&environment));
+                .is_some_and(|previous| previous.namespace_compatible(&environment));
             for entry in entries.values_mut() {
                 entry.receipts = Arc::default();
                 entry.normalized = Arc::default();
@@ -816,6 +849,17 @@ impl ExpandSession {
         else {
             return Ok(None);
         };
+        let same_legacy_context = self
+            .environment
+            .as_ref()
+            .is_some_and(|old| old.function_inputs_compatible(&environment));
+        let namespace_context = self
+            .environment
+            .as_ref()
+            .filter(|old| old.namespace_compatible(&environment))
+            .and(self.namespace_context.as_ref())
+            .cloned()
+            .unwrap_or_else(|| NamespaceContext(Arc::new(())));
         let input_context = self
             .environment
             .as_ref()
@@ -891,7 +935,20 @@ impl ExpandSession {
                 });
                 // Preserve the legacy absolute/raw input contract exactly.
                 // The new private body projection above has a distinct domain.
-                let previous = same_body.filter(|previous| previous.id == function.id);
+                let previous =
+                    same_body.filter(|previous| same_legacy_context && previous.id == function.id);
+                let previous_interface = declaration.and_then(|old_input| {
+                    let old_module = self
+                        .entries
+                        .get(&source.module_id)?
+                        .lower
+                        .as_ref()?
+                        .1
+                        .core
+                        .as_ref();
+                    let old_function = old_module.functions.get(old_input.ordinal)?;
+                    same_function_interface(old_function, function).then_some(old_input)
+                });
                 let text_fingerprint = previous.map_or_else(
                     || {
                         // Counts full declaration-text hashing, separately from the
@@ -921,6 +978,10 @@ impl ExpandSession {
                         id: function.id,
                         ordinal: function_index,
                         lower_binding,
+                        interface_revision: previous_interface.map_or_else(
+                            || FunctionInputRevision(Arc::new(())),
+                            |old| old.interface_revision.clone(),
+                        ),
                         body_revision: same_body.map_or_else(
                             || FunctionInputRevision(Arc::new(())),
                             |old| old.body_revision.clone(),
@@ -937,7 +998,13 @@ impl ExpandSession {
                     }
                 };
                 let old = entry.functions.get(&function.name);
-                if old.is_none_or(|old| old.revision != input.revision) {
+                if old.is_none_or(|old| {
+                    old.owner != input.owner
+                        || old.body_revision != input.body_revision
+                        || old.interface_revision != input.interface_revision
+                        || old.span != input.span
+                        || old.id != input.id
+                }) {
                     changes.push(FunctionInputChange {
                         epoch: epoch.clone(),
                         owner: input.owner.clone(),
@@ -945,6 +1012,8 @@ impl ExpandSession {
                         function: function_index,
                         body_changed: old
                             .is_none_or(|old| old.body_revision != input.body_revision),
+                        interface_changed: old
+                            .is_none_or(|old| old.interface_revision != input.interface_revision),
                         previous_span: old.map(|old| old.span),
                         previous_node: old.map(|old| old.id),
                     });
@@ -962,12 +1031,14 @@ impl ExpandSession {
             previous: self.epoch.replace(epoch.clone()),
             current: epoch,
             context: input_context.clone(),
+            namespace: namespace_context.clone(),
             changes: changes.into(),
             modules: changed_modules.into(),
         };
         self.entries = entries;
         self.environment = Some(environment);
         self.input_context = Some(input_context);
+        self.namespace_context = Some(namespace_context);
         Ok(Some(ExpandedProgram {
             modules,
             revisions,
@@ -975,6 +1046,132 @@ impl ExpandSession {
             changes,
         }))
     }
+}
+fn namespace_headers(left: &[s::Item], right: &[s::Item]) -> bool {
+    fn function(left: &s::Function, right: &s::Function) -> bool {
+        let s::Function {
+            name,
+            generics,
+            params: _,
+            return_type: _,
+            where_clause,
+            contract,
+            body: _,
+            span: _,
+        } = left;
+        let s::Function {
+            name: rn,
+            generics: rg,
+            params: _,
+            return_type: _,
+            where_clause: rw,
+            contract: rc,
+            body: _,
+            span: _,
+        } = right;
+        name == rn && generics == rg && where_clause == rw && contract == rc
+    }
+    left.len() == right.len()
+        && left.iter().zip(right).all(|(left, right)| {
+            let s::Item {
+                kind,
+                attributes,
+                public,
+                span: _,
+            } = left;
+            let s::Item {
+                kind: rk,
+                attributes: ra,
+                public: rp,
+                span: _,
+            } = right;
+            attributes == ra
+                && public == rp
+                && match (kind, rk) {
+                    (s::ItemKind::Function(a), s::ItemKind::Function(b)) => function(a, b),
+                    (
+                        s::ItemKind::Extern {
+                            abi: _,
+                            function: a,
+                        },
+                        s::ItemKind::Extern {
+                            abi: _,
+                            function: b,
+                        },
+                    ) => function(a, b),
+                    (s::ItemKind::Import(a), s::ItemKind::Import(b)) => a == b,
+                    _ => false,
+                }
+        })
+}
+fn same_function_interface(left: &CoreFunction, right: &CoreFunction) -> bool {
+    let CoreFunction {
+        storage_life,
+        call_kind,
+        life,
+        type_parameters,
+        state_parameters,
+        protocol_contract,
+        callable_return,
+        id: _,
+        name,
+        callable_parameters,
+        foreign,
+        parameters,
+        return_type,
+        result_mode,
+        body: _,
+        receiver,
+        span: _,
+    } = left;
+    let CoreFunction {
+        storage_life: rs,
+        call_kind: rc,
+        life: rl,
+        type_parameters: rt,
+        state_parameters: rsp,
+        protocol_contract: rp,
+        callable_return: rcr,
+        id: _,
+        name: rn,
+        callable_parameters: rcp,
+        foreign: rf,
+        parameters: rpar,
+        return_type: rret,
+        result_mode: rm,
+        body: _,
+        receiver: rr,
+        span: _,
+    } = right;
+    storage_life == rs
+        && call_kind == rc
+        && life == rl
+        && type_parameters == rt
+        && state_parameters == rsp
+        && protocol_contract == rp
+        && callable_return == rcr
+        && name == rn
+        && callable_parameters == rcp
+        && foreign == rf
+        && return_type == rret
+        && result_mode == rm
+        && receiver == rr
+        && parameters.len() == rpar.len()
+        && parameters.iter().zip(rpar).all(|(a, b)| {
+            let CoreParameter {
+                name,
+                ty,
+                mode,
+                span: _,
+            } = a;
+            let CoreParameter {
+                name: rn,
+                ty: rt,
+                mode: rm,
+                span: _,
+            } = b;
+            name == rn && ty == rt && mode == rm
+        })
 }
 fn module_headers(module: &s::Module) -> Vec<s::Item> {
     let mut module_headers = Vec::new();
