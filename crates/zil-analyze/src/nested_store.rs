@@ -267,3 +267,26 @@ pub(super) fn carrier(module: &TypedModule, element: &Type, b: &mut Budget) -> C
     b.head_descriptions = true;
     Ok(())
 }
+
+/// Actual descriptor effects; callers still prove the source, mode and every
+/// inherited loan. A plain Desc parameter never supplies writable authority.
+pub(super) fn head_access(kind: &zil_ir::InstructionKind) -> Option<(zil_ir::ValueId, bool)> {
+    use zil_ir::InstructionKind as I;
+    match *kind {
+        I::OwnedStoreReserve { store, .. }
+        | I::OwnedStorePush { store, .. }
+        | I::OwnedStorePop { store }
+        | I::OwnedStoreBorrowMut { store, .. } => Some((store, true)),
+        I::OwnedStoreLen { store }
+        | I::OwnedStoreCapacity { store }
+        | I::OwnedStoreBorrow { store, .. } => Some((store, false)),
+        I::ReadDesc { desc, .. } => Some((desc, false)),
+        I::WriteDesc { desc, .. } => Some((desc, true)),
+        I::ByteBufferReserve { buffer, .. }
+        | I::ByteBufferPush { buffer, .. }
+        | I::ByteBufferTruncate { buffer, .. } => Some((buffer, true)),
+        I::ByteBufferLen { buffer } | I::ByteBufferCapacity { buffer } => Some((buffer, false)),
+        I::ByteBufferBorrow { buffer, mutable } => Some((buffer, mutable)),
+        _ => None,
+    }
+}
