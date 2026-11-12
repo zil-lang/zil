@@ -90,9 +90,9 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> Check<boo
             | Type::Closure(_)
             | Type::Task { .. }
             | Type::BorrowedFunctionPointer { .. } => return Ok(true),
-            Type::OwnedStore { .. } if b.nested_store_windows => return Ok(true),
+            Type::OwnedStore { .. } if b.store_descriptions() => return Ok(true),
             Type::Desc(payload)
-                if b.nested_store_windows
+                if b.store_descriptions()
                     && matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. }) =>
             {
                 return Ok(true);
@@ -1442,7 +1442,7 @@ pub(super) fn qualifications(
                                 | InstructionKind::DropErrorUnion { .. }
                                 | InstructionKind::DescribePackageField { .. }
                         ))
-                    && !(b.nested_store_windows && matches!(i.kind, InstructionKind::OwnedStoreBorrowMut { .. }))
+                    && !(b.store_descriptions() && matches!(i.kind, InstructionKind::OwnedStoreBorrowMut { .. }))
                     && !pure_copy::operation(&i.kind)
                     && !pure_copy::ordinary_owned_union(f, i, b)?
                     && !pure_copy::ordinary_package_borrow(f, i, b)?
@@ -2415,7 +2415,7 @@ fn seed_payload(
                 heap_element: None,
             });
         }
-        if b.nested_store_windows
+        if b.store_descriptions()
             && matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }))
         {
             b.spend(1)?;
@@ -2625,7 +2625,7 @@ fn instantiate(
         .ok_or_else(|| err("callee source has no actual argument"))?;
     let mut p = if let Some(port) = source.retained_port {
         task_address::select(v, &source.leaf, port, b)?
-    } else if b.nested_store_windows
+    } else if b.store_descriptions()
         && source.leaf.is_empty()
         && !v.store_description.sources.is_empty()
     {
@@ -2953,7 +2953,7 @@ fn step(
                     heap_element: None,
                 });
             }
-            if b.nested_store_windows
+            if b.store_descriptions()
                 && f.locals.get(local.0 as usize).is_some_and(|local| matches!(&local.ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. })))
             {
                 b.spend(1)?;
@@ -2967,7 +2967,10 @@ fn step(
                 });
             }
         }
-        InstructionKind::DescribePackageField { local, index } if b.nested_store_windows => {
+        InstructionKind::DescribePackageField { local, index }
+            if b.store_descriptions() && i.result.is_some_and(|id|
+                matches!(&f.values[id.0 as usize], Type::Desc(payload)
+                    if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }))) => {
             b.spend(2)?;
             out.store_description.sources.push(Source {
                 retained_port: None,
@@ -3008,7 +3011,7 @@ fn step(
             join_permission(&mut out.store_description, &val(*address)?.address, b)?;
         }
         InstructionKind::OwnedStoreBorrow { store, .. } | InstructionKind::OwnedStoreBorrowMut { store, .. }
-            if b.store_option_results && (b.nested_store_windows || matches!(i.kind, InstructionKind::OwnedStoreBorrow { .. })) => {
+            if b.store_option_results && (b.store_descriptions() || matches!(i.kind, InstructionKind::OwnedStoreBorrow { .. })) => {
             let description = &val(*store)?.store_description;
             // The reverse-batch solver may see bottom before a predecessor's
             // description arrives. Its final grounded-value check rejects a
@@ -3693,7 +3696,7 @@ fn step(
     }
     captured_owner::apply(module, f, i, state, values, summaries, sites, loans, b)?;
     if let Some(id) = i.result
-        && b.nested_store_windows
+        && b.store_descriptions()
         && matches!(i.kind, InstructionKind::Call { .. })
         && option_address::shape(vt(f,id)?, &b.limits.clone(), b)?
     {
@@ -3742,7 +3745,7 @@ fn step(
                 | InstructionKind::CallClosureBorrowed { .. }
                 | InstructionKind::CallClosureShared { .. }
                 | InstructionKind::CallClosureMut { .. }
-        ) || b.nested_store_windows
+        ) || b.store_descriptions()
             && matches!(
                 i.kind,
                 InstructionKind::OwnedStoreBorrow { .. }
@@ -4251,7 +4254,7 @@ fn live_loans(
             &state.locals[id - solution.values.len()]
         };
         loans.add(&payload.address.loans, b)?;
-        if b.nested_store_windows {
+        if b.store_descriptions() {
             loans.add(&payload.store_description.loans, b)?;
         }
         if b.task_borrowed_results {
@@ -4318,7 +4321,7 @@ fn live_loans_main_fullscan(
             &state.locals[id - solution.values.len()]
         };
         add_loans_by_scan(&mut loans, &payload.address.loans, b)?;
-        if b.nested_store_windows {
+        if b.store_descriptions() {
             add_loans_by_scan(&mut loans, &payload.store_description.loans, b)?;
         }
         if b.task_borrowed_results {
@@ -4373,7 +4376,7 @@ fn check_call(
     if arguments.len() != callee.parameters.len() {
         return Err(err("call arity differs from actual body signature"));
     }
-    if b.nested_store_windows {
+    if b.store_descriptions() {
         for (source, write) in &summaries[function.0 as usize].head_accesses {
             let actual = instantiate(source, arguments, &solution.values, state, b)?;
             if *write {
@@ -4614,7 +4617,7 @@ fn windows(
             )?;
             {
                 let mut checks = access_candidates::Access::new(&active, &solution.loans, b)?;
-                if b.nested_store_windows {
+                if b.store_descriptions() {
                     let head = dynamic_store::access(&i.kind)
                         .or_else(|| byte_buffers::access(&i.kind))
                         .or_else(|| match i.kind {
@@ -5242,7 +5245,7 @@ fn windows(
     Ok(())
 }
 fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
-    if b.nested_store_windows {
+    if b.store_descriptions() {
         b.spend(s.head_accesses.len())?;
         for (source, _) in &s.head_accesses {
             b.spend(width(source))?;
@@ -6186,7 +6189,7 @@ fn solve_check(
                 let mut sources = value.address.sources.clone();
                 if (b.shared_byte_borrow
                     && matches!(&f.values[index], Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer))
-                    || b.nested_store_windows && matches!(&f.values[index], Type::Desc(_))
+                    || b.store_descriptions() && matches!(&f.values[index], Type::Desc(_))
                 {
                     add_sources(&mut sources, &value.store_description.sources, b)?;
                 }
