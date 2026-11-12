@@ -1201,3 +1201,36 @@ fn owned_region_claims_cannot_exchange_same_typed_heads_or_cross_pointer_selecto
         }
     }
 }
+
+#[test]
+fn holder_factory_preserves_the_actual_saved_leaf_and_its_fixed_class() {
+    use zil_ir::*;
+    let text = include_str!("../../../tests/fixtures/dyn-context/holder-leaf-factory.zil");
+    let (project, module, candidate, dir) = context_candidate(text, "holder-leaf-factory");
+    let f = module
+        .functions
+        .iter()
+        .find(|f| f.name == "create")
+        .unwrap();
+    let life = f.storage_life.as_ref().unwrap();
+    assert!(
+        life.bindings
+            .iter()
+            .any(|row| row.position.base == StorageBase::Parameter(0)
+                && row.position.path.is_empty()
+                && row.binder == StorageBinder::Invocation(0))
+    );
+    assert!(life.classes.iter().any(
+        |row| row.position.base == StorageBase::Result && row.binder == StorageBinder::Fixed(0)
+    ));
+    assert!(f.retained_return_sources.as_ref().unwrap()[0].sources.iter().any(|source|
+        matches!(source, StorageSource::Exact(position) if position.base==StorageBase::Parameter(0)
+            &&position.path==[ContractProjection::Place(PlaceProjection::Field(0))])));
+    let limits = zil_base::Limits::default();
+    let target = module.target.clone();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    let (decoded, plan) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+    zil_verify::verify_module(decoded, plan, &target, &limits).unwrap();
+    native_context(&project, &dir);
+}
