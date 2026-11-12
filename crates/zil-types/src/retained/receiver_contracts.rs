@@ -20,7 +20,10 @@ pub(super) fn prepare_creators(module: &mut TypedModule, left: &mut usize) -> R<
             continue;
         };
         let d = &module.closures[returned.closure.0 as usize];
-        if f.storage_life.is_some() || !candidate(d) {
+        let unique_input = f.parameters.iter().filter(|local|
+            matches!(f.locals[local.0 as usize].ty,Type::Address{..})).count()==1;
+        let data_capture = d.captures.iter().any(|ty|matches!(ty,Type::Address{..}));
+        if f.storage_life.is_some() || !(candidate(d) || unique_input && data_capture) {
             continue;
         }
         spend(left, f.parameters.len(), f.span)?;
