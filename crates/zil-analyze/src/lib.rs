@@ -155,7 +155,11 @@ fn analyze_budgeted(
         });
     }
     let mut stored_holds = None;
-    if budget.stored_borrows || budget.task_sources() || budget.masked_stored_tasks() {
+    let ordinary_input_heads =
+        budget.stored_borrows && signature_life::ordinary_heads::module(module, limits, budget)?;
+    if !ordinary_input_heads
+        && (budget.stored_borrows || budget.task_sources() || budget.masked_stored_tasks())
+    {
         // These actual opaque carriers cannot enter the legacy stored lane.
         // A stored module with only scalar helpers retains its old path/fees.
         let ordinary_required = budget.tasks || budget.registrations;
