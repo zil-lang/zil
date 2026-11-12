@@ -1,0 +1,67 @@
+{
+  "scope": "Bounded read-only diagnosis of original425/profile14 late-DCE negative; no compiler/build/benchmark run",
+  "zil_commit": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+  "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+  "fixed_source_manifest": "/tmp/astra-inline-7a/manifest.json",
+  "actual_evidence": {
+    "raw": "/workspace/zil-push-main/out/runs/full-push-native-profile-14",
+    "program_ll_sha256": "c096723654261285045c389bc099b2a2dd9e5ce628749f1df898af5a7fdaf5ce",
+    "fn5_diagnostic_lines": 940,
+    "fn5_diagnostic_instructions": 791,
+    "fn5_literal_add_zero": 112,
+    "fn5_overflow_intrinsics": 48,
+    "cold_baseline_and_candidate_elf_sha256": "959573f89d8b9367b2f034de10a32e3bc2ee2b573da88e821589c4a38743d632",
+    "cold_elf_bytes": 530608,
+    "parent_reported_late_removed": 0,
+    "backend_independent_observation": "All 20 value bodies retain 20 helper calls each (400 real direct calls). This is not evidence of 400 unused out-of-line copies.",
+    "quality_result": "invalid: memory load/store references zero-size data marker; four rows and interrupted parent preparation are not a completed performance/quality acceptance"
+  },
+  "conclusions": [
+    {
+      "verdict": "Reject premature helper-costing hypothesis for this acyclic helper->value graph",
+      "evidence": [
+        "PassBuilderPipelines.cpp:181 defaults enable-module-inliner=false",
+        "Inliner.cpp:595-643 installs Inliner then runs the entire CGSCC pipeline bottom-up; its comment explicitly states callees have already been fully optimized",
+        "PassBuilderPipelines.cpp:1044 adds complete function simplification inside each SCC; lines666 and807 include CVP"
+      ],
+      "meaning": "The leaf helper SCC finishes CVP and simplification before value SCC inlining examines that helper. The caller itself is simplified after its inliner, but current value(x) has no previously inferred bounded x across the external entry. No new duplicate early CVP or arbitrary pass reorder is justified."
+    },
+    {
+      "verdict": "Reject plain external linkage/PLT as an interposition hard veto here",
+      "evidence": [
+        "GlobalValue.h:431 ExternalLinkage is not an interposable linkage",
+        "Globals.cpp:178 additionally checks !DSOLocal && module SemanticInterposition",
+        "Module.cpp:704 returns false when that flag is absent",
+        "Current structured Builder and actual diagnostic set no SemanticInterposition flag; function/call headers are ordinary default calling convention, without noinline/alwaysinline"
+      ],
+      "meaning": "Changing dso_local alone is not a demonstrated repair of an inliner rejection. No actual conflicting-calling-convention evidence was found."
+    },
+    {
+      "verdict": "Local one-live-use discount is a real, much larger policy distinction",
+      "evidence": [
+        "InlineCost.cpp:1251 requires local linkage + hasOneLiveUse + exact directcallee",
+        "InlineCost.cpp:2196 subtracts getInliningLastCallToStaticBonus",
+        "TargetTransformInfoImpl.h:98 default bonus is15000; X86 source has no override",
+        "InlineCost.cpp:60 defaults ordinary threshold to225"
+      ],
+      "meaning": "The ZIL external helpers cannot receive this bonus. Rust fixture helpers are private source functions; old earlyclosed actually forms huge inlined value bodies and causes spill/live-range costs. This is a source-supported explanation to test, not an observed actual InlineCost result or proof of Rust linkage/cost at the exact callsite."
+    },
+    {
+      "verdict": "940 rendered lines are not940 actual native IR instructions seen by the inliner",
+      "evidence": [
+        "ZIL native/builder.rs:462 emits arithmetic via LLVMBuildAdd/etc",
+        "Core.cpp:3427 constructs IRBuilder<>; Core.cpp:3775 delegates CreateAdd",
+        "Installed IRBuilder.h:2891 defaults ConstantFolder; constant arithmetic folds during Builder construction"
+      ],
+      "meaning": "Even before normal O2,112 literal add-zero instructions in the representative diagnostic fold during native Builder construction. Additional early passes and bottom-up simplification further change the body. Raw diagnostic line counts cannot be used as actual inline cost."
+    }
+  ],
+  "next_concrete_slice": {
+    "recommendation": "Do not alter pass ordering or broaden late-DCE permission on current evidence. First obtain one fresh original-pipeline diagnostic receipt from actual Builder-created modules.",
+    "implementation": "A default-off per-LLVMContext diagnostic handler enabling inline missed/analysis remarks can record caller,callee,NeverInline/TooCostly/deferral reason,cost,threshold. Use the unchanged native default<O2> path with native-products disabled for this diagnostic request; do not replace native Builder input with the rendered text or a different CGU. The existing upstream consumer is InlineAdvisor.cpp:412-465. Keep this outside timing claims.",
+    "decision_boundary": "If actual TooCostly is observed, this confirms a cost-policy issue; it does not authorize forced inline or a repeated range pass. Any selective local/linkage or inline policy must first avoid the already observed earlyclosed giant-function/spill regression. If NeverInline appears, fix that specific proven condition instead.",
+    "not_claimed": "No production optimization improvement or new speedup has been established by this review."
+  },
+  "production_changed": false,
+  "runtime_executed": false
+}

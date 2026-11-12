@@ -1,0 +1,25 @@
+{
+  "schema": "independent-closed-machine-tool-review-v1",
+  "reviewer": "root, non-author of elf_instruction_quality component",
+  "author_commit": "b7aab23ba0d51680132f81cad063970c76e5403d",
+  "status": "bounded_static_accepted_actual_425_not_yet_run",
+  "read_files": {
+    "elf_instruction_quality.py": "db0fca17dfac64f7657abd655014cc491d2c3c25dd82fa428f999696d82cf5e4",
+    "test_elf_instruction_quality.py": "badfd9d4e8f07e69c71f8d1256210a38efd687f39a84fc8a06d870dc4163469f"
+  },
+  "actual_checks": [
+    "Read complete575-line production comparator; ELF64/x86_64/type/section bounds and disassembled byte coverage checked",
+    "All retained STT_FUNC declarations, opcode and non-address bytes/operands, direct branch encodings/targets and represented RIP data are compared; unknown and ambiguous cases fail",
+    "Exact source/LLVM input identities/current Verify/native outcomes prerequisites retained; removed names must be in validated current producer sets",
+    "Actualobject SHA + actionkey +policy and fixedcompiler/runtime bind index; measuredcold cannot inherit producers, objecthit needs exact sameblock prior native receipt",
+    "Original ELF and raw tools/transcripts content-addressed, tool executable hash before/after, cached normalized transcripts and raw evidence rehashed",
+    "Index publishes only after full pair succeeds; failures recordavailable artifacts/result andraise"
+  ],
+  "not_claimed": [
+    "No real425 or native program/tool invocation performed by reviewer",
+    "No arbitraryx86 semantic equivalence, unwind correctness or allprocessload behavior proof",
+    "Defaultbyteequalprotocol has not been weakened; distinct closed contract acceptance must remain separately reported",
+    "System analysis tool runtime sharedlibraries are not independently sealed by this component"
+  ],
+  "integration": "Root optionalrunner adds independent actual ZILOBJ header/key/payload SHA inventory before comparator; old paired_codegen_identity_valid retains originalmeaning. Wholecomposition runtime gate pending."
+}

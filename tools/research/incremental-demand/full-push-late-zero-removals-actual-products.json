@@ -1,0 +1,674 @@
+{
+  "status": "read-only-existing-profile-artifacts-no-build-or-new-measurement",
+  "profile": "/workspace/zil-push-main/out/runs/full-push-native-profile-14",
+  "profile_manifest_sha256": "7deba77d687d81bdecb6fa66ef052a60961620a43d2e2d9247996836ac7a5133",
+  "raw_preserved": true,
+  "baseline_cold_ms": 5844.800474,
+  "candidate_cold_ms": 6740.492137,
+  "full_quality_pass": false,
+  "quality_failure": {
+    "valid": false,
+    "error": "memory load/store references zero-size data marker"
+  },
+  "matched_elfs": {
+    "baseline": "959573f89d8b9367b2f034de10a32e3bc2ee2b573da88e821589c4a38743d632",
+    "candidate": "959573f89d8b9367b2f034de10a32e3bc2ee2b573da88e821589c4a38743d632"
+  },
+  "unit_pipelines": [
+    "default<O2>,late-closed-globaldce-v1"
+  ],
+  "late_removed_total": 0,
+  "refusals": [
+    {
+      "remaining-users": 22
+    },
+    {
+      "remaining-users": 20
+    },
+    {
+      "remaining-users": 40
+    },
+    {
+      "remaining-users": 40
+    },
+    {
+      "remaining-users": 40
+    },
+    {
+      "remaining-users": 40
+    },
+    {
+      "remaining-users": 20
+    },
+    {
+      "remaining-users": 20
+    },
+    {
+      "remaining-users": 20
+    },
+    {
+      "remaining-users": 20
+    },
+    {
+      "remaining-users": 20
+    },
+    {
+      "remaining-users": 20
+    },
+    {
+      "remaining-users": 20
+    },
+    {
+      "remaining-users": 20
+    },
+    {
+      "remaining-users": 20
+    },
+    {
+      "remaining-users": 20
+    }
+  ],
+  "disassembly": "/workspace/zil-push-main/out/runs/full-push-native-profile-14/closed-machine-quality/elf/959573f89d8b9367b2f034de10a32e3bc2ee2b573da88e821589c4a38743d632/objdump-d-w-M-intel.stdout",
+  "disassembly_sha256": "a4b90dd5b32d997fe1e36fc127d8335409e7e44b0a339ed129a1058acd1f9571",
+  "twenty_helpers_callers": [
+    {
+      "function": "zil.fn.319",
+      "instructions": 297,
+      "calls": [
+        "zil.fn.299",
+        "zil.fn.300",
+        "zil.fn.301",
+        "zil.fn.302",
+        "zil.fn.303",
+        "zil.fn.304",
+        "zil.fn.305",
+        "zil.fn.306",
+        "zil.fn.307",
+        "zil.fn.308",
+        "zil.fn.309",
+        "zil.fn.310",
+        "zil.fn.311",
+        "zil.fn.312",
+        "zil.fn.313",
+        "zil.fn.314",
+        "zil.fn.315",
+        "zil.fn.316",
+        "zil.fn.317",
+        "zil.fn.318"
+      ]
+    },
+    {
+      "function": "zil.fn.340",
+      "instructions": 298,
+      "calls": [
+        "zil.fn.320",
+        "zil.fn.321",
+        "zil.fn.322",
+        "zil.fn.323",
+        "zil.fn.324",
+        "zil.fn.325",
+        "zil.fn.326",
+        "zil.fn.327",
+        "zil.fn.328",
+        "zil.fn.329",
+        "zil.fn.330",
+        "zil.fn.331",
+        "zil.fn.332",
+        "zil.fn.333",
+        "zil.fn.334",
+        "zil.fn.335",
+        "zil.fn.336",
+        "zil.fn.337",
+        "zil.fn.338",
+        "zil.fn.339"
+      ]
+    },
+    {
+      "function": "zil.fn.25",
+      "instructions": 297,
+      "calls": [
+        "zil.fn.5",
+        "zil.fn.6",
+        "zil.fn.7",
+        "zil.fn.8",
+        "zil.fn.9",
+        "zil.fn.10",
+        "zil.fn.11",
+        "zil.fn.12",
+        "zil.fn.13",
+        "zil.fn.14",
+        "zil.fn.15",
+        "zil.fn.16",
+        "zil.fn.17",
+        "zil.fn.18",
+        "zil.fn.19",
+        "zil.fn.20",
+        "zil.fn.21",
+        "zil.fn.22",
+        "zil.fn.23",
+        "zil.fn.24"
+      ]
+    },
+    {
+      "function": "zil.fn.361",
+      "instructions": 298,
+      "calls": [
+        "zil.fn.341",
+        "zil.fn.342",
+        "zil.fn.343",
+        "zil.fn.344",
+        "zil.fn.345",
+        "zil.fn.346",
+        "zil.fn.347",
+        "zil.fn.348",
+        "zil.fn.349",
+        "zil.fn.350",
+        "zil.fn.351",
+        "zil.fn.352",
+        "zil.fn.353",
+        "zil.fn.354",
+        "zil.fn.355",
+        "zil.fn.356",
+        "zil.fn.357",
+        "zil.fn.358",
+        "zil.fn.359",
+        "zil.fn.360"
+      ]
+    },
+    {
+      "function": "zil.fn.46",
+      "instructions": 297,
+      "calls": [
+        "zil.fn.26",
+        "zil.fn.27",
+        "zil.fn.28",
+        "zil.fn.29",
+        "zil.fn.30",
+        "zil.fn.31",
+        "zil.fn.32",
+        "zil.fn.33",
+        "zil.fn.34",
+        "zil.fn.35",
+        "zil.fn.36",
+        "zil.fn.37",
+        "zil.fn.38",
+        "zil.fn.39",
+        "zil.fn.40",
+        "zil.fn.41",
+        "zil.fn.42",
+        "zil.fn.43",
+        "zil.fn.44",
+        "zil.fn.45"
+      ]
+    },
+    {
+      "function": "zil.fn.382",
+      "instructions": 298,
+      "calls": [
+        "zil.fn.362",
+        "zil.fn.363",
+        "zil.fn.364",
+        "zil.fn.365",
+        "zil.fn.366",
+        "zil.fn.367",
+        "zil.fn.368",
+        "zil.fn.369",
+        "zil.fn.370",
+        "zil.fn.371",
+        "zil.fn.372",
+        "zil.fn.373",
+        "zil.fn.374",
+        "zil.fn.375",
+        "zil.fn.376",
+        "zil.fn.377",
+        "zil.fn.378",
+        "zil.fn.379",
+        "zil.fn.380",
+        "zil.fn.381"
+      ]
+    },
+    {
+      "function": "zil.fn.67",
+      "instructions": 297,
+      "calls": [
+        "zil.fn.47",
+        "zil.fn.48",
+        "zil.fn.49",
+        "zil.fn.50",
+        "zil.fn.51",
+        "zil.fn.52",
+        "zil.fn.53",
+        "zil.fn.54",
+        "zil.fn.55",
+        "zil.fn.56",
+        "zil.fn.57",
+        "zil.fn.58",
+        "zil.fn.59",
+        "zil.fn.60",
+        "zil.fn.61",
+        "zil.fn.62",
+        "zil.fn.63",
+        "zil.fn.64",
+        "zil.fn.65",
+        "zil.fn.66"
+      ]
+    },
+    {
+      "function": "zil.fn.403",
+      "instructions": 298,
+      "calls": [
+        "zil.fn.383",
+        "zil.fn.384",
+        "zil.fn.385",
+        "zil.fn.386",
+        "zil.fn.387",
+        "zil.fn.388",
+        "zil.fn.389",
+        "zil.fn.390",
+        "zil.fn.391",
+        "zil.fn.392",
+        "zil.fn.393",
+        "zil.fn.394",
+        "zil.fn.395",
+        "zil.fn.396",
+        "zil.fn.397",
+        "zil.fn.398",
+        "zil.fn.399",
+        "zil.fn.400",
+        "zil.fn.401",
+        "zil.fn.402"
+      ]
+    },
+    {
+      "function": "zil.fn.88",
+      "instructions": 297,
+      "calls": [
+        "zil.fn.68",
+        "zil.fn.69",
+        "zil.fn.70",
+        "zil.fn.71",
+        "zil.fn.72",
+        "zil.fn.73",
+        "zil.fn.74",
+        "zil.fn.75",
+        "zil.fn.76",
+        "zil.fn.77",
+        "zil.fn.78",
+        "zil.fn.79",
+        "zil.fn.80",
+        "zil.fn.81",
+        "zil.fn.82",
+        "zil.fn.83",
+        "zil.fn.84",
+        "zil.fn.85",
+        "zil.fn.86",
+        "zil.fn.87"
+      ]
+    },
+    {
+      "function": "zil.fn.424",
+      "instructions": 298,
+      "calls": [
+        "zil.fn.404",
+        "zil.fn.405",
+        "zil.fn.406",
+        "zil.fn.407",
+        "zil.fn.408",
+        "zil.fn.409",
+        "zil.fn.410",
+        "zil.fn.411",
+        "zil.fn.412",
+        "zil.fn.413",
+        "zil.fn.414",
+        "zil.fn.415",
+        "zil.fn.416",
+        "zil.fn.417",
+        "zil.fn.418",
+        "zil.fn.419",
+        "zil.fn.420",
+        "zil.fn.421",
+        "zil.fn.422",
+        "zil.fn.423"
+      ]
+    },
+    {
+      "function": "zil.fn.109",
+      "instructions": 298,
+      "calls": [
+        "zil.fn.89",
+        "zil.fn.90",
+        "zil.fn.91",
+        "zil.fn.92",
+        "zil.fn.93",
+        "zil.fn.94",
+        "zil.fn.95",
+        "zil.fn.96",
+        "zil.fn.97",
+        "zil.fn.98",
+        "zil.fn.99",
+        "zil.fn.100",
+        "zil.fn.101",
+        "zil.fn.102",
+        "zil.fn.103",
+        "zil.fn.104",
+        "zil.fn.105",
+        "zil.fn.106",
+        "zil.fn.107",
+        "zil.fn.108"
+      ]
+    },
+    {
+      "function": "zil.fn.130",
+      "instructions": 298,
+      "calls": [
+        "zil.fn.110",
+        "zil.fn.111",
+        "zil.fn.112",
+        "zil.fn.113",
+        "zil.fn.114",
+        "zil.fn.115",
+        "zil.fn.116",
+        "zil.fn.117",
+        "zil.fn.118",
+        "zil.fn.119",
+        "zil.fn.120",
+        "zil.fn.121",
+        "zil.fn.122",
+        "zil.fn.123",
+        "zil.fn.124",
+        "zil.fn.125",
+        "zil.fn.126",
+        "zil.fn.127",
+        "zil.fn.128",
+        "zil.fn.129"
+      ]
+    },
+    {
+      "function": "zil.fn.151",
+      "instructions": 298,
+      "calls": [
+        "zil.fn.131",
+        "zil.fn.132",
+        "zil.fn.133",
+        "zil.fn.134",
+        "zil.fn.135",
+        "zil.fn.136",
+        "zil.fn.137",
+        "zil.fn.138",
+        "zil.fn.139",
+        "zil.fn.140",
+        "zil.fn.141",
+        "zil.fn.142",
+        "zil.fn.143",
+        "zil.fn.144",
+        "zil.fn.145",
+        "zil.fn.146",
+        "zil.fn.147",
+        "zil.fn.148",
+        "zil.fn.149",
+        "zil.fn.150"
+      ]
+    },
+    {
+      "function": "zil.fn.172",
+      "instructions": 298,
+      "calls": [
+        "zil.fn.152",
+        "zil.fn.153",
+        "zil.fn.154",
+        "zil.fn.155",
+        "zil.fn.156",
+        "zil.fn.157",
+        "zil.fn.158",
+        "zil.fn.159",
+        "zil.fn.160",
+        "zil.fn.161",
+        "zil.fn.162",
+        "zil.fn.163",
+        "zil.fn.164",
+        "zil.fn.165",
+        "zil.fn.166",
+        "zil.fn.167",
+        "zil.fn.168",
+        "zil.fn.169",
+        "zil.fn.170",
+        "zil.fn.171"
+      ]
+    },
+    {
+      "function": "zil.fn.193",
+      "instructions": 298,
+      "calls": [
+        "zil.fn.173",
+        "zil.fn.174",
+        "zil.fn.175",
+        "zil.fn.176",
+        "zil.fn.177",
+        "zil.fn.178",
+        "zil.fn.179",
+        "zil.fn.180",
+        "zil.fn.181",
+        "zil.fn.182",
+        "zil.fn.183",
+        "zil.fn.184",
+        "zil.fn.185",
+        "zil.fn.186",
+        "zil.fn.187",
+        "zil.fn.188",
+        "zil.fn.189",
+        "zil.fn.190",
+        "zil.fn.191",
+        "zil.fn.192"
+      ]
+    },
+    {
+      "function": "zil.fn.214",
+      "instructions": 298,
+      "calls": [
+        "zil.fn.194",
+        "zil.fn.195",
+        "zil.fn.196",
+        "zil.fn.197",
+        "zil.fn.198",
+        "zil.fn.199",
+        "zil.fn.200",
+        "zil.fn.201",
+        "zil.fn.202",
+        "zil.fn.203",
+        "zil.fn.204",
+        "zil.fn.205",
+        "zil.fn.206",
+        "zil.fn.207",
+        "zil.fn.208",
+        "zil.fn.209",
+        "zil.fn.210",
+        "zil.fn.211",
+        "zil.fn.212",
+        "zil.fn.213"
+      ]
+    },
+    {
+      "function": "zil.fn.235",
+      "instructions": 298,
+      "calls": [
+        "zil.fn.215",
+        "zil.fn.216",
+        "zil.fn.217",
+        "zil.fn.218",
+        "zil.fn.219",
+        "zil.fn.220",
+        "zil.fn.221",
+        "zil.fn.222",
+        "zil.fn.223",
+        "zil.fn.224",
+        "zil.fn.225",
+        "zil.fn.226",
+        "zil.fn.227",
+        "zil.fn.228",
+        "zil.fn.229",
+        "zil.fn.230",
+        "zil.fn.231",
+        "zil.fn.232",
+        "zil.fn.233",
+        "zil.fn.234"
+      ]
+    },
+    {
+      "function": "zil.fn.256",
+      "instructions": 298,
+      "calls": [
+        "zil.fn.236",
+        "zil.fn.237",
+        "zil.fn.238",
+        "zil.fn.239",
+        "zil.fn.240",
+        "zil.fn.241",
+        "zil.fn.242",
+        "zil.fn.243",
+        "zil.fn.244",
+        "zil.fn.245",
+        "zil.fn.246",
+        "zil.fn.247",
+        "zil.fn.248",
+        "zil.fn.249",
+        "zil.fn.250",
+        "zil.fn.251",
+        "zil.fn.252",
+        "zil.fn.253",
+        "zil.fn.254",
+        "zil.fn.255"
+      ]
+    },
+    {
+      "function": "zil.fn.277",
+      "instructions": 298,
+      "calls": [
+        "zil.fn.257",
+        "zil.fn.258",
+        "zil.fn.259",
+        "zil.fn.260",
+        "zil.fn.261",
+        "zil.fn.262",
+        "zil.fn.263",
+        "zil.fn.264",
+        "zil.fn.265",
+        "zil.fn.266",
+        "zil.fn.267",
+        "zil.fn.268",
+        "zil.fn.269",
+        "zil.fn.270",
+        "zil.fn.271",
+        "zil.fn.272",
+        "zil.fn.273",
+        "zil.fn.274",
+        "zil.fn.275",
+        "zil.fn.276"
+      ]
+    },
+    {
+      "function": "zil.fn.298",
+      "instructions": 296,
+      "calls": [
+        "zil.fn.278",
+        "zil.fn.279",
+        "zil.fn.280",
+        "zil.fn.281",
+        "zil.fn.282",
+        "zil.fn.283",
+        "zil.fn.284",
+        "zil.fn.285",
+        "zil.fn.286",
+        "zil.fn.287",
+        "zil.fn.288",
+        "zil.fn.289",
+        "zil.fn.290",
+        "zil.fn.291",
+        "zil.fn.292",
+        "zil.fn.293",
+        "zil.fn.294",
+        "zil.fn.295",
+        "zil.fn.296",
+        "zil.fn.297"
+      ]
+    }
+  ],
+  "helper_samples": {
+    "zil.fn.5": {
+      "instructions": 333,
+      "calls": []
+    },
+    "zil.fn.6": {
+      "instructions": 335,
+      "calls": []
+    }
+  },
+  "initial_ir_samples": {
+    "zil.fn.5": {
+      "lines": 940,
+      "basic_blocks": 147,
+      "overflow_calls": 48,
+      "zil_calls": 0,
+      "header": "define i32 @zil.fn.5(i32 %arg.0) {"
+    },
+    "zil.fn.25": {
+      "lines": 309,
+      "basic_blocks": 43,
+      "overflow_calls": 20,
+      "zil_calls": 20,
+      "header": "define i32 @zil.fn.25(i32 %arg.0) {"
+    }
+  },
+  "early_closed_retained_inventory": {
+    "path": "/workspace/zil-push-main/out/runs/full-push-native-closed-profile-01-inventory.json",
+    "manifest_sha256": "a11c74e5876edd5454091f03e5ca806e7c382a2998243d686bd2239b0f4175d6",
+    "baseline_unit_samples": [
+      {
+        "unit_index": 0,
+        "pre_o2_definitions": 23,
+        "emitted": [
+          {
+            "name": "main",
+            "bytes": 17503,
+            "binding": "GLOBAL",
+            "visibility": 0,
+            "nonzero_body": true
+          }
+        ]
+      },
+      {
+        "unit_index": 1,
+        "pre_o2_definitions": 23,
+        "emitted": [
+          {
+            "name": "zil.fn.3",
+            "bytes": 6,
+            "binding": "GLOBAL",
+            "visibility": 0,
+            "nonzero_body": true
+          },
+          {
+            "name": "zil.fn.4",
+            "bytes": 6,
+            "binding": "GLOBAL",
+            "visibility": 0,
+            "nonzero_body": true
+          },
+          {
+            "name": "zil.fn.340",
+            "bytes": 24627,
+            "binding": "GLOBAL",
+            "visibility": 0,
+            "nonzero_body": true
+          }
+        ]
+      }
+    ],
+    "full_manifest_available_in_live_tree": false
+  },
+  "conclusions": [
+    "No currently-unused helper copies exist in this profile: actual ELF retains 400 direct calls from 20 value functions.",
+    "Late mode leaves full ELF byte-identical and removes zero definitions; its original425 performance result is negative.",
+    "Input IR size alone cannot prove inline rejection cost or timing. Bottom-up simplification ordering is separately reviewed by Astra.",
+    "No new pass proposed or implemented. Need fixed inliner cost/last-static-call evidence, not PLT or initial-CVP speculation."
+  ]
+}

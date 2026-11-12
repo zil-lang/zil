@@ -6826,6 +6826,13 @@
         }
       }
     },
-    "latest_component_raw_recovery": "full-push-recovery-v19.json; fixed60b8b494911e85e1eb387f6c387d402c5f6e02d0 four storage pieces/index freshHTTPS,496-file exact master union, no assembled whole qualifier/native rerun"
+    "latest_component_raw_recovery": "full-push-recovery-v19.json; fixed60b8b494911e85e1eb387f6c387d402c5f6e02d0 four storage pieces/index freshHTTPS,496-file exact master union, no assembled whole qualifier/native rerun",
+    "current_experiment": {
+      "compiler": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+      "negative": "full-push-late-closed-negative-be64.json",
+      "status": "negative_incomplete_matrix_no_speed_acceptance",
+      "next": "MIR body full coverage proof and reviewed header-only renderer; newSDK/unifiedgates not run",
+      "raw": "currentv20 pending; earlier formal328 v17/v18 and03b v19 remotecomplete"
+    }
   }
 }

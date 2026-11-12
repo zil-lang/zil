@@ -1,0 +1,255 @@
+{
+  "schema": "independent-late-closed-root-integration-review-v1",
+  "source": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+  "tree": "ee5972a66a6e8baf1266d0dc307c4fba8dd2c23b",
+  "reviewer": "audit; non-author of CLI/driver/FFI fix/optional runner adapter; author of separate ELF comparator and its counterfixtures",
+  "status": "bounded_static_accepted_for_named_root_integration; first_actual_425_quality_run_pending",
+  "findings": [],
+  "files": {
+    "crates/zil-cli/src/main.rs": "a6ee5294a3dd38fdf723c12568027b289b70b500725520c5c53125efd81af13d",
+    "crates/zil-driver/src/lib.rs": "82910d00ff711d68bbfdb3901ced2c34501e10173295e7d2d87744980e4e496e",
+    "crates/zil-driver/src/session.rs": "0b2a55a5f4e03c7ef348e4f6c93820a65d02c840ff4c2f60879d99ebe6555a32",
+    "crates/zil-llvm-api/src/native.rs": "6e507c2923fa8299c742e633a5836e86900c08df8b29df2dcfe170778756bf8d",
+    "crates/zil-llvm-api/src/native/builder.rs": "7c4a7f7822cafd025d69d79ee338ee52f235bcb9d4cbd260d0f3f682603e0376",
+    "crates/zil-backend-llvm/src/build.rs": "4f767a7fc6ea994f0e5a827d33d59759c2a860ffee6697f0a7eaad2d6e340b9b",
+    "tools/research/reactive-query-graph/native_measure.py": "ef8549d94b532273caef40ad7fe32b7f920217922f572652c5e88e5f6ecaaa7c",
+    "tools/research/incremental-demand/late_closed_measure.py": "05c408483ba3b175e1d54f3f9f24d09f48993f697bbfd1938f0abf18f9ab4c01",
+    "tools/research/incremental-demand/matched_measure.py": "9a83219bfcc725efa6d1744fa34c34afbd2af03cebce74b8b7c44ff7e8377fbd"
+  },
+  "actual_read_scope": [
+    "Complete 677dd1a83fd832ef70af67aa412c46596b204f14 CLI/driver diff plus final current CLI option validation and driver native BuildOptions consumer",
+    "Complete 0ab8c21f7a6d1fecaa308cc08ba5e267b61fd63a one-line LLVMSetLinkage fix; current native callsite; existing builder FFI declaration; pinned installed LLVM Core.h linkage enum and C setter declaration",
+    "Complete be64d9086 CLI and measurement contract wording delta",
+    "Complete optional native_measure diff 3ef825f4f9b3421800821f331e634c2417aa06f7 and callback acceptance path/current row validation context",
+    "Complete late_closed_measure adapter at exact freeze, including ab69c88e2c0e6dbb7b3afe95bae867faceabe512 inventory binding change; actual zil_inventory container/key/payload consumer lines277-327",
+    "Only backend build option validation and immediate driver handoff reviewed here; underlying late DCE implementation separately reviewed by Astra, not claimed by this receipt"
+  ],
+  "conclusions": [
+    "New opt-in field defaults false. CLI permits only build+O2+LLVM API+Linux x86_64, rejects early closed flag combination, and driver explicitly passes this field into current BuildOptions. Backend independently rejects unsupported backend/target/optimization/entry contracts for direct API consumers.",
+    "Wording waives the generated ZIL export contract for this explicit closed executable; it does not claim source-private classification or removal of every symbol. It does not alter default ordinary or early-closed policy.",
+    "FFI fix changes setter parameter from c_uint to c_int to match existing builder declaration. Current internal linkage discriminant8 is representable; no allow or weakened strict checks was added. Pinned LLVM C header declares an LLVMLinkage enum argument, and existing builder uses the same ABI.",
+    "Default native_measure callback=None retains old acceptance and old ELF identity fields. New Success paths require dictionary valid is True plus original required LLVM-input equality. None/non-dict/failure cannot authorize a successful pair; original semantic/native validity is still conjoined. Errors inherit existing paired error handling rather than successful machine comparison.",
+    "New adapter fixes original425 scalar shape/CGU16/jobs1/O2/cacheall/cap256/full request set and candidate-only late policy, excluding early closed and unrestricted extra arguments. It obtains current per-unit object inventory from exact cache namespace and verified ZILOBJ header/action key/payload SHA before invoking comparison.",
+    "Comparator receives shared run root and exact baseline/candidate pair. Its separately reviewed block-local native producer receipts are not replaced by candidate name guessing. Original paired_codegen_identity_valid and executable byte equality remain observations with their old meanings; closed_machine_quality is a separate protocol result."
+  ],
+  "author_boundary": {
+    "comparator_author_commit": "b7aab23ba0d51680132f81cad063970c76e5403d",
+    "not_independent_here": [
+      "tools/research/incremental-demand/elf_instruction_quality.py",
+      "tools/research/incremental-demand/test_elf_instruction_quality.py"
+    ],
+    "parent_non_author_comparator_review": {
+      "path": "/tmp/full-push-closed-quality-tool-review.json",
+      "sha256": "730f4e32951b7797ceae1ab6f4b93d0b26e71968ab7bba713f80854ec576c0e5"
+    },
+    "legacy_measurement_helpers": "Only the named adapter/optional callback and exact inventory consumer scope are assessed; this is not a new independent full review of all old helper code."
+  },
+  "validation_evidence": [
+    {
+      "stem": "out/runs/native-products-full-tests-27",
+      "source": "794829fd3d586932934c6ac03a6e747562629a88",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "native-products,text-reference",
+        "--lib",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "log_sha256": "f4152f176f7045ac5f8b8816b9fe68c41a05c50f28a202ea05a6fd7be3b4a83b",
+      "receipt_sha256": "fb1414e379922431bc51e19d8c02790449593027a38ca9965afa653d23b07266",
+      "exit_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "rust_test_counts": [
+        [
+          "75",
+          "0",
+          "0"
+        ]
+      ],
+      "execution": "root executed; reviewer only read and hashed existing small log/metadata/exit"
+    },
+    {
+      "stem": "out/runs/push-backend-library-tests-14",
+      "source": "794829fd3d586932934c6ac03a6e747562629a88",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "log_sha256": "60d83addbc199f9f9e4149cce3fef13b9e6e4d02afa4a2c84fbb322774af7ee8",
+      "receipt_sha256": "0252d296d2c9711e1d655494eb2a59397652dfaf78912cdd69a73f4f40ac9f7e",
+      "exit_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "rust_test_counts": [
+        [
+          "244",
+          "0",
+          "0"
+        ]
+      ],
+      "execution": "root executed; reviewer only read and hashed existing small log/metadata/exit"
+    },
+    {
+      "stem": "out/runs/push-driver-library-tests-17",
+      "source": "794829fd3d586932934c6ac03a6e747562629a88",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "log_sha256": "5621f4e3f0d8f0b80cd501e43278f117a3b61f5f5a4da9fd14a8886876d4833c",
+      "receipt_sha256": "f3bdedd1d8dd20af1ddae866c861b4556a6a31c82221b01b8c909e2ee0cef738",
+      "exit_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "rust_test_counts": [
+        [
+          "210",
+          "0",
+          "0"
+        ]
+      ],
+      "execution": "root executed; reviewer only read and hashed existing small log/metadata/exit"
+    },
+    {
+      "stem": "out/runs/full-push-native-clippy-16",
+      "source": "794829fd3d586932934c6ac03a6e747562629a88",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--features",
+        "native-products",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 101,
+      "log_sha256": "a66fae05f36f25ae90c8c4aec66253644dc85095b3def5a0895d59807754aee8",
+      "receipt_sha256": "6bb4a59acfd07267dbd3dca433d5e0f4083a88f2ba9595f8b7e8d550f28bce3f",
+      "exit_sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c",
+      "rust_test_counts": [],
+      "execution": "root executed; reviewer only read and hashed existing small log/metadata/exit"
+    },
+    {
+      "stem": "out/runs/late-closed-native-tests-01",
+      "source": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "native-products,text-reference",
+        "--lib",
+        "late_closed_tests",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "log_sha256": "3f69e33fb41193e8733fdd4ee9587243f7e43727903ca72615929a882c2bc1ca",
+      "receipt_sha256": "833b95a87edfd578e520c17374e276df8a06e1b91fd181be99185904c4d25a77",
+      "exit_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "rust_test_counts": [
+        [
+          "2",
+          "0",
+          "0"
+        ]
+      ],
+      "execution": "root executed; reviewer only read and hashed existing small log/metadata/exit"
+    },
+    {
+      "stem": "out/runs/late-closed-machine-quality-tests-01",
+      "source": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tools/research/incremental-demand",
+        "-p",
+        "test_elf_instruction_quality.py"
+      ],
+      "exit_code": 0,
+      "log_sha256": "0fe5cb662bfff14a9884376c5dc9b13021e73aa15d1c18bc3ecfc2226a9f364f",
+      "receipt_sha256": "2134326e468bae9fe2b071c278a5488acfa16d75083a50e20919229f27ee7e27",
+      "exit_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "rust_test_counts": [],
+      "execution": "root executed; reviewer only read and hashed existing small log/metadata/exit"
+    },
+    {
+      "stem": "out/runs/push-profile-qualifier-tests-03",
+      "source": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tools/research/incremental-demand",
+        "-p",
+        "test_validate_push_profile.py"
+      ],
+      "exit_code": 0,
+      "log_sha256": "83166b089fbcb82fac63f22522fa6ae99bb5e46368cd35d756277fd463dd6346",
+      "receipt_sha256": "56f135684af56558d09476a76a4f97482ec673bfbd893f3f7d65a55531d7e839",
+      "exit_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "rust_test_counts": [],
+      "execution": "root executed; reviewer only read and hashed existing small log/metadata/exit"
+    },
+    {
+      "stem": "out/runs/full-push-native-clippy-17",
+      "source": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--features",
+        "native-products",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log_sha256": "76c3e22e2bcc06c0d1662e719997396bbe54835ce067e2af119c89f6c16dce8a",
+      "receipt_sha256": "18e14537afc9d3a00266644372f3308a9ca2198403b71b959fa376f10a648fe7",
+      "exit_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "rust_test_counts": [],
+      "execution": "root executed; reviewer only read and hashed existing small log/metadata/exit"
+    }
+  ],
+  "validation_limits": [
+    "No compiler, linker, native program, benchmark or quality tool invocation performed by this reviewer in this review.",
+    "Root initial 794829 source passed native75/backend244/driver210. Current freeze differs in crates only by the one-line FFI declaration fix and CLI help wording; full75/244/210 were not rerun on be64 and are not relabeled as such.",
+    "Preserved strict Clippy16 exit101 contradicting FFI signatures remains a failed initial gate. Existing current be64 Clippy17 exit0 and named focused/tool logs were independently read and their small log hashes verified.",
+    "No current full workspace pass, release completion, actual425 late-output run, new formal matrix, or performance claim is made.",
+    "Conservative retained instruction/CFG/address comparison is not arbitrary x86 semantic equivalence, unwind correctness or all process loading behavior proof. Unknown normalization and retained code/size differences must remain negative results."
+  ]
+}

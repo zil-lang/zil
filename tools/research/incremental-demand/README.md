@@ -1,5 +1,7 @@
 # 增量编译：main 与 Rust 对照
 
+> 最新实验：[be64晚删真实负结果](full-push-late-closed-negative-be64.md)。完整原O2后无可删定义（402候选仍有用途），原425仅4rows/24native即被新质量工具拒绝，原controller1/rows不改。运行门75/244/210及ABI修复后限定/strict/fmt/release过；不把无实际删工当进展。下一整块MIR正文冗余格式化已完成固定源码覆盖证明和独审，尚未新SDK构建/测量。
+
 > 最新施工：[03b完整组件、原负载诊断及未完成项](full-push-checkpoint-03b.md) / [确切门收据](full-push-checkpoint-03b.json)。DenseMap捕获临时表和Expand共享声明inventory已落实际消费者；native72/backend242/mixed3，后续Expand105/driver210及strictClippy/fmt/release15通过。原425单block诊断34rows/180native/15质量对核验：private476/main1411ms，cold6801/main5871、broad6579/main5605仍负；不混旧Rust窗口、不跨候选归因。[profile13 raw v19](full-push-recovery-v19.json) fixed60b8b494全部freshHTTPS/hash/模式/原496file全集核过。当前仍施工、默认关闭、不合main。
 
 > 最新正式对照：[328同窗六轮全部八场景](full-push-matched-328.md) / [逐轮数据与实际CGU内容](full-push-matched-328.json)。main固定3ec7；check单处69/main586/Rust422ms，O2单处555/main1562/Rust706、多处729/main1821/Rust1022。O2 cold7866/Rust6881、broad7012/5821、noop63/15仍落后；恢复中位数527/565但配对几何比1.092，不能算无条件胜出。每模式270请求，2808原生执行、78质量对（42测量+36父准备），独立Verify完整执行。两方请求CGU16不代表内容相同，代表冷编译ZIL424/Rust28个定义符号。[非作者复核](full-push-formal-328-results-review.json)有界通过。profile/门[v16](full-push-recovery-v16.json)、check[v17](full-push-recovery-v17.json)、O2[v18](full-push-recovery-v18.json)均固定远端逐片freshHTTPS全hash/模式及原manifest全集核验；未声称整份拼回再跑validator。目标仍开放，默认关闭、不合main。

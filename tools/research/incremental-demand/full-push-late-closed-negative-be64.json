@@ -1,0 +1,494 @@
+{
+  "schema": "late-closed-original-workload-negative-v1",
+  "compiler": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+  "build": {
+    "source": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+    "tree": "ee5972a66a6e8baf1266d0dc307c4fba8dd2c23b",
+    "source_after": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+    "command": [
+      "cargo",
+      "build",
+      "--locked",
+      "--release",
+      "-p",
+      "zil-cli",
+      "--features",
+      "native-products"
+    ],
+    "exit_code": 0,
+    "elapsed_ns": 120681974235,
+    "environment": {
+      "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+      "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+      "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+      "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v15/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+    },
+    "log_sha256": "01020723ca5b295f21221653f3d019661050e42447b5ab56545de03194e71a13",
+    "binary": "/workspace/zil-push-main/out/binaries/be64d90860353d05b60c8abb399b3e1602fd9e2a/zil",
+    "sha256": "f7f88850d55b4ca808e042649cd7fc53293b98f9b5d027bc8544b3f6f7d7ebf8",
+    "rustc_verbose": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+    "llvm_library": {
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libLLVM.so.23.1",
+      "sha256": "200a8dbefbb8dc13dfff539a72969378c57feb7a8f2d36c635589507c4376461"
+    }
+  },
+  "status": "negative_incomplete_matrix_no_speed_acceptance",
+  "original_profile_controller_exit": 1,
+  "rows": 4,
+  "measured_rows": 2,
+  "parent_rows": 2,
+  "native_outcomes": 24,
+  "request_scope": "Only cold measured + cold preparation; preparation quality rejection stopped before unchanged/private/multi/broad/positions/error/recovery/restore. Do not label this a complete matrix.",
+  "real_deletion": {
+    "current_units": 16,
+    "defined_functions_before_and_after": 424,
+    "eligible": 0,
+    "removed": 0,
+    "remaining_users_refusals": 402,
+    "globaldce_runs": 0,
+    "actual_value_to_helper_calls": 400
+  },
+  "raw_elf_quality": {
+    "old_codegen_identity_all_true": true,
+    "sha256": "959573f89d8b9367b2f034de10a32e3bc2ee2b573da88e821589c4a38743d632",
+    "bytes": 530608,
+    "custom_normalizer_error": "memory load/store references zero-size data marker",
+    "original_custom_rows_all_valid_false": true,
+    "original_rows_and_exit_unmodified": true
+  },
+  "cold_observed_wall_ms": {
+    "main": 5844.800474,
+    "candidate": 6740.492137
+  },
+  "gates": {
+    "native-products-full-tests-27": {
+      "source": "794829fd3d586932934c6ac03a6e747562629a88",
+      "tree": "d84de6fc848d0e416eb032d6de53da0a460436c6",
+      "source_after": "794829fd3d586932934c6ac03a6e747562629a88",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "native-products,text-reference",
+        "--lib",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 28415507425,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v15/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "f4152f176f7045ac5f8b8816b9fe68c41a05c50f28a202ea05a6fd7be3b4a83b"
+    },
+    "push-backend-library-tests-14": {
+      "source": "794829fd3d586932934c6ac03a6e747562629a88",
+      "tree": "d84de6fc848d0e416eb032d6de53da0a460436c6",
+      "source_after": "794829fd3d586932934c6ac03a6e747562629a88",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 85387708292,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v15/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "60d83addbc199f9f9e4149cce3fef13b9e6e4d02afa4a2c84fbb322774af7ee8"
+    },
+    "push-driver-library-tests-17": {
+      "source": "794829fd3d586932934c6ac03a6e747562629a88",
+      "tree": "d84de6fc848d0e416eb032d6de53da0a460436c6",
+      "source_after": "794829fd3d586932934c6ac03a6e747562629a88",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 208934790621,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v15/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "5621f4e3f0d8f0b80cd501e43278f117a3b61f5f5a4da9fd14a8886876d4833c"
+    },
+    "full-push-native-clippy-16": {
+      "source": "794829fd3d586932934c6ac03a6e747562629a88",
+      "tree": "d84de6fc848d0e416eb032d6de53da0a460436c6",
+      "source_after": "794829fd3d586932934c6ac03a6e747562629a88",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--features",
+        "native-products",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 101,
+      "elapsed_ns": 18494961540,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v15/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "a66fae05f36f25ae90c8c4aec66253644dc85095b3def5a0895d59807754aee8"
+    },
+    "late-closed-native-tests-01": {
+      "source": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+      "tree": "ee5972a66a6e8baf1266d0dc307c4fba8dd2c23b",
+      "source_after": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "native-products,text-reference",
+        "--lib",
+        "late_closed_tests",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 2102009481,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v15/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "3f69e33fb41193e8733fdd4ee9587243f7e43727903ca72615929a882c2bc1ca"
+    },
+    "late-closed-machine-quality-tests-01": {
+      "source": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+      "tree": "ee5972a66a6e8baf1266d0dc307c4fba8dd2c23b",
+      "source_after": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tools/research/incremental-demand",
+        "-p",
+        "test_elf_instruction_quality.py"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 168824011,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v15/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "0fe5cb662bfff14a9884376c5dc9b13021e73aa15d1c18bc3ecfc2226a9f364f"
+    },
+    "push-profile-qualifier-tests-03": {
+      "source": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+      "tree": "ee5972a66a6e8baf1266d0dc307c4fba8dd2c23b",
+      "source_after": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tools/research/incremental-demand",
+        "-p",
+        "test_validate_push_profile.py"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 86613337,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v15/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "83166b089fbcb82fac63f22522fa6ae99bb5e46368cd35d756277fd463dd6346"
+    },
+    "full-push-native-clippy-17": {
+      "source": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+      "tree": "ee5972a66a6e8baf1266d0dc307c4fba8dd2c23b",
+      "source_after": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--features",
+        "native-products",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 33027648935,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v15/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "76c3e22e2bcc06c0d1662e719997396bbe54835ce067e2af119c89f6c16dce8a"
+    },
+    "full-push-fmt-15": {
+      "source": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+      "tree": "ee5972a66a6e8baf1266d0dc307c4fba8dd2c23b",
+      "source_after": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 9473231986,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v15/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "full-push-release-16": {
+      "source": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+      "tree": "ee5972a66a6e8baf1266d0dc307c4fba8dd2c23b",
+      "source_after": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "zil-cli",
+        "--features",
+        "native-products"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 120681974235,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v15/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "01020723ca5b295f21221653f3d019661050e42447b5ab56545de03194e71a13",
+      "binary": "/workspace/zil-push-main/out/binaries/be64d90860353d05b60c8abb399b3e1602fd9e2a/zil",
+      "sha256": "f7f88850d55b4ca808e042649cd7fc53293b98f9b5d027bc8544b3f6f7d7ebf8",
+      "rustc_verbose": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "llvm_library": {
+        "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libLLVM.so.23.1",
+        "sha256": "200a8dbefbb8dc13dfff539a72969378c57feb7a8f2d36c635589507c4376461"
+      }
+    },
+    "late-closed-cli-controls-01": {
+      "source": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+      "binary_sha256": "f7f88850d55b4ca808e042649cd7fc53293b98f9b5d027bc8544b3f6f7d7ebf8",
+      "cases": [
+        {
+          "argv": [
+            "/workspace/zil-push-main/out/binaries/be64d90860353d05b60c8abb399b3e1602fd9e2a/zil",
+            "check",
+            "/workspace/zil-push-main/out/runs/late-closed-control-missing.zil",
+            "--opt",
+            "O2",
+            "--backend",
+            "llvm-api",
+            "--late-closed-executable",
+            "--json"
+          ],
+          "exit": 64,
+          "response": {
+            "status": "SafeReject",
+            "phase": "driver",
+            "diagnostics": [
+              {
+                "phase": "driver",
+                "category": "SafeReject",
+                "code": "E-CLI-ARGUMENT",
+                "message": "--late-closed-executable requires an O2 LLVM API Linux x86_64 build without --closed-executable",
+                "span": null,
+                "notes": []
+              }
+            ],
+            "artifacts": {}
+          },
+          "valid": true
+        },
+        {
+          "argv": [
+            "/workspace/zil-push-main/out/binaries/be64d90860353d05b60c8abb399b3e1602fd9e2a/zil",
+            "build",
+            "/workspace/zil-push-main/out/runs/late-closed-control-missing.zil",
+            "--opt",
+            "O0",
+            "--backend",
+            "llvm-api",
+            "--late-closed-executable",
+            "--json"
+          ],
+          "exit": 64,
+          "response": {
+            "status": "SafeReject",
+            "phase": "driver",
+            "diagnostics": [
+              {
+                "phase": "driver",
+                "category": "SafeReject",
+                "code": "E-CLI-ARGUMENT",
+                "message": "--late-closed-executable requires an O2 LLVM API Linux x86_64 build without --closed-executable",
+                "span": null,
+                "notes": []
+              }
+            ],
+            "artifacts": {}
+          },
+          "valid": true
+        },
+        {
+          "argv": [
+            "/workspace/zil-push-main/out/binaries/be64d90860353d05b60c8abb399b3e1602fd9e2a/zil",
+            "build",
+            "/workspace/zil-push-main/out/runs/late-closed-control-missing.zil",
+            "--opt",
+            "O2",
+            "--backend",
+            "clang",
+            "--late-closed-executable",
+            "--json"
+          ],
+          "exit": 64,
+          "response": {
+            "status": "SafeReject",
+            "phase": "driver",
+            "diagnostics": [
+              {
+                "phase": "driver",
+                "category": "SafeReject",
+                "code": "E-CLI-ARGUMENT",
+                "message": "--late-closed-executable requires an O2 LLVM API Linux x86_64 build without --closed-executable",
+                "span": null,
+                "notes": []
+              }
+            ],
+            "artifacts": {}
+          },
+          "valid": true
+        },
+        {
+          "argv": [
+            "/workspace/zil-push-main/out/binaries/be64d90860353d05b60c8abb399b3e1602fd9e2a/zil",
+            "build",
+            "/workspace/zil-push-main/out/runs/late-closed-control-missing.zil",
+            "--opt",
+            "O2",
+            "--backend",
+            "llvm-api",
+            "--target",
+            "win64",
+            "--late-closed-executable",
+            "--json"
+          ],
+          "exit": 64,
+          "response": {
+            "status": "SafeReject",
+            "phase": "driver",
+            "diagnostics": [
+              {
+                "phase": "driver",
+                "category": "SafeReject",
+                "code": "E-CLI-ARGUMENT",
+                "message": "--late-closed-executable requires an O2 LLVM API Linux x86_64 build without --closed-executable",
+                "span": null,
+                "notes": []
+              }
+            ],
+            "artifacts": {}
+          },
+          "valid": true
+        },
+        {
+          "argv": [
+            "/workspace/zil-push-main/out/binaries/be64d90860353d05b60c8abb399b3e1602fd9e2a/zil",
+            "build",
+            "/workspace/zil-push-main/out/runs/late-closed-control-missing.zil",
+            "--opt",
+            "O2",
+            "--backend",
+            "llvm-api",
+            "--closed-executable",
+            "--late-closed-executable",
+            "--json"
+          ],
+          "exit": 64,
+          "response": {
+            "status": "SafeReject",
+            "phase": "driver",
+            "diagnostics": [
+              {
+                "phase": "driver",
+                "category": "SafeReject",
+                "code": "E-CLI-ARGUMENT",
+                "message": "--late-closed-executable requires an O2 LLVM API Linux x86_64 build without --closed-executable",
+                "span": null,
+                "notes": []
+              }
+            ],
+            "artifacts": {}
+          },
+          "valid": true
+        }
+      ],
+      "valid": true,
+      "scope": "Five contract-boundary CLI invocations reject before reading nonexistent source; no native build or generated-program execution."
+    }
+  },
+  "reviews": [
+    "full-push-astra-late-closed-component-review.json",
+    "full-push-late-closed-root-integration-review.json",
+    "full-push-closed-quality-tool-review.json",
+    "full-push-late-zero-removals-actual-products.json",
+    "full-push-late-closed-profile14-negative-review.json",
+    "full-push-astra-inline-refusal-review.json"
+  ],
+  "raw_custody": "Local complete failed profile14, gates06/07, release16 and reviews pending fixed archive/source-history v20. Existing formal328 v17/v18 and profile03b v19 are remotely recovered."
+}

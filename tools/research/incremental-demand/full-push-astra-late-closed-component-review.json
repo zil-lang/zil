@@ -1,0 +1,93 @@
+{
+  "review": "independent-read-only-production-closure",
+  "author_commit": "d1b491601fe1afb89a97fa392ae478b8936e82eb",
+  "base_commit": "03b078b5799fe44d98855f26279f0f09e1d25bf5",
+  "tree": "/workspace/zil-native-late-closed-dce",
+  "llvm_source_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+  "verdict": "No production correctness blocker found in the frozen component; ready for the unified gate. Conditional on the explicit no-external-ZIL-exports executable contract, not a source-private inference.",
+  "production_closure": [
+    {
+      "source": "crates/zil-backend-llvm/src/build.rs:322",
+      "finding": "Default-off option rejects early-closed combination, non-O2, non-API, non-Linux and absent entry. Original partition and O2 input construction are unchanged."
+    },
+    {
+      "source": "crates/zil-backend-llvm/src/late_closed.rs:12",
+      "finding": "The nonforeign/environment-free generated-name inventory only identifies definitions covered by the explicit closed contract. All actual CGU modules are scanned, including available_externally bodies. Every cross-unit function reference and every pre-O2 symbol operand except an exact direct-call callee is excluded; global initializers are included. Duplicate canonical owners disable admission."
+    },
+    {
+      "source": "crates/zil-llvm-api/src/model.rs:518",
+      "finding": "Op::values is exhaustive over current instructions; Val::symbols recursively visits arrays and GEP pointer/indices. Direct-callee exemption uses pointer identity, so the same function passed as a call argument is still excluded."
+    },
+    {
+      "source": "crates/zil-llvm-api/src/late_closed.rs:15",
+      "finding": "Plan owns the exact module triple/items and canonical sorted candidate names. API validates this complete input binding before compiling. Diagnostic fingerprint is not authority."
+    },
+    {
+      "source": "crates/zil-llvm-api/src/native.rs:680",
+      "finding": "Original full pipeline completes, replay failure handling and original verify run, then a separate DCE phase starts. No early internalization or altered inline decisions."
+    },
+    {
+      "source": "crates/zil-llvm-api/src/native.rs:1521",
+      "finding": "Current post-O2 module rejects rooted metadata, module assembly, aliases and ifuncs. Current structured model cannot construct inline assembly/DbgRecords; no blanket permission for future new model forms is inferred."
+    },
+    {
+      "source": "crates/zil-llvm-api/src/native.rs:1598",
+      "finding": "All candidate checks precede mutation: present definition, External linkage, use_empty, no comdat, default visibility/storage, no prefix/prologue/personality/GC. This retains llvm.used/compiler.used, ctor/dtor, constant and remaining-call users. Only selected functions change to Internal, followed by one globaldce and verification. Full actual before/after definition sets determine the removal report."
+    },
+    {
+      "source": "crates/zil-llvm-api/native/work_products.cpp:1364",
+      "finding": "phase(3) clears borrowed analysis memo identities before the second LLVMRunPasses invocation. Function-stage replay requires phase==1. No stale FAM identity or original FPM replay is used for the DCE invocation."
+    },
+    {
+      "source": "crates/zil-llvm-api/src/native.rs:249",
+      "finding": "Replay-failure fresh-context fallback retains the same late policy and regenerates the final report; no fallback silently drops DCE policy."
+    }
+  ],
+  "cache_and_provenance": [
+    {
+      "source": "crates/zil-backend-llvm/src/object_cache.rs:191",
+      "finding": "Policy changes the cache namespace before directory selection. Existing compiler/library/config identity remains. Late policy disables the old object-patch path."
+    },
+    {
+      "source": "crates/zil-backend-llvm/src/object_cache.rs:260",
+      "finding": "Unit action key binds full module plus exact candidate names. A different whole-project closure changing candidate names changes the unit key even when its own module is unchanged."
+    },
+    {
+      "source": "crates/zil-backend-llvm/src/build.rs:806",
+      "finding": "Both same-partition and complete-module-equality KeyProduct reuse paths require equal namespace-directory and exact optional candidate list."
+    },
+    {
+      "source": "crates/zil-llvm-api/src/native.rs:650",
+      "finding": "Native product Config includes optional exact candidates, distinguishing no policy, empty policy and selected policy. Historical native candidates are not authorization; mismatched policy fails current consumer Config binding."
+    },
+    {
+      "source": "crates/zil-backend-llvm/src/build.rs:1261",
+      "finding": "Object hit still performs independent current machine preflight, reports actual object bytes fingerprint, current candidates and producer action key. It does not manufacture current DCE deletion counters. Resolving a producer to the same experimental block remains the separate quality-protocol responsibility."
+    },
+    {
+      "source": "crates/zil-backend-llvm/src/build.rs:1522",
+      "finding": "Fresh report is obtained from the actual API producer and appended alongside actual object bytes fingerprint. Failure paths do not issue a successful report."
+    }
+  ],
+  "nearest_counterexamples": [
+    "No external IR users is insufficient for an externally callable exported symbol: the explicit no-external-ZIL-exports contract is indispensable. The flag must not become a default private-visibility inference.",
+    "An available_externally imported body in another CGU may later lower to a call to the canonical external definition: all pre-O2 cross-unit references are scanned, so the canonical definition remains excluded.",
+    "Passing the candidate as an argument to an otherwise direct call is an address use: only the exact callee operand is exempt, so the argument still excludes it.",
+    "Changing references only in another unit can alter current deletion permission without changing this unit model: exact candidate lists are bound in both action keys and cached-key reuse checks.",
+    "llvm.used, compiler.used, global initializer, alias, metadata and remaining direct calls can retain a seemingly dead function: rooted metadata/alias domains are refused and current LLVM uses must be empty."
+  ],
+  "not_proven": [
+    "No build, link, tests, executable runs, disassembly quality checks or performance measurements were performed by this reviewer.",
+    "Actual 425 workload admission through the conservative metadata gate and net speedup are not established by source review.",
+    "The new quality protocol and CLI integration are separate root-owned components, not covered by this frozen 9-file production review.",
+    "GlobalDCE may also remove transitively dead internal definitions; report.removed is deliberately the actual whole definition-set difference, not an invented count equal to selected candidates.",
+    "This is late removal of unused out-of-line definitions after full O2; it is not proof of complete O2 incrementalization or an MC/NativeRegion ownership solution."
+  ],
+  "tests_read_not_run": [
+    "native/late_closed_tests.rs retained function-byte comparison and unbound-plan refusal",
+    "backend late_closed.rs cross-unit/import/address/duplicate tests",
+    "object_cache.rs policy and exact-candidate key tests"
+  ],
+  "production_edits": false,
+  "runtime_validation": false
+}

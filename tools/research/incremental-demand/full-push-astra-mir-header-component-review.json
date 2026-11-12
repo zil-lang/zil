@@ -1,0 +1,35 @@
+{
+  "review": "Frozen complete MIR-header component independent source review",
+  "commit": "4bba3ec0e9b8c6911ce14c648e2feb5a19cdac9f",
+  "base": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+  "tree": "/workspace/zil-native-mir-header",
+  "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+  "coverage_proof": "/tmp/full-push-astra-mir-body-coverage-review.json",
+  "coverage_proof_sha256": "39a8bf88d5298a867082400fcfaa728804813296c3cf7251d259655c0bf7a651",
+  "verdict": "No source correctness blocker found. Complete component satisfies the restricted-domain body coverage proof and may enter a unified new-SDK/native quality gate when root permits the build. No runtime or performance result is claimed.",
+  "findings": [
+    "New versioned SDK export binds supplied MMI to its actual current MF; printMF keeps original default false, all official header/MST/pre/post-converters and YAML default-value policy; only the printMBB loop is skipped.",
+    "Client stores a representation discriminator. Missing/refused capability uses original full MIR capture and exact replay comparison. A header product whose capability is unavailable at consumption fails safely into the existing fresh-context fallback.",
+    "Current block readback checks live original numbers, inverse-table current owners, analysis numbers/capacity/next/epoch, padding, forced labels and exact predecessor order before authorization. This replaces the block-number evidence formerly supplied by full body text and adds stronger hidden-state checks.",
+    "Frame restore preserves its complete value assignment and current sameCFI table comparison. Header mode additionally compares the complete current CFI table after verification, including unused entries.",
+    "Both modes retain current strict snapshotDomain, exact typed BodyState recapture equality, current MachineVerifier, target-info restore and original actual AsmPrinter/MC emission. Header equality preserves all former printed header checks.",
+    "Actual stored mir string size is counted with sizeof(Snapshot), typed pools, frame and other retained state by unchanged bounded accounting; absent body text is not charged as if retained. Existing caps remain.",
+    "Whole-component tests read cover actual current-MF header-versus-original-full-printer oracle, differing body with equal header, unseen-by-text CFI table difference, mutated numbering, cold/warm full-object equality to original fresh pipeline, explicit legacy-mode capture and warm legacy consumption, and smaller actual snapshot bytes. These tests were not run.",
+    "Original source MIRPrinter hash and complete patch SHA match the manifest. No class layout/vtable change or modification of installed SDK15 was performed by this review."
+  ],
+  "files_sha256": {
+    "crates/zil-llvm-api/native/llvm-function-products.patch": "4e84d4a60b07fb2dd6cfd05cb907638fccd6076b5e01fa987d6bfea90e81e0b1",
+    "crates/zil-llvm-api/native/llvm-function-products.json": "7788586f76e34da7d751a787d3b0e31fc2d153226e4882c8cbb30f8ea076bcf2",
+    "crates/zil-llvm-api/native/machine_products.cpp": "c22a93a6206cda5832bdc4c311a507cb673f3a7b4679ee3bb70859794d880ff8",
+    "crates/zil-llvm-api/src/native.rs": "1d95f16dec1bbfe33b56b7b48c8e78f0a458c0b27b0ace49a35bf7c97bdd464a",
+    "crates/zil-llvm-api/src/native/products.rs": "36a333cc2caf46d0f29ed01a446d3f0fb13cfc961967fdd10db5b295c52513ed"
+  },
+  "not_proven": [
+    "New SDK build/link correctness until unified gate",
+    "Runtime/current consumer/object-byte equivalence until unified native tests",
+    "Actual original425 speedup or total223ms removal; typed capture/frame/reconstruction/equality/verifier/header work remain"
+  ],
+  "build_run": false,
+  "tests_run": false,
+  "production_modified_by_reviewer": false
+}

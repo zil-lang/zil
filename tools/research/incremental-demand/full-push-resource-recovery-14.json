@@ -1,0 +1,22 @@
+{
+  "initial": {
+    "schema": "reproducible-cache-emergency-retirement-v1",
+    "reason": "ENOSPC prevents ordinary sandbox startup; own completed debug cache only",
+    "path": "/workspace/zil-push-main/target/debug/deps/libzil_expand-30b1a642c6bc5a71.rlib",
+    "bytes": 49197882,
+    "sha256": "ee055375024e7ca5111e1fff384b56d4264752400df403cc9ddbdf83c7fc74c1",
+    "inode": 678481,
+    "device": 27,
+    "source_head": "5046fa84a4fb7b193a95016414e144a6595c3229",
+    "no_visible_active_cache_consumers": true,
+    "unreadable_proc_entries": 646,
+    "immutable_release14_and15_rehashed_before": true,
+    "removed": true
+  },
+  "remaining_cache_files": 2942,
+  "remaining_cache_logical_bytes": 428927452,
+  "full_manifest_sha256": "6d0f24d87157f713419b900105e0e1002dd4168475bf6ea262913cede8389e72",
+  "full_manifest_local": "out/evidence/checkpoint-cleanup-14/debug-full-retirement.json",
+  "free_after": 1696116736,
+  "scope": "Actual sandbox ENOSPC beforecommands; no measurement/build active. Own completed reproducible debugcache only, immutable release14/15 rehashed. No unrelated tmp fixtures removed. Proc unreadable caveat in manifest."
+}
