@@ -1,0 +1,19 @@
+{
+  "archive_bytes": 134445243,
+  "files": 935,
+  "main_commit": "42f0396f36b2a36860ecb55371d436e4327877a4",
+  "parts": 6,
+  "raw_bytes": 495641306,
+  "restore_dir": "/tmp/zil-full-push-v7-restored",
+  "scope": "Post-v6 full push construction: real425 v8 diagnostic, native replay failures, full workspace default stack failure; no new formal Rust claim",
+  "sha256": "87d7c8ad657638e7fad759d36a383161a600d3ab7e97ff8fa03ec57deb0a9297",
+  "source_commits": {
+    "candidate": "c540615d58dacfec48c5384bd51c69016688033f"
+  },
+  "status": "verified",
+  "remote_commit": "c04b7a9adc7d2c53d1c64f18145c6eb371dc8638",
+  "remote_ref": "archive/source-history",
+  "remote_path": "research/incremental-demand-full-push-20261112-v7",
+  "retrieval": "Fresh HTTPS from fixed GitHub commit; all 935 entries verified after restoration",
+  "limits": "Post-v6 through full native05/default stack fix01; later scalar04 and stacktrace01 outside snapshot; not complete push or formal performance acceptance"
+}

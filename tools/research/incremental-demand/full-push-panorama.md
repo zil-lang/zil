@@ -20,6 +20,10 @@ unrepresented replay. These are real consumers, but they do not constitute a sin
 complete scheduler: central reactive queries still primarily compute BodyKey, outer
 whole-project query identities and several global checks/traversals remain. Names,
 global declarations, positions and dense changes have broader invalidation costs.
+One central graph is not itself a requirement: directly connected phase consumers can
+implement the same propagation rule. The acceptance issue is unnecessary rediscovery,
+reaggregation and recomputation in the actual source-to-executable path, not graph API
+uniformity or the count of graph nodes.
 
 LLVM uses the original fixed O2 pass pipeline, with separately bound function-stage and
 machine-function products. Module and CGSCC work still runs; unknown analysis state is
@@ -73,3 +77,27 @@ None proves that arbitrary LLVM pipelines can be cached using function bodies al
 The next raw archive must include post-v6 failures, SDK source/build receipts and actual
 runtime libraries. Existing remotely recovered v6 is documented in
 `full-push-recovery-v6.json`; newer local evidence is not yet a durable backup.
+
+## Subsequent verification in the same window
+
+SDKv12 builds successfully. Native full06 has51 passed/2 failed: complex scalar and
+alignment consumers fail their required machine reuse counts. Actual scalar now has4
+optimization-stage reuses,26 analysis reconstructions,0 replay failure/0 fallback.
+Exact machine-key diagnostics identify SSA naming suffixes as the difference (for
+example old `%v.2049` versus current `%v.201`). The original LLVM ValueSymbolTable
+uniquing counter is not serialized by bitcode; its restoration is under construction.
+No key field or required reuse assertion was removed.
+
+The worker stack failure is repaired by routing ordinary binary expressions directly
+to the same scalar visitor, preserving the original common expected-type check and
+short-circuit early returns. Original generic_regressions214/0/0 and Types library95/0/0
+pass at integrated source d298737e9 (runs default-worker-stack-fix-02-full and
+ types-stack-dispatch-tests-01). The recursive five-function chain was byte-identical
+to main42 before this fix: do not attribute the complete stack failure to one new
+receipt field. Box-stats alone failed; that negative is retained. This targeted repair
+does not turn the earlier exact-source whole-workspace failure into a new frozen full pass.
+
+Raw v7 was remotely pushed and freshly HTTPS recovered: archive/source-history at
+c04b7a9adc7d2c53d1c64f18145c6eb371dc8638,935 files/495641306 raw bytes,6 parts,
+134445243 compressed bytes. Read full-push-recovery-v7.json for scope and SHA256.
+Later scalar04/05, stacktrace and successful stack repair are outside this snapshot.
