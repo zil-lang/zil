@@ -29,4 +29,6 @@ extern "C" uint32_t ZilNativeProductsMachineNumberingTestResults();
 // Test-only actual AsmPrinter padding policy: -1 disabled, otherwise align64
 // non-entry blocks with this max padding. Bound into the machine request key.
 extern "C" int ZilNativeProductsMachineAlignmentTest(int max_bytes);
+// Extra assertions within the same explicit scratch scope: expected 0b111.
+extern "C" uint32_t ZilNativeProductsMachineBundleTestResults();
 #endif
