@@ -1337,3 +1337,217 @@ fn ct_dynamic_description_implicit_occurrences_preserve_kind_path_and_unknown() 
         encoder.out
     }
 }
+
+fn stage_identity_fixture() -> CtStageIdentity {
+    CtStageIdentity {
+        source_fingerprint: Fingerprint([0x11; 32]),
+        epoch: 0x0807_0605_0403_0201,
+        committed_generation_fingerprint: Fingerprint([0x22; 32]),
+        declaration_inventory_fingerprint: Fingerprint([0x33; 32]),
+    }
+}
+fn stage_identity_bytes() -> Vec<u8> {
+    let mut bytes = vec![0x11; 32];
+    bytes.extend_from_slice(&[1, 2, 3, 4, 5, 6, 7, 8]);
+    bytes.extend_from_slice(&[0x22; 32]);
+    bytes.extend_from_slice(&[0x33; 32]);
+    bytes
+}
+fn scoped_type_fixture() -> CtTypeRef {
+    CtTypeRef {
+        scoped_catalogue: Some(CtTypeCatalogue {
+            stage: stage_identity_fixture(),
+            types: vec![],
+            interfaces: vec![],
+        }),
+        // Deliberately unverified references: transport must preserve them,
+        // while semantic admission belongs to the independent stage verifier.
+        nodes: vec![
+            CtTypeNode::ScopedDyn {
+                descriptor: CtDynamicTypeId(7),
+                context: Some(CtTypeNodeId(1)),
+                classes: vec![CtLifetimeArgument {
+                    owner: CtTypeNodeId(1),
+                    binder: crate::StorageBinder::Invocation(6),
+                }],
+            },
+            CtTypeNode::ScopedTask {
+                descriptor: CtDynamicTypeId(8),
+                result: CtTypeNodeId(0),
+                context: None,
+                classes: vec![],
+            },
+        ],
+        root: CtTypeNodeId(1),
+        ambient_classes: vec![],
+    }
+}
+#[test]
+fn ct_stage_and_scoped_type_have_an_independent_byte_oracle() {
+    let limits = Limits::default();
+    let generous = WireBudget::from_limits(&limits);
+    let mut encoder = Encoder::new(generous);
+    stage_identity_fixture().encode(&mut encoder).unwrap();
+    assert_eq!(encoder.out, stage_identity_bytes());
+    let mut expected = vec![1]; // Some catalogue, including its own stage.
+    expected.extend(stage_identity_bytes());
+    let push_u32 = |bytes: &mut Vec<u8>, value: u32| bytes.extend(value.to_le_bytes());
+    push_u32(&mut expected, 0); // descriptor inventory
+    push_u32(&mut expected, 0); // interface inventory
+    push_u32(&mut expected, 2); // physical Type node namespace
+    expected.push(17);
+    push_u32(&mut expected, 7);
+    expected.push(1);
+    push_u32(&mut expected, 1);
+    push_u32(&mut expected, 1);
+    push_u32(&mut expected, 1);
+    expected.push(1); // Invocation binder, not Fixed.
+    push_u32(&mut expected, 6);
+    expected.push(18);
+    push_u32(&mut expected, 8);
+    push_u32(&mut expected, 0);
+    expected.push(0);
+    push_u32(&mut expected, 0);
+    push_u32(&mut expected, 1);
+    push_u32(&mut expected, 0);
+    let graph = scoped_type_fixture();
+    let mut encoder = Encoder::new(generous);
+    graph.encode(&mut encoder).unwrap();
+    assert_eq!(encoder.out, expected);
+    let mut decoder = Decoder::new(&expected, generous).unwrap();
+    assert_eq!(CtTypeRef::decode(&mut decoder).unwrap(), graph);
+    decoder.finish().unwrap();
+    for end in 0..expected.len() {
+        let mut decoder = Decoder::new(&expected[..end], generous).unwrap();
+        assert!(CtTypeRef::decode(&mut decoder).is_err(), "truncation {end}");
+    }
+    let mut malformed = expected;
+    malformed[0] = 2;
+    let mut decoder = Decoder::new(&malformed, generous).unwrap();
+    assert_eq!(
+        CtTypeRef::decode(&mut decoder),
+        Err(WireError::NonCanonical)
+    );
+}
+#[test]
+fn ct_stage_requests_and_scoped_catalogues_are_fingerprinted_and_bounded() {
+    let limits = Limits::default();
+    let generous = WireBudget::from_limits(&limits);
+    let mut raw = program();
+    raw.snapshot.stage = Some(stage_identity_fixture());
+    raw.dynamic_catalogue = Some(CtDynamicCatalogue {
+        stage: Some(stage_identity_fixture()),
+        facet_requests: vec![CtStageFacetRequest {
+            subject: CtStageSubject::Type(scoped_type_fixture()),
+            facet: CtStageFacet::Contract,
+            content_fingerprint: Some(Fingerprint([0x44; 32])),
+            body_source: Some(CtBodySourceRef {
+                declaration: CtSymbolId {
+                    module: ModuleId(2),
+                    declaration: NodeId(3),
+                    generation_path: None,
+                },
+                body_fingerprint: Fingerprint([0x55; 32]),
+            }),
+        }],
+        ..CtDynamicCatalogue::default()
+    });
+    let key = program_fingerprint(&raw, &limits).unwrap();
+    for mutation in 0..12 {
+        let mut changed = raw.clone();
+        let catalogue = changed.dynamic_catalogue.as_mut().unwrap();
+        match mutation {
+            0 => changed.snapshot.stage = None,
+            1 => catalogue.stage = None,
+            2 => catalogue.stage.as_mut().unwrap().epoch += 1,
+            3 => catalogue.stage.as_mut().unwrap().source_fingerprint = Fingerprint::ZERO,
+            4 => {
+                catalogue
+                    .stage
+                    .as_mut()
+                    .unwrap()
+                    .committed_generation_fingerprint = Fingerprint::ZERO
+            }
+            5 => {
+                catalogue
+                    .stage
+                    .as_mut()
+                    .unwrap()
+                    .declaration_inventory_fingerprint = Fingerprint::ZERO
+            }
+            6 => catalogue.facet_requests[0].facet = CtStageFacet::Layout,
+            7 => catalogue.facet_requests[0].content_fingerprint = None,
+            8 => {
+                catalogue.facet_requests[0]
+                    .body_source
+                    .as_mut()
+                    .unwrap()
+                    .body_fingerprint = Fingerprint::ZERO
+            }
+            9 => {
+                catalogue.facet_requests[0]
+                    .body_source
+                    .as_mut()
+                    .unwrap()
+                    .declaration
+                    .declaration = NodeId(4)
+            }
+            10 | 11 => {
+                let CtStageSubject::Type(ty) = &mut catalogue.facet_requests[0].subject else {
+                    panic!()
+                };
+                if mutation == 10 {
+                    ty.scoped_catalogue.as_mut().unwrap().stage.epoch += 1;
+                } else {
+                    ty.scoped_catalogue
+                        .as_mut()
+                        .unwrap()
+                        .types
+                        .push(CtDynamicTypeNode::I32);
+                }
+            }
+            _ => unreachable!(),
+        }
+        assert_ne!(
+            program_fingerprint(&changed, &limits).unwrap(),
+            key,
+            "mutation {mutation}"
+        );
+    }
+    let mut remaining = generous;
+    let (bytes, _) = encode_program_with_usage(&raw, &limits, &mut remaining).unwrap();
+    let mut remaining = generous;
+    let (_, usage) = decode_program_with_usage(&bytes, &limits, &mut remaining).unwrap();
+    for dimension in 0..3 {
+        let mut exact = generous;
+        match dimension {
+            0 => exact.work = usage.work,
+            1 => exact.nodes = usage.nodes,
+            _ => exact.allocation = usage.allocation,
+        }
+        let mut low = exact;
+        match dimension {
+            0 => low.work -= 1,
+            1 => low.nodes -= 1,
+            _ => low.allocation -= 1,
+        }
+        assert_eq!(
+            decode_program_with_usage(&bytes, &limits, &mut low),
+            Err(WireError::Limit)
+        );
+        assert!(decode_program_with_usage(&bytes, &limits, &mut low).is_err());
+        let mut fresh = exact;
+        assert_eq!(
+            decode_program_with_usage(&bytes, &limits, &mut exact)
+                .unwrap()
+                .0,
+            raw
+        );
+        assert_eq!(
+            decode_program_with_usage(&bytes, &limits, &mut fresh)
+                .unwrap()
+                .0,
+            raw
+        );
+    }
+}
