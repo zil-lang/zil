@@ -34,9 +34,12 @@ impl<T> Clone for Node<T> {
 }
 impl<T> Node<T> {
     fn leaf(value: T) -> Arc<Self> {
+        Self::leaf_owner(Arc::new(value))
+    }
+    fn leaf_owner(value: Arc<T>) -> Arc<Self> {
         Arc::new(Self {
             len: 1,
-            kind: Kind::Leaf(Arc::new(value)),
+            kind: Kind::Leaf(value),
             fingerprint: OnceLock::new(),
         })
     }
@@ -76,14 +79,33 @@ impl<T> Node<T> {
             Self::branch(left.clone(), Self::prefix(right, len - left.len))
         }
     }
+    fn set_owner(&mut self, index: usize, value: Arc<T>) -> Option<Arc<T>> {
+        if index >= self.len {
+            return None;
+        }
+        self.fingerprint.take();
+        match &mut self.kind {
+            Kind::Leaf(old) => Some(std::mem::replace(old, value)),
+            Kind::Branch(left, right) => {
+                if index < left.len {
+                    Arc::make_mut(left).set_owner(index, value)
+                } else {
+                    Arc::make_mut(right).set_owner(index - left.len, value)
+                }
+            }
+        }
+    }
     fn append(node: &Arc<Self>, value: T) -> Arc<Self> {
+        Self::append_owner(node, Arc::new(value))
+    }
+    fn append_owner(node: &Arc<Self>, value: Arc<T>) -> Arc<Self> {
         if node.len.is_power_of_two() {
-            return Self::branch(node.clone(), Self::leaf(value));
+            return Self::branch(node.clone(), Self::leaf_owner(value));
         }
         let Kind::Branch(left, right) = &node.kind else {
             unreachable!()
         };
-        Self::branch(left.clone(), Self::append(right, value))
+        Self::branch(left.clone(), Self::append_owner(right, value))
     }
     fn diff(left: &Arc<Self>, right: &Arc<Self>, offset: usize, out: &mut Vec<usize>) {
         if Arc::ptr_eq(left, right) {
@@ -246,6 +268,28 @@ impl<T> PersistentVec<T> {
             None => Node::leaf(value),
         });
     }
+    /// Replace a leaf without cloning the discarded input. The returned owner
+    /// remains immutable and may still be held by an earlier snapshot.
+    pub fn replace(&mut self, index: usize, value: T) -> Arc<T> {
+        self.set_owner(index, Arc::new(value))
+    }
+    pub fn set_owner(&mut self, index: usize, value: Arc<T>) -> Arc<T> {
+        let old = self
+            .owner(index)
+            .expect("persistent sequence index out of bounds");
+        if Arc::ptr_eq(old, &value) {
+            return old.clone();
+        }
+        Arc::make_mut(self.root.as_mut().expect("nonempty sequence"))
+            .set_owner(index, value)
+            .expect("checked index")
+    }
+    pub fn push_owner(&mut self, value: Arc<T>) {
+        self.root = Some(match &self.root {
+            Some(root) => Node::append_owner(root, value),
+            None => Node::leaf_owner(value),
+        });
+    }
     /// Complete changed-owner positions, including removed indices. It skips
     /// identical subtrees; a caller-supplied dirty list is not trusted.
     pub fn changed_indices(&self, previous: &Self) -> Vec<usize> {
@@ -275,9 +319,6 @@ impl<T: Clone> PersistentVec<T> {
     pub fn last_mut(&mut self) -> Option<&mut T> {
         let index = self.len().checked_sub(1)?;
         self.get_mut(index)
-    }
-    pub fn replace(&mut self, index: usize, value: T) -> T {
-        std::mem::replace(&mut self[index], value)
     }
     pub fn iter_mut(&mut self) -> IterMut<'_, T> {
         let remaining = self.len();
