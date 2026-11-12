@@ -31,6 +31,7 @@ impl Wire for StorageBase {
                 i.encode(e)
             }
             Self::Result => 2u8.encode(e),
+            Self::Receiver => 3u8.encode(e),
         }
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
@@ -38,6 +39,7 @@ impl Wire for StorageBase {
             0 => Self::Parameter(u32::decode(d)?),
             1 => Self::Capture(u32::decode(d)?),
             2 => Self::Result,
+            3 => Self::Receiver,
             _ => return Err(WireError::NonCanonical),
         })
     }
