@@ -99,16 +99,17 @@ def source_identity(repo, commit, out, arm):
 
 class Worker:
     """Resident boundary with explicitly root-only RSS and raw JSONL transport."""
-    def __init__(self, command, directory, timeout, sample_ms, native):
+    def __init__(self, command, directory, timeout, sample_ms, native, env, runtime_root):
         self.directory, self.timeout, self.sample_ms = directory, timeout, sample_ms
         self.native = native
+        self.env, self.runtime_root, self.runtime_cache = env, runtime_root, {}
         self.buffer, self.count = b'', 0
         self.err = (directory / 'stderr.bin').open('wb')
         self.raw = (directory / 'stdout.jsonl').open('wb')
-        rc.save(directory / 'command.json', {'argv': command, 'cwd': os.getcwd()})
+        rc.save(directory / 'command.json', {'argv': command, 'cwd': os.getcwd(), 'environment': native.runtime_environment(env)})
         start = time.perf_counter_ns()
         self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                        stderr=self.err, start_new_session=True, bufsize=0)
+                                        stderr=self.err, start_new_session=True, bufsize=0, env=env)
         try:
             ready = self.read()
             if ready.get('ready') is not True or ready.get('protocol') != 1:
@@ -117,6 +118,8 @@ class Worker:
             self.raw.write(self.last_line + b'\n')
             self.raw.flush()
             rc.save(directory / 'startup.json', {'ready': ready, 'pid': self.process.pid, 'wall_ms': startup_wall_ms})
+            self.runtime = native.capture_runtime(self.process.pid, runtime_root, env, self.runtime_cache)
+            rc.save(directory / 'runtime-startup.json', self.runtime)
         except BaseException:
             self.close()
             raise
@@ -168,6 +171,11 @@ class Worker:
                   'resident_and_waited_cpu_seconds': after['cpu_seconds']-before['cpu_seconds'],
                   'resident_rss_kib': response['rss_kib'], 'resident_peak_kib': response['peak_kib']}
         rc.save(directory / 'result.json', result)
+        current_runtime = self.native.capture_runtime(self.process.pid, self.runtime_root, self.env, self.runtime_cache)
+        rc.save(directory / 'runtime.json', current_runtime)
+        if current_runtime['llvm_dsos'] != self.runtime['llvm_dsos']:
+            raise ValueError('resident LLVM DSO changed between requests')
+        self.runtime = current_runtime
         return result, response
 
     def close(self):
@@ -378,6 +386,8 @@ def main():
     parser.add_argument('--mode', choices=['check', 'o2'], required=True)
     parser.add_argument('--baseline', type=Path)
     parser.add_argument('--candidate', type=Path)
+    parser.add_argument('--baseline-llvm-library-path', type=Path)
+    parser.add_argument('--candidate-llvm-library-path', type=Path)
     parser.add_argument('--baseline-worktree', type=Path)
     parser.add_argument('--candidate-worktree', type=Path)
     parser.add_argument('--baseline-source', default=MAIN, choices=pc.BASELINE_PINS)
@@ -401,6 +411,10 @@ def main():
     except ValueError as error:
         parser.error(str(error))
     args.repo, args.out = args.repo.resolve(), args.out.resolve()
+    for arm in ['baseline', 'candidate']:
+        key = arm + '_llvm_library_path'
+        if getattr(args, key) is not None:
+            setattr(args, key, getattr(args, key).resolve(strict=True))
     args.out.mkdir(parents=True, exist_ok=False)
     archive = args.out / 'implementation'
     archive.mkdir()
@@ -442,7 +456,7 @@ def main():
     if not args.run:
         print(json.dumps({'generated_only': True, 'out': str(args.out), 'compiler_commands_executed': 0}))
         return
-    for key in ['baseline', 'candidate', 'baseline_worktree', 'candidate_worktree', 'candidate_source', 'baseline_build_receipt', 'candidate_build_receipt']:
+    for key in ['baseline', 'candidate', 'baseline_worktree', 'candidate_worktree', 'candidate_source', 'baseline_build_receipt', 'candidate_build_receipt', 'baseline_llvm_library_path', 'candidate_llvm_library_path']:
         if getattr(args, key) is None:
             parser.error('--run requires --' + key.replace('_','-'))
     if len(args.candidate_source) != 40 or any(c not in '0123456789abcdef' for c in args.candidate_source):
@@ -483,6 +497,11 @@ def main():
         if binding.get('tree') != manifest['sources'][arm]['tree']:
             raise ValueError(arm + ': build receipt tree differs from pinned source')
         manifest['binaries'][arm] = {'path':str(path), **preserve(args.out,path,'.compiler'), 'build_receipt':preserve(args.out,receipt,'.build-receipt')}
+    environments = {arm: native.llvm_environment(getattr(args, arm + '_llvm_library_path'))
+                    for arm in ['baseline', 'candidate']}
+    manifest['runtime_binding_schema'] = 'per-arm-resident-llvm-v1'
+    manifest['arm_runtime_environments'] = {arm: native.runtime_environment(value) for arm, value in environments.items()}
+    manifest['runtime_binding_policy'] = 'Explicit per-arm LLVM directory. Actual resident maps + mapped LLVM DSO bytes archived at startup and after every request outside timing; final DSO hash recomputed without stamp cache. Configuration alone is not loading evidence. DSO archiving can warm OS file cache; no OS cold-cache claim.'
     manifest['runtime_environment'] = {key:os.environ.get(key) for key in ['ZIL_CLANG','ZIL_LLVM_CONFIG','LLVM_CONFIG','LD_LIBRARY_PATH','LD_PRELOAD','LD_AUDIT','CARGO_TARGET_DIR','RUSTUP_TOOLCHAIN']}
     manifest['host'] = {'affinity':sorted(os.sched_getaffinity(0)), 'load_average':os.getloadavg(), 'uname':list(os.uname())}
     rc.save(args.out/'manifest.json',manifest)
@@ -507,7 +526,9 @@ def main():
                         command = pc.zil_command(binary=getattr(args,arm), mode=args.mode,
                                                  source=source/'main.zil', work=work, arm=arm,
                                                  extras=args.candidate_extra_arg)
-                        workers[arm] = Worker(command,work,args.timeout,args.sample_ms,native)
+                        workers[arm] = Worker(command,work,args.timeout,args.sample_ms,native,environments[arm],args.out)
+                        native.bind_runtime_libraries(manifest, arm, workers[arm].runtime)
+                        rc.save(args.out/'manifest.json', manifest)
                     for index,label in enumerate(rc.LABELS):
                         parent = rc.parent(label)
                         for current,measured in ([(parent,False)] if parent else [])+[(label,True)]:
@@ -541,6 +562,7 @@ def main():
                                     if current=='error':
                                         valid &= before_publication == after_publication
                                     row = {'measurement':result,'resident':response,'valid':bool(valid),'source':source_meta,
+                                           'runtime': workers[arm].runtime,
                                            'publication_before':before_publication,'publication_after':after_publication}
                                     if valid and current!='error' and args.mode=='o2':
                                         if report['artifacts']['executable'] != str(program):
@@ -551,7 +573,7 @@ def main():
                                         if '--push-reuse' in args.candidate_extra_arg:
                                             row['llvm']['comparison_sha256_excluding_identity_comment'] = pc.llvm_comparison_sha256((args.out / row['llvm']['archive']).read_bytes())
                                         row['inventory'] = zil_inventory(args,report,directory/arm/'objects')
-                                        row['native'] = native_outcomes(args,workloads,program,current,leaf,env)
+                                        row['native'] = native_outcomes(args,workloads,program,current,leaf,environments[arm])
                                         row['valid'] &= all(r['valid'] for r in row['native'])
                                 row.update(common)
                                 row['ended_utc_ns'] = time.time_ns()
@@ -580,8 +602,16 @@ def main():
                             rows.extend(pair)
                             print(json.dumps({'block':block,'request':current,'measured':measured,'order':order,'wall_ms':{r['arm']:r['measurement']['wall_ms'] for r in pair}}),flush=True)
                 finally:
-                    for worker in workers.values():
-                        worker.close()
+                    try:
+                        for worker in workers.values():
+                            if worker.process.poll() is None:
+                                final = native.capture_runtime(worker.process.pid, args.out, worker.env, {})
+                                rc.save(worker.directory / 'runtime-final.json', final)
+                                if final['llvm_dsos'] != worker.runtime['llvm_dsos']:
+                                    raise ValueError('resident LLVM DSO changed during block')
+                    finally:
+                        for worker in workers.values():
+                            worker.close()
         after = {name:file_hash(identity['actual_path']) for name,identity in tools.items()}
         manifest['tools_after_sha256'] = after
         manifest['binary_after_sha256'] = {arm:file_hash(getattr(args,arm)) for arm in ['baseline','candidate']}

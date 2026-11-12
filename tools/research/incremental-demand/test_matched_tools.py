@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """No compiler subprocesses: evidence/session/diagnostic regression checks."""
+import copy
 import json
 import os
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import matched_measure as mm
 import rust_compare as rc
@@ -213,6 +214,123 @@ class RuntimeEvidenceTests(unittest.TestCase):
         self.assertNotEqual(first['llvm_dsos'][0]['sha256'], changed['llvm_dsos'][0]['sha256'])
         final = self.capture(cache={})
         self.assertEqual(changed['llvm_dsos'], final['llvm_dsos'])
+
+
+    def test_run_pin_rejects_changed_library_in_later_block_but_allows_distinct_arms(self):
+        receipt = self.capture()
+        manifest = {}
+        self.native.bind_runtime_libraries(manifest, 'baseline', receipt)
+        self.native.bind_runtime_libraries(manifest, 'baseline', self.capture())
+        self.library.write_bytes(b'new candidate LLVM')
+        candidate = self.capture()
+        self.native.bind_runtime_libraries(manifest, 'candidate', candidate)
+        with self.assertRaisesRegex(ValueError, 'between blocks'):
+            self.native.bind_runtime_libraries(manifest, 'baseline', candidate)
+
+    def test_final_capture_rehashes_without_cache_and_rejects_changed_dso(self):
+        worker = self.native.Worker.__new__(self.native.Worker)
+        worker.p = SimpleNamespace(pid=123)
+        worker.directory, worker.runtime_root, worker.env = self.out, self.out, self.env
+        worker.runtime = self.capture()
+        final = copy.deepcopy(worker.runtime)
+        with patch.object(self.native, 'capture_runtime', return_value=final) as capture:
+            self.assertEqual(worker.finalize_runtime(), final)
+            self.assertEqual(capture.call_args.args, (123, self.out, self.env, {}))
+        final['llvm_dsos'][0]['sha256'] = '0' * 64
+        with patch.object(self.native, 'capture_runtime', return_value=final), \
+                self.assertRaisesRegex(ValueError, 'during block'):
+            worker.finalize_runtime()
+
+    def check_blob(self, item):
+        path = (self.out / item['archive']).resolve()
+        if (not path.is_relative_to(self.out) or mm.file_hash(path) != item['sha256']
+                or path.stat().st_size != item['bytes']):
+            raise ValueError('blob hash/size/path differs')
+
+    def inspect(self, receipt, env=None, pid=123):
+        return pc.inspect_runtime_receipt(receipt, self.native.runtime_environment(self.env) if env is None else env,
+                                          pid, self.out, self.check_blob, self.native.llvm_mappings)
+
+    def test_posthoc_runtime_binds_maps_bytes_pid_arm_and_kernel_file_identity(self):
+        receipt = self.capture()
+        self.assertEqual(self.inspect(receipt), receipt['llvm_dsos'])
+        for label in ('pid', 'environment', 'missing', 'inode', 'size', 'outside', 'hash', 'map_hash'):
+            altered = copy.deepcopy(receipt)
+            if label == 'pid':
+                altered['pid'] += 1
+            elif label == 'environment':
+                altered['environment']['LD_LIBRARY_PATH'] = '/other/arm'
+            elif label == 'missing':
+                altered['llvm_dsos'] = []
+            elif label == 'inode':
+                altered['llvm_dsos'][0]['file_stamp'][1] += 1
+            elif label == 'size':
+                altered['llvm_dsos'][0]['file_stamp'][2] += 1
+            elif label == 'outside':
+                altered['llvm_dsos'][0]['resolved_path'] = '/other/libLLVM.so'
+            elif label == 'hash':
+                altered['llvm_dsos'][0]['sha256'] = '0' * 64
+            else:
+                altered['maps']['sha256'] = '0' * 64
+            with self.subTest(label=label), self.assertRaises(ValueError):
+                self.inspect(altered)
+        (self.out / receipt['llvm_dsos'][0]['archive']).write_bytes(b'corrupt archive')
+        with self.assertRaisesRegex(ValueError, 'blob'):
+            self.inspect(receipt)
+
+    def test_posthoc_environment_is_explicit_and_portable_without_original_sdk(self):
+        envs = {arm: {**self.native.runtime_environment(self.env),
+                      'LD_LIBRARY_PATH': '/original unavailable/' + arm,
+                      'ZIL_LLVM_LIB_DIR': '/original unavailable/' + arm}
+                for arm in ('baseline', 'candidate')}
+        manifest = {'runtime_binding_schema': 'per-arm-resident-llvm-v1',
+                    'arm_runtime_environments': envs,
+                    'arguments': {arm + '_llvm_library_path': value['LD_LIBRARY_PATH']
+                                  for arm, value in envs.items()}}
+        self.assertEqual(pc.inspect_runtime_environments(manifest), envs)
+        for label in ('missing_schema', 'override', 'preload', 'relative', 'multi_directory'):
+            altered = copy.deepcopy(manifest)
+            if label == 'missing_schema':
+                del altered['runtime_binding_schema']
+            elif label == 'override':
+                altered['arguments']['baseline_llvm_library_path'] = '/other/SDK'
+            elif label == 'preload':
+                altered['arm_runtime_environments']['candidate']['LD_PRELOAD'] = '/other/injection.so'
+            else:
+                value = 'relative' if label == 'relative' else '/one:/two'
+                altered['arm_runtime_environments']['baseline']['LD_LIBRARY_PATH'] = value
+                altered['arm_runtime_environments']['baseline']['ZIL_LLVM_LIB_DIR'] = value
+                altered['arguments']['baseline_llvm_library_path'] = value
+            with self.subTest(label=label), self.assertRaises(ValueError):
+                pc.inspect_runtime_environments(altered)
+
+    def test_both_workers_pass_the_exact_per_arm_environment_to_direct_popen(self):
+        # Transport is mocked: this test executes neither compiler nor shell.
+        process = MagicMock()
+        process.pid = 123
+        process.poll.return_value = None
+        def ready(worker):
+            worker.last_line = b'{"ready":true,"protocol":1}'
+            return {'ready': True, 'protocol': 1}
+        command = ['/immutable/candidate-zil', 'check', '/source/main.zil', '--resident']
+        matched = self.out / 'matched'
+        matched.mkdir()
+        with patch.object(mm.subprocess, 'Popen', return_value=process) as popen, \
+                patch.object(mm.Worker, 'read', ready), \
+                patch.object(self.native, 'capture_runtime', return_value=self.capture()):
+            worker = mm.Worker(command, matched, 1, 5, self.native, self.env, self.out)
+            worker.close()
+            self.assertEqual(popen.call_args.args, (command,))
+            self.assertIs(popen.call_args.kwargs['env'], self.env)
+        native = self.out / 'native'
+        native.mkdir()
+        with patch.object(self.native.subprocess, 'Popen', return_value=process) as popen, \
+                patch.object(self.native.Worker, 'read_json', ready), \
+                patch.object(self.native, 'capture_runtime', return_value=self.capture()):
+            worker = self.native.Worker(command, native, 1, 5, self.env, self.out)
+            worker.close()
+            self.assertEqual(popen.call_args.args, (command,))
+            self.assertIs(popen.call_args.kwargs['env'], self.env)
 
 
 class PushReceiptTests(unittest.TestCase):

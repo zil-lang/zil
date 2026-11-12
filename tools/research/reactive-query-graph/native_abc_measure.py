@@ -13,7 +13,8 @@ from pathlib import Path
 import re
 
 from native_measure import (Worker, command, digest, dump, native_outcomes,
-                            pair_validation, report_summary, transition)
+                            pair_validation, report_summary, transition, llvm_environment,
+                            runtime_environment, bind_runtime_libraries)
 from native_workloads import EXISTING, write_snapshot
 from native_abc_workloads import oracle, requests, snapshot
 
@@ -127,6 +128,8 @@ def changed_control(case, label, changed, a):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', type=Path, required=True)
+    for arm in ARMS:
+        parser.add_argument('--' + arm.lower() + '-llvm-library-path', type=Path, required=True)
     parser.add_argument('--source', required=True, help='complete frozen compiler git SHA')
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--case', choices=['scalar', 'mixed', *EXISTING], default='scalar')
@@ -158,6 +161,9 @@ def main():
     a.binary = a.binary.resolve()
     a.out = a.out.resolve()
     a.out.mkdir(parents=True, exist_ok=False)
+    environments = {arm: llvm_environment(getattr(a, arm.lower() + '_llvm_library_path')) for arm in ARMS}
+    for arm, env in environments.items():
+        setattr(a, arm.lower() + '_llvm_library_path', Path(env['LD_LIBRARY_PATH']))
     binary_hash = digest(a.binary)
     scripts = ['native_abc_measure.py', 'native_abc_summarize.py', 'native_abc_workloads.py', 'native_measure.py',
                'native_workloads.py', 'native_summarize.py']
@@ -169,6 +175,8 @@ def main():
     manifest = {'schema': 'native-abc-v1',
                 'arguments': {k: str(v) if isinstance(v, Path) else v for k, v in vars(a).items()},
                 'source_sha': a.source, 'binary': {'path': str(a.binary), 'sha256': binary_hash},
+                'arm_runtime_environments': {arm: runtime_environment(env) for arm, env in environments.items()},
+                'runtime_policy': 'Explicit per-arm LLVM directories; actual maps + DSO bytes archived outside request timing, final hash recaptured. Archiving may warm OS file cache.',
                 'arms': ARMS, 'requests': selected, 'script_sha256': hashes,
                 'purpose': 'profiled_cost_diagnostic' if a.profile_compilation else 'unprofiled_wall',
                 'orders': ORDERS, 'affinity': sorted(os.sched_getaffinity(0)),
@@ -194,7 +202,9 @@ def main():
                     directory = a.out / f'block-{block}-{arm}'
                     directory.mkdir()
                     workers[arm] = Worker(command(a.binary, source, directory, a, arm),
-                                          directory, a.timeout, a.sample_ms)
+                                          directory, a.timeout, a.sample_ms, environments[arm], a.out)
+                    bind_runtime_libraries(manifest, arm, workers[arm].runtime)
+                    dump(a.out / 'manifest.json', manifest)
 
                 def run(index, label, measured, parent):
                     nonlocal previous
@@ -232,7 +242,7 @@ def main():
                             if row['valid'] and label != 'error' and a.mode != 'check':
                                 if report['artifacts']['executable'] != str(program):
                                     raise ValueError('unexpected executable publication')
-                                row['native'] = native_outcomes(program, a.case, label, a, oracle_fn=oracle)
+                                row['native'] = native_outcomes(program, a.case, label, a, oracle_fn=oracle, env=worker.env)
                                 row['valid'] = bool(row['native']) and all(item['valid'] for item in row['native'])
                                 row['executable_sha256'] = digest(program)
                                 row['llvm_text_sha256'] = digest(Path(report['artifacts']['llvm']))
@@ -266,8 +276,13 @@ def main():
                     if not run(index, label, True, parent):
                         raise RuntimeError(f'invalid A/B/C triplet for {label}')
             finally:
-                for worker in workers.values():
-                    worker.close()
+                try:
+                    for worker in workers.values():
+                        if worker.p.poll() is None and not worker.failed:
+                            worker.finalize_runtime()
+                finally:
+                    for worker in workers.values():
+                        worker.close()
     except (OSError, ValueError, RuntimeError, TimeoutError) as error:
         fatal = str(error)
     final_hash = digest(a.binary)

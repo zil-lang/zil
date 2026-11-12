@@ -131,6 +131,14 @@ def capture_runtime(pid, out, env, cache):
     return receipt
 
 
+def bind_runtime_libraries(manifest, arm, runtime):
+    """Pin the same actual LLVM file/bytes across every block in one run."""
+    libraries = manifest.setdefault('runtime_libraries', {})
+    current = runtime['llvm_dsos']
+    if libraries.setdefault(arm, current) != current:
+        raise ValueError('arm LLVM DSO changed between blocks: ' + arm)
+
+
 def proc_stat(pid):
     try:
         # comm may contain whitespace or parentheses; the final ')' delimits it.
@@ -232,12 +240,22 @@ class Worker:
                        for k in ['cpu_seconds', 'own_cpu_seconds'])
                 or any(not math.isfinite(s['tree_rss_sum_kib']) or s['tree_rss_sum_kib'] <= 0 for s in samples)):
             raise ValueError('missing or invalid CPU/memory measurement')
-        self.runtime = capture_runtime(self.p.pid, self.runtime_root, self.env, self.runtime_cache)
-        dump(self.directory / f'{name}.runtime.json', self.runtime)
+        current_runtime = capture_runtime(self.p.pid, self.runtime_root, self.env, self.runtime_cache)
+        dump(self.directory / f'{name}.runtime.json', current_runtime)
+        if current_runtime['llvm_dsos'] != self.runtime['llvm_dsos']:
+            raise ValueError('resident LLVM DSO changed between requests')
+        self.runtime = current_runtime
         return {'runtime': self.runtime, 'wall_ms': wall_ms, 'cpu_seconds': after['cpu_seconds'] - before['cpu_seconds'] if before and after else None,
                 'own_cpu_seconds': after['own_cpu_seconds'] - before['own_cpu_seconds'] if before and after else None,
                 'tree_peak_sampled_rss_sum_kib': max((s['tree_rss_sum_kib'] for s in samples), default=None),
                 'memory_sample_count': len(samples), 'resident': response}
+
+    def finalize_runtime(self):
+        final = capture_runtime(self.p.pid, self.runtime_root, self.env, {})
+        dump(self.directory / 'runtime-final.json', final)
+        if final['llvm_dsos'] != self.runtime['llvm_dsos']:
+            raise ValueError('resident LLVM DSO changed during block')
+        return final
 
     def close(self):
         if self.p.poll() is None:
@@ -395,11 +413,13 @@ def main():
         p.error('request count must remain below reset boundary')
     binaries = {'baseline': a.baseline, 'candidate': a.candidate}
     environments = {arm: llvm_environment(getattr(a, arm + '_llvm_library_path')) for arm in binaries}
+    for arm, env in environments.items():
+        setattr(a, arm + '_llvm_library_path', Path(env['LD_LIBRARY_PATH']))
     for name in ['native_measure.py', 'native_workloads.py']:
         (a.out / name).write_bytes(Path(__file__).with_name(name).read_bytes())
     manifest = {'arguments': {k: str(v) if isinstance(v, Path) else v for k, v in vars(a).items()},
                 'arm_runtime_environments': {arm: runtime_environment(env) for arm, env in environments.items()},
-                'runtime_policy': 'Explicit per-arm LLVM directory; actual resident /proc/PID/maps and mapped LLVM DSO bytes archived outside request timing. Stamp cache per worker; final DSO recaptured without cache.',
+                'runtime_policy': 'Explicit per-arm LLVM directory; actual resident /proc/PID/maps and mapped LLVM DSO bytes archived outside request timing. Stamp cache per worker; final DSO recaptured without cache. Archiving reads the DSO and can warm OS file cache; no OS cold-cache claim.',
                 'requests': selected, 'binaries': {arm: {'path': str(path.resolve()), 'sha256': digest(path)} for arm, path in binaries.items()},
                 'source_shas': {'baseline': a.baseline_source, 'candidate': a.candidate_source},
                 'runner_sha256': digest(Path(__file__)), 'generator_sha256': digest(Path(__file__).with_name('native_workloads.py')),
@@ -421,6 +441,8 @@ def main():
                 directory = a.out / f'block-{block}-{arm}'
                 directory.mkdir()
                 workers[arm] = Worker(command(binaries[arm], source, directory, a, arm), directory, a.timeout, a.sample_ms, environments[arm], a.out)
+                bind_runtime_libraries(manifest, arm, workers[arm].runtime)
+                dump(a.out / 'manifest.json', manifest)
             previous_files = None
             successful_snapshots = set()
 
@@ -519,14 +541,12 @@ def main():
                     raise RuntimeError(f'preparation for {label} failed; no valid measured pair')
                 run_pair(index, label, True, parent)
         finally:
-            for worker in workers.values():
-                try:
+            try:
+                for worker in workers.values():
                     if worker.p.poll() is None and not worker.failed:
-                        final = capture_runtime(worker.p.pid, a.out, worker.env, {})
-                        dump(worker.directory / 'runtime-final.json', final)
-                        if final['llvm_dsos'] != worker.runtime['llvm_dsos']:
-                            raise ValueError('resident LLVM DSO changed during block')
-                finally:
+                        worker.finalize_runtime()
+            finally:
+                for worker in workers.values():
                     worker.close()
     cells = []
     for label in selected:

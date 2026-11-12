@@ -7,6 +7,7 @@ object hashes. It does not claim an independent review of the runner/compiler.
 import argparse
 from collections import Counter
 import hashlib
+import importlib.util
 import json
 import math
 from pathlib import Path
@@ -44,6 +45,11 @@ def audit(out):
     require(manifest['implementation_after_sha256']==manifest['implementation'], 'implementation changed during run')
     # Frozen generator and independent integer interpreter, not compiled output.
     workloads = rc.load_workloads(Path(manifest['arguments']['repo']),out/'implementation'/'native_workloads.py')
+    sys.modules['native_workloads'] = workloads
+    spec = importlib.util.spec_from_file_location('validated_native_runtime', out/'implementation'/'native_measure.py')
+    native = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(native)
+    environments = pc.inspect_runtime_environments(manifest)
     fixture_data = {}
     for label in LABELS:
         zfiles = {str(p.relative_to(out/'fixtures'/label/'zil')):p.read_text() for p in (out/'fixtures'/label/'zil').rglob('*.zil')}
@@ -54,14 +60,14 @@ def audit(out):
             identity = rc.sha(json.dumps(hashes,sort_keys=True).encode())
             require(identity==manifest['fixture_identity'][label][lang], 'fixture content mismatch')
         fixture_data[label] = (zfiles,rfiles)
-    checked = set()
+    checked = {}
     def check_blob(value):
         relative = value['archive']
         if relative not in checked:
             path = (out/relative).resolve()
             require(path.is_relative_to(out) and path.is_file(), 'archive path missing/unsafe')
-            require(file_hash(path)==value['sha256'] and path.stat().st_size==value['bytes'], 'blob hash/length mismatch')
-            checked.add(relative)
+            checked[relative] = (file_hash(path), path.stat().st_size)
+        require(checked[relative] == (value['sha256'], value['bytes']), 'blob hash/length mismatch')
     for arm in ['baseline','candidate']:
         check_blob(manifest['binaries'][arm])
         check_blob(manifest['binaries'][arm]['build_receipt'])
@@ -85,6 +91,21 @@ def audit(out):
     require(len(rows)==270 and sum(r['measured'] for r in rows)==144, 'row counts differ')
     native_count, inventory_counts = 0, Counter()
     namespace_bindings = {}
+    runtime_bindings = {}
+    for block in range(6):
+        for arm in ['baseline', 'candidate']:
+            directory = out/f'block-{block:02d}'/arm
+            command = json.loads((directory/'command.json').read_text())
+            require(command['environment'] == environments[arm], 'resident launch environment differs from arm declaration')
+            pid = json.loads((directory/'startup.json').read_text())['pid']
+            first = json.loads((directory/'runtime-startup.json').read_text())
+            last = json.loads((directory/'runtime-final.json').read_text())
+            first_dsos = pc.inspect_runtime_receipt(first, environments[arm], pid, out, check_blob, native.llvm_mappings)
+            last_dsos = pc.inspect_runtime_receipt(last, environments[arm], pid, out, check_blob, native.llvm_mappings)
+            require(first_dsos == last_dsos == manifest['runtime_libraries'][arm], 'resident LLVM DSO changed across block or differs from pinned run libraries')
+            if block:
+                require(first_dsos == runtime_bindings[(0, arm)][1], 'arm LLVM DSO changed between blocks')
+            runtime_bindings[(block, arm)] = (pid, first_dsos)
     for block in range(6):
         current = [r for r in rows if r['block']==block]
         expected=[]
@@ -144,6 +165,11 @@ def audit(out):
             if label=='error':
                 require(rc.expected_error(diagnostics,fixture_data[label][1]), 'Rust precise diagnostic oracle failed')
         else:
+            runtime = json.loads((directory/'runtime.json').read_text())
+            require(runtime == row['runtime'], 'raw runtime receipt differs from row')
+            pid, expected_dsos = runtime_bindings[(row['block'], arm)]
+            dsos = pc.inspect_runtime_receipt(runtime, environments[arm], pid, out, check_blob, native.llvm_mappings)
+            require(dsos == expected_dsos, 'request used different LLVM DSO bytes/identity from its resident startup')
             response=json.loads((directory/'response.json').read_text())
             require(response==row['resident'], 'resident raw response differs')
             report=response['report']
@@ -204,7 +230,12 @@ def audit(out):
             for item in inventory.get('metadata',[]):
                 check_blob(item)
     summary={'valid':True,'rows':len(rows),'measured_requests':144,'preparation_requests':126,
-             'native_executions':native_count,'verified_blobs':len(checked),'cells':{}}
+             'native_executions':native_count,'verified_blobs':len(checked),
+             'runtime_binding': {'schema': manifest['runtime_binding_schema'],
+                                 'arms': {arm: {'environment': environments[arm],
+                                               'llvm_dsos': [{'path': item['resolved_path'], 'sha256': item['sha256']}
+                                                             for item in runtime_bindings[(0, arm)][1]]}
+                                          for arm in ['baseline', 'candidate']}}, 'cells':{}}
     for label in LABELS:
         summary['cells'][label]={}
         for arm in ARMS:
