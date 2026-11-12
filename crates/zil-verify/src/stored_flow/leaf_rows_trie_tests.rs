@@ -71,6 +71,7 @@ fn trie_matches_old_index_for_every_row_transition_and_complete_projection() {
         base: HoldRoot::Static,
         leaf: vec![],
         inline: vec![],
+        heap_parents: Vec::new(),
         heap_element: None,
     });
     old.permission_mut(0).sources = new[0].1.sources.clone();

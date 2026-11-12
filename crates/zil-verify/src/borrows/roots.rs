@@ -256,12 +256,22 @@ pub(super) fn store_option_root(
             )
         })?;
     }
-    let Type::Managed(head) = ty else {
-        return Err(reject(
-            "E-VERIFY-STORE-WINDOW",
-            None,
-            "Option window header is not an owned Store",
-        ));
+    let head = match ty {
+        Type::Managed(head) => head,
+        Type::Desc(head)
+            if budget.nested_store_windows
+                && matches!(source.base, HoldRoot::Parameter(_))
+                && source.inline.is_empty() =>
+        {
+            head
+        }
+        _ => {
+            return Err(reject(
+                "E-VERIFY-STORE-WINDOW",
+                None,
+                "Option window header is not an owned Store",
+            ));
+        }
     };
     let Type::OwnedStore { element } = head.as_ref() else {
         return Err(reject(
@@ -270,9 +280,14 @@ pub(super) fn store_option_root(
             "Option window header is not an owned Store",
         ));
     };
+    let element = if source.heap_parents.is_empty() {
+        element.as_ref()
+    } else {
+        crate::stored_flow::nested_store_element(element, source, budget)?
+    };
     let heap = source.heap_element.as_ref().unwrap();
     let (payload_start, payload_end) = mixed_interval(element, heap, false, budget)?;
-    let mut pointee = element.as_ref();
+    let mut pointee = element;
     for step in heap {
         pointee = match (step, pointee) {
             (
@@ -293,14 +308,23 @@ pub(super) fn store_option_root(
         Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer => {
             Some(Type::Managed(inner.clone()))
         }
+        Type::Desc(inner)
+            if budget.nested_store_windows
+                && matches!(
+                    inner.as_ref(),
+                    Type::Record { .. } | Type::OwnedStore { .. }
+                ) =>
+        {
+            resources::charge_payload(inner, budget)?;
+            Some(Type::Managed(inner.clone()))
+        }
         _ => None,
     };
     let expected = match result_type {
         Type::Desc(_) if descriptor_head.is_some() => descriptor_head.as_ref().unwrap(),
-        Type::Address {
-            mutable: false,
-            inner,
-        } => inner.as_ref(),
+        Type::Address { mutable, inner } if !mutable || budget.nested_store_windows => {
+            inner.as_ref()
+        }
         Type::BorrowedStorage { storage, .. } => {
             let Type::Enum { variants, .. } = storage.as_ref() else {
                 return Err(reject(

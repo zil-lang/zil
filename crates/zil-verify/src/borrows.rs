@@ -1406,6 +1406,8 @@ fn overlay_store_option_sources(
                 && !matches!(ty, Type::Address { mutable: false, .. })
                 && !(budget.shared_byte_borrow
                     && matches!(ty, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer))
+                && !(budget.nested_store_windows
+                    && matches!(ty, Type::Address { .. } | Type::Desc(_)))
             {
                 return Err(reject(
                     "E-VERIFY-STORE-WINDOW",

@@ -129,6 +129,7 @@ fn empty_rows(mode: usize, count: usize) -> (Solution, Frame, Vec<bool>) {
                             base: HoldRoot::Parameter(0),
                             leaf: vec![PlaceProjection::Field(id as u32)],
                             inline: vec![],
+                            heap_parents: Vec::new(),
                             heap_element: None,
                         }]
                     } else {
