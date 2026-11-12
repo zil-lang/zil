@@ -51,6 +51,7 @@ int ZilNativeProductsAnalysisDiagnostics(int enabled);
 // Test-only caller: exercise the real pinned LLVM text/use-order collision.
 int ZilNativeProductsOwnedUseOrderCounterexample(void);
 int ZilNativeProductsIncomingCallerCounterexample(void);
+int ZilNativeProductsAttributeMetadataCounterexample(void);
 #ifdef __cplusplus
 }
 #endif
