@@ -100,6 +100,7 @@ pub(super) fn function_ref(
         .ok_or_else(|| bad("C callback target is absent"))?;
     budget.spend(module.closures.len())?;
     if function.foreign.is_some()
+        || function.call_kind != CallKind::Direct
         || function.environment.is_some()
         || function.blocks.is_empty()
         || function.callable_contract.is_some()

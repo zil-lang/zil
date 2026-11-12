@@ -104,7 +104,7 @@ pub(super) fn validate_borrowed_template(
         || f.callable_return.is_some()
         || f.protocol_contract
             .as_ref()
-            .is_none_or(|c| c.parameter != 0)
+            .is_none_or(|c| c.parameter != b.index)
         || !f.return_type.is_copy_value()
     {
         return Err(unsupported(
@@ -112,7 +112,13 @@ pub(super) fn validate_borrowed_template(
             "borrowed registration helper requires one exclusive closed FnMut(i32)->i32 carrier, Copy result and state contract",
         ));
     }
-    prepay(&f.parameters[0].ty, f.span)?;
+    if owned {
+        for parameter in &f.parameters {
+            prepay(&parameter.ty, f.span)?;
+        }
+    } else {
+        prepay(&f.parameters[0].ty, f.span)?;
+    }
     prepay(&f.return_type, f.span)?;
     Ok(())
 }
@@ -226,23 +232,29 @@ pub(super) fn add_definitions(
                     }
                     Type::Tuple(ts) => {
                         spend(left, ts.len())?;
-                        pending.extend(ts.iter().map(|t| (t, true)))
+                        pending.extend(ts.iter().map(|t| (t, blocked)))
                     }
                     Type::Record { fields, .. } | Type::Package { fields, .. } => {
                         spend(left, fields.len())?;
-                        let blocked = blocked || matches!(t, Type::Package { .. });
+                        let blocked = blocked
+                            || matches!(t,Type::Package{name,..} if !name.starts_with("@std.task:v1:TaskCreateFailure:"));
                         pending.extend(fields.iter().map(|(_, t)| (t, blocked)))
                     }
                     Type::Enum { variants, .. } => {
                         spend(left, variants.len())?;
                         for (_, ts) in variants {
                             spend(left, ts.len())?;
-                            pending.extend(ts.iter().map(|t| (t, true)))
+                            pending.extend(ts.iter().map(|t| (t, blocked)))
                         }
                     }
                     Type::ErrorUnion { error, result } => {
                         spend(left, 2)?;
-                        pending.extend([(error.as_ref(), true), (result.as_ref(), true)])
+                        let admitted = matches!(error.as_ref(),Type::Package{name,..}|Type::Record{name,..} if name.starts_with("@std.task:v1:TaskCreateFailure:"))
+                            && matches!(result.as_ref(),Type::Managed(t) if matches!(t.as_ref(),Type::Task{..}));
+                        pending.extend([
+                            (error.as_ref(), blocked || !admitted),
+                            (result.as_ref(), blocked || !admitted),
+                        ])
                     }
                     _ => {}
                 }

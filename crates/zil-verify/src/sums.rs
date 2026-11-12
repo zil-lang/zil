@@ -172,6 +172,15 @@ pub(super) fn check_type_for(
             }
             Type::ErrorUnion { error, result } => {
                 budget.spend(2)?;
+                if matches!(result.as_ref(),Type::Managed(t) if matches!(t.as_ref(),Type::Task{..}))
+                    && let Type::Package { name, fields } = error.as_ref()
+                    && name.starts_with("@std.task:v1:TaskCreateFailure:")
+                    && matches!(fields.as_slice(),[(reason,_),(inputs,Type::Tuple(_))] if reason=="reason" && inputs=="inputs")
+                {
+                    // Finite owning error and success arms retain distinct tags.
+                    pending.extend([error.as_ref(), result.as_ref()]);
+                    continue;
+                }
                 // Keep the existing resource-success profile. Ordinary Sum
                 // composition does not turn an owning error into a Copy error.
                 if dynamic_store::inline_owner(error) || dynamic_store::inline_owner(result) {
@@ -585,6 +594,108 @@ enum Content {
 }
 
 impl Content {
+    fn live_async(&self, ty: &Type, b: &mut Budget) -> Check<bool> {
+        b.spend(1)?;
+        match (self, ty) {
+            (Content::Missing(_), _) => Ok(false),
+            (Content::Leaf(_), Type::Managed(t)) => {
+                Ok(matches!(t.as_ref(), Type::AsyncRegistration { .. }))
+            }
+            (Content::Product(children), Type::Tuple(fields)) => {
+                for (index, child) in children.iter().enumerate() {
+                    if child.live_async(&fields[index], b)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            (Content::Product(children), Type::Package { fields, .. }) => {
+                for (index, child) in children.iter().enumerate() {
+                    if child.live_async(&fields[index].1, b)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            (
+                Content::Sum(variants, _),
+                Type::Enum {
+                    variants: types, ..
+                },
+            ) => {
+                for (index, children) in variants {
+                    for (field, child) in children.iter().enumerate() {
+                        if child.live_async(&types[*index as usize].1[field], b)? {
+                            return Ok(true);
+                        }
+                    }
+                }
+                Ok(false)
+            }
+            (Content::Sum(variants, _), Type::ErrorUnion { error, result }) => {
+                for (index, children) in variants {
+                    if let Some(child) = children.first()
+                        && child.live_async(if *index == 0 { error } else { result }, b)?
+                    {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            _ => Ok(false),
+        }
+    }
+    fn live_task(&self, ty: &Type, b: &mut Budget) -> Check<bool> {
+        b.spend(1)?;
+        match (self, ty) {
+            (Content::Missing(_), _) => Ok(false),
+            (Content::Leaf(_), Type::Managed(_)) => Ok(true),
+            (Content::Product(children), Type::Tuple(fields)) => {
+                for (index, child) in children.iter().enumerate() {
+                    if child.live_task(&fields[index], b)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            (Content::Product(children), Type::Package { fields, .. }) => {
+                for (index, child) in children.iter().enumerate() {
+                    if child.live_task(&fields[index].1, b)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            (
+                Content::Sum(variants, _),
+                Type::Enum {
+                    variants: types, ..
+                },
+            ) => {
+                for (index, children) in variants {
+                    for (field, child) in children.iter().enumerate() {
+                        if child.live_task(&types[*index as usize].1[field], b)? {
+                            return Ok(true);
+                        }
+                    }
+                }
+                Ok(false)
+            }
+            (Content::Sum(variants, _), Type::ErrorUnion { error, result }) => {
+                for (index, children) in variants {
+                    if let Some(child) = children.first()
+                        && child.live_task(if *index == 0 { error } else { result }, b)?
+                    {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            // Opaque owner/closure storage is outside the selected Sum proof.
+            // Preserve the existing full actual-origin cleanup obligation.
+            _ => Ok(!ty.is_copy_value()),
+        }
+    }
     fn mark_captured(
         &mut self,
         capture: u32,
@@ -1403,6 +1514,8 @@ type FieldFresh = Vec<(usize, u8)>;
 type UnpackedFresh = (LocalId, u8, FieldFresh);
 #[derive(Clone, Default)]
 pub(super) struct Bridge {
+    // Derived from this kernel's selected pre-drop Content, never producer metadata.
+    pub(super) task_cleanup: Option<bool>,
     pub(super) result: Option<u8>,
     pub(super) package: FieldFresh,
     pub(super) unpack: Vec<UnpackedFresh>,
@@ -1921,9 +2034,20 @@ impl Flow<'_> {
                 }
                 InstructionKind::TaskCreateOwned { arguments, .. } => {
                     budget.spend(arguments.len().saturating_add(12))?;
-                    let inputs=Content::Product(arguments.iter().map(|v|state.values.get(v.0 as usize,budget)?.duplicate(budget)).collect::<Check<_>>()?);
-                    let failure=Content::Product(vec![Content::Copy,inputs]);
-                    result=Some(Content::Sum(BTreeMap::from([(0,vec![failure]),(1,vec![Content::Leaf(BTreeSet::from([Source::Fresh]))])]),None));
+                    let inputs = Content::Product(
+                        arguments
+                            .iter()
+                            .map(|v| state.values.get(v.0 as usize, budget)?.duplicate(budget))
+                            .collect::<Check<_>>()?,
+                    );
+                    let failure = Content::Product(vec![Content::Copy, inputs]);
+                    result = Some(Content::Sum(
+                        BTreeMap::from([
+                            (0, vec![failure]),
+                            (1, vec![Content::Leaf(BTreeSet::from([Source::Fresh]))]),
+                        ]),
+                        None,
+                    ));
                 }
                 InstructionKind::WithScopedThread { argument, .. }
                     if tasks::transfer::task_owner(&self.f.values[argument.0 as usize]) =>
@@ -2079,7 +2203,17 @@ impl Flow<'_> {
                 }
                 InstructionKind::TakePackageField { local, index }
                 | InstructionKind::ReadPackageField { local, index } => {
-                    if let Content::Product(fields) = state.locals[local.0 as usize].as_ref() {
+                    if matches!(instruction.kind, InstructionKind::TakePackageField { .. }) {
+                        state.locals[local.0 as usize].cost(budget)?;
+                        result = Some(
+                            Arc::make_mut(&mut state.locals[local.0 as usize]).take_place(
+                                &[PlaceProjection::Field(*index)],
+                                validate,
+                                budget,
+                            )?,
+                        );
+                    } else if let Content::Product(fields) = state.locals[local.0 as usize].as_ref()
+                    {
                         result = Some(fields[*index as usize].duplicate(budget)?);
                     }
                     self.kill(state, *local, budget)?;
@@ -2280,6 +2414,36 @@ impl Flow<'_> {
                 | InstructionKind::DropOwnedArray { local }
                 | InstructionKind::StorageLive(local)
                 | InstructionKind::StorageDead(local) => {
+                    if validate
+                        && self.f.call_kind == CallKind::Direct
+                        && state.initialized.get(local.0 as usize, budget)? & 2 != 0
+                        && matches!(
+                            instruction.kind,
+                            InstructionKind::DropPackage { .. }
+                                | InstructionKind::DropTuple { .. }
+                                | InstructionKind::DropEnum { .. }
+                                | InstructionKind::DropErrorUnion { .. }
+                        )
+                        && state.locals[local.0 as usize]
+                            .live_async(&self.f.locals[local.0 as usize].ty, budget)?
+                    {
+                        return Err(bad(
+                            Some(instruction.span),
+                            "Direct aggregate cannot implicitly drain a live asynchronous registration",
+                        ));
+                    }
+                    if record
+                        && !matches!(
+                            instruction.kind,
+                            InstructionKind::StorageLive(_) | InstructionKind::StorageDead(_)
+                        )
+                    {
+                        bridge.task_cleanup = Some(
+                            state.initialized.get(local.0 as usize, budget)? & 2 != 0
+                                && state.locals[local.0 as usize]
+                                    .live_task(&self.f.locals[local.0 as usize].ty, budget)?,
+                        );
+                    }
                     self.kill(state, *local, budget)?;
                     state.initialized.set(local.0 as usize, 1, budget)?;
                 }

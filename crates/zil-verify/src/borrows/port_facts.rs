@@ -107,7 +107,9 @@ fn shape(ty: &Type, budget: &mut Budget) -> Check<BTreeMap<Path, StoredBorrowMod
                     pending.push((ty, selected));
                 }
             }
-            Type::Enum { variants, .. } if budget.task_borrowed_results || tasks::transfer::outcome_owner(ty).is_some() => {
+            Type::Enum { variants, .. }
+                if budget.task_borrowed_results || tasks::transfer::outcome_owner(ty).is_some() =>
+            {
                 for (variant, (_, fields)) in variants.iter().enumerate() {
                     budget.spend(fields.len())?;
                     for (index, ty) in fields.iter().enumerate() {
@@ -472,7 +474,8 @@ fn produce(
             arguments,
             port_bindings,
             ..
-        } | InstructionKind::TaskCreateOwned {
+        }
+        | InstructionKind::TaskCreateOwned {
             arguments,
             port_bindings,
             ..
@@ -512,6 +515,27 @@ fn produce(
                 row.fresh = true;
                 retain(value, &path, &mut row, created, budget)?;
                 result.ports.insert(path, row);
+            }
+            if matches!(instruction.kind, InstructionKind::TaskCreateOwned { .. }) {
+                budget.spend(arguments.len())?;
+                for (index, argument) in arguments.iter().enumerate() {
+                    let child = wrap(
+                        &values[argument.0 as usize],
+                        ContractProjection::Place(PlaceProjection::Field(index as u32)),
+                        budget,
+                    )?;
+                    let child = wrap(
+                        &child,
+                        ContractProjection::Place(PlaceProjection::Field(1)),
+                        budget,
+                    )?;
+                    let child = wrap(
+                        &child,
+                        ContractProjection::Place(PlaceProjection::ErrorArm(true)),
+                        budget,
+                    )?;
+                    merge(&mut result, &child, budget)?;
+                }
             }
             Ok(result)
         }
@@ -908,10 +932,17 @@ pub(super) fn owner_transfer(
         {
             owners.remove(&Owner::Local(*local));
             budget.spend(fields.len())?;
-            for field in fields {if owned(&f.locals[field.0 as usize].ty) {owners.insert(Owner::Local(*field));}}
+            for field in fields {
+                if owned(&f.locals[field.0 as usize].ty) {
+                    owners.insert(Owner::Local(*field));
+                }
+            }
         }
         InstructionKind::WithScopedThread { argument, .. }
-            if owned(&f.values[argument.0 as usize]) => {owners.remove(&Owner::Value(*argument));}
+            if owned(&f.values[argument.0 as usize]) =>
+        {
+            owners.remove(&Owner::Value(*argument));
+        }
         InstructionKind::Store { local, value } if owned(&f.locals[local.0 as usize].ty) => {
             owners.remove(&Owner::Value(*value));
             owners.insert(Owner::Local(*local));
@@ -938,7 +969,8 @@ pub(super) fn owner_transfer(
                 }
             }
         }
-        InstructionKind::TaskCreate { arguments, .. } | InstructionKind::TaskCreateOwned { arguments, .. } => {
+        InstructionKind::TaskCreate { arguments, .. }
+        | InstructionKind::TaskCreateOwned { arguments, .. } => {
             for argument in arguments {
                 if owned(&f.values[argument.0 as usize]) {
                     owners.remove(&Owner::Value(*argument));
