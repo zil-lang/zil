@@ -388,3 +388,78 @@ fn mutable_static_capture_publishes_only_real_static_replacements() {
     );
     zil_analyze::analyze(&module, &Limits::default()).unwrap();
 }
+
+#[test]
+fn static_slot_writes_are_checked_even_with_an_actual_same_typed_argument() {
+    use zil_ir::*;
+    let source = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/static-byte-slice-argument-retarget.zil"
+    );
+    let module = typed(source);
+    let definition = &module.closures[0];
+    assert_eq!(definition.kind, CallableKind::FnMut);
+    let life = definition.storage_life.as_ref().unwrap();
+    assert_eq!(
+        (life.fixed_binder_count, life.invocation_binder_count),
+        (0, 1)
+    );
+    assert_eq!(
+        life.static_bindings,
+        vec![StoragePosition {
+            base: StorageBase::Capture(0),
+            path: vec![]
+        }]
+    );
+    let limits = Limits::default();
+    let candidate = zil_analyze::analyze(&module, &limits).unwrap();
+    let mut bad = module.clone();
+    let entry = &mut bad.functions[definition.function.0 as usize];
+    let parameter = entry.parameters[0];
+    let value = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .find_map(|instruction| {
+            matches!(instruction.kind,InstructionKind::Load(local)if local==parameter)
+                .then_some(instruction.result)
+                .flatten()
+        })
+        .unwrap();
+    let write = entry
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .find(|instruction| {
+            matches!(
+                instruction.kind,
+                InstructionKind::WriteCapture { index: 0, .. }
+            )
+        })
+        .unwrap();
+    let InstructionKind::WriteCapture {
+        value: incoming, ..
+    } = &mut write.kind
+    else {
+        unreachable!()
+    };
+    *incoming = value;
+    for raw in [true, false] {
+        let actual = if raw {
+            bad.clone()
+        } else {
+            zil_ir::wire::decode_module_candidate(
+                &zil_ir::wire::encode_module_candidate(&bad, &candidate, &limits).unwrap(),
+                &limits,
+            )
+            .unwrap()
+            .0
+        };
+        let errors = zil_analyze::analyze(&actual, &limits).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains("constant occurrence retains")),
+            "actual nonstatic write must reach the global capture invariant: {errors:?}"
+        );
+    }
+}

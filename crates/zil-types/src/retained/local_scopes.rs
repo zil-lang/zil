@@ -2,7 +2,7 @@
 //! Targets and region compatibility are reconstructed by the two kernels.
 use super::*;
 
-fn closed(
+pub(super) fn closed(
     ty: &Type,
     module: &TypedModule,
     left: &mut usize,
@@ -161,6 +161,17 @@ pub(super) fn populate(
                 || definition.kind == CallableKind::FunctionPointer
                 || !definition.result.is_b0_scalar()
             {
+                continue;
+            }
+            // Factory free classes use actual creator input equations below,
+            // including a Static alternative weakened into an ordinary class.
+            if module.functions.iter().any(|f| {
+                f.callable_return_contract.as_ref().is_some_and(|returned| {
+                    returned.closure == definition.id
+                        && returned.source == CallableReturnSource::Fresh
+                        && !returned.hold.is_empty()
+                })
+            }) {
                 continue;
             }
             if defer_static && definition.captures.iter().any(|ty|matches!(ty,Type::Address{mutable:false,inner}if **inner==Type::U8 || matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8))) {continue;}

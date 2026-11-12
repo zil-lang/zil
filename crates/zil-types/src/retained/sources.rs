@@ -1268,8 +1268,14 @@ fn populate_static_capture_contracts(
         };
         let definition = &module.closures[returned.closure.0 as usize];
         if definition.storage_life.is_some()
-            || !definition.result.is_copy_value()
-            || definition.parameters.iter().any(|ty| !ty.is_copy_value())
+            || !local_scopes::closed(
+                &definition.result,
+                module,
+                left,
+                factory.span,
+                0,
+                limits.max_call_depth,
+            )?
         {
             continue;
         }
@@ -1284,9 +1290,61 @@ fn populate_static_capture_contracts(
             classes: Vec::new(),
         };
         let mut complete = true;
+        for (index, parameter) in definition.parameters.iter().enumerate() {
+            inference::charge_type_snapshot(parameter, factory.span, limits, left, 1)?;
+            if let Type::Address { inner, .. } = parameter {
+                let target = if let Type::Slice { element } = inner.as_ref() {
+                    element.as_ref()
+                } else {
+                    inner.as_ref()
+                };
+                if !local_scopes::closed(
+                    target,
+                    module,
+                    left,
+                    factory.span,
+                    0,
+                    limits.max_call_depth,
+                )? {
+                    complete = false;
+                    break;
+                }
+                let next = contract.invocation_binder_count;
+                contract.invocation_binder_count = next.checked_add(1).ok_or_else(|| {
+                    unsupported(factory.span, "static callable prototype count overflow")
+                })?;
+                contract.bindings.push(StorageLifeBinding {
+                    position: StoragePosition {
+                        base: StorageBase::Parameter(index as u32),
+                        path: Vec::new(),
+                    },
+                    binder: StorageBinder::Invocation(next),
+                });
+            } else if !local_scopes::closed(
+                parameter,
+                module,
+                left,
+                factory.span,
+                0,
+                limits.max_call_depth,
+            )? {
+                complete = false;
+                break;
+            }
+        }
+        if !complete {
+            continue;
+        }
         for (index, capture) in definition.captures.iter().enumerate() {
             inference::charge_type_snapshot(capture, factory.span, limits, left, 1)?;
-            if capture.is_copy_value() {
+            if local_scopes::closed(
+                capture,
+                module,
+                left,
+                factory.span,
+                0,
+                limits.max_call_depth,
+            )? {
                 continue;
             }
             let position = StoragePosition {
@@ -1300,15 +1358,8 @@ fn populate_static_capture_contracts(
             }
             contract.static_bindings.push(position);
         }
-        if complete && !contract.static_bindings.is_empty() {
+        if complete {
             borrowed_fp::charge_contract(&contract, |work| spend(left, work, factory.span), 2)?;
-            borrowed_fp_qualified::source_capture_relation(
-                &definition.parameters,
-                &definition.captures,
-                &definition.result,
-                &contract,
-                factory.span,
-            )?;
             changes.insert(definition.id, contract);
         }
     }
@@ -1763,7 +1814,7 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
             }
             let definition = &module.closures[id.0 as usize];
             if definition.storage_life.is_some()
-            || !definition.captures.iter().any(|ty|lending::transferred_result(&definition.result) && matches!(ty,Type::Address{..}) || matches!(ty,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Package{..})) || matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::BorrowedStorage{..})) || matches!(ty,Type::Closure(id) if module.closures[id.0 as usize].storage_life.as_ref().is_some_and(|life|life.fixed_binder_count>0)))
+            || !definition.captures.iter().any(|ty|matches!(ty,Type::Address{..}) || matches!(ty,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Package{..})) || matches!(ty,Type::Closure(id) if module.closures[id.0 as usize].storage_life.as_ref().is_some_and(|life|life.fixed_binder_count>0)))
         { continue; }
             if !(definition.result.is_copy_value()
                 || lending::transferred_result(&definition.result))
@@ -1789,10 +1840,18 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
             for (index, ty) in definition.captures.iter().enumerate() {
                 let class_count = match ty {
                     Type::BorrowedStorage { life, .. } => life.binder_count,
-                    Type::Closure(id) => module.closures[id.0 as usize]
-                        .storage_life
-                        .as_ref()
-                        .map_or(0, |life| life.fixed_binder_count),
+                    Type::Closure(id) => {
+                        module.closures[id.0 as usize]
+                            .storage_life
+                            .as_ref()
+                            .ok_or_else(|| {
+                                unsupported(
+                                    f.span,
+                                    "captured child closure domain is unknown, not empty",
+                                )
+                            })?
+                            .fixed_binder_count
+                    }
                     _ => 0,
                 };
                 let pointed_classes = match ty {
@@ -1844,6 +1903,9 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
                             continue;
                         }
                         for atom in &row.sources {
+                            if matches!(atom, StorageSource::Static { .. }) {
+                                continue;
+                            }
                             let source = crate::exact_storage_source(atom)?;
                             let key = if pointed_classes > 0 && class > 0 {
                                 let StorageBase::Parameter(input) = source.base else {
