@@ -271,7 +271,7 @@ pub(super) fn validate(
                         "result source upper contains a different actual lifetime class",
                     ));
                 }
-                if leaf != output.leaf {
+                if !crate::dynamic_ports::compatible(&leaf, &output.leaf) {
                     return Err(bad(
                         "source upper full borrowed leaf differs from result port",
                     ));

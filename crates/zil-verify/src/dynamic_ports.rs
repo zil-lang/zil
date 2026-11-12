@@ -556,7 +556,7 @@ fn position_leaf(
         )),
     }
 }
-fn compatible(actual: &Type, expected: &Type) -> bool {
+pub(super) fn compatible(actual: &Type, expected: &Type) -> bool {
     match (actual, expected) {
         (
             Type::Address {
@@ -657,7 +657,8 @@ fn validate_contract(iface: &DynInterface, slot: &DynSlot, b: &mut Budget) -> Ch
         for source in &row.sources {
             let (leaf, binder, head) = position_leaf(iface, slot, source, b)?;
             dynamic_metadata::ty(&port.leaf, b)?;
-            if head || binder != StorageBinder::Fixed(port.binder) || leaf != port.leaf {
+            if head || binder != StorageBinder::Fixed(port.binder) || !compatible(&leaf, &port.leaf)
+            {
                 return Err(bad(
                     "receiver-after source has a different full leaf, mode or persistent class",
                 ));

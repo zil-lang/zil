@@ -166,6 +166,32 @@ fn scalar_subobject_view_keeps_actual_field_window_and_head_class() {
         "address of scalar storage is not a pointer loaded from that storage"
     );
 }
+
+#[test]
+fn result_upper_can_weaken_mutability_but_cannot_strengthen_or_change_pointee() {
+    let (mut module, mut f, actual) = boundary();
+    let Type::Address { mutable, .. } = &mut f.locals[0].ty else {
+        unreachable!()
+    };
+    *mutable = true;
+    assert!(checked(&module, &f, &actual));
+    let Type::Address { inner, .. } = &mut f.locals[0].ty else {
+        unreachable!()
+    };
+    **inner = Type::I64;
+    assert!(!checked(&module, &f, &actual));
+    f.locals[0].ty = Type::Address {
+        mutable: false,
+        inner: Box::new(Type::I32),
+    };
+    let port = &mut module.dyn_interfaces[0].retained_life.ports[0];
+    port.mode = StoredBorrowMode::ExclusiveAddress;
+    port.leaf = Type::Address {
+        mutable: true,
+        inner: Box::new(Type::I32),
+    };
+    assert!(!checked(&module, &f, &actual));
+}
 #[test]
 fn dyn_result_unknown_missing_and_empty_are_distinct() {
     let (module, f, rows) = boundary();
