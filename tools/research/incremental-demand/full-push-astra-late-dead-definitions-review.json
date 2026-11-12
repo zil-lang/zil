@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "reviewer": "astra_architecture",
+  "zil_source_sha": "03b078b5799fe44d98855f26279f0f09e1d25bf5",
+  "llvm_source_sha": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+  "verdict": "Conditionally support a bounded post-O2 removal slice for explicitly proven private/closed-world, CGU-local, actually use-empty definitions. Existing nonforeign candidate generation is not independently a private ABI proof.",
+  "validation": "Read-only source review; no build, runtime test, candidate count or performance measurement.",
+  "evidence": [
+    {
+      "file": "llvm/lib/Passes/PassBuilderPipelines.cpp",
+      "lines": "1715",
+      "finding": "The original O2 pipeline already contains GlobalDCE; simply adding another run without linkage authority does not solve externally visible unused definitions."
+    },
+    {
+      "file": "llvm/lib/Transforms/IPO/GlobalDCE.cpp",
+      "lines": "309-316",
+      "finding": "Defined GlobalObjects that are not discardable if unused are marked live. External body definitions survive even when the current module has no uses."
+    },
+    {
+      "file": "crates/zil-llvm-api/src/native.rs",
+      "lines": "526-609",
+      "finding": "Current complete default<O2> runs before verify and machine emission, with no late internalize/DCE step. Insert the bounded transformation after O2 success and before the existing final LLVM verify."
+    },
+    {
+      "file": "crates/zil-backend-llvm/src/machine_cgu.rs",
+      "lines": "724-797",
+      "finding": "Explicit closed-executable candidates include all nonforeign source functions and lc1 variants. Cross-unit checks inspect function operand references and global initializer symbols, including imported available_externally bodies. This proves a conservative model reference closure, not independent private ABI status."
+    },
+    {
+      "file": "crates/zil-backend-llvm/src/build.rs",
+      "lines": "565-580",
+      "finding": "Existing closed-executable/anonymous-closure internalization occurs on partitioned model units before O2; it is not the proposed late transform."
+    },
+    {
+      "file": "crates/zil-ir/src/lib.rs",
+      "lines": "2592-2602",
+      "finding": "LirView has no source visibility/export table. No new private provenance can be inferred from this API alone."
+    },
+    {
+      "file": "crates/zil-types/src/program.rs",
+      "lines": "493-503",
+      "finding": "root_functions includes all root nonforeign functions, so it is not a source public/private list."
+    },
+    {
+      "file": "llvm/lib/Transforms/IPO/Internalize.cpp",
+      "lines": "103-129,161-164,200-221",
+      "finding": "Internalize preserves declarations, available_externally, dllexport and special roots; it changes visibility/linkage and handles comdat. llvm.used targets are always preserved; compiler.used must remain as a root. Avoid a blanket internalize invocation."
+    }
+  ],
+  "minimum_slice": [
+    "Keep original CGU partition and complete original O2/inlining pipeline exactly before the new step.",
+    "Supply a current, exact producer/verified-project private-or-closed-world authorization for named machine definitions. Unknown provenance declines. Compiler symbol spelling and nonforeign status alone grant nothing.",
+    "Require exactly one canonical definition and conservative complete cross-CGU reference closure from current model functions and global initializers; do not discard canonical functions referenced by imported bodies in other CGUs.",
+    "At post-O2 boundary select only authorized External definitions with actual use_empty and no address escape, exported ABI, aliases/ifunc/comdat/asm or used/ctor/dtor/annotation reference path.",
+    "Internalize only definitions selected for immediate removal, then run GlobalDCE once and retain original LLVM final verification. Do not internalize live definitions or rerun default<O2>.",
+    "Include policy and exact candidate/authorization bindings in object/native product identity; preserve independent language Verify, limits and successful-publication rules.",
+    "All remaining definitions run the original full machine pipeline. Original inline decisions and live function linkage remain unchanged by this first slice."
+  ],
+  "nearest_counterexamples": [
+    "Current module use_empty while another CGU still calls or takes the canonical address.",
+    "A symbol exists solely for external ABI, module assembly, llvm.used or a global/alias/ifunc initializer; it has no direct instruction call users.",
+    "Treating all nonforeign zil.fn definitions or TypedProgram.root_functions as private lacks the needed visibility/ABI provenance.",
+    "Applying early internalization changes O2 inline/deletion decisions and is a different already-measured policy."
+  ],
+  "quality_and_performance_limits": "The source mechanism explains why external unused copies can remain, but does not prove that the reported 424 versus Rust28 definitions are removable. Removing dead definitions changes object layout; no runtime/code-quality/performance outcome is claimed. Actual original425 fresh same-policy oracle and measurements are pending.",
+  "negative_alternatives_preserved": [
+    "/tmp/full-push-astra-native-owner-review.json",
+    "/tmp/full-push-astra-native-emission-closure-review.json",
+    "/tmp/full-push-astra-jitlink-product-review.json"
+  ]
+}

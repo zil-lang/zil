@@ -6734,7 +6734,7 @@
       "Affected CGU IR optimization and MIR keys/capture/rebuild remain",
       "NativeRegion owner lifecycle reviewed but whole allocator/provider/overlay closure not complete; prototype only, not enabled",
       "inotify cannot authorize full link discovery: mmap changes and hidden tool/loader dependency reads uncovered",
-      "Implement bounded post-O2 private use-empty deletion without changing original O2 decisions or CGU partition; not yet implemented/qualified"
+      "Explicit default-off late closed executable post-O2 use-empty deletion with whole-CGU actual references and independent retained-machine quality protocol, under construction; no source-private classification claim"
     ],
     "formal_o2_paired_geometric_ratios": {
       "private": 0.8442225120595596,
@@ -6825,6 +6825,7 @@
           "rust": 564.604072
         }
       }
-    }
+    },
+    "latest_component_raw_recovery": "full-push-recovery-v19.json; fixed60b8b494911e85e1eb387f6c387d402c5f6e02d0 four storage pieces/index freshHTTPS,496-file exact master union, no assembled whole qualifier/native rerun"
   }
 }

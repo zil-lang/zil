@@ -22,6 +22,6 @@
 
 cold和broad仍慢于main。当前private39机器函数复用/3执行、2FPM复用/376执行；object scope优化151ms/发射64ms，完整请求476ms。cold仍执行424MF/3816FPM，MIR捕获223ms/key88ms；嵌套计时不相加。[全部阶段及父历史](full-push-native-profile-13-scopes.json) 保留原始字段，不用旧候选或旧Rust时间相除。
 
-完整六轮同窗三方结果仍绑定 [328](full-push-matched-328.md)，raw已在fixed v17/v18远端恢复核验。本次profile13及两批门完整raw待v19远端归档，尚不冒称已持久。
+完整六轮同窗三方结果仍绑定 [328](full-push-matched-328.md)，raw已在fixed v17/v18远端恢复核验。本次profile13及两批门、两immutable编译器和源码已在 [固定v19](full-push-recovery-v19.json) `60b8b494911e85e1eb387f6c387d402c5f6e02d0` 保全：4存储片+索引freshHTTPS逐文件hash/模式与496原文件master全集核验；原payload核过后退役，未声称整份拼回后再运行qualifier或native。
 
-后端全景复核：保留原生owner生命周期有实证，但完整allocator/stdlib/ELF计量与当前provider/symbol overlay未闭合，[owner](full-push-astra-native-owner-review.json)/[emission](full-push-astra-native-emission-closure-review.json)明确原型未启用、无性能承诺。文件变化watch也因mmap不可见和工具/loader未知read-set不能替代当前完整链接绑定，[否定收据](full-push-link-watch-negative-review.json)保留，未添加不闭合快路。下一块检查原O2结束后再删已无用途的私有函数副本；不改变原内联决策、不拆CGU，当前仍施工未验收。
+后端全景复核：保留原生owner生命周期有实证，但完整allocator/stdlib/ELF计量与当前provider/symbol overlay未闭合，[owner](full-push-astra-native-owner-review.json)/[emission](full-push-astra-native-emission-closure-review.json)明确原型未启用、无性能承诺。文件变化watch也因mmap不可见和工具/loader未知read-set不能替代当前完整链接绑定，[否定收据](full-push-link-watch-negative-review.json)保留，未添加不闭合快路。下一块在显式、默认关闭的late-closed-executable无ZIL符号导出合同下，于原O2结束后再删无用途副本；当前IR缺少完整源码可见性凭证，不把nonforeign猜成private。保持原内联决策与CGU，仍施工未验收。见 [late裁决](full-push-astra-late-dead-definitions-review.json) 和 [JITLink路线负结果](full-push-astra-jitlink-product-review.json)。

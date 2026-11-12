@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "reviewer": "astra_architecture",
+  "llvm_source_sha": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+  "status": "Reject as ready-made function-object cache implementation; no closed minimum end-to-end implementation established by this review. EH parsing/edge algorithms are reusable components.",
+  "validation": "Read-only. No build/runtime/performance measurement.",
+  "evidence": [
+    {
+      "file": "llvm/lib/ExecutionEngine/JITLink/ELFLinkGraphBuilder.h",
+      "lines": "313-408,505-541",
+      "finding": "One LinkGraph Block per input section; STT_FUNC is a symbol inside that block. Shared .text is not automatically split into function products."
+    },
+    {
+      "file": "llvm/lib/ExecutionEngine/JITLink/ELF_x86_64.cpp",
+      "lines": "360-392",
+      "finding": "Default passes split .eh_frame records, fix EH edges, add terminator, mark live (default all symbols), build GOT/stubs, allocate, optimize and apply fixups. This is a JIT memory-link pipeline."
+    },
+    {
+      "file": "llvm/lib/ExecutionEngine/JITLink/EHFrameSupport.cpp",
+      "lines": "355-367,510-531",
+      "finding": "Existing PC-begin relocation returns its Target symbol without applying Addend to choose the function owner; keepalive is added from Target block to FDE. Splitting .text without first normalizing section-symbol+function-offset references can attach a later function FDE to the wrong block."
+    },
+    {
+      "file": "llvm/include/llvm/ExecutionEngine/JITLink/JITLink.h",
+      "lines": "1220-1231",
+      "finding": "splitBlock expressly does not repair incoming edges whose target-plus-addend crosses a split boundary, and requires clients to repair ordinals."
+    },
+    {
+      "file": "llvm/lib/ExecutionEngine/JITLink/ELFLinkGraphBuilder.h",
+      "lines": "225-264",
+      "finding": "Symbol conversion merges STV_DEFAULT/STV_PROTECTED and STB_WEAK/STB_GNU_UNIQUE cases; graph alone is not a lossless relocatable ELF representation."
+    },
+    {
+      "file": "llvm/include/llvm/ExecutionEngine/JITLink/JITLink.h",
+      "lines": "718-831,1951-1978",
+      "finding": "Section stores name/protection/lifetime/ordinal rather than complete ELF header fields; context reports FinalizedAlloc memory, not a relocatable-object buffer writer."
+    },
+    {
+      "file": "llvm/include/llvm/ExecutionEngine/JITLink/ELF_x86_64.h",
+      "lines": "22-33",
+      "finding": "Graph borrows the underlying object buffer. Keeping only a bounded immutable byte buffer avoids old LLVMContext/TM/MF owners; keeping the graph itself reintroduces graph allocation accounting."
+    },
+    {
+      "file": "llvm/lib/MC/MCObjectStreamer.cpp",
+      "lines": "672-689",
+      "finding": "Original emission retains alignment/max-padding constraints as fragments. Function bytes moved to a different start residue may require different internal block padding and branch relaxation; raw input/pipeline equality alone does not bind layout phase."
+    }
+  ],
+  "required_but_not_implemented": [
+    "Complete function slicing and cross-slice relocation ownership, with normalized section-symbol/addend targets",
+    "Current function order, symbol identity/ordinal, exact ELF section flags/alignment and symbol-table rebuilding",
+    "Original CIE/FDE records, current PC-begin/range and CIE-offset updates with no stale .eh_frame retention",
+    "Current layout dependency guard or relocation/relaxation-capable fragment representation",
+    "Relocatable ELF writer/combiner preserving current object-level metadata and original linker path",
+    "Sound machine-work skipping boundary and immutable-byte producer verification/binding contract"
+  ],
+  "performance_boundary": "Could remove some typed snapshot capture cost and avoid later machine/AP work for admitted functions, but parsing/slicing/writer/layout costs are unmeasured. Reported cold MIR capture 295ms and warm original-AP opportunity about40ms are gross observations, not proved savings.",
+  "decision": "Do not start a broad JITLink rewrite based on existing pruning/EH utilities. Preserve this negative result; root selected a separate bounded late post-O2 dead-definition investigation.",
+  "source_files": [
+    {
+      "path": "/tmp/astra-jitlink-7a/llvm/include/llvm/ExecutionEngine/JITLink/JITLink.h",
+      "sha256": "dd077391acfbe1da2833c2f45dbf443412f2ea5ba3dbc728d9a7562b9d142e4a"
+    },
+    {
+      "path": "/tmp/astra-jitlink-7a/llvm/include/llvm/ExecutionEngine/JITLink/ELF_x86_64.h",
+      "sha256": "65a751c580ed7271be7cede5edeab03037724351b26efaee9cc1e5e80a941b1d"
+    },
+    {
+      "path": "/tmp/astra-jitlink-7a/llvm/lib/ExecutionEngine/JITLink/ELFLinkGraphBuilder.h",
+      "sha256": "c6e0ddfee381775a09bdfacb82959db973c8df70c7224bc2fe49936021a311ff"
+    },
+    {
+      "path": "/tmp/astra-jitlink-7a/llvm/lib/ExecutionEngine/JITLink/ELF_x86_64.cpp",
+      "sha256": "230063f08e5496df497741fa15e3c38a2319fae67f162edfcc37ca78d6ca487b"
+    },
+    {
+      "path": "/tmp/astra-jitlink-7a/llvm/lib/ExecutionEngine/JITLink/EHFrameSupport.cpp",
+      "sha256": "8f2e5a05583b743ee7edb61b4f7cb230266b94f838511f1a83eda1773bd55471"
+    },
+    {
+      "path": "/tmp/astra-jitlink-7a/llvm/lib/ExecutionEngine/JITLink/JITLink.cpp",
+      "sha256": "9eb56d818bd9bf613f3e25eaf713ce59bcee4ceb8542a537a03418cdf33f3bc3"
+    }
+  ]
+}

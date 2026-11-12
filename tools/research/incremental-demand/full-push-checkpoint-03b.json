@@ -1422,7 +1422,7 @@
       }
     ]
   },
-  "raw_custody": "Full original profile13 (496files/415587451B) and both batches remain local pending fixed archive/source-history v19; never treat local tar as durable. Earlier complete formal328 raw is fixed remotely in v17/v18.",
+  "raw_custody": "Complete original profile13 496files/415587451B, immutable1453+03b binaries, both gate batches/full source snapshots and exact7c13 metadata are fixed archive/source-history@60b8b494911e85e1eb387f6c387d402c5f6e02d0. Four storage pieces and index freshly recovered via HTTPS, all file hashes/modes and exact original-master disjoint union verified. Original local qualifier passed before retirement; no whole assembled fresh qualifier/native rerun claim. Receipt:full-push-recovery-v19.json",
   "remaining": [
     "Whole-phase keys and global inventories/fingerprints still present; central ReactiveGraph not global scheduler",
     "Affected CGU IR optimization and MIR keys/capture/rebuild remain",
