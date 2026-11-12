@@ -377,6 +377,9 @@ struct Budget {
     stored_enum_addresses: bool,
     task_borrowed_results: bool,
     store_option_results: bool,
+    // Derived only from the bounded raw tree: direct Managed elements or a
+    // Store header below another Store's actual element. No candidate flag.
+    nested_store_windows: bool,
     qualified_package_returns: bool,
     byte_queries: bool,
     shared_byte_borrow: bool,
@@ -451,6 +454,7 @@ impl Budget {
             stored_enum_addresses: false,
             task_borrowed_results: false,
             store_option_results: false,
+            nested_store_windows: false,
             qualified_package_returns: false,
             byte_queries: false,
             shared_byte_borrow: false,
@@ -1356,7 +1360,7 @@ fn check_type_shape(
     budget: &mut Budget,
 ) -> Check<()> {
     let mut array_root = false;
-    let mut first = Some((ty, 0usize, 0u8));
+    let mut first = Some((ty, 0usize, 0u16));
     let mut pending = Vec::new();
     let mut options = Vec::new();
     let mut anonymous = Vec::new();
@@ -1429,6 +1433,16 @@ fn check_type_shape(
             }
             | Type::OwnedStore { element } => {
                 budget.async_registrations |= matches!(ty, Type::AsyncRegistration { .. });
+                let element_context = if matches!(ty, Type::OwnedStore { .. }) {
+                    if context & 256 != 0 || matches!(element.as_ref(), Type::Managed(_)) {
+                        budget.nested_store_windows = true;
+                        budget.store_option_results = true;
+                        budget.stored_borrows = true;
+                    }
+                    context | 256
+                } else {
+                    context
+                };
                 if matches!(ty, Type::OwnedStore { .. })
                     && (matches!(element.as_ref(), Type::Record { .. })
                         || dynamic_store::direct_scalar(element))
@@ -1445,7 +1459,7 @@ fn check_type_shape(
                     budget.spend(1)?;
                     pod_stores.push(element.as_ref());
                 }
-                pending.push((element, depth + 1, context));
+                pending.push((element, depth + 1, element_context));
             }
             Type::Slice { element } => {
                 slices::target(target)?;
