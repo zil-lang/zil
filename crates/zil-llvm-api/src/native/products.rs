@@ -67,6 +67,8 @@ mod enabled {
         #[cfg(test)]
         fn ZilNativeProductsIncomingCallerCounterexample() -> c_int;
         #[cfg(test)]
+        fn ZilNativeProductsAttributeMetadataCounterexample() -> c_int;
+        #[cfg(test)]
         fn ZilNativeProductsAnalysisDiagnostics(enabled: c_int) -> c_int;
         #[cfg(test)]
         fn ZilNativeProductsMachineDiagnostics(enabled: c_int) -> c_int;
@@ -344,6 +346,15 @@ mod enabled {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn complete_call_attributes_and_metadata_distinguish_equal_function_text() {
+            let _diagnostics = analysis_diagnostics_for_test();
+            // SAFETY: the fixture owns all LLVM values and returns only its
+            // complete equality/rejection observations as a scalar result.
+            let result = unsafe { ZilNativeProductsAttributeMetadataCounterexample() };
+            assert_eq!(result, 1);
+        }
 
         #[test]
         fn owned_use_order_distinguishes_equal_official_function_text() {
