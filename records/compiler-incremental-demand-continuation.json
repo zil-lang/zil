@@ -152,7 +152,7 @@
   "full_pipeline_continuation": {
     "source": "e105418b63078757d2f655ffa02858caed7838f6",
     "read_goal": "9bf9ed68c34c1348a789d57876ca38fa0de625bc",
-    "status": "in_progress: implementation pushed; full workspace tests, exact non-author review and same-parameter measurements pending",
+    "status": "active: actual consumers implemented; current complete-workload negative profile is driving further source changes; no general acceptance or Rust parity",
     "branch": "research/incremental-demand-continuation",
     "audit": "https://github.com/zil-lang/zil/blob/e105418b63078757d2f655ffa02858caed7838f6/tools/research/incremental-demand/full-pipeline-audit.md",
     "implemented": "Function revisions, shared CFG/machine arrays, actual Analyze/independent Verify/native work products, equal-output native stopping, final-link reuse under complete supported dependency binding, per-item function and segmented semantic persistence. Existing gate remains default-off.",
@@ -162,6 +162,29 @@
       "strict_workspace_all_targets_clippy": "passed",
       "actual_wider_private_edit": "CFG1executed/4reused; Analyze1/4; independent flow proofs1/4; current-source oracle/error/recovery checked"
     },
-    "limitations": "Some whole-project construction keys/global work and unsupported-domain fallback remain. No new timing/Rust-parity/completion claim. New raw still local until archive push and independent remote recovery; historical archive below is unchanged."
+    "limitations": "Some whole-project construction keys/global work and unsupported-domain fallback remain. No new timing/Rust-parity/completion claim. New raw still local until archive push and independent remote recovery; historical archive below is unchanged.",
+    "followups": [
+      {
+        "source": "b3d4d84002e2411f1cace6099ba96b16f5b5f5fc",
+        "status": "independent review accepted bounded source after original e105 implicit-linker-plugin rejection; full performance goal remains open",
+        "validation": "e105 complete workspace 6173 pass; b3 backend213 and strict workspace Clippy pass",
+        "profile": "one full-workload O2 CGU16 jobs1 alternating main/candidate block; cold/broad/unchanged regressions retained; source-ingress decode, hit preflight and cache publication identified as real cost",
+        "results": "https://github.com/zil-lang/zil/blob/fb6260aa30400cbc63a974b647723cd4b9147f9a/tools/research/incremental-demand/full-pipeline-profile-r1.json"
+      },
+      {
+        "source": "fb6260aa30400cbc63a974b647723cd4b9147f9a",
+        "read_goal": "79a45413c62df8ccb4cbd5367024f818ab9f47e4",
+        "status": "active; pushed, release/profile in progress",
+        "implemented": "Current-source resident frontend avoids discarded disk semantic decode; checker-owned complete native preflight receipts; pinned cache namespace removes repeated full path resolution/collision work while preserving current alias guards; actual ingress counters and backend stage timers",
+        "validation": {
+          "backend": 213,
+          "llvm_api": 39,
+          "driver": 182,
+          "strict_workspace_all_targets_clippy": "passed",
+          "retained_failure": "driver fixture reused nonblank discovery input; corrected without relaxing identity assertions; two lint failures retained"
+        },
+        "raw_durability": "new raw local pending archive/source-history push and fresh remote recovery; historical durable archive unchanged"
+      }
+    ]
   }
 }
