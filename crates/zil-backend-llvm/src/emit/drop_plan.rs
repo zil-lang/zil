@@ -850,7 +850,6 @@ pub(super) fn functions<'a>(
             name: symbol(ty),
             linkage: m::Linkage::Internal,
             signature: m::Signature {
-                retained_return_sources: None,
                 result: m::Ty::Void,
                 result_attrs: vec![],
                 params: vec![m::Param::new(m::Ty::Ptr, "payload")],

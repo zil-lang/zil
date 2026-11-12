@@ -574,7 +574,6 @@ pub(super) fn declarations() -> m::Code {
             name: name.into(),
             linkage: m::Linkage::External,
             signature: m::Signature {
-                retained_return_sources: None,
                 result: m::Ty::Void,
                 result_attrs: vec![],
                 params: vec![
@@ -600,7 +599,6 @@ pub(super) fn declarations() -> m::Code {
             .into(),
             linkage: m::Linkage::Internal,
             signature: m::Signature {
-                retained_return_sources: None,
                 result: m::Ty::Void,
                 result_attrs: vec![],
                 variadic: false,

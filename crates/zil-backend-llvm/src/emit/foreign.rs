@@ -32,7 +32,6 @@ pub(super) fn declaration(
         name: foreign.symbol.clone(),
         linkage: m::Linkage::External,
         signature: m::Signature {
-            retained_return_sources: None,
             result: llvm_type(&function.return_type)?,
             result_attrs: extension(&function.return_type, target),
             params: parameters,

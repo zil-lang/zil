@@ -273,7 +273,6 @@ fn unused_invalid_declaration_cannot_be_hidden_by_stable_partition() {
         name: "llvm.trap".into(),
         linkage: Linkage::External,
         signature: Signature {
-            retained_return_sources: None,
             result: Ty::Void,
             result_attrs: vec![Attr::NonLazyBind],
             params: vec![],
@@ -444,7 +443,6 @@ fn closed_pruning_cannot_hide_an_invalid_dead_definition_or_declaration() {
                 name: "llvm.trap".into(),
                 linkage: Linkage::External,
                 signature: Signature {
-                    retained_return_sources: None,
                     result: Ty::Void,
                     result_attrs: vec![Attr::NonLazyBind],
                     params: vec![],

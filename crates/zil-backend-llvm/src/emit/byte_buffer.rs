@@ -97,7 +97,6 @@ pub(super) fn runtime(lir: &LirView<'_>) -> CompileResult<m::Code> {
                 name: name.to_string(),
                 linkage: m::Linkage::External,
                 signature: m::Signature {
-                    retained_return_sources: None,
                     result: (llvm_type(&result)?).clone(),
                     result_attrs: vec![],
                     params: (parameters).clone(),
@@ -123,7 +122,6 @@ fn linux_allocation() -> m::Code {
             name: "zil.bytes.reallocate".into(),
             linkage: m::Linkage::Internal,
             signature: m::Signature {
-                retained_return_sources: None,
                 result: m::Ty::Ptr,
                 result_attrs: vec![],
                 params: vec![
@@ -166,7 +164,6 @@ fn linux_allocation() -> m::Code {
             name: "zil.bytes.release".into(),
             linkage: m::Linkage::Internal,
             signature: m::Signature {
-                retained_return_sources: None,
                 result: m::Ty::Void,
                 result_attrs: vec![],
                 params: vec![m::Param {
@@ -201,7 +198,6 @@ fn windows_allocation() -> m::Code {
             name: "zil.bytes.reallocate".into(),
             linkage: m::Linkage::Internal,
             signature: m::Signature {
-                retained_return_sources: None,
                 result: m::Ty::Ptr,
                 result_attrs: vec![],
                 params: vec![
@@ -316,7 +312,6 @@ fn windows_allocation() -> m::Code {
             name: "zil.bytes.release".into(),
             linkage: m::Linkage::Internal,
             signature: m::Signature {
-                retained_return_sources: None,
                 result: m::Ty::Void,
                 result_attrs: vec![],
                 params: vec![m::Param {
@@ -413,7 +408,6 @@ fn storage_operations() -> m::Code {
             name: "zil.bytes.reserve".into(),
             linkage: m::Linkage::Internal,
             signature: m::Signature {
-                retained_return_sources: None,
                 result: m::Ty::Int(1),
                 result_attrs: vec![],
                 params: vec![
@@ -571,7 +565,6 @@ fn storage_operations() -> m::Code {
             name: "zil.bytes.truncate".into(),
             linkage: m::Linkage::Internal,
             signature: m::Signature {
-                retained_return_sources: None,
                 result: m::Ty::Int(1),
                 result_attrs: vec![],
                 params: vec![
@@ -669,7 +662,6 @@ fn storage_operations() -> m::Code {
             name: "zil.bytes.push".into(),
             linkage: m::Linkage::Internal,
             signature: m::Signature {
-                retained_return_sources: None,
                 result: m::Ty::Int(1),
                 result_attrs: vec![],
                 params: vec![
@@ -812,7 +804,6 @@ fn storage_operations() -> m::Code {
             name: "zil.bytes.drop".into(),
             linkage: m::Linkage::Internal,
             signature: m::Signature {
-                retained_return_sources: None,
                 result: m::Ty::Void,
                 result_attrs: vec![],
                 params: vec![m::Param {
