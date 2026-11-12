@@ -523,13 +523,15 @@ pub(super) fn check_definitions(
                     continue;
                 }
                 if let Type::Address { inner, .. } = ty
-                    && (closure.result.is_copy_value() || invocation)
+                    && (closure.result.is_copy_value() || invocation || explicit_result_relation)
                 {
                     // Raw type preflight already bounded this tree. Verify the
                     // actual finite element shape, not a producer signature bit.
                     slices::check_pointee(inner, None)?;
                 } else {
-                    check_type(ty, None)?;
+                    check_type(ty, None).map_err(|error| {
+                        error.with_note("while checking the actual closure parameter")
+                    })?;
                 }
             }
             if lending_result(&closure.result)
@@ -537,9 +539,12 @@ pub(super) fn check_definitions(
                 || explicit_result_relation
                 || stored_callables::task_result(closure)
             {
-                check_local_type(&closure.result, None, module, budget)?;
+                check_local_type(&closure.result, None, module, budget).map_err(|error| {
+                    error.with_note("while checking the actual related closure result")
+                })?;
             } else {
-                check_type(&closure.result, None)?;
+                check_type(&closure.result, None)
+                    .map_err(|error| error.with_note("while checking the actual closure result"))?;
             }
         }
         let function = module
@@ -1152,6 +1157,7 @@ pub(super) fn check_resource_instruction(
             if !supports(definition.kind, expected_kind)
                 || (expected_kind == CallableKind::FnOnce
                     && !definition.lending_captures.is_empty()
+                    && !stored_callables::static_result(definition)
                     && !definition.storage_life.as_ref().is_some_and(|life| {
                         super::signature_life::outer(life, StorageBase::Result).is_some()
                     }))

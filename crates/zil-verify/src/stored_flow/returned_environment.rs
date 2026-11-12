@@ -416,13 +416,20 @@ fn static_parents(
                 .loans
                 .get(id)
                 .ok_or_else(|| err("static capture parent lies outside actual loan arena"))?;
-            b.spend(loan.sources.len().saturating_add(1))?;
+            b.spend(
+                loan.sources
+                    .len()
+                    .saturating_mul(actual.sources.len().saturating_add(1))
+                    .saturating_add(1),
+            )?;
             if loan.receiver_head
                 || loan.sources.is_empty()
-                || loan
-                    .sources
-                    .iter()
-                    .any(|source| source.base != HoldRoot::Static)
+                || loan.sources.iter().any(|source| {
+                    // An ordinary Fixed capture may conservatively contain
+                    // both Static and its real input. Keep each genuine input
+                    // parent; a Static-only result cannot acquire one.
+                    source.base != HoldRoot::Static && !actual.sources.contains(source)
+                })
             {
                 return Err(err(
                     "static capture retains a nonstatic or ungrounded parent",
