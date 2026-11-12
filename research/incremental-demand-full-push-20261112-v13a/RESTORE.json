@@ -1,0 +1,18 @@
+{
+  "archive_sha256": "b57febd673bb9c7e7b9806c4c981b8151f2e0a6fc87612dd99c7340b9c7912c3",
+  "limits": "Fixed-commit freshHTTPS full byte/mode recovery; no compilation/execution/performance comparison. Splitv13 has batchA and batchB; restore both fixed commits from combined receipt for complete checkpoint.",
+  "manifest": {
+    "bytes": 153199,
+    "sha256": "9227dd9c4fcb7c54e865c3f5e5b1ed6ca5f2579bfc01bdb9a5f1efebf696b42b"
+  },
+  "schema": 1,
+  "scope": "V13batchA: complete FPM economics candidate d3 release09 immutable binary/receipt, native22=72pass/backend09=239pass/driver mixed3pass/strictClippy09/fmt08/tools39 successful gates and independent economics review; full original425 default09 diagnostic raw with allCAS, runtimeDSOs/maps,34requests/180native/15fullELF+strictLLVMpairs, scopes/currentinventories. Previous checkpoint recovery and exact oldv10/v12materialization retirement proofs retained. Candidate d3f561bdc4dfbad403e886076573ade3a7640692/binary66d10de454386aba4aee515e18151d9943f0bdb47603adcea91e596f25dacba7; baseline3ec7/1b9abd96de7989b4b9e01bc37ccbee54e5984617028988dffd5d00d516c73405. Later Types cross-failure epoch changes are excluded. Candidate-only profiling and distinctpolicy partitions do not establish formal speed/crosspolicy ratios/Rust parity. No new compiler/native execution during archive/recovery. Originalscope/negative data retained; old66archiveparts remain dematerialized, current09/03raw and allbinaries/Gitobjects preserved.",
+  "source_commits": {
+    "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "candidate": "d3f561bdc4dfbad403e886076573ade3a7640692"
+  },
+  "verifier": {
+    "bytes": 21146,
+    "sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a"
+  }
+}
