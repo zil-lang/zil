@@ -661,7 +661,8 @@ fn independently_reject_typed_attack(
     module: zil_ir::TypedModule,
     mut plan: zil_ir::CandidatePlan,
     label: &str,
-) {
+) -> Vec<String> {
+    let mut codes = Vec::new();
     let limits = Limits::default();
     let target = module.target.clone();
     // A stale cache identity must not substitute for a semantic rejection.
@@ -678,6 +679,7 @@ fn independently_reject_typed_attack(
         ),
     ] {
         let errors = checked.unwrap_err();
+        codes.extend(errors.iter().map(|error| error.code.to_string()));
         assert!(
             errors
                 .iter()
@@ -687,6 +689,7 @@ fn independently_reject_typed_attack(
             "{label} via {transport}: {errors:?}"
         );
     }
+    codes
 }
 
 #[test]
@@ -1028,9 +1031,17 @@ fn consuming_capture_with_two_possible_original_holders_keeps_weak_updates() {
             value,
             roots: vec![],
         });
-    independently_reject_typed_attack(
+    let codes = independently_reject_typed_attack(
         bad,
         claim,
         "weak update cannot erase an untouched original holder",
+    );
+    assert_eq!(
+        codes
+            .iter()
+            .filter(|code| code.as_str() == "E-VERIFY-STORED")
+            .count(),
+        2,
+        "both transports must reject the actual retained loan, not a stale candidate: {codes:?}"
     );
 }
