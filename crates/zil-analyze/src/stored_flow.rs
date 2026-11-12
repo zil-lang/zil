@@ -7028,6 +7028,19 @@ fn derive_cfg(
                             continue;
                         };
                         for (path, permission) in slots {
+                            // An unchanged actual memory row preserves every
+                            // target and parent loan without inventing a class
+                            // for a legacy concrete environment. Unknown class
+                            // metadata cannot authorize a nonidentity update.
+                            ordered(b, entry.external.len(), path.len())?;
+                            let initial = entry.external.get(base).and_then(|rows| rows.get(path));
+                            let identity = if let Some(initial) = initial {
+                                permission_clone_work(initial, b)?;
+                                permission_clone_work(permission, b)?;
+                                initial == permission
+                            } else {
+                                false
+                            };
                             ordered(b, actual.external_after.len(), path.len())?;
                             let row = actual
                                 .external_after
@@ -7046,7 +7059,8 @@ fn derive_cfg(
                                         "stored external update retains an activation-local target",
                                     ));
                                 }
-                                if let HoldRoot::Parameter(source) = target.base
+                                if !identity
+                                    && let HoldRoot::Parameter(source) = target.base
                                     && environment_memory::binding(module, f, *index, path, b)?
                                         != environment_memory::binding(
                                             module,
