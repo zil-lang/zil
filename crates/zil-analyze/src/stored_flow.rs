@@ -351,7 +351,10 @@ fn ordinary_inline_package_target(
     b: &mut Budget,
 ) -> CompileResult<bool> {
     fee(b, target_width(target).saturating_add(1))?;
-    if target.retained_port.is_some() || !target.stored.is_empty() || target.heap_element.is_some()
+    if target.retained_port.is_some()
+        || !target.stored.is_empty()
+        || target.heap_element.is_some()
+        || !target.heap_parents.is_empty()
     {
         return Ok(false);
     }
@@ -370,6 +373,9 @@ fn ordinary_inline_package_target(
     .ok_or_else(|| failure("ordinary Package source root absent"))?;
     for step in &target.place {
         fee(b, 1)?;
+        if let Type::BorrowedStorage { storage, .. } = ty {
+            ty = storage;
+        }
         ty = match (step, ty) {
             (PlaceProjection::Field(index), Type::Package { fields, .. }) => {
                 &fields
@@ -379,6 +385,9 @@ fn ordinary_inline_package_target(
             }
             _ => return Ok(false),
         };
+    }
+    if let Type::BorrowedStorage { storage, .. } = ty {
+        ty = storage;
     }
     b.type_work(ty, false, "actual inline Package source equality")?;
     b.type_work(expected, false, "actual inline Package endpoint equality")?;
@@ -4040,20 +4049,6 @@ fn transfer(
         }
         InstructionKind::AddressField { address, index } => {
             union(&mut out.pointer, &get(*address)?.pointer, b)?;
-            if b.masked_stored_tasks()
-                && matches!(value_type(f, i.result.ok_or_else(|| failure("Store field result absent"))?)?,
-                    Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Package { .. }))
-                && (out.pointer.targets.is_empty()
-                    || out
-                        .pointer
-                        .targets
-                        .iter()
-                        .any(|target| target.heap_element.is_none()))
-            {
-                return Err(failure(
-                    "owning Store field address lacks an actual element window",
-                ));
-            }
             let mut targets = Targets::new();
             for target in &out.pointer.targets {
                 fee(b, target_width(target).saturating_add(2))?;
@@ -4067,7 +4062,7 @@ fn transfer(
                 targets.insert(target);
             }
             out.pointer.targets = targets;
-            if b.store_option_results
+            if (b.store_option_results || b.masked_stored_tasks())
                 && let Type::Address { inner, .. } = value_type(
                     f,
                     i.result
