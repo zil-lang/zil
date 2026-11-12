@@ -3219,6 +3219,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 };
             let function_id = pending.function;
             let function = CoreFunction {
+                source_scope: None,
                 retained_return_sources: None,
                 storage_life: None,
                 call_kind: None,
@@ -3428,6 +3429,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let function_id = pending.function;
         let function = CoreFunction {
             retained_return_sources: None,
+                source_scope: None,
             storage_life,
             call_kind: None,
             resume_bound: zil_ir::TaskResumeBound::Local,
@@ -4133,6 +4135,7 @@ mod tests {
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,
             functions: vec![CoreFunction {
+                source_scope: None,
                 retained_return_sources: None,
                 storage_life: None,
                 call_kind: None,
