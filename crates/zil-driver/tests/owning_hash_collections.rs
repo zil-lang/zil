@@ -678,8 +678,16 @@ fn typed_stdlib(sources: &[(&str, &str)]) -> zil_ir::TypedModule {
         .collect();
     let target = TargetProfile::host_llvm();
     let limits = Limits::default();
+    let aliases = sources.iter().enumerate().skip(1)
+        .map(|(index, (name, _))| (vec!["std".to_string(), name.to_string()], ModuleId(index as u32)))
+        .collect();
     let modules =
-        zil_expand::expand_program_with_limits_target(&units, &syntax, &imports, &limits, &target)
+        zil_expand::expand_program_with_limits_target_context(&units, &syntax, &imports, &limits, &target,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &aliases,
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            })
             .unwrap()
             .into_iter()
             .map(|(module, _)| module)
