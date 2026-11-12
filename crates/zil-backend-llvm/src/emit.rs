@@ -986,6 +986,9 @@ fn bind_lir<'a>(
                 .parameters
                 .iter()
                 .any(|p| matches!(p, Type::Address { .. }));
+        let task_result = closure.kind == CallableKind::FnOnce
+            && closure.parameters.is_empty()
+            && matches!(&closure.result,Type::Managed(task) if matches!(task.as_ref(),Type::Task{..}));
         let mut captures_supported = true;
         for ty in &closure.captures {
             if !captures_supported {
@@ -1021,7 +1024,7 @@ fn bind_lir<'a>(
         if !matches!(
             closure.kind,
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-        ) || !(owning_signature || invocation_signature || verified_address_result || closure.result.is_copy_value()
+        ) || !(owning_signature || invocation_signature || verified_address_result || task_result || closure.result.is_copy_value()
             || (!closure.lending_captures.is_empty()
                 && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
                 && matches!(&closure.result, Type::Address { inner, mutable: false }

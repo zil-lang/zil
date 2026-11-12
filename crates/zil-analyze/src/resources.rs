@@ -514,6 +514,17 @@ fn set_package_birth(
     Ok(())
 }
 fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<Shape> {
+    if matches!(ty,Type::BorrowedStorage{storage,..}
+        if matches!(storage.as_ref(),Type::Tuple(fields)
+            if fields.iter().all(|field|field.is_copy_value()||matches!(field,Type::Address{..}))))
+        && crate::stored_flow::failure_shape(ty,budget)?
+    {
+        // This actual qualified input view owns affine borrow slots, not
+        // resource payloads. Its Take/Unpack operations are proved by the
+        // complete stored permission/vacancy and parent-loan consumers.
+        // A bare Tuple<Address> does not enter this branch.
+        return Ok(Shape{owned:false,description:false});
+    }
     Ok(match package_storage(ty) {
         ty if owned_error(ty) => Shape {
             owned: true,
