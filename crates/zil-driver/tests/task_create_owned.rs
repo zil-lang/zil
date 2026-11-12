@@ -250,3 +250,150 @@ fn live_registration_native_allocation_failure_preserves_protocol_and_owner() {
         }
     }
 }
+
+#[test]
+fn owned_constructor_raw_and_wire_reject_duplicate_debt_and_false_input_phase() {
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::default();
+    for (text, phase) in [(OWNERS, false), (REGISTRATION, true)] {
+        let input = source(text);
+        let ast = zil_syntax::parse(&input).into_result().unwrap();
+        let core = zil_expand::expand(&input, &ast).unwrap();
+        let typed = zil_types::check(&core, &target, &limits).unwrap();
+        let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+        for wire in [false, true] {
+            let mut forged = typed.clone();
+            let worker_id = forged
+                .functions
+                .iter()
+                .flat_map(|f| &f.blocks)
+                .flat_map(|b| &b.instructions)
+                .find_map(|i| match i.kind {
+                    zil_ir::InstructionKind::TaskCreateOwned { worker, .. } => Some(worker),
+                    _ => None,
+                })
+                .unwrap();
+            let worker = &mut forged.functions[worker_id.0 as usize];
+            if phase {
+                worker.protocol_contract.as_mut().unwrap().entry =
+                    vec![zil_ir::ProtocolState::Closed];
+            } else {
+                let main = forged
+                    .functions
+                    .iter_mut()
+                    .find(|f| {
+                        f.blocks.iter().any(|b| {
+                            b.instructions.iter().any(|i| {
+                                matches!(i.kind, zil_ir::InstructionKind::TaskCreateOwned { .. })
+                            })
+                        })
+                    })
+                    .unwrap();
+                let arguments = main
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find_map(|i| match &mut i.kind {
+                        zil_ir::InstructionKind::TaskCreateOwned { arguments, .. } => {
+                            Some(arguments)
+                        }
+                        _ => None,
+                    })
+                    .unwrap();
+                arguments[1] = arguments[0];
+            }
+            assert!(
+                zil_analyze::analyze(&forged, &limits).is_err(),
+                "Analyze phase={phase}"
+            );
+            let mut claim = plan.clone();
+            claim.module_fingerprint = forged.fingerprint();
+            let result = if wire {
+                let bytes =
+                    zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
+                zil_verify::verify_module_bytes(&bytes, &target, &limits)
+            } else {
+                zil_verify::verify_module(forged, claim, &target, &limits)
+            };
+            assert!(result.is_err(), "Verify phase={phase}/wire={wire}");
+        }
+    }
+}
+
+#[test]
+fn borrowed_input_failure_keeps_the_original_parent_loan_until_consumed() {
+    let text = r#"
+fn worker(input:&mut i32)->i32 {*input+=1;task_yield();return *input;}
+fn main()->i32 {
+    var number=41;
+    match task_create_owned(worker,&mut number) {
+        .err(failure)=>{let (input,)=failure.inputs;*input+=1;return *input-42;},
+        .ok(input)=>{var task=give input;var answer=0;loop{match task_poll(&mut task){.ok(p)=>{match p{Poll.Pending()=>{continue;},Poll.Ready(v)=>{answer=v;break;}}},.err(_)=>{break;}}}task_request_cancel(&mut task);loop{match task_poll_close(&mut task){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}task_finish_destroy(give task);number=9;return answer-number-33;}
+    }
+}
+"#;
+    for (text, expected) in [
+        (text.to_owned(), true),
+        (
+            text.replace(
+                "let (input,)=failure.inputs;",
+                "number=99;let (input,)=failure.inputs;",
+            ),
+            false,
+        ),
+    ] {
+        let report = compile_source(
+            &source(&text),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status == ResultCategory::Success,
+            expected,
+            "{}",
+            report.to_json()
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::InfraError,
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn owned_constructor_does_not_erase_a_live_owner_on_later_argument_early_return() {
+    let prepare = "fn prepare(flag:bool)->TaskCreateError!i32{if flag{return TaskCreateError.Allocation();}return 37;}\n";
+    let text = REGISTRATION
+        .replace("fn main()->i32", "fn main()->TaskCreateError!i32")
+        .replace(
+            "task_create_owned(worker,give owner,37)",
+            "task_create_owned(worker,give owner,prepare(true)?)",
+        );
+    let report = compile_source(
+        &source(&format!("{prepare}{text}")),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("registration")
+                || d.message.contains("asynchronous")
+                || d.message.contains("responsibility")),
+        "{}",
+        report.to_json()
+    );
+}

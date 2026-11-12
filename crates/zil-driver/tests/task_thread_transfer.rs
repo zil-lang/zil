@@ -219,71 +219,90 @@ fn active_threaded_frame_migration_busy_raw_holder_and_late_wake() {
     // The host pauses an actually admitted callback with a signal/pipe barrier.
     // The generated CAS stays authoritative; the host never writes gate state.
     let text=THREADED.replace("count+=1;return value+count+i32(bytes_len(bytes))-1", "count+=1;var i=value;var noise=0;loop{if i<=0{break;}noise=(noise+i)%997;i-=1;}return value+count+i32(bytes_len(bytes))-1+noise");
-    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
-        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
-            continue;
-        }
-        for optimization in [Optimization::O0, Optimization::O2] {
-            let dir = std::env::temp_dir().join(format!(
-                "zil-active-task-thread-{}-{backend:?}-{optimization:?}",
-                std::process::id()
-            ));
-            fs::create_dir_all(&dir).unwrap();
-            let clang = std::env::var_os("ZIL_CLANG")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| "clang".into());
-            let object = dir.join("observer.o");
-            let observer = Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../tests/language-readiness/task-thread-transfer/threaded-observer.c");
-            let built = Command::new(&clang)
-                .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-O2", "-c"])
-                .arg(observer)
-                .arg("-o")
-                .arg(&object)
-                .output()
-                .unwrap();
-            assert!(built.status.success(), "{built:?}");
-            let quote =
-                |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
-            let wrapper = dir.join("link.sh");
-            fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free -Wl,--wrap=pthread_create -Wl,--wrap=pthread_join -pthread\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&object),quote(&clang))).unwrap();
-            fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
-            let report = compile_source(
-                &source(&text),
-                &CompileOptions {
-                    backend,
-                    optimization,
-                    clang: Some(wrapper),
-                    stop_after: Stage::Build,
-                    output: Some(dir.join("program")),
-                    ..CompileOptions::default()
-                },
-            );
-            assert_eq!(
-                report.status,
-                ResultCategory::Success,
-                "{}",
-                report.to_json()
-            );
-            assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
-            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
-            for fail in [false, true] {
-                let mut command = Command::new(&report.artifacts["executable"]);
-                if fail {
-                    command.env("ZIL_TASK_THREAD_FAIL", "1");
-                }
-                let output = command.output().unwrap();
-                assert_eq!(
-                    output.status.code(),
-                    Some(if fail { 2 } else { 0 }),
-                    "{backend:?}/{optimization:?}/fail={fail}: {output:?}"
-                );
-                assert_eq!(
-                    output.stdout,
-                    b"active frame moved; ClosingBusy and raw-holder drained; once cleanup\n"
-                );
+    let helper = "fn finish<F:FnMut(i32)->i32 + ClosedEnvironment>(give input:AsyncRegistration<F>) contract{requires(state(input,Closed));provides(retired(input));}{async_registration_finish_destroy_checked(give input);}
+";
+    let through_helper = text
+        .replacen("fn compute", &format!("{helper}fn compute"), 1)
+        .replace(
+            "async_registration_finish_destroy_checked(give owner);",
+            "finish(give owner);",
+        );
+    let through_alias = through_helper.replace(
+        "async_registration_request_close(&mut owner);",
+        "let closing=&mut owner;async_registration_request_close(closing);",
+    );
+    for (scenario, text) in [
+        ("direct", text),
+        ("helper", through_helper),
+        ("alias", through_alias),
+    ] {
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
             }
-            fs::remove_dir_all(dir).unwrap();
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let dir = std::env::temp_dir().join(format!(
+                    "zil-active-task-thread-{}-{scenario}-{backend:?}-{optimization:?}",
+                    std::process::id()
+                ));
+                fs::create_dir_all(&dir).unwrap();
+                let clang = std::env::var_os("ZIL_CLANG")
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|| "clang".into());
+                let object = dir.join("observer.o");
+                let observer = Path::new(env!("CARGO_MANIFEST_DIR")).join(
+                    "../../tests/language-readiness/task-thread-transfer/threaded-observer.c",
+                );
+                let built = Command::new(&clang)
+                    .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-O2", "-c"])
+                    .arg(observer)
+                    .arg("-o")
+                    .arg(&object)
+                    .output()
+                    .unwrap();
+                assert!(built.status.success(), "{built:?}");
+                let quote =
+                    |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
+                let wrapper = dir.join("link.sh");
+                fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free -Wl,--wrap=pthread_create -Wl,--wrap=pthread_join -pthread\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&object),quote(&clang))).unwrap();
+                fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+                let report = compile_source(
+                    &source(&text),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        clang: Some(wrapper),
+                        stop_after: Stage::Build,
+                        output: Some(dir.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
+                assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+                for fail in [false, true] {
+                    let mut command = Command::new(&report.artifacts["executable"]);
+                    if fail {
+                        command.env("ZIL_TASK_THREAD_FAIL", "1");
+                    }
+                    let output = command.output().unwrap();
+                    assert_eq!(
+                        output.status.code(),
+                        Some(if fail { 2 } else { 0 }),
+                        "{backend:?}/{optimization:?}/fail={fail}: {output:?}"
+                    );
+                    assert_eq!(
+                        output.stdout,
+                        b"active frame moved; ClosingBusy and raw-holder drained; once cleanup\n"
+                    );
+                }
+                fs::remove_dir_all(dir).unwrap();
+            }
         }
     }
 }
@@ -460,5 +479,41 @@ fn c_callback_never_erases_a_suspend_execution_root() {
             zil_verify::verify_module(forged, claim, &target, &limits)
         };
         assert!(result.is_err(), "Suspend callback wire={wire}");
+    }
+}
+
+#[test]
+fn task_migration_helper_substitutes_each_actual_caller_frame() {
+    let dispatch = SOURCE.replace(
+        "fn main()->TaskCreateError!i32 {\n    var task=task_create(compute,37)?;\n    task_poll(&mut task);",
+        "fn dispatch(give task:Task<i32>)->i32 {",
+    );
+    assert!(!dispatch.contains("fn main()"));
+    let text = format!(
+        "{dispatch}\nfn main()->TaskCreateError!i32{{var task=task_create(compute,37)?;task_poll(&mut task);return dispatch(give task);}}"
+    );
+    for (text, expected) in [
+        (text.clone(), true),
+        (text.replace(" contract{resume(transfer)}", ""), false),
+    ] {
+        let report = compile_source(
+            &source(&text),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status == ResultCategory::Success,
+            expected,
+            "{}",
+            report.to_json()
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::InfraError,
+            "{}",
+            report.to_json()
+        );
     }
 }

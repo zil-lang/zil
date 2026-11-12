@@ -754,6 +754,7 @@ fn flow<'m>(
         partial: true,
         replacements: None,
         address_replacement_tags: false,
+        owned_creation: false,
         tagged_locals: tagged.then(|| (0..f.locals.len()).collect()),
         tag_cache: indexed_invalidation(&budget(profile, 1_000_000))
             .then(|| std::cell::RefCell::new(tag_cache::Cache::new(f))),
@@ -829,11 +830,11 @@ fn logical(state: &State) -> Logical {
         partial: state.partial.clone(),
     }
 }
-type BridgeFacts = (Option<u8>, FieldFresh, Vec<UnpackedFresh>);
+type BridgeFacts = (Option<u8>, FieldFresh, Vec<UnpackedFresh>, Option<bool>);
 fn bridges(result: Check<Vec<Bridge>>) -> Check<Vec<BridgeFacts>> {
     result.map(|v| {
         v.into_iter()
-            .map(|v| (v.result, v.package, v.unpack))
+            .map(|v| (v.result, v.package, v.unpack, v.task_cleanup))
             .collect()
     })
 }

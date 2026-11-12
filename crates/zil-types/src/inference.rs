@@ -2205,13 +2205,20 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         bound: &CoreCallableParameter,
         depth: usize,
     ) -> R<usize> {
-        if registration::borrowed_environment(ty).is_some() {
-            let Term::ValueAddress(carrier, true) = self.expr(argument, depth, false)? else {
-                return Err(error(
-                    "E-TYPE-MISMATCH",
-                    argument.span,
-                    "exclusive registration address required",
-                ));
+        let owning_registration = matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::AsyncRegistration { .. }));
+        if registration::borrowed_environment(ty).is_some() || owning_registration {
+            let actual = self.expr(argument, depth, false)?;
+            let carrier = if owning_registration {
+                Rc::new(actual)
+            } else {
+                let Term::ValueAddress(carrier, true) = actual else {
+                    return Err(error(
+                        "E-TYPE-MISMATCH",
+                        argument.span,
+                        "exclusive registration address required",
+                    ));
+                };
+                carrier
             };
             let Term::Registration(environment, true, true) = carrier.as_ref() else {
                 return Err(error(

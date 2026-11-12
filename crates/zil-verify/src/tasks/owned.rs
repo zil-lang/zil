@@ -295,7 +295,9 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
     match t {
         // An owned child head is a real asynchronous cleanup obligation. Its
         // constructor is separately traced by Task origin/migration checks.
-        Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(),Type::Task{retained_life,..} if retained_life.ports.is_empty()) => Ok(true),
+        Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(),Type::Task{retained_life,..} if retained_life.ports.is_empty()) => {
+            Ok(true)
+        }
         Type::Managed(p) | Type::Desc(p)
             if matches!(p.as_ref(), Type::AsyncRegistration { .. }) =>
         {
@@ -399,8 +401,19 @@ fn cleanup(
             }
             continue;
         }
+        // This contract is only a premise selector. The resource and protocol
+        // kernels independently require the original owner to be consumed and
+        // prove checked finish observes Closed; the annotation cannot retire it.
+        let closed_retirement = f.protocol_contract.as_ref().is_some_and(|c| {
+            c.entry.as_slice() == [zil_ir::ProtocolState::Closed]
+                && !c.exits.is_empty()
+                && c.exits.iter().all(|row| row.input == zil_ir::ProtocolState::Closed && row.output.is_empty())
+                && f.parameters.get(c.parameter as usize).is_some_and(|local| matches!(&f.locals[local.0 as usize].ty, Type::Managed(t) if matches!(t.as_ref(), Type::AsyncRegistration { .. })))
+        });
         for t in f.locals.iter().map(|l| &l.ty).chain(&f.values) {
-            if !storage(t, budget)? && !complete_aggregate(t, budget)? {
+            let closed_input = closed_retirement
+                && matches!(t, Type::Managed(inner) if matches!(inner.as_ref(), Type::AsyncRegistration { .. }));
+            if !closed_input && !storage(t, budget)? && !complete_aggregate(t, budget)? {
                 return Err(reject(
                     "E-VERIFY-TASK",
                     span,
@@ -461,6 +474,9 @@ fn cleanup(
                 match &i.kind {
                     InstructionKind::Call { function, .. }
                     | InstructionKind::ForeignCall { function, .. } => pending.push(*function),
+                    InstructionKind::AsyncRegistrationFinishDestroyChecked { .. }
+                    | InstructionKind::AsyncRegistrationFinishDestroy { .. }
+                        if closed_retirement => {}
                     InstructionKind::Constant(_)
                     | InstructionKind::Load(_)
                     | InstructionKind::Store { .. }
@@ -693,7 +709,8 @@ pub(super) fn profile(
                     }
                     children.push(*function);
                 }
-                InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. }
+                InstructionKind::TaskCreate { .. }
+                | InstructionKind::TaskCreateOwned { .. }
                 | InstructionKind::TaskPoll { .. }
                 | InstructionKind::TaskValid { .. }
                 | InstructionKind::TaskRequestCancel { .. }
