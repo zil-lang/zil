@@ -1105,3 +1105,10 @@ fn inline_nested_qualified_factory_transfers_actual_child_classes() {
     );
     assert!(zil_analyze::analyze(&typed_source(bad), &Limits::default()).is_err());
 }
+
+#[test]
+fn captured_mutable_holder_publishes_the_original_external_slot() {
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/captured-mutable-holder.zil");
+    let module=typed_source(source);
+    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+}

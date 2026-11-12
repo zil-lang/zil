@@ -263,11 +263,18 @@ fn solve(
             );
         }
     }
+    let mut captured_cells=BTreeMap::new();
+    for (index,ty) in captures.iter().enumerate() {
+        if let Type::Address{inner,..}=ty && matches!(inner.as_ref(),Type::BorrowedStorage{..}) {
+            spend(left,1,span)?;
+            captured_cells.insert(index,LocalId((f.locals.len()+captures.len()+external_cells.len()+captured_cells.len()) as u32));
+        }
+    }
     let width = f
         .locals
         .len()
         .saturating_add(captures.len())
-        .saturating_add(external_cells.len());
+        .saturating_add(external_cells.len()).saturating_add(captured_cells.len());
 
     spend(
         left,
@@ -282,7 +289,7 @@ fn solve(
         left,
         captures
             .len()
-            .saturating_add(external_cells.len())
+            .saturating_add(external_cells.len()).saturating_add(captured_cells.len())
             .saturating_mul(f.blocks.len().saturating_add(1)),
         span,
     )?;
@@ -348,6 +355,11 @@ fn solve(
         if let Some(head) = initial[local.0 as usize].get_mut(&Vec::new()) {
             head.places.insert((*cell, Vec::new()));
         }
+    }
+    for (index,cell) in &captured_cells {
+        let Type::Address{inner,..}=&captures[*index] else {unreachable!()};
+        initial[cell.0 as usize]=seed(module,inner,Some(StorageBase::Capture(*index as u32)),left,span,limit)?;
+        if let Some(head)=initial[f.locals.len()+*index].get_mut(&Vec::new()){head.places.insert((*cell,Vec::new()));}
     }
     loop {
         let mut changed = false;
@@ -462,6 +474,18 @@ fn solve(
                                     left,
                                     at,
                                 )?;
+                                if let Type::Address{inner,..}=&f.values[value.0 as usize] && let Type::BorrowedStorage{life,..}=inner.as_ref(){
+                                    for slot in &life.slots{
+                                        spend(left,slot.path.len(),at)?;
+                                        let path=slot.path.iter().copied().map(ContractProjection::Place).collect::<Vec<_>>();
+                                        let nested=mutable_sources::current(&values[value.0 as usize],&path,&state,left,at)?;
+                                        for (tail,origin) in nested {
+                                            spend(left,path.len().saturating_add(tail.len()).saturating_add(1),at)?;
+                                            let mut full=vec![ContractProjection::Capture(index as u32)];full.extend_from_slice(&path);full.extend(tail);
+                                            join(&mut r,&Row::from([(full,origin)]),left,at)?;
+                                        }
+                                    }
+                                }
                             }
                             r
                         }
@@ -630,6 +654,8 @@ fn solve(
                                 at,
                                 limit,
                             )?;
+                            let publications=mutable_sources::context_updates(module,id,&state[callee.0 as usize],&updates,&state,left,at,limit)?;
+                            for (address,fields) in publications {mutable_sources::publish(&address,&fields,&mut state,left,at)?;}
                             mutable_sources::replace(
                                 &mut state[callee.0 as usize],
                                 &[],
@@ -660,6 +686,8 @@ fn solve(
                                 at,
                                 limit,
                             )?;
+                            let publications=mutable_sources::context_updates(module,*id,&values[callee.0 as usize],&updates,&state,left,at,limit)?;
+                            for (address,fields) in publications {mutable_sources::publish(&address,&fields,&mut state,left,at)?;}
                             mutable_sources::publish(
                                 &values[callee.0 as usize],
                                 &updates,
@@ -690,17 +718,7 @@ fn solve(
                             ) {
                                 continue;
                             }
-                            let mut paths = Vec::new();
-                            leaves(
-                                module,
-                                inner,
-                                0,
-                                &mut Vec::new(),
-                                &mut paths,
-                                left,
-                                at,
-                                limit,
-                            )?;
+                            let paths=mutable_sources::effect_paths(module,inner,left,at,limit)?;
                             let mut updates = Row::new();
                             for path in paths {
                                 let origin = if let Some(actual) = summary
@@ -756,6 +774,10 @@ fn solve(
                     span,
                 )?;
                 join(&mut summary.captures, &row, left, span)?;
+            }
+            for (capture,cell) in &captured_cells {
+                let row=wrap(&outputs[index][cell.0 as usize],ContractProjection::Capture(*capture as u32),left,span)?;
+                join(&mut summary.captures,&row,left,span)?;
             }
             for (parameter, cell) in &external_cells {
                 let local = f.parameters[*parameter];
@@ -833,6 +855,13 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
             break;
         }
     }
+    let mut public_return_paths=BTreeMap::new();
+    for f in &module.functions {
+        if f.callable_return_contract.is_some() {
+            let mut paths=Vec::new();leaves(module,&f.return_type,0,&mut Vec::new(),&mut paths,left,f.span,limits.max_call_depth)?;
+            public_return_paths.insert(f.id,paths);
+        }
+    }
     for f in &mut module.functions {
         let Some(contract) = &mut f.callable_return_contract else {
             continue;
@@ -840,6 +869,9 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
         let mut bindings = Vec::new();
         let mut hold = BTreeSet::new();
         for (path, origins) in &summaries[f.id.0 as usize].returned {
+            let paths=&public_return_paths[&f.id];
+            spend(left,paths.len().saturating_mul(path.len().saturating_add(1)),f.span)?;
+            if !paths.contains(path){continue;}
             if origins.local
                 || origins.unknown
                 || origins.inputs.is_empty()

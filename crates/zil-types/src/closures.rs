@@ -2913,13 +2913,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             Type::Managed(payload) | Type::Desc(payload) if resources::supported(ty) => {
                 (payload.as_ref(), None)
             }
-            Type::Address {
-                mutable: false,
-                inner,
-            } if matches!(inner.as_ref(), Type::BorrowedStorage { storage, life }
-                    if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_)) && life.retained.is_empty()) =>
-            {
-                (inner.as_ref(), Some(false))
+            Type::Address { mutable,inner }
+                if matches!(inner.as_ref(),Type::BorrowedStorage{storage,life}
+                    if matches!(storage.as_ref(),Type::Record{..}|Type::Tuple(_)) && life.retained.is_empty()) => {
+                (inner.as_ref(),Some(*mutable))
             }
             Type::Address { mutable, inner }
                 if inner.is_copy_value() || ty.is_shared_sync_cell_address() =>
