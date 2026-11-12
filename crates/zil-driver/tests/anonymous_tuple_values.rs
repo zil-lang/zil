@@ -16,6 +16,8 @@ const NESTED_EXCLUSIVE: &str =
 const ELIDED: &str = include_str!("../../../tests/fixtures/qualified-values/elided-anonymous.zil");
 const ELIDED_RELAY: &str =
     include_str!("../../../tests/fixtures/qualified-values/elided-relay-anonymous.zil");
+const PHANTOM: &str =
+    include_str!("../../../tests/fixtures/qualified-values/phantom-anonymous.zil");
 fn input(text: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "anonymous-tuple.zil", text)
 }
@@ -718,4 +720,18 @@ fn assert_raw_wire_reject(
         );
         eprintln!("{label} Wire={decoded}: {errors:?}");
     }
+}
+
+#[test]
+fn anonymous_phantom_child_keeps_a_nonempty_semantic_domain() {
+    let (module, candidate) = prepare(PHANTOM);
+    if let Some(dir) = std::env::var_os("ZIL_TEST_REPORT_DIR") {
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            std::path::PathBuf::from(dir).join("anonymous-phantom-typed.txt"),
+            format!("{module:#?}"),
+        )
+        .unwrap();
+    }
+    verify(module, candidate);
 }

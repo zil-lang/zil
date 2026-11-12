@@ -17,13 +17,9 @@ pub(super) fn layout<'a>(ty: &'a Type, b: &mut Budget) -> Check<Option<Layout<'a
         return Ok(None);
     };
     type_work(ty, &b.limits.clone(), b)?;
-    if !life.nominal_arguments.is_empty() {
-        return Err(err(
-            "anonymous Tuple cannot fabricate nominal lifetime arguments",
-        ));
-    }
     let mut expected = Vec::new();
     let mut retained = Vec::new();
+    let mut nominal = Vec::new();
     let mut owned = false;
     let mut nested_affine = false;
     for (index, child) in fields.iter().enumerate() {
@@ -85,6 +81,35 @@ pub(super) fn layout<'a>(ty: &'a Type, b: &mut Budget) -> Check<Option<Layout<'a
                 for class in 0..child_life.binder_count {
                     retained.push((boundary.clone(), class));
                 }
+                // The anonymous owner has no declaration of its own. Every
+                // nominal occurrence must be the exact physical child's full
+                // declaration/actual position transported through that child's
+                // complete retained domain, including phantom-only classes.
+                for row in &child_life.nominal_arguments {
+                    b.spend(
+                        life.retained
+                            .len()
+                            .saturating_mul(boundary.len().saturating_add(2))
+                            .saturating_add(boundary.len())
+                            .saturating_add(row.path.len())
+                            .saturating_add(2),
+                    )?;
+                    let mapped = life
+                        .retained
+                        .iter()
+                        .find(|entry| entry.path == boundary && entry.class == row.binder)
+                        .ok_or_else(|| {
+                            err("anonymous Tuple nominal child lacks its actual retained class")
+                        })?;
+                    let mut path = boundary.clone();
+                    path.extend(&row.path);
+                    nominal.push(NominalLifeArgument {
+                        path,
+                        declaration: row.declaration,
+                        argument: row.argument,
+                        binder: mapped.binder,
+                    });
+                }
                 for slot in &child_life.slots {
                     b.spend(slot.path.len().saturating_add(3))?;
                     let mut complete = prefix.clone();
@@ -123,7 +148,46 @@ pub(super) fn layout<'a>(ty: &'a Type, b: &mut Budget) -> Check<Option<Layout<'a
             ));
         }
     }
+    b.spend(nominal.len().saturating_add(life.nominal_arguments.len()))?;
+    if nominal.len() != life.nominal_arguments.len() {
+        return Err(err(
+            "anonymous Tuple nominal directory omits or fabricates a physical child occurrence",
+        ));
+    }
+    for (expected, actual) in nominal.iter().zip(&life.nominal_arguments) {
+        b.spend(
+            expected
+                .path
+                .len()
+                .saturating_add(actual.path.len())
+                .saturating_add(4),
+        )?;
+        if expected != actual {
+            return Err(err(
+                "anonymous Tuple nominal occurrence differs from its complete actual child",
+            ));
+        }
+    }
     let mut classes = BTreeSet::new();
+    // The public canonical shape orders nominal occurrences before physical
+    // address slots. A phantom child may therefore be the first class even
+    // though the first actual address belongs to a later class.
+    for row in &life.nominal_arguments {
+        b.spend(
+            row.path
+                .len()
+                .saturating_add(classes.len())
+                .saturating_add(1),
+        )?;
+        if row.binder >= life.binder_count
+            || (!classes.contains(&row.binder) && row.binder as usize != classes.len())
+        {
+            return Err(err(
+                "anonymous Tuple nominal class partition is not complete and canonical",
+            ));
+        }
+        classes.insert(row.binder);
+    }
     let mut exclusive = false;
     for ((path, mode, child_class), slot) in expected.iter().zip(&life.slots) {
         b.spend(
