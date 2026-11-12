@@ -1036,3 +1036,124 @@ mod native_product_tests {
         assert_eq!(after.bytes, ordinary.bytes);
     }
 }
+
+#[cfg(all(test, feature = "native-products"))]
+mod native_machine_numbering_tests {
+    use super::*;
+    use crate::model::{Arg, Block, Function, Inst, Item, Linkage, Op, Signature, Ty};
+
+    fn source() -> crate::model::Module {
+        let function = |name: &str, value: i64| {
+            Item::Function(Function {
+                name: name.into(),
+                linkage: Linkage::External,
+                signature: Signature::new(Ty::Int(32), Vec::new()),
+                attrs: Vec::new(),
+                blocks: Some(
+                    vec![Block {
+                        name: "entry".into(),
+                        instructions: vec![Inst::new(
+                            None,
+                            Op::Return(Some(Arg::new(Ty::Int(32), value))),
+                        )],
+                    }]
+                    .into(),
+                ),
+            })
+        };
+        crate::model::Module {
+            triple: "x86_64-unknown-linux-gnu".into(),
+            fingerprint: "number-state-test".into(),
+            items: vec![function("answer", 42), function("sibling", 7)].into(),
+        }
+    }
+
+    #[test]
+    fn scratch_number_state_checks_real_graph_updates_and_rejections() {
+        // High bit proves the scratch procedure actually ran; bits 0..14 prove
+        // sparse/permuted numbering, real dominators, malformed/cap rejections,
+        // insertion/deletion and empty-table reallocation all checked current MF
+        // state. A disabled hook, skipped path or one missing assertion fails.
+        const ALL_CHECKS: u32 = 0x8000_7fff;
+        let source = source();
+        let config = Config {
+            triple: &source.triple,
+            optimization: Optimization::O2,
+        };
+        let ordinary =
+            compile_module(&source, &config, FunctionMerging::Disabled, &|| false).unwrap();
+        assert!(ordinary.receipt.native_products.is_none());
+        let (cold, _, prior) = {
+            let scope = products::machine_numbering_tests_for_test();
+            assert_eq!(
+                scope.results(),
+                0,
+                "new scope must not inherit another run's receipt"
+            );
+            let result = compile_module_with_native_products(
+                &source,
+                &config,
+                FunctionMerging::Disabled,
+                &|| false,
+                None,
+            )
+            .unwrap();
+            assert_eq!(
+                scope.results(),
+                ALL_CHECKS,
+                "every scratch case must execute and pass"
+            );
+            result
+        };
+        let cold_stats = cold.receipt.native_products.unwrap();
+        assert_eq!(
+            cold_stats.available, 1,
+            "requires the actual installed extension"
+        );
+        assert_eq!(cold_stats.machine_function_executions, 2);
+        assert_eq!(cold_stats.asm_printer_runs, 2);
+        assert_eq!(cold_stats.failed_replays, 0);
+        assert_eq!(cold_stats.fresh_context_fallbacks, 0);
+        assert!(cold.receipt.verify_before_after);
+        assert_eq!(cold.bytes, ordinary.bytes);
+        let prior = prior.expect("successful native snapshot");
+        let warm = {
+            let scope = products::machine_numbering_tests_for_test();
+            assert_eq!(
+                scope.results(),
+                0,
+                "warm checks must rerun rather than reuse the cold mask"
+            );
+            let (warm, _, _) = compile_module_with_native_products(
+                &source,
+                &config,
+                FunctionMerging::Disabled,
+                &|| false,
+                Some(&prior),
+            )
+            .unwrap();
+            assert_eq!(scope.results(), ALL_CHECKS);
+            warm
+        };
+        let warm_stats = warm.receipt.native_products.unwrap();
+        assert_eq!(warm_stats.available, 1);
+        assert_eq!(warm_stats.machine_function_reuses, 2);
+        assert_eq!(warm_stats.machine_function_executions, 0);
+        assert_eq!(
+            warm_stats.asm_printer_runs, 2,
+            "real current emission must still execute"
+        );
+        assert_eq!(warm_stats.failed_replays, 0);
+        assert_eq!(
+            warm_stats.fresh_context_fallbacks, 0,
+            "a false replay failure is not success"
+        );
+        assert!(warm.receipt.verify_before_after);
+        assert_eq!(warm.bytes, ordinary.bytes);
+        // Guard drop restores production's disabled mode; an ordinary call
+        // afterwards remains uninstrumented and still emits exactly the oracle.
+        let after = compile_module(&source, &config, FunctionMerging::Disabled, &|| false).unwrap();
+        assert!(after.receipt.native_products.is_none());
+        assert_eq!(after.bytes, ordinary.bytes);
+    }
+}
