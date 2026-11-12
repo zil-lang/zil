@@ -1234,3 +1234,114 @@ fn holder_factory_preserves_the_actual_saved_leaf_and_its_fixed_class() {
     zil_verify::verify_module(decoded, plan, &target, &limits).unwrap();
     native_context(&project, &dir);
 }
+
+#[test]
+fn current_dynamic_fixture_sources_produce_fresh_typed_and_analyzed_candidates() {
+    use zil_ir::*;
+    let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../zil-verify/tests/fixtures/dyn-context");
+    let limits = zil_base::Limits::default();
+    for name in [
+        "context-read",
+        "context-factory",
+        "context-unused",
+        "context-exclusive",
+        "context-exclusive-factory",
+        "context-place-address",
+        "context-static-input",
+        "context-static-no-input",
+        "context-static-phantom",
+    ] {
+        let source = fs::read_to_string(fixtures.join(format!("{name}.zil"))).unwrap();
+        let (_, module, plan, dir) = context_candidate(&source, &format!("current-{name}"));
+        zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits).unwrap();
+        let bytes = fs::read(dir.join("analyzed-unverified.wire")).unwrap();
+        let (decoded, candidate) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        zil_verify::verify_module(decoded, candidate, &module.target, &limits).unwrap();
+        if name != "context-exclusive-factory" {
+            continue;
+        }
+        let mut attack = module.clone();
+        let function = attack
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "run")
+            .unwrap();
+        let (block_index,call_index,address)=function.blocks.iter().enumerate().find_map(|(bi,block)|{
+            block.instructions.iter().enumerate().find_map(|(ii,instruction)|{
+                if let InstructionKind::Call{arguments,..}=&instruction.kind
+                    &&instruction.result.is_some_and(|id|matches!(&function.values[id.0 as usize],Type::ErrorUnion{result,..}if matches!(result.as_ref(),Type::OwnedDyn{..}))) {
+                    Some((bi,ii,arguments[0]))
+                } else {None}
+            })
+        }).unwrap();
+        let id = function.id;
+        let constant = ValueId(function.values.len() as u32);
+        function.values.push(Type::I32);
+        let block = &mut function.blocks[block_index];
+        let span = block.instructions[call_index].span;
+        block.instructions.splice(
+            call_index + 1..call_index + 1,
+            [
+                Instruction {
+                    result: Some(constant),
+                    kind: InstructionKind::Constant(Constant::I32(0)),
+                    span,
+                },
+                Instruction {
+                    result: None,
+                    kind: InstructionKind::WriteAddress {
+                        address,
+                        value: constant,
+                    },
+                    span,
+                },
+            ],
+        );
+        let mut forged = plan.clone();
+        forged.module_fingerprint = attack.fingerprint();
+        forged
+            .functions
+            .iter_mut()
+            .find(|f| f.function == id)
+            .unwrap()
+            .holds
+            .push(ValueHold {
+                value: constant,
+                roots: vec![],
+            });
+        let bytes = zil_ir::wire::encode_module_candidate(&attack, &forged, &limits).unwrap();
+        fs::write(
+            dir.join("current-original-argument-write.candidate.wire"),
+            &bytes,
+        )
+        .unwrap();
+        let (decoded, candidate) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        for (module, plan) in [(attack.clone(), forged.clone()), (decoded, candidate)] {
+            let errors = zil_analyze::analyze(&module, &limits)
+                .expect_err("a retained child forbids writing its exact borrowed call operand");
+            assert!(
+                errors.iter().any(|d| d.code == "E-BORROW-CONFLICT"),
+                "{errors:?}"
+            );
+            let errors =
+                zil_verify::verify_module(module, plan, &attack.target, &limits).unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .any(|d| d.message.contains("live incompatible loan")),
+                "{errors:?}"
+            );
+        }
+        // With precisely the conflicting write removed, the extra constant
+        // and its legitimate empty Hold remain accepted by independent V.
+        attack.functions[id.0 as usize].blocks[block_index]
+            .instructions
+            .remove(call_index + 2);
+        forged.module_fingerprint = attack.fingerprint();
+        zil_verify::verify_module(attack.clone(), forged.clone(), &attack.target, &limits).unwrap();
+        let bytes = zil_ir::wire::encode_module_candidate(&attack, &forged, &limits).unwrap();
+        let (decoded, candidate) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        zil_verify::verify_module(decoded, candidate, &attack.target, &limits).unwrap();
+    }
+}
