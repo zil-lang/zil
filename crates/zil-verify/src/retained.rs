@@ -1,6 +1,7 @@
 //! Opaque callable results are untrusted claims until the concrete environment,
 //! its public boundary and every ordinary return have been checked here.
 use super::*;
+mod expected_life;
 #[path = "retained/provenance.rs"]
 mod provenance;
 #[path = "retained/sources.rs"]
@@ -98,10 +99,6 @@ pub(super) fn check_claim(
             )
             .ok_or_else(|| limit("callable return relation exceeds bounds"))?;
             budget.spend(work)?;
-            return Err(bad(
-                f,
-                "callable return relation requires independent concrete environment proof",
-            ));
         }
         budget.spend(1)?;
         budget.callable_source_functions.push(f.id);
@@ -163,6 +160,10 @@ pub(super) fn check_claim(
             "a callable result requires its independently checkable return contract",
         )
     })?;
+    if c.life.is_some() {
+        let actual = closures::definition(module, id, Some(f.span))?;
+        expected_life::check(f, c, actual, budget)?;
+    }
     if let CallableReturnSource::Parameter(parameter) = c.source {
         return check_parameter_claim(module, f, id, parameter, c, budget);
     }
