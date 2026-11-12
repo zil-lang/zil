@@ -173,6 +173,16 @@ pub(super) fn check_type_for(
         {
             continue;
         }
+        if stored_flow::anonymous_tuple(ty, budget)? {
+            let Type::BorrowedStorage { storage, .. } = ty else { unreachable!() };
+            let Type::Tuple(fields) = storage.as_ref() else { unreachable!() };
+            budget.spend(fields.len())?;
+            for field in fields {
+                if matches!(field, Type::Address { .. }) { qualified_addresses.insert(field as *const Type as usize); }
+            }
+            pending.push(storage);
+            continue;
+        }
         if stored_flow::borrowed_product_child(ty, budget)? {
             // Physical Record/Tuple storage has address leaves and no owners.
             // Its affine loans are proven by stored_flow, never by Copy debt.
@@ -339,6 +349,7 @@ pub(super) fn check_type_for(
 // in the independently authenticated stored proof.
 fn shared_enum_physical<'a>(ty: &'a Type, budget: &mut Budget) -> Check<&'a Type> {
     if let Type::BorrowedStorage { storage, .. } = ty {
+        if stored_flow::anonymous_tuple(ty, budget)? { return Ok(storage); }
         let limits = budget.limits.clone();
         if crate::stored_flow::failure_shape(ty, budget)? {
             return Ok(storage);
@@ -541,7 +552,7 @@ pub(super) fn check_instruction(
                 .result
                 .and_then(|v| f.values.get(v.0 as usize))
                 .ok_or_else(|| bad(span, "owned Tuple result absent"))?;
-            let Type::Tuple(types) = ty else {
+            let Type::Tuple(types) = shared_enum_physical(ty, budget)? else {
                 return Err(bad(span, "owned Tuple result requires actual Tuple"));
             };
             resources::charge_payload(ty, budget)?;

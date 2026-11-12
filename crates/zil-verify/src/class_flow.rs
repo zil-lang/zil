@@ -1468,6 +1468,24 @@ fn check_with(
                         }
                     }
                     InstructionKind::UnpackTuple { local, fields }
+                        if super::stored_flow::anonymous_operation(f, i, b)? =>
+                    {
+                        let actual = shape(&f.locals[local.0 as usize].ty)
+                            .ok_or_else(|| bad("anonymous Tuple class directory absent"))?;
+                        for (index, target) in fields.iter().enumerate() {
+                            if let Some(to) = locals[target.0 as usize].outer {
+                                let (class, _) = failure_view_slot(actual, &[PlaceProjection::Field(index as u32)], b)?
+                                    .ok_or_else(|| bad("anonymous child has no exact parent slot class"))?;
+                                let from = *locals[local.0 as usize].classes.get(class as usize)
+                                    .ok_or_else(|| bad("anonymous parent class variable absent"))?;
+                                array_outer::transport(&mut e, to, from, outer.as_ref(), b)?;
+                            } else {
+                                link_projection(&f.locals[local.0 as usize].ty, &locals[local.0 as usize],
+                                    &locals[target.0 as usize], LifeTypeProjection::Place(PlaceProjection::Field(index as u32)), &mut e, b)?;
+                            }
+                        }
+                    }
+                    InstructionKind::UnpackTuple { local, fields }
                         if super::stored_flow::compound_operation(f, i, b)? =>
                     {
                         for (index, target) in fields.iter().enumerate() {
@@ -1917,14 +1935,24 @@ fn check_with(
                     }
                     InstructionKind::ExtractField { aggregate, index } => {
                         if let Some(out) = out {
-                            link_projection(
+                            if super::stored_flow::anonymous_operation(f, i, b)? {
+                                if let Some(to) = out.outer {
+                                    let actual = shape(&f.values[aggregate.0 as usize])
+                                        .ok_or_else(|| bad("anonymous snapshot class directory absent"))?;
+                                    let (class, _) = failure_view_slot(actual, &[PlaceProjection::Field(*index)], b)?
+                                        .ok_or_else(|| bad("anonymous snapshot has no exact actual slot class"))?;
+                                    let from = *values[aggregate.0 as usize].classes.get(class as usize)
+                                        .ok_or_else(|| bad("anonymous snapshot parent class variable absent"))?;
+                                    array_outer::transport(&mut e, to, from, outer.as_ref(), b)?;
+                                }
+                            } else { link_projection(
                                 &f.values[aggregate.0 as usize],
                                 &values[aggregate.0 as usize],
                                 out,
                                 LifeTypeProjection::Place(PlaceProjection::Field(*index)),
                                 &mut e,
                                 b,
-                            )?;
+                            )?; }
                         }
                     }
                     InstructionKind::MakeErrorUnion { value, is_error }
