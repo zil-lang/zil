@@ -830,13 +830,23 @@ impl<'a, 'c> Builder<'a, 'c> {
         closures: &'c mut closures::State,
     ) -> R<Self> {
         closures.block(f.span)?;
-        if let Some(bound) = &f.callable_return
-            && (bound.life.is_some() || bound.source_life.is_some())
-        {
-            let mut remaining = closures.remaining_work();
-            inference::charge_returned_value_snapshot(bound, f.span, limits, &mut remaining)?;
-            closures.snapshot(closures.remaining_work() - remaining, f.span)?;
-            closures.returned_life_bounds.insert(id, bound.clone());
+        if let Some(bound)=&f.callable_return
+            && (bound.life.is_some() || bound.source_life.is_some()) {
+            let mut remaining=closures.remaining_work();
+            inference::charge_returned_value_snapshot(bound,f.span,limits,&mut remaining)?;
+            closures.snapshot(closures.remaining_work()-remaining,f.span)?;
+            remaining=closures.remaining_work();
+            inference::charge_function_scope_snapshot(f.source_scope.as_ref(),f.span,limits,&mut remaining)?;
+            closures.snapshot(closures.remaining_work()-remaining,f.span)?;
+            if let Some(context)=&bound.source_life {
+                let actual=f.source_scope.as_ref().ok_or_else(||error("E-CALLABLE-RETURN-SCOPE",f.span,"return-bound bridge requires its actual original Definition scope"))?;
+                if actual.declaration!=context.declaration || actual.identity!=context.identity || actual.parameters!=context.parameters {
+                    return Err(error("E-CALLABLE-RETURN-SCOPE",f.span,"return-bound bridge differs from the actual Core owner source scope"));
+                }
+            }
+            closures.returned_life_bounds.insert(id,retained::ReturnedLifeBound {
+                bound:bound.clone(),source_scope:f.source_scope.clone(),
+            });
         }
         let worker_life = if f.storage_life.is_none()
             && f.call_kind == Some(CallKind::Suspend)

@@ -109,7 +109,11 @@ impl<'a> SourceProgramContext<'a> {
                 .ok_or_else(limit)?;
             for function in &module.core.functions {
                 let header_work = work;
-                let (life_nodes, life_work) = life_metadata_cost(function, limits)?;
+                let (life_nodes, life_work) = life_metadata_cost(function, &Limits {
+                    max_nodes:limits.max_nodes.saturating_sub(nodes),
+                    max_analysis_steps:work,
+                    ..limits.clone()
+                })?;
                 nodes = nodes
                     .checked_add(life_nodes)
                     .filter(|n| *n <= limits.max_nodes)
@@ -1279,7 +1283,11 @@ impl<'a> Walker<'a> {
         }
         for f in &core.functions {
             let header_work = self.work_left;
-            let (life_nodes, life_work) = life_metadata_cost(f, self.limits)?;
+            let (life_nodes, life_work) = life_metadata_cost(f, &Limits {
+                max_nodes:self.limits.max_nodes.saturating_sub(self.nodes),
+                max_analysis_steps:self.work_left,
+                ..self.limits.clone()
+            })?;
             self.nodes = self
                 .nodes
                 .checked_add(life_nodes)
