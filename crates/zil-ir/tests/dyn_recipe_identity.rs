@@ -355,8 +355,9 @@ fn receiver_after_sources_have_independent_bytes_and_preserve_before_selectors()
     };
     before_port(&mut expected);
     word(&mut expected, 2);
+    expected.push(0); // Exact source atom.
     before_port(&mut expected);
-    expected.push(0);
+    expected.extend_from_slice(&[0, 0]); // Exact; Parameter(1).
     small(&mut expected, 1);
     word(&mut expected, 0);
     expected.extend_from_slice(&[0; 7]);
@@ -474,26 +475,34 @@ fn lexical_scope_without_a_header_occurrence_is_transported_and_identified() {
     let mut independent = vec![1]; // A present function-instance record.
     small(&mut independent, 2);
     small(&mut independent, 0);
-    word(&mut independent, 0);
+    small(&mut independent, 0);
     small(&mut independent, 0);
     small(&mut independent, 0x12345678);
     independent.push(2);
     small(&mut independent, 0);
     for _ in 0..4 {
-        word(&mut independent, 0);
+        small(&mut independent, 0);
     } // Full empty receiver shape and class map.
-    word(&mut independent, 2);
+    small(&mut independent, 2);
     for index in 0..2 {
         independent.extend_from_slice(&[2, 0]);
         small(&mut independent, index);
     }
-    word(&mut independent, 0);
+    small(&mut independent, 0);
     let limits = Limits::default();
     let wire = wire::encode_module_candidate(&module, &CandidatePlan::empty_for(&module), &limits)
         .unwrap();
+    let marker = wire
+        .windows(4)
+        .position(|bytes| bytes == [0x78, 0x56, 0x34, 0x12])
+        .unwrap();
+    let start = marker.saturating_sub(17);
     assert!(
         wire.windows(independent.len())
-            .any(|bytes| bytes == independent)
+            .any(|bytes| bytes == independent),
+        "expected {:?}, actual {:?}",
+        independent,
+        &wire[start..(start + independent.len()).min(wire.len())]
     );
     assert_eq!(
         wire::decode_module_candidate(&wire, &limits).unwrap().0,
