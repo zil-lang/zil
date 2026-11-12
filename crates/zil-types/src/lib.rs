@@ -433,7 +433,7 @@ fn signature_errors(
     }
     // Detect actual outer Array views during the existing bounded header walk.
     let mut arrays = stored::shared_array_related(&f.return_type);
-    let pure_result = pure_array(&f.return_type, f.span, limits, left)?;
+    let pure_result = pure_array(&f.return_type, f.span, limits, left)? || stored::shared_compound(&f.return_type,left,limits,f.span)?;
     if f.return_type.is_package_address()
         && !(f.return_type.is_shared_package_address() && f.life.is_some())
     {
@@ -506,7 +506,7 @@ fn signature_errors(
         {
             continue;
         }
-        let pure_parameter = pure_array(&p.ty, p.span, limits, left)?;
+        let pure_parameter = pure_array(&p.ty, p.span, limits, left)? || stored::shared_compound(&p.ty,left,limits,p.span)?;
         if !(p.ty.is_copy_value()
             || pure_parameter
             || p.ty.is_scalar_or_address()

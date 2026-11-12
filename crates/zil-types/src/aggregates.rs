@@ -2967,7 +2967,8 @@ impl<'a> Builder<'a, '_> {
         }
         let ty = Type::Tuple(types);
         let pure = ty.is_copy_value()
-            || stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?;
+            || stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?
+            || stored::shared_compound(&ty,&mut self.match_work_left,self.limits,e.span)?;
         if !pure {
             owned_shapes::validate(
                 &ty,

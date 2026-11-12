@@ -115,13 +115,24 @@ impl Engine<'_> {
             self.budget
                 .lineage_bytes(std::mem::size_of::<LexicalLife>(), ty.span)?;
             return Ok(Some(stored_types::QualifiedActual {
-                name: name.clone(),
+                physical: TypeRef { span:ty.span, kind:TypeKind::Reference { lifetime:Some(name.clone()),mutable:*mutable,inner:inner.clone() } },
                 ty: zil_ir::Type::Address {
                     mutable: *mutable,
                     inner: Box::new(super::super::type_ref(inner)),
                 },
                 classes: vec![class],
             }));
+        }
+        if let TypeKind::Tuple(fields) = &mut ty.kind {
+            let mut direct=BTreeMap::new();
+            for (index,field) in fields.iter_mut().enumerate() {
+                let path=vec![zil_ir::LifeTypeProjection::Place(zil_ir::PlaceProjection::Field(u32::try_from(index).map_err(|_|error(field.span,"tuple ordinal overflow"))?))];
+                if let Some(actual)=self.qualified_type_actual(field,depth+1)? {
+                    self.budget.lineage_bytes(std::mem::size_of::<stored_types::QualifiedActual>().saturating_add(std::mem::size_of::<zil_ir::LifeTypeProjection>()),field.span)?;
+                    direct.insert(path,actual);
+                } else {self.ty(field,depth+1)?;}
+            }
+            return Ok(Some(stored_types::compound_actual(ty,&direct,&mut self.budget)?));
         }
         let TypeKind::Named { path, args } = &mut ty.kind else {
             return Err(unsupported(
@@ -162,8 +173,9 @@ impl Engine<'_> {
         self.budget.text(&name, ty.span)?;
         *path = vec![name.clone()];
         args.clear();
+        self.budget.ty(ty)?;
         Ok(Some(stored_types::QualifiedActual {
-            name,
+            physical:ty.clone(),
             ty: actual,
             classes,
         }))
