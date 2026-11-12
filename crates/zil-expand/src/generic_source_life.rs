@@ -52,7 +52,9 @@ pub(super) fn qualified_signature(
     if nominal_lending {
         return Ok(true);
     }
-    if !super::super::lifetimes::copy_life(function) {
+    if !super::super::lifetimes::copy_life(function)
+        && !super::super::lifetimes::only_life(function)
+    {
         return Ok(false);
     }
     struct Qualified<'a, 'b, 'l> {
@@ -1531,30 +1533,29 @@ impl Check<'_, '_, '_> {
             ),
             _ => (None, None),
         };
-        if root == Some("owned_dyn") {
-            if let Some([GenericArg::Type(interface), GenericArg::Type(context)]) =
+        if root == Some("owned_dyn")
+            && let Some([GenericArg::Type(interface), GenericArg::Type(context)]) =
                 explicit.map(Vec::as_slice)
-            {
-                self.budget.ty(interface)?;
-                self.budget.ty(context)?;
-                let owner = TypeRef {
-                    span: e.span,
-                    kind: TypeKind::Named {
-                        path: vec!["OwnedDyn".into()],
-                        args: vec![
-                            GenericArg::Type(interface.clone()),
-                            GenericArg::Type(context.clone()),
-                        ],
-                    },
-                };
-                return Ok(Fact::Error(
-                    Box::new(Fact::Named(
-                        Head::Plain(vec!["DynCreateError".into()]),
-                        Vec::new(),
-                    )),
-                    Box::new(self.ty(&owner, scope, depth + 1)?),
-                ));
-            }
+        {
+            self.budget.ty(interface)?;
+            self.budget.ty(context)?;
+            let owner = TypeRef {
+                span: e.span,
+                kind: TypeKind::Named {
+                    path: vec!["OwnedDyn".into()],
+                    args: vec![
+                        GenericArg::Type(interface.clone()),
+                        GenericArg::Type(context.clone()),
+                    ],
+                },
+            };
+            return Ok(Fact::Error(
+                Box::new(Fact::Named(
+                    Head::Plain(vec!["DynCreateError".into()]),
+                    Vec::new(),
+                )),
+                Box::new(self.ty(&owner, scope, depth + 1)?),
+            ));
         }
         let mut output = Fact::Unknown;
         if root.is_none()

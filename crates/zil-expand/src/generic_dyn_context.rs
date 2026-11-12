@@ -723,6 +723,19 @@ fn main()->i32{return 0}
             table.self_type,
             zil_ir::Type::BorrowedStorage { .. }
         ));
+        assert_eq!(table.self_classes, [zil_ir::StorageBinder::Fixed(0)]);
+        assert!(
+            module
+                .functions
+                .iter()
+                .flat_map(|f| &f.body.statements)
+                .any(|statement| matches!(
+                    &statement.kind,
+                    zil_ir::CoreStatementKind::Return(Some(zil_ir::CoreExpr {
+                        kind: zil_ir::CoreExprKind::MakeDynOwned { vtable, .. }, ..
+                    })) if *vtable == table.id
+                ))
+        );
         assert_eq!(table.ports.len(), 1);
         assert_eq!(table.ports[0].sources[0].base, zil_ir::StorageBase::Result);
         assert_eq!(
@@ -737,5 +750,48 @@ fn main()->i32{return 0}
                 .iter()
                 .any(|f| f.id == table.entries[0].function)
         );
+    }
+    #[test]
+    fn source_constructor_keeps_same_self_with_different_joint_context_maps() {
+        let module = expand(
+            r#"
+struct Context<life a,life b>{left:&'a i32,right:&'b i32}
+struct P<life a>{pointer:&'a i32}
+trait Read{fn read(self:&Self)->i32;}
+impl<life x> Read for P<'x>{fn read(self:&Self)->i32{return *self.pointer}}
+fn left<life a,life b>(p:P<'a>,anchor:Context<'a,'b>)->DynCreateError!OwnedDyn<dyn Read,Context<'a,'b>>{return owned_dyn::<dyn Read,Context<'a,'b>>(p)}
+fn right<life a,life b>(p:P<'b>,anchor:Context<'a,'b>)->DynCreateError!OwnedDyn<dyn Read,Context<'a,'b>>{return owned_dyn::<dyn Read,Context<'a,'b>>(p)}
+fn main()->i32{return 0}
+"#,
+        );
+        let contextual: Vec<_> = module
+            .dyn_interfaces
+            .iter()
+            .filter(|item| item.context.is_some())
+            .collect();
+        assert_eq!(contextual.len(), 1);
+        let tables: Vec<_> = module
+            .dyn_vtables
+            .iter()
+            .filter(|table| table.interface == contextual[0].id)
+            .collect();
+        assert_eq!(tables.len(), 2);
+        assert_eq!(tables[0].self_type, tables[1].self_type);
+        assert_ne!(tables[0].self_classes, tables[1].self_classes);
+        assert_ne!(tables[0].ports, tables[1].ports);
+        let selected: BTreeSet<_> = module
+            .functions
+            .iter()
+            .flat_map(|f| &f.body.statements)
+            .filter_map(|statement| match &statement.kind {
+                zil_ir::CoreStatementKind::Return(Some(zil_ir::CoreExpr {
+                    kind: zil_ir::CoreExprKind::MakeDynOwned { vtable, .. },
+                    ..
+                })) => Some(*vtable),
+                _ => None,
+            })
+            .collect();
+        assert!(selected.contains(&tables[0].id));
+        assert!(selected.contains(&tables[1].id));
     }
 }
