@@ -116,7 +116,7 @@ impl Builder<'_, '_> {
                 "ordinary binding must be irrefutable",
             ));
         }
-        if owned_shapes::tuple(&ty) || matches!(&ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Tuple(_))) {
+        if owned_shapes::tuple(&ty) {
             let work = inference::type_snapshot_work(&ty, initializer.span, self.limits)?;
             self.closures
                 .snapshot(work.saturating_mul(3), initializer.span)?;
@@ -127,7 +127,7 @@ impl Builder<'_, '_> {
         let mut bindings = Vec::new();
         let impossible = self.block_id()?;
         self.function.blocks[impossible.0 as usize].terminator = Terminator::Trap;
-        self.pattern_test(pattern, value, &ty, impossible, &mut bindings)?;
+        self.pattern_test(pattern, value, stored::physical(&ty), impossible, &mut bindings)?;
         for (name, value, ty, span) in bindings {
             let local = self.local(&name, ty, mutable, span)?;
             self.store(local, value, span)?;
