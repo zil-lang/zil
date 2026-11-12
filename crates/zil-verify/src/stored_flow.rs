@@ -2800,6 +2800,7 @@ fn step(
         | InstructionKind::DropClosure { local: l } => {
             state.locals[l.0 as usize] = Payload::default();
             clear_local_holes(state, *l, b)?;
+            dyn_ports::vacate_owner(module, f, *l, state, b)?;
         }
         InstructionKind::DescribeLocal { local } => {
             if f.locals
@@ -2921,6 +2922,7 @@ fn step(
             out = copy_payload(&state.locals[local.0 as usize], b)?;
             state.locals[local.0 as usize] = Payload::default();
             clear_local_holes(state, *local, b)?;
+            dyn_ports::vacate_owner(module, f, *local, state, b)?;
         }
         InstructionKind::ReadCapture { index } if captured_definition(module, f).is_some() => {
             out = copy_payload(
@@ -5683,7 +5685,14 @@ fn solve_check(
                     &mut summary.byte_reads,
                     &mut summary.dyn_accesses,
                     b,
-                )?;
+                )
+                .map_err(|mut failure| {
+                    failure.notes.push(format!(
+                        "while reconstructing actual stored accesses of {}",
+                        f.name
+                    ));
+                    failure
+                })?;
             }
             summary_work(&summary, b)?;
             summary_work(&summaries[index], b)?;

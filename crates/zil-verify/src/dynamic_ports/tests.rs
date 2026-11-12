@@ -84,8 +84,43 @@ fn actual_context_factory_candidate_proves_error_success_class_path_and_result_s
     )
     .unwrap();
     let target = module.target.clone();
+    let copied = crate::verify_module(module.clone(), plan.clone(), &target, &limits);
+    assert!(copied.is_ok(), "cloned input: {copied:?}");
     let result = crate::verify_module(module, plan, &target, &limits);
     assert!(result.is_ok(), "{result:?}");
+}
+
+#[test]
+fn actual_context_unused_upper_port_is_known_empty_through_call_and_cleanup() {
+    let limits = Limits::default();
+    let (module, plan) = zil_ir::wire::decode_module_candidate(
+        include_bytes!("../../tests/fixtures/dyn-context/context-unused.candidate.wire"),
+        &limits,
+    )
+    .unwrap();
+    let target = module.target.clone();
+    let result = crate::verify_module(module.clone(), plan.clone(), &target, &limits);
+    assert!(result.is_ok(), "{result:?}");
+    let mut omitted = module;
+    let table = omitted
+        .dyn_vtables
+        .iter_mut()
+        .find(|t| t.ports.len() == 2)
+        .unwrap();
+    assert!(table.ports[1].sources.is_empty());
+    table.ports.pop();
+    let mut plan = plan;
+    plan.module_fingerprint = omitted.fingerprint();
+    for wire in [false, true] {
+        let (module, plan) = if wire {
+            let bytes = zil_ir::wire::encode_module_candidate(&omitted, &plan, &limits).unwrap();
+            zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap()
+        } else {
+            (omitted.clone(), plan.clone())
+        };
+        let failure = crate::verify_module(module, plan, &target, &limits).unwrap_err();
+        assert_ne!(failure[0].code, "E-VERIFY-PLAN-IDENTITY");
+    }
 }
 
 #[test]
