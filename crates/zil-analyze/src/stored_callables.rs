@@ -130,7 +130,6 @@ pub(super) fn transferred(d: &ClosureDefinition) -> bool {
         })
 }
 
-
 // A scheduling tag, never qualification. definitions() rechecks the complete
 // actual inputs, result, captures and entry before this ledger uses the value.
 fn borrowed_owned_candidate(d: &ClosureDefinition) -> bool {

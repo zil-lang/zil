@@ -5070,7 +5070,7 @@ fn windows(
                 requirements,
                 b,
             )?;
-            {
+            (|| -> Check<()> {
                 let mut checks = access_candidates::Access::new(&active, &solution.loans, b)?;
                 if replacements::heads(b) {
                     let head = dynamic_store::access(&i.kind)
@@ -5779,7 +5779,9 @@ fn windows(
                     )?,
                     _ => {}
                 }
-            }
+                Ok(())
+            })()
+            .map_err(|error| error.with_note(format!("actual instruction {:?}", i.kind)))?;
             dyn_providers::observe(
                 module,
                 f,
