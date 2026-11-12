@@ -5,10 +5,14 @@
 #include <string>
 #include <vector>
 namespace zil {
+struct AnalysisReplayState {
+  int emptyAssumptions = -1;
+  int noOptionTracking = -1;
+};
 // A complete projection of supported CURRENT result states. Unknown results
 // refuse reuse. Names and static analysis IDs alone are never result proofs.
 bool analysisFacts(llvm::Function &, llvm::FunctionAnalysisManager &,
-                   const std::vector<const void *> &, std::string &, int *EmptyAssumptionState = nullptr);
-bool restoreEmptyAssumptionFacts(llvm::Function &, llvm::FunctionAnalysisManager &, unsigned);
+                   const std::vector<const void *> &, std::string &, AnalysisReplayState *ReplayState = nullptr);
+bool restoreAnalysisFacts(llvm::Function &, llvm::FunctionAnalysisManager &, const AnalysisReplayState &);
 }
 #endif
