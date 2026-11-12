@@ -6964,9 +6964,6 @@ fn derive_cfg(
                         }
                     }
                     for row in changed_rows {
-                        actual.external_stable.remove(&row);
-                    }
-                    for row in changed_rows {
                         ordered(b, actual.external_stable.len(), row.1.len())?;
                         actual.external_stable.remove(&row);
                     }
