@@ -70,6 +70,8 @@ fn private_edit_reuses_unchanged_function_and_rebinds_current_spans() {
             resource_inventory_functions_checked: 2,
             resource_inventory_functions_reused: 0,
             resource_inventory_ranges_reused: 0,
+            foreign_functions_selected: 0,
+            foreign_functions_not_visited: 2,
         }
     );
 }
@@ -226,6 +228,7 @@ fn insufficient_remaining_work_falls_back_at_the_original_check_position() {
         previous_inventory: &session.inventory,
         previous_shape_tree: session.shape_tree.as_ref(),
         next_shape_tree: None,
+        current_shape_functions: None,
         previous_resource_inventory: session.resource_inventory.as_ref(),
         next_resource_inventory: None,
         delta: None,
