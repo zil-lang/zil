@@ -187,7 +187,11 @@ fn complete_direct_byte_buffer_owners() {
 
 #[test]
 fn complete_saved_some_keeps_both_heap_layers_through_helpers() {
-    pipeline(include_str!("../../../tests/fixtures/nested-store/lending.zil"),"lending",b"AR");
+    pipeline(
+        include_str!("../../../tests/fixtures/nested-store/lending.zil"),
+        "lending",
+        b"AR",
+    );
 }
 
 #[test]
@@ -202,35 +206,52 @@ fn ordinary_store_descriptions_share_returned_environment_source_lane() {
 #[test]
 fn saved_some_rejects_actual_manager_mutation_and_retirement_raw_wire() {
     use zil_ir::*;
-    let source=include_str!("../../../tests/fixtures/nested-store/lending.zil")
+    let source = include_str!("../../../tests/fixtures/nested-store/lending.zil")
         .replace("catalog:&'a Catalog", "catalog:&'a mut Catalog")
         .replace("let catalog=", "var catalog=")
-        .replace("forward(&catalog,0)","forward(&mut catalog,0)");
-    let module=typed(&source);
-    let limits=Limits::default();
-    let plan=zil_analyze::analyze(&module,&limits).unwrap();
-    zil_verify::verify_module(module.clone(),plan.clone(),&module.target,&limits).unwrap();
-    let (function,block,at,argument)=module.functions.iter().enumerate().find_map(|(fi,f)| {
-        f.blocks.iter().enumerate().find_map(|(bi,block)| {
-            block.instructions.iter().enumerate().find_map(|(ii,i)| {
-                let InstructionKind::Call {function,arguments}=&i.kind else {return None};
-                (module.functions[function.0 as usize].name.contains("forward"))
-                    .then_some((fi,bi,ii,arguments[0]))
+        .replace("forward(&catalog,0)", "forward(&mut catalog,0)");
+    let module = typed(&source);
+    let limits = Limits::default();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits).unwrap();
+    let (function, block, at, argument) = module
+        .functions
+        .iter()
+        .enumerate()
+        .find_map(|(fi, f)| {
+            f.blocks.iter().enumerate().find_map(|(bi, block)| {
+                block.instructions.iter().enumerate().find_map(|(ii, i)| {
+                    let InstructionKind::Call {
+                        function,
+                        arguments,
+                    } = &i.kind
+                    else {
+                        return None;
+                    };
+                    (module.functions[function.0 as usize]
+                        .name
+                        .contains("forward"))
+                    .then_some((fi, bi, ii, arguments[0]))
+                })
             })
         })
-    }).unwrap();
-    let manager=plan.functions[function].holds[argument.0 as usize].roots.clone();
-    let [HoldRoot::Local(local)]=manager.as_slice() else {panic!("{manager:?}")};
-    for retire in [false,true] {
-        let mut changed=module.clone();
-        let mut claim=plan.clone();
-        let f=&mut changed.functions[function];
-        let span=f.span;
-        let mut injected=Vec::new();
+        .unwrap();
+    let manager = plan.functions[function].holds[argument.0 as usize]
+        .roots
+        .clone();
+    let [HoldRoot::Local(local)] = manager.as_slice() else {
+        panic!("{manager:?}")
+    };
+    for retire in [false, true] {
+        let mut changed = module.clone();
+        let mut claim = plan.clone();
+        let f = &mut changed.functions[function];
+        let span = f.span;
+        let mut injected = Vec::new();
         if retire {
             // Move the one real cleanup earlier; retain its later StorageDead.
             // An extra duplicate drop would hide the actual live-child check.
-            let mut removed=0;
+            let mut removed = 0;
             for block in &mut f.blocks {
                 block.instructions.retain(|i| {
                     let selected=matches!(i.kind,InstructionKind::DropPackage {local:target} if target==*local);
@@ -238,48 +259,105 @@ fn saved_some_rejects_actual_manager_mutation_and_retirement_raw_wire() {
                     !selected
                 });
             }
-            assert!(removed>0);
+            assert!(removed > 0);
             for block in &mut claim.functions[function].blocks {
-                block.initialized_in.retain(|slot|slot!=local);
-                block.initialized_out.retain(|slot|slot!=local);
+                block.initialized_in.retain(|slot| slot != local);
+                block.initialized_out.retain(|slot| slot != local);
             }
-            injected.push(Instruction {result:None,kind:InstructionKind::DropPackage {local:*local},span});
+            injected.push(Instruction {
+                result: None,
+                kind: InstructionKind::DropPackage { local: *local },
+                span,
+            });
         } else {
-            let Type::Address {inner,..}=&f.values[argument.0 as usize] else {panic!()};
-            let Type::Package {fields,..}=inner.as_ref() else {panic!()};
-            let header=fields[0].1.clone();
-            let Type::Managed(payload)=&header else {panic!()};
-            let payload=payload.clone();
-            for (ty,kind,roots) in [
-                (Type::Address {mutable:true,inner:Box::new(header)},
-                 InstructionKind::AddressField {address:argument,index:0},manager.clone()),
-                (Type::Desc(payload),InstructionKind::DescribeAddress {address:ValueId(f.values.len() as u32)},manager.clone()),
-                (Type::I64,InstructionKind::Constant(Constant::I64(4)),Vec::new()),
+            let Type::Address { inner, .. } = &f.values[argument.0 as usize] else {
+                panic!()
+            };
+            let Type::Package { fields, .. } = inner.as_ref() else {
+                panic!()
+            };
+            let header = fields[0].1.clone();
+            let Type::Managed(payload) = &header else {
+                panic!()
+            };
+            let payload = payload.clone();
+            for (ty, kind, roots) in [
+                (
+                    Type::Address {
+                        mutable: true,
+                        inner: Box::new(header),
+                    },
+                    InstructionKind::AddressField {
+                        address: argument,
+                        index: 0,
+                    },
+                    manager.clone(),
+                ),
+                (
+                    Type::Desc(payload),
+                    InstructionKind::DescribeAddress {
+                        address: ValueId(f.values.len() as u32),
+                    },
+                    manager.clone(),
+                ),
+                (
+                    Type::I64,
+                    InstructionKind::Constant(Constant::I64(4)),
+                    Vec::new(),
+                ),
             ] {
-                let value=ValueId(f.values.len() as u32);
+                let value = ValueId(f.values.len() as u32);
                 f.values.push(ty);
-                claim.functions[function].holds.push(ValueHold {value,roots});
-                injected.push(Instruction {result:Some(value),kind,span});
+                claim.functions[function]
+                    .holds
+                    .push(ValueHold { value, roots });
+                injected.push(Instruction {
+                    result: Some(value),
+                    kind,
+                    span,
+                });
             }
-            let capacity=ValueId(f.values.len() as u32-1);
-            let store=ValueId(f.values.len() as u32-2);
-            let value=ValueId(f.values.len() as u32);
+            let capacity = ValueId(f.values.len() as u32 - 1);
+            let store = ValueId(f.values.len() as u32 - 2);
+            let value = ValueId(f.values.len() as u32);
             f.values.push(Type::Bool);
-            claim.functions[function].holds.push(ValueHold {value,roots:Vec::new()});
-            injected.push(Instruction {result:Some(value),kind:InstructionKind::OwnedStoreReserve {store,capacity},span});
+            claim.functions[function].holds.push(ValueHold {
+                value,
+                roots: Vec::new(),
+            });
+            injected.push(Instruction {
+                result: Some(value),
+                kind: InstructionKind::OwnedStoreReserve { store, capacity },
+                span,
+            });
         }
-        f.blocks[block].instructions.splice(at+1..at+1,injected);
-        claim.module_fingerprint=changed.fingerprint();
-        let wire=zil_ir::wire::encode_module_candidate(&changed,&claim,&limits).unwrap();
+        f.blocks[block]
+            .instructions
+            .splice(at + 1..at + 1, injected);
+        claim.module_fingerprint = changed.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&changed, &claim, &limits).unwrap();
         for result in [
-            zil_verify::verify_module(changed.clone(),claim,&changed.target,&limits),
-            zil_verify::verify_module_bytes(&wire,&changed.target,&limits),
+            zil_verify::verify_module(changed.clone(), claim, &changed.target, &limits),
+            zil_verify::verify_module_bytes(&wire, &changed.target, &limits),
         ] {
-            let errors=result.unwrap_err();
-            assert!(errors.iter().all(|error| {
-                error.code == if retire {"E-BORROW-CONFLICT"} else {"E-VERIFY-STORED"}
-            }),"{errors:?}");
-            assert!(errors.iter().all(|error|error.category==ResultCategory::SafeReject),"{errors:?}");
+            let errors = result.unwrap_err();
+            assert!(
+                errors.iter().all(|error| {
+                    error.code
+                        == if retire {
+                            "E-BORROW-CONFLICT"
+                        } else {
+                            "E-VERIFY-STORED"
+                        }
+                }),
+                "{errors:?}"
+            );
+            assert!(
+                errors
+                    .iter()
+                    .all(|error| error.category == ResultCategory::SafeReject),
+                "{errors:?}"
+            );
         }
     }
 }
@@ -291,30 +369,47 @@ fn identical_catalog_inputs_do_not_substitute_actual_manager_roots_raw_wire() {
         "fn main()->i32{",
         "fn choose<life a>(first:&'a Catalog,second:&'a Catalog)->Option<&'a Item>{return forward(first,0)}\nfn main()->i32{",
     );
-    let module=typed(&source);
-    let limits=Limits::default();
-    let mut plan=zil_analyze::analyze(&module,&limits).unwrap();
-    zil_verify::verify_module(module.clone(),plan.clone(),&module.target,&limits).unwrap();
-    let function=module.functions.iter().position(|f|f.name.contains("choose")).unwrap();
-    let f=&module.functions[function];
-    assert_eq!(f.locals[f.parameters[0].0 as usize].ty,f.locals[f.parameters[1].0 as usize].ty);
-    let mut forged=0;
+    let module = typed(&source);
+    let limits = Limits::default();
+    let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits).unwrap();
+    let function = module
+        .functions
+        .iter()
+        .position(|f| f.name.contains("choose"))
+        .unwrap();
+    let f = &module.functions[function];
+    assert_eq!(
+        f.locals[f.parameters[0].0 as usize].ty,
+        f.locals[f.parameters[1].0 as usize].ty
+    );
+    let mut forged = 0;
     for hold in &mut plan.functions[function].holds {
         for root in &mut hold.roots {
-            if *root==HoldRoot::Parameter(0) {
-                *root=HoldRoot::Parameter(1);
-                forged+=1;
+            if *root == HoldRoot::Parameter(0) {
+                *root = HoldRoot::Parameter(1);
+                forged += 1;
             }
         }
     }
-    assert!(forged>0);
-    let wire=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();
+    assert!(forged > 0);
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
     for result in [
-        zil_verify::verify_module(module.clone(),plan,&module.target,&limits),
-        zil_verify::verify_module_bytes(&wire,&module.target,&limits),
+        zil_verify::verify_module(module.clone(), plan, &module.target, &limits),
+        zil_verify::verify_module_bytes(&wire, &module.target, &limits),
     ] {
-        let errors=result.unwrap_err();
-        assert!(errors.iter().all(|e|e.category==ResultCategory::SafeReject),"{errors:?}");
-        assert!(errors.iter().any(|e|e.code=="E-VERIFY-STORED" || e.code=="E-VERIFY-HOLD"),"{errors:?}");
+        let errors = result.unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|e| e.category == ResultCategory::SafeReject),
+            "{errors:?}"
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "E-VERIFY-STORED" || e.code == "E-VERIFY-HOLD"),
+            "{errors:?}"
+        );
     }
 }

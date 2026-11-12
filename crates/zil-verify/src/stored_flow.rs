@@ -4532,7 +4532,7 @@ fn windows(
                 if b.store_descriptions() {
                     let head = dynamic_store::access(&i.kind)
                         .or_else(|| byte_buffers::access(&i.kind))
-                        .or_else(|| match i.kind {
+                        .or(match i.kind {
                             InstructionKind::ReadDesc { desc, .. } => Some((desc, false)),
                             InstructionKind::WriteDesc { desc, .. } => Some((desc, true)),
                             _ => None,
