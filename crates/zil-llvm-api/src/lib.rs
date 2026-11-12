@@ -57,6 +57,10 @@ pub struct Config<'a> {
 
 /// Actual native hook work in this invocation. Availability is explicit: zero
 /// available means this LLVM DSO did not provide the audited hook capability.
+/// Hook counters include a discarded attempt if fresh_context_fallbacks is nonzero.
+/// Its subsequent ordinary compilation has no per-pass hook observations; those
+/// counts are unavailable, not zero. Receipt phase/total times include both calls.
+/// Reuse in a discarded attempt is not work avoided by the final compilation.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NativeProductStats {
     pub available: u64,
