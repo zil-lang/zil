@@ -41,9 +41,13 @@ pub(super) fn prepare(source: &TypedFunction) -> Option<Prepared> {
     }
     let (operation, bits) = match &source.return_type {
         Type::I32 => ("sadd", 32),
+        Type::I8 => ("sadd", 8),
+        Type::I16 => ("sadd", 16),
+        Type::Isize => ("sadd", 64),
         Type::I64 => ("sadd", 64),
         Type::U8 => ("uadd", 8),
         Type::U16 => ("uadd", 16),
+        Type::U32 => ("uadd", 32),
         _ => return None,
     };
     let parameter = source.parameters[0];
@@ -66,9 +70,13 @@ pub(super) fn prepare(source: &TypedFunction) -> Option<Prepared> {
             InstructionKind::Constant(constant) if constant.ty() == source.return_type => {
                 Operand::Literal(match constant {
                     Constant::I32(n) => i128::from(*n),
+                    Constant::I8(n) => i128::from(*n),
+                    Constant::I16(n) => i128::from(*n),
+                    Constant::Isize(n) => i128::from(*n),
                     Constant::I64(n) => i128::from(*n),
                     Constant::U8(n) => i128::from(*n),
                     Constant::U16(n) => i128::from(*n),
+                    Constant::U32(n) => i128::from(*n),
                     _ => return None,
                 })
             }

@@ -40,6 +40,10 @@ fn primitive_name(name: &str) -> bool {
     matches!(
         name,
         "u8" | "u16"
+            | "u32"
+            | "i8"
+            | "i16"
+            | "isize"
             | "u64"
             | "usize"
             | "f32"

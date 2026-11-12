@@ -476,7 +476,11 @@ impl Budget {
             | Type::Bool
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::F32
             | Type::F64
@@ -1887,6 +1891,22 @@ pub(super) fn preflight(
             budget.input(1, "block preflight")?;
             for instruction in &block.instructions {
                 budget.input(1, "instruction preflight")?;
+                if module.target.pointer_width == 32 {
+                    match &instruction.kind {
+                        InstructionKind::Constant(Constant::Isize(n))
+                            if i32::try_from(*n).is_err() =>
+                        {
+                            return Err(bad("isize constant exceeds selected target width"));
+                        }
+                        InstructionKind::Constant(Constant::Usize(n))
+                            if *n > u64::from(u32::MAX) =>
+                        {
+                            return Err(bad("usize constant exceeds selected target width"));
+                        }
+                        _ => {}
+                    }
+                }
+
                 if let InstructionKind::Call { function, .. } = instruction.kind
                     && module
                         .functions

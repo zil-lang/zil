@@ -73,6 +73,10 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
         Type::Unit => Layout { size: 0, align: 1 },
         Type::Bool | Type::U8 => Layout { size: 1, align: 1 },
         Type::U16 => Layout { size: 2, align: 2 },
+        Type::U32 => Layout { size: 4, align: 4 },
+        Type::I8 => Layout { size: 1, align: 1 },
+        Type::I16 => Layout { size: 2, align: 2 },
+        Type::Isize => Layout { size: 8, align: 8 },
         Type::I32 | Type::F32 => Layout { size: 4, align: 4 },
         Type::I64
         | Type::U64
@@ -373,11 +377,15 @@ impl<C: FnMut(usize) -> CompileResult<()>> CtLayoutPreflight<'_, C> {
             Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::F32
             | Type::F64
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::ByteBuffer
             | Type::TaskI32
             | Type::SyncCell(_)
@@ -691,7 +699,11 @@ impl FunctionEmitter<'_> {
             | Type::TaskI32
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::F32
             | Type::F64

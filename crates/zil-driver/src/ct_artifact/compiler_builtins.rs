@@ -25,9 +25,13 @@ impl Builder<'_, '_> {
                 CtTy::Scalar(
                     CtScalarTy::U8
                         | CtScalarTy::U16
+                        | CtScalarTy::U32
                         | CtScalarTy::U64
                         | CtScalarTy::Usize
                         | CtScalarTy::I32
+                        | CtScalarTy::I8
+                        | CtScalarTy::I16
+                        | CtScalarTy::Isize
                         | CtScalarTy::I64
                 )
             )

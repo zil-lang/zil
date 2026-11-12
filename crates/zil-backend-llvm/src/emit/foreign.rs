@@ -1,7 +1,8 @@
 //! Actual foreign ABI declarations and calls for the two checked x64 profiles.
 use super::*;
 fn extension(ty: &Type, target: &TargetProfile) -> Vec<m::Attr> {
-    if target.triple == "x86_64-unknown-linux-gnu" && matches!(ty, Type::U8 | Type::U16) {
+    if target.triple == "x86_64-unknown-linux-gnu" && matches!(ty, Type::U8 | Type::U16 | Type::U32)
+    {
         vec![m::Attr::ZeroExt]
     } else {
         vec![]

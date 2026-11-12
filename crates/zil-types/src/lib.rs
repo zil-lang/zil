@@ -1784,7 +1784,11 @@ impl<'a, 'c> Builder<'a, 'c> {
             let one = match ty {
                 Type::U8 => Constant::U8(1),
                 Type::U16 => Constant::U16(1),
+                Type::U32 => Constant::U32(1),
                 Type::I32 => Constant::I32(1),
+                Type::I8 => Constant::I8(1),
+                Type::I16 => Constant::I16(1),
+                Type::Isize => Constant::Isize(1),
                 Type::I64 => Constant::I64(1),
                 Type::U64 => Constant::U64(1),
                 Type::Usize => Constant::Usize(1),
@@ -2858,10 +2862,14 @@ impl<'a, 'c> Builder<'a, 'c> {
             CoreExprKind::Unit => Some(Type::Unit),
             CoreExprKind::Integer(n) if n.ends_with("u8") => Some(Type::U8),
             CoreExprKind::Integer(n) if n.ends_with("u16") => Some(Type::U16),
+            CoreExprKind::Integer(n) if n.ends_with("u32") => Some(Type::U32),
             CoreExprKind::Integer(n) if n.ends_with("i64") => Some(Type::I64),
             CoreExprKind::Integer(n) if n.ends_with("u64") => Some(Type::U64),
             CoreExprKind::Integer(n) if n.ends_with("usize") => Some(Type::Usize),
             CoreExprKind::Integer(n) if n.ends_with("i32") => Some(Type::I32),
+            CoreExprKind::Integer(n) if n.ends_with("isize") => Some(Type::Isize),
+            CoreExprKind::Integer(n) if n.ends_with("i16") => Some(Type::I16),
+            CoreExprKind::Integer(n) if n.ends_with("i8") => Some(Type::I8),
             CoreExprKind::Unary {
                 op: UnaryOp::Not, ..
             } => Some(Type::Bool),
@@ -3821,7 +3829,11 @@ fn integer(text: &str, expected: Option<&Type>, negative: bool, span: Span) -> R
     for (suffix, t) in [
         ("u8", Type::U8),
         ("u16", Type::U16),
+        ("u32", Type::U32),
         ("i32", Type::I32),
+        ("isize", Type::Isize),
+        ("i16", Type::I16),
+        ("i8", Type::I8),
         ("i64", Type::I64),
         ("u64", Type::U64),
         ("usize", Type::Usize),
@@ -3835,6 +3847,10 @@ fn integer(text: &str, expected: Option<&Type>, negative: bool, span: Span) -> R
     let ty = ty.unwrap_or(match expected {
         Some(Type::U8) => Type::U8,
         Some(Type::U16) => Type::U16,
+        Some(Type::U32) => Type::U32,
+        Some(Type::I8) => Type::I8,
+        Some(Type::I16) => Type::I16,
+        Some(Type::Isize) => Type::Isize,
         Some(Type::I64) => Type::I64,
         Some(Type::U64) => Type::U64,
         Some(Type::Usize) => Type::Usize,
@@ -3859,9 +3875,21 @@ fn integer(text: &str, expected: Option<&Type>, negative: bool, span: Span) -> R
         Type::U16 => u16::try_from(value)
             .map(Constant::U16)
             .map_err(|_| error("E-INTEGER-RANGE", span, "integer does not fit u16")),
+        Type::U32 => u32::try_from(value)
+            .map(Constant::U32)
+            .map_err(|_| error("E-INTEGER-RANGE", span, "integer does not fit u32")),
         Type::I32 => i32::try_from(value)
             .map(Constant::I32)
             .map_err(|_| error("E-INTEGER-RANGE", span, "integer does not fit i32")),
+        Type::I8 => i8::try_from(value)
+            .map(Constant::I8)
+            .map_err(|_| error("E-INTEGER-RANGE", span, "integer does not fit i8")),
+        Type::I16 => i16::try_from(value)
+            .map(Constant::I16)
+            .map_err(|_| error("E-INTEGER-RANGE", span, "integer does not fit i16")),
+        Type::Isize => i64::try_from(value)
+            .map(Constant::Isize)
+            .map_err(|_| error("E-INTEGER-RANGE", span, "integer does not fit i64")),
         Type::I64 => i64::try_from(value)
             .map(Constant::I64)
             .map_err(|_| error("E-INTEGER-RANGE", span, "integer does not fit i64")),

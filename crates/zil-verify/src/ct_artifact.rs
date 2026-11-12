@@ -414,7 +414,11 @@ fn constant_type(value: &Constant) -> Option<CtScalarTy> {
         Constant::Bool(_) => Some(CtScalarTy::Bool),
         Constant::U8(_) => Some(CtScalarTy::U8),
         Constant::U16(_) => Some(CtScalarTy::U16),
+        Constant::U32(_) => Some(CtScalarTy::U32),
         Constant::I32(_) => Some(CtScalarTy::I32),
+        Constant::I8(_) => Some(CtScalarTy::I8),
+        Constant::I16(_) => Some(CtScalarTy::I16),
+        Constant::Isize(_) => Some(CtScalarTy::Isize),
         Constant::I64(_) => Some(CtScalarTy::I64),
         Constant::F32(_) => Some(CtScalarTy::F32),
         Constant::F64(_) => Some(CtScalarTy::F64),
@@ -429,9 +433,13 @@ fn integer(ty: &CtTy) -> bool {
         Some(
             CtScalarTy::U8
                 | CtScalarTy::U16
+                | CtScalarTy::U32
                 | CtScalarTy::U64
                 | CtScalarTy::Usize
                 | CtScalarTy::I32
+                | CtScalarTy::I8
+                | CtScalarTy::I16
+                | CtScalarTy::Isize
                 | CtScalarTy::I64
         )
     )
@@ -448,6 +456,14 @@ fn index_type(ty: &CtTy) -> bool {
 fn check_constants(raw: &CtArtifactProgram) -> Check<()> {
     for c in &raw.constants {
         match c {
+            CtConstant::Scalar(Constant::Isize(v))
+                if raw.target_pointer_width == 32 && i32::try_from(*v).is_err() =>
+            {
+                return Err(reject(
+                    None,
+                    "isize constant exceeds the selected 32-bit target",
+                ));
+            }
             CtConstant::Scalar(Constant::Usize(v))
                 if raw.target_pointer_width == 32 && *v > u64::from(u32::MAX) =>
             {

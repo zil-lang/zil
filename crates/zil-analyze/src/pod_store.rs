@@ -128,6 +128,10 @@ fn layout(ty: &Type, budget: &mut Budget) -> CompileResult<(u64, u64)> {
         Type::Unit => (0, 1),
         Type::Bool | Type::U8 => (1, 1),
         Type::U16 => (2, 2),
+        Type::U32 => (4, 4),
+        Type::I8 => (1, 1),
+        Type::I16 => (2, 2),
+        Type::Isize => (8, 8),
         Type::I32 | Type::F32 => (4, 4),
         Type::I64 | Type::U64 | Type::Usize | Type::F64 => (8, 8),
         Type::Record {
@@ -215,7 +219,11 @@ fn carrier_uncached(
         Type::Bool => "bool".into(),
         Type::U8 => "u8".into(),
         Type::U16 => "u16".into(),
+        Type::U32 => "u32".into(),
         Type::I32 => "i32".into(),
+        Type::I8 => "i8".into(),
+        Type::I16 => "i16".into(),
+        Type::Isize => "isize".into(),
         Type::I64 => "i64".into(),
         Type::U64 => "u64".into(),
         Type::Usize => "usize".into(),
@@ -256,7 +264,11 @@ fn carrier_uncached(
                 Type::Bool
                 | Type::U8
                 | Type::U16
+                | Type::U32
                 | Type::I32
+                | Type::I8
+                | Type::I16
+                | Type::Isize
                 | Type::I64
                 | Type::U64
                 | Type::Usize

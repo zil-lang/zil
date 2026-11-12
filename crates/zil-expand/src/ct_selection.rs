@@ -908,6 +908,9 @@ pub(crate) fn member_owner_type_cost(
             Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::F32
             | Type::F64
@@ -915,6 +918,7 @@ pub(crate) fn member_owner_type_cost(
             | Type::Usize
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::ByteBuffer
             | Type::TaskI32
             | Type::SyncCell(_)

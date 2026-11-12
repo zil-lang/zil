@@ -2740,6 +2740,10 @@ impl<'a> Builder<'a, '_> {
                 .or_else(|| text.strip_suffix("u64"))
                 .or_else(|| text.strip_suffix("i32"))
                 .or_else(|| text.strip_suffix("u16"))
+                .or_else(|| text.strip_suffix("u32"))
+                .or_else(|| text.strip_suffix("i8"))
+                .or_else(|| text.strip_suffix("i16"))
+                .or_else(|| text.strip_suffix("isize"))
                 .or_else(|| text.strip_suffix("u8"))
                 .unwrap_or(text);
             let ordinal = text.replace('_', "").parse::<u32>().map_err(|_| {

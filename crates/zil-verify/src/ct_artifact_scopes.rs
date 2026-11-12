@@ -315,6 +315,10 @@ pub(super) fn check(
                         if constant_type(value) != Some(domain) {
                             return Err(reject(None, "CT instantiated scalar domain differs"));
                         }
+                        if matches!(value, Constant::Isize(n) if raw.target_pointer_width == 32 && i32::try_from(*n).is_err())
+                        {
+                            return Err(reject(None, "CT instantiated isize exceeds target width"));
+                        }
                         if matches!(value, Constant::Usize(n) if raw.target_pointer_width == 32 && *n > u64::from(u32::MAX))
                         {
                             return Err(reject(None, "CT instantiated usize exceeds target width"));

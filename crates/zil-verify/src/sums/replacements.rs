@@ -142,13 +142,17 @@ pub(crate) fn package_owners(ty: &Type, b: &mut Budget) -> Check<Option<Vec<usiz
             Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
             | Type::F32
             | Type::F64
             | Type::U8
-            | Type::U16 => {}
+            | Type::U16
+            | Type::U32 => {}
             Type::Package { .. } if package_owners(ty, b)?.is_some() => owners.push(index),
             _ => return Ok(None),
         }
@@ -170,13 +174,17 @@ fn helper_copy_result(ty: &Type, b: &mut Budget) -> Check<bool> {
             Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
             | Type::F32
             | Type::F64
             | Type::U8
-            | Type::U16 => {}
+            | Type::U16
+            | Type::U32 => {}
             Type::Tuple(fields) => {
                 b.spend(fields.len())?;
                 pending.extend(fields);
@@ -248,13 +256,17 @@ fn helper_owned_result(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check
             Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
             | Type::F32
             | Type::F64
             | Type::U8
-            | Type::U16 => {}
+            | Type::U16
+            | Type::U32 => {}
             _ => return Ok(false),
         }
     }
@@ -317,13 +329,17 @@ fn package_helper_with_store_input(
             Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
             | Type::F32
             | Type::F64
             | Type::U8
-            | Type::U16 => {}
+            | Type::U16
+            | Type::U32 => {}
             Type::Managed(payload)
                 if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value() => {}
             Type::Package { .. } | Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. }
@@ -451,13 +467,17 @@ fn enum_endpoint(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool>
                 Type::Unit
                 | Type::Bool
                 | Type::I32
+                | Type::I8
+                | Type::I16
+                | Type::Isize
                 | Type::I64
                 | Type::U64
                 | Type::Usize
                 | Type::F32
                 | Type::F64
                 | Type::U8
-                | Type::U16 => {}
+                | Type::U16
+                | Type::U32 => {}
                 _ => return ordinary(module, ty, b),
             }
         }

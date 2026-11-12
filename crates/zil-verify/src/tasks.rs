@@ -717,7 +717,16 @@ fn profile_one(
     let scalar = |t: &Type| {
         matches!(
             t,
-            Type::Unit | Type::Bool | Type::U8 | Type::U16 | Type::I32 | Type::I64
+            Type::Unit
+                | Type::Bool
+                | Type::U8
+                | Type::U16
+                | Type::U32
+                | Type::I32
+                | Type::I8
+                | Type::I16
+                | Type::Isize
+                | Type::I64
         )
     };
     if f.foreign.is_some()
@@ -764,7 +773,11 @@ fn profile_one(
                     | Constant::Bool(_)
                     | Constant::U8(_)
                     | Constant::U16(_)
+                    | Constant::U32(_)
                     | Constant::I32(_)
+                    | Constant::I8(_)
+                    | Constant::I16(_)
+                    | Constant::Isize(_)
                     | Constant::I64(_),
                 ) => {}
                 _ => {

@@ -197,6 +197,9 @@ fn source(ty: &Type, work: &mut usize, limits: &Limits, depth: usize) -> Compile
         | Type::Unit
         | Type::Bool
         | Type::I32
+        | Type::I8
+        | Type::I16
+        | Type::Isize
         | Type::I64
         | Type::U64
         | Type::Usize
@@ -204,6 +207,7 @@ fn source(ty: &Type, work: &mut usize, limits: &Limits, depth: usize) -> Compile
         | Type::F64
         | Type::U8
         | Type::U16
+        | Type::U32
         | Type::ByteBuffer
         | Type::ForeignHandle
         | Type::SyncCell(_)

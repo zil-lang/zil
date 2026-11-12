@@ -36,7 +36,17 @@ use zil_syntax::ast as s;
 fn integer_name(name: &str) -> bool {
     matches!(
         name,
-        "u8" | "u16" | "u64" | "usize" | "i32" | "i64" | "f32" | "f64"
+        "u8" | "u16"
+            | "u32"
+            | "i8"
+            | "i16"
+            | "isize"
+            | "u64"
+            | "usize"
+            | "i32"
+            | "i64"
+            | "f32"
+            | "f64"
     )
 }
 fn foreign_constructor_name(name: &str) -> bool {
@@ -1875,7 +1885,11 @@ impl Expander<'_> {
                             target: match name {
                                 "u8" => Type::U8,
                                 "u16" => Type::U16,
+                                "u32" => Type::U32,
                                 "i32" => Type::I32,
+                                "isize" => Type::Isize,
+                                "i16" => Type::I16,
+                                "i8" => Type::I8,
                                 "i64" => Type::I64,
                                 "f32" => Type::F32,
                                 "f64" => Type::F64,
@@ -2286,6 +2300,7 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
         s::TypeKind::Named { path, args } if args.is_empty() => match path.join(".").as_str() {
             "u8" => Type::U8,
             "u16" => Type::U16,
+            "u32" => Type::U32,
             "c_handle" => Type::ForeignHandle,
             "MutexI32" => Type::SyncCell(zil_ir::SyncCellKind::MutexI32),
             "AtomicI32" => Type::SyncCell(zil_ir::SyncCellKind::AtomicI32),
@@ -2302,6 +2317,9 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             },
             "c_wstr" => Type::CWideString,
             "i32" => Type::I32,
+            "isize" => Type::Isize,
+            "i16" => Type::I16,
+            "i8" => Type::I8,
             "i64" => Type::I64,
             "f32" => Type::F32,
             "f64" => Type::F64,

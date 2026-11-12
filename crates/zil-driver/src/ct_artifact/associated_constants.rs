@@ -192,7 +192,11 @@ impl Materializer<'_, '_> {
                 }
                 zil_ir::Constant::U8(value) => format!("{value}u8"),
                 zil_ir::Constant::U16(value) => format!("{value}u16"),
+                zil_ir::Constant::U32(value) => format!("{value}u32"),
                 zil_ir::Constant::I32(value) => format!("{value}i32"),
+                zil_ir::Constant::I8(value) => format!("{value}i8"),
+                zil_ir::Constant::I16(value) => format!("{value}i16"),
+                zil_ir::Constant::Isize(value) => format!("{value}isize"),
                 zil_ir::Constant::I64(value) => format!("{value}i64"),
                 zil_ir::Constant::U64(value) => format!("{value}u64"),
                 zil_ir::Constant::Usize(value) => format!("{value}usize"),

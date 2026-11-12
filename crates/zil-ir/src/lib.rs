@@ -2280,7 +2280,7 @@ pub enum InstructionKind {
     DropTuple {
         local: LocalId,
     },
-    /// Selectively transfer one initialized subtree of a real Tuple local.
+    /// Selectively transfer one initialized subtree of a real owning Tuple or Package local.
     /// Nonempty mixed path; every active tag and every field initialization is
     /// checked anew. The parent retains storage and all remaining responsibility.
     TakeTupleField {
