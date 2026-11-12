@@ -2924,13 +2924,11 @@ fn write_sites(
                                 )?;
                             }
                         }
-                        if let Type::Address {
-                            mutable: true,
-                            inner,
-                        } = &callee.locals[local.0 as usize].ty
-                            && let Type::Closure(id) = inner.as_ref()
+                        let parameter_type = &callee.locals[local.0 as usize].ty;
+                        if let Some(id) = returned_environment::closure(parameter_type)
+                            && matches!(parameter_type, Type::Closure(_) | Type::Address { mutable: true, .. })
                         {
-                            for (path, ty) in returned_environment::leaves(module, *id, b)? {
+                            for (path, ty) in returned_environment::leaves(module, id, b)? {
                                 add(
                                     position as u32,
                                     &path,
@@ -3867,9 +3865,8 @@ fn step(
                             HoldRoot::Capture(index) => state.captures.get(index as usize),
                             HoldRoot::Static => None,
                         }.ok_or_else(|| err("captured pointee update target memory is absent"))?;
-                        let Some(complete) = symbolic_slot_path(holder, root, tail, b)? else {
-                            continue;
-                        };
+                        let complete = symbolic_slot_path(holder, root, tail, b)?
+                            .ok_or_else(|| err("captured pointee update lacks a complete actual target directory"))?;
                         permission_work(&retained, b)?;
                         updates.push((root.base, complete, retained.clone(), head.sources.len() == 1));
                     }
@@ -6048,9 +6045,13 @@ fn summarize(
                 let ty = &f.locals[local.0 as usize].ty;
                 let borrowed = matches!(ty,
                     Type::Address { mutable, inner } if (*mutable || b.dyn_contexts) && (qualified(inner).is_some() || returned_environment::closure(inner).is_some()));
-                if !borrowed && !matches!(ty, Type::Closure(_)) { continue; }
+                if !borrowed && !matches!(ty, Type::Closure(_)) {
+                    continue;
+                }
                 for (path, permission) in &payload.leaves {
-                    if !borrowed && captured_owner::external_capture_tail(module, ty, path, b)?.is_none() {
+                    if !borrowed
+                        && captured_owner::external_capture_tail(module, ty, path, b)?.is_none()
+                    {
                         continue;
                     }
                     b.spend(

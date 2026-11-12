@@ -412,9 +412,8 @@ pub(super) fn apply(
                     HoldRoot::Static => None,
                 }
                 .ok_or_else(|| err("borrowed capture has no actual target memory"))?;
-                let Some(complete) = symbolic_slot_path(holder, root, tail, b)? else {
-                    continue;
-                };
+                let complete = symbolic_slot_path(holder, root, tail, b)?
+                    .ok_or_else(|| err("borrowed capture update lacks a complete actual target directory"))?;
                 permission_work(&retained, b)?;
                 updates.push((
                     root.base,
@@ -475,20 +474,39 @@ pub(super) fn external_capture_tail<'a>(
         Type::Address { inner, .. } => inner.as_ref(),
         ty => ty,
     };
-    let Type::Closure(id) = ty else { return Ok(None) };
+    let Type::Closure(id) = ty else {
+        return Ok(None);
+    };
     let Some((PlaceProjection::Field(capture), tail)) = path.split_first() else {
         return Ok(None);
     };
-    if tail.is_empty() { return Ok(None); }
-    let definition = module.closures.get(id.0 as usize)
+    if tail.is_empty() {
+        return Ok(None);
+    }
+    let definition = module
+        .closures
+        .get(id.0 as usize)
         .ok_or_else(|| err("external capture update has no concrete environment"))?;
-    let Some(Type::Address { mutable: true, inner }) = definition.captures.get(*capture as usize) else {
+    let Some(Type::Address {
+        mutable: true,
+        inner,
+    }) = definition.captures.get(*capture as usize)
+    else {
         return Ok(None);
     };
-    let Some((_, shape)) = qualified(inner) else { return Ok(None) };
-    b.spend(shape.slots.len().saturating_mul(tail.len().saturating_add(1)))?;
+    let Some((_, shape)) = qualified(inner) else {
+        return Ok(None);
+    };
+    b.spend(
+        shape
+            .slots
+            .len()
+            .saturating_mul(tail.len().saturating_add(1)),
+    )?;
     if !shape.slots.iter().any(|slot| slot.path == tail) {
-        return Err(err("external capture update selects no actual pointee slot"));
+        return Err(err(
+            "external capture update selects no actual pointee slot",
+        ));
     }
     Ok(Some((*capture, tail)))
 }

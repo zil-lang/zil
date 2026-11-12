@@ -3115,7 +3115,7 @@ fn encode_required_storage_contract(b: &mut impl FingerprintSink, contract: &Sto
                 encode_u32(b, i);
             }
             StorageBase::Result => b.push(2),
-        StorageBase::Receiver => b.push(3),
+            StorageBase::Receiver => b.push(3),
         }
         encode_life_type_path(b, &binding.position.path);
         encode_u32(b, binding.position.class);

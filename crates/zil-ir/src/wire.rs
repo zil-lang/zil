@@ -595,7 +595,7 @@ impl<'a> Writer<'a> {
                     self.u32(i)?;
                 }
                 StorageBase::Result => self.u8(2)?,
-            StorageBase::Receiver => self.u8(3)?,
+                StorageBase::Receiver => self.u8(3)?,
             }
             self.life_type_path(&binding.position.path)?;
             self.u32(binding.position.class)?;
@@ -2763,7 +2763,7 @@ impl<'a> Reader<'a> {
                 0 => StorageBase::Parameter(self.u32()?),
                 1 => StorageBase::Capture(self.u32()?),
                 2 => StorageBase::Result,
-            3 => StorageBase::Receiver,
+                3 => StorageBase::Receiver,
                 _ => return Err(malformed("E-WIRE-TAG", "unknown semantic class base")),
             };
             classes.push(SignatureLifeClassBinding {
