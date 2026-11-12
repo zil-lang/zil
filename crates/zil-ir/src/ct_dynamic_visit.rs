@@ -6,8 +6,13 @@ pub trait CtDynamicVisitor {
     fn node(&mut self, depth: usize) -> Result<(), Self::Error>;
     fn rows(&mut self, count: usize, element_bytes: usize, depth: usize)
     -> Result<(), Self::Error>;
+    fn type_node(
+        &mut self,
+        index: usize,
+        node: &CtDynamicTypeNode,
+        depth: usize,
+    ) -> Result<(), Self::Error>;
     fn type_reference(&mut self, id: CtDynamicTypeId, depth: usize) -> Result<(), Self::Error>;
-    fn type_graph(&mut self, graph: &CtTypeRef, depth: usize) -> Result<(), Self::Error>;
     fn constant(&mut self, value: &Constant, depth: usize) -> Result<(), Self::Error>;
     fn text(&mut self, value: &str, depth: usize) -> Result<(), Self::Error>;
 }
@@ -165,14 +170,14 @@ impl CtDynamicMetadata for CtDynPatternActual {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         match self {
-            Self::Type(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Type(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::Const(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Const(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::Life(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Life(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
             }
         }
         Ok(())
@@ -186,53 +191,69 @@ impl CtDynamicMetadata for CtDynConstPattern {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         match self {
-            Self::IntegerLiteral(value_0) => {
-                visitor.text(value_0, depth + 1)?;
+            Self::IntegerLiteral(field_value_0) => {
+                visitor.text(field_value_0, depth + 1)?;
             }
-            Self::FloatLiteral(value_0) => {
-                visitor.text(value_0, depth + 1)?;
+            Self::FloatLiteral(field_value_0) => {
+                visitor.text(field_value_0, depth + 1)?;
             }
-            Self::MethodParameter(value_0) => {
-                let _ = value_0;
+            Self::MethodParameter(field_value_0) => {
+                let _ = field_value_0;
                 visitor.node(depth + 1)?;
             }
-            Self::Unary { op, value, ty } => {
-                let _ = op;
+            Self::Unary {
+                op: field_op,
+                value: field_value,
+                ty: field_ty,
+            } => {
+                let _ = field_op;
                 visitor.node(depth + 1)?;
-                (value).visit_ct_dynamic(visitor, depth + 1)?;
-                (ty).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtDynConstPattern>(), depth + 1)?;
+                ((field_value).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
+                ((field_ty).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
             }
             Self::Binary {
-                op,
-                left,
-                right,
-                ty,
+                op: field_op,
+                left: field_left,
+                right: field_right,
+                ty: field_ty,
             } => {
-                let _ = op;
+                let _ = field_op;
                 visitor.node(depth + 1)?;
-                (left).visit_ct_dynamic(visitor, depth + 1)?;
-                (right).visit_ct_dynamic(visitor, depth + 1)?;
-                (ty).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtDynConstPattern>(), depth + 1)?;
+                ((field_left).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtDynConstPattern>(), depth + 1)?;
+                ((field_right).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
+                ((field_ty).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::Convert { value, ty } => {
-                (value).visit_ct_dynamic(visitor, depth + 1)?;
-                (ty).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Convert {
+                value: field_value,
+                ty: field_ty,
+            } => {
+                visitor.rows(1, std::mem::size_of::<CtDynConstPattern>(), depth + 1)?;
+                ((field_value).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
+                ((field_ty).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
             }
             Self::AssociatedProjection {
-                receiver,
-                application,
-                member,
+                receiver: field_receiver,
+                application: field_application,
+                member: field_member,
             } => {
-                (receiver).visit_ct_dynamic(visitor, depth + 1)?;
-                (application).visit_ct_dynamic(visitor, depth + 1)?;
-                let _ = member;
+                visitor.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
+                ((field_receiver).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtDynSelfPattern>(), depth + 1)?;
+                ((field_application).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_member;
                 visitor.node(depth + 1)?;
             }
-            Self::Value(value_0) => {
-                visitor.constant(value_0, depth + 1)?;
+            Self::Value(field_value_0) => {
+                visitor.constant(field_value_0, depth + 1)?;
             }
-            Self::Parameter(value_0) => {
-                let _ = value_0;
+            Self::Parameter(field_value_0) => {
+                let _ = field_value_0;
                 visitor.node(depth + 1)?;
             }
         }
@@ -248,72 +269,89 @@ impl CtDynamicMetadata for CtDynTypePattern {
         visitor.node(depth)?;
         match self {
             Self::SelfType => {}
-            Self::MethodParameter(value_0) => {
-                let _ = value_0;
+            Self::MethodParameter(field_value_0) => {
+                let _ = field_value_0;
                 visitor.node(depth + 1)?;
             }
             Self::AssociatedProjection {
-                receiver,
-                application,
-                member,
+                receiver: field_receiver,
+                application: field_application,
+                member: field_member,
             } => {
-                (receiver).visit_ct_dynamic(visitor, depth + 1)?;
-                (application).visit_ct_dynamic(visitor, depth + 1)?;
-                let _ = member;
+                visitor.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
+                ((field_receiver).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtDynSelfPattern>(), depth + 1)?;
+                ((field_application).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_member;
                 visitor.node(depth + 1)?;
             }
-            Self::Concrete(value_0) => {
-                visitor.type_reference(*value_0, depth + 1)?;
+            Self::Concrete(field_value_0) => {
+                visitor.type_reference(*field_value_0, depth + 1)?;
             }
-            Self::Parameter(value_0) => {
-                let _ = value_0;
+            Self::Parameter(field_value_0) => {
+                let _ = field_value_0;
                 visitor.node(depth + 1)?;
             }
-            Self::Nominal(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Nominal(field_value_0) => {
+                visitor.rows(1, std::mem::size_of::<CtDynSelfPattern>(), depth + 1)?;
+                ((field_value_0).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
             }
             Self::Address {
-                mutable,
-                lifetime,
-                inner,
+                mutable: field_mutable,
+                lifetime: field_lifetime,
+                inner: field_inner,
             } => {
-                let _ = mutable;
+                let _ = field_mutable;
                 visitor.node(depth + 1)?;
                 visitor.node(depth + 1)?;
-                if let Some(item) = lifetime {
+                if let Some(item) = field_lifetime {
                     (item).visit_ct_dynamic(visitor, depth + 1)?;
                 }
-                (inner).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
+                ((field_inner).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::Tuple(value_0) => {
+            Self::Tuple(field_value_0) => {
                 visitor.rows(
-                    (value_0).len(),
+                    (field_value_0).len(),
                     std::mem::size_of::<CtDynTypePattern>(),
                     depth + 1,
                 )?;
-                for item in value_0 {
+                for item in field_value_0 {
                     (item).visit_ct_dynamic(visitor, depth + 1)?;
                 }
             }
-            Self::Array { element, length } => {
-                (element).visit_ct_dynamic(visitor, depth + 1)?;
-                (length).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Array {
+                element: field_element,
+                length: field_length,
+            } => {
+                visitor.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
+                ((field_element).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_length).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::Slice(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Slice(field_value_0) => {
+                visitor.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
+                ((field_value_0).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::Managed(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Managed(field_value_0) => {
+                visitor.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
+                ((field_value_0).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::Desc(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Desc(field_value_0) => {
+                visitor.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
+                ((field_value_0).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::OwnedStore(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::OwnedStore(field_value_0) => {
+                visitor.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
+                ((field_value_0).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::ErrorUnion { error, result } => {
-                (error).visit_ct_dynamic(visitor, depth + 1)?;
-                (result).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::ErrorUnion {
+                error: field_error,
+                result: field_result,
+            } => {
+                visitor.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
+                ((field_error).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
+                ((field_result).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
             }
         }
         Ok(())
@@ -355,13 +393,13 @@ impl CtDynamicMetadata for CtDynMemberKind {
         match self {
             Self::Type => {}
             Self::Constant => {}
-            Self::Method(value_0) => {
+            Self::Method(field_value_0) => {
                 visitor.rows(
-                    (value_0).len(),
+                    (field_value_0).len(),
                     std::mem::size_of::<CtLifeParameterKind>(),
                     depth + 1,
                 )?;
-                for item in value_0 {
+                for item in field_value_0 {
                     (item).visit_ct_dynamic(visitor, depth + 1)?;
                 }
             }
@@ -377,17 +415,17 @@ impl CtDynamicMetadata for CtDynGenericActual {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         match self {
-            Self::Type(value_0) => {
-                visitor.type_reference(*value_0, depth + 1)?;
+            Self::Type(field_value_0) => {
+                visitor.type_reference(*field_value_0, depth + 1)?;
             }
-            Self::QualifiedType(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::QualifiedType(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::Const(value_0) => {
-                visitor.constant(value_0, depth + 1)?;
+            Self::Const(field_value_0) => {
+                visitor.constant(field_value_0, depth + 1)?;
             }
-            Self::Life(value_0) => {
-                let _ = value_0;
+            Self::Life(field_value_0) => {
+                let _ = field_value_0;
                 visitor.node(depth + 1)?;
             }
         }
@@ -782,27 +820,27 @@ impl CtDynamicMetadata for CtDynRequirement {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         match self {
-            Self::Read(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Read(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::Write(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Write(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::Manage(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Manage(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::Apart(value_0, value_1) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
-                (value_1).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Apart(field_value_0, field_value_1) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_value_1).visit_ct_dynamic(visitor, depth + 1)?;
             }
             Self::State {
-                position,
-                ty,
-                variant,
+                position: field_position,
+                ty: field_ty,
+                variant: field_variant,
             } => {
-                (position).visit_ct_dynamic(visitor, depth + 1)?;
-                visitor.type_reference(*ty, depth + 1)?;
-                let _ = variant;
+                (field_position).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.type_reference(*field_ty, depth + 1)?;
+                let _ = field_variant;
                 visitor.node(depth + 1)?;
             }
         }
@@ -817,18 +855,18 @@ impl CtDynamicMetadata for CtDynGuarantee {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         match self {
-            Self::StorageSources(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::StorageSources(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
             }
             Self::ManageResult => {}
             Self::State {
-                position,
-                ty,
-                variant,
+                position: field_position,
+                ty: field_ty,
+                variant: field_variant,
             } => {
-                (position).visit_ct_dynamic(visitor, depth + 1)?;
-                visitor.type_reference(*ty, depth + 1)?;
-                let _ = variant;
+                (field_position).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.type_reference(*field_ty, depth + 1)?;
+                let _ = field_variant;
                 visitor.node(depth + 1)?;
             }
         }
@@ -851,11 +889,11 @@ impl CtDynamicMetadata for CtDynEffect {
             Self::Ffi => {}
             Self::Reenter => {}
             Self::Panic => {}
-            Self::Call(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Call(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::Cleanup(value_0) => {
-                visitor.type_reference(*value_0, depth + 1)?;
+            Self::Cleanup(field_value_0) => {
+                visitor.type_reference(*field_value_0, depth + 1)?;
             }
         }
         Ok(())
@@ -898,16 +936,19 @@ impl CtDynamicMetadata for CtDynResultSource {
             Self::Value => {}
             Self::Create => {}
             Self::Give => {}
-            Self::Borrow { sources, mutable } => {
+            Self::Borrow {
+                sources: field_sources,
+                mutable: field_mutable,
+            } => {
                 visitor.rows(
-                    (sources).len(),
+                    (field_sources).len(),
                     std::mem::size_of::<CtStorageSource>(),
                     depth + 1,
                 )?;
-                for item in sources {
+                for item in field_sources {
                     (item).visit_ct_dynamic(visitor, depth + 1)?;
                 }
-                let _ = mutable;
+                let _ = field_mutable;
                 visitor.node(depth + 1)?;
             }
         }
@@ -1070,22 +1111,25 @@ impl CtDynamicMetadata for CtDynLifePattern {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         match self {
-            Self::DeclarationParameter(value_0) => {
-                let _ = value_0;
+            Self::DeclarationParameter(field_value_0) => {
+                let _ = field_value_0;
                 visitor.node(depth + 1)?;
             }
-            Self::MethodParameter(value_0) => {
-                let _ = value_0;
+            Self::MethodParameter(field_value_0) => {
+                let _ = field_value_0;
                 visitor.node(depth + 1)?;
             }
-            Self::Bound { depth, index } => {
-                let _ = depth;
+            Self::Bound {
+                depth: field_depth,
+                index: field_index,
+            } => {
+                let _ = field_depth;
                 visitor.node(depth + 1)?;
-                let _ = index;
+                let _ = field_index;
                 visitor.node(depth + 1)?;
             }
-            Self::Invocation(value_0) => {
-                let _ = value_0;
+            Self::Invocation(field_value_0) => {
+                let _ = field_value_0;
                 visitor.node(depth + 1)?;
             }
         }
@@ -1100,37 +1144,48 @@ impl CtDynamicMetadata for CtDynObligation {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         match self {
-            Self::Structural { receiver, bound } => {
-                (receiver).visit_ct_dynamic(visitor, depth + 1)?;
-                (bound).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Structural {
+                receiver: field_receiver,
+                bound: field_bound,
+            } => {
+                (field_receiver).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_bound).visit_ct_dynamic(visitor, depth + 1)?;
             }
             Self::Trait {
-                receiver,
-                application,
+                receiver: field_receiver,
+                application: field_application,
             } => {
-                (receiver).visit_ct_dynamic(visitor, depth + 1)?;
-                (application).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_receiver).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_application).visit_ct_dynamic(visitor, depth + 1)?;
             }
             Self::Callable {
-                receiver,
-                kind,
-                quantified_lifetimes,
-                signature,
+                receiver: field_receiver,
+                kind: field_kind,
+                quantified_lifetimes: field_quantified_lifetimes,
+                signature: field_signature,
             } => {
-                (receiver).visit_ct_dynamic(visitor, depth + 1)?;
-                (kind).visit_ct_dynamic(visitor, depth + 1)?;
-                let _ = quantified_lifetimes;
+                (field_receiver).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_kind).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_quantified_lifetimes;
                 visitor.node(depth + 1)?;
-                (signature).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtDynSignatureRecipe>(), depth + 1)?;
+                ((field_signature).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::TypeEqual { left, right } => {
-                (left).visit_ct_dynamic(visitor, depth + 1)?;
-                (right).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::TypeEqual {
+                left: field_left,
+                right: field_right,
+            } => {
+                (field_left).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_right).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::ConstEqual { ty, left, right } => {
-                (ty).visit_ct_dynamic(visitor, depth + 1)?;
-                (left).visit_ct_dynamic(visitor, depth + 1)?;
-                (right).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::ConstEqual {
+                ty: field_ty,
+                left: field_left,
+                right: field_right,
+            } => {
+                (field_ty).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_left).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_right).visit_ct_dynamic(visitor, depth + 1)?;
             }
         }
         Ok(())
@@ -1180,27 +1235,27 @@ impl CtDynamicMetadata for CtDynRequirementRecipe {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         match self {
-            Self::Read(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Read(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::Write(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Write(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::Manage(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Manage(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::Apart(value_0, value_1) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
-                (value_1).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Apart(field_value_0, field_value_1) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_value_1).visit_ct_dynamic(visitor, depth + 1)?;
             }
             Self::State {
-                position,
-                ty,
-                variant,
+                position: field_position,
+                ty: field_ty,
+                variant: field_variant,
             } => {
-                (position).visit_ct_dynamic(visitor, depth + 1)?;
-                (ty).visit_ct_dynamic(visitor, depth + 1)?;
-                let _ = variant;
+                (field_position).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_ty).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_variant;
                 visitor.node(depth + 1)?;
             }
         }
@@ -1215,18 +1270,18 @@ impl CtDynamicMetadata for CtDynGuaranteeRecipe {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         match self {
-            Self::StorageSources(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::StorageSources(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
             }
             Self::ManageResult => {}
             Self::State {
-                position,
-                ty,
-                variant,
+                position: field_position,
+                ty: field_ty,
+                variant: field_variant,
             } => {
-                (position).visit_ct_dynamic(visitor, depth + 1)?;
-                (ty).visit_ct_dynamic(visitor, depth + 1)?;
-                let _ = variant;
+                (field_position).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_ty).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_variant;
                 visitor.node(depth + 1)?;
             }
         }
@@ -1249,11 +1304,11 @@ impl CtDynamicMetadata for CtDynEffectRecipe {
             Self::Ffi => {}
             Self::Reenter => {}
             Self::Panic => {}
-            Self::Call(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Call(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::Cleanup(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Cleanup(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
             }
         }
         Ok(())
@@ -1483,12 +1538,15 @@ impl CtDynamicMetadata for CtDynAssociatedValueRecipe {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         match self {
-            Self::Type(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Type(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::Constant { ty, value } => {
-                (ty).visit_ct_dynamic(visitor, depth + 1)?;
-                (value).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Constant {
+                ty: field_ty,
+                value: field_value,
+            } => {
+                (field_ty).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_value).visit_ct_dynamic(visitor, depth + 1)?;
             }
         }
         Ok(())
@@ -1531,19 +1589,19 @@ impl CtDynamicMetadata for CtDynAssociatedSource {
         visitor.node(depth)?;
         match self {
             Self::TraitDefault {
-                declaration,
-                member,
+                declaration: field_declaration,
+                member: field_member,
             } => {
-                (declaration).visit_ct_dynamic(visitor, depth + 1)?;
-                let _ = member;
+                (field_declaration).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_member;
                 visitor.node(depth + 1)?;
             }
             Self::ImplOverride {
-                declaration,
-                member,
+                declaration: field_declaration,
+                member: field_member,
             } => {
-                (declaration).visit_ct_dynamic(visitor, depth + 1)?;
-                let _ = member;
+                (field_declaration).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_member;
                 visitor.node(depth + 1)?;
             }
         }
@@ -1558,12 +1616,15 @@ impl CtDynamicMetadata for CtDynAssociatedValue {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         match self {
-            Self::Type(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Type(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::Constant { ty, value } => {
-                (ty).visit_ct_dynamic(visitor, depth + 1)?;
-                visitor.constant(value, depth + 1)?;
+            Self::Constant {
+                ty: field_ty,
+                value: field_value,
+            } => {
+                (field_ty).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.constant(field_value, depth + 1)?;
             }
         }
         Ok(())
@@ -1619,14 +1680,17 @@ impl CtDynamicMetadata for CtDynFunctionTarget {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         match self {
-            Self::Core { module, source } => {
-                let _ = module;
+            Self::Core {
+                module: field_module,
+                source: field_source,
+            } => {
+                let _ = field_module;
                 visitor.node(depth + 1)?;
-                let _ = source;
+                let _ = field_source;
                 visitor.node(depth + 1)?;
             }
-            Self::Typed(value_0) => {
-                let _ = value_0;
+            Self::Typed(field_value_0) => {
+                let _ = field_value_0;
                 visitor.node(depth + 1)?;
             }
         }
@@ -1685,27 +1749,40 @@ impl CtDynamicMetadata for CtStorageSource {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         match self {
-            Self::Exact(value_0) => {
-                (value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Exact(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::PlaceAddress { place, mode } => {
-                (place).visit_ct_dynamic(visitor, depth + 1)?;
-                let _ = mode;
+            Self::PlaceAddress {
+                place: field_place,
+                mode: field_mode,
+            } => {
+                (field_place).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_mode;
                 visitor.node(depth + 1)?;
             }
-            Self::OwnedView { head, leaf, mode } => {
-                (head).visit_ct_dynamic(visitor, depth + 1)?;
-                visitor.type_reference(*leaf, depth + 1)?;
-                let _ = mode;
+            Self::OwnedView {
+                head: field_head,
+                leaf: field_leaf,
+                mode: field_mode,
+            } => {
+                (field_head).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.type_reference(*field_leaf, depth + 1)?;
+                let _ = field_mode;
                 visitor.node(depth + 1)?;
             }
-            Self::ReborrowedLeaf { source, head } => {
-                (source).visit_ct_dynamic(visitor, depth + 1)?;
-                (head).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::ReborrowedLeaf {
+                source: field_source,
+                head: field_head,
+            } => {
+                (field_source).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_head).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::Static { leaf, mode } => {
-                visitor.type_reference(*leaf, depth + 1)?;
-                let _ = mode;
+            Self::Static {
+                leaf: field_leaf,
+                mode: field_mode,
+            } => {
+                visitor.type_reference(*field_leaf, depth + 1)?;
+                let _ = field_mode;
                 visitor.node(depth + 1)?;
             }
         }
@@ -1807,8 +1884,8 @@ impl CtDynamicMetadata for CtLifeParameterKind {
         visitor.node(depth)?;
         match self {
             Self::Type => {}
-            Self::Const(value_0) => {
-                visitor.type_reference(*value_0, depth + 1)?;
+            Self::Const(field_value_0) => {
+                visitor.type_reference(*field_value_0, depth + 1)?;
             }
             Self::Lifetime => {}
         }
@@ -1844,18 +1921,21 @@ impl CtDynamicMetadata for CtLifeNominalActual {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         match self {
-            Self::Type(value_0) => {
-                visitor.type_reference(*value_0, depth + 1)?;
+            Self::Type(field_value_0) => {
+                visitor.type_reference(*field_value_0, depth + 1)?;
             }
-            Self::QualifiedType { ty, life } => {
-                visitor.type_reference(*ty, depth + 1)?;
-                (life).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::QualifiedType {
+                ty: field_ty,
+                life: field_life,
+            } => {
+                visitor.type_reference(*field_ty, depth + 1)?;
+                (field_life).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::Const(value_0) => {
-                visitor.constant(value_0, depth + 1)?;
+            Self::Const(field_value_0) => {
+                visitor.constant(field_value_0, depth + 1)?;
             }
-            Self::Lifetime(value_0) => {
-                let _ = value_0;
+            Self::Lifetime(field_value_0) => {
+                let _ = field_value_0;
                 visitor.node(depth + 1)?;
             }
         }
@@ -1890,15 +1970,23 @@ impl CtDynamicMetadata for CtDynamicTypeNode {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         match self {
-            Self::Dyn { interface } => {
-                (interface).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::Dyn {
+                interface: field_interface,
+            } => {
+                (field_interface).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::OwnedDyn { interface } => {
-                (interface).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::OwnedDyn {
+                interface: field_interface,
+            } => {
+                (field_interface).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::BorrowedStorage { storage, life } => {
-                visitor.type_reference(*storage, depth + 1)?;
-                (life).visit_ct_dynamic(visitor, depth + 1)?;
+            Self::BorrowedStorage {
+                storage: field_storage,
+                life: field_life,
+            } => {
+                visitor.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
+                visitor.type_reference(*(field_storage).as_ref(), depth + 1)?;
+                (field_life).visit_ct_dynamic(visitor, depth + 1)?;
             }
             Self::Unit => {}
             Self::Bool => {}
@@ -1915,103 +2003,137 @@ impl CtDynamicMetadata for CtDynamicTypeNode {
             Self::I16 => {}
             Self::Isize => {}
             Self::ByteBuffer => {}
-            Self::OwnedStore { element } => {
-                visitor.type_reference(*element, depth + 1)?;
+            Self::OwnedStore {
+                element: field_element,
+            } => {
+                visitor.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
+                visitor.type_reference(*(field_element).as_ref(), depth + 1)?;
             }
             Self::ForeignHandle => {}
-            Self::SyncCell(value_0) => {
-                let _ = value_0;
+            Self::SyncCell(field_value_0) => {
+                let _ = field_value_0;
                 visitor.node(depth + 1)?;
             }
-            Self::Mutex { payload } => {
-                visitor.type_reference(*payload, depth + 1)?;
+            Self::Mutex {
+                payload: field_payload,
+            } => {
+                visitor.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
+                visitor.type_reference(*(field_payload).as_ref(), depth + 1)?;
             }
             Self::MutexGuard {
-                payload,
-                retained_life,
+                payload: field_payload,
+                retained_life: field_retained_life,
             } => {
-                visitor.type_reference(*payload, depth + 1)?;
-                (retained_life).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
+                visitor.type_reference(*(field_payload).as_ref(), depth + 1)?;
+                (field_retained_life).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::Registration { environment } => {
-                visitor.type_reference(*environment, depth + 1)?;
+            Self::Registration {
+                environment: field_environment,
+            } => {
+                visitor.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
+                visitor.type_reference(*(field_environment).as_ref(), depth + 1)?;
             }
-            Self::AsyncRegistration { environment } => {
-                visitor.type_reference(*environment, depth + 1)?;
+            Self::AsyncRegistration {
+                environment: field_environment,
+            } => {
+                visitor.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
+                visitor.type_reference(*(field_environment).as_ref(), depth + 1)?;
             }
             Self::TaskI32 => {}
             Self::Task {
-                result,
-                retained_life,
+                result: field_result,
+                retained_life: field_retained_life,
             } => {
-                visitor.type_reference(*result, depth + 1)?;
-                (retained_life).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
+                visitor.type_reference(*(field_result).as_ref(), depth + 1)?;
+                (field_retained_life).visit_ct_dynamic(visitor, depth + 1)?;
             }
             Self::CWideString => {}
-            Self::ForeignCallback { parameters, result } => {
+            Self::ForeignCallback {
+                parameters: field_parameters,
+                result: field_result,
+            } => {
                 visitor.rows(
-                    (parameters).len(),
+                    (field_parameters).len(),
                     std::mem::size_of::<CtDynamicTypeId>(),
                     depth + 1,
                 )?;
-                for item in parameters {
+                for item in field_parameters {
                     visitor.type_reference(*item, depth + 1)?;
                 }
-                visitor.type_reference(*result, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
+                visitor.type_reference(*(field_result).as_ref(), depth + 1)?;
             }
-            Self::Tuple(value_0) => {
+            Self::Tuple(field_value_0) => {
                 visitor.rows(
-                    (value_0).len(),
+                    (field_value_0).len(),
                     std::mem::size_of::<CtDynamicTypeId>(),
                     depth + 1,
                 )?;
-                for item in value_0 {
+                for item in field_value_0 {
                     visitor.type_reference(*item, depth + 1)?;
                 }
             }
-            Self::Array { element, length } => {
-                visitor.type_reference(*element, depth + 1)?;
-                let _ = length;
+            Self::Array {
+                element: field_element,
+                length: field_length,
+            } => {
+                visitor.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
+                visitor.type_reference(*(field_element).as_ref(), depth + 1)?;
+                let _ = field_length;
                 visitor.node(depth + 1)?;
             }
-            Self::Slice { element } => {
-                visitor.type_reference(*element, depth + 1)?;
+            Self::Slice {
+                element: field_element,
+            } => {
+                visitor.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
+                visitor.type_reference(*(field_element).as_ref(), depth + 1)?;
             }
-            Self::Named(value_0) => {
-                visitor.text(value_0, depth + 1)?;
+            Self::Named(field_value_0) => {
+                visitor.text(field_value_0, depth + 1)?;
             }
-            Self::Record { name, fields } => {
-                visitor.text(name, depth + 1)?;
+            Self::Record {
+                name: field_name,
+                fields: field_fields,
+            } => {
+                visitor.text(field_name, depth + 1)?;
                 visitor.rows(
-                    (fields).len(),
+                    (field_fields).len(),
                     std::mem::size_of::<(String, CtDynamicTypeId)>(),
                     depth + 1,
                 )?;
-                for item in fields {
+                for item in field_fields {
                     visitor.text(&(item).0, depth + 1)?;
                     visitor.type_reference(*&(item).1, depth + 1)?;
                 }
             }
-            Self::Package { name, fields } => {
-                visitor.text(name, depth + 1)?;
+            Self::Package {
+                name: field_name,
+                fields: field_fields,
+            } => {
+                visitor.text(field_name, depth + 1)?;
                 visitor.rows(
-                    (fields).len(),
+                    (field_fields).len(),
                     std::mem::size_of::<(String, CtDynamicTypeId)>(),
                     depth + 1,
                 )?;
-                for item in fields {
+                for item in field_fields {
                     visitor.text(&(item).0, depth + 1)?;
                     visitor.type_reference(*&(item).1, depth + 1)?;
                 }
             }
-            Self::Enum { name, variants } => {
-                visitor.text(name, depth + 1)?;
+            Self::Enum {
+                name: field_name,
+                variants: field_variants,
+            } => {
+                visitor.text(field_name, depth + 1)?;
                 visitor.rows(
-                    (variants).len(),
+                    (field_variants).len(),
                     std::mem::size_of::<(String, Vec<CtDynamicTypeId>)>(),
                     depth + 1,
                 )?;
-                for item in variants {
+                for item in field_variants {
                     visitor.text(&(item).0, depth + 1)?;
                     visitor.rows(
                         (&(item).1).len(),
@@ -2023,59 +2145,79 @@ impl CtDynamicMetadata for CtDynamicTypeNode {
                     }
                 }
             }
-            Self::ErrorUnion { error, result } => {
-                visitor.type_reference(*error, depth + 1)?;
-                visitor.type_reference(*result, depth + 1)?;
+            Self::ErrorUnion {
+                error: field_error,
+                result: field_result,
+            } => {
+                visitor.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
+                visitor.type_reference(*(field_error).as_ref(), depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
+                visitor.type_reference(*(field_result).as_ref(), depth + 1)?;
             }
-            Self::Address { mutable, inner } => {
-                let _ = mutable;
+            Self::Address {
+                mutable: field_mutable,
+                inner: field_inner,
+            } => {
+                let _ = field_mutable;
                 visitor.node(depth + 1)?;
-                visitor.type_reference(*inner, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
+                visitor.type_reference(*(field_inner).as_ref(), depth + 1)?;
             }
-            Self::Managed(value_0) => {
-                visitor.type_reference(*value_0, depth + 1)?;
+            Self::Managed(field_value_0) => {
+                visitor.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
+                visitor.type_reference(*(field_value_0).as_ref(), depth + 1)?;
             }
-            Self::Desc(value_0) => {
-                visitor.type_reference(*value_0, depth + 1)?;
+            Self::Desc(field_value_0) => {
+                visitor.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
+                visitor.type_reference(*(field_value_0).as_ref(), depth + 1)?;
             }
-            Self::FunctionPointer { parameters, result } => {
-                visitor.rows(
-                    (parameters).len(),
-                    std::mem::size_of::<CtDynamicTypeId>(),
-                    depth + 1,
-                )?;
-                for item in parameters {
-                    visitor.type_reference(*item, depth + 1)?;
-                }
-                visitor.type_reference(*result, depth + 1)?;
-            }
-            Self::BorrowedFunctionPointer {
-                parameters,
-                result,
-                life,
+            Self::FunctionPointer {
+                parameters: field_parameters,
+                result: field_result,
             } => {
                 visitor.rows(
-                    (parameters).len(),
+                    (field_parameters).len(),
                     std::mem::size_of::<CtDynamicTypeId>(),
                     depth + 1,
                 )?;
-                for item in parameters {
+                for item in field_parameters {
                     visitor.type_reference(*item, depth + 1)?;
                 }
-                visitor.type_reference(*result, depth + 1)?;
-                (life).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
+                visitor.type_reference(*(field_result).as_ref(), depth + 1)?;
             }
-            Self::Closure(value_0) => {
-                let _ = value_0;
+            Self::BorrowedFunctionPointer {
+                parameters: field_parameters,
+                result: field_result,
+                life: field_life,
+            } => {
+                visitor.rows(
+                    (field_parameters).len(),
+                    std::mem::size_of::<CtDynamicTypeId>(),
+                    depth + 1,
+                )?;
+                for item in field_parameters {
+                    visitor.type_reference(*item, depth + 1)?;
+                }
+                visitor.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
+                visitor.type_reference(*(field_result).as_ref(), depth + 1)?;
+                (field_life).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Closure(field_value_0) => {
+                let _ = field_value_0;
                 visitor.node(depth + 1)?;
             }
-            Self::Opaque { identity, hidden } => {
-                let _ = identity;
+            Self::Opaque {
+                identity: field_identity,
+                hidden: field_hidden,
+            } => {
+                let _ = field_identity;
                 visitor.node(depth + 1)?;
-                visitor.type_reference(*hidden, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
+                visitor.type_reference(*(field_hidden).as_ref(), depth + 1)?;
             }
-            Self::Unsupported(value_0) => {
-                visitor.text(value_0, depth + 1)?;
+            Self::Unsupported(field_value_0) => {
+                visitor.text(field_value_0, depth + 1)?;
             }
         }
         Ok(())
@@ -2401,8 +2543,8 @@ impl CtDynamicMetadata for CtDynamicCatalogue {
             std::mem::size_of::<CtDynamicTypeNode>(),
             depth + 1,
         )?;
-        for item in &self.types {
-            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        for (index, node) in (&self.types).iter().enumerate() {
+            visitor.type_node(index, node, depth + 1)?;
         }
         visitor.rows(
             (&self.life_declarations).len(),

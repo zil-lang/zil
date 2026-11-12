@@ -50,7 +50,6 @@ def shape(n,kind,rows):
 header='''//! Complete untrusted CT inventory for dynamic metadata and storage sources.
 //! Type payloads are edges in the finite metadata Type DAG in this catalogue.
 //! Catalogue membership grants no visibility, trait, provider or borrow right.
-use super::*;
 use crate::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -134,8 +133,8 @@ pub trait CtDynamicVisitor {
     type Error;
     fn node(&mut self, depth: usize) -> Result<(),Self::Error>;
     fn rows(&mut self, count: usize, element_bytes: usize, depth: usize) -> Result<(),Self::Error>;
+    fn type_node(&mut self,index:usize,node:&CtDynamicTypeNode,depth:usize)->Result<(),Self::Error>;
     fn type_reference(&mut self, id: CtDynamicTypeId, depth: usize) -> Result<(),Self::Error>;
-    fn type_graph(&mut self, graph: &CtTypeRef, depth: usize) -> Result<(),Self::Error>;
     fn constant(&mut self, value: &Constant, depth: usize) -> Result<(),Self::Error>;
     fn text(&mut self, value: &str, depth: usize) -> Result<(),Self::Error>;
 }
@@ -144,15 +143,15 @@ pub trait CtDynamicMetadata {
 }
 '''
 def walk(t,e):
- if t.startswith('Box<'):return walk(t[4:-1],e)
+ if t.startswith('Box<'):return f'visitor.rows(1,std::mem::size_of::<{t[4:-1]}>(),depth+1)?; '+walk(t[4:-1],'('+e+').as_ref()')
  if t.startswith('('):
   return ''.join(walk(v,f'&({e}).{i}') for i,v in enumerate(split(t[1:-1])))
+ if t=='Vec<CtDynamicTypeNode>':return f'visitor.rows(({e}).len(),std::mem::size_of::<CtDynamicTypeNode>(),depth+1)?; for (index,node) in ({e}).iter().enumerate() {{ visitor.type_node(index,node,depth+1)?; }}\n'
  if t.startswith('Vec<'):
   inner=t[4:-1];return f'visitor.rows(({e}).len(),std::mem::size_of::<{inner}>(),depth+1)?;\nfor item in {e} {{ '+walk(inner,'item')+' }\n'
  if t.startswith('Option<'):return f'visitor.node(depth+1)?; if let Some(item)={e} {{ '+walk(t[7:-1],'item')+' }\n'
  if t in visit_items:return f'({e}).visit_ct_dynamic(visitor,depth+1)?;\n'
  if t=='CtDynamicTypeId':return f'visitor.type_reference(*{e},depth+1)?;\n'
- if t=='CtTypeRef':return f'visitor.type_graph({e},depth+1)?;\n'
  if t=='String':return f'visitor.text({e},depth+1)?;\n'
  if t=='Constant':return f'visitor.constant({e},depth+1)?;\n'
  return f'let _={e}; visitor.node(depth+1)?;\n'
@@ -162,8 +161,8 @@ for n,(kind,rows) in visit_items.items():
  else:
   visitor+='match self {\n'
   for v,k,fs in rows:
-   pat='Self::'+v+(' { '+', '.join(f for f,t in fs)+' }' if k=='struct' else '('+', '.join(f for f,t in fs)+')' if k=='tuple' else '')
-   visitor+=pat+' => { '+''.join(walk(t,f) for f,t in fs)+' },\n'
+   pat='Self::'+v+(' { '+', '.join(f+': field_'+f for f,t in fs)+' }' if k=='struct' else '('+', '.join('field_'+f for f,t in fs)+')' if k=='tuple' else '')
+   visitor+=pat+' => { '+''.join(walk(t,'field_'+f) for f,t in fs)+' },\n'
   visitor+='}\n'
  visitor+='Ok(()) } }\n'
 (IR/'ct_dynamic_visit.rs').write_text(visitor)
@@ -204,8 +203,8 @@ for name,(kind,rows) in converters.items():
  else:
   convert+='Ok(match value {\n'
   for v,k,fs in rows:
-   pat=name+'::'+v+(' { '+', '.join(f for f,t in fs)+' }' if k=='struct' else '('+', '.join(f for f,t in fs)+')' if k=='tuple' else '')
-   val=result+'::'+v+(' { '+', '.join(f+': '+expr(t,f) for f,t in fs)+' }' if k=='struct' else '('+', '.join(expr(t,f) for f,t in fs)+')' if k=='tuple' else '')
+   pat=name+'::'+v+(' { '+', '.join(f+': field_'+f for f,t in fs)+' }' if k=='struct' else '('+', '.join('field_'+f for f,t in fs)+')' if k=='tuple' else '')
+   val=result+'::'+v+(' { '+', '.join(f+': '+expr(t,'field_'+f) for f,t in fs)+' }' if k=='struct' else '('+', '.join(expr(t,'field_'+f) for f,t in fs)+')' if k=='tuple' else '')
    convert+=pat+' => '+val+',\n'
   convert+='})'
  convert+='\n}\n'

@@ -5,6 +5,8 @@ use zil_base::{CompileResult, Diagnostic, Fingerprint, Limits, Phase, Span};
 use zil_ir::ct_artifact::*;
 use zil_ir::{BinaryOp, Constant, UnaryOp};
 
+#[path = "ct_artifact_dynamic.rs"]
+mod dynamic;
 #[path = "ct_artifact_identity.rs"]
 mod identity;
 #[path = "ct_artifact_scopes.rs"]
@@ -233,6 +235,7 @@ pub fn verify_ct_artifact_metered(
     }
 
     preflight(&raw, limits)?;
+    dynamic::check(&raw, limits, meter)?;
     let scope_authentication_work = check_ambient_metadata(&raw, limits, authority, meter)?;
     check_type_metadata(&raw, limits, meter, authority)?;
     for instruction in raw

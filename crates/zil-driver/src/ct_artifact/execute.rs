@@ -37,6 +37,7 @@ pub(super) struct Environment<'a> {
     parsed: &'a [Arc<ParseResult>],
     pub index: SourceIndex,
     pub shape: Option<ShapeSnapshot>,
+    dynamic_catalogue: Option<CtDynamicCatalogue>,
     pub impl_index: Option<ImplSnapshot>,
     shape_failure: Option<Vec<Diagnostic>>,
     snapshot: CtSnapshotRequest,
@@ -51,6 +52,23 @@ pub(super) struct Environment<'a> {
 }
 
 impl<'a> Environment<'a> {
+    fn attach_dynamic_catalogue(&mut self, expected: &mut CtArtifactProgram) -> CompileResult<()> {
+        if self.dynamic_catalogue.is_none() {
+            self.dynamic_catalogue = Some(if let Some(shape) = &self.shape {
+                super::dynamic_catalogue::from_core(&shape.core, &mut self.budget, &self.limits)?
+            } else {
+                CtDynamicCatalogue::default()
+            });
+        }
+        let catalogue = self
+            .dynamic_catalogue
+            .as_ref()
+            .expect("frozen catalogue initialized");
+        let cost = super::dynamic_catalogue::copy_cost(catalogue, &mut self.budget)?;
+        self.budget.reserve_temporary_bytes(cost)?;
+        expected.dynamic_catalogue = catalogue.clone();
+        Ok(())
+    }
     // The immutable project graph and request identity enter together; callers
     // already own these borrowed inputs, so a wrapper would only hide them.
     #[cfg(test)]
@@ -184,6 +202,7 @@ impl<'a> Environment<'a> {
             parsed,
             index,
             shape,
+            dynamic_catalogue: None,
             impl_index,
             shape_failure,
             snapshot,
@@ -465,6 +484,7 @@ impl<'a> Environment<'a> {
         for _ in 0..before.max_instances.saturating_sub(declared.max_instances) {
             self.budget.reserve_instance()?;
         }
+        self.attach_dynamic_catalogue(&mut expected)?;
         let authority = FrozenAuthority {
             source_fingerprint: self.source_fingerprint,
             snapshot: &self.snapshot,
@@ -514,7 +534,7 @@ impl<'a> Environment<'a> {
         let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let modules = self.index.modules(self.sources, &syntax);
         let selected_limits = self.remaining_limits();
-        let (expected, _) = compiler::compile_scoped(CompileRequest {
+        let (mut expected, _) = compiler::compile_scoped(CompileRequest {
             target_pointer_width: self.target.pointer_width,
             modules: &modules,
             source_fingerprint: self.source_fingerprint,
@@ -538,6 +558,7 @@ impl<'a> Environment<'a> {
         for _ in 0..before.max_instances.saturating_sub(declared.max_instances) {
             self.budget.reserve_instance()?;
         }
+        self.attach_dynamic_catalogue(&mut expected)?;
         let copied_bytes = value_context::program_copy_cost(&expected, &mut self.budget)?;
         self.budget.reserve_temporary_bytes(copied_bytes)?;
         let authority = FrozenAuthority {
@@ -818,7 +839,7 @@ impl<'a> Environment<'a> {
             snapshot: &self.snapshot,
             limits: &selected_limits,
         };
-        let (expected, source_bindings) = if let Some(source) = runtime_source {
+        let (mut expected, source_bindings) = if let Some(source) = runtime_source {
             compiler::compile_scoped_runtime_at_source(
                 request,
                 Some(&self.generated_catalog),
@@ -842,6 +863,7 @@ impl<'a> Environment<'a> {
         for _ in 0..before.max_instances.saturating_sub(declared.max_instances) {
             self.budget.reserve_instance()?;
         }
+        self.attach_dynamic_catalogue(&mut expected)?;
         if invocation_context.is_none() && !source_bindings.calls.is_empty() {
             self.require_source_origins()?;
             invocation_context =

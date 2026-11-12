@@ -3,6 +3,7 @@
 mod authority;
 mod compiler;
 mod contextual_key;
+mod dynamic_catalogue;
 mod execute;
 mod hygiene;
 mod input;

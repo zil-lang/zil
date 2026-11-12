@@ -197,14 +197,14 @@ pub fn reify_dyn_pattern_actual<R: CtDynamicReifier>(
 ) -> Result<CtDynPatternActual, R::Error> {
     reifier.node(depth)?;
     Ok(match value {
-        DynPatternActual::Type(value_0) => {
-            CtDynPatternActual::Type(reify_dyn_type_pattern(value_0, reifier, depth + 1)?)
+        DynPatternActual::Type(field_value_0) => {
+            CtDynPatternActual::Type(reify_dyn_type_pattern(field_value_0, reifier, depth + 1)?)
         }
-        DynPatternActual::Const(value_0) => {
-            CtDynPatternActual::Const(reify_dyn_const_pattern(value_0, reifier, depth + 1)?)
+        DynPatternActual::Const(field_value_0) => {
+            CtDynPatternActual::Const(reify_dyn_const_pattern(field_value_0, reifier, depth + 1)?)
         }
-        DynPatternActual::Life(value_0) => {
-            CtDynPatternActual::Life(reify_dyn_life_pattern(value_0, reifier, depth + 1)?)
+        DynPatternActual::Life(field_value_0) => {
+            CtDynPatternActual::Life(reify_dyn_life_pattern(field_value_0, reifier, depth + 1)?)
         }
     })
 }
@@ -215,87 +215,98 @@ pub fn reify_dyn_const_pattern<R: CtDynamicReifier>(
 ) -> Result<CtDynConstPattern, R::Error> {
     reifier.node(depth)?;
     Ok(match value {
-        DynConstPattern::IntegerLiteral(value_0) => {
-            CtDynConstPattern::IntegerLiteral(reifier.text(value_0, depth + 1)?)
+        DynConstPattern::IntegerLiteral(field_value_0) => {
+            CtDynConstPattern::IntegerLiteral(reifier.text(field_value_0, depth + 1)?)
         }
-        DynConstPattern::FloatLiteral(value_0) => {
-            CtDynConstPattern::FloatLiteral(reifier.text(value_0, depth + 1)?)
+        DynConstPattern::FloatLiteral(field_value_0) => {
+            CtDynConstPattern::FloatLiteral(reifier.text(field_value_0, depth + 1)?)
         }
-        DynConstPattern::MethodParameter(value_0) => CtDynConstPattern::MethodParameter({
+        DynConstPattern::MethodParameter(field_value_0) => CtDynConstPattern::MethodParameter({
             reifier.node(depth + 1)?;
-            (value_0).clone()
+            (field_value_0).clone()
         }),
-        DynConstPattern::Unary { op, value, ty } => CtDynConstPattern::Unary {
+        DynConstPattern::Unary {
+            op: field_op,
+            value: field_value,
+            ty: field_ty,
+        } => CtDynConstPattern::Unary {
             op: {
                 reifier.node(depth + 1)?;
-                (op).clone()
+                (field_op).clone()
             },
             value: {
                 reifier.rows(1, std::mem::size_of::<CtDynConstPattern>(), depth + 1)?;
-                Box::new(reify_dyn_const_pattern(value, reifier, depth + 1)?)
+                Box::new(reify_dyn_const_pattern(field_value, reifier, depth + 1)?)
             },
             ty: {
                 reifier.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
-                Box::new(reify_dyn_type_pattern(ty, reifier, depth + 1)?)
+                Box::new(reify_dyn_type_pattern(field_ty, reifier, depth + 1)?)
             },
         },
         DynConstPattern::Binary {
-            op,
-            left,
-            right,
-            ty,
+            op: field_op,
+            left: field_left,
+            right: field_right,
+            ty: field_ty,
         } => CtDynConstPattern::Binary {
             op: {
                 reifier.node(depth + 1)?;
-                (op).clone()
+                (field_op).clone()
             },
             left: {
                 reifier.rows(1, std::mem::size_of::<CtDynConstPattern>(), depth + 1)?;
-                Box::new(reify_dyn_const_pattern(left, reifier, depth + 1)?)
+                Box::new(reify_dyn_const_pattern(field_left, reifier, depth + 1)?)
             },
             right: {
                 reifier.rows(1, std::mem::size_of::<CtDynConstPattern>(), depth + 1)?;
-                Box::new(reify_dyn_const_pattern(right, reifier, depth + 1)?)
+                Box::new(reify_dyn_const_pattern(field_right, reifier, depth + 1)?)
             },
             ty: {
                 reifier.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
-                Box::new(reify_dyn_type_pattern(ty, reifier, depth + 1)?)
+                Box::new(reify_dyn_type_pattern(field_ty, reifier, depth + 1)?)
             },
         },
-        DynConstPattern::Convert { value, ty } => CtDynConstPattern::Convert {
+        DynConstPattern::Convert {
+            value: field_value,
+            ty: field_ty,
+        } => CtDynConstPattern::Convert {
             value: {
                 reifier.rows(1, std::mem::size_of::<CtDynConstPattern>(), depth + 1)?;
-                Box::new(reify_dyn_const_pattern(value, reifier, depth + 1)?)
+                Box::new(reify_dyn_const_pattern(field_value, reifier, depth + 1)?)
             },
             ty: {
                 reifier.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
-                Box::new(reify_dyn_type_pattern(ty, reifier, depth + 1)?)
+                Box::new(reify_dyn_type_pattern(field_ty, reifier, depth + 1)?)
             },
         },
         DynConstPattern::AssociatedProjection {
-            receiver,
-            application,
-            member,
+            receiver: field_receiver,
+            application: field_application,
+            member: field_member,
         } => CtDynConstPattern::AssociatedProjection {
             receiver: {
                 reifier.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
-                Box::new(reify_dyn_type_pattern(receiver, reifier, depth + 1)?)
+                Box::new(reify_dyn_type_pattern(field_receiver, reifier, depth + 1)?)
             },
             application: {
                 reifier.rows(1, std::mem::size_of::<CtDynSelfPattern>(), depth + 1)?;
-                Box::new(reify_dyn_self_pattern(application, reifier, depth + 1)?)
+                Box::new(reify_dyn_self_pattern(
+                    field_application,
+                    reifier,
+                    depth + 1,
+                )?)
             },
             member: {
                 reifier.node(depth + 1)?;
-                (member).clone()
+                (field_member).clone()
             },
         },
-        DynConstPattern::Value(value_0) => {
-            CtDynConstPattern::Value(reifier.constant(value_0, depth + 1)?)
+        DynConstPattern::Value(field_value_0) => {
+            CtDynConstPattern::Value(reifier.constant(field_value_0, depth + 1)?)
         }
-        DynConstPattern::Parameter(value_0) => CtDynConstPattern::Parameter({
+        DynConstPattern::Parameter(field_value_0) => CtDynConstPattern::Parameter({
             reifier.node(depth + 1)?;
-            (value_0).clone()
+            (field_value_0).clone()
         }),
     })
 }
@@ -307,100 +318,110 @@ pub fn reify_dyn_type_pattern<R: CtDynamicReifier>(
     reifier.node(depth)?;
     Ok(match value {
         DynTypePattern::SelfType => CtDynTypePattern::SelfType,
-        DynTypePattern::MethodParameter(value_0) => CtDynTypePattern::MethodParameter({
+        DynTypePattern::MethodParameter(field_value_0) => CtDynTypePattern::MethodParameter({
             reifier.node(depth + 1)?;
-            (value_0).clone()
+            (field_value_0).clone()
         }),
         DynTypePattern::AssociatedProjection {
-            receiver,
-            application,
-            member,
+            receiver: field_receiver,
+            application: field_application,
+            member: field_member,
         } => CtDynTypePattern::AssociatedProjection {
             receiver: {
                 reifier.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
-                Box::new(reify_dyn_type_pattern(receiver, reifier, depth + 1)?)
+                Box::new(reify_dyn_type_pattern(field_receiver, reifier, depth + 1)?)
             },
             application: {
                 reifier.rows(1, std::mem::size_of::<CtDynSelfPattern>(), depth + 1)?;
-                Box::new(reify_dyn_self_pattern(application, reifier, depth + 1)?)
+                Box::new(reify_dyn_self_pattern(
+                    field_application,
+                    reifier,
+                    depth + 1,
+                )?)
             },
             member: {
                 reifier.node(depth + 1)?;
-                (member).clone()
+                (field_member).clone()
             },
         },
-        DynTypePattern::Concrete(value_0) => {
-            CtDynTypePattern::Concrete(reify_type_value(value_0, reifier, depth + 1)?)
+        DynTypePattern::Concrete(field_value_0) => {
+            CtDynTypePattern::Concrete(reify_type_value(field_value_0, reifier, depth + 1)?)
         }
-        DynTypePattern::Parameter(value_0) => CtDynTypePattern::Parameter({
+        DynTypePattern::Parameter(field_value_0) => CtDynTypePattern::Parameter({
             reifier.node(depth + 1)?;
-            (value_0).clone()
+            (field_value_0).clone()
         }),
-        DynTypePattern::Nominal(value_0) => CtDynTypePattern::Nominal({
+        DynTypePattern::Nominal(field_value_0) => CtDynTypePattern::Nominal({
             reifier.rows(1, std::mem::size_of::<CtDynSelfPattern>(), depth + 1)?;
-            Box::new(reify_dyn_self_pattern(value_0, reifier, depth + 1)?)
+            Box::new(reify_dyn_self_pattern(field_value_0, reifier, depth + 1)?)
         }),
         DynTypePattern::Address {
-            mutable,
-            lifetime,
-            inner,
+            mutable: field_mutable,
+            lifetime: field_lifetime,
+            inner: field_inner,
         } => CtDynTypePattern::Address {
             mutable: {
                 reifier.node(depth + 1)?;
-                (mutable).clone()
+                (field_mutable).clone()
             },
-            lifetime: match lifetime {
+            lifetime: match field_lifetime {
                 Some(item) => Some(reify_dyn_life_pattern(item, reifier, depth + 1)?),
                 None => None,
             },
             inner: {
                 reifier.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
-                Box::new(reify_dyn_type_pattern(inner, reifier, depth + 1)?)
+                Box::new(reify_dyn_type_pattern(field_inner, reifier, depth + 1)?)
             },
         },
-        DynTypePattern::Tuple(value_0) => CtDynTypePattern::Tuple({
+        DynTypePattern::Tuple(field_value_0) => CtDynTypePattern::Tuple({
             reifier.rows(
-                (value_0).len(),
+                (field_value_0).len(),
                 std::mem::size_of::<CtDynTypePattern>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((value_0).len());
-            for item in value_0 {
+            let mut output = Vec::with_capacity((field_value_0).len());
+            for item in field_value_0 {
                 output.push(reify_dyn_type_pattern(item, reifier, depth + 1)?);
             }
             output
         }),
-        DynTypePattern::Array { element, length } => CtDynTypePattern::Array {
+        DynTypePattern::Array {
+            element: field_element,
+            length: field_length,
+        } => CtDynTypePattern::Array {
             element: {
                 reifier.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
-                Box::new(reify_dyn_type_pattern(element, reifier, depth + 1)?)
+                Box::new(reify_dyn_type_pattern(field_element, reifier, depth + 1)?)
             },
-            length: reify_dyn_const_pattern(length, reifier, depth + 1)?,
+            length: reify_dyn_const_pattern(field_length, reifier, depth + 1)?,
         },
-        DynTypePattern::Slice(value_0) => CtDynTypePattern::Slice({
+        DynTypePattern::Slice(field_value_0) => CtDynTypePattern::Slice({
             reifier.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
-            Box::new(reify_dyn_type_pattern(value_0, reifier, depth + 1)?)
+            Box::new(reify_dyn_type_pattern(field_value_0, reifier, depth + 1)?)
         }),
-        DynTypePattern::Managed(value_0) => CtDynTypePattern::Managed({
+        DynTypePattern::Managed(field_value_0) => CtDynTypePattern::Managed({
             reifier.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
-            Box::new(reify_dyn_type_pattern(value_0, reifier, depth + 1)?)
+            Box::new(reify_dyn_type_pattern(field_value_0, reifier, depth + 1)?)
         }),
-        DynTypePattern::Desc(value_0) => CtDynTypePattern::Desc({
+        DynTypePattern::Desc(field_value_0) => CtDynTypePattern::Desc({
             reifier.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
-            Box::new(reify_dyn_type_pattern(value_0, reifier, depth + 1)?)
+            Box::new(reify_dyn_type_pattern(field_value_0, reifier, depth + 1)?)
         }),
-        DynTypePattern::OwnedStore(value_0) => CtDynTypePattern::OwnedStore({
+        DynTypePattern::OwnedStore(field_value_0) => CtDynTypePattern::OwnedStore({
             reifier.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
-            Box::new(reify_dyn_type_pattern(value_0, reifier, depth + 1)?)
+            Box::new(reify_dyn_type_pattern(field_value_0, reifier, depth + 1)?)
         }),
-        DynTypePattern::ErrorUnion { error, result } => CtDynTypePattern::ErrorUnion {
+        DynTypePattern::ErrorUnion {
+            error: field_error,
+            result: field_result,
+        } => CtDynTypePattern::ErrorUnion {
             error: {
                 reifier.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
-                Box::new(reify_dyn_type_pattern(error, reifier, depth + 1)?)
+                Box::new(reify_dyn_type_pattern(field_error, reifier, depth + 1)?)
             },
             result: {
                 reifier.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
-                Box::new(reify_dyn_type_pattern(result, reifier, depth + 1)?)
+                Box::new(reify_dyn_type_pattern(field_result, reifier, depth + 1)?)
             },
         },
     })
@@ -436,14 +457,14 @@ pub fn reify_dyn_member_kind<R: CtDynamicReifier>(
     Ok(match value {
         DynMemberKind::Type => CtDynMemberKind::Type,
         DynMemberKind::Constant => CtDynMemberKind::Constant,
-        DynMemberKind::Method(value_0) => CtDynMemberKind::Method({
+        DynMemberKind::Method(field_value_0) => CtDynMemberKind::Method({
             reifier.rows(
-                (value_0).len(),
+                (field_value_0).len(),
                 std::mem::size_of::<CtLifeParameterKind>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((value_0).len());
-            for item in value_0 {
+            let mut output = Vec::with_capacity((field_value_0).len());
+            for item in field_value_0 {
                 output.push(reify_life_parameter_kind(item, reifier, depth + 1)?);
             }
             output
@@ -457,18 +478,18 @@ pub fn reify_dyn_generic_actual<R: CtDynamicReifier>(
 ) -> Result<CtDynGenericActual, R::Error> {
     reifier.node(depth)?;
     Ok(match value {
-        DynGenericActual::Type(value_0) => {
-            CtDynGenericActual::Type(reify_type_value(value_0, reifier, depth + 1)?)
+        DynGenericActual::Type(field_value_0) => {
+            CtDynGenericActual::Type(reify_type_value(field_value_0, reifier, depth + 1)?)
         }
-        DynGenericActual::QualifiedType(value_0) => {
-            CtDynGenericActual::QualifiedType(reify_dyn_type_value(value_0, reifier, depth + 1)?)
+        DynGenericActual::QualifiedType(field_value_0) => CtDynGenericActual::QualifiedType(
+            reify_dyn_type_value(field_value_0, reifier, depth + 1)?,
+        ),
+        DynGenericActual::Const(field_value_0) => {
+            CtDynGenericActual::Const(reifier.constant(field_value_0, depth + 1)?)
         }
-        DynGenericActual::Const(value_0) => {
-            CtDynGenericActual::Const(reifier.constant(value_0, depth + 1)?)
-        }
-        DynGenericActual::Life(value_0) => CtDynGenericActual::Life({
+        DynGenericActual::Life(field_value_0) => CtDynGenericActual::Life({
             reifier.node(depth + 1)?;
-            (value_0).clone()
+            (field_value_0).clone()
         }),
     })
 }
@@ -958,29 +979,29 @@ pub fn reify_dyn_requirement<R: CtDynamicReifier>(
 ) -> Result<CtDynRequirement, R::Error> {
     reifier.node(depth)?;
     Ok(match value {
-        DynRequirement::Read(value_0) => {
-            CtDynRequirement::Read(reify_storage_position(value_0, reifier, depth + 1)?)
+        DynRequirement::Read(field_value_0) => {
+            CtDynRequirement::Read(reify_storage_position(field_value_0, reifier, depth + 1)?)
         }
-        DynRequirement::Write(value_0) => {
-            CtDynRequirement::Write(reify_storage_position(value_0, reifier, depth + 1)?)
+        DynRequirement::Write(field_value_0) => {
+            CtDynRequirement::Write(reify_storage_position(field_value_0, reifier, depth + 1)?)
         }
-        DynRequirement::Manage(value_0) => {
-            CtDynRequirement::Manage(reify_storage_position(value_0, reifier, depth + 1)?)
+        DynRequirement::Manage(field_value_0) => {
+            CtDynRequirement::Manage(reify_storage_position(field_value_0, reifier, depth + 1)?)
         }
-        DynRequirement::Apart(value_0, value_1) => CtDynRequirement::Apart(
-            reify_storage_position(value_0, reifier, depth + 1)?,
-            reify_storage_position(value_1, reifier, depth + 1)?,
+        DynRequirement::Apart(field_value_0, field_value_1) => CtDynRequirement::Apart(
+            reify_storage_position(field_value_0, reifier, depth + 1)?,
+            reify_storage_position(field_value_1, reifier, depth + 1)?,
         ),
         DynRequirement::State {
-            position,
-            ty,
-            variant,
+            position: field_position,
+            ty: field_ty,
+            variant: field_variant,
         } => CtDynRequirement::State {
-            position: reify_storage_position(position, reifier, depth + 1)?,
-            ty: reify_type_value(ty, reifier, depth + 1)?,
+            position: reify_storage_position(field_position, reifier, depth + 1)?,
+            ty: reify_type_value(field_ty, reifier, depth + 1)?,
             variant: {
                 reifier.node(depth + 1)?;
-                (variant).clone()
+                (field_variant).clone()
             },
         },
     })
@@ -992,20 +1013,20 @@ pub fn reify_dyn_guarantee<R: CtDynamicReifier>(
 ) -> Result<CtDynGuarantee, R::Error> {
     reifier.node(depth)?;
     Ok(match value {
-        DynGuarantee::StorageSources(value_0) => CtDynGuarantee::StorageSources(
-            reify_storage_source_binding(value_0, reifier, depth + 1)?,
+        DynGuarantee::StorageSources(field_value_0) => CtDynGuarantee::StorageSources(
+            reify_storage_source_binding(field_value_0, reifier, depth + 1)?,
         ),
         DynGuarantee::ManageResult => CtDynGuarantee::ManageResult,
         DynGuarantee::State {
-            position,
-            ty,
-            variant,
+            position: field_position,
+            ty: field_ty,
+            variant: field_variant,
         } => CtDynGuarantee::State {
-            position: reify_storage_position(position, reifier, depth + 1)?,
-            ty: reify_type_value(ty, reifier, depth + 1)?,
+            position: reify_storage_position(field_position, reifier, depth + 1)?,
+            ty: reify_type_value(field_ty, reifier, depth + 1)?,
             variant: {
                 reifier.node(depth + 1)?;
-                (variant).clone()
+                (field_variant).clone()
             },
         },
     })
@@ -1025,11 +1046,11 @@ pub fn reify_dyn_effect<R: CtDynamicReifier>(
         DynEffect::Ffi => CtDynEffect::Ffi,
         DynEffect::Reenter => CtDynEffect::Reenter,
         DynEffect::Panic => CtDynEffect::Panic,
-        DynEffect::Call(value_0) => {
-            CtDynEffect::Call(reify_storage_position(value_0, reifier, depth + 1)?)
+        DynEffect::Call(field_value_0) => {
+            CtDynEffect::Call(reify_storage_position(field_value_0, reifier, depth + 1)?)
         }
-        DynEffect::Cleanup(value_0) => {
-            CtDynEffect::Cleanup(reify_type_value(value_0, reifier, depth + 1)?)
+        DynEffect::Cleanup(field_value_0) => {
+            CtDynEffect::Cleanup(reify_type_value(field_value_0, reifier, depth + 1)?)
         }
     })
 }
@@ -1076,22 +1097,25 @@ pub fn reify_dyn_result_source<R: CtDynamicReifier>(
         DynResultSource::Value => CtDynResultSource::Value,
         DynResultSource::Create => CtDynResultSource::Create,
         DynResultSource::Give => CtDynResultSource::Give,
-        DynResultSource::Borrow { sources, mutable } => CtDynResultSource::Borrow {
+        DynResultSource::Borrow {
+            sources: field_sources,
+            mutable: field_mutable,
+        } => CtDynResultSource::Borrow {
             sources: {
                 reifier.rows(
-                    (sources).len(),
+                    (field_sources).len(),
                     std::mem::size_of::<CtStorageSource>(),
                     depth + 1,
                 )?;
-                let mut output = Vec::with_capacity((sources).len());
-                for item in sources {
+                let mut output = Vec::with_capacity((field_sources).len());
+                for item in field_sources {
                     output.push(reify_storage_source(item, reifier, depth + 1)?);
                 }
                 output
             },
             mutable: {
                 reifier.node(depth + 1)?;
-                (mutable).clone()
+                (field_mutable).clone()
             },
         },
     })
@@ -1280,27 +1304,32 @@ pub fn reify_dyn_life_pattern<R: CtDynamicReifier>(
 ) -> Result<CtDynLifePattern, R::Error> {
     reifier.node(depth)?;
     Ok(match value {
-        DynLifePattern::DeclarationParameter(value_0) => CtDynLifePattern::DeclarationParameter({
+        DynLifePattern::DeclarationParameter(field_value_0) => {
+            CtDynLifePattern::DeclarationParameter({
+                reifier.node(depth + 1)?;
+                (field_value_0).clone()
+            })
+        }
+        DynLifePattern::MethodParameter(field_value_0) => CtDynLifePattern::MethodParameter({
             reifier.node(depth + 1)?;
-            (value_0).clone()
+            (field_value_0).clone()
         }),
-        DynLifePattern::MethodParameter(value_0) => CtDynLifePattern::MethodParameter({
-            reifier.node(depth + 1)?;
-            (value_0).clone()
-        }),
-        DynLifePattern::Bound { depth, index } => CtDynLifePattern::Bound {
+        DynLifePattern::Bound {
+            depth: field_depth,
+            index: field_index,
+        } => CtDynLifePattern::Bound {
             depth: {
                 reifier.node(depth + 1)?;
-                (depth).clone()
+                (field_depth).clone()
             },
             index: {
                 reifier.node(depth + 1)?;
-                (index).clone()
+                (field_index).clone()
             },
         },
-        DynLifePattern::Invocation(value_0) => CtDynLifePattern::Invocation({
+        DynLifePattern::Invocation(field_value_0) => CtDynLifePattern::Invocation({
             reifier.node(depth + 1)?;
-            (value_0).clone()
+            (field_value_0).clone()
         }),
     })
 }
@@ -1311,45 +1340,59 @@ pub fn reify_dyn_obligation<R: CtDynamicReifier>(
 ) -> Result<CtDynObligation, R::Error> {
     reifier.node(depth)?;
     Ok(match value {
-        DynObligation::Structural { receiver, bound } => CtDynObligation::Structural {
-            receiver: reify_dyn_type_pattern(receiver, reifier, depth + 1)?,
-            bound: reify_dyn_structural_bound(bound, reifier, depth + 1)?,
+        DynObligation::Structural {
+            receiver: field_receiver,
+            bound: field_bound,
+        } => CtDynObligation::Structural {
+            receiver: reify_dyn_type_pattern(field_receiver, reifier, depth + 1)?,
+            bound: reify_dyn_structural_bound(field_bound, reifier, depth + 1)?,
         },
         DynObligation::Trait {
-            receiver,
-            application,
+            receiver: field_receiver,
+            application: field_application,
         } => CtDynObligation::Trait {
-            receiver: reify_dyn_type_pattern(receiver, reifier, depth + 1)?,
-            application: reify_dyn_self_pattern(application, reifier, depth + 1)?,
+            receiver: reify_dyn_type_pattern(field_receiver, reifier, depth + 1)?,
+            application: reify_dyn_self_pattern(field_application, reifier, depth + 1)?,
         },
         DynObligation::Callable {
-            receiver,
-            kind,
-            quantified_lifetimes,
-            signature,
+            receiver: field_receiver,
+            kind: field_kind,
+            quantified_lifetimes: field_quantified_lifetimes,
+            signature: field_signature,
         } => CtDynObligation::Callable {
-            receiver: reify_dyn_type_pattern(receiver, reifier, depth + 1)?,
+            receiver: reify_dyn_type_pattern(field_receiver, reifier, depth + 1)?,
             kind: {
                 reifier.node(depth + 1)?;
-                (kind).clone()
+                (field_kind).clone()
             },
             quantified_lifetimes: {
                 reifier.node(depth + 1)?;
-                (quantified_lifetimes).clone()
+                (field_quantified_lifetimes).clone()
             },
             signature: {
                 reifier.rows(1, std::mem::size_of::<CtDynSignatureRecipe>(), depth + 1)?;
-                Box::new(reify_dyn_signature_recipe(signature, reifier, depth + 1)?)
+                Box::new(reify_dyn_signature_recipe(
+                    field_signature,
+                    reifier,
+                    depth + 1,
+                )?)
             },
         },
-        DynObligation::TypeEqual { left, right } => CtDynObligation::TypeEqual {
-            left: reify_dyn_type_pattern(left, reifier, depth + 1)?,
-            right: reify_dyn_type_pattern(right, reifier, depth + 1)?,
+        DynObligation::TypeEqual {
+            left: field_left,
+            right: field_right,
+        } => CtDynObligation::TypeEqual {
+            left: reify_dyn_type_pattern(field_left, reifier, depth + 1)?,
+            right: reify_dyn_type_pattern(field_right, reifier, depth + 1)?,
         },
-        DynObligation::ConstEqual { ty, left, right } => CtDynObligation::ConstEqual {
-            ty: reify_dyn_type_pattern(ty, reifier, depth + 1)?,
-            left: reify_dyn_const_pattern(left, reifier, depth + 1)?,
-            right: reify_dyn_const_pattern(right, reifier, depth + 1)?,
+        DynObligation::ConstEqual {
+            ty: field_ty,
+            left: field_left,
+            right: field_right,
+        } => CtDynObligation::ConstEqual {
+            ty: reify_dyn_type_pattern(field_ty, reifier, depth + 1)?,
+            left: reify_dyn_const_pattern(field_left, reifier, depth + 1)?,
+            right: reify_dyn_const_pattern(field_right, reifier, depth + 1)?,
         },
     })
 }
@@ -1409,29 +1452,29 @@ pub fn reify_dyn_requirement_recipe<R: CtDynamicReifier>(
 ) -> Result<CtDynRequirementRecipe, R::Error> {
     reifier.node(depth)?;
     Ok(match value {
-        DynRequirementRecipe::Read(value_0) => {
-            CtDynRequirementRecipe::Read(reify_storage_position(value_0, reifier, depth + 1)?)
+        DynRequirementRecipe::Read(field_value_0) => {
+            CtDynRequirementRecipe::Read(reify_storage_position(field_value_0, reifier, depth + 1)?)
         }
-        DynRequirementRecipe::Write(value_0) => {
-            CtDynRequirementRecipe::Write(reify_storage_position(value_0, reifier, depth + 1)?)
-        }
-        DynRequirementRecipe::Manage(value_0) => {
-            CtDynRequirementRecipe::Manage(reify_storage_position(value_0, reifier, depth + 1)?)
-        }
-        DynRequirementRecipe::Apart(value_0, value_1) => CtDynRequirementRecipe::Apart(
-            reify_storage_position(value_0, reifier, depth + 1)?,
-            reify_storage_position(value_1, reifier, depth + 1)?,
+        DynRequirementRecipe::Write(field_value_0) => CtDynRequirementRecipe::Write(
+            reify_storage_position(field_value_0, reifier, depth + 1)?,
+        ),
+        DynRequirementRecipe::Manage(field_value_0) => CtDynRequirementRecipe::Manage(
+            reify_storage_position(field_value_0, reifier, depth + 1)?,
+        ),
+        DynRequirementRecipe::Apart(field_value_0, field_value_1) => CtDynRequirementRecipe::Apart(
+            reify_storage_position(field_value_0, reifier, depth + 1)?,
+            reify_storage_position(field_value_1, reifier, depth + 1)?,
         ),
         DynRequirementRecipe::State {
-            position,
-            ty,
-            variant,
+            position: field_position,
+            ty: field_ty,
+            variant: field_variant,
         } => CtDynRequirementRecipe::State {
-            position: reify_storage_position(position, reifier, depth + 1)?,
-            ty: reify_dyn_type_pattern(ty, reifier, depth + 1)?,
+            position: reify_storage_position(field_position, reifier, depth + 1)?,
+            ty: reify_dyn_type_pattern(field_ty, reifier, depth + 1)?,
             variant: {
                 reifier.node(depth + 1)?;
-                (variant).clone()
+                (field_variant).clone()
             },
         },
     })
@@ -1443,20 +1486,20 @@ pub fn reify_dyn_guarantee_recipe<R: CtDynamicReifier>(
 ) -> Result<CtDynGuaranteeRecipe, R::Error> {
     reifier.node(depth)?;
     Ok(match value {
-        DynGuaranteeRecipe::StorageSources(value_0) => CtDynGuaranteeRecipe::StorageSources(
-            reify_storage_source_binding(value_0, reifier, depth + 1)?,
+        DynGuaranteeRecipe::StorageSources(field_value_0) => CtDynGuaranteeRecipe::StorageSources(
+            reify_storage_source_binding(field_value_0, reifier, depth + 1)?,
         ),
         DynGuaranteeRecipe::ManageResult => CtDynGuaranteeRecipe::ManageResult,
         DynGuaranteeRecipe::State {
-            position,
-            ty,
-            variant,
+            position: field_position,
+            ty: field_ty,
+            variant: field_variant,
         } => CtDynGuaranteeRecipe::State {
-            position: reify_storage_position(position, reifier, depth + 1)?,
-            ty: reify_dyn_type_pattern(ty, reifier, depth + 1)?,
+            position: reify_storage_position(field_position, reifier, depth + 1)?,
+            ty: reify_dyn_type_pattern(field_ty, reifier, depth + 1)?,
             variant: {
                 reifier.node(depth + 1)?;
-                (variant).clone()
+                (field_variant).clone()
             },
         },
     })
@@ -1476,11 +1519,11 @@ pub fn reify_dyn_effect_recipe<R: CtDynamicReifier>(
         DynEffectRecipe::Ffi => CtDynEffectRecipe::Ffi,
         DynEffectRecipe::Reenter => CtDynEffectRecipe::Reenter,
         DynEffectRecipe::Panic => CtDynEffectRecipe::Panic,
-        DynEffectRecipe::Call(value_0) => {
-            CtDynEffectRecipe::Call(reify_storage_position(value_0, reifier, depth + 1)?)
+        DynEffectRecipe::Call(field_value_0) => {
+            CtDynEffectRecipe::Call(reify_storage_position(field_value_0, reifier, depth + 1)?)
         }
-        DynEffectRecipe::Cleanup(value_0) => {
-            CtDynEffectRecipe::Cleanup(reify_dyn_type_pattern(value_0, reifier, depth + 1)?)
+        DynEffectRecipe::Cleanup(field_value_0) => {
+            CtDynEffectRecipe::Cleanup(reify_dyn_type_pattern(field_value_0, reifier, depth + 1)?)
         }
     })
 }
@@ -1756,12 +1799,15 @@ pub fn reify_dyn_associated_value_recipe<R: CtDynamicReifier>(
 ) -> Result<CtDynAssociatedValueRecipe, R::Error> {
     reifier.node(depth)?;
     Ok(match value {
-        DynAssociatedValueRecipe::Type(value_0) => {
-            CtDynAssociatedValueRecipe::Type(reify_dyn_type_pattern(value_0, reifier, depth + 1)?)
-        }
-        DynAssociatedValueRecipe::Constant { ty, value } => CtDynAssociatedValueRecipe::Constant {
-            ty: reify_dyn_type_pattern(ty, reifier, depth + 1)?,
-            value: reify_dyn_const_pattern(value, reifier, depth + 1)?,
+        DynAssociatedValueRecipe::Type(field_value_0) => CtDynAssociatedValueRecipe::Type(
+            reify_dyn_type_pattern(field_value_0, reifier, depth + 1)?,
+        ),
+        DynAssociatedValueRecipe::Constant {
+            ty: field_ty,
+            value: field_value,
+        } => CtDynAssociatedValueRecipe::Constant {
+            ty: reify_dyn_type_pattern(field_ty, reifier, depth + 1)?,
+            value: reify_dyn_const_pattern(field_value, reifier, depth + 1)?,
         },
     })
 }
@@ -1806,23 +1852,23 @@ pub fn reify_dyn_associated_source<R: CtDynamicReifier>(
     reifier.node(depth)?;
     Ok(match value {
         DynAssociatedSource::TraitDefault {
-            declaration,
-            member,
+            declaration: field_declaration,
+            member: field_member,
         } => CtDynAssociatedSource::TraitDefault {
-            declaration: reify_life_declaration_id(declaration, reifier, depth + 1)?,
+            declaration: reify_life_declaration_id(field_declaration, reifier, depth + 1)?,
             member: {
                 reifier.node(depth + 1)?;
-                (member).clone()
+                (field_member).clone()
             },
         },
         DynAssociatedSource::ImplOverride {
-            declaration,
-            member,
+            declaration: field_declaration,
+            member: field_member,
         } => CtDynAssociatedSource::ImplOverride {
-            declaration: reify_life_declaration_id(declaration, reifier, depth + 1)?,
+            declaration: reify_life_declaration_id(field_declaration, reifier, depth + 1)?,
             member: {
                 reifier.node(depth + 1)?;
-                (member).clone()
+                (field_member).clone()
             },
         },
     })
@@ -1834,12 +1880,15 @@ pub fn reify_dyn_associated_value<R: CtDynamicReifier>(
 ) -> Result<CtDynAssociatedValue, R::Error> {
     reifier.node(depth)?;
     Ok(match value {
-        DynAssociatedValue::Type(value_0) => {
-            CtDynAssociatedValue::Type(reify_dyn_type_value(value_0, reifier, depth + 1)?)
+        DynAssociatedValue::Type(field_value_0) => {
+            CtDynAssociatedValue::Type(reify_dyn_type_value(field_value_0, reifier, depth + 1)?)
         }
-        DynAssociatedValue::Constant { ty, value } => CtDynAssociatedValue::Constant {
-            ty: reify_dyn_type_value(ty, reifier, depth + 1)?,
-            value: reifier.constant(value, depth + 1)?,
+        DynAssociatedValue::Constant {
+            ty: field_ty,
+            value: field_value,
+        } => CtDynAssociatedValue::Constant {
+            ty: reify_dyn_type_value(field_ty, reifier, depth + 1)?,
+            value: reifier.constant(field_value, depth + 1)?,
         },
     })
 }
@@ -1898,19 +1947,22 @@ pub fn reify_dyn_function_target<R: CtDynamicReifier>(
 ) -> Result<CtDynFunctionTarget, R::Error> {
     reifier.node(depth)?;
     Ok(match value {
-        DynFunctionTarget::Core { module, source } => CtDynFunctionTarget::Core {
+        DynFunctionTarget::Core {
+            module: field_module,
+            source: field_source,
+        } => CtDynFunctionTarget::Core {
             module: {
                 reifier.node(depth + 1)?;
-                (module).clone()
+                (field_module).clone()
             },
             source: {
                 reifier.node(depth + 1)?;
-                (source).clone()
+                (field_source).clone()
             },
         },
-        DynFunctionTarget::Typed(value_0) => CtDynFunctionTarget::Typed({
+        DynFunctionTarget::Typed(field_value_0) => CtDynFunctionTarget::Typed({
             reifier.node(depth + 1)?;
-            (value_0).clone()
+            (field_value_0).clone()
         }),
     })
 }
@@ -1969,33 +2021,46 @@ pub fn reify_storage_source<R: CtDynamicReifier>(
 ) -> Result<CtStorageSource, R::Error> {
     reifier.node(depth)?;
     Ok(match value {
-        StorageSource::Exact(value_0) => {
-            CtStorageSource::Exact(reify_storage_position(value_0, reifier, depth + 1)?)
+        StorageSource::Exact(field_value_0) => {
+            CtStorageSource::Exact(reify_storage_position(field_value_0, reifier, depth + 1)?)
         }
-        StorageSource::PlaceAddress { place, mode } => CtStorageSource::PlaceAddress {
-            place: reify_storage_position(place, reifier, depth + 1)?,
+        StorageSource::PlaceAddress {
+            place: field_place,
+            mode: field_mode,
+        } => CtStorageSource::PlaceAddress {
+            place: reify_storage_position(field_place, reifier, depth + 1)?,
             mode: {
                 reifier.node(depth + 1)?;
-                (mode).clone()
+                (field_mode).clone()
             },
         },
-        StorageSource::OwnedView { head, leaf, mode } => CtStorageSource::OwnedView {
-            head: reify_storage_position(head, reifier, depth + 1)?,
-            leaf: reify_type_value(leaf, reifier, depth + 1)?,
+        StorageSource::OwnedView {
+            head: field_head,
+            leaf: field_leaf,
+            mode: field_mode,
+        } => CtStorageSource::OwnedView {
+            head: reify_storage_position(field_head, reifier, depth + 1)?,
+            leaf: reify_type_value(field_leaf, reifier, depth + 1)?,
             mode: {
                 reifier.node(depth + 1)?;
-                (mode).clone()
+                (field_mode).clone()
             },
         },
-        StorageSource::ReborrowedLeaf { source, head } => CtStorageSource::ReborrowedLeaf {
-            source: reify_storage_position(source, reifier, depth + 1)?,
-            head: reify_storage_position(head, reifier, depth + 1)?,
+        StorageSource::ReborrowedLeaf {
+            source: field_source,
+            head: field_head,
+        } => CtStorageSource::ReborrowedLeaf {
+            source: reify_storage_position(field_source, reifier, depth + 1)?,
+            head: reify_storage_position(field_head, reifier, depth + 1)?,
         },
-        StorageSource::Static { leaf, mode } => CtStorageSource::Static {
-            leaf: reify_type_value(leaf, reifier, depth + 1)?,
+        StorageSource::Static {
+            leaf: field_leaf,
+            mode: field_mode,
+        } => CtStorageSource::Static {
+            leaf: reify_type_value(field_leaf, reifier, depth + 1)?,
             mode: {
                 reifier.node(depth + 1)?;
-                (mode).clone()
+                (field_mode).clone()
             },
         },
     })
@@ -2110,8 +2175,8 @@ pub fn reify_life_parameter_kind<R: CtDynamicReifier>(
     reifier.node(depth)?;
     Ok(match value {
         LifeParameterKind::Type => CtLifeParameterKind::Type,
-        LifeParameterKind::Const(value_0) => {
-            CtLifeParameterKind::Const(reify_type_value(value_0, reifier, depth + 1)?)
+        LifeParameterKind::Const(field_value_0) => {
+            CtLifeParameterKind::Const(reify_type_value(field_value_0, reifier, depth + 1)?)
         }
         LifeParameterKind::Lifetime => CtLifeParameterKind::Lifetime,
     })
@@ -2147,19 +2212,22 @@ pub fn reify_life_nominal_actual<R: CtDynamicReifier>(
 ) -> Result<CtLifeNominalActual, R::Error> {
     reifier.node(depth)?;
     Ok(match value {
-        LifeNominalActual::Type(value_0) => {
-            CtLifeNominalActual::Type(reify_type_value(value_0, reifier, depth + 1)?)
+        LifeNominalActual::Type(field_value_0) => {
+            CtLifeNominalActual::Type(reify_type_value(field_value_0, reifier, depth + 1)?)
         }
-        LifeNominalActual::QualifiedType { ty, life } => CtLifeNominalActual::QualifiedType {
-            ty: reify_type_value(ty, reifier, depth + 1)?,
-            life: reify_storage_life_shape(life, reifier, depth + 1)?,
+        LifeNominalActual::QualifiedType {
+            ty: field_ty,
+            life: field_life,
+        } => CtLifeNominalActual::QualifiedType {
+            ty: reify_type_value(field_ty, reifier, depth + 1)?,
+            life: reify_storage_life_shape(field_life, reifier, depth + 1)?,
         },
-        LifeNominalActual::Const(value_0) => {
-            CtLifeNominalActual::Const(reifier.constant(value_0, depth + 1)?)
+        LifeNominalActual::Const(field_value_0) => {
+            CtLifeNominalActual::Const(reifier.constant(field_value_0, depth + 1)?)
         }
-        LifeNominalActual::Lifetime(value_0) => CtLifeNominalActual::Lifetime({
+        LifeNominalActual::Lifetime(field_value_0) => CtLifeNominalActual::Lifetime({
             reifier.node(depth + 1)?;
-            (value_0).clone()
+            (field_value_0).clone()
         }),
     })
 }
@@ -2193,18 +2261,25 @@ pub fn reify_type<R: CtDynamicReifier>(
 ) -> Result<CtDynamicTypeNode, R::Error> {
     reifier.node(depth)?;
     Ok(match value {
-        Type::Dyn { interface } => CtDynamicTypeNode::Dyn {
-            interface: reify_dyn_interface_id(interface, reifier, depth + 1)?,
+        Type::Dyn {
+            interface: field_interface,
+        } => CtDynamicTypeNode::Dyn {
+            interface: reify_dyn_interface_id(field_interface, reifier, depth + 1)?,
         },
-        Type::OwnedDyn { interface } => CtDynamicTypeNode::OwnedDyn {
-            interface: reify_dyn_interface_id(interface, reifier, depth + 1)?,
+        Type::OwnedDyn {
+            interface: field_interface,
+        } => CtDynamicTypeNode::OwnedDyn {
+            interface: reify_dyn_interface_id(field_interface, reifier, depth + 1)?,
         },
-        Type::BorrowedStorage { storage, life } => CtDynamicTypeNode::BorrowedStorage {
+        Type::BorrowedStorage {
+            storage: field_storage,
+            life: field_life,
+        } => CtDynamicTypeNode::BorrowedStorage {
             storage: {
                 reifier.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
-                Box::new(reify_type_value(storage, reifier, depth + 1)?)
+                Box::new(reify_type_value(field_storage, reifier, depth + 1)?)
             },
-            life: reify_storage_life_shape(life, reifier, depth + 1)?,
+            life: reify_storage_life_shape(field_life, reifier, depth + 1)?,
         },
         Type::Unit => CtDynamicTypeNode::Unit,
         Type::Bool => CtDynamicTypeNode::Bool,
@@ -2221,114 +2296,135 @@ pub fn reify_type<R: CtDynamicReifier>(
         Type::I16 => CtDynamicTypeNode::I16,
         Type::Isize => CtDynamicTypeNode::Isize,
         Type::ByteBuffer => CtDynamicTypeNode::ByteBuffer,
-        Type::OwnedStore { element } => CtDynamicTypeNode::OwnedStore {
+        Type::OwnedStore {
+            element: field_element,
+        } => CtDynamicTypeNode::OwnedStore {
             element: {
                 reifier.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
-                Box::new(reify_type_value(element, reifier, depth + 1)?)
+                Box::new(reify_type_value(field_element, reifier, depth + 1)?)
             },
         },
         Type::ForeignHandle => CtDynamicTypeNode::ForeignHandle,
-        Type::SyncCell(value_0) => CtDynamicTypeNode::SyncCell({
+        Type::SyncCell(field_value_0) => CtDynamicTypeNode::SyncCell({
             reifier.node(depth + 1)?;
-            (value_0).clone()
+            (field_value_0).clone()
         }),
-        Type::Mutex { payload } => CtDynamicTypeNode::Mutex {
+        Type::Mutex {
+            payload: field_payload,
+        } => CtDynamicTypeNode::Mutex {
             payload: {
                 reifier.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
-                Box::new(reify_type_value(payload, reifier, depth + 1)?)
+                Box::new(reify_type_value(field_payload, reifier, depth + 1)?)
             },
         },
         Type::MutexGuard {
-            payload,
-            retained_life,
+            payload: field_payload,
+            retained_life: field_retained_life,
         } => CtDynamicTypeNode::MutexGuard {
             payload: {
                 reifier.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
-                Box::new(reify_type_value(payload, reifier, depth + 1)?)
+                Box::new(reify_type_value(field_payload, reifier, depth + 1)?)
             },
-            retained_life: reify_retained_life_shape(retained_life, reifier, depth + 1)?,
+            retained_life: reify_retained_life_shape(field_retained_life, reifier, depth + 1)?,
         },
-        Type::Registration { environment } => CtDynamicTypeNode::Registration {
+        Type::Registration {
+            environment: field_environment,
+        } => CtDynamicTypeNode::Registration {
             environment: {
                 reifier.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
-                Box::new(reify_type_value(environment, reifier, depth + 1)?)
+                Box::new(reify_type_value(field_environment, reifier, depth + 1)?)
             },
         },
-        Type::AsyncRegistration { environment } => CtDynamicTypeNode::AsyncRegistration {
+        Type::AsyncRegistration {
+            environment: field_environment,
+        } => CtDynamicTypeNode::AsyncRegistration {
             environment: {
                 reifier.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
-                Box::new(reify_type_value(environment, reifier, depth + 1)?)
+                Box::new(reify_type_value(field_environment, reifier, depth + 1)?)
             },
         },
         Type::TaskI32 => CtDynamicTypeNode::TaskI32,
         Type::Task {
-            result,
-            retained_life,
+            result: field_result,
+            retained_life: field_retained_life,
         } => CtDynamicTypeNode::Task {
             result: {
                 reifier.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
-                Box::new(reify_type_value(result, reifier, depth + 1)?)
+                Box::new(reify_type_value(field_result, reifier, depth + 1)?)
             },
-            retained_life: reify_retained_life_shape(retained_life, reifier, depth + 1)?,
+            retained_life: reify_retained_life_shape(field_retained_life, reifier, depth + 1)?,
         },
         Type::CWideString => CtDynamicTypeNode::CWideString,
-        Type::ForeignCallback { parameters, result } => CtDynamicTypeNode::ForeignCallback {
+        Type::ForeignCallback {
+            parameters: field_parameters,
+            result: field_result,
+        } => CtDynamicTypeNode::ForeignCallback {
             parameters: {
                 reifier.rows(
-                    (parameters).len(),
+                    (field_parameters).len(),
                     std::mem::size_of::<CtDynamicTypeId>(),
                     depth + 1,
                 )?;
-                let mut output = Vec::with_capacity((parameters).len());
-                for item in parameters {
+                let mut output = Vec::with_capacity((field_parameters).len());
+                for item in field_parameters {
                     output.push(reify_type_value(item, reifier, depth + 1)?);
                 }
                 output
             },
             result: {
                 reifier.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
-                Box::new(reify_type_value(result, reifier, depth + 1)?)
+                Box::new(reify_type_value(field_result, reifier, depth + 1)?)
             },
         },
-        Type::Tuple(value_0) => CtDynamicTypeNode::Tuple({
+        Type::Tuple(field_value_0) => CtDynamicTypeNode::Tuple({
             reifier.rows(
-                (value_0).len(),
+                (field_value_0).len(),
                 std::mem::size_of::<CtDynamicTypeId>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((value_0).len());
-            for item in value_0 {
+            let mut output = Vec::with_capacity((field_value_0).len());
+            for item in field_value_0 {
                 output.push(reify_type_value(item, reifier, depth + 1)?);
             }
             output
         }),
-        Type::Array { element, length } => CtDynamicTypeNode::Array {
+        Type::Array {
+            element: field_element,
+            length: field_length,
+        } => CtDynamicTypeNode::Array {
             element: {
                 reifier.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
-                Box::new(reify_type_value(element, reifier, depth + 1)?)
+                Box::new(reify_type_value(field_element, reifier, depth + 1)?)
             },
             length: {
                 reifier.node(depth + 1)?;
-                (length).clone()
+                (field_length).clone()
             },
         },
-        Type::Slice { element } => CtDynamicTypeNode::Slice {
+        Type::Slice {
+            element: field_element,
+        } => CtDynamicTypeNode::Slice {
             element: {
                 reifier.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
-                Box::new(reify_type_value(element, reifier, depth + 1)?)
+                Box::new(reify_type_value(field_element, reifier, depth + 1)?)
             },
         },
-        Type::Named(value_0) => CtDynamicTypeNode::Named(reifier.text(value_0, depth + 1)?),
-        Type::Record { name, fields } => CtDynamicTypeNode::Record {
-            name: reifier.text(name, depth + 1)?,
+        Type::Named(field_value_0) => {
+            CtDynamicTypeNode::Named(reifier.text(field_value_0, depth + 1)?)
+        }
+        Type::Record {
+            name: field_name,
+            fields: field_fields,
+        } => CtDynamicTypeNode::Record {
+            name: reifier.text(field_name, depth + 1)?,
             fields: {
                 reifier.rows(
-                    (fields).len(),
+                    (field_fields).len(),
                     std::mem::size_of::<(String, CtDynamicTypeId)>(),
                     depth + 1,
                 )?;
-                let mut output = Vec::with_capacity((fields).len());
-                for item in fields {
+                let mut output = Vec::with_capacity((field_fields).len());
+                for item in field_fields {
                     output.push((
                         reifier.text(&(item).0, depth + 1)?,
                         reify_type_value(&(item).1, reifier, depth + 1)?,
@@ -2337,16 +2433,19 @@ pub fn reify_type<R: CtDynamicReifier>(
                 output
             },
         },
-        Type::Package { name, fields } => CtDynamicTypeNode::Package {
-            name: reifier.text(name, depth + 1)?,
+        Type::Package {
+            name: field_name,
+            fields: field_fields,
+        } => CtDynamicTypeNode::Package {
+            name: reifier.text(field_name, depth + 1)?,
             fields: {
                 reifier.rows(
-                    (fields).len(),
+                    (field_fields).len(),
                     std::mem::size_of::<(String, CtDynamicTypeId)>(),
                     depth + 1,
                 )?;
-                let mut output = Vec::with_capacity((fields).len());
-                for item in fields {
+                let mut output = Vec::with_capacity((field_fields).len());
+                for item in field_fields {
                     output.push((
                         reifier.text(&(item).0, depth + 1)?,
                         reify_type_value(&(item).1, reifier, depth + 1)?,
@@ -2355,16 +2454,19 @@ pub fn reify_type<R: CtDynamicReifier>(
                 output
             },
         },
-        Type::Enum { name, variants } => CtDynamicTypeNode::Enum {
-            name: reifier.text(name, depth + 1)?,
+        Type::Enum {
+            name: field_name,
+            variants: field_variants,
+        } => CtDynamicTypeNode::Enum {
+            name: reifier.text(field_name, depth + 1)?,
             variants: {
                 reifier.rows(
-                    (variants).len(),
+                    (field_variants).len(),
                     std::mem::size_of::<(String, Vec<CtDynamicTypeId>)>(),
                     depth + 1,
                 )?;
-                let mut output = Vec::with_capacity((variants).len());
-                for item in variants {
+                let mut output = Vec::with_capacity((field_variants).len());
+                for item in field_variants {
                     output.push((reifier.text(&(item).0, depth + 1)?, {
                         reifier.rows(
                             (&(item).1).len(),
@@ -2381,91 +2483,103 @@ pub fn reify_type<R: CtDynamicReifier>(
                 output
             },
         },
-        Type::ErrorUnion { error, result } => CtDynamicTypeNode::ErrorUnion {
+        Type::ErrorUnion {
+            error: field_error,
+            result: field_result,
+        } => CtDynamicTypeNode::ErrorUnion {
             error: {
                 reifier.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
-                Box::new(reify_type_value(error, reifier, depth + 1)?)
+                Box::new(reify_type_value(field_error, reifier, depth + 1)?)
             },
             result: {
                 reifier.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
-                Box::new(reify_type_value(result, reifier, depth + 1)?)
+                Box::new(reify_type_value(field_result, reifier, depth + 1)?)
             },
         },
-        Type::Address { mutable, inner } => CtDynamicTypeNode::Address {
+        Type::Address {
+            mutable: field_mutable,
+            inner: field_inner,
+        } => CtDynamicTypeNode::Address {
             mutable: {
                 reifier.node(depth + 1)?;
-                (mutable).clone()
+                (field_mutable).clone()
             },
             inner: {
                 reifier.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
-                Box::new(reify_type_value(inner, reifier, depth + 1)?)
+                Box::new(reify_type_value(field_inner, reifier, depth + 1)?)
             },
         },
-        Type::Managed(value_0) => CtDynamicTypeNode::Managed({
+        Type::Managed(field_value_0) => CtDynamicTypeNode::Managed({
             reifier.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
-            Box::new(reify_type_value(value_0, reifier, depth + 1)?)
+            Box::new(reify_type_value(field_value_0, reifier, depth + 1)?)
         }),
-        Type::Desc(value_0) => CtDynamicTypeNode::Desc({
+        Type::Desc(field_value_0) => CtDynamicTypeNode::Desc({
             reifier.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
-            Box::new(reify_type_value(value_0, reifier, depth + 1)?)
+            Box::new(reify_type_value(field_value_0, reifier, depth + 1)?)
         }),
-        Type::FunctionPointer { parameters, result } => CtDynamicTypeNode::FunctionPointer {
+        Type::FunctionPointer {
+            parameters: field_parameters,
+            result: field_result,
+        } => CtDynamicTypeNode::FunctionPointer {
             parameters: {
                 reifier.rows(
-                    (parameters).len(),
+                    (field_parameters).len(),
                     std::mem::size_of::<CtDynamicTypeId>(),
                     depth + 1,
                 )?;
-                let mut output = Vec::with_capacity((parameters).len());
-                for item in parameters {
+                let mut output = Vec::with_capacity((field_parameters).len());
+                for item in field_parameters {
                     output.push(reify_type_value(item, reifier, depth + 1)?);
                 }
                 output
             },
             result: {
                 reifier.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
-                Box::new(reify_type_value(result, reifier, depth + 1)?)
+                Box::new(reify_type_value(field_result, reifier, depth + 1)?)
             },
         },
         Type::BorrowedFunctionPointer {
-            parameters,
-            result,
-            life,
+            parameters: field_parameters,
+            result: field_result,
+            life: field_life,
         } => CtDynamicTypeNode::BorrowedFunctionPointer {
             parameters: {
                 reifier.rows(
-                    (parameters).len(),
+                    (field_parameters).len(),
                     std::mem::size_of::<CtDynamicTypeId>(),
                     depth + 1,
                 )?;
-                let mut output = Vec::with_capacity((parameters).len());
-                for item in parameters {
+                let mut output = Vec::with_capacity((field_parameters).len());
+                for item in field_parameters {
                     output.push(reify_type_value(item, reifier, depth + 1)?);
                 }
                 output
             },
             result: {
                 reifier.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
-                Box::new(reify_type_value(result, reifier, depth + 1)?)
+                Box::new(reify_type_value(field_result, reifier, depth + 1)?)
             },
-            life: reify_storage_life_contract(life, reifier, depth + 1)?,
+            life: reify_storage_life_contract(field_life, reifier, depth + 1)?,
         },
-        Type::Closure(value_0) => CtDynamicTypeNode::Closure({
+        Type::Closure(field_value_0) => CtDynamicTypeNode::Closure({
             reifier.node(depth + 1)?;
-            (value_0).clone()
+            (field_value_0).clone()
         }),
-        Type::Opaque { identity, hidden } => CtDynamicTypeNode::Opaque {
+        Type::Opaque {
+            identity: field_identity,
+            hidden: field_hidden,
+        } => CtDynamicTypeNode::Opaque {
             identity: {
                 reifier.node(depth + 1)?;
-                (identity).clone()
+                (field_identity).clone()
             },
             hidden: {
                 reifier.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
-                Box::new(reify_type_value(hidden, reifier, depth + 1)?)
+                Box::new(reify_type_value(field_hidden, reifier, depth + 1)?)
             },
         },
-        Type::Unsupported(value_0) => {
-            CtDynamicTypeNode::Unsupported(reifier.text(value_0, depth + 1)?)
+        Type::Unsupported(field_value_0) => {
+            CtDynamicTypeNode::Unsupported(reifier.text(field_value_0, depth + 1)?)
         }
     })
 }

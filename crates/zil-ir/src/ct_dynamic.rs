@@ -1,7 +1,6 @@
 //! Complete untrusted CT inventory for dynamic metadata and storage sources.
 //! Type payloads are edges in the finite metadata Type DAG in this catalogue.
 //! Catalogue membership grants no visibility, trait, provider or borrow right.
-use super::*;
 use crate::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
