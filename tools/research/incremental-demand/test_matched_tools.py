@@ -616,6 +616,75 @@ class PushReceiptTests(unittest.TestCase):
 
 
 class CargoCommandTests(unittest.TestCase):
+    def resolution(self, root, *, direct=False):
+        actual, launcher = '/pinned/toolchain/bin/cargo', '/pinned/proxy/rustup'
+        if direct:
+            launcher = actual
+        manifest = {'arguments': {'cargo': 'cargo'},
+                    'tools': {'cargo': {'requested': 'cargo', 'launcher_path': launcher,
+                                        'launcher_sha256': 'a' * 64, 'actual_path': actual,
+                                        'actual_sha256': 'a' * 64 if direct else 'b' * 64}},
+                    'tools_after_sha256': {'cargo': 'a' * 64 if direct else 'b' * 64}}
+        def evidence(name, argv, stdout):
+            directory = root / name
+            directory.mkdir()
+            (directory / 'command.json').write_text(json.dumps({'argv': argv}))
+            (directory / 'stdout.bin').write_bytes(stdout)
+            (directory / 'stderr.bin').write_bytes(b'')
+            (directory / 'result.json').write_text(json.dumps({'returncode': 0, 'timed_out': False,
+                'stdout_sha256': rc.sha(stdout), 'stderr_sha256': rc.sha(b'')}))
+        if not direct:
+            evidence('cargo-resolution', [launcher, 'which', 'cargo'], (actual + '\n').encode())
+        evidence('cargo-version', [actual, '-vV'], b'cargo 1.99.1 pinned version\n')
+        return manifest
+
+    def test_logical_cargo_resolves_to_exact_pinned_argv_and_never_an_argv0_wildcard(self):
+        for direct in (False, True):
+            with tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                manifest = self.resolution(root, direct=direct)
+                cargo = pc.resolved_tool(root, manifest, 'cargo')
+                expected = pc.rust_command(cargo=cargo, mode='o2', target='/run/rust-target')
+                pc.rust_command_flags(expected, cargo=cargo, mode='o2', target='/run/rust-target')
+                for replacement in ('cargo', '/different/cargo', '/pinned/proxy/rustup', '', '/bin/sh'):
+                    command = expected.copy()
+                    command[0] = replacement
+                    with self.subTest(direct=direct, replacement=replacement), self.assertRaises(ValueError):
+                        pc.rust_command_flags(command, cargo=cargo, mode='o2', target='/run/rust-target')
+                for extra in (['--jobs', '16'], ['--release'], ['--profile', 'dev']):
+                    with self.subTest(extra=extra), self.assertRaises(ValueError):
+                        pc.rust_command_flags(expected + extra, cargo=cargo, mode='o2', target='/run/rust-target')
+
+    def test_missing_or_inconsistent_tool_resolution_and_raw_evidence_are_rejected(self):
+        for mutation in ('missing_tool', 'missing_actual', 'bad_path', 'bad_hash', 'requested', 'after',
+                         'resolution_argv', 'resolution_output', 'resolution_failed',
+                         'version_argv', 'version_output', 'missing_resolution'):
+            with tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                manifest = self.resolution(root)
+                if mutation == 'missing_tool': del manifest['tools']['cargo']
+                elif mutation == 'missing_actual': del manifest['tools']['cargo']['actual_path']
+                elif mutation == 'bad_path': manifest['tools']['cargo']['actual_path'] = 'relative/cargo'
+                elif mutation == 'bad_hash': manifest['tools']['cargo']['actual_sha256'] = 'bad'
+                elif mutation == 'requested': manifest['tools']['cargo']['requested'] = '/other/cargo'
+                elif mutation == 'after': manifest['tools_after_sha256']['cargo'] = '0' * 64
+                elif mutation.endswith('_argv'):
+                    directory = 'cargo-version' if mutation.startswith('version') else 'cargo-resolution'
+                    path = root / directory / 'command.json'
+                    data = json.loads(path.read_text()); data['argv'][0] = '/other/cargo'
+                    path.write_text(json.dumps(data))
+                elif mutation.endswith('_output'):
+                    directory = 'cargo-version' if mutation.startswith('version') else 'cargo-resolution'
+                    (root / directory / 'stdout.bin').write_bytes(b'/other/cargo\n')
+                elif mutation == 'resolution_failed':
+                    path = root / 'cargo-resolution/result.json'
+                    data = json.loads(path.read_text()); data['returncode'] = 1
+                    path.write_text(json.dumps(data))
+                else:
+                    (root / 'cargo-resolution/command.json').unlink()
+                with self.subTest(mutation=mutation), self.assertRaises((ValueError, OSError)):
+                    pc.resolved_tool(root, manifest, 'cargo')
+
     def test_modes_and_target_are_complete_and_fixed(self):
         common = ['/tool/cargo', 'check', '--offline', '--locked', '--jobs', '1',
                   '--verbose', '--message-format=json', '--target-dir', '/run/rust-target']

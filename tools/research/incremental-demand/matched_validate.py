@@ -82,6 +82,8 @@ def audit(out):
     require(manifest.get('llvm_comparison_policy', pc.LLVM_RAW) == (pc.LLVM_PUSH if push else pc.LLVM_RAW), 'LLVM comparison policy differs from research flags')
     require(manifest['sources']['candidate']['commit'] == manifest['arguments']['candidate_source'], 'candidate differs from explicit source pin')
     pc.inspect_commands(out, manifest)
+    resolved_cargo = pc.resolved_tool(out, manifest, 'cargo')
+    pc.resolved_tool(out, manifest, 'rustc')
     for name,tool in manifest['tools'].items():
         require(manifest['tools_after_sha256'][name]==tool['actual_sha256'], 'tool changed during run')
     require('58cf8f9c35b355199727627d07ae34a4e2846d67' in (out/'rustc-version'/'stdout.bin').read_text(), 'wrong rustc commit')
@@ -155,9 +157,8 @@ def audit(out):
         require(math.isfinite(row['measurement']['wall_ms']) and row['measurement']['wall_ms']>0, 'invalid wall time')
         if arm=='rust':
             command=json.loads((directory/'command.json').read_text())['argv']
-            expected_command = pc.rust_command(cargo=manifest['arguments']['cargo'], mode=mode,
-                                               target=Path(manifest['arguments']['out']) / f'block-{row["block"]:02d}' / 'rust-target')
-            require(command == expected_command, 'complete Cargo argv differs from declared protocol')
+            pc.rust_command_flags(command, cargo=resolved_cargo, mode=mode,
+                                  target=Path(manifest['arguments']['out']) / f'block-{row["block"]:02d}' / 'rust-target')
             result=row['measurement']
             require(result['returncode']==(101 if label=='error' else 0) and not result['timed_out'], 'Rust process failure')
             require(file_hash(directory/'stdout.bin')==result['stdout_sha256'] and file_hash(directory/'stderr.bin')==result['stderr_sha256'], 'Rust raw process stream differs')
