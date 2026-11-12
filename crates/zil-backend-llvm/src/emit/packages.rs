@@ -169,7 +169,7 @@ fn owned_field(ty: &Type) -> bool {
     drop_plan::owned_sum(ty)
         || matches!(
             ty,
-            Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
+            Type::Managed(_) | Type::OwnedDyn { .. } | Type::Closure(_) | Type::Package { .. }
         )
         || matches!(ty, Type::BorrowedStorage { storage, .. }
             if matches!(storage.as_ref(), Type::Package { .. }))
@@ -231,7 +231,7 @@ pub(super) fn teardown_paths(
                     result.push((path, teardown));
                 }
             }
-            Type::Package { fields, .. } => {
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 for (index, (_, field)) in fields.iter().enumerate().rev() {
                     if owned_field(field) {
                         let mut child = path.clone();
@@ -247,6 +247,7 @@ pub(super) fn teardown_paths(
                     pending.push((element, child));
                 }
             }
+            Type::Address { .. } | Type::Desc(_) => {}
             _ if ty.is_copy_value() => {}
             _ => {
                 return invalid(

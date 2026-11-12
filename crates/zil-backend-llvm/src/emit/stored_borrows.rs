@@ -194,6 +194,22 @@ pub(super) fn reserve_callable_metadata(
             .saturating_add(module.resources.len()),
     )?;
     for function in &module.functions {
+        if let Some(rows) = &function.retained_return_sources {
+            pay(work, rows.len().saturating_add(1))?;
+            for row in rows {
+                pay(
+                    work,
+                    row.position
+                        .path
+                        .len()
+                        .saturating_add(row.sources.len())
+                        .saturating_add(1),
+                )?;
+                for source in &row.sources {
+                    pay(work, source.path.len().saturating_add(1))?;
+                }
+            }
+        }
         if let Some(protocol) = &function.protocol_contract {
             pay(
                 work,
@@ -554,7 +570,11 @@ pub(super) fn reserve_binding(
                     | InstructionKind::StorePackageField { .. }
                     | InstructionKind::UnsafeEnter { .. }
                     | InstructionKind::UnsafeExit { .. } => 1,
-                    InstructionKind::MakeErrorUnion { .. }
+                    InstructionKind::MakeDynOwned { .. }
+                    | InstructionKind::MakeDynBorrow { .. }
+                    | InstructionKind::BorrowDynOwned { .. }
+                    | InstructionKind::DropDynOwned { .. }
+                    | InstructionKind::MakeErrorUnion { .. }
                     | InstructionKind::OwnedStoreNew { .. }
                     | InstructionKind::OwnedStoreReserve { .. }
                     | InstructionKind::OwnedStorePush { .. }
@@ -618,7 +638,10 @@ fn operands(i: &InstructionKind) -> Vec<ValueId> {
         }
         | InstructionKind::CallClosureShared { arguments, .. }
         | InstructionKind::CallClosureMut { arguments, .. } => arguments.clone(),
-        InstructionKind::CallIndirect { callee, arguments }
+        InstructionKind::CallDynSlot {
+            callee, arguments, ..
+        }
+        | InstructionKind::CallIndirect { callee, arguments }
         | InstructionKind::CallClosure { callee, arguments }
         | InstructionKind::CallClosureOnce { callee, arguments }
         | InstructionKind::CallClosureBorrowed {
@@ -626,7 +649,9 @@ fn operands(i: &InstructionKind) -> Vec<ValueId> {
         } => std::iter::once(*callee)
             .chain(arguments.iter().copied())
             .collect(),
-        InstructionKind::ExtractField {
+        InstructionKind::MakeDynOwned { source: value, .. }
+        | InstructionKind::MakeDynBorrow { source: value, .. }
+        | InstructionKind::ExtractField {
             aggregate: value, ..
         }
         | InstructionKind::VariantTag { value }
@@ -707,7 +732,8 @@ pub(super) fn reserve_emission(
                 }
                 | InstructionKind::CallClosureShared { arguments, .. }
                 | InstructionKind::CallClosureMut { arguments, .. } => arguments.len(),
-                InstructionKind::CallIndirect { arguments, .. }
+                InstructionKind::CallDynSlot { arguments, .. }
+                | InstructionKind::CallIndirect { arguments, .. }
                 | InstructionKind::CallClosure { arguments, .. }
                 | InstructionKind::CallClosureOnce { arguments, .. }
                 | InstructionKind::CallClosureBorrowed { arguments, .. } => {
@@ -734,6 +760,8 @@ pub(super) fn reserve_emission(
             | InstructionKind::DescribeLocal { local: callee }
             | InstructionKind::DropManaged { local: callee }
             | InstructionKind::DropClosure { local: callee }
+            | InstructionKind::BorrowDynOwned { local: callee, .. }
+            | InstructionKind::DropDynOwned { local: callee }
             | InstructionKind::ReadPackageField { local: callee, .. }
             | InstructionKind::BorrowPackageField { local: callee, .. }
             | InstructionKind::DescribePackageField { local: callee, .. }

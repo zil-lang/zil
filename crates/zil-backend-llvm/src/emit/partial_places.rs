@@ -15,7 +15,7 @@ pub(super) fn leaves(ty: &Type, resources: &[ResourceDefinition]) -> CompileResu
         out: &mut Vec<Leaf>,
     ) -> CompileResult<()> {
         match ty {
-            Type::Managed(_) => {
+            Type::Managed(_) | Type::OwnedDyn { .. } => {
                 let drops = packages::teardown_paths(ty, resources)?;
                 if drops.len() > 1 || drops.first().is_some_and(|(p, _)| !p.is_empty()) {
                     return invalid(
@@ -36,7 +36,9 @@ pub(super) fn leaves(ty: &Type, resources: &[ResourceDefinition]) -> CompileResu
                     path.pop();
                 }
             }
-            Type::Package { fields, .. } => {
+            Type::BorrowedStorage { storage, .. } => visit(storage, path, resources, out)?,
+            Type::Address { .. } | Type::Desc(_) => {}
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 for (i, (_, t)) in fields.iter().enumerate() {
                     path.push(PlaceProjection::Field(i as u32));
                     visit(t, path, resources, out)?;
@@ -100,13 +102,14 @@ pub(super) fn prepay(
             Ok(())
         };
         match ty {
-            Type::Managed(_) => return Ok((1, depth)),
+            Type::Managed(_) | Type::OwnedDyn { .. } => return Ok((1, depth)),
+            Type::BorrowedStorage { storage, .. } => child(storage)?,
             Type::Tuple(fs) => {
                 for t in fs {
                     child(t)?;
                 }
             }
-            Type::Package { fields, .. } => {
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 for (_, t) in fields {
                     child(t)?;
                 }
