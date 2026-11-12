@@ -35,13 +35,26 @@ struct ZilNativeProductStats {
   uint64_t world_projection_fallback;
   uint64_t tli_projection_builds;
   uint64_t tli_projection_reuses;
+  // Appended observer v3 scopes; parse is inside replay, pack inside capture.
+  uint64_t ir_key_ns;
+  uint64_t ir_unpack_ns;
+  uint64_t ir_replay_ns;
+  uint64_t ir_parse_ns;
+  uint64_t ir_capture_ns;
+  uint64_t ir_pack_ns;
 };
 #ifdef __cplusplus
-static_assert(sizeof(ZilNativeProductStats) == 26 * sizeof(uint64_t));
+static_assert(sizeof(ZilNativeProductStats) == 32 * sizeof(uint64_t));
 static_assert(offsetof(ZilNativeProductStats, world_projection_direct) == 22 * sizeof(uint64_t));
 static_assert(offsetof(ZilNativeProductStats, world_projection_fallback) == 23 * sizeof(uint64_t));
 static_assert(offsetof(ZilNativeProductStats, tli_projection_builds) == 24 * sizeof(uint64_t));
 static_assert(offsetof(ZilNativeProductStats, tli_projection_reuses) == 25 * sizeof(uint64_t));
+static_assert(offsetof(ZilNativeProductStats, ir_key_ns) == 26 * sizeof(uint64_t));
+static_assert(offsetof(ZilNativeProductStats, ir_unpack_ns) == 27 * sizeof(uint64_t));
+static_assert(offsetof(ZilNativeProductStats, ir_replay_ns) == 28 * sizeof(uint64_t));
+static_assert(offsetof(ZilNativeProductStats, ir_parse_ns) == 29 * sizeof(uint64_t));
+static_assert(offsetof(ZilNativeProductStats, ir_capture_ns) == 30 * sizeof(uint64_t));
+static_assert(offsetof(ZilNativeProductStats, ir_pack_ns) == 31 * sizeof(uint64_t));
 #endif
 // config is a length-delimited complete adapter policy (LLVM pin, triple,
 // pipeline/options/merging, CPU/features, relocation/model, layout). No env opt-in.
@@ -68,6 +81,7 @@ int ZilNativeProductsUnchangedStageCounterexample(void);
 int ZilNativeProductsEligibilityProducerCounterexample(void);
 int ZilNativeProductsTypeAndOwnerCounterexamples(void);
 int ZilNativeAnalysisUnsupportedKeysCounterexample(void);
+int ZilNativeIRScopeTimerCounterexample(void);
 #ifdef __cplusplus
 }
 #endif

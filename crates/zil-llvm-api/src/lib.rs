@@ -98,11 +98,25 @@ pub struct NativeProductStats {
     pub world_projection_fallback: u64,
     pub tli_projection_builds: u64,
     pub tli_projection_reuses: u64,
+    /// Supported-entry eligibility and complete current IR/analysis key creation.
+    pub ir_key_ns: u64,
+    /// Complete selected-slot transport decode and typed metadata reconstruction.
+    pub ir_unpack_ns: u64,
+    /// Complete replay, including parsing, cloning, validation, AM and cleanup.
+    pub ir_replay_ns: u64,
+    /// MemoryBuffer and parseBitcodeFile construction only; subset of replay.
+    /// Excludes subsequent parsed Module destruction. Do not add to replay.
+    pub ir_parse_ns: u64,
+    /// Complete after-stage callback, including early-return gates and packing.
+    pub ir_capture_ns: u64,
+    /// New-stage admission/frame/SHA/zstd/typed metadata/publication; subset of
+    /// capture. Do not add to capture. All six are scopes, not a time partition.
+    pub ir_pack_ns: u64,
 }
 impl NativeProductStats {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"available\":{},\"optimizer_function_stage_executions\":{},\"optimizer_function_stage_reuses\":{},\"optimizer_module_pass_executions\":{},\"optimizer_cgscc_pass_executions\":{},\"analysis_reconstructions\":{},\"ir_key_bytes\":{},\"ir_snapshot_bytes\":{},\"ir_replay_bytes\":{},\"machine_function_executions\":{},\"machine_function_reuses\":{},\"machine_pass_skips\":{},\"asm_printer_runs\":{},\"mir_key_bytes\":{},\"mir_snapshot_bytes\":{},\"mir_replay_bytes\":{},\"mir_key_ns\":{},\"mir_parse_ns\":{},\"mir_restore_validate_ns\":{},\"mir_capture_ns\":{},\"retained_bytes\":{},\"failed_replays\":{},\"fresh_context_fallbacks\":{},\"fallback_ns\":{},\"observer_schema\":2,\"world_projection_direct\":{},\"world_projection_fallback\":{},\"tli_projection_builds\":{},\"tli_projection_reuses\":{}}}",
+            "{{\"available\":{},\"optimizer_function_stage_executions\":{},\"optimizer_function_stage_reuses\":{},\"optimizer_module_pass_executions\":{},\"optimizer_cgscc_pass_executions\":{},\"analysis_reconstructions\":{},\"ir_key_bytes\":{},\"ir_snapshot_bytes\":{},\"ir_replay_bytes\":{},\"machine_function_executions\":{},\"machine_function_reuses\":{},\"machine_pass_skips\":{},\"asm_printer_runs\":{},\"mir_key_bytes\":{},\"mir_snapshot_bytes\":{},\"mir_replay_bytes\":{},\"mir_key_ns\":{},\"mir_parse_ns\":{},\"mir_restore_validate_ns\":{},\"mir_capture_ns\":{},\"retained_bytes\":{},\"failed_replays\":{},\"fresh_context_fallbacks\":{},\"fallback_ns\":{},\"observer_schema\":3,\"world_projection_direct\":{},\"world_projection_fallback\":{},\"tli_projection_builds\":{},\"tli_projection_reuses\":{},\"ir_key_ns\":{},\"ir_unpack_ns\":{},\"ir_replay_ns\":{},\"ir_parse_ns\":{},\"ir_capture_ns\":{},\"ir_pack_ns\":{}}}",
             self.available,
             self.optimizer_function_stage_executions,
             self.optimizer_function_stage_reuses,
@@ -131,6 +145,12 @@ impl NativeProductStats {
             self.world_projection_fallback,
             self.tli_projection_builds,
             self.tli_projection_reuses,
+            self.ir_key_ns,
+            self.ir_unpack_ns,
+            self.ir_replay_ns,
+            self.ir_parse_ns,
+            self.ir_capture_ns,
+            self.ir_pack_ns,
         )
     }
 }
@@ -401,5 +421,29 @@ mod native_products_disabled_tests {
         .unwrap_err();
         assert_eq!(error.kind, crate::ErrorKind::Unavailable);
         assert!(error.message.contains("native-products feature"));
+    }
+}
+
+#[cfg(test)]
+mod native_product_observer_tests {
+    #[test]
+    fn json_observer_v3_retains_all_six_ir_scopes() {
+        let stats = super::NativeProductStats {
+            ir_key_ns: 31,
+            ir_unpack_ns: 32,
+            ir_replay_ns: 40,
+            ir_parse_ns: 34,
+            ir_capture_ns: 50,
+            ir_pack_ns: 36,
+            ..Default::default()
+        };
+        let json = stats.to_json();
+        assert!(json.contains("\"observer_schema\":3"));
+        assert!(json.contains("\"ir_key_ns\":31"));
+        assert!(json.contains("\"ir_unpack_ns\":32"));
+        assert!(json.contains("\"ir_replay_ns\":40"));
+        assert!(json.contains("\"ir_parse_ns\":34"));
+        assert!(json.contains("\"ir_capture_ns\":50"));
+        assert!(json.contains("\"ir_pack_ns\":36"));
     }
 }

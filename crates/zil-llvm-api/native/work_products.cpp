@@ -30,6 +30,7 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <dlfcn.h>
 #include <map>
@@ -42,6 +43,26 @@
 using namespace llvm;
 namespace zil {
 namespace {
+// Observational scopes only: never enter keys, budgets, PA or admission.
+// Keep parent timers alive until after owned locals are destroyed. Early returns
+// and failures are charged by RAII; explicit stop separates key and parse work.
+template <typename Clock = std::chrono::steady_clock> class IRScopeNS {
+  uint64_t *Total;
+  typename Clock::time_point Start = Clock::now();
+public:
+  explicit IRScopeNS(uint64_t &Counter) : Total(&Counter) {}
+  IRScopeNS(const IRScopeNS &) = delete;
+  IRScopeNS &operator=(const IRScopeNS &) = delete;
+  void stop() {
+    if (!Total) return;
+    auto N = std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - Start).count();
+    uint64_t Amount = N > 0 ? static_cast<uint64_t>(N) : 0;
+    *Total = Amount > std::numeric_limits<uint64_t>::max() - *Total
+                 ? std::numeric_limits<uint64_t>::max() : *Total + Amount;
+    Total = nullptr;
+  }
+  ~IRScopeNS() { stop(); }
+};
 thread_local bool AnalysisDiagnostics = false;
 bool admissionFailure(const Function &F, const Instruction *I, const char *Reason) {
   if (AnalysisDiagnostics) {
@@ -596,7 +617,10 @@ void retainStage(Request &R, const std::string &Slot, std::shared_ptr<const Pack
   // actual encoded payload+typed metadata. This is not an RSS measurement.
   R.UnpackedProductBytes += Raw; R.ProductBytes += Stored;
 }
-void retainStage(Request &R, const std::string &Slot, std::shared_ptr<const Stage> P) {
+void retainStage(Request &R, const std::string &Slot, std::shared_ptr<const Stage> Product) {
+  IRScopeNS<> PackTime(R.Stats.ir_pack_ns);
+  // This local dies before the timer, including on every admission failure.
+  auto P = std::move(Product);
   size_t Raw;
   if (R.Next.Stages.size() >= MaxStageProductSlots || R.Next.Stages.count(Slot) ||
       !unpackedStageBytes(*P, Raw)) return;
@@ -744,6 +768,7 @@ bool captureStageBody(Stage &P, Function &F, ZilNativeProductStats &Stats,
 }
 
 bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P) {
+  IRScopeNS<> ReplayTime(R.Stats.ir_replay_ns);
   auto Fail = [&](const char *Site) {
     if (AnalysisDiagnostics) std::fprintf(stderr, "ZIL FPM replay-failure %.*s: %s\n", static_cast<int>(F.getName().size()), F.getName().data(), Site);
     return false;
@@ -756,8 +781,10 @@ bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P
     return restoreStageAnalyses(F, AM, P, &R.AnalysisMemo,
                                 R.Stats.analysis_reconstructions, true);
   }
+  IRScopeNS<> ParseTime(R.Stats.ir_parse_ns);
   auto Buffer = MemoryBuffer::getMemBufferCopy(P.Output, "zil.function.product");
   auto Parsed = parseBitcodeFile(Buffer->getMemBufferRef(), F.getContext());
+  ParseTime.stop(); // Parsed Module/Buffer cleanup remains in replay only.
   if (!Parsed) { consumeError(Parsed.takeError()); return Fail("bitcode-parse"); }
   std::unique_ptr<Module> Source = std::move(*Parsed);
   Function *SF = Source->getFunction(F.getName());
@@ -829,6 +856,7 @@ int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *
     if (AnalysisDiagnostics) *Token = newPending(R);
     ++R.Stats.optimizer_function_stage_executions; return 0;
   }
+  IRScopeNS<> KeyTime(R.Stats.ir_key_ns);
   if (!eligibleFunction(F)) { ++R.Stats.optimizer_function_stage_executions; return 0; }
   // Bind actual supported result fields, not merely analysis names or IDs.
   std::string Facts;
@@ -844,13 +872,16 @@ int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *
     ++R.Stats.optimizer_function_stage_executions; return 0;
   }
   R.Stats.ir_key_bytes += P->Input.size() + P->World.size() + P->Pipeline.size() + P->EntryFacts.size() + R.Config.size();
+  KeyTime.stop(); // Lookup/decode/replay are not key construction.
   if (R.Prior && R.Prior->Config == R.Config) {
     auto It = R.Prior->Stages.find(Slot);
     if (It != R.Prior->Stages.end()) {
       Stage Old;
       // A malformed/unavailable codec is an optional candidate miss. No IR or
       // AM state has changed; the original stage still executes below.
-      if (unpackStage(*It->second, Old) && Old.Input == P->Input && Old.World == P->World && Old.Pipeline == P->Pipeline && Old.EntryKeys == P->EntryKeys && Old.EntryFacts == P->EntryFacts) {
+      bool Decoded;
+      { IRScopeNS<> UnpackTime(R.Stats.ir_unpack_ns); Decoded = unpackStage(*It->second, Old); }
+      if (Decoded && Old.Input == P->Input && Old.World == P->World && Old.Pipeline == P->Pipeline && Old.EntryKeys == P->EntryKeys && Old.EntryFacts == P->EntryFacts) {
         if (!replay(R, F, AM, Old)) {
           R.Failed = true; ++R.Stats.failed_replays;
           *static_cast<PreservedAnalyses *>(PA) = PreservedAnalyses::none(); return 1;
@@ -888,6 +919,7 @@ bool projectAdmittedStageExit(const Module &M, const Function &F, const Stage &P
 
 void afterStage(void *Context, void *, void *IR, void *Manager, const void *PA, void *Token) {
   auto &R = *static_cast<Request *>(Context);
+  IRScopeNS<> CaptureTime(R.Stats.ir_capture_ns);
   auto It = R.PendingTokens.find(static_cast<Pending *>(Token));
   if (It == R.PendingTokens.end()) return;
   auto P = std::move(It->second); R.PendingTokens.erase(It);
@@ -1398,4 +1430,39 @@ extern "C" int ZilNativePackedStageMetadataCounterexample() {
   Bytes = std::numeric_limits<size_t>::max();
   if (addStageBytes(Bytes, 1) || addStageElements(Bytes, std::numeric_limits<size_t>::max(), 8)) return 0;
   return 1;
+}
+
+namespace zil {
+namespace {
+struct IRScopeTestClock {
+  using time_point = std::chrono::time_point<IRScopeTestClock, std::chrono::nanoseconds>;
+  static thread_local uint64_t Tick;
+  static time_point now() { return time_point(std::chrono::nanoseconds(Tick++)); }
+};
+thread_local uint64_t IRScopeTestClock::Tick = 0;
+}
+}
+extern "C" int ZilNativeIRScopeTimerCounterexample() {
+  using namespace zil;
+  IRScopeTestClock::Tick = 0;
+  uint64_t Total = 0;
+  { IRScopeNS<IRScopeTestClock> Timer(Total); }
+  if (Total != 1) return 0;
+  { IRScopeNS<IRScopeTestClock> Timer(Total); Timer.stop(); Timer.stop(); }
+  if (Total != 2) return 0;
+  auto Failure = [&]() { IRScopeNS<IRScopeTestClock> Timer(Total); return false; };
+  if (Failure() || Total != 3) return 0;
+  uint64_t Parent = 0, Child = 0;
+  {
+    IRScopeNS<IRScopeTestClock> Outer(Parent);
+    { IRScopeNS<IRScopeTestClock> Inner(Child); }
+  }
+  if (Parent != 3 || Child != 1) return 0;
+  struct Cleanup { ~Cleanup() { (void)IRScopeTestClock::now(); } };
+  uint64_t WithCleanup = 0;
+  { IRScopeNS<IRScopeTestClock> Timer(WithCleanup); Cleanup Owned; }
+  if (WithCleanup != 2) return 0;
+  Total = std::numeric_limits<uint64_t>::max();
+  { IRScopeNS<IRScopeTestClock> Timer(Total); }
+  return Total == std::numeric_limits<uint64_t>::max();
 }
