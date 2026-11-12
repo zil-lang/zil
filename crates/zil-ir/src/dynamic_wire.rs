@@ -131,6 +131,10 @@ impl Writer<'_> {
         self.dyn_vtable_id(&value.id)?;
         self.dyn_interface_id(&value.interface)?;
         self.ty(&value.self_type, 0)?;
+        self.count(value.self_classes.len(), self.limits.max_nodes)?;
+        for binder in &value.self_classes {
+            self.storage_binder(binder)?;
+        }
         self.declaration_id(&value.implementation)?;
         self.count(value.actuals.len(), self.limits.max_nodes)?;
         for value in &value.actuals {
@@ -629,6 +633,14 @@ impl Reader<'_> {
             id: self.dyn_vtable_id()?,
             interface: self.dyn_interface_id()?,
             self_type: self.ty(0)?,
+            self_classes: {
+                let count = self.count(self.limits.max_nodes, 5)?;
+                let mut binders = Vec::with_capacity(count);
+                for _ in 0..count {
+                    binders.push(self.storage_binder()?);
+                }
+                binders
+            },
             implementation: self.declaration_id()?,
             actuals: {
                 let count = self.count(self.limits.max_nodes, 1)?;
@@ -639,7 +651,7 @@ impl Reader<'_> {
                 values_11
             },
             ports: {
-                let count = self.count(self.limits.max_nodes, 1)?;
+                let count = self.count(self.limits.max_nodes, 8)?;
                 let mut values_12 = Vec::with_capacity(count);
                 for _ in 0..count {
                     let port = self.u32()?;
