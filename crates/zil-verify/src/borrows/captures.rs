@@ -33,7 +33,7 @@ impl Source {
 }
 
 type Sources = BTreeSet<Source>;
-type Slots = BTreeMap<u32, Sources>;
+pub(super) type Slots = BTreeMap<u32, Sources>;
 pub(super) type State = BTreeMap<LocalId, Slots>;
 pub(super) type Effects = BTreeMap<Source, bool>;
 
@@ -368,7 +368,7 @@ pub(super) fn reconstruct_roots(
                             arguments,
                         } => {
                             row = super::returned::instantiate(
-                                module, f, *function, arguments, ordinary, budget,
+                                module, f, *function, arguments, ordinary, Some(&values), budget,
                             )?;
                         }
                         // Retained fields without external source leaves contain independently

@@ -37,6 +37,7 @@ pub(super) fn instantiate(
     function: FunctionId,
     arguments: &[ValueId],
     ordinary: &[Roots],
+    captured: Option<&[captures::Slots]>,
     budget: &mut Budget,
 ) -> Check<Slots> {
     let callee = &module.functions[function.0 as usize];
@@ -69,6 +70,60 @@ pub(super) fn instantiate(
                 .get(parameter as usize)
                 .ok_or_else(|| bad("returned environment actual argument is absent"))?;
             let actual = &ordinary[argument.0 as usize];
+            if let [ContractProjection::Capture(selected)] = source.path.as_slice() {
+                // A Capture selector names an actual environment value slot,
+                // never the bytes of the callable argument or all its roots.
+                let (id, _) = helpers::parameter_type(&f.values[argument.0 as usize])
+                    .ok_or_else(|| bad("capture source actual is not a concrete environment"))?;
+                let definition = module
+                    .closures
+                    .get(id.0 as usize)
+                    .ok_or_else(|| bad("capture source environment is absent"))?;
+                let actual_type = definition
+                    .captures
+                    .get(*selected as usize)
+                    .ok_or_else(|| bad("capture source actual slot is absent"))?;
+                let (formal_type, _) =
+                    crate::retained::sources::source_type(module, callee, source, budget)?;
+                for ty in [actual_type, formal_type, capture_type] {
+                    crate::stored_flow::type_work(ty, &budget.limits.clone(), budget)?;
+                }
+                if actual_type != formal_type {
+                    return Err(bad("capture source changes the complete actual leaf type"));
+                }
+                let compatible = actual_type == capture_type
+                    || matches!((actual_type,capture_type),
+                    (Type::Address {mutable:from,inner:a},Type::Address {mutable:to,inner:b})
+                    if (!*to||*from) && a==b);
+                if !compatible {
+                    return Err(bad(
+                        "capture source leaf differs from the returned borrowed capture",
+                    ));
+                }
+                let values = captured
+                    .ok_or_else(|| bad("capture source lacks actual CFG slot reconstruction"))?;
+                let actual = values
+                    .get(argument.0 as usize)
+                    .ok_or_else(|| bad("capture source actual value is absent"))?;
+                lookup(budget, actual.len())?;
+                if let Some(selected) = actual.get(selected) {
+                    budget.spend(selected.len())?;
+                    let row = slots.entry(capture).or_default();
+                    budget.spend(
+                        row.len().saturating_add(selected.len()).saturating_mul(
+                            row.len()
+                                .saturating_add(selected.len())
+                                .checked_ilog2()
+                                .map_or(1, |n| n as usize + 1),
+                        ),
+                    )?;
+                    // Preserve symbolic InputCapture positions and instance
+                    // identity through forwarding. Empty is fixed-point bottom;
+                    // independent completed-source/access checks must ground it.
+                    row.extend(selected.iter().copied());
+                }
+                continue;
+            }
             if source.path.is_empty() {
                 roots_join(&mut roots, actual, budget)?;
                 continue;
@@ -131,10 +186,12 @@ pub(super) fn roots(
     function: FunctionId,
     arguments: &[ValueId],
     ordinary: &[Roots],
+    captured: Option<&[captures::Slots]>,
     budget: &mut Budget,
 ) -> Check<Roots> {
     let mut out = Roots::new();
-    for sources in instantiate(module, f, function, arguments, ordinary, budget)?.values() {
+    for sources in instantiate(module, f, function, arguments, ordinary, captured, budget)?.values()
+    {
         for source in sources {
             roots_join(&mut out, &[source.position()], budget)?;
         }
