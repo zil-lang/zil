@@ -1,0 +1,12 @@
+{
+  "research_ref": "research/incremental-demand-continuation",
+  "preserved_tip": "4bc594151f5dc8f83ecb73f88c769196318a5a44",
+  "source_by_scope": {
+    "proof": "532e01141b644d13c6e350a7dd310c50226d19d3",
+    "input_plan": "693f55cd0394a1a72a0bfe9d680740d9509885d1",
+    "arrays": "66e5335b5a7bba68d17d1bec3c8e55aa3db3bb7a",
+    "whole_machine": "4bc594151f5dc8f83ecb73f88c769196318a5a44"
+  },
+  "retired_refs": [],
+  "status": "preservation; acceptance scope is separate"
+}
