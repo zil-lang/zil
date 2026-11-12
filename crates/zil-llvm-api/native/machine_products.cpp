@@ -66,7 +66,8 @@ void diagnose(const llvm::Function &F, llvm::StringRef Stage,
   llvm::errs() << Message;
 }
 void diagnoseDifference(const llvm::Function &F, llvm::StringRef Expected,
-                        llvm::StringRef Current) {
+                        llvm::StringRef Current,
+                        llvm::StringRef Stage = "mir-text-difference") {
   if (!MachineDiagnostics) return;
   size_t At = 0;
   while (At < Expected.size() && At < Current.size() && Expected[At] == Current[At]) ++At;
@@ -78,7 +79,7 @@ void diagnoseDifference(const llvm::Function &F, llvm::StringRef Expected,
   OS.write_escaped(Expected.substr(Start, 768));
   OS << " current_window=";
   OS.write_escaped(Current.substr(Start, 768));
-  diagnose(F, "mir-text-difference", Detail);
+  diagnose(F, Stage, Detail);
 }
 
 struct TargetInfoAPI {
@@ -560,6 +561,18 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
     if (C.recording) {
       if (R.prior && R.prior->config == R.config) {
         auto Old = R.prior->functions.find(F.getName().str());
+
+        if (MachineDiagnostics && Old != R.prior->functions.end()) {
+          if (Old->second->input != C.recording->input)
+            diagnoseDifference(F, Old->second->input, C.recording->input,
+                               "machine-input-key-difference");
+          if (Old->second->world != C.recording->world)
+            diagnoseDifference(F, Old->second->world, C.recording->world,
+                               "machine-world-key-difference");
+          if (Old->second->pipeline != C.recording->pipeline ||
+              Old->second->firstMachine != C.recording->firstMachine)
+            diagnose(F, "machine-pipeline-key-difference");
+        }
 
         if (Old != R.prior->functions.end() &&
             Old->second->input == C.recording->input &&
