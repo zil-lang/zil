@@ -1052,3 +1052,20 @@ fn nested_anonymous_value_preserves_child_scope_forest(){
  let report=compile_project(&project(text),&CompileOptions{stop_after:Stage::Analyze,..CompileOptions::default()});
  assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
 }
+
+#[test]
+fn standalone_elision_cannot_bypass_the_source_header_contract(){
+ for text in [
+  "fn ambiguous(left:&i32,right:&i32)->&i32{return left}fn main(){}",
+  "type Number=i32;fn ambiguous(left:&Number,right:&Number)->&Number{return left}fn main(){}",
+ ]{
+  let source=SourceUnit::new(FileId(0),ModuleId(0),"standalone-elision.zil",text);
+  let syntax=zil_syntax::parse(&source).into_result().unwrap();
+  let errors=zil_expand::expand(&source,&syntax).unwrap_err();
+  assert!(errors.iter().any(|error|error.category==ResultCategory::SafeReject && error.message.contains("no unique input")),"{errors:?}");
+ }
+ let text="fn relay(value:&i32)->&i32{return value}fn main()->i32{var value:i32=42;return *relay(&value)-42}";
+ let source=SourceUnit::new(FileId(0),ModuleId(0),"standalone-relay.zil",text);
+ let report=zil_driver::compile_source(&source,&CompileOptions{stop_after:Stage::Analyze,..CompileOptions::default()});
+ assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+}
