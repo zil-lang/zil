@@ -45,6 +45,7 @@ fn fixture(formals: Vec<u32>, classes: Vec<u32>, actuals: Vec<u32>) -> TypedModu
             .collect(),
     });
     module.dyn_declarations.push(DynDeclaration {
+        implicit_lifetimes: None,
         direct_supertraits: None,
         requirements: None,
         associated_definitions: None,

@@ -9,6 +9,14 @@ pub(super) fn encode_dyn_vtable_id(b: &mut impl FingerprintSink, value: &DynVtab
     encode_u32(b, value.index);
 }
 pub(super) fn encode_dyn_declaration(b: &mut impl FingerprintSink, value: &DynDeclaration) {
+    b.push(u8::from(value.implicit_lifetimes.is_some()));
+    if let Some(rows) = &value.implicit_lifetimes {
+        encode_len(b, rows.len());
+        for row in rows {
+            encode_dyn_implicit_life_declaration(b, row);
+        }
+    }
+
     b.push(u8::from(value.direct_supertraits.is_some()));
     if let Some(item) = &value.direct_supertraits {
         encode_len(b, (item).len());

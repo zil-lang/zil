@@ -3520,6 +3520,7 @@ mod tests {
             actuals: vec![],
         };
         core.dyn_declarations.push(DynDeclaration {
+            implicit_lifetimes: None,
             direct_supertraits: None,
             requirements: None,
             associated_definitions: None,
