@@ -716,7 +716,14 @@ impl CompilationSession {
             return;
         }
         if let Some(epoch) = owner.matching_epoch(key) {
-            *self.function_types = epoch.functions.epoch_checkpoint();
+            // The closed receipt, complete key and exact raw TypedProgram
+            // association above are still mandatory. A same-owner warm hit
+            // need not replace a graph that still belongs to this raw epoch.
+            // Returning from a different history restores the bounded raw
+            // checkpoint and rebuilds the optional graph conservatively.
+            if !self.function_types.shares_raw_epoch(&epoch.functions) {
+                *self.function_types = epoch.functions.epoch_checkpoint();
+            }
             self.function_types
                 .set_cost_profiling(options.profile_compilation);
             self.semantic_publication = epoch.publication.get().cloned().unwrap_or_default();
